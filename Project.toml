@@ -1,0 +1,4 @@
+name = "Lenticulum"
+uuid = "864cf69f-8fef-4580-857d-56607826b3c1"
+authors = ["DanielBoigk <dn.boigk@gmail.com>"]
+version = "0.1.0"
