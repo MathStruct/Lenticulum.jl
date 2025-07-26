@@ -51,7 +51,7 @@ I can sit myself down study what a Monad is. It might take take me a few minutes
 This repository is my exercise in **practising** categorical concepts by implementing them.
 Also I'm learning alot about Julia, MLIR, HPC and parallel programming along the way.
 
-
+To be clear: I learned a lot already, but right now that is just my personal experiment in learning something. I'm **unsure** if this repository can actually be pulled off.
 ### Note about myself:
 I'm about to finish my master's degree in Math, the curriculum included:
 Hilbertspace theory, Optimization on PDE's, Numeric of PDE's, Optimization on Manifolds, Lie Groups/Lie Algebras, Systems/control theory, Machine Learning, Inverse Problems.
