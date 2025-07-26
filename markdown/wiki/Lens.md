@@ -17,7 +17,7 @@ For [[object|objects]] $S$ (source), $T$ (target), $A$ (focus), $B$ (updated foc
 
 ## Categorical Characterization
 
-A lens is an [[optic]] for the action of a [[cartesian category]] with the [[product functor]] $(\times): \mathbf{C} \to [\mathbf{C}, \mathbf{C}]$.
+A lens is an [[optic]] for the action of a [[Cartesian Category]] with the [[product functor]] $(\times): \mathbf{C} \to [\mathbf{C}, \mathbf{C}]$.
 
 In the [[profunctor]] representation: a lens is an optic that works uniformly for all [[Cartesian profunctor|Cartesian profunctors]].
 
