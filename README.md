@@ -1,4 +1,4 @@
-# Lenticulum.jl: A Categorical Machine Learning Framework
+# Lenticulum.jl: A Categorical Machine Learning Framework (Under Development)
 
 **A category theory-inspired ML framework for implicit learning with MLIR compilation**
 
@@ -139,6 +139,8 @@ set(lens::ParametricLens{P, S, T}, params::P, source::S, target::T) -> S
 
 **DenseLens**: Linear transformations as bidirectional lenses **CompositeLens**: Categorical composition of multiple lenses  
 **ProductLens**: Parallel application via monoidal products **ImplicitLens**: Relation-based learning via error minimization
+
+Compared to Python, Haskell, C++, Lean, MatLab, Mathematica, Mojo, Rust,  ... Julia is actually the language that might achieve these Goals.
 
 ---
 
