@@ -16,7 +16,7 @@ The framework centers around **Parametric Lenses** as fundamental building block
 
 ### The Learning-by-Doing Philosophy
 
-Traditional study of category theory often leads to understanding concepts in isolation, only to forget them when they appear in different contexts. Lenticulum.jl embodies a **learning-by-doing** approach: implementing categorical concepts in a practical ML framework to achieve deep, lasting understanding through hands-on experience.
+Traditional study of category theory often leads to understanding concepts in isolation, only to forget them when they appear in different contexts. Lenticulum.jl embodies a **learning-by-doing** approach: implementing categorical concepts in a practical ML framework to achieve deep, lasting understanding through hands-on experience. (Doing that for myself)
 
 ### Limitations of Current Approaches
 
@@ -31,9 +31,52 @@ Traditional study of category theory often leads to understanding concepts in is
 
 **Lack of Categorical Foundations**: Most ML frameworks treat composition, parallelism, and transformations as ad-hoc operations rather than principled categorical constructions.
 
+
 ---
 
-## 2. Core Innovation: Implicit Learning
+## 2. Categorical Foundations
+
+### Core Concepts in Lenticulum
+
+**Categories & Morphisms**
+
+- Objects: Data types, vector spaces, probability distributions
+- Morphisms: Parametric lenses, layer transformations, relation constraints
+
+**Parametric Lenses**
+
+- Bidirectional transformations with `get` (forward) and `set` (backward) operations
+- Satisfy lens laws ensuring categorical consistency
+- Natural encoding of backpropagation within categorical framework
+
+**Functors**
+
+- Model architectural transformations (batching, reshaping, feature maps)
+- Preserve categorical structure across different domains
+
+**Monoidal Structure**
+
+- Parallel composition of networks
+- Tensor operations as categorical products
+- Natural handling of multi-input/output architectures
+
+**String Diagrams**
+
+- Visual representation of network architectures
+- Intuitive design and reasoning about categorical compositions
+
+### The Lens Category
+
+Lenticulum.jl defines a category **Lens** where:
+
+- **Objects**: Types equipped with parameter spaces
+- **Morphisms**: Parametric lenses `ParametricLens{P, S, T}`
+- **Composition**: Sequential application of lenses
+- **Identity**: Identity lens preserving structure
+
+---
+
+## 3. Core Innovation: Implicit Learning
 
 ### From Functions to Relations
 
@@ -65,48 +108,6 @@ $$r_\theta(x, y) = 0$$
 **Parameter Efficiency**: Relations can represent complex mappings with fewer parameters than equivalent explicit functions.
 
 **Mathematical Naturality**: Many real-world phenomena are inherently relational rather than functional.
-
----
-
-## 3. Categorical Foundations
-
-### Core Concepts in Lenticulum
-
-**Categories & Morphisms**
-
-- Objects: Data types, vector spaces, probability distributions
-- Morphisms: Parametric lenses, layer transformations, relation constraints
-
-**Parametric Lenses**
-
-- Bidirectional transformations with `get` (forward) and `set` (backward) operations
-- Satisfy lens laws ensuring categorical consistency
-- Natural encoding of backpropagation within categorical framework
-
-**Functors**
-
-- Model architectural transformations (batching, reshaping, feature maps)
-- Preserve categorical structure across different domains
-
-**Monoidal Structure**
-
-- Parallel composition of networks
-- Tensor operations as categorical products
-- Natural handling of multi-input/output architectures
-
-**String Diagrams**
-
-- Visual representation of network architectures
-- Intuitive design and reasoning about categorical compositions
-
-### The Lenticulum Category
-
-Lenticulum defines a category **Lens** where:
-
-- **Objects**: Types equipped with parameter spaces
-- **Morphisms**: Parametric lenses `ParametricLens{P, S, T}`
-- **Composition**: Sequential application of lenses
-- **Identity**: Identity lens preserving structure
 
 ---
 
@@ -282,7 +283,7 @@ trained_params = categorical_train(model, params, data)
 
 ### Categorical ML Wiki
 
-The `docs/` folder contains a comprehensive **Obsidian vault** that serves as a living wiki for categorical machine learning concepts. This interconnected knowledge base includes:
+The `markdown/wiki/` folder contains a comprehensive **Obsidian vault** that serves as a living wiki for categorical machine learning concepts. This interconnected knowledge base includes:
 
 **Categorical Foundations**
 
