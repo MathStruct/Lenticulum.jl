@@ -21,8 +21,9 @@ Traditional study of category theory often leads to understanding concepts in is
 ### Limitations of Current Approaches
 
 **Explicit Learning Paradigm**: Most ML frameworks assume learning parameterized functions $f_\theta: X \rightarrow Y$. While computationally convenient, this paradigm struggles with:
+
 - Systems governed by differential equations
-- Geometric constraints and symmetries  
+- Geometric constraints and symmetries
 - Algebraic relationships between variables
 - Multi-modal or relational data structures
 
@@ -55,6 +56,7 @@ $$r_\theta(x, y) = 0$$
 ### Advantages of Implicit Learning
 
 **Constraint Conformity**: Implicit learners naturally encode:
+
 - Conservation laws in physics
 - Geometric invariants
 - Differential equation constraints
@@ -71,30 +73,36 @@ $$r_\theta(x, y) = 0$$
 ### Core Concepts in Lenticulum
 
 **Categories & Morphisms**
+
 - Objects: Data types, vector spaces, probability distributions
 - Morphisms: Parametric lenses, layer transformations, relation constraints
 
 **Parametric Lenses**
+
 - Bidirectional transformations with `get` (forward) and `set` (backward) operations
 - Satisfy lens laws ensuring categorical consistency
 - Natural encoding of backpropagation within categorical framework
 
 **Functors**
+
 - Model architectural transformations (batching, reshaping, feature maps)
 - Preserve categorical structure across different domains
 
 **Monoidal Structure**
+
 - Parallel composition of networks
 - Tensor operations as categorical products
 - Natural handling of multi-input/output architectures
 
 **String Diagrams**
+
 - Visual representation of network architectures
 - Intuitive design and reasoning about categorical compositions
 
 ### The Lenticulum Category
 
 Lenticulum defines a category **Lens** where:
+
 - **Objects**: Types equipped with parameter spaces
 - **Morphisms**: Parametric lenses `ParametricLens{P, S, T}`
 - **Composition**: Sequential application of lenses
@@ -109,6 +117,7 @@ Lenticulum defines a category **Lens** where:
 **Multiple Dispatch**: Julia's type system naturally encodes categorical relationships through method specialization based on type signatures.
 
 **MLIR Compilation**: Via Reactant.jl, Lenticulum compiles to MLIR (Multi-Level Intermediate Representation), enabling:
+
 - Near C-like performance
 - Automatic parallelization across CPU/GPU/TPU
 - Advanced compiler optimizations
@@ -128,30 +137,32 @@ get(lens::ParametricLens{P, S, T}, params::P, source::S) -> T
 set(lens::ParametricLens{P, S, T}, params::P, source::S, target::T) -> S
 ```
 
-**DenseLens**: Linear transformations as bidirectional lenses
-**CompositeLens**: Categorical composition of multiple lenses  
-**ProductLens**: Parallel application via monoidal products
-**ImplicitLens**: Relation-based learning via error minimization
+**DenseLens**: Linear transformations as bidirectional lenses **CompositeLens**: Categorical composition of multiple lenses  
+**ProductLens**: Parallel application via monoidal products **ImplicitLens**: Relation-based learning via error minimization
 
 ---
 
 ## 5. Integration Ecosystem
 
 ### CatLab.jl Integration
+
 - Leverage existing categorical abstractions
 - String diagram visualization
 - Automated categorical construction
 
 ### Enzyme.jl & Reactant.jl
+
 - Automatic differentiation through categorical structure
 - MLIR compilation for performance
 - Hardware acceleration support
 
 ### BenchmarkTools.jl Testing
+
 - Performance comparison against established frameworks
 - Ensuring competitive speed while maintaining categorical rigor
 
 ### Future: Lean.jl Integration
+
 - Formal verification of categorical laws
 - Type-level proofs of network properties
 - Mathematically guaranteed correctness
@@ -161,6 +172,7 @@ set(lens::ParametricLens{P, S, T}, params::P, source::S, target::T) -> S
 ## 6. Applications & Use Cases
 
 ### Differential Equations
+
 ```julia
 # Learning implicit solutions to ODEs
 ode_lens = ImplicitLens((x, y, dy) -> r_θ(x, y, dy))
@@ -168,6 +180,7 @@ ode_lens = ImplicitLens((x, y, dy) -> r_θ(x, y, dy))
 ```
 
 ### Physics-Informed Learning
+
 ```julia
 # Conservation law constraints
 physics_lens = ConstraintLens(conservation_relations)
@@ -175,12 +188,14 @@ model = compose(physics_lens, neural_lens)
 ```
 
 ### Geometric Deep Learning
+
 ```julia
 # Equivariant transformations via functors
 equivariant_model = FunctorLens(symmetry_group, base_lens)
 ```
 
 ### Multi-Modal Reasoning
+
 ```julia
 # Relational learning across modalities
 relation_lens = ImplicitLens((text, image, label) -> alignment_error)
@@ -191,29 +206,34 @@ relation_lens = ImplicitLens((text, image, label) -> alignment_error)
 ## 7. Roadmap
 
 ### Phase 1: Foundations ✓
+
 - [x] Core `ParametricLens` abstraction
 - [x] Basic lens implementations (`DenseLens`)
 - [x] Integration with Reactant.jl/Enzyme.jl
 
 ### Phase 2: Categorical Structure
+
 - [ ] Lens composition and identity
-- [ ] Monoidal products and coproducts  
+- [ ] Monoidal products and coproducts
 - [ ] Functorial transformations
 - [ ] String diagram integration with CatLab.jl
 
 ### Phase 3: Implicit Learning
+
 - [ ] `ImplicitLens` implementation
 - [ ] Constraint satisfaction mechanisms
 - [ ] Differential equation solvers
 - [ ] Physics-informed architectures
 
 ### Phase 4: Advanced Features
+
 - [ ] Higher-order categorical constructions
 - [ ] Formal verification via Lean.jl
 - [ ] Industrial-scale optimizations
 - [ ] Ecosystem integrations
 
 ### Phase 5: Applications
+
 - [ ] Scientific computing benchmarks
 - [ ] Geometric deep learning examples
 - [ ] Multi-modal architectures
@@ -256,7 +276,59 @@ trained_params = categorical_train(model, params, data)
 
 ---
 
-## 10. Contributing
+## 10. Documentation & Knowledge Base
+
+### Categorical ML Wiki
+
+The `docs/` folder contains a comprehensive **Obsidian vault** that serves as a living wiki for categorical machine learning concepts. This interconnected knowledge base includes:
+
+**Categorical Foundations**
+
+- Detailed explanations of categories, functors, natural transformations
+- Interactive examples linking theory to code implementations
+- Progression from basic concepts to advanced constructions
+
+**Machine Learning Connections**
+
+- How traditional ML concepts map to categorical structures
+- Comparative analysis between explicit and implicit learning paradigms
+- Case studies showing categorical approaches to common ML problems
+
+**Implementation Notes**
+
+- Design decisions and their categorical motivations
+- Performance considerations for categorical abstractions
+- Integration patterns with Julia's ecosystem
+
+**Cross-Referenced Learning Path**
+
+- Rigorously ordered concept progression
+- Bidirectional links between theory and implementation
+- Visual diagrams and string diagram representations
+
+The vault is designed to be explored non-linearly, with rich interlinking that mirrors the categorical philosophy of composition and relationship. Each concept page includes:
+
+- Mathematical definitions
+- Code examples from Lenticulum.jl
+- References to relevant papers
+- Connections to related concepts
+
+### Using the Knowledge Base
+
+```bash
+# Clone repository
+git clone https://github.com/yourusername/Lenticulum.jl
+cd Lenticulum.jl
+
+# Open the knowledge vault in Obsidian
+# Point Obsidian to the docs/ folder as a vault
+```
+
+The wiki serves both as documentation for users and as a learning record of the development process, embodying the "learning by doing" philosophy at the documentation level.
+
+---
+
+## 11. Contributing
 
 Lenticulum.jl is designed as a learning platform. Contributions that implement categorical concepts, add theoretical depth, or improve performance are highly welcomed. Each implementation should:
 
@@ -264,6 +336,7 @@ Lenticulum.jl is designed as a learning platform. Contributions that implement c
 - Provide mathematical background
 - Maintain performance standards
 - Include comprehensive tests
+- **Update the knowledge vault** with new concepts and connections
 
 ---
 
@@ -275,7 +348,3 @@ Lenticulum.jl is designed as a learning platform. Contributions that implement c
 - Various papers on categorical machine learning and differentiable programming
 
 ---
-
-**Lenticulum.jl**: *Where Category Theory Meets Machine Learning*
-
-*"Learning by doing, one lens at a time."*
