@@ -1,11 +1,6 @@
 Why another machine learning framework in Julia?
 
 
-## Category theory inspired
-
- Julia's multiple Dispatch enables functionality that
-
-
 ## MLIR compiled
 
 Unlike Haskell Julia is JIT compiled. Which gives it a performance edge and makes it run near C-like speed. 
@@ -45,3 +40,10 @@ I found the book "The Dao of Functional Programming" by Bartosz Milesvwski and f
 **If I learn the concepts in isolation I will forget them.** 
 I can sit myself down study what a Monad is. It might take take me a few minutes to figure it out and understand it. But the next time somewhere the term "monad" is mentioned i have to look it up again. 
 This repository is my exercise in **practising** categorical concepts by implementing them. 
+
+
+Note about myself: I'm about to finish my master's degree in Math, the curriculum included:
+Hilbertspace theory, Optimization on PDE's, Numeric of PDE's, Optimization on Manifolds, Lie Groups/Lie Algebras, Systems/control theory, Machine Learning, Inverse Problems.
+I could continue to focus on this and try to look for a PhD or a job that does this or SLAM or inverse problems, but in my estimation this is chasing diminishing returns and right now an oversaturated market (atleast in Germany).
+
+In a way this is also my pitch to either apply me as a PhD student. Or to employ me.
