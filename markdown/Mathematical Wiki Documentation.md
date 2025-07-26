@@ -7,7 +7,7 @@ This is an Obsidian vault designed for mathematical knowledge representation, op
 ### Folder Structure
 
 ```
-vault/
+markdown/
 ├── wiki/           # Core concept definitions
 ├── examples/       # Concrete examples and applications
 ├── theorems/       # Mathematical theorems and proofs
