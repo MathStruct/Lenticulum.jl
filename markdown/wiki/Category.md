@@ -1,6 +1,3 @@
----
-aliases: [Cat, 1-Category]
----
 A **category** consists of:
 
 - A collection of [[object|objects]]
