@@ -4,10 +4,11 @@ authors = ["DanielBoigk <daniel@mathstruct.org>"]
 version = "0.1.0"
 
 [deps]
-BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
-BorrowChecker = "0bc2b19d-1b9c-40b9-b071-0a72b0cc8bd0"
 CatLab = "0bd5cd9d-6493-41a0-aec0-63104e5e1334"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 Lux = "b2108857-7c20-44ae-9111-449ecde12c47"
 Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
+
+
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"

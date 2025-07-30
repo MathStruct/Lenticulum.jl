@@ -74,6 +74,8 @@ Lenticulum.jl defines a category **Lens** where:
 - **Composition**: Sequential application of lenses
 - **Identity**: Identity lens preserving structure
 
+Also we seek integration with Lenticulum in accordance with already existing Julia tooling with CatLab.jl
+
 ---
 
 ## 3. Core Innovation: Implicit Learning
@@ -138,7 +140,7 @@ get(lens::ParametricLens{P, S, T}, params::P, source::S) -> T
 set(lens::ParametricLens{P, S, T}, params::P, source::S, target::T) -> S
 ```
 
-**DenseLens**: Linear transformations as bidirectional lenses **CompositeLens**: Categorical composition of multiple lenses  
+**DenseLens**: Linear transformations as bidirectional lenses **CompositeLens**: Categorical composition of multiple lenses
 **ProductLens**: Parallel application via monoidal products **ImplicitLens**: Relation-based learning via error minimization
 
 Compared to Python, Haskell, C++, Lean, MatLab, Mathematica, Mojo, Rust,  ... Julia is actually the language that might achieve these Goals.
@@ -342,6 +344,14 @@ Lenticulum.jl is designed as a learning platform. Contributions that implement c
 - **Update the knowledge vault** with new concepts and connections
 
 ---
+## Python wrapper
+
+Currently major ML frameworks like PyTorch, TensorFlow, and JAX are written in C++. These frameworks provide a high-level API for building and training neural networks, Most users never touch the underlying C++ code. Implementing a Python wrapper greatly increases the user base and popularizes Julia. However writing the wrapper comes with some caveats, leaving us with two choices:
+ - **Package Compilation:**: Either we use PackageCompiler.jl to compile for a subset of types limiting expressiveness of the wrapper, and add extensions that depending on the use case or architecture, likely requiring more disk space.
+ - **Julia Environment** Using PyJulia we can call a Julia environment from Python, allowing us to leverage the power of Julia's ecosystem while maintaining a Python interface. This approach provides a more flexible and expressive wrapper, but has more computational overhead.
+
+
+ ---
 
 ## References
 
