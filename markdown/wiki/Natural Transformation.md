@@ -1,6 +1,6 @@
 #definition #category-theory #computable #catlab
 
-A **natural transformation** $\alpha: F \Rightarrow G$ between [[functor|functors]] $F, G: \mathcal{C} \to \mathcal{D}$ is a family of [[morphism|morphisms]] $\alpha_X: F(X) \to G(X)$ indexed by [[object|objects]] $X$ in $\mathcal{C}$ such that the [[naturality condition]] holds.
+A **natural transformation** $\alpha: F \Rightarrow G$ between [[functor|functors]] $F, G: \mathcal{C} \to \mathcal{D}$ is a family of [[morphism|morphisms]] $\alpha_X: F(X) \to G(X)$ indexed by [[Object|objects]] $X$ in $\mathcal{C}$ such that the [[naturality condition]] holds.
 
 ## Naturality Condition
 

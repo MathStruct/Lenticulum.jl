@@ -136,4 +136,4 @@ In [[weak n-category|weak n-categories]], composition satisfies laws up to coher
 
 Composition can be characterized by [[universal property|universal properties]] in categories with additional structure, such as [[cartesian closed category|cartesian closed]] or [[monoidal closed category|monoidal closed categories]].
 
-Composition is the cornerstone operation that transforms collections of [[object|objects]] and [[morphism|morphisms]] into the rich mathematical structures studied in [[category theory]], providing the foundation for [[functor|functors]], [[natural transformation|natural transformations]], and all higher categorical constructions.
+Composition is the cornerstone operation that transforms collections of [[Object|objects]] and [[morphism|morphisms]] into the rich mathematical structures studied in [[category theory]], providing the foundation for [[functor|functors]], [[natural transformation|natural transformations]], and all higher categorical constructions.

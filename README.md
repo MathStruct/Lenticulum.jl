@@ -6,9 +6,9 @@
 
 ## Abstract
 
-Lenticulum.jl introduces a novel machine learning framework that fundamentally reimagines neural computation through the lens of category theory. Unlike traditional frameworks that model learning as explicit parameterized functions $f_\theta: X \rightarrow Y$, Lenticulum embraces implicit learning via parameterized relations $(x, y) \in \mathcal{R}_\theta(X,Y)$. Built on Julia's multiple dispatch system and compiled via MLIR through Reactant.jl, Lenticulum achieves both mathematical rigor and C-like performance while maintaining categorical compositionality.
+Lenticulum.jl is a next-generation machine learning framework grounded in categorical methods and built for the Julia ecosystem. It integrates deeply with **Catlab.jl**, enabling native expression of models as compositional categorical structures—spans, lenses, monoidal categories, and more—bringing mathematical clarity to the architecture and behavior of learning systems. Unlike function-centric ML pipelines, Lenticulum treats computation as algebraic data flow, aligning both the forward and backward semantics through compositional constructs.
 
-The framework centers around **Parametric Lenses** as fundamental building blocks, providing bidirectional transformations that naturally encode both forward computation and gradient backpropagation within a unified categorical structure. This approach enables principled handling of constraints, differential equations, and geometric relationships that traditional explicit learners struggle with.
+By leveraging Julia’s multiple dispatch and compiling with **MLIR** via **Reactant.jl**, Lenticulum achieves high-performance code generation while preserving the abstractions of category theory. Differentiation is powered by **Enzyme.jl**, enabling efficient and compiler-integrated automatic differentiation even for models involving implicit layers, constraints, and geometric structure. While Lenticulum supports implicit relational learning, its primary innovation lies in its unification of categorical modeling, system-theoretic structure, and performant, AD-compatible compilation in a principled Julia-native stack.
 
 ---
 
@@ -78,42 +78,8 @@ Also we seek integration with Lenticulum in accordance with already existing Jul
 
 ---
 
-## 3. Core Innovation: Implicit Learning
 
-### From Functions to Relations
-
-Lenticulum introduces **implicit learning**, where instead of learning functions directly:
-
-$$f_\theta: X \rightarrow Y$$
-
-We learn parameterized relations:
-
-$$(x, y) \in \mathcal{R}_\theta(X, Y)$$
-
-This is implemented by learning an error function:
-
-$$r_\theta: X \times Y \rightarrow \mathcal{E}$$
-
-where the goal is to minimize:
-
-$$r_\theta(x, y) = 0$$
-
-### Advantages of Implicit Learning
-
-**Constraint Conformity**: Implicit learners naturally encode:
-
-- Conservation laws in physics
-- Geometric invariants
-- Differential equation constraints
-- Algebraic relationships
-
-**Parameter Efficiency**: Relations can represent complex mappings with fewer parameters than equivalent explicit functions.
-
-**Mathematical Naturality**: Many real-world phenomena are inherently relational rather than functional.
-
----
-
-## 4. Technical Architecture
+## 3. Technical Architecture
 
 ### Julia + MLIR: The Perfect Match
 
@@ -147,7 +113,7 @@ Compared to Python, Haskell, C++, Lean, MatLab, Mathematica, Mojo, Rust,  ... Ju
 
 ---
 
-## 5. Integration Ecosystem
+## 4. Integration Ecosystem
 
 ### CatLab.jl Integration
 
@@ -171,6 +137,41 @@ Compared to Python, Haskell, C++, Lean, MatLab, Mathematica, Mojo, Rust,  ... Ju
 - Formal verification of categorical laws
 - Type-level proofs of network properties
 - Mathematically guaranteed correctness
+---
+
+## 5. Core Innovation: Implicit Learning
+
+### From Functions to Relations
+
+Lenticulum introduces **implicit learning**, where instead of learning functions directly:
+
+$$f_\theta: X \rightarrow Y$$
+
+We learn parameterized relations:
+
+$$(x, y) \in \mathcal{R}_\theta(X, Y)$$
+
+This is implemented by learning an error function:
+
+$$r_\theta: X \times Y \rightarrow \mathcal{E}$$
+
+where the goal is to minimize:
+
+$$r_\theta(x, y) = 0$$
+
+### Advantages of Implicit Learning
+
+**Constraint Conformity**: Implicit learners naturally encode:
+
+- Conservation laws in physics
+- Geometric invariants
+- Differential equation constraints
+- Algebraic relationships
+
+**Parameter Efficiency**: Relations can represent complex mappings with fewer parameters than equivalent explicit functions.
+
+**Mathematical Naturality**: Many real-world phenomena are inherently relational rather than functional.
+
 
 ---
 

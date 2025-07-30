@@ -1,4 +1,4 @@
-A **2-diagram** is a configuration of [[object|objects]], [[1-morphism|1-morphisms]], and [[2-morphism|2-morphisms]] in a [[2-category]] that forms a coherent structure.
+A **2-diagram** is a configuration of [[Object|objects]], [[1-morphism|1-morphisms]], and [[2-morphism|2-morphisms]] in a [[2-category]] that forms a coherent structure.
 
 Specifically, a 2-diagram consists of:
 

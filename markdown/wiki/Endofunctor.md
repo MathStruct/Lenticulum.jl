@@ -6,7 +6,7 @@ An **endofunctor** is a [[functor]] from a [[category]] to itself.
 
 Given a category $\mathcal{C}$, an **endofunctor** is a [[functor]] $F: \mathcal{C} \to \mathcal{C}$ that maps:
 
-- Each [[object]] $X \in \mathcal{C}$ to an object $F(X) \in \mathcal{C}$
+- Each [[Object]] $X \in \mathcal{C}$ to an object $F(X) \in \mathcal{C}$
 - Each [[morphism]] $f: X \to Y$ in $\mathcal{C}$ to a morphism $F(f): F(X) \to F(Y)$ in $\mathcal{C}$
 
 Such that:

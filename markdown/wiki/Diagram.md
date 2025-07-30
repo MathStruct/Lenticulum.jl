@@ -6,7 +6,7 @@ A **diagram** in a [[category]] $\mathcal{C}$ is a [[functor]] $D: \mathcal{J} \
 
 Given categories $\mathcal{J}$ and $\mathcal{C}$, a diagram of shape $\mathcal{J}$ in $\mathcal{C}$ consists of:
 
-- An [[object]] $D(j) \in \mathcal{C}$ for each object $j \in \mathcal{J}$
+- An [[Object]] $D(j) \in \mathcal{C}$ for each object $j \in \mathcal{J}$
 - A [[morphism]] $D(f): D(j) \to D(k)$ for each morphism $f: j \to k$ in $\mathcal{J}$
 - Preservation of [[composition]] and [[identity morphism|identities]]
 

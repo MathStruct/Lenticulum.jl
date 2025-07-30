@@ -1,10 +1,10 @@
 #definition #category-theory #limits #computable #catlab
 
-A **product** of [[object|objects]] $A$ and $B$ in a [[category]] is an object $A \times B$ together with [[projection|projections]] $\pi_1: A \times B \to A$ and $\pi_2: A \times B \to B$ satisfying a [[universal property]].
+A **product** of [[Object|objects]] $A$ and $B$ in a [[category]] is an object $A \times B$ together with [[projection|projections]] $\pi_1: A \times B \to A$ and $\pi_2: A \times B \to B$ satisfying a [[universal property]].
 
 ## Universal Property
 
-For any [[object]] $C$ with [[morphism|morphisms]] $f: C \to A$ and $g: C \to B$, there exists a unique morphism $\langle f, g \rangle: C \to A \times B$ (called the **[[pairing]]**) such that:
+For any [[Object]] $C$ with [[morphism|morphisms]] $f: C \to A$ and $g: C \to B$, there exists a unique morphism $\langle f, g \rangle: C \to A \times B$ (called the **[[pairing]]**) such that:
 
 - $\pi_1 \circ \langle f, g \rangle = f$
 - $\pi_2 \circ \langle f, g \rangle = g$

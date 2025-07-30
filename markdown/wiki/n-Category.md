@@ -8,7 +8,7 @@ An **n-category** $\mathcal{C}$ consists of:
 
 ### Data
 
-- A collection of [[object|0-morphisms]] (objects)
+- A collection of [[Object|0-morphisms]] (objects)
 - For each $1 \leq k \leq n$, collections of [[k-morphism|k-morphisms]] between parallel $(k-1)$-morphisms
 - For $k > n$, all k-morphisms are [[equivalence|equivalences]] (effectively [[identity morphism|identities]])
 

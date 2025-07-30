@@ -22,7 +22,7 @@ Such that the following [[commutative diagram|commutative diagrams]] hold:
 
 ## Component-wise Description
 
-For each [[object]] $X \in \mathcal{C}$:
+For each [[Object]] $X \in \mathcal{C}$:
 
 - $\eta_X: X \to T(X)$ embeds $X$ into the monad
 - $\mu_X: T(T(X)) \to T(X)$ flattens nested applications

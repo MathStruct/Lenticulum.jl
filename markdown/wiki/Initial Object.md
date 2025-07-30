@@ -1,6 +1,6 @@
 #definition #category-theory #limits #computable #catlab
 
-An **initial object** in a [[category]] $\mathcal{C}$ is an [[object]] $0$ such that for every object $A$ in $\mathcal{C}$, there exists a unique [[morphism]] $!_A: 0 \to A$.
+An **initial object** in a [[category]] $\mathcal{C}$ is an [[Object]] $0$ such that for every object $A$ in $\mathcal{C}$, there exists a unique [[morphism]] $!_A: 0 \to A$.
 
 ## Universal Property
 

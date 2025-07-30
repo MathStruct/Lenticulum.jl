@@ -4,7 +4,7 @@ A **parametric lens** is a [[lens]] equipped with an additional parameter that c
 
 ## Concrete Definition
 
-For [[object|objects]] $S$ (source), $T$ (target), $A$ (focus), $B$ (updated focus), and $P$ (parameter), a parametric lens consists of:
+For [[Object|objects]] $S$ (source), $T$ (target), $A$ (focus), $B$ (updated focus), and $P$ (parameter), a parametric lens consists of:
 
 - **Parametric Get**: $\text{get}: P \times S \to A$ - extracts the focus using parameter
 - **Parametric Put**: $\text{put}: P \times S \times B \to T$ - updates the focus using parameter

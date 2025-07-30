@@ -203,9 +203,9 @@ The granular, highly-linked structure ensures that when converted to a graph dat
 
 I didn't even keep a percentage of what this documentation says. 
 I just list some problems that I see:
-- Someone should probably update nLab to include the Category theory + topic X stuff (machine learning, )
-- Someone should migrate nlab away from Instiki as a wiki format to something that allows multiple kind of edges. 
-- Someone should think about linking 
+- Someone should probably update nLab to include the Category theory + topic X stuff (machine learning, cybernetics, ... )
+- Someone should migrate nlab away from Instiki as a wiki format to something that allows multiple kind of edges and nodes. 
+- Someone should think about linking rules and where to split into different nodes. Then one can think how one could dynamically render a page from those nodes and their conncetion. 
 - I would call it the jungle: Generating a lot of AI generated articles in the graph is probably a good idea. I know that humans wil have to sift through it and move stuff from "the jungle" to "the garden" i.e. the verified wiki however for purposes of computation I'm fine with this at first.
 - Obisidian is not sufficient either. Sure one can render TikZ as a svg but, it doesn't even show me in what direction the arrow points.
 - If one 

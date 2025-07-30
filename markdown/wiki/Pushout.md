@@ -1,10 +1,10 @@
 #definition #category-theory #colimits #computable #catlab
 
-A **pushout** of a [[span]] $A \xleftarrow{f} C \xrightarrow{g} B$ is the [[colimit]] of this diagram, consisting of an [[object]] $A +_C B$ with [[morphism|morphisms]] $i_1: A \to A +_C B$ and $i_2: B \to A +_C B$ such that $i_1 \circ f = i_2 \circ g$.
+A **pushout** of a [[span]] $A \xleftarrow{f} C \xrightarrow{g} B$ is the [[colimit]] of this diagram, consisting of an [[Object]] $A +_C B$ with [[morphism|morphisms]] $i_1: A \to A +_C B$ and $i_2: B \to A +_C B$ such that $i_1 \circ f = i_2 \circ g$.
 
 ## Universal Property
 
-For any [[object]] $X$ with morphisms $u: A \to X$ and $v: B \to X$ such that $u \circ f = v \circ g$, there exists a unique morphism $[u, v]: A +_C B \to X$ such that:
+For any [[Object]] $X$ with morphisms $u: A \to X$ and $v: B \to X$ such that $u \circ f = v \circ g$, there exists a unique morphism $[u, v]: A +_C B \to X$ such that:
 
 - $[u, v] \circ i_1 = u$
 - $[u, v] \circ i_2 = v$

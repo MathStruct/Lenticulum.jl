@@ -1,12 +1,12 @@
 #definition #category-theory #colimits #computable #catlab
 
-A **colimit** of a [[diagram]] $D: \mathcal{J} \to \mathcal{C}$ is an [[object]] $\text{colim } D$ together with a family of [[morphism|morphisms]] $\iota_j: D(j) \to \text{colim } D$ (called **[[injection|injections]]**) satisfying a [[universal property]].
+A **colimit** of a [[diagram]] $D: \mathcal{J} \to \mathcal{C}$ is an [[Object]] $\text{colim } D$ together with a family of [[morphism|morphisms]] $\iota_j: D(j) \to \text{colim } D$ (called **[[injection|injections]]**) satisfying a [[universal property]].
 
 ## Universal Property
 
 The colimit $\text{colim } D$ with injections $\iota_j: D(j) \to \text{colim } D$ satisfies:
 
-For any [[object]] $X$ with morphisms $f_j: D(j) \to X$ making all triangles commute (i.e., $f_k \circ D(u) = f_j$ for each morphism $u: j \to k$ in $\mathcal{J}$), there exists a unique morphism $[f_j]: \text{colim } D \to X$ such that $[f_j] \circ \iota_j = f_j$ for all $j$.
+For any [[Object]] $X$ with morphisms $f_j: D(j) \to X$ making all triangles commute (i.e., $f_k \circ D(u) = f_j$ for each morphism $u: j \to k$ in $\mathcal{J}$), there exists a unique morphism $[f_j]: \text{colim } D \to X$ such that $[f_j] \circ \iota_j = f_j$ for all $j$.
 
 ## Cocone Structure
 

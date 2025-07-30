@@ -1,6 +1,6 @@
  #definition #category-theory #2-category #higher-category-theory
 
-A **lax commutative 2-diagram** is a [[2-diagram]] in a [[2-category]] where composition paths between the same pair of [[object|objects]] are connected by [[2-morphism|2-morphisms]] rather than being strictly equal, allowing for controlled deviation from strict [[commutative diagram|commutativity]].
+A **lax commutative 2-diagram** is a [[2-diagram]] in a [[2-category]] where composition paths between the same pair of [[Object|objects]] are connected by [[2-morphism|2-morphisms]] rather than being strictly equal, allowing for controlled deviation from strict [[commutative diagram|commutativity]].
 
 ## Formal Definition
 

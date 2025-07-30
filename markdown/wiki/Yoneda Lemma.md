@@ -4,7 +4,7 @@ The **Yoneda Lemma** establishes a [[natural isomorphism]] between [[natural tra
 
 ## Statement
 
-For any [[category]] $\mathcal{C}$, [[object]] $A \in \mathcal{C}$, and [[functor]] $F: \mathcal{C} \to \text{Set}$, there is a [[natural isomorphism]]:
+For any [[category]] $\mathcal{C}$, [[Object]] $A \in \mathcal{C}$, and [[functor]] $F: \mathcal{C} \to \text{Set}$, there is a [[natural isomorphism]]:
 
 $$\text{Nat}(\text{Hom}(A, -), F) \cong F(A)$$
 

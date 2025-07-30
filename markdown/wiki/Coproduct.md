@@ -1,10 +1,10 @@
 #definition #category-theory #colimits #computable #catlab
 
-A **coproduct** of [[object|objects]] $A$ and $B$ in a [[category]] is an object $A + B$ together with [[injection|injections]] $\iota_1: A \to A + B$ and $\iota_2: B \to A + B$ satisfying a [[universal property]].
+A **coproduct** of [[Object|objects]] $A$ and $B$ in a [[category]] is an object $A + B$ together with [[injection|injections]] $\iota_1: A \to A + B$ and $\iota_2: B \to A + B$ satisfying a [[universal property]].
 
 ## Universal Property
 
-For any [[object]] $C$ with [[morphism|morphisms]] $f: A \to C$ and $g: B \to C$, there exists a unique morphism $[f, g]: A + B \to C$ (called the **[[copairing]]**) such that:
+For any [[Object]] $C$ with [[morphism|morphisms]] $f: A \to C$ and $g: B \to C$, there exists a unique morphism $[f, g]: A + B \to C$ (called the **[[copairing]]**) such that:
 
 - $[f, g] \circ \iota_1 = f$
 - $[f, g] \circ \iota_2 = g$

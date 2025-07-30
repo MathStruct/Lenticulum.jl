@@ -12,7 +12,7 @@ Category theory was introduced by [[Samuel Eilenberg]] and [[Saunders Mac Lane]]
 
 A [[category]] $\mathcal{C}$ consists of:
 
-- A collection of [[object|objects]]
+- A collection of [[Object|objects]]
 - [[Morphism|Morphisms]] (arrows) between objects
 - [[Composition]] of morphisms
 - [[Identity morphism|Identity morphisms]]
@@ -206,7 +206,7 @@ Emerging applications in:
 
 ### Arrows-Only Approach
 
-Category theory emphasizes [[morphism|morphisms]] over [[object|objects]], leading to:
+Category theory emphasizes [[morphism|morphisms]] over [[Object|objects]], leading to:
 
 - [[Point-free]] reasoning
 - [[Structural]] rather than [[material]] approaches

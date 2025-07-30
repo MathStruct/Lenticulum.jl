@@ -1,6 +1,6 @@
 Cat #definition #category-theory #2-category #computable #catlab
 
-**Cat** is the [[2-category]] of all small [[category|categories]], where [[object|objects]] are small categories, [[1-morphism|1-morphisms]] are [[functor|functors]], and [[2-morphism|2-morphisms]] are [[natural transformation|natural transformations]].
+**Cat** is the [[2-category]] of all small [[category|categories]], where [[Object|objects]] are small categories, [[1-morphism|1-morphisms]] are [[functor|functors]], and [[2-morphism|2-morphisms]] are [[natural transformation|natural transformations]].
 
 ## Formal Definition
 

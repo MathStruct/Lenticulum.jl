@@ -1,13 +1,13 @@
 #definition #category-theory #computable #catlab
 
-A **morphism** (or **arrow**) is a directed relationship between [[object|objects]] in a [[category]]. Morphisms encode structure-preserving mappings and are the fundamental building blocks of categorical reasoning.
+A **morphism** (or **arrow**) is a directed relationship between [[Object|objects]] in a [[category]]. Morphisms encode structure-preserving mappings and are the fundamental building blocks of categorical reasoning.
 
 ## Formal Definition
 
 A morphism $f: A \to B$ in a [[category]] $\mathcal{C}$ is an element of the [[hom-set]] $\text{Hom}_{\mathcal{C}}(A, B)$ with:
 
-- **Domain**: The [[object]] $A$ (source)
-- **Codomain**: The [[object]] $B$ (target)
+- **Domain**: The [[Object]] $A$ (source)
+- **Codomain**: The [[Object]] $B$ (target)
 
 ## Composition
 
@@ -15,7 +15,7 @@ Morphisms compose [[associativity|associatively]]: if $f: A \to B$ and $g: B \to
 
 ## Identity
 
-Each [[object]] $A$ has an [[identity morphism]] $\text{id}_A: A \to A$ such that:
+Each [[Object]] $A$ has an [[identity morphism]] $\text{id}_A: A \to A$ such that:
 
 - $f \circ \text{id}_A = f$ for any $f: A \to B$
 - $\text{id}_B \circ f = f$ for any $f: A to B$

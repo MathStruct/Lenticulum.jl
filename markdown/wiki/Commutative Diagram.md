@@ -1,6 +1,6 @@
 #definition #category-theory #computable #catlab
 
-A **commutative diagram** in a [[category]] is a [[diagram]] where all [[morphism|morphisms]] compose to give the same result along any path between the same pair of [[object|objects]].
+A **commutative diagram** in a [[category]] is a [[diagram]] where all [[morphism|morphisms]] compose to give the same result along any path between the same pair of [[Object|objects]].
 
 ## Formal Definition
 

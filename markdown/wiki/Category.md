@@ -1,6 +1,6 @@
 A **category** consists of:
 
-- A collection of [[object|objects]]
+- A collection of [[Object|objects]]
 - For each pair of objects $A, B$, a collection of [[morphism|morphisms]] (or arrows) from $A$ to $B$, denoted $\text{Hom}(A,B)$ or $C(A,B)$
 - A [[composition]] operation that assigns to each pair of composable morphisms $f: A \to B$ and $g: B \to C$ a composite morphism $g \circ f: A \to C$
 

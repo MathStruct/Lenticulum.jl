@@ -4,7 +4,7 @@ A **prism** is an [[optic]] for accessing optional or variant data, characterize
 
 ## Concrete Definition
 
-For [[object|objects]] $S$ (source), $T$ (target), $A$ (focus), $B$ (updated focus), a prism consists of:
+For [[Object|objects]] $S$ (source), $T$ (target), $A$ (focus), $B$ (updated focus), a prism consists of:
 - **Match**: $S \to A + R$ - attempts to extract the focus, returning either the focus or a remainder
 - **Build**: $B \to T$ - constructs the target from the updated focus
 

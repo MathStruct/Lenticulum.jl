@@ -1,6 +1,6 @@
 #definition #category-theory #computable #catlab
 
-A **functor** $F: \mathcal{C} \to \mathcal{D}$ is a structure-preserving mapping between [[category|categories]] that preserves both [[object|objects]], [[morphism|morphisms]], [[composition]], and [[identity morphism|identities]].
+A **functor** $F: \mathcal{C} \to \mathcal{D}$ is a structure-preserving mapping between [[category|categories]] that preserves both [[Object|objects]], [[morphism|morphisms]], [[composition]], and [[identity morphism|identities]].
 
 ## Formal Definition
 

@@ -4,7 +4,7 @@ A **lens** is a bidirectional data accessor consisting of a pair of [[morphism|m
 
 ## Concrete Definition
 
-For [[object|objects]] $S$ (source), $T$ (target), $A$ (focus), $B$ (updated focus), a lens consists of:
+For [[Object|objects]] $S$ (source), $T$ (target), $A$ (focus), $B$ (updated focus), a lens consists of:
 
 - **Get**: $\text{get}: S \to A$ - extracts the focus
 - **Put**: $\text{put}: S \times B \to T$ - updates the focus

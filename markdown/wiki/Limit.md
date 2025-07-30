@@ -1,12 +1,12 @@
 #definition #category-theory #limits #computable #catlab
 
-A **limit** of a [[diagram]] $D: \mathcal{J} \to \mathcal{C}$ is an [[object]] $\lim D$ together with a family of [[morphism|morphisms]] $\pi_j: \lim D \to D(j)$ (called **[[projection|projections]]**) satisfying a [[universal property]].
+A **limit** of a [[diagram]] $D: \mathcal{J} \to \mathcal{C}$ is an [[Object]] $\lim D$ together with a family of [[morphism|morphisms]] $\pi_j: \lim D \to D(j)$ (called **[[projection|projections]]**) satisfying a [[universal property]].
 
 ## Universal Property
 
 The limit $\lim D$ with projections $\pi_j: \lim D \to D(j)$ satisfies:
 
-For any [[object]] $X$ with morphisms $f_j: X \to D(j)$ making all triangles commute (i.e., $D(u) \circ f_j = f_k$ for each morphism $u: j \to k$ in $\mathcal{J}$), there exists a unique morphism $\langle f_j \rangle: X \to \lim D$ such that $\pi_j \circ \langle f_j \rangle = f_j$ for all $j$.
+For any [[Object]] $X$ with morphisms $f_j: X \to D(j)$ making all triangles commute (i.e., $D(u) \circ f_j = f_k$ for each morphism $u: j \to k$ in $\mathcal{J}$), there exists a unique morphism $\langle f_j \rangle: X \to \lim D$ such that $\pi_j \circ \langle f_j \rangle = f_j$ for all $j$.
 
 ## Cone Structure
 

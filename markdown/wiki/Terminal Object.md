@@ -1,6 +1,6 @@
 #definition #category-theory #limits #computable #catlab
 
-A **terminal object** in a [[category]] $\mathcal{C}$ is an [[object]] $1$ such that for every object $A$ in $\mathcal{C}$, there exists a unique [[morphism]] $!_A: A \to 1$.
+A **terminal object** in a [[category]] $\mathcal{C}$ is an [[Object]] $1$ such that for every object $A$ in $\mathcal{C}$, there exists a unique [[morphism]] $!_A: A \to 1$.
 
 ## Universal Property
 
