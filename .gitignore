@@ -80,3 +80,9 @@ Thumbs.db
 .obsidian/graph.json
 .obsidian/canvas.json
 .trash/
+
+
+
+
+# Ignore Smart Environment folder
+.smart-env
