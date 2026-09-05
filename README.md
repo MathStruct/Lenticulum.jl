@@ -40,7 +40,7 @@ $$
 
 ## What is the difference to Lux.jl?
 
-Mainly two:
+Mainly three differences:
 - Lux.jl is build around a categorical concept which is called a [parametric Lens](https://arxiv.org/html/2103.01931v2#S2) (Definition 2.5), this structures aside from initialization requires definition of two functions get (i.e. inference) and set (i.e. backpropagation). we however require our factors (how we call our layers) to be a [parametrized Statistical game](https://arxiv.org/html/2503.18608v2#S5) (Definition 27), which first requires our program to extract or assemble parametric Lenses before they can be used.
 - Layer connections in Lux.jl (i.e. the way the layers are wired) need to be a directed acyclic graph (DAG). We end up with pretty much any weakly connected directed graph. Nonetheless factors internally use Lux.jl.
 - Message passing in Lux.jl is trivial. we can use the default dense message passing scheme which always passes between all factors, however for performance reason we might consider sparsifying our message passing scheme.
