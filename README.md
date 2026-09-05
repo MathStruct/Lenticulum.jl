@@ -39,7 +39,7 @@ $$
 | **Resulting Layer connections** | Directed Acyclic Graph | Arbitrary connected graph |
 
 ## What is the difference to Lux.jl?
-
+This Library is a wrapper around Lux.jl. It can use Lux.jl however cannot be used by Lux.jl.
 Mainly three differences:
 - Lux.jl is build around a categorical concept which is called a [parametric Lens](https://arxiv.org/html/2103.01931v2#S2) (Definition 2.5), this structures aside from initialization requires definition of two functions get (i.e. inference) and set (i.e. backpropagation). we however require our factors (how we call our layers) to be a [parametrized Statistical game](https://arxiv.org/html/2503.18608v2#S5) (Definition 27), which first requires our program to extract or assemble parametric Lenses before they can be used.
 - Layer connections in Lux.jl (i.e. the way the layers are wired) need to be a directed acyclic graph (DAG). We end up with pretty much any weakly connected directed graph. Nonetheless factors internally use Lux.jl.
