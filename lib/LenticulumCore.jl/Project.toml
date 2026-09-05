@@ -6,7 +6,7 @@ version = "0.0.1-dev"
 [deps]
 DispatchDoctor = "8d63f2c5-f18a-4cf2-ba9d-b3f60fc568c8"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-
+LuxCore = "bb33d45b-7691-41d6-9220-0943567d0623"
 
 
 [workspace]
