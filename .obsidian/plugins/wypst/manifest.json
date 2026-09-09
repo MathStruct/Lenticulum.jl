@@ -1,0 +1,11 @@
+{
+	"id": "wypst",
+	"name": "Wypst",
+	"version": "0.0.3",
+	"minAppVersion": "0.15.0",
+	"description": "Typst math typesetting for Obsidian.",
+	"author": "0xpapercut",
+	"authorUrl": "https://0xpapercut.github.io",
+	"fundingUrl": "https://0xpapercut.github.io/funding",
+	"isDesktopOnly": false
+}
