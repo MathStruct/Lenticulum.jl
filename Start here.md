@@ -17,3 +17,5 @@ X \arrow[r, "f"'] & Y
 ```
 
 If you implement something please put a markdown file with all the description of the theory, the implementation and an extensive description of implementation difficulties right next to the .jl file containing the implementation.
+
+The theory notes for this library are indexed in [[Index]]. Start there.
