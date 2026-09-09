@@ -253,7 +253,7 @@ end
 
     # every variable is a Dirac, so all counting corrections vanish
     V = variable_corrections(store, g)
-    @test all(==(0.0), values(V.parts))
+    @test all(==(-0.0), values(V.parts)) || all(==(0.0), values(V.parts))
 
     B, st = bethe_free_energy(store, g, NamedTuple(), st)
     @test B[:factors][:loss] ≈ 4.5

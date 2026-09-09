@@ -81,7 +81,7 @@ function factor_free_energies(s::MessageStore, g::FactorGraph, ps, st)
     names = Tuple(f.name for f in g.factors)
     vals = Any[]
     for f in g.factors
-        beliefs = beliefs_at(s, g, f.id)
+        beliefs = messages_into(s, g, f.id)
         psf = _subtree(ps, f.name)
         stf = _subtree(st, f.name)
         F, stf = local_free_energy(f.factor, beliefs, psf, stf)
@@ -92,32 +92,53 @@ function factor_free_energies(s::MessageStore, g::FactorGraph, ps, st)
 end
 
 """
-    beliefs_at(store, g, fid) -> NamedTuple
+    messages_into(store, g, fid) -> NamedTuple
 
-The current marginal of each variable this factor touches, keyed by channel.
+The **incoming messages** ``\\mu_{i \\to a}`` of each variable this factor touches, keyed by
+channel. `nothing` for a channel whose edge cannot carry one.
 
-Note this uses the **full** marginal, not the excluded one. Exclusion is a rule about
-*messages* (it prevents a factor's own evidence being fed back to it as independent);
-the free energy is evaluated at the graph's actual beliefs, and excluding there would be
-wrong.
+> [!warning] These are messages, not marginals — and the difference is the whole formula
+> The Bethe factor belief is ``b_a \\propto f_a \\prod_{i \\in a}\\mu_{i\\to a}``: the
+> factor's own potential times the messages *into* it. Using the variable marginals instead
+> would multiply in the factor's own outgoing message as well, counting its evidence twice.
+>
+> An earlier version of this file did exactly that. It was invisible until a factor with a
+> non-trivial entropy existed to expose it — see `free_energy.md` §7.
 """
-function beliefs_at(s::MessageStore, g::FactorGraph, fid::Int)
+function messages_into(s::MessageStore, g::FactorGraph, fid::Int)
     chans = Tuple(g.edges[ei].channel for ei in g.edges_of_factor[fid])
-    vals = Tuple(marginal(s, g, g.edges[ei].variable) for ei in g.edges_of_factor[fid])
+    vals = Tuple(
+        (m = s.to_factor[ei]; m === nothing ? nothing : m.belief)
+        for ei in g.edges_of_factor[fid]
+    )
     return NamedTuple{chans}(vals)
 end
 
 """
+    variable_free_energy(belief) -> Real
+
+``F_v = -H(b_v)``. A variable has no energy of its own — it is a wire, not a node with a
+potential — so its free energy is *minus* its entropy.
+
+> [!warning] The sign here is the whole correction, and it was wrong
+> The Bethe free energy is ``F_\\beta = \\sum_\\alpha c_\\alpha F_\\alpha`` over factors
+> **and** variables, with ``c_f = 1`` and ``c_v = 1 - d_v``. Because ``F_v = -H_v``, the
+> variable term is ``\\sum_v (1-d_v)(-H_v) = +\\sum_v (d_v - 1)H_v`` — it **adds back** the
+> entropy that the factor terms subtracted ``d_v`` times.
+>
+> An earlier version applied ``c_v`` to ``+H_v``, flipping the sign. Every test passed, because
+> every belief in them was a `DiracBelief` with ``H_v = 0``. See `free_energy.md` §6.
+"""
+variable_free_energy(b) = -variable_entropy(b)
+
+"""
     variable_corrections(store, g) -> GradedEnergy
 
-The per-variable counting corrections ``(1 - d_v)\\,H(b_v)``, graded by variable name.
-
-Note the **sign**: this term is *added* to the total, and since ``1 - d_v \\le 0`` for any
-variable of degree ``\\ge 2``, it subtracts the over-counted entropy.
+The per-variable counting terms ``c_v F_v = (1 - d_v)\\,(-H(b_v))``, graded by variable name.
 """
 function variable_corrections(s::MessageStore, g::FactorGraph)
     names = Tuple(v.name for v in g.variables)
-    vals = Tuple(counting_number(g, v.id) * variable_entropy(marginal(s, g, v.id))
+    vals = Tuple(counting_number(g, v.id) * variable_free_energy(marginal(s, g, v.id))
                  for v in g.variables)
     return LenticulumCore.GradedEnergy(NamedTuple{names}(vals))
 end
@@ -198,7 +219,7 @@ function LenticulumCore.scalar_free_energy(s::MessageStore, g::FactorGraph, ps, 
         total += LenticulumCore.scalarise(σ, F[f.name])
     end
     for v in g.variables
-        total += counting_number(g, v.id) * variable_entropy(marginal(s, g, v.id))
+        total += counting_number(g, v.id) * variable_free_energy(marginal(s, g, v.id))
     end
     return total, st
 end

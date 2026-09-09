@@ -81,7 +81,7 @@ export ConvergenceReport
 
 # --- Free energy -----------------------------------------------------------
 export counting_number, counting_numbers, total_counting_number, variable_entropy
-export factor_free_energies, variable_corrections, beliefs_at
+export factor_free_energies, variable_corrections, messages_into, variable_free_energy
 export bethe_free_energy, chain_free_energy   # scalar_free_energy extends LenticulumCore's
 
 # --- Factors ---------------------------------------------------------------
