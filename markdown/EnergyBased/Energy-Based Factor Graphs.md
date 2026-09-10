@@ -123,7 +123,10 @@ So `GaussianBelief` belonging in `LenticulumCore` is still the right call
 packages are broken" but "three packages are energy-based and there is currently no way to be
 anything else from a `lib/` package."
 
-**Newly visible:** the framework has no way to *say* which semiring a graph is running in.
+**Newly visible:** the framework has no way to *say* which semiring a graph is running in,
+which [[The Type Discipline of a Factor Graph]] §3.3 identifies as a **missing type index** — if
+a belief carried its semiring, mixing would not typecheck, and the choice would be forced at
+construction rather than remembered.
 `istree`, `isdag` and `isexact` are all present; a `MinSum` / `SumProduct` distinction is not.
 A graph mixing the two is silently wrong, and nothing in `validate(g)` looks.
 
@@ -157,5 +160,6 @@ Not a plan — a note of what the reading suggests, in rough order of how much i
    missing outright.
 
 Related: [[Energy-Based Learning]], [[Training Energy-Based Models]], [[Factor Graphs]],
+[[The Type Discipline of a Factor Graph]],
 [[Bethe Free Energy]], [[Messages are Inversions]], [[Schedules]],
 [[Loopy Message Passing]], [[The Equilibrium Family]], [[The Linear Gaussian Chain]]

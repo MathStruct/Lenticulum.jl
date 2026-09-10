@@ -58,29 +58,43 @@ partition function and a statistical game becomes an energy-based factor graph.
     `VariationalDiffusion`**, **NCE is `Adversarial.RatioFactor`** — and NCE with a known noise
     distribution is the `belief_logdensity` [[messages]] §1 has always wanted
 
+## 2c. Types
+
+What kind of type theory this is, and what the code's own types are doing.
+
+22. [[Probabilistic Types]] — "probabilistic type" names three different things. Beliefs are
+    **not** the probability monad (the merge operation is not monadic), but
+    ``r_\theta \approx 0`` **is** a graded type judgment with the energy as its grade — and the
+    grade lives in a semiring, which is the temperature
+23. [[The Type Discipline of a Factor Graph]] — a factor graph is neither linear nor cartesian
+    but **Frobenius**; putting polarity in the type domain already caught a real bug; and five
+    separately-recorded gaps turn out to be **one typing problem**
+
 ## 3. The bridge to Lenticulum.jl
 
-22. [[Channels and Polarity]] — reconciling AutoBayes' X/⟦c⟧/Y with the README's
+24. [[Channels and Polarity]] — reconciling AutoBayes' X/⟦c⟧/Y with the README's
     $P_{in} + P_{out} + P_{latent} = \mathrm{Id}$
-23. [[Scalar and Multivariate Energy]] — **the design decision that is ours, not the
+25. [[Scalar and Multivariate Energy]] — **the design decision that is ours, not the
     paper's**: two energies, and the chain rule adapted to the multivariate one
-24. [[Implicit Learners]] — the three model families, and why the multivariate energy
+26. [[Implicit Learners]] — the three model families, and why the multivariate energy
     is what makes them work
-25. [[AutoBayes to Lenticulum]] — the full naming dictionary paper → Julia
-26. [[ModelingToolkit as an Acausal Relation]] — **the other bridge**: MTK is the implicit
+27. [[AutoBayes to Lenticulum]] — the full naming dictionary paper → Julia
+28. [[ModelingToolkit as an Acausal Relation]] — **the other bridge**: MTK is the implicit
     column of [[README]]'s table minus the probability; Willems' behaviors; why MTK's
     incidence graph *is* a factor graph, and why MTK solves where Mycelium propagates
-27. [[Acausal Composition is a Hypergraph Category]] — how much structure it takes to wire an
+29. [[Acausal Composition is a Hypergraph Category]] — how much structure it takes to wire an
     arbitrary graph rather than a DAG; a variable node is a **Frobenius spider**, and improper
     Gaussian beliefs are what make that work
-28. [[The Structural Gap to ModelingToolkit]] — the question in the other direction: **what
+30. [[The Structural Gap to ModelingToolkit]] — the question in the other direction: **what
     does MTK contain that Lenticulum does not?** Five ranked items; two are not addable
-29. [[Time as a Base]] — **the design note**: what an MTK × Lenticulum extension with a time
+31. [[Time as a Base]] — **the design note**: what an MTK × Lenticulum extension with a time
     dimension would be. A base change, not a redesign — variables carry trajectories, and a
     belief over a trajectory *is* a chain factor graph
-30. [[Three Senses of Implicit]] — the word means **three independent things**: implicit
+32. [[Three Senses of Implicit]] — the word means **three independent things**: implicit
     likelihood, implicit computation, implicit relation. Only the third buys you a polarity
-
+33. [[Depth in Implicit Learning]] — is there a "no deep learning theorem"? **Yes on the
+    linear-Gaussian fragment and no elsewhere** — it is the $d=1$ case of a degree bound the
+    vault already derived; and depth-as-computation and depth-as-expressivity come apart
 ## 3b. The algebraic family, worked out
 
 The first of the three [[Implicit Learners]] families in full detail — the case where every
@@ -152,6 +166,19 @@ the direction, so every factor is unidirectional. Entry point:
 - *the vocabulary*: [[Three Senses of Implicit]] — filed under §3 above, and the reason this
   family has no polarities
 
+## 3g. Two-part architectures, and the meta-graph
+
+Where GANs, reinforcement learning and control theory draw the same diagram — and what the
+project would look like with factor graphs attached *to* the factor graph.
+
+- [[The Two-Part Diagram]] — the shared shape is the **wiring**, which is a trace and already
+  solved. What differs is the **objective**: one function (EM, VAE, active inference, LQG) fits
+  the Bethe free energy; minimax (GANs) and general bilevel (actor–critic) do not
+- [[The Inferencer and the Optimizer]] — **the design note**: meta-graphs over the base graph's
+  messages and parameters. Half of it already exists as `OptimiserFactor` and
+  `AmortisedInversion`; it is loop-free because it is coordinate descent on one objective; and
+  it is the **separation principle**, exact for linear-Gaussian and failing into *exploration*
+
 ## 4. Implementation
 
 Implementation notes live next to the code, per [[Start here]]:
@@ -171,6 +198,15 @@ Implementation notes live next to the code, per [[Start here]]:
 [[luxfactor]]
 
 **Adversarial.jl** — [[Adversarial]], [[generator]], [[ratio]]
+
+## Orientation
+
+- [[Related Julia Projects]] — where this sits in the Julia ecosystem, and **when to use
+  something else**. The nearest neighbour is `RxInfer.jl`; `IncrementalInference.jl`
+  has already solved the `combine` gap by kernel-density BP; and Catlab's `oapply` is the
+  subgraph-as-factor operation the vault records as missing
+- [[PhD Proposal]] and [[PhD Proposal v2]] — the same programme argued two ways: problem-first
+  and capability-first
 
 ## Existing notes
 

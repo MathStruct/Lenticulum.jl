@@ -104,4 +104,10 @@ That is also the answer to [[README]]'s note that Lenticulum "cannot rely on tra
 handling like done with MLUtils.jl". Batching is not a data-loader concern; it is a question of
 which `DataFactor`s are attached to the graph this step.
 
-Related: [[Factor Graphs]], [[Learning Components as Parametric Lenses]], [[Examples from the Paper]], [[factors]]
+> [!note] The optimiser-as-factor is half of a larger idea
+> Making the optimiser a node in the graph is the per-factor case of attaching a *graph* to the
+> graph — one whose variables are the base graph's parameters. Its counterpart, a graph over
+> the base graph's **messages**, does not exist, and `LenticulumCore.AmortisedInversion` is its
+> per-factor case. See [[The Inferencer and the Optimizer]].
+
+Related: [[The Inferencer and the Optimizer]], [[Factor Graphs]], [[Learning Components as Parametric Lenses]], [[Examples from the Paper]], [[factors]]

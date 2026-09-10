@@ -113,6 +113,15 @@ does find are not characterised by minimising any function. A sign flag would le
 algorithm while telling you nothing about what it computes. The framework's whole selling
 point is that the free energy *means* something ([[Variational Free Energy]]).
 
+> [!note] The obstruction generalises — and so does the escape
+> [[The Two-Part Diagram]] places this finding in a taxonomy: GANs are the $f = -g$ row of a
+> bilevel problem, and the sign obstruction is specific to *competitive* architectures. The
+> $f = g$ row — EM, VAE, active inference, LQG control — is **not** obstructed, because
+> coordinate descent on one objective is exactly what a single-signed free energy expresses.
+>
+> So the right summary is not "the framework cannot do two-part architectures". It is "the
+> framework does the cooperative ones and not the arguing ones".
+
 ## 5. What the missing structure actually is
 
 A GAN is a two-player zero-sum game. The categorical treatment of games that composes like a
@@ -159,5 +168,6 @@ Not a to-do list — a note of what the open-game reading would buy, if anyone t
   responded yet" is a first-class off-equilibrium condition rather than an unmodelled error.
 
 Related: [[Implicit Generative Models]], [[Three Senses of Implicit]], [[Adversarial]],
+[[The Two-Part Diagram]], [[The Inferencer and the Optimizer]],
 [[Statistical Game]], [[Parametric Lens]], [[Bethe Free Energy]],
 [[Lux as a Parametric Lens]], [[Variational Free Energy]]

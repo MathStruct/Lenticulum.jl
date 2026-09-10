@@ -20,7 +20,7 @@
     NoiseSource(channel, dim; nsamples = 64, rng = Random.default_rng(), dist = randn)
 
 The latent prior ``q(z)`` as an emitting factor: draws `nsamples` particles and hands them on
-as a [`SampleBelief`](@ref).
+as a [`LenticulumCore.SampleBelief`](@ref).
 
 This is the ``p(z)`` node of every GAN diagram, and it is a factor rather than a property of
 the variable because of [[Everything is a Factor]] — a variable is a wire and has no content
@@ -88,7 +88,7 @@ g = GeneratorFactor(my_decoder, (z = 8, x = 2); nsamples = 512)
     `Three Senses of Implicit.md`.
 
 !!! note "It emits particles, not a point"
-    The message is a [`SampleBelief`](@ref) — the first one anything in this project has ever
+    The message is a [`LenticulumCore.SampleBelief`](@ref) — the first one anything in this project has ever
     produced. And `Mycelium.combine` throws on two of those, which is `messages.md` §1's
     recorded main gap. [`RatioFactor`](@ref) is the route around it.
 """

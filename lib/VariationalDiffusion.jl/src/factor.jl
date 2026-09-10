@@ -33,7 +33,7 @@ f = DiffusionFactor((obs = 4, hidden = 4), NoisePredictor(unet, VPSDE());
 
 This is the third of the three [`Implicit Learners`] families — the diffusion one — and the
 only one whose inversion is neither exact nor a root-find. `LenticulumCore` anticipated it:
-[`ProximalInversion`](@ref) exists in `lens.jl` and names this package.
+[`LenticulumCore.ProximalInversion`](@ref) exists in `lens.jl` and names this package.
 """
 struct DiffusionFactor{names,D<:Tuple,P<:NoisePredictor,C<:REDDiff} <:
        LenticulumCore.AbstractLenticulumFactor
@@ -89,7 +89,7 @@ LenticulumCore.channels(f::DiffusionFactor{names}) where {names} =
 
 The `n` polarities with one channel `Unobserved()` and the rest `Observed()`.
 
-**This under-reports what the factor can do.** [`supports_polarity`](@ref) accepts any
+**This under-reports what the factor can do.** [`LenticulumCore.supports_polarity`](@ref) accepts any
 assignment with at least one unobserved channel, including `Latent()` ones, because a
 diffusion prior over the joint space can inpaint any subset from any other subset — that is
 the entire appeal of using one. The enumeration is truncated because a scheduler needs a

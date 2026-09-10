@@ -106,4 +106,11 @@ The last row is the gap. Pooling particle sets needs importance reweighting, whi
 [[open_model]] §4 records: the belief representation is the one abstraction that cannot be
 designed before there is a working factor to design it against.
 
-Related: [[Polarity Resolution]], [[Bayesian Lens]], [[Schedules]], [[messages]], [[passing]]
+> [!note] The polarity-in-the-type observation is a typing result
+> [[The Type Discipline of a Factor Graph]] §2 takes the callout above as this vault's own
+> empirical argument for static typing: the type domain caught what the value domain would have
+> swallowed, and the swallowed version would have been a *plausible wrong answer* rather than an
+> error.
+
+Related: [[Polarity Resolution]], [[Bayesian Lens]], [[Schedules]], [[messages]], [[passing]],
+[[The Type Discipline of a Factor Graph]]

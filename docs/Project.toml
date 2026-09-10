@@ -1,3 +1,18 @@
 [deps]
+Adversarial = "5b7e1c94-8d3a-4f26-b0e1-7a9c25d4f318"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+ImplicitLayers = "3c0d5f2a-7b41-4e88-9a6d-1f5c8e2b4471"
 Lenticulum = "80a378fd-9e01-49e8-9939-ada6559002ad"
+LenticulumCore = "1ac3b398-e9e9-400d-83fd-862c57ff485d"
+LuxCore = "bb33d45b-7691-41d6-9220-0943567d0623"
+Mycelium = "0a724bc2-760c-4b8c-a26e-202a6d9695cb"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+VariationalDiffusion = "ff4e7144-0bbc-4cb1-a056-50f11d0cc546"
+
+[sources]
+Adversarial = {path = "../lib/Adversarial.jl"}
+ImplicitLayers = {path = "../lib/ImplicitLayers.jl"}
+Lenticulum = {path = ".."}
+LenticulumCore = {path = "../lib/LenticulumCore.jl"}
+Mycelium = {path = "../lib/Mycelium.jl"}
+VariationalDiffusion = {path = "../lib/VariationalDiffusion.jl"}

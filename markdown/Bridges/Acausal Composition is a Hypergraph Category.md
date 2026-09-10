@@ -189,6 +189,12 @@ This also explains, after the fact, why `LinearConstraintFactor` cost so little 
 (`constraint.md`): the belief type was already the acausal one. Nothing new was needed on the
 belief side, because canonical-form Gaussians *are* Gaussian relations.
 
+> [!note] As a type discipline, this is neither linear nor cartesian
+> Linear types forbid duplication; cartesian ones allow duplication and deletion; a Frobenius
+> object allows duplication **and merging**. No standard substructural discipline covers a
+> factor-graph variable — and the spider theorem says a junction's type is nothing but its
+> connectivity. See [[The Type Discipline of a Factor Graph]] §1.
+
 ## 5. Markov vs hypergraph: what acausality costs
 
 The trade is worth stating as a table, because it is the reason directed graphical models and
@@ -239,6 +245,17 @@ open system with a boundary *is* a factor whose channels are the boundary variab
 [[Composition is Elimination]] read categorically, and it is what an `MTKFactor`
 ([[ModelingToolkit as an Acausal Relation]] §8) would be — a hard subsystem, eliminated down
 to its interface, presented as one factor.
+
+> [!important] This structure is already implemented in Julia
+> `Catlab.jl` and `AlgebraicDynamics.jl` realise hypergraph categories as algebras of the
+> operad of **undirected wiring diagrams**, with ports for channels, **junctions** for shared
+> variables, a `@relation` macro for the wiring, and **`oapply`** for composing primitives
+> along a pattern.
+>
+> `oapply` is precisely the subgraph-as-factor operation §6 formalises and
+> [[The Structural Gap to ModelingToolkit]] §4 records as missing here. What AlgebraicJulia
+> lacks is the probabilistic layer — no beliefs, no free energy, no learned components. See
+> [[Related Julia Projects]] §9.
 
 ## 7. What this note does not claim
 
@@ -294,6 +311,8 @@ Specific gaps, stated honestly:
   conditioning.
 
 Related: [[Copiers Cups and Caps]], [[ModelingToolkit as an Acausal Relation]],
+[[Related Julia Projects]],
+[[Probabilistic Types]], [[The Type Discipline of a Factor Graph]],
 [[The Structural Gap to ModelingToolkit]], [[Time as a Base]], [[Lens]],
 [[Factor Graphs]], [[Everything is a Factor]], [[Messages are Inversions]],
 [[Composition is Elimination]], [[Bethe Free Energy]]

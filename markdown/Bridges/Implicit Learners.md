@@ -118,6 +118,7 @@ bottom row is why a factor cannot be a Lux layer.
 > "implicit" names three independent properties — see [[Three Senses of Implicit]], which
 > corrects the impression that this note's three families exhaust it.
 
-Related: [[Algebraic Implicit Learners]], [[Channels and Polarity]],
+Related: [[Algebraic Implicit Learners]], [[Depth in Implicit Learning]],
+[[Channels and Polarity]],
 [[Scalar and Multivariate Energy]], [[ImplicitREDDiff]], [[Statistical Game]],
 [[Three Senses of Implicit]], [[Implicit Generative Models]]

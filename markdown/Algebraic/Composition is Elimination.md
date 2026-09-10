@@ -97,6 +97,14 @@ family of algorithms was designed for exactly this reason.
 
 Border bases fix *stability*; they do not fix *complexity* or the *closure* problem.
 
+> [!note] Failures 1 and 2 are also *expressivity* statements
+> Read the other way round, this section answers "can a flat graph do what a deep one does?".
+> Failure 1 says the flattened relation is a **different** relation (the closure is strictly
+> bigger); Failure 2 says that even accepting it, the flat model needs degree $d^L$ where the
+> deep one needed $L$ factors of degree $d$. At $d = 1$ the bound gives $1$ and depth buys
+> nothing — which is exactly the linear-Gaussian fragment. See
+> [[Depth in Implicit Learning]].
+
 ## The conclusion: do not compose, schedule
 
 Every failure above is a failure of the operation "turn two factors into one factor". None
@@ -140,4 +148,6 @@ that are asked once rather than in a loop:
 All three are *static analysis of a single factor*, not a per-message operation, and at that
 scale the complexity is survivable.
 
-Related: [[Branches and the Discriminant]], [[Composition of Statistical Games]], [[Algebraic Statistics Bridge]], [[Open Problems in Algebraic Implicit Learning]]
+Related: [[Branches and the Discriminant]], [[Composition of Statistical Games]],
+[[Algebraic Statistics Bridge]], [[Open Problems in Algebraic Implicit Learning]],
+[[Depth in Implicit Learning]]

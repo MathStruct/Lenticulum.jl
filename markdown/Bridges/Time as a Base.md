@@ -242,7 +242,13 @@ note and for three others.
   graph.
 - Rauch, Tung, Striebel, 1965 — the smoother that §6's schedule row is.
 
-Related: [[The Structural Gap to ModelingToolkit]], [[ModelingToolkit as an Acausal Relation]],
+> [!note] The other way to make feedback acyclic
+> Unrolling a loop into a chain of time-indexed variables is one option; **lifting a level** —
+> a meta-graph whose variables are the base graph's state — is the other. They are
+> alternatives rather than competitors, and [[The Inferencer and the Optimizer]] §4 takes the
+> second road.
+
+Related: [[The Inferencer and the Optimizer]], [[The Structural Gap to ModelingToolkit]], [[ModelingToolkit as an Acausal Relation]],
 [[The Linear Gaussian Chain]], [[Differential Algebra and DAE Factors]],
 [[Acausal Composition is a Hypergraph Category]], [[Composition is Elimination]],
 [[Schedules]], [[Loopy Message Passing]], [[Implicit Learners]]

@@ -274,6 +274,16 @@ Two things, both of which passed on the two-factor model in `runtests.jl`:
 2. **The chain is where a missing counting correction stops looking like a constant.** See
    §4.
 
+## What the chain's depth buys
+
+Expressively, nothing. A chain of linear-Gaussian factors eliminates to a single
+linear-Gaussian relation, so this graph represents exactly the joint Gaussian a flat model
+would — depth adds no model class. What it adds is **sparsity**: the block-tridiagonal
+precision of §3, which is why inference is $O(n)$ rather than $O(n^3)$.
+
+That is the linear-Gaussian case of a general question, and the general answer is different —
+see [[Depth in Implicit Learning]].
+
 ## The continuous version
 
 Everything above discretises time by hand: one variable per pose, one factor per interval. The
@@ -298,3 +308,4 @@ collapses to at a fixed set of query times. The operation the continuous version
 - [[Polarity Resolution]] — how §5 works without new code
 - [[Loopy Message Passing]] — what breaks when the chain closes
 - [[Time as a Base]] — the same graph with continuous time, and where it comes from
+- [[Depth in Implicit Learning]] — why this graph's depth is sparsity rather than expressivity

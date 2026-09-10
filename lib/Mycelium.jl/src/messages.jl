@@ -195,6 +195,13 @@ returning `new`, **and that is reported** rather than silently ignored — see
 [`can_damp`](@ref).
 """
 damp(new, old, α::Real) = can_damp(new, old) ? _damp(new, old, α) : new
+
+"""
+    can_damp(new, old) -> Bool
+
+Whether a convex combination of these two beliefs is defined. `false` by default, so
+[`damp`](@ref) is a **reported** no-op rather than a silent one.
+"""
 can_damp(::Any, ::Any) = false
 can_damp(a::LenticulumCore.DiracBelief{<:Union{Number,AbstractArray}},
          b::LenticulumCore.DiracBelief{<:Union{Number,AbstractArray}}) = true

@@ -95,15 +95,21 @@ snr(s::AbstractNoiseSchedule, t) = alpha(s, t) / sigma(s, t)
 
 """
     drift(s::VPSDE, x, t)
-    diffusion(s::VPSDE, t)
 
-The SDE coefficients ``f(x,t) = -\\tfrac12\\beta(t)x`` and ``g(t) = \\sqrt{\\beta(t)}``.
+The SDE's drift coefficient ``f(x,t) = -\\tfrac12\\beta(t)x``; see [`diffusion`](@ref) for
+``g(t)``.
 
 Provided for completeness and to document what the schedule *is*. Nothing in this package
 integrates the SDE — RED-Diff replaces sampling with optimisation, which is the whole point
 (`RED-Diff as a Statistical Game.md` §2).
 """
 drift(s::VPSDE, x, t) = (-beta(s, t) / 2) .* x
+
+"""
+    diffusion(s::VPSDE, t) -> Real
+
+The SDE's diffusion coefficient ``g(t) = \\sqrt{\\beta(t)}``. See [`drift`](@ref).
+"""
 diffusion(s::VPSDE, t) = sqrt(beta(s, t))
 
 """

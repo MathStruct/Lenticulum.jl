@@ -125,6 +125,28 @@ special-cased substitute for it. See [[Training Energy-Based Models]] §2.2.
 Recorded here because this file has named the gap since the beginning and these are the first
 concrete routes around it. See [[Implicit Generative Models]] §5 and [[ratio]] §4.
 
+### 1d. Stated as a typing problem
+
+Partiality is the shape of the difficulty, not an incidental feature of it. The set of pairs
+`combine` accepts is a **relation on types**, checked dynamically by method lookup and an error
+branch — and the ambiguity bug recorded in §1b is what happens when symmetric multiple dispatch
+is asked to resolve a partial binary operation on a type lattice.
+
+A discipline that indexed beliefs by what they support would turn
+`combine(SampleBelief, SampleBelief)` from a runtime throw into a compile-time refusal, and
+would make the conditions on a *new* belief type explicit rather than discovered by the first
+crash. See [[The Type Discipline of a Factor Graph]] §3.1.
+
+### 1e. There is a Julia package that already does this
+
+`IncrementalInference.jl` (with `Caesar.jl` and `KernelDensityEstimate.jl`) performs
+**nonparametric belief propagation**: beliefs as kernel density estimates, with the *product*
+of belief functions estimated by multiscale Gibbs sampling, over a Bayes/junction tree.
+
+That is this gap, closed, in production robotics — by a third route, neither the
+density-ratio one of §1c nor the NCE one of §1d. Anything built here should be measured
+against it first. See [[Related Julia Projects]] §6.
+
 ### 2. `combine` is not associative-by-construction, and the fold assumes it is
 
 `marginal` folds `combine` left to right over the incident edges. Product-of-densities is
