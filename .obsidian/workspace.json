@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "markdown/Prompt1.md",
+                "file": "markdown/Bridges/Implicit Learners.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Prompt1"
+              "title": "Implicit Learners"
             }
           }
         ]
@@ -190,6 +190,8 @@
   },
   "active": "7dffe9e85a2888ee",
   "lastOpenFiles": [
+    "markdown/Equilibrium/The Equilibrium Family.md",
+    "lib/ImplicitLayers.jl/src/ImplicitLayers.md",
     "Start here.md",
     "markdown/Prompt1.md",
     "markdown/ImplicitREDDiff.md",
