@@ -252,6 +252,14 @@ What was deliberately *not* done:
 
 ## 8. Open problems
 
+> [!important] Two of these are now written up
+> [[The Structural Gap to ModelingToolkit]] answers "what does MTK have that Lenticulum does
+> not", in five ranked items — and item 3 of that note **corrects**
+> [[Acausal Composition is a Hypergraph Category]] on through-variables.
+> [[Time as a Base]] designs the temporal extension that items 1 and 2 of it demand, and
+> argues that problem 1 below is the only arrangement that survives.
+
+
 1. **An `MTKFactor` whose inversion is a solver.** Wrap a hard subsystem, expose its manifest
    variables as channels, implement `invert` by calling `solve`, and charge entropy for solver
    error. This is the [[Statistical Game]] reading of a simulator, and it is the version of
@@ -280,6 +288,7 @@ What was deliberately *not* done:
   reduction on the incidence graph.
 
 Related: [[Lux as a Parametric Lens]], [[Acausal Composition is a Hypergraph Category]],
+[[The Structural Gap to ModelingToolkit]], [[Time as a Base]],
 [[Implicit Learners]], [[Factor Graphs]], [[Polarity Resolution]],
 [[Differential Algebra and DAE Factors]], [[Composition is Elimination]],
 [[Loopy Message Passing]], [[The Linear Gaussian Chain]]

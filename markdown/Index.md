@@ -52,6 +52,11 @@ Read in this order.
 24. [[Acausal Composition is a Hypergraph Category]] — how much structure it takes to wire an
     arbitrary graph rather than a DAG; a variable node is a **Frobenius spider**, and improper
     Gaussian beliefs are what make that work
+25. [[The Structural Gap to ModelingToolkit]] — the question in the other direction: **what
+    does MTK contain that Lenticulum does not?** Five ranked items; two are not addable
+26. [[Time as a Base]] — **the design note**: what an MTK × Lenticulum extension with a time
+    dimension would be. A base change, not a redesign — variables carry trajectories, and a
+    belief over a trajectory *is* a chain factor graph
 
 ## 3b. The algebraic family, worked out
 

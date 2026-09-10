@@ -274,6 +274,20 @@ Two things, both of which passed on the two-factor model in `runtests.jl`:
 2. **The chain is where a missing counting correction stops looking like a constant.** See
    §4.
 
+## The continuous version
+
+Everything above discretises time by hand: one variable per pose, one factor per interval. The
+continuous alternative — a variable that carries a *trajectory*, with a Gauss–Markov prior — is
+designed in [[Time as a Base]], and the connection is exact rather than analogical:
+
+> A Gauss–Markov process sampled at $t_1 < \cdots < t_N$ has a **block-tridiagonal** joint
+> precision, which is precisely the precision of this chain.
+
+So this graph is not merely *like* a continuous-time trajectory estimate; it is what one
+collapses to at a fixed set of query times. The operation the continuous version adds is
+**interpolation** — reading $x(t^\ast)$ at a time no factor mentions — which is exactly what
+§6's "no ordering" and the asynchronous-measurement problem need.
+
 ## Related
 
 - [[Factor Graphs]] — the bipartite structure and `istree`
@@ -283,3 +297,4 @@ Two things, both of which passed on the two-factor model in `runtests.jl`:
 - [[Everything is a Factor]] — why the GPS reading needs its own variable
 - [[Polarity Resolution]] — how §5 works without new code
 - [[Loopy Message Passing]] — what breaks when the chain closes
+- [[Time as a Base]] — the same graph with continuous time, and where it comes from

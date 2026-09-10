@@ -83,6 +83,21 @@ $(m,n)$-spider.** The internal structure collapses; only the number of legs surv
 > And it is the formal reason the wiring may be an arbitrary graph. Composition in a lens
 > category is a binary operation with a direction; a spider is a $d$-ary operation with none.
 
+> [!warning] One spider is not the whole story for a physical connector
+> The spider models **across** variables — voltage, temperature, position — which are equal at
+> a junction. MTK's `@connector` also declares **through** variables (current, force, heat
+> flow), and those do not copy: they **sum to zero**.
+>
+> So a physical port carries a *copying* structure and an *adding* structure on the same
+> object, which is an **interacting Hopf algebra** in the sense of Bonchi–Sobociński–Zanasi
+> (cited below) — strictly richer than the single special commutative Frobenius algebra
+> described above. A Mycelium variable node supplies only the first.
+>
+> That is exactly why Kirchhoff's law has to be written as an explicit
+> `LinearConstraintFactor` in [[ModelingToolkit as an Acausal Relation]] §7 rather than coming
+> for free from the variable node. See [[The Structural Gap to ModelingToolkit]] §3 for the
+> full comparison, and note that the fix is cheap: a `through`/`across` flag on `Channel`.
+
 This is not decoration. It makes two pieces of `Mycelium` into named categorical operations:
 
 | Mycelium | Frobenius |
@@ -278,6 +293,7 @@ Specific gaps, stated honestly:
   [arXiv:2502.03477](https://arxiv.org/abs/2502.03477) — reconciling normalisation with
   conditioning.
 
-Related: [[Copiers Cups and Caps]], [[ModelingToolkit as an Acausal Relation]], [[Lens]],
+Related: [[Copiers Cups and Caps]], [[ModelingToolkit as an Acausal Relation]],
+[[The Structural Gap to ModelingToolkit]], [[Time as a Base]], [[Lens]],
 [[Factor Graphs]], [[Everything is a Factor]], [[Messages are Inversions]],
 [[Composition is Elimination]], [[Bethe Free Energy]]

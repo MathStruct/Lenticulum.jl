@@ -109,7 +109,21 @@ So §2's "the second direction costs nothing" is true of the *mathematics* and t
 > A flow is invertible exactly. Its numerical inverse is as good as your integrator, and the
 > integrator is doing something harder in reverse than it was doing forwards.
 
-### 5.3 Tell you it was inaccurate
+### 5.3 Let you touch the trajectory in between
+
+`NeuralODEFactor` exposes $(z_0, z_1)$ and nothing else. **You cannot attach a factor to
+$z(0.5)$** — the integration happens inside and only the endpoints reach the graph.
+
+Which is a little damning, because it is the same move [[DEQ as a Relation]] criticises
+`DeepEquilibriumNetwork` for: sealing the solve inside and handing back the result. This factor
+un-seals the *direction* and keeps the *time* sealed. Time is a latent of the factor, not a
+shared base the graph can address.
+
+[[The Structural Gap to ModelingToolkit]] §2 is about the general form of this, and
+[[Time as a Base]] is what fixing it would look like — a variable that carries the whole
+trajectory, queryable at any $t$ by interpolation.
+
+### 5.4 Tell you it was inaccurate
 
 `local_free_energy` is $\tfrac12\|z_1 - \Phi(z_0)\|^2$, which is **identically zero on the
 relation** — if $z_1$ came from $\Phi(z_0)$ then the residual vanishes by construction. Good
@@ -129,4 +143,5 @@ it, and `integrate` — unlike `solve_root` — returns no report at all.
   — the layer being wrapped.
 
 Related: [[The Equilibrium Family]], [[DEQ as a Relation]], [[Implicit Learners]],
+[[Time as a Base]], [[The Structural Gap to ModelingToolkit]],
 [[Bayesian Lens]], [[Copiers Cups and Caps]], [[neuralode]], [[flow]]

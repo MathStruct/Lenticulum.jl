@@ -130,4 +130,13 @@ Everything in [[Composition is Elimination]] gets worse:
 > Do not put it in a training loop, and do not apply it to fitted floating-point
 > coefficients.
 
-Related: [[Composition is Elimination]], [[Channels and Polarity]], [[Implicit Learners]], [[Backpropagation by the Implicit Function Theorem]]
+> [!note] This note is the prerequisite for the temporal extension
+> [[Time as a Base]] designs a Lenticulum in which variables carry trajectories rather than
+> values. Everything above — index, hidden constraints, consistent initialisation — has to
+> happen *before* any belief is propagated over such a graph, and all of it is symbolic. That
+> is why [[Time as a Base]] §8 concludes with a division of labour rather than a merged
+> library.
+
+Related: [[Composition is Elimination]], [[Channels and Polarity]], [[Implicit Learners]],
+[[Backpropagation by the Implicit Function Theorem]], [[Time as a Base]],
+[[The Structural Gap to ModelingToolkit]]
