@@ -94,4 +94,10 @@ These are exactly the three families of [[Implicit Learners]]. Which one is avai
 property of the factor; the *graph* does not need to know, which is the point of the
 abstraction.
 
-Related: [[Open Model]], [[Copiers Cups and Caps]], [[Implicit Learners]], [[ImplicitREDDiff]], [[channels]]
+> [!note] Polarities are Prolog's **modes**, and Mercury checks them statically
+> A logic-programming predicate has no fixed direction either, and which arguments are bound at
+> the call site is its *mode*. Mercury is Prolog with a statically-verified mode and determinism
+> system — the precedent for making `supports_polarity` decided rather than declared. See
+> [[Prolog and Logic Programming]] §2.
+
+Related: [[Prolog and Logic Programming]], [[Open Model]], [[Copiers Cups and Caps]], [[Implicit Learners]], [[ImplicitREDDiff]], [[channels]]

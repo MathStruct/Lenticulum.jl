@@ -107,6 +107,15 @@ surrounding framework.
 > suggests a different fix: **a temperature per factor, or a declared semiring per graph**,
 > rather than forcing every factor to produce a distribution it does not have.
 
+> [!note] There is a third semiring, and it is logic programming
+> ``(\vee,\wedge)`` — constraint satisfaction — sits beside ``(\min,+)`` and ``(+,\times)`` in
+> the same framework. Dechter's bucket elimination is one algorithm across all three, and
+> Bistarelli–Montanari–Rossi's semiring-based CSP makes the same point from the constraint side.
+>
+> So Prolog and this project are **the same algorithm at different semirings**, which also
+> explains why unification is idempotent and `combine` is not: ``\wedge`` is idempotent and
+> ``+`` is not. See [[Prolog and Logic Programming]] §4.
+
 ## 4. What this does and does not resolve
 
 **Resolved:** the three complaints about Dirac-valued inversions were describing one thing —
@@ -160,6 +169,7 @@ Not a plan — a note of what the reading suggests, in rough order of how much i
    missing outright.
 
 Related: [[Energy-Based Learning]], [[Training Energy-Based Models]], [[Factor Graphs]],
+[[Prolog and Logic Programming]],
 [[The Type Discipline of a Factor Graph]],
 [[Bethe Free Energy]], [[Messages are Inversions]], [[Schedules]],
 [[Loopy Message Passing]], [[The Equilibrium Family]], [[The Linear Gaussian Chain]]

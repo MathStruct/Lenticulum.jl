@@ -95,6 +95,9 @@ What kind of type theory this is, and what the code's own types are doing.
 33. [[Depth in Implicit Learning]] — is there a "no deep learning theorem"? **Yes on the
     linear-Gaussian fragment and no elsewhere** — it is the $d=1$ case of a degree bound the
     vault already derived; and depth-as-computation and depth-as-expressivity come apart
+34. [[Prolog and Logic Programming]] — "the Prolog of machine learning", scored honestly.
+    **Modes are polarities exactly**; Prolog is the *boolean* semiring of the same framework;
+    and the shortfall is one thing — **schemas versus ground instances**
 ## 3b. The algebraic family, worked out
 
 The first of the three [[Implicit Learners]] families in full detail — the case where every
@@ -209,6 +212,8 @@ some parts known and some fitted, and a residual that means something in the dom
   [[Energy Markets and Power Grids]]
 - [[Metabolomics and Proteomics]] · [[Molecular Dynamics]] ·
   [[Climate and Dynamical Systems]]
+- [[Language Models]] — a **product** of diffusion experts, not a mixture; why the framing
+  clarifies and the machinery does not
 
 ## Orientation
 

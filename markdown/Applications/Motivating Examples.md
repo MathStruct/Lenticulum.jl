@@ -15,6 +15,9 @@
 | [[Metabolomics and Proteomics]] | stoichiometry: ``Sv = 0`` | enzyme kinetics, regulation |
 | [[Molecular Dynamics]] | force fields, bond constraints | ML potentials |
 | [[Climate and Dynamical Systems]] | conservation laws, discretised PDEs | subgrid parametrisations |
+| [[Language Models]] † | agreement between experts; grammar and type constraints | the experts themselves |
+
+† A different shape from the other six — see the note at the end of §6.
 
 ## The shape they share
 
@@ -88,6 +91,15 @@ every domain below, **"how badly is this relation violated" is itself a quantity
 So the graded energy of [[Scalar and Multivariate Energy]] is not bookkeeping. It is
 **per-relation attribution of disagreement**, and in at least two of these domains it is the
 output rather than a diagnostic.
+
+> [!note] [[Language Models]] shares this property and few of the others
+> A product of expert language models fits §3 (some parts known, some fitted), §4 (uncertainty
+> matters) and §6 (the residual — here, **disagreement between experts** — is a usable
+> abstention signal). It does *not* fit §1: for ``k`` experts on one sequence the graph is a
+> **star**, and message passing degenerates to adding the energies.
+>
+> It is listed because the framing is clarifying — it is a **product** of experts, not a
+> mixture — rather than because the machinery earns its keep. That note says where it would.
 
 ## What would have to be true
 

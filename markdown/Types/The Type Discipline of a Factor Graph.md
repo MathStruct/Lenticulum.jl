@@ -117,6 +117,10 @@ refinement type rather than a convention.
 This is the strand the PhD proposal calls certification, and it is the one place where the type
 discipline would be doing something a comment cannot.
 
+And it has a precedent worth reading rather than re-deriving: **Mercury** is Prolog with modes
+and determinism *declared and statically checked*, which is this ambition, solved, for logic
+programs — [[Prolog and Logic Programming]] §2.
+
 ### 3.5 Latent channels and the exclusion principle are structural, not semantic
 
 `resolve_polarity` marks one channel `Unobserved()`, those with messages `Observed()`, and the
