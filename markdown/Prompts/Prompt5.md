@@ -1,0 +1,2 @@
+Currently The SciML ecosystem has Libraries like Deep Equilibrium networks and NeuralODE's. They can be turned into Factors for use with this library. 
+Please build a wrapper for these Lux.jl models and document the details and problems in the obsidian vault.

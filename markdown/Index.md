@@ -46,6 +46,12 @@ Read in this order.
 21. [[Implicit Learners]] — the three model families, and why the multivariate energy
     is what makes them work
 22. [[AutoBayes to Lenticulum]] — the full naming dictionary paper → Julia
+23. [[ModelingToolkit as an Acausal Relation]] — **the other bridge**: MTK is the implicit
+    column of [[README]]'s table minus the probability; Willems' behaviors; why MTK's
+    incidence graph *is* a factor graph, and why MTK solves where Mycelium propagates
+24. [[Acausal Composition is a Hypergraph Category]] — how much structure it takes to wire an
+    arbitrary graph rather than a DAG; a variable node is a **Frobenius spider**, and improper
+    Gaussian beliefs are what make that work
 
 ## 3b. The algebraic family, worked out
 
@@ -76,6 +82,34 @@ counterpart in Lux.
 - [[Schedules]] — the schedule zoo; tree exactness; pruning by edge direction
 - [[Bethe Free Energy]] — Theorem 23 generalised to graphs; energies add, entropies get a counting correction
 - [[Loopy Message Passing]] — what breaks off a tree, and the monodromy problem
+- [[The Linear Gaussian Chain]] — **the worked example**: GTSAM's `OdometryExample`, exact
+  marginals against the joint information matrix, and what this library is *not*
+
+## 3d. The equilibrium family, worked out
+
+The second of the three [[Implicit Learners]] families — SciML's deep equilibrium networks
+and neural ODEs, wrapped as factors. Entry point: [[The Equilibrium Family]].
+
+- *the fixed point*: [[DEQ as a Relation]] — a DEQ is defined by a relation and shipped as a
+  function; the reverse solve; the contraction caveat made testable; why the IFT brings
+  automatic differentiation back
+- *the flow*: [[NeuralODE as an Invertible Factor]] — bidirectional for free, because a flow
+  is a diffeomorphism; the density correction, and why it is currently dead code
+
+## 3e. The diffusion family, worked out
+
+The third of the three [[Implicit Learners]] families — the case where the inversion is
+neither exact nor a root-find but a **proximal solve**. Entry point:
+[[The Diffusion Family]].
+
+- *the forward process*: [[The VP-SDE]] — Song et al. 2021; the perturbation kernel, the score
+  identity, Tweedie's denoiser, and the `tmin` floor nobody documents
+- *the inversion*: [[RED-Diff as a Statistical Game]] — variational inference with a point-mass
+  posterior; the stop-gradient; and **λ is derivable, not merely tunable**
+- *the factor*: [[The Diffusion Factor]] — $P_{in}+P_{out}+P_{latent}=\mathrm{Id}$ becomes a
+  `Polarity`; what a Dirac-valued message does to a factor graph
+- *alternatives*: [[ProxDM and Proximal Alternatives]] — DPS, ΠGDM, ProxDM, plug-and-play, and
+  why RED-Diff was implemented first
 
 ## 4. Implementation
 
@@ -86,6 +120,14 @@ Implementation notes live next to the code, per [[Start here]]:
 
 **Mycelium.jl** — [[Mycelium]], [[graph]], [[polarity_resolution]], [[messages]],
 [[schedules]], [[passing]], [[free_energy]], [[factors]]
+
+**Lenticulum.jl** — [[constraint]] (`beliefs.md` and `gaussian.md` are not yet written)
+
+**VariationalDiffusion.jl** — [[VariationalDiffusion]], [[schedule]], [[predictor]],
+[[reddiff]], [[factor]]
+
+**ImplicitLayers.jl** — [[ImplicitLayers]], [[solve]], [[deq]], [[flow]], [[neuralode]],
+[[luxfactor]]
 
 ## Existing notes
 

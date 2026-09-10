@@ -23,6 +23,10 @@ turned out to be wrong; see `The Gaussian Factor.md` §"What this caught".
 - `beliefs.jl` — [`GaussianBelief`](@ref) in canonical form, which makes
   `Mycelium.combine` **addition** and thereby unblocks message passing.
 - `gaussian.jl` — [`GaussianFactor`](@ref) and [`GaussianPrior`](@ref).
+- `constraint.jl` — [`LinearConstraintFactor`](@ref), the **acausal** n-ary sibling of
+  `GaussianFactor`: one equation ``0 = \\sum_i A_i x_i - c + \\varepsilon`` over any number of
+  channels, none of them distinguished. This is ModelingToolkit's `0 ~ ...` equation as a
+  statistical game; see `ModelingToolkit as an Acausal Relation.md`.
 """
 module Lenticulum
 
@@ -34,10 +38,12 @@ using Mycelium: Mycelium
 
 include("beliefs.jl")
 include("gaussian.jl")
+include("constraint.jl")
 
 export GaussianBelief, Gaussian, uninformative
 export belief_mean, belief_cov, isproper, logpartition, kl_divergence
 export GaussianFactor, GaussianPrior, LinearGaussianModel
+export LinearConstraintFactor, LinearConstraintModel
 export residual, residual_statistics
 
 end # module

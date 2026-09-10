@@ -45,6 +45,58 @@ Two `SampleBelief`s cannot be pooled without importance reweighting, which needs
 messages, conjugate messages, moment matching — is blocked on this**, and it is the same open
 question [[open_model]] §4 records.
 
+### 1b. The unit law was unreachable for the one type that can be pooled
+
+The three unit-law methods were originally
+
+```julia
+combine(::TrivialBelief, b) = b
+combine(a, ::TrivialBelief) = a
+combine(a::TrivialBelief, ::TrivialBelief) = a
+```
+
+with the untyped second argument covering "anything". Against the catch-all at the bottom of
+the file,
+
+```julia
+combine(a::AbstractBelief, b::AbstractBelief) = throw(ArgumentError(...))
+```
+
+the pair `(TrivialBelief, GaussianBelief)` matches both `(TrivialBelief, Any)` and
+`(AbstractBelief, AbstractBelief)`, and **neither is more specific than the other**: the first
+is narrower on the left, the second on the right. Julia reports a `MethodError: combine(...) is
+ambiguous`, thrown from inside `excluded_marginal` on the first sweep — so pooling a message
+with the accumulator's `TrivialBelief` seed failed for `GaussianBelief`, the only belief type
+in the project that `combine` can actually pool.
+
+The fix is to restate the unit law one rung down, at `AbstractBelief`:
+
+```julia
+combine(::TrivialBelief, b::AbstractBelief) = b
+combine(a::AbstractBelief, ::TrivialBelief) = a
+```
+
+which *is* strictly more specific than the catch-all, so the unit always wins. The untyped
+methods stay, for payloads that are not `AbstractBelief`s at all.
+
+> [!warning] This failed loudly only by luck
+> The catch-all throws. Had it returned something — a `TrivialBelief`, say, or a "best effort"
+> pooling — the ambiguity would have been resolved silently in whichever order the methods
+> happened to be defined, and `marginal` would have quietly dropped every message pooled
+> against the seed. **A catch-all that throws is what turned a specificity bug into a
+> stack trace.**
+>
+> The general lesson for this file: every rule in the table above is stated at two different
+> levels of the type hierarchy (`Any` for foreign payloads, `AbstractBelief` for beliefs), and
+> a rule stated at only one of them is a latent ambiguity waiting for the first downstream
+> belief type. Adding a belief type is not what exposes it — adding a belief type that gets
+> *pooled* is.
+
+Caught by [[The Linear Gaussian Chain]] and by the two-factor model in `Lenticulum`'s test
+suite, not by this package's own tests: `Mycelium`'s tests use `DiracBelief` and
+`TrivialBelief` only, and every one of those pairs has an explicit method. **A package whose
+central operation is "combine two beliefs" cannot test that operation with one belief type.**
+
 ### 2. `combine` is not associative-by-construction, and the fold assumes it is
 
 `marginal` folds `combine` left to right over the incident edges. Product-of-densities is
@@ -81,4 +133,5 @@ type-parameterised store — would make `MessageStore` depend on the whole graph
 which are not known until the first sweep. Probably the right trade at this scale, but it means
 message passing will not be fast, and pretending otherwise would be misleading.
 
-Related: [[Messages are Inversions]], [[passing]], [[Loopy Message Passing]]
+Related: [[Messages are Inversions]], [[passing]], [[Loopy Message Passing]],
+[[The Linear Gaussian Chain]]

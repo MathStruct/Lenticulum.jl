@@ -1,5 +1,8 @@
 # Implicit Diffusion Model based on RED-Diff
 
+> Worked out in full in [[The Diffusion Family]] and implemented in
+> `lib/VariationalDiffusion.jl`. The energy below is the one the code computes.
+
 **Implicit** i.e. replacing learning functions by learning relations [see here](https://implicit-layers-tutorial.org/)
 | Explicit Machine Learning | Implicit Learning |
 |---|---|
@@ -44,4 +47,4 @@ $$E(x_0,x) = \mathbb{E}_{t, \epsilon}[\omega(t) \| \epsilon_\theta(\alpha_t x + 
 
 from that we can get a gradient for the Error via the [RED-Diff](https://arxiv.org/abs/2305.04391) machinery.
 
-Alternatively use  [ProxDM](https://arxiv.org/pdf/2507.08956)  to 
+Alternatively use  [ProxDM](https://arxiv.org/pdf/2507.08956) to achieve a prox — see [[ProxDM and Proximal Alternatives]].

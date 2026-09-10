@@ -81,6 +81,13 @@ combine(::LenticulumCore.TrivialBelief, b) = b
 combine(a, ::LenticulumCore.TrivialBelief) = a
 combine(a::LenticulumCore.TrivialBelief, ::LenticulumCore.TrivialBelief) = a
 
+# The two methods above take an untyped argument, so on a pair of `AbstractBelief`s they are
+# no more specific than the catch-all at the bottom of this file and Julia reports an
+# ambiguity. These two restate the unit law at the `AbstractBelief` level, which is strictly
+# more specific than the catch-all, so the unit always wins.
+combine(::LenticulumCore.TrivialBelief, b::LenticulumCore.AbstractBelief) = b
+combine(a::LenticulumCore.AbstractBelief, ::LenticulumCore.TrivialBelief) = a
+
 function combine(a::LenticulumCore.DiracBelief, b::LenticulumCore.DiracBelief)
     a.value == b.value && return a
     throw(ArgumentError(

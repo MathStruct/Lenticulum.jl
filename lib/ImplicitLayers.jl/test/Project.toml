@@ -1,0 +1,8 @@
+[deps]
+ImplicitLayers = "3c0d5f2a-7b41-4e88-9a6d-1f5c8e2b4471"
+LenticulumCore = "1ac3b398-e9e9-400d-83fd-862c57ff485d"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+LuxCore = "bb33d45b-7691-41d6-9220-0943567d0623"
+Mycelium = "0a724bc2-760c-4b8c-a26e-202a6d9695cb"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
