@@ -97,6 +97,34 @@ suite, not by this package's own tests: `Mycelium`'s tests use `DiracBelief` and
 `TrivialBelief` only, and every one of those pairs has an explicit method. **A package whose
 central operation is "combine two beliefs" cannot test that operation with one belief type.**
 
+### 1c. A density RATIO is enough, and a classifier estimates one
+
+The blocker above is stated as needing `belief_logdensity`. It does not — importance
+reweighting needs only a **ratio** $p(x)/q(x)$, and Mohamed & Lakshminarayanan's identity says
+the logit of an optimal classifier separating $p$ from $q$ *is* $\log p - \log q$, estimated
+from samples alone with neither density.
+
+`Adversarial.RatioFactor` implements it and `Adversarial.reweight` performs the pooling; the
+test suite recovers a Gaussian's moments by reweighting samples of a wider one. So the
+operation exists. It is still not wired into `combine`, for two reasons:
+
+1. its **quality is unreported** — `effective_sample_size` can collapse to a handful of
+   particles with nothing raised, and a silently degenerating `combine` is worse than one that
+   throws;
+2. it is **not idempotent** — reweighting twice by the same ratio squares the weights, so the
+   operation violates §2 below unless the caller tracks which ratios have been applied.
+
+And there is a stronger version. In a GAN the comparison distribution $q$ is the generator and
+unknown, so a ratio is all you get. In **noise-contrastive estimation** $q$ is *chosen*, so
+
+$$\log p(x) = \operatorname{logit} D^\ast(x) + \log q(x)$$
+
+and you recover the normalised log-density — which is `belief_logdensity` itself, not a
+special-cased substitute for it. See [[Training Energy-Based Models]] §2.2.
+
+Recorded here because this file has named the gap since the beginning and these are the first
+concrete routes around it. See [[Implicit Generative Models]] §5 and [[ratio]] §4.
+
 ### 2. `combine` is not associative-by-construction, and the fold assumes it is
 
 `marginal` folds `combine` left to right over the incident edges. Product-of-densities is

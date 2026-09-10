@@ -34,6 +34,12 @@ the variety* rather than a point on it. That is exactly $\arg\min_x \sigma(r_\th
 minimising the energy rather than zeroing it. **Energy minimisation is the total version of
 root-finding**, and it is total precisely because $\sigma \ge 0$ always has an infimum.
 
+> [!note] That sentence is LeCun's framework
+> [[Energy-Based Learning]] is the paper this paragraph was reaching for: an energy, an
+> argmin, and no normalisation. [[README]]'s table is, row for row, that tutorial's table —
+> worth knowing because the tutorial also supplies what is missing here, namely a theory of
+> **loss functionals** and the conditions under which shaping an energy surface works at all.
+
 ## The three families
 
 | | approximator | inference | backward pass | regime |
@@ -105,4 +111,13 @@ The middle row is why `Mycelium.jl` exists: with a general digraph there is no t
 order, so "run the network" is replaced by "schedule messages until convergence". The
 bottom row is why a factor cannot be a Lux layer.
 
-Related: [[Algebraic Implicit Learners]], [[Channels and Polarity]], [[Scalar and Multivariate Energy]], [[ImplicitREDDiff]], [[Statistical Game]]
+> [!important] There is a fourth family, and it is on a different axis
+> `lib/Adversarial.jl` adds implicit **generative** models (GANs). They do not belong in the
+> table above, because they are implicit in a *different sense*: what is missing is the
+> **density**, not the direction, and all three of their factors are unidirectional. The word
+> "implicit" names three independent properties — see [[Three Senses of Implicit]], which
+> corrects the impression that this note's three families exhaust it.
+
+Related: [[Algebraic Implicit Learners]], [[Channels and Polarity]],
+[[Scalar and Multivariate Energy]], [[ImplicitREDDiff]], [[Statistical Game]],
+[[Three Senses of Implicit]], [[Implicit Generative Models]]

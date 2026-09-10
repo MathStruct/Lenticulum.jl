@@ -1,0 +1,19 @@
+name = "Adversarial"
+uuid = "5b7e1c94-8d3a-4f26-b0e1-7a9c25d4f318"
+authors = ["Daniel Boigk <dn.boigk@gmail.com>"]
+version = "0.0.1-dev"
+
+[deps]
+DispatchDoctor = "8d63f2c5-f18a-4cf2-ba9d-b3f60fc568c8"
+LenticulumCore = "1ac3b398-e9e9-400d-83fd-862c57ff485d"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+LuxCore = "bb33d45b-7691-41d6-9220-0943567d0623"
+Mycelium = "0a724bc2-760c-4b8c-a26e-202a6d9695cb"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+
+[sources]
+LenticulumCore = {path = "../LenticulumCore.jl"}
+Mycelium = {path = "../Mycelium.jl"}
+
+[workspace]
+projects = ["test"]

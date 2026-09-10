@@ -112,4 +112,14 @@ norm while a likelihood factor uses the identity, in the same graph — with
 [[Scalar and Multivariate Energy]] §5 saying exactly when that composition is strict and when
 it is lax.
 
-Related: [[Composition of Statistical Games]], [[Scalar and Multivariate Energy]], [[Loopy Message Passing]], [[free_energy]]
+> [!note] At zero temperature this reduces to LeCun's energy
+> The entropy term carries a factor of $T$. Send $T\to0$ and it vanishes — even though a point
+> mass has $H = -\infty$ — leaving $F = \sum_c E_c$, the energy of a non-probabilistic factor
+> graph.
+>
+> That is why the `DiracBelief`-valued factors in `lib/` appear to "have no entropy": they run
+> at $T=0$ inside a form that is implicitly $T=1$. The mismatch is real; the missing entropy is
+> not the right description of it. See [[Energy-Based Factor Graphs]] §3.2.
+
+Related: [[Composition of Statistical Games]], [[Scalar and Multivariate Energy]],
+[[Loopy Message Passing]], [[free_energy]], [[Energy-Based Factor Graphs]]

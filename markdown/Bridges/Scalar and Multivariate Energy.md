@@ -215,4 +215,12 @@ islinear(σ)                 # -> Bool: strict vs lax composition (Prop. §5)
 scalar loss can be accumulated eagerly (cheap) or must be deferred until the vector loss is
 assembled (correct). See [[energy]] for the implementation and its difficulties.
 
-Related: [[Statistical Game]], [[Composition of Statistical Games]], [[Composition of Gradients]], [[Implicit Learners]], [[energy]]
+> [!important] A scalarisation is not a loss functional
+> `σ : E_c → ℝ` takes an energy **value**. LeCun's loss functionals take the energy
+> **function** over the whole answer space, because shaping a surface requires knowing what it
+> does away from the correct answer. Lenticulum has no slot for one, and the consequence —
+> its free energy is LeCun's "energy loss", the collapsing one — is [[Energy-Based Learning]]
+> §3.
+
+Related: [[Statistical Game]], [[Composition of Statistical Games]], [[Composition of Gradients]],
+[[Implicit Learners]], [[energy]], [[Energy-Based Learning]]

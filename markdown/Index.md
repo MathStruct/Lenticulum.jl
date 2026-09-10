@@ -1,6 +1,6 @@
 # Index — Lenticulum concept vault
 
-This is the map of content for the theory behind Lenticulum.jl. Two papers are the
+This is the map of content for the theory behind Lenticulum.jl. **Three** papers are the
 backbone, and one bridge layer connects them to Julia:
 
 - **[Categorical Foundations of Gradient-Based Learning](https://arxiv.org/html/2103.01931v2)**
@@ -10,6 +10,11 @@ backbone, and one bridge layer connects them to Julia:
   *Bayesian* inference is a **statistical game**, which is a parametric lens whose
   backward pass is a posterior rather than a gradient. This is what Lenticulum.jl
   implements.
+- **[A Tutorial on Energy-Based Learning](http://yann.lecun.com/exdb/publis/pdf/lecun-06.pdf)**
+  (LeCun, Chopra, Hadsell, Ranzato, Huang) — how learning works with **no normalisation at
+  all**: an energy, an argmin, and a factor graph. Read after the other two, but it is the
+  layer [[README]]'s own table was written from, and the one most of the implementation
+  actually runs in.
 
 Read in this order.
 
@@ -37,26 +42,44 @@ Read in this order.
 17. [[Composition of Gradients]] — Definitions 28–29, Remark 30: laxness
 18. [[Examples from the Paper]] — Appendix A, worked through
 
+## 2b. The energy story (what is left when you stop normalising)
+
+LeCun's tutorial and the modern EBM literature. Structurally *below* AutoBayes: drop the
+partition function and a statistical game becomes an energy-based factor graph.
+
+19. [[Energy-Based Learning]] — the framework; why [[README]]'s table is this paper's table;
+    **loss functionals**, the concept Lenticulum has no slot for; and the collapse problem,
+    which `gaussian.jl` already guards against under the name `complexity`
+20. [[Energy-Based Factor Graphs]] — LeCun §6 is `Mycelium` without the beliefs. **min-sum is
+    the $T\to0$ limit of sum-product**, so a `DiracBelief` message is a min-sum message and
+    three packages' "missing entropy" is the Bethe form degenerating correctly
+21. [[Training Energy-Based Models]] — Song & Kingma, Du & Mordatch. Two of the three standard
+    EBM training methods are already implemented here under other names: **score matching is
+    `VariationalDiffusion`**, **NCE is `Adversarial.RatioFactor`** — and NCE with a known noise
+    distribution is the `belief_logdensity` [[messages]] §1 has always wanted
+
 ## 3. The bridge to Lenticulum.jl
 
-19. [[Channels and Polarity]] — reconciling AutoBayes' X/⟦c⟧/Y with the README's
+22. [[Channels and Polarity]] — reconciling AutoBayes' X/⟦c⟧/Y with the README's
     $P_{in} + P_{out} + P_{latent} = \mathrm{Id}$
-20. [[Scalar and Multivariate Energy]] — **the design decision that is ours, not the
+23. [[Scalar and Multivariate Energy]] — **the design decision that is ours, not the
     paper's**: two energies, and the chain rule adapted to the multivariate one
-21. [[Implicit Learners]] — the three model families, and why the multivariate energy
+24. [[Implicit Learners]] — the three model families, and why the multivariate energy
     is what makes them work
-22. [[AutoBayes to Lenticulum]] — the full naming dictionary paper → Julia
-23. [[ModelingToolkit as an Acausal Relation]] — **the other bridge**: MTK is the implicit
+25. [[AutoBayes to Lenticulum]] — the full naming dictionary paper → Julia
+26. [[ModelingToolkit as an Acausal Relation]] — **the other bridge**: MTK is the implicit
     column of [[README]]'s table minus the probability; Willems' behaviors; why MTK's
     incidence graph *is* a factor graph, and why MTK solves where Mycelium propagates
-24. [[Acausal Composition is a Hypergraph Category]] — how much structure it takes to wire an
+27. [[Acausal Composition is a Hypergraph Category]] — how much structure it takes to wire an
     arbitrary graph rather than a DAG; a variable node is a **Frobenius spider**, and improper
     Gaussian beliefs are what make that work
-25. [[The Structural Gap to ModelingToolkit]] — the question in the other direction: **what
+28. [[The Structural Gap to ModelingToolkit]] — the question in the other direction: **what
     does MTK contain that Lenticulum does not?** Five ranked items; two are not addable
-26. [[Time as a Base]] — **the design note**: what an MTK × Lenticulum extension with a time
+29. [[Time as a Base]] — **the design note**: what an MTK × Lenticulum extension with a time
     dimension would be. A base change, not a redesign — variables carry trajectories, and a
     belief over a trajectory *is* a chain factor graph
+30. [[Three Senses of Implicit]] — the word means **three independent things**: implicit
+    likelihood, implicit computation, implicit relation. Only the third buys you a polarity
 
 ## 3b. The algebraic family, worked out
 
@@ -116,6 +139,19 @@ neither exact nor a root-find but a **proximal solve**. Entry point:
 - *alternatives*: [[ProxDM and Proximal Alternatives]] — DPS, ΠGDM, ProxDM, plug-and-play, and
   why RED-Diff was implemented first
 
+## 3f. The adversarial family, worked out
+
+Implicit **generative** models — the case where what is missing is the *density* rather than
+the direction, so every factor is unidirectional. Entry point:
+[[Implicit Generative Models]].
+
+- *the paper*: [[Implicit Generative Models]] — Mohamed & Lakshminarayanan; learning by
+  comparison; the four estimators; and why a density ratio is the answer to [[messages]] §1
+- *the diagram*: [[GANs as Two Factors]] — two parameter sets, three nodes, and **one sign the
+  Bethe free energy cannot hold**; the missing structure is an open game
+- *the vocabulary*: [[Three Senses of Implicit]] — filed under §3 above, and the reason this
+  family has no polarities
+
 ## 4. Implementation
 
 Implementation notes live next to the code, per [[Start here]]:
@@ -133,6 +169,8 @@ Implementation notes live next to the code, per [[Start here]]:
 
 **ImplicitLayers.jl** — [[ImplicitLayers]], [[solve]], [[deq]], [[flow]], [[neuralode]],
 [[luxfactor]]
+
+**Adversarial.jl** — [[Adversarial]], [[generator]], [[ratio]]
 
 ## Existing notes
 
