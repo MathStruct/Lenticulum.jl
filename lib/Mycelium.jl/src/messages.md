@@ -183,5 +183,12 @@ type-parameterised store — would make `MessageStore` depend on the whole graph
 which are not known until the first sweep. Probably the right trade at this scale, but it means
 message passing will not be fast, and pretending otherwise would be misleading.
 
+**Measured**, on the same access pattern with and without concrete types: `Vector{Any}` is
+**130× slower** and turns an allocation-free loop into 19 MB. And a second, separate finding
+sits next to it — a sweep is **quadratic in the number of factors**, because `ps` is a
+`NamedTuple` looked up with a runtime `Symbol`, which is linear in its field count. Both are in
+[[Parallelism and Compilation]] §2, with the benchmark in `bench/scaling.jl`.
+
 Related: [[Messages are Inversions]], [[passing]], [[Loopy Message Passing]],
+[[Parallelism and Compilation]],
 [[The Linear Gaussian Chain]]

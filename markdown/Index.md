@@ -199,12 +199,27 @@ Implementation notes live next to the code, per [[Start here]]:
 
 **Adversarial.jl** — [[Adversarial]], [[generator]], [[ratio]]
 
+## Where this would be useful
+
+Six domains with the same shape — a network of relations, sparse asynchronous observations,
+some parts known and some fitted, and a residual that means something in the domain itself.
+
+- [[Motivating Examples]] — the overview, and the six properties they share
+- [[SLAM and Sensor Fusion]] · [[Trading and Financial Markets]] ·
+  [[Energy Markets and Power Grids]]
+- [[Metabolomics and Proteomics]] · [[Molecular Dynamics]] ·
+  [[Climate and Dynamical Systems]]
+
 ## Orientation
 
 - [[Related Julia Projects]] — where this sits in the Julia ecosystem, and **when to use
   something else**. The nearest neighbour is `RxInfer.jl`; `IncrementalInference.jl`
   has already solved the `combine` gap by kernel-density BP; and Catlab's `oapply` is the
   subgraph-as-factor operation the vault records as missing
+- [[Parallelism and Compilation]] — parallelism, GPUs and XLA/MLIR in a *dynamic* SLAM
+  setting. There is no junction tree and no parallelism today; a sweep is **quadratic in the
+  number of factors** (measured); and the compile-vs-dynamic tension dissolves if you
+  **compile the factor types, not the graph**
 - [[PhD Proposal]] and [[PhD Proposal v2]] — the same programme argued two ways: problem-first
   and capability-first
 

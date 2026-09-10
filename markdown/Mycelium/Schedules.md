@@ -98,4 +98,11 @@ Two things depend on it that look like they should not:
    which on a graph is a property of the message order, not of the wiring. The Bethe form has
    no order in it at all — see [[Bethe Free Energy]].
 
-Related: [[Factor Graphs]], [[Messages are Inversions]], [[Loopy Message Passing]], [[schedules]]
+> [!note] The parallel structure is declared and unexploited
+> `FloodingSchedule` is double-buffered, so every message in a sweep is independent — yet
+> `sweep!` runs them in a sequential loop. And `tree_schedule`'s critical path is twice the
+> tree depth, so on a **chain** (a SLAM trajectory) there is no parallelism at all — for which
+> there is a known ``O(\log N)`` associative-scan reformulation. See
+> [[Parallelism and Compilation]] §3.
+
+Related: [[Parallelism and Compilation]], [[Factor Graphs]], [[Messages are Inversions]], [[Loopy Message Passing]], [[schedules]]
