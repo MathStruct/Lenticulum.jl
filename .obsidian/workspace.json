@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "markdown/Bridges/Implicit Learners.md",
+                "file": "markdown/Control/The Two-Part Diagram.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Implicit Learners"
+              "title": "The Two-Part Diagram"
             }
           }
         ]
@@ -190,11 +190,31 @@
   },
   "active": "7dffe9e85a2888ee",
   "lastOpenFiles": [
-    "markdown/Equilibrium/The Equilibrium Family.md",
-    "lib/ImplicitLayers.jl/src/ImplicitLayers.md",
-    "Start here.md",
-    "markdown/Prompt1.md",
-    "markdown/ImplicitREDDiff.md",
-    "README.md"
+    "markdown/Diffusion/ProxDM and Proximal Alternatives.md",
+    "markdown/Diffusion/RED-Diff as a Statistical Game.md",
+    "markdown/Diffusion/The Diffusion Factor.md",
+    "markdown/Diffusion/The Diffusion Family.md",
+    "markdown/AutoBayes/Bayesian Lens.md",
+    "markdown/Mycelium/Loopy Message Passing.md",
+    "markdown/Types/The Type Discipline of a Factor Graph.md",
+    "markdown/Types/Probabilistic Types.md",
+    "markdown/Mycelium/Schedules.md",
+    "markdown/Mycelium/The Linear Gaussian Chain.md",
+    "markdown/Mycelium/Polarity Resolution.md",
+    "markdown/Mycelium/Factor Graphs.md",
+    "markdown/Mycelium/Everything is a Factor.md",
+    "markdown/EnergyBased/Energy-Based Factor Graphs.md",
+    "markdown/Bridges/Prolog and Logic Programming.md",
+    "markdown/Applications/Language Models.md",
+    "markdown/Related Julia Projects.md",
+    "markdown/Mycelium/Bethe Free Energy.md",
+    "markdown/Applications/Trading and Financial Markets.md",
+    "markdown/Applications/Motivating Examples.md",
+    "markdown/Applications/Molecular Dynamics.md",
+    "markdown/Applications/Metabolomics and Proteomics.md",
+    "markdown/Applications/Energy Markets and Power Grids.md",
+    "markdown/Applications/Climate and Dynamical Systems.md",
+    "markdown/Bridges/Depth in Implicit Learning.md",
+    "markdown/Bridges/Implicit Learners.md"
   ]
 }
