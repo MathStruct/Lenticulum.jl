@@ -19,7 +19,7 @@ makedocs(;
         Adversarial,
     ],
     format = Documenter.HTML(;
-        canonical = "https://DanielBoigk.github.io/Lenticulum.jl",
+        canonical = "https://MathStruct.github.io/Lenticulum.jl",
         edit_link = "master",
         assets = String[],
         # LenticulumCore and Mycelium have large interfaces, so their reference pages are
@@ -46,6 +46,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo = "github.com/DanielBoigk/Lenticulum.jl",
+    repo = "github.com/MathStruct/Lenticulum.jl",
     devbranch = "master",
 )

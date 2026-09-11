@@ -1,6 +1,7 @@
 # Lenticulum.jl (Under Development)
 
 [![Build Status](https://github.com/DanielBoigk/Lenticulum.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/DanielBoigk/Lenticulum.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Docs](https://img.shields.io/badge/docs-stable-blue.svg)](https://MathStruct.github.io/Lenticulum.jl)
 
 **Implicit** i.e. replacing learning functions by learning relations [see here](https://implicit-layers-tutorial.org/)
 
