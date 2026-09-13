@@ -33,9 +33,11 @@ that).
 
 `integrate_with_divergence` accumulates
 
-$$\frac{d}{dt}\log p(z(t)) = -\operatorname{tr}\frac{\partial f_\theta}{\partial z}
+$$
+\frac{d}{dt}\log p(z(t)) = -\operatorname{tr}\frac{\partial f_\theta}{\partial z}
 \qquad\Longrightarrow\qquad
-\log p(z_1) = \log p(z_0) - \int_{t_0}^{t_1}\!\operatorname{tr}\,\partial_z f_\theta\,dt$$
+\log p(z_1) = \log p(z_0) - \int_{t_0}^{t_1}\!\operatorname{tr}\,\partial_z f_\theta\,dt
+$$
 
 the instantaneous change of variables of Chen et al. / FFJORD. **This is the piece that would
 turn the factor from a map on points into a map on densities** — i.e. the thing that would let

@@ -18,7 +18,7 @@ which are orders over the *existing* edges.
 
 **There is no parallelism.** `sweep!` is `for t in tasks(sched)`. `FloodingSchedule`'s own
 docstring calls it *"the classical parallel BP update"* — and it is, semantically: all messages
-at iteration ``k`` depend only on iteration ``k-1``, double-buffered. It is simply executed
+at iteration $k$ depend only on iteration $k-1$, double-buffered. It is simply executed
 sequentially. **The parallel structure is already declared and unexploited.**
 
 ## 2. What the measurements say
@@ -39,7 +39,7 @@ and a heap-boxed load.
 
 ### And a sweep is quadratic in the number of factors
 
-This was not previously recorded anywhere. Chain of ``n`` poses, `tree_schedule`:
+This was not previously recorded anywhere. Chain of $n$ poses, `tree_schedule`:
 
 | n | edges | messages | time (ms) | alloc/msg (B) |
 |---|---|---|---|---|
@@ -56,8 +56,8 @@ Per-message cost *grows with graph size*, which it must not. The mechanism is co
 > number of fields** — measured at 27 ns for 10 fields, 161 ns for 100, 1198 ns for 800, dead
 > linear.
 
-So each message pays ``O(\text{factors})`` to find its own parameters, and a sweep is
-``O(n^2)``. In a SLAM setting — where the graph grows without bound — this is precisely the
+So each message pays $O(\text{factors})$ to find its own parameters, and a sweep is
+$O(n^2)$. In a SLAM setting — where the graph grows without bound — this is precisely the
 wrong asymptotic, and it is invisible at test scale.
 
 > [!important] This is the cheapest fix in the project
@@ -72,7 +72,7 @@ Four independent levels, in increasing order of what they would cost to obtain:
 
 | level | granularity | available today? |
 |---|---|---|
-| **within a flooding sweep** | every message at iteration ``k`` is independent | semantics yes, execution no |
+| **within a flooding sweep** | every message at iteration $k$ is independent | semantics yes, execution no |
 | **across sibling subtrees** | in `tree_schedule`, independent branches | no — the schedule is a flat list |
 | **across junction-tree cliques** | independent cliques of a triangulated graph | no junction tree exists |
 | **across a batch of graphs** | same topology, different data | the GPU-friendly one; no batching |
@@ -84,19 +84,19 @@ in the way.
 ### But a SLAM trajectory is a chain, and a chain is the worst case
 
 Worth stating clearly because it is not obvious. `tree_schedule`'s critical path is twice the
-tree depth. For a chain of ``N`` poses the depth is ``N``, so **there is no parallelism along a
+tree depth. For a chain of $N$ poses the depth is $N$, so **there is no parallelism along a
 trajectory at all** — the exact structure a SLAM problem has.
 
 That is not a dead end; it is a solved problem elsewhere. Särkkä and García-Fernández showed
 that Bayesian filtering and smoothing recursions can be written in terms of **associative
 operators**, so the whole sweep becomes an all-prefix-sums problem and a parallel scan gives
-``O(\log N)`` span instead of ``O(N)``.
+$O(\log N)$ span instead of $O(N)$.
 
 > [!important] The chain has a known logarithmic-depth parallel form
 > [[The Linear Gaussian Chain]] is exactly the linear/Gaussian case those authors specialise
 > to, and `forward_backward_schedule` is exactly the RTS smoother they parallelise. So the
-> single most important graph shape in this project has an ``O(\log N)`` GPU formulation in the
-> literature, and the current schedule is the ``O(N)`` one.
+> single most important graph shape in this project has an $O(\log N)$ GPU formulation in the
+> literature, and the current schedule is the $O(N)$ one.
 >
 > This is the highest-value parallelism result available, and it needs no junction tree.
 
@@ -115,7 +115,7 @@ worth saying that a **factor graph is a GNN with hand-written message functions*
 
 > Store messages **struct-of-arrays, grouped by (factor type, channel dimension)**, and
 > represent topology as **index arrays** consumed by gather/scatter. Then one message update
-> for all `GaussianFactor`s of dimension ``d`` is a single batched kernel, and the graph is
+> for all `GaussianFactor`s of dimension $d$ is a single batched kernel, and the graph is
 > *data* rather than *code*.
 
 That single representational change unlocks levels 1 and 4 of §3, GPU execution, and §5's
@@ -142,7 +142,7 @@ So do not compile the graph:
 Two supporting techniques, both standard:
 
 - **Capacity and masking.** Preallocate to a capacity, mask the unused tail, grow by doubling.
-  Shapes change ``O(\log n)`` times over a run rather than every step, and each growth costs one
+  Shapes change $O(\log n)$ times over a run rather than every step, and each growth costs one
   recompile — which is the bucketing strategy used for dynamic batch sizes in ML serving.
 - **Recompilation only on novelty.** A new *kind* of factor triggers a compile. In SLAM, after
   the first few frames there are no new kinds.
@@ -165,7 +165,7 @@ One rule matters more than the rest:
 > **Never trace through a solver.** A Broyden loop or a Picard iteration has a data-dependent
 > trip count, which is exactly what a static-shape compiler cannot express. Put the solve behind
 > a **custom rule** derived from the implicit function theorem —
-> ``\partial z^\ast/\partial x = (I - \partial_z g)^{-1}\partial_x g``, one linear solve — and
+> $\partial z^\ast/\partial x = (I - \partial_z g)^{-1}\partial_x g$, one linear solve — and
 > the traced program contains a `solve`, not a loop.
 
 Which flips the usual intuition. An unrolled deep network has a fixed but long trace; an
@@ -197,11 +197,11 @@ see [[Related Julia Projects]] §6. Anything built here should be measured again
 
 Roughly by value per unit of work, and each step is useful on its own:
 
-1. **Integer-index the parameter lookup.** Removes an ``O(n^2)`` (§2). No design commitment.
+1. **Integer-index the parameter lookup.** Removes an $O(n^2)$ (§2). No design commitment.
 2. **Type the message store**, grouped by factor type. Unlocks everything below, and is worth
    ~130× on message access by itself (§2).
 3. **Thread the flooding sweep.** Nearly free once (2) is done; the semantics are already right.
-4. **Associative-scan the chain.** ``O(\log N)`` on the shape that matters most (§3).
+4. **Associative-scan the chain.** $O(\log N)$ on the shape that matters most (§3).
 5. **Index-array topology and batched kernels.** GPU, and the precondition for (6).
 6. **Reactant + Enzyme**, with solvers behind IFT rules (§6).
 7. **Junction tree**, for exactness, clique parallelism and incremental updates (§7).
@@ -220,7 +220,7 @@ well-measured answer to the wrong question.
 
 - Särkkä & García-Fernández, *Temporal Parallelization of Bayesian Smoothers*, IEEE TAC
   **66**(1):299–306, 2021 — [arXiv:1905.13002](https://arxiv.org/abs/1905.13002). Filtering and
-  smoothing as associative operators; ``O(\log T)`` span by parallel scan.
+  smoothing as associative operators; $O(\log T)$ span by parallel scan.
 - Kaess et al., *iSAM2: Incremental smoothing and mapping using the Bayes tree*, IJRR 2012 —
   clique recycling for incremental factor graphs.
 - [IncrementalInference.jl](https://github.com/JuliaRobotics/IncrementalInference.jl) — Bayes

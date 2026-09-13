@@ -53,9 +53,11 @@ established answer to "I have a simulator and no likelihood".
 Train a classifier to separate $p^\ast$ (label 1) from $q_\theta$ (label 0) with equal class
 priors. At the optimum
 
-$$D^\ast(x) = \frac{p^\ast(x)}{p^\ast(x)+q_\theta(x)}
+$$
+D^\ast(x) = \frac{p^\ast(x)}{p^\ast(x)+q_\theta(x)}
 \qquad\Longrightarrow\qquad
-\operatorname{logit} D^\ast(x) = \log p^\ast(x) - \log q_\theta(x)$$
+\operatorname{logit} D^\ast(x) = \log p^\ast(x) - \log q_\theta(x)
+$$
 
 **The logit of the optimal discriminator is the log density ratio.** Everything else in the
 GAN literature is a consequence of this line plus a choice of what to do with $r$.

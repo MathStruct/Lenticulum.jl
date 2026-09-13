@@ -25,9 +25,11 @@ wrapped SciML layer therefore has exactly one polarity.
 
 The relation is still in there:
 
-$$\text{DEQ:}\quad r(x,z) = z - g_\theta(z,x)
+$$
+\text{DEQ:}\quad r(x,z) = z - g_\theta(z,x)
 \qquad\qquad
-\text{NeuralODE:}\quad r(z_0,z_1) = z_1 - \Phi_{t_0\to t_1}(z_0)$$
+\text{NeuralODE:}\quad r(z_0,z_1) = z_1 - \Phi_{t_0\to t_1}(z_0)
+$$
 
 and $r = 0$ is [[README]]'s definition of an implicit learner, verbatim. Keeping $r$ rather
 than the solved function is the whole intervention.

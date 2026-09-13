@@ -13,9 +13,11 @@ Assume the well-posed case $k = q$ and $J_u$ invertible at the solution
 
 Write, using [[The Veronese Parametrisation]] §"Jacobians, exactly",
 
-$$J_o = \Theta\,Dv_d(x)_{[:,o]} \in\mathbb{R}^{k\times p}, \qquad
+$$
+J_o = \Theta\,Dv_d(x)_{[:,o]} \in\mathbb{R}^{k\times p}, \qquad
 J_u = \Theta\,Dv_d(x)_{[:,u]} \in\mathbb{R}^{k\times q}, \qquad
-v := v_d(x) \in \mathbb{R}^m$$
+v := v_d(x) \in \mathbb{R}^m
+$$
 
 All three are **exact**; no automatic differentiation is involved anywhere.
 
@@ -33,9 +35,11 @@ $$\boxed{\;\mathrm{d}x_u \;=\; -J_u^{-1}\Bigl(J_o\,\mathrm{d}x_o \;+\; (\mathrm{
 
 giving the two sensitivities
 
-$$\frac{\partial x_u}{\partial x_o} \;=\; -J_u^{-1}J_o \;\in\;\mathbb{R}^{q\times p},
+$$
+\frac{\partial x_u}{\partial x_o} \;=\; -J_u^{-1}J_o \;\in\;\mathbb{R}^{q\times p},
 \qquad
-\frac{\partial x_u}{\partial \Theta_{j\ell}} \;=\; -J_u^{-1} e_j\, v_\ell$$
+\frac{\partial x_u}{\partial \Theta_{j\ell}} \;=\; -J_u^{-1} e_j\, v_\ell
+$$
 
 ## Forward mode (jvp)
 
@@ -55,8 +59,10 @@ for all tangents.
 
 Substitute:
 
-$$\langle \bar x_u,\dot x_u\rangle
-= -\,\bar x_u^\top J_u^{-1}\bigl(J_o\dot x_o + \dot\Theta v\bigr)$$
+$$
+\langle \bar x_u,\dot x_u\rangle
+= -\,\bar x_u^\top J_u^{-1}\bigl(J_o\dot x_o + \dot\Theta v\bigr)
+$$
 
 Define the **adjoint variable**
 
@@ -64,8 +70,10 @@ $$\boxed{\;\lambda \;=\; -\,J_u^{-\top}\,\bar x_u \;\in\;\mathbb{R}^k\;}$$
 
 — one linear solve with the *transpose*. Then
 
-$$\langle \bar x_u,\dot x_u\rangle = \lambda^\top J_o\,\dot x_o \;+\; \lambda^\top \dot\Theta\, v
-= \bigl\langle J_o^\top\lambda,\ \dot x_o\bigr\rangle \;+\; \bigl\langle \lambda\, v^\top,\ \dot\Theta\bigr\rangle_F$$
+$$
+\langle \bar x_u,\dot x_u\rangle = \lambda^\top J_o\,\dot x_o \;+\; \lambda^\top \dot\Theta\, v
+= \bigl\langle J_o^\top\lambda,\ \dot x_o\bigr\rangle \;+\; \bigl\langle \lambda\, v^\top,\ \dot\Theta\bigr\rangle_F
+$$
 
 using $\lambda^\top\dot\Theta v = \operatorname{tr}(v\lambda^\top\dot\Theta) = \langle\lambda v^\top,\dot\Theta\rangle_F$.
 Therefore

@@ -3,3 +3,4 @@
 /lib/*/Manifest.toml
 /lib/*/test/Manifest.toml
 /Manifest*.toml
+/docs/quartz/

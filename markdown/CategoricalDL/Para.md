@@ -34,8 +34,10 @@ the composite's parameter wire is the *pair* of the two parameter wires.
 $\mathcal{C} = \mathbf{Smooth}$: objects are natural numbers, a map $n \to m$ is a smooth
 function $\mathbb{R}^n \to \mathbb{R}^m$. Then
 
-$$\texttt{Dense(3 => 5, tanh)} \;=\; (\mathbb{R}^{20},\; (W,b,x) \mapsto \tanh(Wx+b))
-\;:\; 3 \longrightarrow 5$$
+$$
+\texttt{Dense(3 => 5, tanh)} \;=\; (\mathbb{R}^{20},\; (W,b,x) \mapsto \tanh(Wx+b))
+\;:\; 3 \longrightarrow 5
+$$
 
 is a morphism of $\mathbf{Para}(\mathbf{Smooth})$, and
 
@@ -64,7 +66,7 @@ hypernetworks, LoRA and quantisation are all reparametrisations too.
 \usepackage{tikz-cd}
 \begin{document}
 \begin{tikzcd}[row sep=large, column sep=huge]
-Q \otimes A \arrow[r, "\alpha \otimes 1_A"] \arrow[dr, "(Q,\,\alpha;f)"'] & P \otimes A \arrow[d, "f"] \\
+Q \otimes A \arrow[r, "\alpha \otimes 1_A"] \arrow[dr, "{(Q,\,\alpha;f)}"'] & P \otimes A \arrow[d, "f"] \\
 & B
 \end{tikzcd}
 \end{document}

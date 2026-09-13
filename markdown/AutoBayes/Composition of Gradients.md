@@ -8,9 +8,11 @@
 Given $(\Theta, c) : X \multimap Y$ and $(\Phi, d) : Y \multimap Z$, their gradients
 $\nabla_\theta F^c$ and $\nabla_\varphi F^d$ compose to form
 
-$$\Bigl(\;\nabla_\varphi F^d\bigl(c(\theta)_*\pi,\, z;\, \varphi\bigr)
+$$
+\Bigl(\;\nabla_\varphi F^d\bigl(c(\theta)_*\pi,\, z;\, \varphi\bigr)
 \;\;\Bigl|\;\;
-\mathop{\mathbb{E}}_{y \sim d'_{c(\theta)_*\pi}(z;\varphi)}\bigl[\nabla_\theta F^c(\pi, y; \theta)\bigr]\;\Bigr)^{\!\top}$$
+\mathop{\mathbb{E}}_{y \sim d'_{c(\theta)_*\pi}(z;\varphi)}\bigl[\nabla_\theta F^c(\pi, y; \theta)\bigr]\;\Bigr)^{\!\top}
+$$
 
 i.e. stack the downstream gradient with the *expected* upstream gradient, the expectation
 taken under the downstream inversion. This is the direct differentiation of
@@ -27,23 +29,29 @@ taken under the downstream inversion. This is the direct differentiation of
 
 Unpack the two missing terms. Writing $F^{dc}(\pi,z;\theta,\varphi) = \mathbb{E}_{(y,b)\sim d'_{c(\theta)_*\pi}(z;\varphi)}[F^c(\pi,y;\theta)] + F^d(c(\theta)_*\pi, z;\varphi)$:
 
-$$\nabla_\theta F^{dc} = \underbrace{\mathbb{E}_{(y,b)}\bigl[\nabla_\theta F^c\bigr]}_{\text{kept}}
+$$
+\nabla_\theta F^{dc} = \underbrace{\mathbb{E}_{(y,b)}\bigl[\nabla_\theta F^c\bigr]}_{\text{kept}}
 + \underbrace{\nabla_\theta \mathbb{E}_{(y,b)\sim d'_{c(\theta)_*\pi}}\bigl[F^c\bigr]}_{\substack{\text{\textbf{dropped}: } \theta \text{ moves the}\\ \text{sampling distribution}}}
-+ \underbrace{\nabla_\theta F^d(c(\theta)_*\pi, z;\varphi)}_{\substack{\text{\textbf{dropped}: } \theta \text{ moves the}\\ \text{pushforward prior}}}$$
++ \underbrace{\nabla_\theta F^d(c(\theta)_*\pi, z;\varphi)}_{\substack{\text{\textbf{dropped}: } \theta \text{ moves the}\\ \text{pushforward prior}}}
+$$
 
-$$\nabla_\varphi F^{dc} = \underbrace{\nabla_\varphi F^d}_{\text{kept}}
-+ \underbrace{\nabla_\varphi \mathbb{E}_{(y,b)\sim d'(\cdot;\varphi)}\bigl[F^c\bigr]}_{\substack{\text{\textbf{dropped}: } \varphi \text{ moves the}\\ \text{sampling distribution}}}$$
+$$
+\nabla_\varphi F^{dc} = \underbrace{\nabla_\varphi F^d}_{\text{kept}}
++ \underbrace{\nabla_\varphi \mathbb{E}_{(y,b)\sim d'(\cdot;\varphi)}\bigl[F^c\bigr]}_{\substack{\text{\textbf{dropped}: } \varphi \text{ moves the}\\ \text{sampling distribution}}}
+$$
 
 So Definition 29 is exactly the **block-diagonal** part of the true Jacobian:
 
-$$\nabla_{(\theta,\varphi)} F^{dc}
+$$
+\nabla_{(\theta,\varphi)} F^{dc}
 = \begin{pmatrix}
 \mathbb{E}[\nabla_\theta F^c] & 0 \\[2pt]
 \ast & \nabla_\varphi F^d
 \end{pmatrix}
 + \begin{pmatrix}
 0 & \ast \\[2pt] 0 & 0
-\end{pmatrix}$$
+\end{pmatrix}
+$$
 
 and the $\ast$s are what laxness names.
 

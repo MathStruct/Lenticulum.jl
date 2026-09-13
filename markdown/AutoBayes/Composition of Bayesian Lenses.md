@@ -10,8 +10,10 @@ $$(d, d') \diamond (c, c') \;=\; \bigl(d \circ\!\!\!\bullet\; c,\; c' \mathbin{\
 
 where the backward part maps $\pi \in \mathcal{P}X$ to the kernel
 
-$$\bigl(c'_\pi \mathbin{\hat{\circ}} d'_{c_*\pi}\bigr)(dx, da, dy, db \mid z)
-\;=\; c'_\pi(dx, da \mid y)\; d'_{c_*\pi}(dy, db \mid z)$$
+$$
+\bigl(c'_\pi \mathbin{\hat{\circ}} d'_{c_*\pi}\bigr)(dx, da, dy, db \mid z)
+\;=\; c'_\pi(dx, da \mid y)\; d'_{c_*\pi}(dy, db \mid z)
+$$
 
 Read the right-hand side right-to-left: $d'$ conditioned on the **pushforward prior**
 $c_*\pi$ turns $z$ into $(y, b)$; then $c'$ conditioned on the **original prior** $\pi$
@@ -36,8 +38,10 @@ correct"; the other says "compositional inference is correct".
 
 ## Definition 15 and Remark 16 — parallel composition is lossy
 
-$$\bigl((c' \otimes d')_\omega\bigr)(dx, dx', da, da' \mid y, y')
-= c'_{\omega_X}(dx, da \mid y)\; d'_{\omega_{X'}}(dx', da' \mid y')$$
+$$
+\bigl((c' \otimes d')_\omega\bigr)(dx, dx', da, da' \mid y, y')
+= c'_{\omega_X}(dx, da \mid y)\; d'_{\omega_{X'}}(dx', da' \mid y')
+$$
 
 where $\omega_X, \omega_{X'}$ are the marginals of a joint prior $\omega$.
 

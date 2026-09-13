@@ -48,9 +48,11 @@ Circles are variables, grey squares factors, the dark square a data clamp. The d
 So the answer to "two factors?" is: **two in the sense that matters** — two things with
 parameters — and three nodes, because the discriminator is *evaluated twice*:
 
-$$\mathbb{E}_{x\sim p_{\text{data}}}\bigl[\log D_\varphi(x)\bigr]
+$$
+\mathbb{E}_{x\sim p_{\text{data}}}\bigl[\log D_\varphi(x)\bigr]
 \;+\;
-\mathbb{E}_{z\sim q}\bigl[\log\bigl(1 - D_\varphi(G_\theta(z))\bigr)\bigr]$$
+\mathbb{E}_{z\sim q}\bigl[\log\bigl(1 - D_\varphi(G_\theta(z))\bigr)\bigr]
+$$
 
 Two evaluation sites, one parameter set. A factor node in `Mycelium` has fixed channels, so
 one node cannot attach to two different variables; you need two nodes that share $\varphi$.

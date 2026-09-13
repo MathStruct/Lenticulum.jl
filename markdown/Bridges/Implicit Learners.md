@@ -9,8 +9,10 @@ An explicit learner approximates a **function** $f_\theta : X \to Y$. An implici
 approximates a **relation** $R_\theta \subseteq X_1 \times \cdots \times X_n$, represented by
 a residual
 
-$$r_\theta : X_1 \times \cdots \times X_n \longrightarrow E,
-\qquad (x_1,\ldots,x_n) \in R_\theta :\Longleftrightarrow r_\theta(x_1,\ldots,x_n) \approx 0$$
+$$
+r_\theta : X_1 \times \cdots \times X_n \longrightarrow E,
+\qquad (x_1,\ldots,x_n) \in R_\theta :\Longleftrightarrow r_\theta(x_1,\ldots,x_n) \approx 0
+$$
 
 ## Where this sits in AutoBayes
 
@@ -70,7 +72,7 @@ residual and its Jacobian** — see [[Scalar and Multivariate Energy]] §6.3.
 
 $r_\theta(x, z) = z - g_\theta(z, x)$; inference solves for the fixed point $z^*$.
 Differentiating: $\frac{\partial z^*}{\partial \theta} = (I - \partial_z g)^{-1}\partial_\theta g$ —
-one linear solve, no unrolling. The caveat in [[Prompt1|the prompt]] is the right one:
+one linear solve, no unrolling. The caveat in the original prompt is the right one:
 *this only works if the iteration converges*, and unconstrained DEQs need not. Remedies are
 architectural (contractivity via spectral normalisation, monotone operator parametrisation)
 or a damped/regularised solve.

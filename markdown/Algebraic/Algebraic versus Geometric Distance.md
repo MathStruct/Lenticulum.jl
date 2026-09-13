@@ -49,9 +49,11 @@ $x = x^\star + \epsilon$ with $\epsilon \sim \mathcal{N}(0, \Sigma)$ in the **da
 
 Push the noise forward through the residual. To first order,
 
-$$r(x) = r(x^\star + \epsilon) \approx \underbrace{r(x^\star)}_{=\,0} + J\epsilon = J\epsilon
+$$
+r(x) = r(x^\star + \epsilon) \approx \underbrace{r(x^\star)}_{=\,0} + J\epsilon = J\epsilon
 \qquad\Longrightarrow\qquad
-r \;\sim\; \mathcal{N}\bigl(0,\; J\Sigma J^\top\bigr)$$
+r \;\sim\; \mathcal{N}\bigl(0,\; J\Sigma J^\top\bigr)
+$$
 
 So the negative log-likelihood of the observation, expressed in residual coordinates, is
 

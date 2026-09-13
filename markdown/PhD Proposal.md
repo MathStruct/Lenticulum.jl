@@ -20,7 +20,7 @@ well-posedness conditions machine-checkable rather than asserted.
 
 ## 1. Setting
 
-A **factor** is a relation among named channels, ``r_\theta(x_1,\ldots,x_n) \approx 0``, with
+A **factor** is a relation among named channels, $r_\theta(x_1,\ldots,x_n) \approx 0$, with
 no fixed direction: which channels are inputs is decided per call. Factors are wired into a
 bipartite graph and inference is message passing. The objective is a variational free energy
 which, on the linear-Gaussian fragment, equals the exact negative log marginal likelihood —

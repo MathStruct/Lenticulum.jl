@@ -26,8 +26,8 @@ approximate:
   precision, against a direct sparse solve. It also returns the exact negative log marginal
   likelihood, which it is never given: it sums local energies and entropies with a
   combinatorial correction, and the evidence is what remains.
-- **The same equation solved in every direction.** An acausal constraint over ``n`` quantities
-  admits ``n`` solve directions, none privileged, all exact. A resistive divider and a
+- **The same equation solved in every direction.** An acausal constraint over $n$ quantities
+  admits $n$ solve directions, none privileged, all exact. A resistive divider and a
   three-way conservation law are solved as written, with no rearrangement into input/output
   form.
 - **Learned components as drop-in nodes.** A diffusion model, a deep equilibrium network and a
@@ -38,7 +38,7 @@ approximate:
 
 ### C1. Model comparison for physical networks
 
-Because the objective is a variational free energy that coincides with ``-\log p(\text{data})``
+Because the objective is a variational free energy that coincides with $-\log p(\text{data})$
 on the tractable fragment, a network model can be *scored*, not merely fitted — and two
 competing models of the same system compared on the same footing, with model complexity
 accounted for automatically rather than by a hand-chosen penalty.

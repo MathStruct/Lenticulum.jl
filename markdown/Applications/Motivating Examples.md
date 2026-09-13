@@ -12,7 +12,7 @@
 | [[SLAM and Sensor Fusion]] | geometry: poses, landmarks, motion | visual front-ends, depth priors |
 | [[Trading and Financial Markets]] | no-arbitrage: parity, triangular, index–constituent | volatility surfaces, illiquid instruments |
 | [[Energy Markets and Power Grids]] | Kirchhoff + market clearing | renewable and demand forecasts |
-| [[Metabolomics and Proteomics]] | stoichiometry: ``Sv = 0`` | enzyme kinetics, regulation |
+| [[Metabolomics and Proteomics]] | stoichiometry: $Sv = 0$ | enzyme kinetics, regulation |
 | [[Molecular Dynamics]] | force fields, bond constraints | ML potentials |
 | [[Climate and Dynamical Systems]] | conservation laws, discretised PDEs | subgrid parametrisations |
 | [[Language Models]] † | agreement between experts; grammar and type constraints | the experts themselves |
@@ -25,7 +25,7 @@
 
 In every one of these, the model is a set of **constraints among quantities** with no natural
 input and output. Kirchhoff's law does not say "current causes voltage"; put–call parity does
-not say which of the four prices is the answer; ``Sv = 0`` does not designate an output flux.
+not say which of the four prices is the answer; $Sv = 0$ does not designate an output flux.
 
 A neural network is a pipeline and needs one. A factor graph does not — which is the whole
 content of [[Implicit Learners]] and the reason a `Polarity` is chosen per call rather than
@@ -95,7 +95,7 @@ output rather than a diagnostic.
 > [!note] [[Language Models]] shares this property and few of the others
 > A product of expert language models fits §3 (some parts known, some fitted), §4 (uncertainty
 > matters) and §6 (the residual — here, **disagreement between experts** — is a usable
-> abstention signal). It does *not* fit §1: for ``k`` experts on one sequence the graph is a
+> abstention signal). It does *not* fit §1: for $k$ experts on one sequence the graph is a
 > **star**, and message passing degenerates to adding the energies.
 >
 > It is listed because the framing is clarifying — it is a **product** of experts, not a
@@ -105,8 +105,8 @@ output rather than a diagnostic.
 
 Being honest about the gap between the shape and the software:
 
-- **Scale.** Climate and MD are ``10^6``–``10^9`` variables. Metabolic networks and grids are
-  ``10^3``–``10^5``. SLAM and trading graphs are the ones the current implementation could
+- **Scale.** Climate and MD are $10^6$–$10^9$ variables. Metabolic networks and grids are
+  $10^3$–$10^5$. SLAM and trading graphs are the ones the current implementation could
   plausibly reach. See [[Parallelism and Compilation]].
 - **Loops.** Meshed grids, metabolic cycles and SLAM loop closures are all loopy, and loopy
   message passing gets exact means with wrong variances ([[Loopy Message Passing]]). For

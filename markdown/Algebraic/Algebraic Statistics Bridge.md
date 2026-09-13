@@ -10,8 +10,10 @@
 Let $X, Y$ be discrete with $|X| = a$, $|Y| = b$, and let
 $p \in \Delta^{ab-1}$ be the joint probability table, $p_{ij} = P(X=i, Y=j)$. Then
 
-$$X \perp\!\!\!\perp Y \iff p_{ij} = p_{i+}p_{+j} \iff \operatorname{rank}(p) = 1
-\iff \text{all } 2\times 2 \text{ minors vanish}$$
+$$
+X \perp\!\!\!\perp Y \iff p_{ij} = p_{i+}p_{+j} \iff \operatorname{rank}(p) = 1
+\iff \text{all } 2\times 2 \text{ minors vanish}
+$$
 
 $$\boxed{\;p_{ij}p_{kl} - p_{il}p_{kj} = 0 \quad \text{for all } i<k,\ j<l\;}$$
 

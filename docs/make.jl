@@ -19,7 +19,7 @@ makedocs(;
         Adversarial,
     ],
     format = Documenter.HTML(;
-        canonical = "https://DanielBoigk.github.io/Lenticulum.jl",
+        canonical = "https://MathStruct.github.io/Lenticulum.jl",
         edit_link = "master",
         assets = String[],
         # LenticulumCore and Mycelium have large interfaces, so their reference pages are
@@ -30,6 +30,7 @@ makedocs(;
         "Home" => "index.md",
         "Getting started" => "getting-started.md",
         "Vocabulary" => "vocabulary.md",
+        "Theory vault" => "theory.md",
         "Packages" => [
             "LenticulumCore" => "packages/lenticulumcore.md",
             "Mycelium" => "packages/mycelium.md",
@@ -45,7 +46,20 @@ makedocs(;
     warnonly = [:missing_docs, :cross_references],
 )
 
+# --- The Obsidian vault, rendered with Quartz, deployed inside this site ---------------
+# `docs/vault/build.sh` stages the vault and builds it into docs/build/vault/, which
+# deploydocs then ships along with everything else, so it lands at <site>/dev/vault/.
+# It needs Node ≥ 22; if `npx` is not on the path the API docs still build on their own.
+let script = joinpath(@__DIR__, "vault", "build.sh")
+    if Sys.which("npx") === nothing
+        @warn "npx not found — skipping the theory vault (docs/vault/build.sh). The API docs are unaffected."
+    else
+        @info "Building the theory vault with Quartz"
+        run(`$script`)
+    end
+end
+
 deploydocs(;
-    repo = "github.com/DanielBoigk/Lenticulum.jl",
+    repo = "github.com/MathStruct/Lenticulum.jl",
     devbranch = "master",
 )

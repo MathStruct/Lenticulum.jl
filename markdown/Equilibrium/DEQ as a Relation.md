@@ -7,9 +7,11 @@
 
 ## 1. The model
 
-$$z^\ast = g_\theta(z^\ast, x)
+$$
+z^\ast = g_\theta(z^\ast, x)
 \qquad\Longleftrightarrow\qquad
-r(x,z) = z - g_\theta(z,x) = 0$$
+r(x,z) = z - g_\theta(z,x) = 0
+$$
 
 Bai, Kolter and Koltun's observation was that an infinitely deep weight-tied network is a
 fixed point, that you can find it with a root solver instead of unrolling, and that you can
@@ -38,9 +40,11 @@ solve_input(f, z, ps, st)     # solve r(x, z) = 0 for x  — what it cannot be a
 Same residual, same `BroydenSolver`, different variable held fixed. Checked against the
 closed form for a linear cell $g = Wz + Ux + b$:
 
-$$z^\ast = (I-W)^{-1}(Ux+b)
+$$
+z^\ast = (I-W)^{-1}(Ux+b)
 \qquad\qquad
-x^\ast = U^{-1}\bigl((I-W)z - b\bigr)$$
+x^\ast = U^{-1}\bigl((I-W)z - b\bigr)
+$$
 
 and checked to be mutually inverse.
 

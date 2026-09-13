@@ -17,8 +17,8 @@ The distinction is not pedantry — the two are different distributions with dif
 
 | | form | logic | who must be satisfied |
 |---|---|---|---|
-| **Mixture** of experts | ``p(x) = \sum_i w_i\, p_i(x)`` | **OR** | any one |
-| **Product** of experts | ``p(x) \propto \prod_i p_i(x)^{w_i}`` | **AND** | all of them |
+| **Mixture** of experts | $p(x) = \sum_i w_i\, p_i(x)$ | **OR** | any one |
+| **Product** of experts | $p(x) \propto \prod_i p_i(x)^{w_i}$ | **AND** | all of them |
 
 "Run until they agree" is a conjunction: a sequence is good when *every* model finds it
 plausible. That is the product, and in energy terms it is the operation this whole project is
@@ -31,13 +31,13 @@ energies ([[Energy-Based Factor Graphs]] §1); there is no mixture operation any
 framework, and there could not easily be one — a mixture is not a Frobenius multiplication.
 
 Worth noting that "Mixture of Experts" in current LLM practice (Switch Transformer, Mixtral)
-means something else again: **sparse routing**, where a learned gate sends each token to top-``k``
+means something else again: **sparse routing**, where a learned gate sends each token to top-$k$
 experts. That is a mixture with a router, chosen for compute efficiency, and it has nothing to
 do with agreement.
 
 ## 2. Why *diffusion* LLMs specifically — the instinct is right
 
-An autoregressive LLM is a chain of committed samples: it emits token ``t``, conditions on it,
+An autoregressive LLM is a chain of committed samples: it emits token $t$, conditions on it,
 and moves on. There is no full-sequence state to refine and no natural way for two of them to
 negotiate — by the time they disagree, both have committed.
 
@@ -68,24 +68,24 @@ That is worth adding, because it is the *cheap* one:
 > So the LLM case wants the one belief type for which the project's oldest recorded blocker
 > simply does not arise.
 
-Two details make it fit better than it first looks. A vocabulary of ``10^5`` times a sequence of
-``10^3`` is large but the operation is elementwise, which is GPU-shaped. And a *per-position*
+Two details make it fit better than it first looks. A vocabulary of $10^5$ times a sequence of
+$10^3$ is large but the operation is elementwise, which is GPU-shaped. And a *per-position*
 categorical is precisely the mean-field factorisation diffusion LLMs already make at each
 denoising step — the belief representation matches the model's own approximation rather than
 imposing a new one.
 
-## 4. The deflation: for ``k`` experts on one sequence, the graph is a star
+## 4. The deflation: for $k$ experts on one sequence, the graph is a star
 
 Be honest about what the graph looks like. Two ways to draw it:
 
 - **Variables = token positions, factors = the LLMs.** Each model touches every position, so
-  every factor has degree ``n``. That is a densely connected graph — the worst case for message
+  every factor has degree $n$. That is a densely connected graph — the worst case for message
   passing, and nothing about it is sparse.
-- **One variable = the whole sequence, factors = the LLMs.** Then it is a **star**: ``k`` unary
+- **One variable = the whole sequence, factors = the LLMs.** Then it is a **star**: $k$ unary
   factors on one variable.
 
-On a star, message passing degenerates. The marginal is `combine` of the ``k`` messages, which is
-**adding the ``k`` energies** — the thing you would have written anyway.
+On a star, message passing degenerates. The marginal is `combine` of the $k$ messages, which is
+**adding the $k$ energies** — the thing you would have written anyway.
 
 > The factor-graph machinery buys nothing here. Scheduling, the exclusion principle, polarity
 > resolution and the Bethe correction all have nothing to do on a star. What survives is the
@@ -119,9 +119,9 @@ operation with different signs and weights:
 | technique | in energy terms |
 |---|---|
 | logit averaging / ensembling | a **mixture** — arithmetic mean of probabilities |
-| product-of-experts ensembling | ``\sum_i w_i E_i`` — energies add |
-| classifier-free guidance | ``E(x\mid c) + w\,[E(x \mid c) - E(x)]`` — a weighted energy sum |
-| **contrastive decoding** | ``\log p_{\text{expert}} - \log p_{\text{amateur}}`` — an energy **difference** |
+| product-of-experts ensembling | $\sum_i w_i E_i$ — energies add |
+| classifier-free guidance | $E(x\mid c) + w\,[E(x \mid c) - E(x)]$ — a weighted energy sum |
+| **contrastive decoding** | $\log p_{\text{expert}} - \log p_{\text{amateur}}$ — an energy **difference** |
 | constrained decoding | combine with a hard factor |
 
 Contrastive decoding is the interesting row: a *difference* of log-probabilities is exactly what
@@ -129,16 +129,16 @@ Contrastive decoding is the interesting row: a *difference* of log-probabilities
 graph with one positive and one negative factor is contrastive decoding, and the graded energy
 of [[Scalar and Multivariate Energy]] is the natural bookkeeping for all five rows at once.
 
-## 7. The real technical obstruction: composing at ``t > 0``
+## 7. The real technical obstruction: composing at $t > 0$
 
 This is the part that would bite in practice, and it has a literature.
 
 Adding the scores of several diffusion models does **not** sample from the product of their data
-distributions. If ``q_t`` is the forward noising kernel, then
+distributions. If $q_t$ is the forward noising kernel, then
 
 $$q_t * (p_1 p_2) \;\neq\; (q_t * p_1)\,(q_t * p_2)$$
 
-— convolution does not distribute over products. The composition is exact at ``t = 0`` and
+— convolution does not distribute over products. The composition is exact at $t = 0$ and
 **approximate all along the diffusion trajectory**, which is precisely where the models are
 evaluated.
 
@@ -184,7 +184,7 @@ it does not require the composition of §7 to be exact.
 ## 10. Verdict
 
 - **The method is real** — product of experts over diffusion models, with a known correction for
-  the ``t>0`` problem.
+  the $t>0$ problem.
 - **The framing is correct and clarifying**: it is a product not a mixture, energies add, and the
   residual is disagreement.
 - **The machinery is overkill for a star** (§4), and this project would be a poor vehicle

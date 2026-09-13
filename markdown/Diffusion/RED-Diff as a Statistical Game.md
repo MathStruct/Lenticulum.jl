@@ -23,7 +23,7 @@ E(x_0, x) \;=\;
 \underbrace{\tfrac12\|P(x_0-x)\|^2}_{\text{data consistency}}
 $$
 
-which is exactly the energy in [[Prompt4|the prompt]] and in [[ImplicitREDDiff]]. So the note's
+which is exactly the energy in the prompt and in [[ImplicitREDDiff]]. So the note's
 sketch was right, and this is the formal reading of it.
 
 ## 2. The energy/entropy split, and it is not arbitrary

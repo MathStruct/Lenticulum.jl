@@ -24,9 +24,11 @@ why this is not an arbitrary choice but the coordinatisation of the true paramet
 
 Write $v_i := v_d(x^{(i)})$ and stack them as rows of $V \in \mathbb{R}^{M\times m}$. Then
 
-$$f(\Theta) = \tfrac12\sum_i \|\Theta v_i\|^2 = \tfrac12\sum_i v_i^\top \Theta^\top\Theta v_i
+$$
+f(\Theta) = \tfrac12\sum_i \|\Theta v_i\|^2 = \tfrac12\sum_i v_i^\top \Theta^\top\Theta v_i
 = \tfrac12\sum_i \operatorname{tr}\bigl(\Theta v_i v_i^\top \Theta^\top\bigr)
-= \tfrac12 \operatorname{tr}\bigl(\Theta\, S\, \Theta^\top\bigr)$$
+= \tfrac12 \operatorname{tr}\bigl(\Theta\, S\, \Theta^\top\bigr)
+$$
 
 where
 

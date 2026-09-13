@@ -8,9 +8,11 @@
 Train a classifier to separate $p$ (label 1) from $q$ (label 0) with equal class priors. At
 the optimum
 
-$$D^\ast(x) = \frac{p(x)}{p(x)+q(x)}
+$$
+D^\ast(x) = \frac{p(x)}{p(x)+q(x)}
 \qquad\Longrightarrow\qquad
-\operatorname{logit} D^\ast(x) = \log p(x) - \log q(x)$$
+\operatorname{logit} D^\ast(x) = \log p(x) - \log q(x)
+$$
 
 **The logit of the optimal discriminator is the log density ratio.** That is Mohamed &
 Lakshminarayanan §3, it is why GANs work, and `logratio` / `discriminator` are the two readings

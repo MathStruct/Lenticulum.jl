@@ -43,7 +43,7 @@ so that $x_"in" = P_"in"x$, $x_"out" = P_"out" x$. i.e. **we choose input and ou
 $$ P = \rho_{in}P_{in} + \rho_{out}P_{out} + \rho_{latent}P_{latent} $$
 
 We calculate the Energy/Error of the system as:
-$$E(x_0,x) = \mathbb{E}_{t, \epsilon}[\omega(t) \| \epsilon_\theta(\alpha_t x + \sigma_t \epsilon, t) - \epsilon \|_2^2] + ½\|P(x_0-x)\|^2$$
+$$E(x_0,x) = \mathbb{E}_{t, \epsilon}[\omega(t) \| \epsilon_\theta(\alpha_t x + \sigma_t \epsilon, t) - \epsilon \|_2^2] + \tfrac12 \|P(x_0-x)\|^2$$
 
 from that we can get a gradient for the Error via the [RED-Diff](https://arxiv.org/abs/2305.04391) machinery.
 

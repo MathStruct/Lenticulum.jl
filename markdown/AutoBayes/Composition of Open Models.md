@@ -61,8 +61,10 @@ no directed path $i \to j$. For each node take
 $p_i : \bigotimes_{j \in \mathrm{pa}(i)} X_j \nrightarrow\!\!\!\bullet\; X_i$, reveal the parents (so
 later factors can see them), pad with dummy variables for the non-parents, i.e. form
 
-$$\Bigl(\bigotimes_{j<i,\, j \notin \mathrm{pa}(i)} X_j\Bigr) \otimes \mathrm{reveal}_{\mathrm{pa}(i)}(p_i)
-\;:\; \bigotimes_{j<i} X_j \nrightarrow\!\!\!\bullet\; \bigotimes_{j \le i} X_j$$
+$$
+\Bigl(\bigotimes_{j<i,\, j \notin \mathrm{pa}(i)} X_j\Bigr) \otimes \mathrm{reveal}_{\mathrm{pa}(i)}(p_i)
+\;:\; \bigotimes_{j<i} X_j \nrightarrow\!\!\!\bullet\; \bigotimes_{j \le i} X_j
+$$
 
 then compose in order. So the expressiveness is at least that of Bayesian networks — and,
 via [[Copiers Cups and Caps]], strictly more.

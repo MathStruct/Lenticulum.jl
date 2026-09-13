@@ -64,7 +64,7 @@ What kind of type theory this is, and what the code's own types are doing.
 
 22. [[Probabilistic Types]] — "probabilistic type" names three different things. Beliefs are
     **not** the probability monad (the merge operation is not monadic), but
-    ``r_\theta \approx 0`` **is** a graded type judgment with the energy as its grade — and the
+    $r_\theta \approx 0$ **is** a graded type judgment with the energy as its grade — and the
     grade lives in a semiring, which is the temperature
 23. [[The Type Discipline of a Factor Graph]] — a factor graph is neither linear nor cartesian
     but **Frobenius**; putting polarity in the type domain already caught a real bug; and five
@@ -122,7 +122,7 @@ counterpart in Lux.
 
 - [[Factor Graphs]] — bipartite structure; the **two** acyclicity notions (`istree` vs `isdag`)
 - [[Everything is a Factor]] — data, priors, losses and optimisers as graph nodes, forced by Remark 24
-- [[Messages are Inversions]] — a factor → variable message **is** ``c'_\pi``; both exclusion principles
+- [[Messages are Inversions]] — a factor → variable message **is** $c'_\pi$; both exclusion principles
 - [[Polarity Resolution]] — target + available messages → a `Polarity`; the two legality checks
 - [[Schedules]] — the schedule zoo; tree exactness; pruning by edge direction
 - [[Bethe Free Energy]] — Theorem 23 generalised to graphs; energies add, entropies get a counting correction

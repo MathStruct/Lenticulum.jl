@@ -93,8 +93,10 @@ evaluated at the pushforward prior — it just lands in a summand instead of bei
 
 *Proof.* Expand, using linearity of $\mathbb{E}$ and that the tuple's components are
 independent:
-$$\mathbf{F}^{dc} = \mathop{\mathbb{E}}_{(x,a,y,b)}\bigl[\mathbf{l}^{dc}\bigr] - \mathbf{H}^{dc}
-= \Bigl(\mathop{\mathbb{E}}_{(y,b)}\bigl[\mathop{\mathbb{E}}_{(x,a)}[\mathbf{l}^c] - \mathbf{H}^c\bigr],\;\; \mathop{\mathbb{E}}[\mathbf{l}^d] - \mathbf{H}^d\Bigr)$$
+$$
+\mathbf{F}^{dc} = \mathop{\mathbb{E}}_{(x,a,y,b)}\bigl[\mathbf{l}^{dc}\bigr] - \mathbf{H}^{dc}
+= \Bigl(\mathop{\mathbb{E}}_{(y,b)}\bigl[\mathop{\mathbb{E}}_{(x,a)}[\mathbf{l}^c] - \mathbf{H}^c\bigr],\;\; \mathop{\mathbb{E}}[\mathbf{l}^d] - \mathbf{H}^d\Bigr)
+$$
 which is the claim. $\square$
 
 Compare [[Composition of Statistical Games|Theorem 23]]: same recursion, with $+$ replaced
@@ -164,12 +166,14 @@ For $\sigma = \tfrac12\|\cdot\|^2$ this is the familiar $J^\top r$.
 **Composite.** By the multivariate chain rule, and keeping only the terms
 [[Composition of Gradients|Definition 29]] keeps:
 
-$$D_{(\theta,\varphi)}\mathbf{F}^{dc} \;=\;
+$$
+D_{(\theta,\varphi)}\mathbf{F}^{dc} \;=\;
 \begin{pmatrix}
 \mathbb{E}_{(y,b)}\bigl[J^c_\theta\bigr] & \ast_1 \\[4pt]
 \ast_2 & J^d_\varphi
 \end{pmatrix}
-\;:\; \Theta \times \Phi \longrightarrow E_c \oplus E_d$$
+\;:\; \Theta \times \Phi \longrightarrow E_c \oplus E_d
+$$
 
 - $\ast_1 = D_\varphi \mathbb{E}_{(y,b)\sim d'(\cdot\,;\varphi)}[\mathbf{F}^c]$ — $\varphi$ moves the sampling distribution;
 - $\ast_2 = D_\theta \mathbf{F}^d(c(\theta)_*\pi, z; \varphi)$ — $\theta$ moves the pushforward prior.

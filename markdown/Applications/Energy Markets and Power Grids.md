@@ -7,7 +7,7 @@
 
 Two layers, both acausal, sharing variables:
 
-**Physical.** Kirchhoff's current law at every bus (``\sum_i i_i = 0``), Kirchhoff's voltage law
+**Physical.** Kirchhoff's current law at every bus ($\sum_i i_i = 0$), Kirchhoff's voltage law
 around every loop, line-flow equations relating flows to voltage angles, and the generation–load
 balance. None has an input or an output — a bus does not "cause" its incident currents.
 
@@ -73,7 +73,7 @@ Same network, different clamps. [[Channels and Polarity]].
   loopy-message-passing problem is not incidental to this domain, it is intrinsic:
   exact means, wrong variances ([[Loopy Message Passing]]) — and for a risk-constrained
   dispatch decision the variance is the point.
-- **Scale**: ``10^4``–``10^5`` buses for a transmission network, more with distribution. See
+- **Scale**: $10^4$–$10^5$ buses for a transmission network, more with distribution. See
   [[Parallelism and Compilation]].
 - The bootstrap problem is real here too — a loop of pure constraints with no priors cannot
   start propagating (`constraint.md` §4.2), and a grid model is exactly such a loop.

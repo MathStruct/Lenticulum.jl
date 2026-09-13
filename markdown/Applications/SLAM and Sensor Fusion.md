@@ -16,7 +16,7 @@ preferred direction:
 | loop closure | two poses separated in time are the *same place* |
 | calibration | sensor frames are related by fixed unknown transforms |
 
-Written as residuals these are exactly ``r_\theta(\cdot) \approx 0``, and the noise model turns
+Written as residuals these are exactly $r_\theta(\cdot) \approx 0$, and the noise model turns
 each into a factor. That is the standard formulation — GTSAM, iSAM2, Caesar.jl all do this.
 
 ## The name contains both directions
@@ -59,7 +59,7 @@ which is what a robust back end needs in order to reject it.
   passing gives exact means and wrong variances ([[Loopy Message Passing]]) — and in SLAM the
   covariance is used for data association, so a wrong covariance causes wrong associations,
   which cause wrong loop closures. The failure compounds.
-- **Poses live on ``SE(2)``/``SE(3)``**, not in a vector space. Beliefs would need to be
+- **Poses live on $SE(2)$/$SE(3)$**, not in a vector space. Beliefs would need to be
   Gaussians in a tangent space with a retraction, and `combine` would need to agree about which
   tangent space. `GaussianBelief` is flat.
 - **The competition is excellent.** GTSAM and `IncrementalInference.jl` are mature, and the

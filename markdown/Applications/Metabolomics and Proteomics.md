@@ -5,13 +5,13 @@
 
 ## The relations
 
-At metabolic steady state, the stoichiometric matrix ``S`` and the flux vector ``v`` satisfy
+At metabolic steady state, the stoichiometric matrix $S$ and the flux vector $v$ satisfy
 
 $$S\,v \;=\; 0$$
 
 — one linear constraint per metabolite, saying what is produced equals what is consumed. That is
 a `LinearConstraintFactor` per metabolite, with the stoichiometric coefficients as the
-``A_i``, and it is exactly the fragment where this project's results are exact.
+$A_i$, and it is exactly the fragment where this project's results are exact.
 
 Around it sit relations of decreasing certainty: enzyme kinetics (Michaelis–Menten, partly
 known), thermodynamic constraints on directionality (known in form, uncertain in parameters),
@@ -19,7 +19,7 @@ and regulation (largely unknown).
 
 ## Underdetermination is the whole problem, and it is an argument for posteriors
 
-``Sv = 0`` has far more fluxes than metabolites, so the feasible set is a high-dimensional
+$Sv = 0$ has far more fluxes than metabolites, so the feasible set is a high-dimensional
 polytope, not a point. Flux Balance Analysis handles this by **choosing an objective** —
 maximise growth, typically — and returning one vertex.
 
@@ -36,7 +36,7 @@ unconstrained subnetwork is reporting the objective, not the biology.
 
 ## What is observed
 
-Metabolite concentrations (LC-MS, sparse and semi-quantitative), ``^{13}\mathrm{C}`` isotope
+Metabolite concentrations (LC-MS, sparse and semi-quantitative), $^{13}\mathrm{C}$ isotope
 labelling patterns, protein abundances (proteomics, different instrument, different noise
 model, different coverage), and exchange fluxes at the boundary. Different modalities, wildly
 different reliabilities, and coverage in the low tens of percent.
@@ -74,7 +74,7 @@ expensive.
 
 ## What would be hard
 
-- **Scale.** Genome-scale reconstructions have ``10^3``–``10^4`` reactions. Feasible in
+- **Scale.** Genome-scale reconstructions have $10^3$–$10^4$ reactions. Feasible in
   principle for a sparse linear system, not for the current implementation
   ([[Parallelism and Compilation]]).
 - **The polytope is not Gaussian.** Fluxes have sign constraints and bounds, so the posterior is

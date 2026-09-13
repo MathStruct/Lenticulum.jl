@@ -44,8 +44,10 @@ $[0,\infty]$-valued $l^c$ **cannot be used without first throwing away the model
 [[Variational Free Energy|Proposition 18]] insists energy and entropy behave differently.
 In this family the difference is visible:
 
-$$F^c(\pi, x_o) \;=\; \underbrace{\sum_{j=1}^{D} w_j \cdot \tfrac12\bigl\|r_\Theta(x_o, x_u^{(j)})\bigr\|_M^2}_{\text{energy: pointwise, per branch, } =\,0 \text{ at an exact root}}
-\;-\; \underbrace{\Bigl(-\sum_j w_j\log w_j\Bigr)}_{\text{entropy: a functional of the branch belief}}$$
+$$
+F^c(\pi, x_o) \;=\; \underbrace{\sum_{j=1}^{D} w_j \cdot \tfrac12\bigl\|r_\Theta(x_o, x_u^{(j)})\bigr\|_M^2}_{\text{energy: pointwise, per branch, } =\,0 \text{ at an exact root}}
+\;-\; \underbrace{\Bigl(-\sum_j w_j\log w_j\Bigr)}_{\text{entropy: a functional of the branch belief}}
+$$
 
 Note the first term **vanishes** when inference succeeds exactly. So for a well-posed
 algebraic factor the free energy reduces to $-H$: **the loss is entirely the branch
@@ -63,9 +65,11 @@ By [[Composition is Elimination]] the factors must **not** be fused. The composi
 formed by the [[Composition of Statistical Games|Definition 22]] laws applied to the local
 data:
 
-$$\mathbf{l}^{dc} = \bigl(r^c_\Theta,\ r^d_\Phi\bigr) \in \mathbb{R}^{k_c}\oplus\mathbb{R}^{k_d},
+$$
+\mathbf{l}^{dc} = \bigl(r^c_\Theta,\ r^d_\Phi\bigr) \in \mathbb{R}^{k_c}\oplus\mathbb{R}^{k_d},
 \qquad
-\mathbf{H}^{dc}(\pi,z) = \Bigl(\mathop{\mathbb{E}}_{(y,b)\sim d'}\bigl[\mathbf{H}^c(\pi,y)\bigr],\ \mathbf{H}^d(c_*\pi,z)\Bigr)$$
+\mathbf{H}^{dc}(\pi,z) = \Bigl(\mathop{\mathbb{E}}_{(y,b)\sim d'}\bigl[\mathbf{H}^c(\pi,y)\bigr],\ \mathbf{H}^d(c_*\pi,z)\Bigr)
+$$
 
 The energy direct sum here is concrete: the composite residual is the **stacked** residual
 vector, graded by factor. That is exactly the $E_G = \bigoplus_f E_f$ of

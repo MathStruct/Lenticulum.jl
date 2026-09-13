@@ -12,8 +12,10 @@
 
 [[Implicit Learners]] defines an implicit learner by a residual
 
-$$r_\theta : X_1\times\cdots\times X_n \to E,
-\qquad (x_1,\ldots,x_n) \in R_\theta \iff r_\theta(x_1,\ldots,x_n) \approx 0$$
+$$
+r_\theta : X_1\times\cdots\times X_n \to E,
+\qquad (x_1,\ldots,x_n) \in R_\theta \iff r_\theta(x_1,\ldots,x_n) \approx 0
+$$
 
 A ModelingToolkit model is a list of equations `0 ~ expr`. That *is* $r_\theta = 0$, with
 $\theta$ the parameters and $\approx$ replaced by $=$. MTK is not *like* an implicit learner;
@@ -48,8 +50,10 @@ one that is literally a lens.
 `SciMLSensitivity` gives $\partial(\text{solution})/\partial(\text{parameters})$ via the
 adjoint ODE/DAE. Compose that with the solve and you have
 
-$$f : P \times A \to B \quad (\text{solve}),
-\qquad f^* : P\times A\times B' \to P'\times A' \quad (\text{adjoint})$$
+$$
+f : P \times A \to B \quad (\text{solve}),
+\qquad f^* : P\times A\times B' \to P'\times A' \quad (\text{adjoint})
+$$
 
 which is [[Parametric Lens]] on the nose. **In this reading MTK is just Lux with a stiff
 solver in the middle**, and everything in [[Lux as a Parametric Lens]] applies verbatim,
@@ -248,7 +252,7 @@ What was deliberately *not* done:
 > corresponding choice on the MTK side is `SymbolicIndexingInterface` at most, and nothing at
 > all for now. Taking on MTK's dependency tree to gain one factor type would be a very bad
 > trade at the current size of this project, and the categorical content — which is what
-> [[Prompt3]] asked for — needs no dependency whatsoever.
+> the prompt asked for — needs no dependency whatsoever.
 
 ## 8. Open problems
 

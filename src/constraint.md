@@ -1,6 +1,6 @@
 # constraint.jl — implementation note
 
-> `LinearConstraintFactor`: one equation ``0 = \sum_i A_i x_i - c + \varepsilon`` over any
+> `LinearConstraintFactor`: one equation $0 = \sum_i A_i x_i - c + \varepsilon$ over any
 > number of channels, none of them distinguished. ModelingToolkit's `0 ~ ...` with a noise
 > term, and the first factor in this project with **no preferred direction at all**.
 

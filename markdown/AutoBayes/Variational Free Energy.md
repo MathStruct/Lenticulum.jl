@@ -11,8 +11,10 @@ $$\mathrm{KL}(c,c')(\pi, y) \;=\; D_{KL}\bigl(c'_\pi(y),\; c^\dagger_\pi(y)\bigr
 
 And it, too, has a chain rule:
 
-$$\mathrm{KL}\bigl[(d,d') \diamond (c,c')\bigr](\pi, z)
-\;=\; \mathbb{E}_{(y,b) \sim d'_{c_*\pi}(z)}\bigl[\mathrm{KL}(c,c')(\pi,y)\bigr] \;+\; \mathrm{KL}(d,d')(c_*\pi, z)$$
+$$
+\mathrm{KL}\bigl[(d,d') \diamond (c,c')\bigr](\pi, z)
+\;=\; \mathbb{E}_{(y,b) \sim d'_{c_*\pi}(z)}\bigl[\mathrm{KL}(c,c')(\pi,y)\bigr] \;+\; \mathrm{KL}(d,d')(c_*\pi, z)
+$$
 
 Beautifully compositional. **But useless**, because evaluating it requires $c^\dagger_\pi$,
 the intractable exact posterior. So you bound it.

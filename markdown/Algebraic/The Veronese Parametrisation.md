@@ -9,8 +9,10 @@ Collect all channels of a factor into one vector $x \in \mathbb{R}^N$,
 $N = \sum_i \dim X_i$. Let $v_d : \mathbb{R}^N \to \mathbb{R}^m$ be the **Veronese
 embedding** of degree $d$ — the vector of all monomials of degree $\le d$:
 
-$$v_d(x) \;=\; \bigl(1,\; x_1,\ \ldots,\ x_N,\; x_1^2,\ x_1x_2,\ \ldots,\ x_N^d\bigr)^\top,
-\qquad m \;=\; \binom{N+d}{d}$$
+$$
+v_d(x) \;=\; \bigl(1,\; x_1,\ \ldots,\ x_N,\; x_1^2,\ x_1x_2,\ \ldots,\ x_N^d\bigr)^\top,
+\qquad m \;=\; \binom{N+d}{d}
+$$
 
 A vector of $k$ polynomials of degree $\le d$ is then exactly a matrix
 $\Theta \in \mathbb{R}^{k \times m}$, and the residual of
@@ -49,8 +51,10 @@ $$J_r(x) \;=\; \frac{\partial r_\Theta}{\partial x} \;=\; \Theta\; Dv_d(x) \;\in
 
 and, splitting $x = (x_{obs}, x_{unobs})$ by a [[Channels and Polarity|polarity]],
 
-$$J_o = \Theta\, Dv_d(x)_{[:,\,obs]} \in \mathbb{R}^{k\times p},
-\qquad J_u = \Theta\, Dv_d(x)_{[:,\,unobs]} \in \mathbb{R}^{k\times q}$$
+$$
+J_o = \Theta\, Dv_d(x)_{[:,\,obs]} \in \mathbb{R}^{k\times p},
+\qquad J_u = \Theta\, Dv_d(x)_{[:,\,unobs]} \in \mathbb{R}^{k\times q}
+$$
 
 There is **no automatic differentiation anywhere in this family**. Derivatives of every
 order are exact rational functions of the data, obtained by index arithmetic on exponent

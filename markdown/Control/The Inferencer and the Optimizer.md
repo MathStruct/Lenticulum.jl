@@ -112,9 +112,11 @@ Both meta-graphs minimise **the same** functional as the base graph: its free en
 Inferencer minimises it over *beliefs*; the Optimizer minimises it over *parameters*. That is
 $f = g$: coordinate descent on one objective, not a game.
 
-$$\underbrace{\min_{q}\ F(q,\theta)}_{\text{Inferencer}}
+$$
+\underbrace{\min_{q}\ F(q,\theta)}_{\text{Inferencer}}
 \qquad\qquad
-\underbrace{\min_{\theta}\ F(q,\theta)}_{\text{Optimizer}}$$
+\underbrace{\min_{\theta}\ F(q,\theta)}_{\text{Optimizer}}
+$$
 
 Which is **EM**, and variational inference's coordinate ascent, and the E-step/M-step split,
 all of which are the same alternation. There is no equilibrium to seek and no best response to

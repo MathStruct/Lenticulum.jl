@@ -83,7 +83,7 @@ $$
 
 The true prior gradient is $x/v_0$. So RED-Diff's regulariser **is** a Gaussian prior, of
 precision $\kappa$ — and it is the *right* prior only when $\kappa = 1/v_0$.
-[`calibrate_lambda`](@ref) returns that $\lambda$ by quadrature.
+`calibrate_lambda` returns that $\lambda$ by quadrature.
 
 With it, the RED-Diff fixed point $\kappa x + \rho^2(x-x_0) = 0$ gives
 $x = \rho^2x_0/(1/v_0+\rho^2)$, which is **exactly** the Gaussian posterior mean. The test

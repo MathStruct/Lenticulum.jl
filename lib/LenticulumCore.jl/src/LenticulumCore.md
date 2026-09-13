@@ -11,9 +11,11 @@ Source: `LenticulumCore.jl` (module) + the six included files.
 an interface, nothing concrete beyond a handful of value types for the energy algebra. It
 must stay light: no AD backend, no solvers, no distributions package.
 
-$$\underbrace{\mathbf{Para}(\mathbf{Lens}(\mathcal{C}))}_{\texttt{LuxCore}}
+$$
+\underbrace{\mathbf{Para}(\mathbf{Lens}(\mathcal{C}))}_{\texttt{LuxCore}}
 \qquad\longrightarrow\qquad
-\underbrace{\mathbf{Para}(\mathbf{StatGame})}_{\texttt{LenticulumCore}}$$
+\underbrace{\mathbf{Para}(\mathbf{StatGame})}_{\texttt{LenticulumCore}}
+$$
 
 See [[Lux as a Parametric Lens]] and [[AutoBayes to Lenticulum]].
 

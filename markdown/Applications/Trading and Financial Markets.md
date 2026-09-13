@@ -10,11 +10,11 @@ output:
 
 | relation | form |
 |---|---|
-| put–call parity | ``C - P = S - K e^{-rT}`` |
-| triangular FX | ``r_{A\to B}\, r_{B\to C}\, r_{C\to A} = 1`` (log-linear) |
-| index vs constituents | ``I = \sum_i w_i S_i`` |
-| cash-and-carry | ``F = S e^{(r-q)T}`` |
-| cross-listing / ADR | ``P_{\text{local}} = P_{\text{foreign}} \times \mathrm{FX}`` |
+| put–call parity | $C - P = S - K e^{-rT}$ |
+| triangular FX | $r_{A\to B}\, r_{B\to C}\, r_{C\to A} = 1$ (log-linear) |
+| index vs constituents | $I = \sum_i w_i S_i$ |
+| cash-and-carry | $F = S e^{(r-q)T}$ |
+| cross-listing / ADR | $P_{\text{local}} = P_{\text{foreign}} \times \mathrm{FX}$ |
 
 Several are **linear** — or linear in logs — which puts them squarely in the fragment where
 `LinearConstraintFactor` is exact. None designates an output: parity does not say which of the

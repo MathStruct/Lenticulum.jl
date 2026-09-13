@@ -1,6 +1,6 @@
 # generator.jl — implementation note
 
-> `NoiseSource` and `GeneratorFactor`: the ``z \sim q(z),\ x = G_\theta(z)`` half of a GAN.
+> `NoiseSource` and `GeneratorFactor`: the $z \sim q(z),\ x = G_\theta(z)$ half of a GAN.
 > Two small factors that between them fill **two** slots `LenticulumCore` declared and nothing
 > ever occupied.
 

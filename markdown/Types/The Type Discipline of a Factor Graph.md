@@ -20,7 +20,7 @@ Standard type disciplines are classified by what you may do with a variable:
 | **Frobenius / hypergraph** | **yes** | **yes** | **yes** |
 
 [[Acausal Composition is a Hypergraph Category]] establishes that a variable node of degree
-``d`` is a Frobenius spider: the wire splits to ``d`` factors and their claims are merged back.
+$d$ is a Frobenius spider: the wire splits to $d$ factors and their claims are merged back.
 So a factor-graph variable is duplicated *and* merged, and **no standard type discipline
 covers that**. Linear logic forbids the duplication; the cartesian setting has no merge to
 forbid.
@@ -84,7 +84,7 @@ returned a value, the resolution would have been silent and order-dependent.
 
 ### 3.2 `isproper` is a refinement type, checked at runtime
 
-`GaussianBelief` with singular ``\Lambda`` is not a distribution — it is a linear relation
+`GaussianBelief` with singular $\Lambda$ is not a distribution — it is a linear relation
 ([[Probabilistic Types]] §2). One type is carrying two things, and `isproper` sorts them out
 dynamically. `belief_mean` then throws on the wrong one, which is the right behaviour and is
 also a runtime check standing in for a refinement.
@@ -94,11 +94,11 @@ only accept the proper index. Julia cannot say that.
 
 ### 3.3 The semiring mismatch is an ungraded composition
 
-[[Energy-Based Factor Graphs]] §3.2 records that point-valued factors run at ``T = 0`` inside a
-free energy that is implicitly ``T = 1``, and a graph mixing them sums incommensurable
+[[Energy-Based Factor Graphs]] §3.2 records that point-valued factors run at $T = 0$ inside a
+free energy that is implicitly $T = 1$, and a graph mixing them sums incommensurable
 quantities **with nothing checking**.
 
-That is a missing type index, exactly. If a belief carried its semiring — ``\mathrm{Belief}_S X``
+That is a missing type index, exactly. If a belief carried its semiring — $\mathrm{Belief}_S X$
 — mixing would not typecheck, and the choice would be forced at graph construction rather than
 remembered by the author. It is the cleanest available example of a typing discipline that
 would have prevented a recorded defect rather than merely described it.

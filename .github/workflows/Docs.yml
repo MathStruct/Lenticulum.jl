@@ -1,0 +1,31 @@
+name: Docs
+on:
+  push:
+    branches: [master]
+    tags: ['*']
+  pull_request:
+    branches: [master]
+permissions:
+  contents: write      # deploydocs pushes to gh-pages
+  statuses: write
+jobs:
+  docs:
+    name: API docs + theory vault
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      # Quartz (the vault renderer) is a Node project; docs/make.jl calls docs/vault/build.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instantiate docs environment
+        run: julia --project=docs -e 'using Pkg; Pkg.instantiate()'
+      - name: Build API docs and theory vault, then deploy
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JULIA_DEBUG: Documenter
+        run: julia --project=docs docs/make.jl

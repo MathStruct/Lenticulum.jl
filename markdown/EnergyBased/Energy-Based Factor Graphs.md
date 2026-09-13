@@ -9,9 +9,11 @@
 
 LeCun's energy-based factor graph:
 
-$$E(Y, X) \;=\; \sum_c E_c\bigl(X,\, Y_{S_c}\bigr),
+$$
+E(Y, X) \;=\; \sum_c E_c\bigl(X,\, Y_{S_c}\bigr),
 \qquad
-Y^\ast \;=\; \operatorname*{arg\,min}_Y \sum_c E_c$$
+Y^\ast \;=\; \operatorname*{arg\,min}_Y \sum_c E_c
+$$
 
 Energies **add** over factors; inference **minimises** the sum. On a tree the minimisation
 factorises and the algorithm is **min-sum** — Viterbi — with exactly the message structure of
@@ -108,13 +110,13 @@ surrounding framework.
 > rather than forcing every factor to produce a distribution it does not have.
 
 > [!note] There is a third semiring, and it is logic programming
-> ``(\vee,\wedge)`` — constraint satisfaction — sits beside ``(\min,+)`` and ``(+,\times)`` in
+> $(\vee,\wedge)$ — constraint satisfaction — sits beside $(\min,+)$ and $(+,\times)$ in
 > the same framework. Dechter's bucket elimination is one algorithm across all three, and
 > Bistarelli–Montanari–Rossi's semiring-based CSP makes the same point from the constraint side.
 >
 > So Prolog and this project are **the same algorithm at different semirings**, which also
-> explains why unification is idempotent and `combine` is not: ``\wedge`` is idempotent and
-> ``+`` is not. See [[Prolog and Logic Programming]] §4.
+> explains why unification is idempotent and `combine` is not: $\wedge$ is idempotent and
+> $+$ is not. See [[Prolog and Logic Programming]] §4.
 
 ## 4. What this does and does not resolve
 

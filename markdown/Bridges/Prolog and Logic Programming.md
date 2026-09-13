@@ -75,14 +75,14 @@ fails). Prolog's idempotence is a consequence of its boolean semiring, which is 
 This is the technical statement that makes the comparison precise rather than suggestive.
 
 [[Energy-Based Factor Graphs]] §3 sets up two semirings and shows they are endpoints of a
-temperature: sum-product at ``T=1``, min-sum at ``T=0``. There is a **third**, and it is
+temperature: sum-product at $T=1$, min-sum at $T=0$. There is a **third**, and it is
 Prolog's:
 
 | semiring | combine / eliminate | is |
 |---|---|---|
-| ``(\vee, \wedge)`` | disjunction / conjunction | **constraint satisfaction — Prolog** |
-| ``(\min, +)`` | minimise / add | energy minimisation — min-sum |
-| ``(+, \times)`` | marginalise / multiply | probability — sum-product |
+| $(\vee, \wedge)$ | disjunction / conjunction | **constraint satisfaction — Prolog** |
+| $(\min, +)$ | minimise / add | energy minimisation — min-sum |
+| $(+, \times)$ | marginalise / multiply | probability — sum-product |
 
 Dechter's **bucket elimination** is the unifying framework: one algorithm parameterised by the
 operators, covering constraint satisfaction, constraint optimisation and probabilistic
@@ -94,8 +94,8 @@ constraints are one framework with different semirings.
 > algorithm at different semirings**, and the vault's own temperature story ([[Energy-Based
 > Factor Graphs]] §3) already contains the machinery to say so — it simply stopped at two.
 
-That also explains §3's asymmetry. Unification is idempotent because ``\wedge`` is idempotent;
-`combine` is not because ``+`` is not. Nothing is wrong with either — it is the semiring
+That also explains §3's asymmetry. Unification is idempotent because $\wedge$ is idempotent;
+`combine` is not because $+$ is not. Nothing is wrong with either — it is the semiring
 showing through.
 
 ## 5. Declarative versus procedural — and both break the same way
@@ -163,7 +163,7 @@ here: multi-modality is exactly the [[messages]] §1 gap, and [[Branches and the
 is where the vault records that a branch point is where the machinery fails.
 
 **Negation.** Prolog has negation as failure under a closed-world assumption. This project has
-no negation at all, and it is awkward to add: ``-E`` is not a valid energy, since energies are
+no negation at all, and it is awkward to add: $-E$ is not a valid energy, since energies are
 bounded below. The nearest thing is a negative weight in a sum of energies — which is what
 contrastive decoding does ([[Language Models]] §6) — and that is a weighting, not a negation.
 
@@ -183,7 +183,7 @@ So the honest position:
 
 What is left that is genuinely different is the other fragment. MLN factors are weighted
 formulas over discrete atoms; here a factor may be a **continuous residual, a solver, an ODE, a
-diffusion prior or a neural network**, over ``\mathbb{R}^n``. The logic side has the
+diffusion prior or a neural network**, over $\mathbb{R}^n$. The logic side has the
 quantification and lacks the continuous learned relations; this side has the continuous learned
 relations and lacks the quantification.
 

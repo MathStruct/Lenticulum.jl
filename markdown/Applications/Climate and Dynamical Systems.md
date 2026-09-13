@@ -21,7 +21,7 @@ noise.
 ## The field already does this, under other names
 
 **4D-Var** minimises a sum of a background term and observation terms over a time window. That
-is minimising ``\sum_c E_c`` over a chain — [[Energy-Based Factor Graphs]] §1 exactly, and at
+is minimising $\sum_c E_c$ over a chain — [[Energy-Based Factor Graphs]] §1 exactly, and at
 zero temperature (a MAP estimate, no posterior).
 
 **The Ensemble Kalman Filter** propagates an ensemble and updates it against observations: a
@@ -79,7 +79,7 @@ The third is the socially consequential one and it is a polarity choice.
 
 This is the least tractable of the six and it should be said plainly.
 
-- **Scale.** ``10^8``–``10^9`` state variables. Nothing in this project is within several orders
+- **Scale.** $10^8$–$10^9$ state variables. Nothing in this project is within several orders
   of magnitude ([[Parallelism and Compilation]]), and operational assimilation is already at the
   limit of the largest machines available.
 - **Chaos.** Sensitivity to initial conditions bounds predictability regardless of method, and

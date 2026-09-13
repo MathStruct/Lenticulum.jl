@@ -34,7 +34,7 @@ because it is the one property the whole file exists to have.
 
 ## 2. The interface is the kernel, not the SDE
 
-[`AbstractNoiseSchedule`](@ref) requires only `alpha(s,t)` and `sigma(s,t)`. `drift` and
+`AbstractNoiseSchedule` requires only `alpha(s,t)` and `sigma(s,t)`. `drift` and
 `diffusion` are provided and **nothing in this package calls them** — RED-Diff replaces
 sampling by optimisation, so the SDE is never integrated.
 
@@ -66,7 +66,7 @@ RED-Diff's weight $\lambda\sigma_t/\alpha_t$ vanishes. `VPSDE` therefore carries
 `tmin = 1e-3` and `sample_time` draws from $[t_{\min},1]$.
 
 This is a **modelling choice smuggled in as a numerical guard**. It changes the value of every
-integral in the package — including [`calibrate_lambda`](@ref), whose answer depends on
+integral in the package — including `calibrate_lambda`, whose answer depends on
 `tmin` through the lower limit. Two implementations with different floors compute different
 posteriors and neither is wrong. Recorded because the constant is invisible in the maths and
 load-bearing in the code.

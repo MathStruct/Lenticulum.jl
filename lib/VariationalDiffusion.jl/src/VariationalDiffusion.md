@@ -48,9 +48,11 @@ this factor in a graph — see [[factor]] §5.
 There is exactly one closed-form diffusion model, and the test suite is built on it: for
 Gaussian data $x_0\sim\mathcal{N}(0,\Sigma)$,
 
-$$p_t = \mathcal{N}(0,\ \alpha_t^2\Sigma+\sigma_t^2 I),
+$$
+p_t = \mathcal{N}(0,\ \alpha_t^2\Sigma+\sigma_t^2 I),
 \qquad
-\varepsilon_\theta(x,t) = \sigma_t(\alpha_t^2\Sigma+\sigma_t^2I)^{-1}x$$
+\varepsilon_\theta(x,t) = \sigma_t(\alpha_t^2\Sigma+\sigma_t^2I)^{-1}x
+$$
 
 is a *perfectly trained* noise predictor. Against it:
 

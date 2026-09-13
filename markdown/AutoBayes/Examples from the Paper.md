@@ -23,8 +23,10 @@ the mixing probabilities. Note the moral: MLE is what you get when all entropies
 Lens $c : X \mapsto Y$ and prior lens $\pi : 1 \mapsto X$ (trivial inversion), both with NLL
 energies and **zero entropies**. Then
 
-$$F^{c\pi}(\ast, y) = \mathop{\mathbb{E}}_{x\sim c'_\pi(y)}\bigl[-\log p(x,y)\bigr],
-\qquad p(x,y) = p_c(y\mid x)\,p_\pi(x)$$
+$$
+F^{c\pi}(\ast, y) = \mathop{\mathbb{E}}_{x\sim c'_\pi(y)}\bigl[-\log p(x,y)\bigr],
+\qquad p(x,y) = p_c(y\mid x)\,p_\pi(x)
+$$
 
 Computing this is the **E-step**. Parametrising the composite in $\Theta$ and maximising
 over $\theta$ is the **M-step**. So EM is: *evaluate the composite loss, then descend it* —

@@ -11,12 +11,14 @@
 
 A molecular potential decomposes into local terms:
 
-$$E(\mathbf{x}) \;=\; \underbrace{\sum_{\text{bonds}} E_b}_{\text{2-body}}
+$$
+E(\mathbf{x}) \;=\; \underbrace{\sum_{\text{bonds}} E_b}_{\text{2-body}}
 \;+\; \underbrace{\sum_{\text{angles}} E_\theta}_{\text{3-body}}
 \;+\; \underbrace{\sum_{\text{dihedrals}} E_\phi}_{\text{4-body}}
-\;+\; \sum_{\text{pairs}} \bigl(E_{\text{LJ}} + E_{\text{elec}}\bigr)$$
+\;+\; \sum_{\text{pairs}} \bigl(E_{\text{LJ}} + E_{\text{elec}}\bigr)
+$$
 
-Each term touches a few atoms; the total is their sum. That is ``E = \sum_c E_c`` over a factor
+Each term touches a few atoms; the total is their sum. That is $E = \sum_c E_c$ over a factor
 graph whose variables are atomic positions — LeCun's non-probabilistic factor graph, arrived at
 independently by computational chemistry decades earlier.
 
@@ -80,7 +82,7 @@ Bluntly, more here than in the other five.
 - **Multimodality.** Conformational states are distinct modes, and Gaussian beliefs cannot
   represent them. This is the [[messages]] §1 gap again, and in a domain where the multimodality
   *is* the science.
-- **Scale and timescale.** ``10^5``–``10^6`` atoms, and the interesting transitions are rare
+- **Scale and timescale.** $10^5$–$10^6$ atoms, and the interesting transitions are rare
   events many orders of magnitude beyond the integration step.
 
 The defensible claim is therefore narrow and worth stating as such: **not molecular dynamics,

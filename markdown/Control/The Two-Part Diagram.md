@@ -64,9 +64,11 @@ So:
 
 Every architecture in §1 is an instance of **bilevel optimisation**:
 
-$$\min_\theta\; f\bigl(\theta,\ \varphi^\ast(\theta)\bigr)
+$$
+\min_\theta\; f\bigl(\theta,\ \varphi^\ast(\theta)\bigr)
 \qquad\text{subject to}\qquad
-\varphi^\ast(\theta) = \arg\min_\varphi\; g(\theta,\varphi)$$
+\varphi^\ast(\theta) = \arg\min_\varphi\; g(\theta,\varphi)
+$$
 
 and the whole taxonomy is the relationship between $f$ and $g$:
 

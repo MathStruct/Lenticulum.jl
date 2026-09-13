@@ -1,0 +1,32 @@
+name: CI
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  test:
+    name: ${{ matrix.package }} · Julia ${{ matrix.julia }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        julia: ['1']
+        package:
+          - .
+          - lib/LenticulumCore.jl
+          - lib/Mycelium.jl
+          - lib/VariationalDiffusion.jl
+          - lib/ImplicitLayers.jl
+          - lib/Adversarial.jl
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.julia }}
+      - uses: julia-actions/cache@v2
+      - name: Test ${{ matrix.package }}
+        run: julia --project=${{ matrix.package }} -e 'using Pkg; Pkg.instantiate(); Pkg.test()'

@@ -41,9 +41,11 @@ one level up: instead of parametrising a *map*, you parametrise a whole *lens-wi
 
 So:
 
-$$\underbrace{\mathbf{Para}(\mathbf{Lens}(\mathcal{C}))}_{\text{Lux.jl}}
+$$
+\underbrace{\mathbf{Para}(\mathbf{Lens}(\mathcal{C}))}_{\text{Lux.jl}}
 \qquad\text{vs.}\qquad
-\underbrace{\mathbf{Para}(\mathbf{StatGame})}_{\text{Lenticulum.jl}}$$
+\underbrace{\mathbf{Para}(\mathbf{StatGame})}_{\text{Lenticulum.jl}}
+$$
 
 and $\mathbf{StatGame}$ is $\mathbf{BayesLens}$ decorated with $(l, H)$. That is the
 one-line summary of the difference between the two libraries. See

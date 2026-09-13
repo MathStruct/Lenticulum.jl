@@ -145,9 +145,11 @@ generalises.
 
 The tutorial handles latents two ways:
 
-$$E(W,Y,X) \;=\; \min_Z E(W,Z,Y,X)
+$$
+E(W,Y,X) \;=\; \min_Z E(W,Z,Y,X)
 \qquad\text{or}\qquad
-E(W,Y,X) \;=\; -\tfrac1\beta\log\!\int_Z e^{-\beta E(W,Z,Y,X)}$$
+E(W,Y,X) \;=\; -\tfrac1\beta\log\!\int_Z e^{-\beta E(W,Z,Y,X)}
+$$
 
 Minimise, or marginalise — and the first is the $\beta\to\infty$ limit of the second.
 

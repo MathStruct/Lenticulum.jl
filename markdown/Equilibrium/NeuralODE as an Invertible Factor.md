@@ -9,9 +9,11 @@
 
 ## 1. The relation
 
-$$\frac{dz}{dt} = f_\theta(z,t),
+$$
+\frac{dz}{dt} = f_\theta(z,t),
 \qquad
-r(z_0, z_1) = z_1 - \Phi_{t_0\to t_1}(z_0)$$
+r(z_0, z_1) = z_1 - \Phi_{t_0\to t_1}(z_0)
+$$
 
 `DiffEqFlux.NeuralODE(dynamics, tspan, Tsit5())` is a Lux layer: `(n)(x, ps, st)` builds an
 `ODEProblem`, calls `solve`, and returns `(ODESolution, st)`. Direction fixed at construction,
@@ -66,9 +68,11 @@ the free energy measures."* Collapsing both under `SolverInversion` would lose i
 A flow transports distributions, and the correction is the instantaneous change of variables
 (Chen et al.; FFJORD):
 
-$$\frac{d}{dt}\log p(z(t)) = -\operatorname{tr}\frac{\partial f_\theta}{\partial z}
+$$
+\frac{d}{dt}\log p(z(t)) = -\operatorname{tr}\frac{\partial f_\theta}{\partial z}
 \qquad\Longrightarrow\qquad
-\log p(z_1) = \log p(z_0) - \int_{t_0}^{t_1}\!\operatorname{tr}\,\partial_z f_\theta\,dt$$
+\log p(z_1) = \log p(z_0) - \int_{t_0}^{t_1}\!\operatorname{tr}\,\partial_z f_\theta\,dt
+$$
 
 `flow_logdet` computes it, and the test suite checks it against a linear field where
 $\operatorname{tr}\partial_z f = \operatorname{tr}A$ is constant.
