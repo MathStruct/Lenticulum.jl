@@ -90,5 +90,5 @@ but Bayesian structure refinement on a molecular energy graph** — where the sp
 experimental restraints, the prior is a force field, and the product is a posterior with
 per-restraint attribution.
 
-Related: [[Motivating Examples]], [[Energy-Based Factor Graphs]], [[Energy-Based Learning]],
+Related: [[Motivating Examples]], [[Geometric Deep Learning and Physical Laws]], [[Energy-Based Factor Graphs]], [[Energy-Based Learning]],
 [[messages]], [[Loopy Message Passing]]

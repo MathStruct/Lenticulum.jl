@@ -98,6 +98,14 @@ What kind of type theory this is, and what the code's own types are doing.
 34. [[Prolog and Logic Programming]] — "the Prolog of machine learning", scored honestly.
     **Modes are polarities exactly**; Prolog is the *boolean* semiring of the same framework;
     and the shortfall is one thing — **schemas versus ground instances**
+35. [[Geometric Deep Learning and Physical Laws]] — equivariance constrains the **map**, a
+    law constrains the **configuration**; $\dot x=-x$ is equivariant and conserves nothing.
+    The measured case: **direct-force equivariant potentials are unstable in MD**
+    (Bigi–Langer–Ceriotti, ICML 2025). And the converse — this project has no equivariance
+36. [[The Table Revisited]] — the README's explicit/implicit table read row by row against
+    the vault. Loss row **collapses without a contrastive term**; "symmetric" should be
+    *acausal*; no row for beliefs — the table is the LeCun layer, not the AutoBayes one
+
 ## 3b. The algebraic family, worked out
 
 The first of the three [[Implicit Learners]] families in full detail — the case where every

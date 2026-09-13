@@ -91,8 +91,9 @@ same point from the constraint side — hard CSP, weighted CSP, fuzzy and probab
 constraints are one framework with different semirings.
 
 > So logic programming and this project are not neighbouring ideas. They are **the same
-> algorithm at different semirings**, and the vault's own temperature story ([[Energy-Based
-> Factor Graphs]] §3) already contains the machinery to say so — it simply stopped at two.
+> algorithm at different semirings**, and the vault's own temperature story
+> ([[Energy-Based Factor Graphs]] §3) already contains the machinery to say so — it simply
+> stopped at two.
 
 That also explains §3's asymmetry. Unification is idempotent because $\wedge$ is idempotent;
 `combine` is not because $+$ is not. Nothing is wrong with either — it is the semiring

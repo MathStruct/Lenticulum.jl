@@ -121,6 +121,6 @@ Being honest about the gap between the shape and the software:
 None of that makes the shape wrong. It makes the six notes below a description of where the
 work would pay off, not a claim that it already has.
 
-Related: [[Implicit Learners]], [[Channels and Polarity]], [[Time as a Base]],
+Related: [[Implicit Learners]], [[Geometric Deep Learning and Physical Laws]], [[Channels and Polarity]], [[Time as a Base]],
 [[Scalar and Multivariate Energy]], [[Related Julia Projects]],
 [[Parallelism and Compilation]], [[The Linear Gaussian Chain]]

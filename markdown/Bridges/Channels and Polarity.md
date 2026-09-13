@@ -100,4 +100,4 @@ abstraction.
 > system — the precedent for making `supports_polarity` decided rather than declared. See
 > [[Prolog and Logic Programming]] §2.
 
-Related: [[Prolog and Logic Programming]], [[Open Model]], [[Copiers Cups and Caps]], [[Implicit Learners]], [[ImplicitREDDiff]], [[channels]]
+Related: [[Prolog and Logic Programming]], [[Open Model]], [[Copiers Cups and Caps]], [[Implicit Learners]], [[ImplicitREDDiff]], [[channels]], [[The Table Revisited]], [[Geometric Deep Learning and Physical Laws]]
