@@ -120,8 +120,10 @@ feature bolted on for logging; it is what the composite loss *is*, before you co
 >    scalar chain rule of Theorem 23 holds exactly, and scalarisation is a **strict
 >    morphism of games**.
 > 2. If $\sigma_c$ is **convex**, then $\sigma_{dc} \circ \mathbf{F}^{dc} \le F^{dc}$, with
->    $$F^{dc}(\pi,z) \;-\; \sigma_{dc}\bigl(\mathbf{F}^{dc}(\pi,z)\bigr) \;=\;
->    \underbrace{\mathop{\mathbb{E}}_{(y,b)}\bigl[\sigma_c(\mathbf{F}^c)\bigr] - \sigma_c\Bigl(\mathop{\mathbb{E}}_{(y,b)}\bigl[\mathbf{F}^c\bigr]\Bigr)}_{\text{Jensen gap}} \;\ge\; 0$$
+>    $$
+>    F^{dc}(\pi,z) \;-\; \sigma_{dc}\bigl(\mathbf{F}^{dc}(\pi,z)\bigr) \;=\;
+>    \underbrace{\mathop{\mathbb{E}}_{(y,b)}\bigl[\sigma_c(\mathbf{F}^c)\bigr] - \sigma_c\Bigl(\mathop{\mathbb{E}}_{(y,b)}\bigl[\mathbf{F}^c\bigr]\Bigr)}_{\text{Jensen gap}} \;\ge\; 0
+>    $$
 
 *Proof.* $\sigma_{dc}(\mathbf{F}^{dc}) = \sigma_c\bigl(\mathbb{E}[\mathbf{F}^c]\bigr) + \sigma_d(\mathbf{F}^d)$
 by definition of $\sigma_{dc}$ and the theorem above, while Theorem 23 gives

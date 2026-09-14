@@ -31,11 +31,17 @@ bound (EUBO)**, or negative ELBO.
 
 ## Proposition 18 — three forms
 
-$$\mathrm{VFE}(c,c')(\pi,y) = \mathop{\mathbb{E}}_{(x,a)\sim c'_\pi(y)}\Bigl[\log p_{c'_\pi}(x,a\mid y) - \log p_{c^\dagger_\pi}(x,a\mid y)\Bigr] - \log p_{c_Y\bullet\pi}(y) \tag{1}$$
+$$
+\mathrm{VFE}(c,c')(\pi,y) = \mathop{\mathbb{E}}_{(x,a)\sim c'_\pi(y)}\Bigl[\log p_{c'_\pi}(x,a\mid y) - \log p_{c^\dagger_\pi}(x,a\mid y)\Bigr] - \log p_{c_Y\bullet\pi}(y) \tag{1}
+$$
 
-$$= \mathop{\mathbb{E}}_{(x,a)\sim c'_\pi(y)}\Bigl[\log p_{c'_\pi}(x,a\mid y) - \log p_c(a,y\mid x) - \log p_\pi(x)\Bigr] \tag{2}$$
+$$
+= \mathop{\mathbb{E}}_{(x,a)\sim c'_\pi(y)}\Bigl[\log p_{c'_\pi}(x,a\mid y) - \log p_c(a,y\mid x) - \log p_\pi(x)\Bigr] \tag{2}
+$$
 
-$$= \underbrace{\mathop{\mathbb{E}}_{(x,a)\sim c'_\pi(y)}\bigl[-\log p_c(a,y\mid x) - \log p_\pi(x)\bigr]}_{\text{expected \textbf{energy}}} \;-\; \underbrace{H\bigl(c'_\pi(y)\bigr)}_{\textbf{entropy}} \tag{3}$$
+$$
+= \underbrace{\mathop{\mathbb{E}}_{(x,a)\sim c'_\pi(y)}\bigl[-\log p_c(a,y\mid x) - \log p_\pi(x)\bigr]}_{\text{expected \textbf{energy}}} \;-\; \underbrace{H\bigl(c'_\pi(y)\bigr)}_{\textbf{entropy}} \tag{3}
+$$
 
 **Form (2) is the point: $c^\dagger_\pi$ has vanished.** The log-likelihood term interacted
 with the KL to cancel the intractable posterior. That cancellation is the entire reason

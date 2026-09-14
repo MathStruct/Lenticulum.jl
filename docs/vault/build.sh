@@ -115,7 +115,8 @@ root = sys.argv[1]; bad = []
 for f in glob.glob(os.path.join(root, "**", "*.md"), recursive=True):
     lines = open(f, encoding="utf-8").read().split("\n"); i = 0
     while i < len(lines):
-        r = lines[i].rstrip()
+        # strip blockquote / list prefixes so math inside callouts and list items is seen too
+        r = lines[i].rstrip().lstrip("> ").lstrip()
         if r.startswith("$$") and len(r) > 2 and not (r.endswith("$$") and len(r) > 4):
             j = i + 1
             while j < len(lines) and not lines[j].rstrip().endswith("$$"): j += 1
@@ -135,4 +136,13 @@ if [[ $SERVE -eq 1 ]]; then
 else
   npx quartz build -o "$OUT"
   echo ">> vault built into docs/build/vault ($(find "$OUT" -name '*.html' | wc -l) pages)"
+  # KaTeX renders with throwOnError:false, so a bad formula becomes red text rather than a
+  # failed build. Surface them here (e.g. \tag in a single-line $$...$$, which remark-math
+  # parses as *inline* math — put such fences on their own lines).
+  if grep -rl 'katex-error' "$OUT" --include='*.html' >/dev/null; then
+    echo "!! KaTeX parse errors in:"
+    grep -rho 'katex-error" title="[^"]*"' "$OUT" --include='*.html' | sort | uniq -c
+    grep -rl 'katex-error' "$OUT" --include='*.html' | sed "s#^$OUT/#   #"
+    exit 1
+  fi
 fi
