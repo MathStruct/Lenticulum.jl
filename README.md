@@ -28,13 +28,21 @@ $$
 into an error/energy space $E$. Which of the $x_i$ are inputs is not fixed when the relation is
 written; it is chosen when the relation is *used*.
 
-The table below is quoted throughout the vault, so it is kept as originally written.
+The table below is an **illustrating example**, not a definition. Polynomials are the cleanest
+object in analysis with a direct implicit extension — the graph of a polynomial map is an
+algebraic variety — so the pair (polynomials, varieties) is the one where every row can be
+checked by a theorem rather than by analogy. Implicit learning is not *equal* to algebraic
+varieties, any more than explicit learning is equal to polynomials; the general case is
+functions versus relations, and the packages below wrap DEQs, neural ODEs, diffusion priors
+and discriminators as relations that are not varieties at all. The table is quoted throughout
+the vault, so it is kept as originally written; the vault's
+[The Table Revisited](markdown/Bridges/The%20Table%20Revisited.md) reads it row by row.
 
 | Aspect | Explicit | Implicit |
 |---|---|---|
 | **Approximator** | multivariate polynomials | algebraic varieties |
 | **Inference** | Forward evaluation | Rootfinding |
-| **Backpropagation** | Reverse mode automatic differentiation | Implicit function theorem / differential algebra |
+| **Backpropagation** | Reverse mode automatic differentiation | Implicit function theorem |
 | **Universal approximation theorem** | compact continuous functions via Weierstraß theorem | compact smooth manifolds via Nash–Tognoli theorem |
 | **Well-posedness** | Always single-valued | May be multi-valued or have no solution/output only closest point to variety, instead of point on variety |
 | **Loss formulation** | $\|f_\theta(x) - y\|^2$ | $\|r_\theta(x_1,..., x_n)\|^2$ |

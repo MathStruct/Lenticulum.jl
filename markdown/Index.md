@@ -102,9 +102,10 @@ What kind of type theory this is, and what the code's own types are doing.
     law constrains the **configuration**; $\dot x=-x$ is equivariant and conserves nothing.
     The measured case: **direct-force equivariant potentials are unstable in MD**
     (Bigi–Langer–Ceriotti, ICML 2025). And the converse — this project has no equivariance
-36. [[The Table Revisited]] — the README's explicit/implicit table read row by row against
-    the vault. Loss row **collapses without a contrastive term**; "symmetric" should be
-    *acausal*; no row for beliefs — the table is the LeCun layer, not the AutoBayes one
+36. [[The Table Revisited]] — the README's table is an **illustrating example** (polynomials → varieties,
+    the one pair where every slot becomes a theorem), read row by row. Holds up; the one
+    real caveat is the **Loss row collapses without a contrastive term**; "symmetric" means
+    *acausal*; the whole table is the $T\to0$ limit of the AutoBayes layer
 
 ## 3b. The algebraic family, worked out
 

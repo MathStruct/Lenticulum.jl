@@ -76,9 +76,11 @@ done
 mkdir -p "$CONTENT/src" && cp "$ROOT"/src/*.md "$CONTENT/src/"
 
 # the two root-level notes the vault links to as [[README]] and [[Start here]].
-# The README is written for GitHub, so its two repo-relative links are rewritten for the site.
+# The README is written for GitHub, so its repo-relative links are rewritten for the site:
+# any markdown/<path>.md link becomes a site-relative link (Quartz slugs spaces to hyphens).
 sed -e 's#](markdown/Index\.md)#](Index)#' \
     -e 's#](docs/vault/README\.md)#](https://github.com/MathStruct/Lenticulum.jl/blob/master/docs/vault/README.md)#' \
+    -e 's#](markdown/\([^)]*\)\.md)#](\1)#; s#%20#-#g' \
     "$ROOT/README.md" > "$CONTENT/README.md"
 cp "$ROOT/Start here.md" "$CONTENT/Start here.md"
 

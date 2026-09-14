@@ -2,26 +2,34 @@
 
 > [[README]] opens with a nine-row table contrasting explicit and implicit learning. It was
 > written before any of the vault existed, it is quoted by seventeen notes, and it is kept
-> verbatim for that reason. This note reads it row by row against what the vault has since
-> found — because several rows are now known to be loose, and one is wrong in a way that
-> matters.
+> verbatim for that reason.
 >
-> The verdict up front: the table describes the **algebraic family** and the **LeCun layer**
-> only — polynomials, varieties, a squared residual. It has no row for beliefs, and it says
-> nothing about the AutoBayes layer that is the actual architecture. That is not a mistake in
-> any row; it is a mistake in what the table is a table *of*.
+> **What the table is.** An illustrating example, not a definition. Polynomials are the
+> cleanest object in analysis that has a *direct* implicit extension — the graph of a
+> polynomial map is a variety, and the variety is the more general thing — so the pair
+> (polynomials, varieties) is the one where every abstract slot of "explicit vs implicit"
+> becomes a concrete, checkable theorem. That is why it was chosen. It was never meant to say
+> implicit learning *equals* algebraic varieties, any more than a textbook's Weierstraß
+> chapter says explicit learning equals polynomials.
+>
+> Read that way, the table is doing what a motivating example should. This note reads it row
+> by row against what the vault has since found — where the example generalises cleanly, where
+> it generalises with a caveat, and the one row where the *example itself* hides a problem
+> that the general case has to face.
 
 ## Row by row
 
 ### Approximator: *multivariate polynomials* vs *algebraic varieties*
 
-**Scoped, not wrong.** This is the algebraic family of [[Algebraic Implicit Learners]] and
-nothing else. A `DEQFactor` is not a variety; a `DiffusionFactor` is a score, not an ideal;
-a `LinearConstraintFactor` is a variety but a degree-one one. The row is true of one of
-[[Three Senses of Implicit]]'s three senses and silent on the other two.
+**The example, stated.** This is the row that fixes which illustration the rest of the table
+uses, and it is a good choice: a polynomial's graph *is* a variety, so the implicit column
+strictly contains the explicit one, and every later row can be checked by a theorem rather
+than by analogy — which is what [[Algebraic Implicit Learners]] then does in full.
 
-The honest general row would be: *functions* vs *relations*, with "variety" as the special
-case where the relation is polynomial.
+The generalisation is *functions* vs *relations*. A `DEQFactor` is a relation that is not a
+variety; a `DiffusionFactor` is a score, not an ideal; a `LinearConstraintFactor` is a
+degree-one variety. [[Three Senses of Implicit]] has the three senses, and the table's
+example is the first of them. Nothing in the row claims otherwise.
 
 ### Inference: *forward evaluation* vs *rootfinding*
 
@@ -123,9 +131,13 @@ the moment the graph has a cycle, message passing is no longer elimination
 needs the Bethe correction. A DAG is not merely a restriction; it is the case where
 inference is exact for free.
 
-## What is not in the table
+## What the example does not reach
 
-| missing row | explicit | implicit | where the vault has it |
+An illustration is allowed to leave things out; these are the things the general case adds
+that the polynomial example has no slot for. None is a defect of the table — they are the
+rows that would appear if the example were extended to the AutoBayes layer.
+
+| row the example lacks | explicit | implicit | where the vault has it |
 |---|---|---|---|
 | **Uncertainty** | none — a point prediction | a belief over every channel | [[messages]], [[Channels and Polarity]] |
 | **Composition** | function composition, always defined | relational composition, closed only for $d=1$ | [[Composition is Elimination]] |
@@ -133,24 +145,26 @@ inference is exact for free.
 | **Training objective** | the loss | the free energy, with a contrastive term | [[Energy-Based Learning]] |
 | **Time** | none | none — and that is the gap to MTK | [[Time as a Base]] |
 
-The first row is the one that makes the table a table of the wrong thing. The architecture
-is AutoBayes: factors are statistical games, channels carry beliefs, inference is message
-passing, learning is free-energy minimisation. Every row of the original table is a
-statement about the $T \to 0$, Dirac-belief, single-factor limit of that — the LeCun layer,
-where energies are residual norms and inference is rootfinding. That limit is the right way
-to *explain* the idea, and it is what the table does well. It is not the thing that was
-built.
+The first row is the important one. The built architecture is AutoBayes: factors are
+statistical games, channels carry beliefs, inference is message passing, learning is
+free-energy minimisation. Every row of the table is the $T \to 0$, Dirac-belief,
+single-factor limit of that — the LeCun layer, where energies are residual norms and
+inference is rootfinding. That limit is exactly the right level at which to *motivate* the
+idea, and the polynomial example is the right example to motivate it with. The only thing
+to keep in mind is that it is a limit.
 
 ## Summary
 
-Three rows are fine (Inference, Well-posedness, Layer connections). Two are true but say
-less than they seem (Approximator, Cost). Two are loose (Backpropagation, Universal
-approximation). Two are wrong in the letter — one harmlessly (Symmetry: wrong word), one
-not (Loss: collapses without a second term). And the table as a whole omits beliefs, which
-is the difference between what it describes and what exists.
+As an illustrating example the table holds up. Three rows are exactly right (Inference,
+Well-posedness, Layer connections); two are right and understated (Approximator, Cost);
+two are loose in wording (Backpropagation, Universal approximation); one uses the wrong
+word (Symmetry — *acausal*, not symmetric). The one row that needs a real caveat is
+**Loss**: $\|r\|^2$ is a fine illustration of what a relational loss looks like, and it
+collapses the moment $r_\theta$ is learned without a contrastive term. That is not a flaw
+in the example — it is the first thing the general case has to fix, and the example is
+what makes it visible.
 
-The table stays in the README as written, because the notes that cite it cite the idea,
-and the idea was right.
+The table stays in the README as written.
 
 Related: [[README]], [[Implicit Learners]], [[Three Senses of Implicit]],
 [[Energy-Based Learning]], [[Channels and Polarity]], [[Depth in Implicit Learning]],
