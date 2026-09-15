@@ -14,18 +14,26 @@ Under development.
 
 ## The idea
 
-An explicit learner approximates a **function** $f_\theta : X \to Y$ — see the
-[implicit-layers tutorial](https://implicit-layers-tutorial.org/). An implicit learner
-approximates a **relation** $R_\theta \subseteq X_1 \times \cdots \times X_n$, represented by a
-residual
+**Implicit** i.e. replacing learning functions by learning relations. See [Implicit-Layer-Tutorial](https://implicit-layers-tutorial.org/)
+| | Explicit Machine Learning | Implicit Learning |
+|---|---|---|
+| **Approximator** | functions: $f_\theta:X\rightarrow Y$ | relations: $R_\theta\subset X_1\times ...\times X_n$ |
+
+How can we learn this?
+- Introduce Error/Energy space $E$ (assume multivariate)
+- Learn with the function:
 
 $$
-r_\theta : X_1 \times \cdots \times X_n \rightarrow E,
-\qquad
-(x_1,\ldots,x_n) \in R_\theta \;:\Longleftrightarrow\; r_\theta(x_1,\ldots,x_n) \approx 0
+r_\theta: X_1\times ...\times X_n \rightarrow E
 $$
 
-into an error/energy space $E$. Which of the $x_i$ are inputs is not fixed when the relation is
+where:
+
+$$
+(x_1,...,x_n)\in R_\theta : \Longleftrightarrow  r_\theta(x_1,...,x_n) \approx 0
+$$
+
+Which of the $x_i$ are inputs is not fixed when the relation is
 written; it is chosen when the relation is *used*.
 
 The table below is an **illustrating example**, not a definition. Polynomials are the cleanest
