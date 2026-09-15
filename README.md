@@ -36,21 +36,13 @@ $$
 Which of the $x_i$ are inputs is not fixed when the relation is
 written; it is chosen when the relation is *used*.
 
-The table below is an **illustrating example**, not a definition. Polynomials are the cleanest
-object in analysis with a direct implicit extension — the graph of a polynomial map is an
-algebraic variety — so the pair (polynomials, varieties) is the one where every row can be
-checked by a theorem rather than by analogy. Implicit learning is not *equal* to algebraic
-varieties, any more than explicit learning is equal to polynomials; the general case is
-functions versus relations, and the packages below wrap DEQs, neural ODEs, diffusion priors
-and discriminators as relations that are not varieties at all. The table is quoted throughout
-the vault, so it is kept as originally written; the vault's
-[The Table Revisited](markdown/Bridges/The%20Table%20Revisited.md) reads it row by row.
+To give a motivating example that illustrates an explicit and an implicit learner we can take a look at Polynomials and their extension to algebraic varieties. As there is a clean theory behind it that motivates each line of the following table:
 
 | Aspect | Explicit | Implicit |
 |---|---|---|
 | **Approximator** | multivariate polynomials | algebraic varieties |
 | **Inference** | Forward evaluation | Rootfinding |
-| **Backpropagation** | Reverse mode automatic differentiation | Implicit function theorem |
+| **Backpropagation** | Reverse mode automatic differentiation | via Implicit function theorem |
 | **Universal approximation theorem** | compact continuous functions via Weierstraß theorem | compact smooth manifolds via Nash–Tognoli theorem |
 | **Well-posedness** | Always single-valued | May be multi-valued or have no solution/output only closest point to variety, instead of point on variety |
 | **Loss formulation** | $\|f_\theta(x) - y\|^2$ | $\|r_\theta(x_1,..., x_n)\|^2$ |
@@ -67,9 +59,9 @@ so any Lux model wraps as a factor without pulling in Lux, Zygote or Optimisers.
 |---|---|
 | `LenticulumCore` | what a **factor** is: channels, polarities, beliefs, energies |
 | `Mycelium` | how factors are **wired and scheduled**: graphs, messages, free energy |
-| `Lenticulum` | the **linear-Gaussian** factors and Gaussian beliefs — everything has a closed form to check against |
-| `VariationalDiffusion` | a **diffusion model** as a factor (VP-SDE, RED-Diff) |
-| `ImplicitLayers` | **deep equilibrium networks and neural ODEs** as factors |
+| `Lenticulum` | currently only **linear-Gaussian** factors and Gaussian beliefs — non linear extension planned |
+| `VariationalDiffusion` | a **diffusion model** as a factor (VP-SDE, RED-Diff, ProxDM) |
+| `ImplicitLayers` | **Implicit Layers, deep equilibrium networks and neural ODEs** as factors |
 | `Adversarial` | **implicit generative models**: generators and density-ratio factors |
 
 `LenticulumCore` and `Mycelium` define the framework; the other three are factor libraries
@@ -77,7 +69,7 @@ on top of it, and each can be ignored if you do not need that model family.
 
 ## How it differs from Lux.jl
 
-Lenticulum is built *on* Lux (via LuxCore) and can use Lux models; Lux cannot use Lenticulum.
+Lenticulum is built *on* Lux (via LuxCore) and can use Lux models. It deliberately mirrors Lux.jl. Lux cannot use Lenticulum.
 Three differences:
 
 - A Lux layer is a [parametric lens](https://arxiv.org/html/2103.01931v2#S2): a forward `get`
@@ -87,9 +79,8 @@ Three differences:
   than a gradient.
 - Lux wires layers into a DAG. Lenticulum wires factors into a factor graph — bipartite,
   undirected, and allowed to have cycles.
-- In Lux, "run the network" is one forward pass. Here it is **message passing**: schedule
-  messages between factors until they converge. On a tree that is exact in two sweeps; off a
-  tree it is loopy belief propagation, with everything that implies.
+- In Lux, "running the network" is one forward pass and a backward pass. The message passing is trivial. Here a message passing schedule is required to pass
+  messages between factors until they converge.
 
 ## Factor graphs
 
@@ -149,3 +140,5 @@ are verified against closed forms, which are approximations, and which are open 
 A prototype, by one author, with ~740 tests. The exactness results live on the linear-Gaussian
 fragment; everything else is approximate and says so. For what to use *instead* when you need
 only one of the things this combines, see the vault's *Related Julia Projects*.
+
+The inspiration for this library is [GTSAM](https://gtsam.org/). I wanna have GTSAM, but with learnable non-gaussian factors in a non-linear factor graph.
