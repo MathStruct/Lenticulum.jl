@@ -46,11 +46,11 @@ combination this library exists for.
 
 ## Documentation
 
-Concept notes: `markdown/Mycelium/` — [[Factor Graphs]], [[Everything is a Factor]],
+Concept notes: `vault/Factor Graphs/` — [[Factor Graphs]], [[Everything is a Factor]],
 [[Messages are Inversions]], [[Polarity Resolution]], [[Schedules]], [[Bethe Free Energy]],
 [[Loopy Message Passing]].
 
-Implementation notes sit next to each source file, per [[Start here]].
+Implementation notes sit next to each source file, per [[Start Here]].
 
 ## Tests
 

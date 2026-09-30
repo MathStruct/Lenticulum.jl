@@ -1,6 +1,10 @@
-# LenticulumCore.jl — implementation note
+#implementation
 
-Implementation of: [[Parameterized Statistical Game]] (AutoBayes Def. 27) as the Julia
+> Sources: code: `LenticulumCore.jl`, `abstract_types.jl`, `channels.jl`, `energy.jl`, `lens.jl`, `open_model.jl`, `statistical_game.jl`
+>
+> Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens) · [Para Construction](https://mathstruct.org/CategoryTheory-ML-Wiki/Para-Construction) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Bicategory](https://mathstruct.org/CategoryTheory-ML-Wiki/Bicategory) · [Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Functor)
+
+Implementation of: [[Factors are Parameterized Statistical Games]] (AutoBayes Def. 27) as the Julia
 analogue of `LuxCore.AbstractLuxLayer`.
 
 Source: `LenticulumCore.jl` (module) + the six included files.
@@ -91,7 +95,7 @@ step from a node-name-keyed `NamedTuple`, never by folding a binary `⊕`. Treat
 
 ### 3. Expectations force $E$ to be a vector space, not a monoid
 
-[[Composition of Statistical Games|Definition 22]]'s entropy law averages $\mathbf{H}^c$
+[Definition 22](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#composition-energies-add-entropies-chain-definition-22)'s entropy law averages $\mathbf{H}^c$
 under the downstream inversion, so $E$ must admit barycentres. A commutative monoid — the
 minimum needed for the paper's `+` — is not enough. Hence `GradedEnergy` carries `+`, `-`,
 scalar `*` and `zero`, and hence the definition in [[Scalar and Multivariate Energy]]
@@ -118,4 +122,4 @@ stray `test/Manifest.toml` will break it — delete it if one appears. Also: the
 in `Project.toml` was `LentriculumCore` (typo); corrected to `LenticulumCore`, which is the
 name the module and the UUID now agree on.
 
-Related: [[Index]], [[AutoBayes to Lenticulum]], [[Scalar and Multivariate Energy]]
+Related: [[Map of Content]], [[AutoBayes to Lenticulum]], [[Scalar and Multivariate Energy]]

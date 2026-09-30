@@ -1,4 +1,8 @@
-# graph.jl — implementation note
+#implementation
+
+> Sources: code: `graph.jl`
+>
+> Theory (CT-ML wiki): [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model)
 
 Implements: the bipartite factor graph, edge directions, and the two acyclicity predicates.
 Theory: [[Factor Graphs]].
@@ -64,7 +68,7 @@ is the worst option and is recorded so it is not mistaken for a working optimisa
 
 `connect!` refuses to attach the same `(factor, channel)` twice. Fan-out is achieved by
 connecting *several factors* to one variable, which is the graph-level form of the copier of
-[[Copiers Cups and Caps]] — and a variable of degree $d$ **is** a copier. This is why the Bethe
+[[Open Models and Latent Channels]] — and a variable of degree $d$ **is** a copier. This is why the Bethe
 counting number corrects by exactly $d_v - 1$: the number of extra consumers.
 
 ### 4. `isconnected` assumes at least one variable

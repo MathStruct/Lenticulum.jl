@@ -3,7 +3,7 @@
 Six words. You need them to read the API; everything else can wait.
 
 This page is deliberately shallow — it says what each word *does*, not why it is the right
-word. The reasons are in the vault (`markdown/Index.md`).
+word. The reasons are in the vault (`vault/Map of Content.md`).
 
 ## Factor
 

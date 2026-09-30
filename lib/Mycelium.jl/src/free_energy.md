@@ -1,6 +1,10 @@
-# free_energy.jl — implementation note
+#implementation
 
-Implements: the graph generalisation of [[Composition of Statistical Games|Theorem 23]] — the
+> Sources: code: `free_energy.jl`
+>
+> Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
+
+Implements: the graph generalisation of [Theorem 23](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#composition-energies-add-entropies-chain-definition-22) — the
 Bethe free energy, its counting numbers, and the graded per-factor breakdown.
 Theory: [[Bethe Free Energy]].
 
@@ -9,7 +13,7 @@ Theory: [[Bethe Free Energy]].
 $$U = \sum_f U_f, \qquad H = \sum_f H_f - \sum_v (d_v - 1) H_v$$
 
 **Energies add; entropies need a counting correction.** That is exactly the asymmetry
-[[Variational Free Energy|Proposition 18]] identifies, appearing again one level up — which is
+[Proposition 18](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) identifies, appearing again one level up — which is
 the reason this file exists rather than a one-line `sum(local_free_energy, factors)`. The
 one-liner is the energy part, and it is right; the entropy part is what a naive implementation
 gets wrong.

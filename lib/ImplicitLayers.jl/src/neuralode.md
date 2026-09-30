@@ -1,7 +1,11 @@
-# neuralode.jl — implementation note
+#implementation
 
 > `NeuralODEFactor`: the cleanest bidirectional factor in the project, and the reason is a
 > theorem about ODEs rather than anything about neural networks.
+
+> Sources: code: `neuralode.jl`
+>
+> Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 ## 1. Two directions, both integrations
 
@@ -36,7 +40,7 @@ like $h^4$, with no bias term left over.
 Contrast `DEQFactor`, whose `SolverInversion` may converge to a *different root*, or to none.
 That is a qualitatively different kind of inexactness, and collapsing the two under one label
 would lose the distinction the vault cares about
-([[Bayesian Lens]]: *"nothing constrains an inversion to be exact… the quality of the choice
+([[Inversions and Bayesian Lenses]]: *"nothing constrains an inversion to be exact… the quality of the choice
 is what the free energy measures"*).
 
 > If you disagree, the change is one line and the consequence is that the free energy would
@@ -104,4 +108,4 @@ argument is accepted and ignored, which is correct and worth stating so nobody l
 place it should have been used.
 
 Related: [[flow]], [[deq]], [[luxfactor]], [[NeuralODE as an Invertible Factor]],
-[[The Equilibrium Family]], [[Bayesian Lens]]
+[[The Equilibrium Family]], [[Inversions and Bayesian Lenses]]

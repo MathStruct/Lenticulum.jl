@@ -118,17 +118,18 @@ Documentation, both halves at once:
 ```sh
 julia --project=docs -e 'using Pkg; Pkg.instantiate()'
 julia --project=docs docs/make.jl           # API docs + the vault, into docs/build/
-docs/vault/build.sh --serve                 # just the vault, live-previewed
+docs/site/build.sh --serve                  # just the vault, live-previewed
 ```
 
 The vault build needs Node ≥ 22; without it the API docs still build on their own. See
-[`docs/vault/README.md`](docs/vault/README.md).
+[`docs/site/README.md`](docs/site/README.md).
 
 ## The vault
 
 This repository is an Obsidian vault. Open the root folder in Obsidian and start from
-[`Start here.md`](Start%20here.md); the map of content is
-[`markdown/Index.md`](markdown/Index.md). Implementation notes sit beside the source they
+[`vault/Start Here.md`](vault/Start%20Here.md); the map of content is
+[`vault/Map of Content.md`](vault/Map%20of%20Content.md). The general category theory it
+builds on is in the [CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/). Implementation notes sit beside the source they
 describe — `messages.md` next to `messages.jl` — and record what each file does not do as
 carefully as what it does.
 

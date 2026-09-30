@@ -1,7 +1,11 @@
-# ImplicitLayers.jl — package note
+#implementation
 
 > SciML's implicit layers as Lenticulum factors: the **equilibrium** family of
 > [[Implicit Learners]], alongside `VariationalDiffusion.jl`'s diffusion family.
+
+> Sources: code: `ImplicitLayers.jl`, `deq.jl`, `flow.jl`, `luxfactor.jl`, `neuralode.jl`, `solve.jl`
+>
+> Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 ## The thesis, in one table
 
@@ -62,4 +66,4 @@ So this package can do inference at any scale (the solvers are derivative-free, 
   [[solve]] §3.
 
 Related: [[Implicit Learners]], [[The Equilibrium Family]], [[Lux as a Parametric Lens]],
-[[Statistical Game]]
+[[Factors are Parameterized Statistical Games]]

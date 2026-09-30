@@ -1,8 +1,12 @@
-# solve.jl — implementation note
+#implementation
 
 > One root-finder serves both directions of a DEQ, because both directions are the *same
 > residual* solved for a different variable. That is the entire reason a DEQ is worth
 > expressing as a factor.
+
+> Sources: code: `solve.jl`
+>
+> Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 ## 1. Two solvers, and the difference is the caveat
 
@@ -34,7 +38,7 @@ contains a neural network and this package has no AD dependency. It is also what
 ## 2. `SolveReport`, and why nothing throws
 
 A non-convergent solve returns `converged = false` and the caller decides. That is
-[[Bayesian Lens]]'s position quoted directly: *a solver that stopped early is simply an
+[[Inversions and Bayesian Lenses]]'s position quoted directly: *a solver that stopped early is simply an
 inexact inversion, and the loss records the cost.* Throwing would make a legal-but-poor
 inversion into an error.
 

@@ -41,18 +41,18 @@ makedocs(;
         ],
     ],
     # Docstrings cite the Obsidian vault with [[wiki links]] and reference notes that are not
-    # part of this site. Those are deliberate: the theory lives in `markdown/`, not here.
+    # part of this site. Those are deliberate: the theory lives in `vault/`, not here.
     checkdocs = :exports,
     warnonly = [:missing_docs, :cross_references],
 )
 
 # --- The Obsidian vault, rendered with Quartz, deployed inside this site ---------------
-# `docs/vault/build.sh` stages the vault and builds it into docs/build/vault/, which
+# `docs/site/build.sh` stages the vault and builds it into docs/build/vault/, which
 # deploydocs then ships along with everything else, so it lands at <site>/dev/vault/.
 # It needs Node ≥ 22; if `npx` is not on the path the API docs still build on their own.
-let script = joinpath(@__DIR__, "vault", "build.sh")
+let script = joinpath(@__DIR__, "site", "build.sh")
     if Sys.which("npx") === nothing
-        @warn "npx not found — skipping the theory vault (docs/vault/build.sh). The API docs are unaffected."
+        @warn "npx not found — skipping the theory vault (docs/site/build.sh). The API docs are unaffected."
     else
         @info "Building the theory vault with Quartz"
         run(`$script`)

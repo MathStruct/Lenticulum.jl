@@ -1,8 +1,12 @@
-# reddiff.jl — implementation note
+#implementation
 
 > [RED-Diff](https://arxiv.org/abs/2305.04391) (Mardani et al. 2023) as a proximal operator.
 > Variational inference whose posterior is a **point mass** and whose prior gradient is a
 > **stop-gradient**, which together make the whole inversion forward-only.
+
+> Sources: code: `reddiff.jl`
+>
+> Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Gradient Based Learning with Parametric Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Gradient-Based-Learning-with-Parametric-Lenses)
 
 ## 1. The objective
 
@@ -132,7 +136,7 @@ against `Mycelium`'s conventions.
 
 Five lines, inline. `Mycelium` has `AbstractUpdateRule` with `GradientDescent`, `Momentum`
 and `Nesterov`, and reusing them was considered and rejected: those are *lenses for parameter
-updates in a graph* ([[Learning Components as Parametric Lenses]]), whereas this loop
+updates in a graph* ([Learning Components as Parametric Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Gradient-Based-Learning-with-Parametric-Lenses)), whereas this loop
 optimises a **belief**, not a parameter. Different object, different place. If this file ever
 needs a third optimiser, that judgement should be revisited.
 
@@ -147,7 +151,7 @@ answer is computable.
 
 $\rho_{in} = \infty$ cannot go in a gradient, so coordinates with infinite precision are
 **overwritten** after every step (`_project!`). That is the correct reading — it is the
-categorical *cup* of [[Copiers Cups and Caps]] — but it means the two clamp regimes take
+categorical *cup* of [[Open Models and Latent Channels]] — but it means the two clamp regimes take
 different code paths, and the finite-$\rho$ path never continuously approaches the infinite
 one as $\rho$ grows. It just gets stiffer, and eventually ill-conditioned.
 

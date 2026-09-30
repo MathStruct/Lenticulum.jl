@@ -1,7 +1,11 @@
-# factor.jl — implementation note
+#implementation
 
 > `DiffusionFactor`: the point where [[ImplicitREDDiff]]'s selection matrices stop being
 > notation and become a `LenticulumCore.Polarity`.
+
+> Sources: code: `factor.jl`, `gaussian.jl`
+>
+> Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
 ## 1. P is derived from the polarity, not configured
 

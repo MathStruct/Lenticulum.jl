@@ -1,8 +1,12 @@
-# generator.jl — implementation note
+#implementation
 
 > `NoiseSource` and `GeneratorFactor`: the $z \sim q(z),\ x = G_\theta(z)$ half of a GAN.
 > Two small factors that between them fill **two** slots `LenticulumCore` declared and nothing
 > ever occupied.
+
+> Sources: code: `generator.jl`, `open_model.jl`
+>
+> Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion)
 
 ## 1. The first `SampleBelief`
 

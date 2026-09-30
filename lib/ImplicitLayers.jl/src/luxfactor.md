@@ -1,8 +1,12 @@
-# luxfactor.jl — implementation note
+#implementation
 
 > `LuxFactor`: any `AbstractLuxLayer` as a factor. **One polarity.** This is the wrapper that
 > works today on everything in the SciML ecosystem, and the demonstration of why that is not
 > enough.
+
+> Sources: code: `luxfactor.jl`
+>
+> Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 ## 1. It really does wrap anything
 

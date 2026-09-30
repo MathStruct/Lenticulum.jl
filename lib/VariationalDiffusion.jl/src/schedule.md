@@ -1,7 +1,9 @@
-# schedule.jl — implementation note
+#implementation
 
 > The VP-SDE of [Song et al. 2021](https://arxiv.org/abs/2011.13456), presented through its
 > perturbation kernel rather than its SDE.
+
+> Sources: code: `schedule.jl`
 
 ## 1. What is implemented
 

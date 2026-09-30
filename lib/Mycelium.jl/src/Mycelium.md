@@ -1,4 +1,8 @@
-# Mycelium.jl — implementation note
+#implementation
+
+> Sources: code: `Mycelium.jl`, `factors.jl`, `free_energy.jl`, `graph.jl`, `messages.jl`, `passing.jl`, `polarity_resolution.jl`, `schedules.jl`
+>
+> Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens)
 
 Implements: factor graphs and message passing for Lenticulum. This is the layer with **no
 counterpart in Lux**, because in Lux the wiring is a DAG and the message order is implied by
@@ -119,7 +123,7 @@ it silently. A validation pass for this is missing.
 
 - **Joint messages** over several channels at once. A message addresses one variable, so a
   factor coupling several unobserved channels discards the correlation between them — the
-  mean-field laxness of [[Composition of Bayesian Lenses|Remark 16]] at the message level. Not
+  mean-field laxness of [Remark 16](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens#parallel-composition-is-lax) at the message level. Not
   an oversight; fixing it means deciding where to pay for joint representations.
 - **`ResidualSchedule` execution.** The type and its documentation exist; the priority loop does
   not, because it is useless without a working `belief_distance`.

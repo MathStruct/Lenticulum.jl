@@ -37,8 +37,8 @@ is an `AbstractLuxLayer`, which is all the wrapper needs.
 ``\\mathcal{N}(\\mu,\\sigma^2 I)`` with ``\\sigma\\to 0``. That is the paper's own choice, not
 a simplification made here, and it has consequences on a graph — see `factor.md` §5.
 
-Concept notes are in `markdown/Diffusion/`; per-file implementation notes sit next to each
-source file, per `Start here.md`.
+Concept notes are in `vault/Families/Diffusion/`; per-file implementation notes sit next to
+each source file, per `vault/Start Here.md`.
 """
 module VariationalDiffusion
 

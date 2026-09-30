@@ -1,6 +1,10 @@
-# lens.jl — implementation note
+#implementation
 
-Implements: [[Bayesian Lens]] (Defs. 9, 10), [[Composition of Bayesian Lenses]] (Defs. 12, 15).
+> Sources: code: `lens.jl`
+>
+> Theory (CT-ML wiki): [Dagger Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Dagger-Category) · [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Functor) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
+
+Implements: [[Inversions and Bayesian Lenses]] (Defs. 9, 10), [Composition of Bayesian Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens#the-chain-rule-bayesian-inversion-is-functorial) (Defs. 12, 15).
 
 ## The idea in one comparison
 
@@ -20,7 +24,7 @@ $$\text{Bayes:}\quad\ \ (d \circ\!\!\!\bullet\; c)'_\pi = c'_\pi \circ\!\!\!\bul
 | `ProximalInversion(prox)` | denoising steps | RED-Diff, ProxDM |
 | `TrivialInversion` | nothing to infer | priors, clamped channels |
 
-All five inhabit the same slot. That is the point of [[Bayesian Lens|Definition 9]]: $c'$ is
+All five inhabit the same slot. That is the point of [Definition 9](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens): $c'$ is
 *any* function of the right type, and its quality is measured by the free energy rather
 than enforced by the type. The three solver-ish ones are the three families of
 [[Implicit Learners]].
@@ -48,10 +52,10 @@ inversion exists.
 
 ### 3. `TensorLens` is lossy and there is no way around it
 
-[[Composition of Bayesian Lenses|Remark 16]]: parallel composition of inversions can only
+[Remark 16](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens#parallel-composition-is-lax): parallel composition of inversions can only
 feed each branch the **marginal** of a joint prior, so $(c \otimes d)^\dagger \neq c^\dagger \otimes d^\dagger$
 and the composite is mean-field. The gap is the mutual information between branches
-([[Composition of Statistical Games|Remark 26]]).
+([Remark 26](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#composition-energies-add-entropies-chain-definition-22)).
 
 This is not a defect to fix. It is the formal content of "mean-field VI is wrong, and by
 this much". The honest options are (a) accept it and report the gap, or (b) refuse to factor
@@ -74,4 +78,4 @@ does anything. Unresolved.
 reading the paper with the code open, so the docstring says it explicitly. The alternative,
 matching the notation, would confuse everyone else.
 
-Related: [[Bayesian Lens]], [[Composition of Bayesian Lenses]], [[Implicit Learners]], [[open_model]]
+Related: [[Inversions and Bayesian Lenses]], [Composition of Bayesian Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens#the-chain-rule-bayesian-inversion-is-functorial), [[Implicit Learners]], [[open_model]]

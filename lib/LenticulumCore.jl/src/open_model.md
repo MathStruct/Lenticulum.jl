@@ -1,6 +1,10 @@
-# open_model.jl — implementation note
+#implementation
 
-Implements: [[Open Model]] (AutoBayes Def. 1) and the belief types that flow along the
+> Sources: code: `open_model.jl`
+>
+> Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
+
+Implements: [[Open Models and Latent Channels]] (AutoBayes Def. 1) and the belief types that flow along the
 graph.
 
 ## The one idea
@@ -8,14 +12,14 @@ graph.
 $$c : X \rightsquigarrow \llbracket c \rrbracket \times Y$$
 
 The latent space $\llbracket c \rrbracket$ exists so that
-[[Composition of Open Models|composition]] can *file away* the intermediate value instead of
+[composition](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model#composition-without-integration-definition-4) can *file away* the intermediate value instead of
 integrating it out:
 
 $$(q \circ\!\!\!\bullet\; p)(ds,dy,dt,dz \mid x) = q(dt,dz\mid y)\,p(ds,dy\mid x)$$
 
 No integral. `OpenModelResult(observed, latent)` is the runtime witness of this: a forward
 pass returns both, and the `latent` field is exactly an autodiff tape entry. Same trade of
-memory for tractability, under [[Bayesian Inversion|the same chain rule]].
+memory for tractability, under [the same chain rule](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion).
 
 ## Interface
 
@@ -67,7 +71,7 @@ would be wrong, which is why it is called out here.
 
 `DiracBelief` / `SampleBelief` / `TrivialBelief` are placeholders that name the important
 degenerate cases. What is missing is the exponential-family / natural-parameter
-representation that [[Parameterized Statistical Game|Definition 27]] gestures at when it
+representation that [Definition 27](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients) gestures at when it
 mentions the Fisher information metric, and that Khan & Rue's Bayesian learning rule
 requires. That representation is where the natural gradient becomes cheap, so it is not
 optional in the long run — but designing it before there is one working factor would be
@@ -75,10 +79,10 @@ guessing.
 
 ### 5. `logdensity` on an unnormalised measure
 
-[[Copiers Cups and Caps]] notes that cyclic models require unnormalised measures, so
+[[Open Models and Latent Channels]] notes that cyclic models require unnormalised measures, so
 `logdensity` may be a log-*potential* rather than a log-density, differing by an unknown
 constant. For energy purposes this is fine (the constant is irrelevant to gradients), but
 for anything that compares densities across models it is not. Currently unmarked. A
 `isnormalised(m)` trait will be needed before any model-comparison feature.
 
-Related: [[Open Model]], [[Composition of Open Models]], [[lens]], [[Bayesian Inversion]]
+Related: [[Open Models and Latent Channels]], [Composition of Open Models](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model#composition-without-integration-definition-4), [[lens]], [[Inversions and Bayesian Lenses]]

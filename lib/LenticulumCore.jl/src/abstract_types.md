@@ -1,8 +1,12 @@
-# abstract_types.jl — implementation note
+#implementation
 
-Implements: the type hierarchy for [[Open Model]] (Def. 1), [[Bayesian Lens]] (Def. 9),
-[[Statistical Game]] (Def. 20), [[Parameterized Statistical Game]] (Def. 27) and
-[[Composition of Gradients]] (Def. 29).
+> Sources: code: `abstract_types.jl`
+>
+> Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Functor)
+
+Implements: the type hierarchy for [[Open Models and Latent Channels]] (Def. 1), [[Inversions and Bayesian Lenses]] (Def. 9),
+[[Factors are Parameterized Statistical Games]] (Def. 20), [[Factors are Parameterized Statistical Games]] (Def. 27) and
+[Composition of Gradients](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients) (Def. 29).
 
 ## The three families
 
@@ -43,7 +47,7 @@ worth sharing; the application interface is directional and must not be.*
 
 ## `AbstractGradientCoupling` — the paper's "semantics functors", as a type
 
-[[Composition of Gradients|Definition 29]] composes gradients block-diagonally, and the
+[Definition 29](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients) composes gradients block-diagonally, and the
 paper is explicit that the result is only lax and that "this can be accounted for
 mechanistically by an implementation". Its closing paragraph then predicts that "the Laplace
 method, the delta rule, and sampling schemes of various kinds — will correspond to different

@@ -1,4 +1,8 @@
-# passing.jl — implementation note
+#implementation
+
+> Sources: code: `passing.jl`
+>
+> Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 Implements: executing a schedule. `step!` → `sweep!` → `propagate!` → `infer!`.
 Theory: [[Messages are Inversions]], [[Loopy Message Passing]].

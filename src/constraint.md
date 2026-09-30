@@ -1,8 +1,12 @@
-# constraint.jl — implementation note
+#implementation
 
 > `LinearConstraintFactor`: one equation $0 = \sum_i A_i x_i - c + \varepsilon$ over any
 > number of channels, none of them distinguished. ModelingToolkit's `0 ~ ...` with a noise
 > term, and the first factor in this project with **no preferred direction at all**.
+
+> Sources: code: `constraint.jl`, `beliefs.jl`, `gaussian.jl`
+>
+> Theory (CT-ML wiki): [Hypergraph Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Hypergraph-Category) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
 ## 1. Why this factor exists
 
@@ -102,7 +106,7 @@ variable appearing in only one of them, and the other equation survives. The cur
 throws that information away and returns nothing.
 
 This is the same "marginalise a latent channel" operation the vault keeps deferring
-([[Copiers Cups and Caps]] §"marginalisation is the expensive one"), specialised to the
+([[Open Models and Latent Channels]] §"marginalisation is the expensive one"), specialised to the
 linear-Gaussian case where it is a pseudo-inverse rather than an integral. It is the single
 most valuable missing piece in this file.
 

@@ -1,4 +1,8 @@
-# energy.jl — implementation note
+#implementation
+
+> Sources: code: `energy.jl`
+>
+> Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Bicategory](https://mathstruct.org/CategoryTheory-ML-Wiki/Bicategory)
 
 Implements: [[Scalar and Multivariate Energy]] — the two-energy design, and the algebra that
 makes AutoBayes' Definition 22 a *corollary* of ours rather than a competitor.
@@ -15,7 +19,7 @@ makes AutoBayes' Definition 22 a *corollary* of ours rather than a competitor.
 | the Jensen gap | `jensen_gap` |
 
 `GradedEnergy` carries `+`, `-`, scalar `*` and `zero` because
-[[Composition of Statistical Games|Definition 22]]'s entropy law takes an **expectation** of
+[Definition 22](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#composition-energies-add-entropies-chain-definition-22)'s entropy law takes an **expectation** of
 energies, which a bare monoid cannot support.
 
 ## The two theorems, in code
@@ -103,4 +107,4 @@ deliberately does not depend on. It belongs in `Lenticulum.jl` proper, as an ext
 backend. **Until that exists, the design's main payoff is unrealised** — worth saying
 plainly rather than letting the abstraction stand in for the result.
 
-Related: [[Scalar and Multivariate Energy]], [[Statistical Game]], [[statistical_game]]
+Related: [[Scalar and Multivariate Energy]], [[Factors are Parameterized Statistical Games]], [[statistical_game]]

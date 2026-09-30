@@ -1,7 +1,11 @@
-# statistical_game.jl — implementation note
+#implementation
 
-Implements: [[Statistical Game]] (Def. 20), [[Composition of Statistical Games]] (Defs. 22,
-25), [[Parameterized Statistical Game]] (Defs. 27, 28) — i.e. the factor interface itself.
+> Sources: code: `statistical_game.jl`
+>
+> Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Para Construction](https://mathstruct.org/CategoryTheory-ML-Wiki/Para-Construction) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
+
+Implements: [[Factors are Parameterized Statistical Games]] (Def. 20), [Composition of Statistical Games](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#composition-energies-add-entropies-chain-definition-22) (Defs. 22,
+25), [[Factors are Parameterized Statistical Games]] (Defs. 27, 28) — i.e. the factor interface itself.
 
 ## The composition laws, side by side
 
@@ -53,7 +57,7 @@ things they combine are not implemented, because there is no concrete factor yet
 This is the right place to stop, but it means the design is currently unfalsified by
 contact with a real model. The next step should be **one worked example end to end** — a
 Gaussian factor with an exact inversion, composed with a prior, reproducing
-[[Examples from the Paper|Example 1]]'s claim that $F^{c\pi}(\ast,y) = -\log p_{c_*\pi}(y)$ —
+[[AutoBayes Examples as Factor Graphs|Example 1]]'s claim that $F^{c\pi}(\ast,y) = -\log p_{c_*\pi}(y)$ —
 rather than more abstraction.
 
 ### 2. `compose_entropy` and `compose_free_energy` take a plain collection of samples
@@ -95,4 +99,4 @@ from the start rather than retrofitted, since retrofitting a per-edge choice int
 one is much harder than the reverse. But it is currently inert, and should not be mistaken
 for a working feature.
 
-Related: [[Statistical Game]], [[Composition of Statistical Games]], [[Composition of Gradients]], [[energy]], [[LenticulumCore]]
+Related: [[Factors are Parameterized Statistical Games]], [Composition of Statistical Games](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#composition-energies-add-entropies-chain-definition-22), [Composition of Gradients](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients), [[energy]], [[LenticulumCore]]

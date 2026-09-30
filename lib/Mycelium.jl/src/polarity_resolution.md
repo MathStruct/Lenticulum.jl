@@ -1,4 +1,8 @@
-# polarity_resolution.jl — implementation note
+#implementation
+
+> Sources: code: `polarity_resolution.jl`
+>
+> Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Functor)
 
 Implements: the step with no counterpart in Lux — deciding, per message, which way to run a
 factor. Theory: [[Polarity Resolution]], [[Channels and Polarity]].
@@ -51,13 +55,13 @@ otherwise. Not done, because `channels` has no default and requiring it would br
 
 Deliberate v0 restriction. When a factor's inversion couples several unobserved channels,
 sending them separately **discards the correlation** — which is the mean-field laxness of
-[[Composition of Bayesian Lenses|Remark 16]] appearing at the message level, measured by the
+[Remark 16](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens#parallel-composition-is-lax) appearing at the message level, measured by the
 same mutual information.
 
 The generalisation is a joint message over a *set* of channels delivered to a composite
 variable. Not implemented, and not an oversight: fixing it means deciding where to pay for joint
 belief representations, which is the decision
-[[Composition of Bayesian Lenses]] says should be exposed at the graph level rather than hidden.
+[Composition of Bayesian Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens#the-chain-rule-bayesian-inversion-is-functorial) says should be exposed at the graph level rather than hidden.
 
 ### 3. `NamedTuple{decl}(vals)` is type-unstable
 

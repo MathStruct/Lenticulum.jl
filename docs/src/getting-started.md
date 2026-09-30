@@ -179,6 +179,6 @@ both ends and it is a bridge. Same graph, clamps moved.
 
 - **[Vocabulary](@ref vocabulary)** if any of the words above were doing unexplained work.
 - The [package pages](@ref lenticulumcore) for the reference documentation.
-- `markdown/Mycelium/The Linear Gaussian Chain.md` in the vault for this example worked
+- `vault/Factor Graphs/The Linear Gaussian Chain.md` in the vault for this example worked
   through properly — why it is exact, what the counting correction is doing, and what this
   library is *not* (no nonlinearity, no manifolds, no loop closure).

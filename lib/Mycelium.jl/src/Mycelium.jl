@@ -33,7 +33,7 @@ counterpart in Lux, because in Lux the wiring is a DAG and the order is implied 
 They are independent, and confusing them is the commonest way to be wrong about a factor
 graph.
 
-Concept notes are in `markdown/Mycelium/`; per-file implementation notes sit next to each
+Concept notes are in `vault/Factor Graphs/`; per-file implementation notes sit next to each
 source file.
 """
 module Mycelium

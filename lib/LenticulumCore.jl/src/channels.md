@@ -1,6 +1,10 @@
-# channels.jl — implementation note
+#implementation
 
-Implements: the $X / \llbracket c \rrbracket / Y$ trichotomy of [[Open Model|Definition 1]]
+> Sources: code: `channels.jl`
+>
+> Theory (CT-ML wiki): [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
+
+Implements: the $X / \llbracket c \rrbracket / Y$ trichotomy of [Definition 1](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model)
 as a runtime-selectable **polarity**, unifying it with the
 $P_{in} + P_{out} + P_{latent} = \mathrm{Id}$ of [[ImplicitREDDiff]].
 
@@ -35,7 +39,7 @@ watch for it.
 `Polarity` carries a `precisions` `NamedTuple` alongside the assignment, defaulting via
 `default_precision`: `Inf` for `Observed`, `1.0` otherwise.
 
-`Inf` is the *hard* clamp — the categorical [[Copiers Cups and Caps|cup]], "this channel is
+`Inf` is the *hard* clamp — the categorical [cup](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model#copiers-cups-and-caps-remark-8), "this channel is
 exactly the data". A **finite** `Observed` precision is a soft clamp, and having it be
 expressible is the point: noisy observations, annealed conditioning, and the guidance
 strength of a diffusion sampler are all "an observation I only partly believe". A framework
@@ -79,10 +83,10 @@ author is the one who knows. When solver-backed factors exist, expect a
 
 ### 4. Latent channels are not yet distinguished from revealed ones
 
-[[Composition of Open Models]] describes `reveal` as a free retyping promoting
+[Composition of Open Models](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model#composition-without-integration-definition-4) describes `reveal` as a free retyping promoting
 $\llbracket c \rrbracket$ into $Y$. There is currently no `reveal` in the code, and
 `Latent()` conflates "hidden and will be marginalised" with "hidden but retrievable". They
 have very different costs. When `reveal` lands, `Latent` should probably split into
 `Latent()` and `Revealed()`, or gain a flag.
 
-Related: [[Channels and Polarity]], [[Open Model]], [[Copiers Cups and Caps]], [[abstract_types]]
+Related: [[Channels and Polarity]], [[Open Models and Latent Channels]], [[Open Models and Latent Channels]], [[abstract_types]]

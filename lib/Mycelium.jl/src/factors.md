@@ -1,4 +1,8 @@
-# factors.jl — implementation note
+#implementation
+
+> Sources: code: `factors.jl`
+>
+> Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Gradient Based Learning with Parametric Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Gradient-Based-Learning-with-Parametric-Lenses)
 
 Implements: the structural factors — data, priors, losses, optimisers, relays.
 Theory: [[Everything is a Factor]].
@@ -33,7 +37,7 @@ lens $(L,L')\to(1,1)$ that terminates a wire.
 **Nesterov is the one with a non-trivial `get`** — the reason optimisers must be lenses and not
 functions. The test suite asserts `rule_get(nesterov, s, p) != p` while
 `rule_get(gd, s, p) == p`, because that inequality *is* the content of
-[[Learning Components as Parametric Lenses]] §3.4.
+[Learning Components as Parametric Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Gradient-Based-Learning-with-Parametric-Lenses) §3.4.
 
 ## Implementation difficulties
 
@@ -64,7 +68,7 @@ obviously well-defined.
 
 ### 3. `point` refuses non-Dirac beliefs, which blocks every real energy
 
-Energies are pointwise ([[Statistical Game|Definition 20]]), so they need a sample. `point`
+Energies are pointwise ([Definition 20](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)), so they need a sample. `point`
 extracts one from a `DiracBelief` and **throws** for anything else, rather than silently taking
 a mean.
 
@@ -93,7 +97,7 @@ natural next task.
 `islearnable(f) = f.learnable`, so it is a runtime value. Every other factor answers from its
 type. Inconsistent, and it means `islearnable` cannot be constant-folded for priors. It exists
 because a prior parameterised by its natural parameters is the single most likely learnable
-structural factor ([[Examples from the Paper|Example 1]]'s mixing probabilities), and forcing a
+structural factor ([[AutoBayes Examples as Factor Graphs|Example 1]]'s mixing probabilities), and forcing a
 new type for it seemed worse. Worth revisiting.
 
-Related: [[Everything is a Factor]], [[Learning Components as Parametric Lenses]], [[passing]], [[Statistical Game]]
+Related: [[Everything is a Factor]], [Learning Components as Parametric Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Gradient-Based-Learning-with-Parametric-Lenses), [[passing]], [[Factors are Parameterized Statistical Games]]

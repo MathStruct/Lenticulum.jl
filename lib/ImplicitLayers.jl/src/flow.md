@@ -1,7 +1,11 @@
-# flow.jl — implementation note
+#implementation
 
 > Fixed-step explicit integrators, run forwards and backwards. The whole file exists for one
 > line: **`t₁ < t₀` is allowed**, and that is what inverts a NeuralODE.
+
+> Sources: code: `flow.jl`
+>
+> Theory (CT-ML wiki): [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category)
 
 ## 1. The reverse direction is not a feature, it is a theorem
 

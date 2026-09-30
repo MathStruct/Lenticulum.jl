@@ -1,7 +1,11 @@
-# VariationalDiffusion.jl — package note
+#implementation
 
 > A diffusion model as a **statistical game**. The third of the three [[Implicit Learners]]
 > families, and the only one whose Bayesian inversion is neither exact nor a root-find.
+
+> Sources: code: `VariationalDiffusion.jl`, `factor.jl`, `lens.jl`, `predictor.jl`, `reddiff.jl`, `schedule.jl`
+>
+> Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 ## The chain, in four files
 
@@ -12,7 +16,7 @@
 | `reddiff.jl` | [[reddiff]] | the proximal operator; Proposition 2; λ calibration |
 | `factor.jl` | [[factor]] | the `LenticulumFactor`; $P$ from the polarity |
 
-Concept notes are in `markdown/Diffusion/`, entry point [[The Diffusion Family]].
+Concept notes are in `vault/Families/Diffusion/`, entry point [[The Diffusion Family]].
 
 ## What `LenticulumCore` already had
 
@@ -68,4 +72,4 @@ everything is computable, and check the framework against arithmetic instead of 
 itself.
 
 Related: [[Implicit Learners]], [[The Diffusion Family]], [[ImplicitREDDiff]],
-[[Statistical Game]], [[Channels and Polarity]]
+[[Factors are Parameterized Statistical Games]], [[Channels and Polarity]]

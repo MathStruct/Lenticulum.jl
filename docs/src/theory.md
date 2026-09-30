@@ -14,7 +14,7 @@ The vault is a map of content with about a hundred notes. A few entry points:
 
 | start at | for |
 |---|---|
-| *Index* | the whole map, in reading order |
+| *Map of Content* | the whole map, in reading order |
 | *Lux as a Parametric Lens* | why a factor is not a layer, in terms of code you already use |
 | *The Linear Gaussian Chain* | the [getting-started](@ref getting-started) example, worked through properly |
 | *Related Julia Projects* | where this sits next to Turing, RxInfer, ModelingToolkit and Catlab — and when to use those instead |
@@ -36,6 +36,10 @@ that is a link into the vault.
 ## Reading it in Obsidian
 
 The vault is the repository itself. Clone it, open the root folder in
-[Obsidian](https://obsidian.md), and start from `Start here.md`. Two community plugins are
-assumed: *Inline TikZ* for the diagrams (the website compiles these to SVG itself) and
-*Wypst*.
+[Obsidian](https://obsidian.md), and start from `vault/Start Here.md`. The *Inline TikZ* community plugin renders
+the diagrams (the website compiles these to SVG itself).
+
+The general category theory the vault builds on (parametric lenses, Markov categories,
+Bayesian lenses, statistical games) is in the
+[CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/), and each vault note links to
+the pages it uses.

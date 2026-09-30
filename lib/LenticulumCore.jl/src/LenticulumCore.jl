@@ -20,7 +20,7 @@ with a separate scalarisation, so that Jacobians — and hence the Gauss–Newto
 metrics, and the implicit function theorem — survive composition. See
 `Scalar and Multivariate Energy.md`.
 
-Concept notes live in `markdown/`; per-file implementation notes sit next to each source
+Concept notes live in `vault/`; per-file implementation notes sit next to each source
 file.
 """
 module LenticulumCore

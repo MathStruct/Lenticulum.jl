@@ -1,4 +1,8 @@
-# messages.jl — implementation note
+#implementation
+
+> Sources: code: `messages.jl`
+>
+> Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion)
 
 Implements: the message store, belief pooling, and **both** exclusion principles.
 Theory: [[Messages are Inversions]].

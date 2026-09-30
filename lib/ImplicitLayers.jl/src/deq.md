@@ -1,7 +1,11 @@
-# deq.jl — implementation note
+#implementation
 
 > `DEQFactor`: the fixed-point condition $z = g_\theta(z,x)$ kept as a **residual**, so the
 > polarity decides which channel to solve for.
+
+> Sources: code: `deq.jl`
+>
+> Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 ## 1. What SciML gives you, and what it keeps
 
@@ -97,7 +101,7 @@ free energies in the sense the Bethe formula wants.**
 `solve_state` starts from $z_0 = 0$ unless warm-started. `SkipDeepEquilibriumNetwork` exists
 precisely because a *learned* initial guess $z_0 = h_\phi(x)$ converges much faster and
 regularises training. That is a second parameter tree on the inversion — the
-`AmortisedInversion` situation of [[Bayesian Lens]] — and implementing it would make this the
+`AmortisedInversion` situation of [[Inversions and Bayesian Lenses]] — and implementing it would make this the
 first factor in the project with genuinely two parametrised halves. Not done.
 
 ### 4.5 `deq_sensitivity` costs $O(\dim x + \dim z)$ forward passes

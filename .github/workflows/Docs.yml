@@ -18,7 +18,7 @@ jobs:
         with:
           version: '1'
       - uses: julia-actions/cache@v2
-      # Quartz (the vault renderer) is a Node project; docs/make.jl calls docs/vault/build.sh
+      # Quartz (the vault renderer) is a Node project; docs/make.jl calls docs/site/build.sh
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

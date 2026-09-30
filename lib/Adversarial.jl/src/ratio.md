@@ -1,7 +1,11 @@
-# ratio.jl — implementation note
+#implementation
 
 > The discriminator, read as what it is: a **density-ratio estimator**. And the reason this
 > file matters to Lenticulum has nothing to do with generating images.
+
+> Sources: code: `ratio.jl`
+>
+> Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 ## 1. The identity
 

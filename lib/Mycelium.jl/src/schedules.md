@@ -1,4 +1,6 @@
-# schedules.jl — implementation note
+#implementation
+
+> Sources: code: `schedules.jl`
 
 Implements: the schedule types and their generation from graph structure. Pure combinatorics —
 this file computes *which* messages in *what* order, and nothing else.

@@ -1,7 +1,11 @@
-# predictor.jl — implementation note
+#implementation
 
 > `NoisePredictor` wraps a Lux model as $\varepsilon_\theta(x,t)$ and derives from it the two
 > quantities the rest of the package needs: the **score** and the **denoiser**.
+
+> Sources: code: `predictor.jl`
+>
+> Theory (CT-ML wiki): [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 ## 1. LuxCore, not Lux
 
