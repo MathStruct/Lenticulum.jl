@@ -3,96 +3,131 @@
 [![CI](https://github.com/MathStruct/Lenticulum.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/MathStruct/Lenticulum.jl/actions/workflows/CI.yml?query=branch%3Amaster)
 [![Docs](https://github.com/MathStruct/Lenticulum.jl/actions/workflows/Docs.yml/badge.svg?branch=master)](https://MathStruct.github.io/Lenticulum.jl/dev/)
 
-**Implicit** machine learning: learning **relations** instead of functions.
-Under development.
+**Learn relations, not functions.** A neural network learns $f_\theta : X \to Y$ and can only be
+run one way. Lenticulum learns a *relation* $R_\theta$ on a joint space $Z$ and decides at query
+time which coordinates are inputs and which are outputs. The same trained model then answers
+"given $x$, what is $y$?", "given $y$, what is $x$?", and "fill in whatever is missing".
 
-| | API documentation | Theory vault |
+> **Status: research prototype.** Julia, not registered, one author. What is exact is tested
+> against closed forms; what is approximate says so.
+
+## The idea in one picture
+
+Train once on points of a circle. Then ask:
+
+| query | inputs | outputs | answer |
+|---|---|---|---|
+| $x = 0.6$, what is $y$? | $x$ | $y$ | $y \approx \pm 0.8$ — **two answers**; the starting guess picks one |
+| $y = 0.6$, what is $x$? | $y$ | $x$ | $x \approx \pm 0.8$ — same model, other direction |
+| $x = 1.05$, just off the circle? | $x$ | $y$ | still an answer ($y \approx 0.07$): a point on the smoothed relation's ridge, not an error |
+
+A function cannot do any of these three things. A relation does all of them.
+
+## The analogy behind it: polynomials and varieties
+
+The clean case that motivates every design choice. An explicit learner fits a polynomial
+$y = f_\theta(x)$; an implicit learner fits the zero set of a polynomial residual,
+$\{z : r_\theta(z) = 0\}$, an algebraic variety:
+
+| aspect | explicit | implicit |
 |---|---|---|
-| **read it at** | [MathStruct.github.io/Lenticulum.jl/dev](https://MathStruct.github.io/Lenticulum.jl/dev/) | […/dev/vault](https://MathStruct.github.io/Lenticulum.jl/dev/vault/) |
-| **it describes** | the Julia packages: what they do, how to call them | the mathematics, the papers, the design decisions, and what does not work yet |
-| **source** | `docs/` (Documenter) | this repository, which is an [Obsidian](https://obsidian.md) vault (Quartz) |
+| **approximator** | functions $f_\theta : X \to Y$ (polynomials) | relations $R_\theta \subseteq Z$ (algebraic varieties) |
+| **inference** | forward evaluation | root finding |
+| **backpropagation** | reverse-mode automatic differentiation | the implicit function theorem |
+| **universal approximation** | continuous functions on compacta (Weierstraß) | compact smooth manifolds (Nash–Tognoli) |
+| **well-posedness** | always single-valued | may be multi-valued, or have no solution (then: the closest point) |
+| **loss** | $\lVert f_\theta(x) - y\rVert^2$ | $\lVert r_\theta(z)\rVert^2$ |
+| **symmetry** | fixed input → output direction | no distinguished input or output |
+| **cost of inference** | cheap | expensive (Newton's method, …) |
+| **wiring** | directed acyclic graph | arbitrary graph |
 
-## The idea
+## How it works
 
-**Implicit** i.e. replacing learning functions by learning relations. See [Implicit-Layer-Tutorial](https://implicit-layers-tutorial.org/)
-| | Explicit Machine Learning | Implicit Learning |
+1. **A relation is the zero set of a learned residual**, $R_\theta = \{z \in Z : r_\theta(z) = 0\}$.
+2. **A query chooses a polarity**: it splits the coordinates of $Z$ into inputs $X$, outputs $Y$
+   and latents $U$, with a precision per coordinate (∞ = hard input, 0 = free output, in between =
+   soft evidence).
+3. **Inference is root-finding** on the residual with the inputs clamped, the way a deep
+   equilibrium model is evaluated.
+4. **Backpropagation is the implicit function theorem**: one adjoint linear solve gives the
+   gradients for the parameters, the inputs and the precisions. Nothing is unrolled.
+
+Three model families provide the residual:
+
+| family | residual comes from | inference |
 |---|---|---|
-| **Approximator** | functions: $f_\theta:X\rightarrow Y$ | relations: $R_\theta\subset X_1\times ...\times X_n$ |
+| **diffusion models** | a trained denoiser (its score) | a proximal step, or a fixed point of the denoiser |
+| **equilibrium models** (DEQ, neural ODE) | a learned layer | fixed-point / root solve |
+| **algebraic** (polynomials → varieties) | polynomial equations | root finding |
 
-How can we learn this?
-- Introduce Error/Energy space $E$ (assume multivariate)
-- Learn with the function:
+and **factor graphs** wire many relations together. Where a neural network is a DAG of
+layers, this is an undirected graph of factors, solved by message passing (as in
+[GTSAM](https://gtsam.org/), the project's inspiration: GTSAM with learnable, non-Gaussian
+factors).
 
-$$
-r_\theta: X_1\times ...\times X_n \rightarrow E
-$$
+## A minimal example
 
-where:
+```julia
+using VariationalDiffusion, LuxCore, Random
+sched = VPSDE()
+θ = range(0, 2π; length = 49)[1:48]
+circle = NoisePredictor(GaussianMixtureEps(sched, vcat(cos.(θ)', sin.(θ)'); s = 0.05), sched)
+ps, st = LuxCore.setup(Xoshiro(0), circle)            # a diffusion model of the unit circle
+m = ImplicitDiffusion(circle, field_nodes(Xoshiro(1), 2; samples = 8))
 
-$$
-(x_1,...,x_n)\in R_\theta : \Longleftrightarrow  r_\theta(x_1,...,x_n) \approx 0
-$$
+up, _ = implicit_infer(m, [0.6,  0.5], [Inf, 0.0], ps, st)   # x clamped (∞), y free (0)
+dn, _ = implicit_infer(m, [0.6, -0.5], [Inf, 0.0], ps, st)   # same query, other start
+up.z[2], dn.z[2]                                              # ≈ (0.78, -0.78): two branches
+```
 
-Which of the $x_i$ are inputs is not fixed when the relation is
-written; it is chosen when the relation is *used*.
+The closed-form circle model is used so the example needs no training. `implicit_pullback`
+differentiates the answer, and training a relation through its own inference (a parabola
+learned from a circle) is worked through in the vault.
 
-To give a motivating example that illustrates an explicit and an implicit learner we can take a look at Polynomials and their extension to algebraic varieties. As there is a clean theory behind it that motivates each line of the following table:
+## Where to go next
 
-| Aspect | Explicit | Implicit |
-|---|---|---|
-| **Approximator** | multivariate polynomials | algebraic varieties |
-| **Inference** | Forward evaluation | Rootfinding |
-| **Backpropagation** | Reverse mode automatic differentiation | via Implicit function theorem |
-| **Universal approximation theorem** | compact continuous functions via Weierstraß theorem | compact smooth manifolds via Nash–Tognoli theorem |
-| **Well-posedness** | Always single-valued | May be multi-valued or have no solution/output only closest point to variety, instead of point on variety |
-| **Loss formulation** | $\|f_\theta(x) - y\|^2$ | $\|r_\theta(x_1,..., x_n)\|^2$ |
-| **Symmetry handling** | fixed unidirectional output direction | Symmetric: no distinguished input/output |
-| **Computational cost of inference** | Cheap | Expensive (Newton's method, etc) |
-| **Resulting Layer connections** | Directed Acyclic Graph | Arbitrary connected graph |
+| you are | start with |
+|---|---|
+| **from machine learning** | [Implicit Diffusion Learners](https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/Implicit-Diffusion-Learners) → [Backpropagation through Implicit Inference](https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/Backpropagation-through-Implicit-Inference) → [DEQ as a Relation](https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Equilibrium/DEQ-as-a-Relation) |
+| **from statistics / robotics** | the [getting-started page](https://MathStruct.github.io/Lenticulum.jl/dev/getting-started/) (GTSAM's odometry example, exact posterior and marginal likelihood) → [Beliefs](https://mathstruct.org/Lenticulum.jl/dev/vault/Factor-Graphs/Beliefs) → [Bethe Free Energy](https://mathstruct.org/Lenticulum.jl/dev/vault/Factor-Graphs/Bethe-Free-Energy) |
+| **from category theory** | [Factors are Parameterized Statistical Games](https://mathstruct.org/Lenticulum.jl/dev/vault/Foundations/Factors-are-Parameterized-Statistical-Games), with the background in the [CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/) (Track E) |
+| **looking for an API** | the [API documentation](https://MathStruct.github.io/Lenticulum.jl/dev/) |
 
-## What is here
+The **theory vault** ([website](https://MathStruct.github.io/Lenticulum.jl/dev/vault/); also this
+repository opened in [Obsidian](https://obsidian.md), starting from `vault/Start Here.md`) is the
+larger half of the project: the derivations, the papers, the design decisions, and an honest list
+of what does not work yet.
 
-One umbrella package over five smaller ones. Every package depends on **LuxCore** — not Lux —
-so any Lux model wraps as a factor without pulling in Lux, Zygote or Optimisers.
+## What is in the repository
+
+One umbrella package over five smaller ones. All depend on **LuxCore** only — not Lux, Zygote
+or Optimisers — so any Lux model wraps as a factor without pulling them in.
 
 | package | gives you |
 |---|---|
 | `LenticulumCore` | what a **factor** is: channels, polarities, beliefs, energies |
 | `Mycelium` | how factors are **wired and scheduled**: graphs, messages, free energy |
-| `Lenticulum` | currently only **linear-Gaussian** factors and Gaussian beliefs — non linear extension planned |
-| `VariationalDiffusion` | a **diffusion model** as a factor (VP-SDE, RED-Diff, ProxDM) |
-| `ImplicitLayers` | **Implicit Layers, deep equilibrium networks and neural ODEs** as factors |
+| `Lenticulum` | **linear-Gaussian** factors and Gaussian beliefs (nonlinear factors are planned) |
+| `VariationalDiffusion` | **diffusion models** as relations: VP-SDE, RED-Diff, deterministic implicit inference with an adjoint backward pass |
+| `ImplicitLayers` | **deep equilibrium models and neural ODEs** as factors |
 | `Adversarial` | **implicit generative models**: generators and density-ratio factors |
 
-`LenticulumCore` and `Mycelium` define the framework; the other three are factor libraries
-on top of it, and each can be ignored if you do not need that model family.
+## How it relates to what you know
 
-## How it differs from Lux.jl
-
-Lenticulum is built *on* Lux (via LuxCore) and can use Lux models. It deliberately mirrors Lux.jl. Lux cannot use Lenticulum.
-Three differences:
-
-- A Lux layer is a [parametric lens](https://arxiv.org/html/2103.01931v2#S2): a forward `get`
-  and a backward `put`, fixed at construction. A Lenticulum factor is a
-  [parameterized statistical game](https://arxiv.org/html/2503.18608v2#S5) — it only *becomes*
-  a lens once you choose which channels are inputs, and its backward pass is a posterior rather
-  than a gradient.
-- Lux wires layers into a DAG. Lenticulum wires factors into a factor graph — bipartite,
-  undirected, and allowed to have cycles.
-- In Lux, "running the network" is one forward pass and a backward pass. The message passing is trivial. Here a message passing schedule is required to pass
-  messages between factors until they converge.
-
-## Factor graphs
-
-A factor graph is a bipartite graph of **variables** (wires with no content of their own) and
-**factors** (everything with content — including data, priors, losses and optimisers, which are
-all nodes rather than special machinery). A factor has named **channels**; passing a message
-through it means choosing a **polarity** — which channels are observed, which is being solved
-for — and only then is a forward/backward pair assembled.
-
-A complete worked example — a robot trajectory from odometry and one GPS reading, with the exact
-posterior *and* the exact marginal likelihood falling out — is the
-[getting-started page](https://MathStruct.github.io/Lenticulum.jl/dev/getting-started/).
+- **Lux.jl.** Lenticulum builds on LuxCore and can use any Lux model. A Lux layer is a fixed
+  forward/backward pair. A Lenticulum factor becomes one only after a query chooses its inputs,
+  and its backward pass can be a posterior rather than a gradient.
+- **Deep equilibrium models / implicit layers.** Same inference (root-finding) and the same
+  backward pass (the implicit function theorem). The difference is that the direction is not
+  fixed, and a factor carries an energy with a probabilistic reading.
+- **Diffusion-based inverse problems** (RED-Diff, DPS). These are inference methods for one
+  direction of the relation. Lenticulum makes the deterministic version differentiable, so the
+  relation can be *trained* through its own inference.
+- **GTSAM / factor-graph SLAM.** The same graphs and message passing, generalised to learned,
+  non-Gaussian factors. Today the exact results are on the linear-Gaussian fragment.
+- **Category theory.** A factor is a parameterized statistical game in the sense of AutoBayes,
+  and a lens once a polarity is chosen; the CT-ML wiki has the background. You do not need any
+  of it to use the code.
 
 ## Using it
 
@@ -101,45 +136,30 @@ Not registered. From a clone:
 ```julia
 using Pkg
 Pkg.develop(path = "/path/to/Lenticulum.jl")
-Pkg.develop(path = "/path/to/Lenticulum.jl/lib/Mycelium.jl")   # and the others under lib/
+Pkg.develop(path = "/path/to/Lenticulum.jl/lib/VariationalDiffusion.jl")   # and the others under lib/
 ```
 
 Tests, per package:
 
 ```sh
-julia --project=.                           -e 'using Pkg; Pkg.test()'
-julia --project=lib/Mycelium.jl             -e 'using Pkg; Pkg.test()'
-# ... likewise for lib/LenticulumCore.jl, lib/VariationalDiffusion.jl,
-#     lib/ImplicitLayers.jl, lib/Adversarial.jl
+julia --project=.                              -e 'using Pkg; Pkg.test()'
+julia --project=lib/VariationalDiffusion.jl    -e 'using Pkg; Pkg.test()'
+# ... likewise for lib/LenticulumCore.jl, lib/Mycelium.jl, lib/ImplicitLayers.jl, lib/Adversarial.jl
 ```
 
-Documentation, both halves at once:
+Documentation, API and vault together:
 
 ```sh
 julia --project=docs -e 'using Pkg; Pkg.instantiate()'
-julia --project=docs docs/make.jl           # API docs + the vault, into docs/build/
-docs/site/build.sh --serve                  # just the vault, live-previewed
+julia --project=docs docs/make.jl          # API docs + the vault, into docs/build/
+docs/site/build.sh --serve                 # just the vault, live-previewed (Node ≥ 22)
 ```
 
-The vault build needs Node ≥ 22; without it the API docs still build on their own. See
-[`docs/site/README.md`](docs/site/README.md).
+## Status and limits
 
-## The vault
-
-This repository is an Obsidian vault. Open the root folder in Obsidian and start from
-[`vault/Start Here.md`](vault/Start%20Here.md); the map of content is
-[`vault/Map of Content.md`](vault/Map%20of%20Content.md). The general category theory it
-builds on is in the [CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/). Implementation notes sit beside the source they
-describe — `messages.md` next to `messages.jl` — and record what each file does not do as
-carefully as what it does.
-
-The vault is the larger half of the project. It is where the honest account lives: which claims
-are verified against closed forms, which are approximations, and which are open problems.
-
-## Status
-
-A prototype, by one author, with ~740 tests. The exactness results live on the linear-Gaussian
-fragment; everything else is approximate and says so. For what to use *instead* when you need
-only one of the things this combines, see the vault's *Related Julia Projects*.
-
-The inspiration for this library is [GTSAM](https://gtsam.org/). I wanna have GTSAM, but with learnable non-gaussian factors in a non-linear factor graph.
+A prototype. Exactness results are on the linear-Gaussian fragment and on closed-form test
+models; learned networks are supported by the interfaces but have not yet been trained here
+end to end (the backward pass needs one AD call per model, not yet wired for Lux). Point
+inference returns one branch of a multivalued relation; sampling-based inference is not
+implemented. The vault's *Related Julia Projects* says what to use instead when you need only
+one of the things this combines.
