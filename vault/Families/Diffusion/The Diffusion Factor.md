@@ -124,6 +124,12 @@ and it is the single most valuable missing piece in this family.
 
 ## 6. Other gaps, briefly
 
+> [!note] Two of these are closed for `prox = ImplicitProx(nodes)` (2026-10-02)
+> With the deterministic implicit solver as the inversion ([[implicit_factor]]), the free energy
+> is deterministic (the score summand is the fixed-node quadrature), and the solver reports
+> `converged` and `stable` through `implicit_solution`. It also has a backward pass,
+> `implicit_factor_pullback`. The RED-Diff inversion keeps the gaps below.
+
 - **`local_free_energy` re-runs the prox**, because the message store keeps beliefs rather
   than the internal state the prox converged to. Caching on `st` is the obvious fix.
 - **The free energy is stochastic.** Calling it twice gives different numbers. Every other

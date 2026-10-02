@@ -13,7 +13,7 @@
 # additive identity, and a `DiracBelief` is the Λ → ∞ limit — which is exactly the
 # ρ_in = ∞ hard clamp of `Channels and Polarity.md`.
 #
-# See `beliefs.md` and `Gaussian Beliefs.md`.
+# See `Gaussian Belief.md` and `Beliefs.md` in vault/Factor Graphs/.
 # ---------------------------------------------------------------------------
 
 """

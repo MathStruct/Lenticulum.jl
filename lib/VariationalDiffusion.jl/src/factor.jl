@@ -35,7 +35,7 @@ This is the third of the three [`Implicit Learners`] families — the diffusion 
 only one whose inversion is neither exact nor a root-find. `LenticulumCore` anticipated it:
 [`LenticulumCore.ProximalInversion`](@ref) exists in `lens.jl` and names this package.
 """
-struct DiffusionFactor{names,D<:Tuple,P<:NoisePredictor,C<:REDDiff} <:
+struct DiffusionFactor{names,D<:Tuple,P<:NoisePredictor,C<:Union{REDDiff,ImplicitProx}} <:
        LenticulumCore.AbstractLenticulumFactor
     blocks::NamedTuple{names,D}
     predictor::P
@@ -46,6 +46,11 @@ function DiffusionFactor(blocks::NamedTuple, predictor::NoisePredictor; prox = R
     isempty(blocks) && throw(ArgumentError("a DiffusionFactor needs at least one channel"))
     all(d -> d isa Int && d > 0, values(blocks)) ||
         throw(ArgumentError("channel dimensions must be positive Ints; got $blocks"))
+    if prox isa ImplicitProx
+        n = sum(values(blocks))
+        size(prox.nodes.ε, 1) == n || throw(DimensionMismatch(
+            "the ImplicitProx nodes have dimension $(size(prox.nodes.ε, 1)) but the channels tile ℝ^$n"))
+    end
     return DiffusionFactor(blocks, predictor, prox)
 end
 
@@ -252,7 +257,16 @@ function LenticulumCore.invert(
     return (LenticulumCore.DiracBelief(x[r]), st)
 end
 
-function _run_prox(f::DiffusionFactor, p::LenticulumCore.Polarity, inputs, π, ps, st)
+# the inversion is chosen by the type of `f.prox`: RED-Diff, or the deterministic implicit solver
+_run_prox(f::DiffusionFactor, p::LenticulumCore.Polarity, inputs, π, ps, st) =
+    _run_prox(f.prox, f, p, inputs, π, ps, st)
+
+function _run_prox(::ImplicitProx, f::DiffusionFactor, p::LenticulumCore.Polarity, inputs, π, ps, st)
+    sol, st = implicit_solution(f, p, inputs, π, ps, st)
+    return (sol.z, st)
+end
+
+function _run_prox(::REDDiff, f::DiffusionFactor, p::LenticulumCore.Polarity, inputs, π, ps, st)
     x₀ = assemble_state(f, inputs, π)
     ρ, hard = precision_vector(f, p)
     ρ² = ρ .^ 2
@@ -297,6 +311,24 @@ end
 
 # --- Energy and the Bethe contribution -------------------------------------
 
+# the score summand: one Monte-Carlo sample for RED-Diff, the fixed-node quadrature for the
+# implicit solver (so that the free energy of an ImplicitProx factor is deterministic)
+function _score_term(prox::REDDiff, pred, x, ps, st)
+    t = sample_time(prox.rng, pred.schedule)
+    ε = randn(prox.rng, eltype(x), size(x))
+    sc, st = denoising_loss(pred, x, t, ε, ps, st)
+    return (reddiff_weight(prox, pred.schedule, t) * sc, st)
+end
+function _score_term(prox::ImplicitProx, pred, x, ps, st)
+    acc = zero(float(eltype(x)))
+    for k in eachindex(prox.nodes.t)
+        t = prox.nodes.t[k]
+        sc, st = denoising_loss(pred, x, t, prox.nodes.ε[:, k], ps, st)
+        acc += prox.nodes.w[k] * prox.λ * sigma(pred.schedule, t) / alpha(pred.schedule, t) * sc
+    end
+    return (acc, st)
+end
+
 """
     LenticulumCore.energy(f::DiffusionFactor, x, a, y, ps, st)
 
@@ -311,11 +343,8 @@ function LenticulumCore.energy(f::DiffusionFactor, x, a::LenticulumCore.Polarity
     ρ, _ = precision_vector(f, a)
     d = ρ .* (y .- x)
     clamp_term = sum(abs2, d) / 2
-    t = sample_time(f.prox.rng, f.predictor.schedule)
-    ε = randn(f.prox.rng, eltype(x), size(x))
-    sc, st = denoising_loss(f.predictor, x, t, ε, ps, st)
-    w = reddiff_weight(f.prox, f.predictor.schedule, t)
-    return (LenticulumCore.GradedEnergy((clamp = clamp_term, score = w * sc)), st)
+    sc, st = _score_term(f.prox, f.predictor, x, ps, st)
+    return (LenticulumCore.GradedEnergy((clamp = clamp_term, score = sc)), st)
 end
 
 """

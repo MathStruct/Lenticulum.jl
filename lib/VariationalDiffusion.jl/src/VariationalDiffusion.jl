@@ -52,9 +52,10 @@ using Mycelium: Mycelium
 include("schedule.jl")
 include("predictor.jl")
 include("reddiff.jl")
-include("factor.jl")
 include("analytic.jl")
 include("implicit.jl")
+include("factor.jl")
+include("implicit_factor.jl")
 
 # --- Schedules -------------------------------------------------------------
 export AbstractNoiseSchedule, VPSDE
@@ -77,5 +78,6 @@ export GaussianMixtureEps, mixture_logdensity, epsilon_jacobian, epsilon_vjp_par
 # --- Implicit inference and its backward pass -----------------------------
 export FieldNodes, field_nodes, noisefree_nodes, ImplicitDiffusion, ImplicitSolution
 export prior_field, prior_jacobian, implicit_residual, implicit_infer, implicit_pullback
+export ImplicitProx, implicit_solution, implicit_factor_pullback
 
 end # module

@@ -270,3 +270,31 @@ function implicit_pullback(m::ImplicitDiffusion, sol::ImplicitSolution, z₀, ρ
     ρ̄[free] .= 2 .* ρ[free] .* (z[free] .- z₀[free]) .* λF
     return (z₀ = z̄₀, ρ = ρ̄, ps = ps̄)
 end
+
+# --- As a factor's inversion ----------------------------------------------------
+
+"""
+    ImplicitProx(nodes; λ = 1.0, tol = 1e-9, maxiters = 200, step = 0.05)
+
+The deterministic implicit solver as a [`DiffusionFactor`](@ref)'s inversion, in place of
+[`REDDiff`](@ref):
+
+```julia
+f = DiffusionFactor((x = 1, y = 1), pred; prox = ImplicitProx(field_nodes(rng, 2)))
+```
+
+Inversion is then [`implicit_infer`](@ref) on the factor's state space with the polarity's
+precisions (`Inf` = hard clamp). Compared with RED-Diff it is deterministic, it reports
+convergence and stability ([`implicit_solution`](@ref)), its free energy is deterministic, and it
+has a backward pass ([`implicit_factor_pullback`](@ref)). `nodes` must have the factor's state
+dimension.
+"""
+struct ImplicitProx{T<:Real}
+    nodes::FieldNodes{T}
+    λ::T
+    tol::T
+    maxiters::Int
+    step::T
+end
+ImplicitProx(nodes::FieldNodes{T}; λ = 1.0, tol = 1e-9, maxiters::Integer = 200, step = 0.05) where {T} =
+    ImplicitProx(nodes, T(λ), T(tol), Int(maxiters), T(step))

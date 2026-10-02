@@ -134,6 +134,8 @@ Entry point: [[Algebraic Implicit Learners]].
 `Mycelium.jl` — how factors are wired and in what order they talk. The layer with no
 counterpart in Lux.
 
+- [[Beliefs]] — what travels on an edge: [[Trivial Belief]], [[Dirac Belief]], [[Gaussian Belief]],
+  [[Sample Belief]], and their one operation, `combine`
 - [[Factor Graphs]] — bipartite structure; the **two** acyclicity notions (`istree` vs `isdag`)
 - [[Everything is a Factor]] — data, priors, losses and optimisers as graph nodes, forced by Remark 24
 - [[Messages are Inversions]] — a factor → variable message **is** $c'_\pi$; both exclusion principles

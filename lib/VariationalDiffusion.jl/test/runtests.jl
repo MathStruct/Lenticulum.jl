@@ -476,4 +476,51 @@ end
     @test loss(μ) < L0 / 50
 end
 
+
+@testset "DiffusionFactor with the implicit solver as its inversion" begin
+    prox = ImplicitProx(field_nodes(Xoshiro(1), 2; samples = 8))
+    f = DiffusionFactor((x = 1, y = 1), RING; prox = prox)
+    @test_throws DimensionMismatch DiffusionFactor((x = 1, y = 2), RING; prox = prox)
+    p = Polarity((x = Observed(), y = Unobserved()), (x = Inf, y = 0.0))   # pure conditional
+    lens, _ = LenticulumCore.assemble(f, p, RPS, RST)
+    # the prior point is the warm start, and it selects the branch
+    up, _ = LenticulumCore.invert(lens, DiracBelief([0.5]), (x = DiracBelief([0.6]),), RPS, RST)
+    dn, _ = LenticulumCore.invert(lens, DiracBelief([-0.5]), (x = DiracBelief([0.6]),), RPS, RST)
+    @test up isa DiracBelief
+    @test up.value[1] ≈ 0.78 atol = 0.03
+    @test dn.value[1] ≈ -0.78 atol = 0.03
+    # same answer as the bare solver, and a report
+    sol, _ = implicit_solution(f, p, (x = DiracBelief([0.6]),), DiracBelief([0.5]), RPS, RST)
+    @test sol.converged && sol.stable
+    @test sol.z[2] == up.value[1]
+    ref, _ = implicit_infer(ImplicitDiffusion(RING, prox.nodes), [0.6, 0.5], [Inf, 0.0], RPS, RST)
+    @test ref.z ≈ sol.z
+    # the message is the same Dirac
+    msg, _ = Mycelium.factor_message(f, :y, p, (x = DiracBelief([0.6]),), DiracBelief([0.5]), RPS, RST)
+    @test msg.value ≈ up.value
+    # the free energy is deterministic now (RED-Diff's is Monte-Carlo noisy)
+    F1, _ = Mycelium.local_free_energy(f, (x = DiracBelief([0.6]),), RPS, RST)
+    F2, _ = Mycelium.local_free_energy(f, (x = DiracBelief([0.6]),), RPS, RST)
+    @test F1[:clamp] == F2[:clamp] && F1[:score] == F2[:score]
+    # the factor-level pullback agrees with finite differences of the factor's inversion
+    ℓ(xin, ρy) = begin
+        q = Polarity((x = Observed(), y = Unobserved()), (x = Inf, y = ρy))
+        b, _ = LenticulumCore.invert(first(LenticulumCore.assemble(f, q, RPS, RST)), DiracBelief([0.5]),
+                                     (x = DiracBelief([xin]),), RPS, RST)
+        (b.value[1] - 0.7)^2 / 2
+    end
+    psoft = Polarity((x = Observed(), y = Unobserved()), (x = Inf, y = 0.3))
+    sol2, _ = implicit_solution(f, psoft, (x = DiracBelief([0.6]),), DiracBelief([0.5]), RPS, RST)
+    g = implicit_factor_pullback(f, psoft, (x = DiracBelief([0.6]),), DiracBelief([0.5]),
+                                 (y = [sol2.z[2] - 0.7],), RPS, RST)
+    h = 1e-6
+    @test g.inputs.x[1] ≈ (ℓ(0.6 + h, 0.3) - ℓ(0.6 - h, 0.3)) / 2h rtol = 1e-5
+    @test g.precisions.y ≈ (ℓ(0.6, 0.3 + h) - ℓ(0.6, 0.3 - h)) / 2h rtol = 1e-5
+    @test g.precisions.x == 0                   # a hard clamp has no differentiable precision
+    @test size(g.ps.μ) == size(RING_μ)
+    # a RED-Diff factor has no implicit solution to report
+    @test_throws ArgumentError implicit_solution(DiffusionFactor((x = 1, y = 1), RING), p,
+                                                 (x = DiracBelief([0.6]),), DiracBelief([0.5]), RPS, RST)
+end
+
 end

@@ -126,8 +126,9 @@ prior energy, and would contribute an entropy if its inversion were Gaussian.
    `DiffusionFactor`'s graded energy already does) or by line integrals of the residual where
    it is nearly conservative.
 3. **AD for `epsilon_vjp_params`** on a Lux network (one method; [[Backpropagation through Implicit Inference]] §8).
-4. **The factor interface**: wire `implicit_infer` and `implicit_pullback` into `DiffusionFactor`'s
-   `invert` so the message-passing scheduler uses the deterministic, converging, reporting solver.
+4. ~~**The factor interface**~~ — done: `DiffusionFactor(…; prox = ImplicitProx(nodes))` inverts
+   with the deterministic solver; `implicit_solution` reports, `implicit_factor_pullback`
+   differentiates ([[implicit_factor]]).
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]],
 [[Backpropagation through Implicit Inference]], [[Deterministic Relaxation]],
