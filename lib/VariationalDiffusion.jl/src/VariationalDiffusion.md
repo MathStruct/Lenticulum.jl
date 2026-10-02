@@ -7,7 +7,7 @@
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
-## The chain, in four files
+## The chain, in six files
 
 | file | note | supplies |
 |---|---|---|
@@ -15,6 +15,8 @@
 | `predictor.jl` | [[predictor]] | $\varepsilon_\theta$ wrapping a Lux model; score and Tweedie |
 | `reddiff.jl` | [[reddiff]] | the proximal operator; Proposition 2; λ calibration |
 | `factor.jl` | [[factor]] | the `LenticulumFactor`; $P$ from the polarity |
+| `analytic.jl` | [[analytic]] | closed-form ε* of a Gaussian mixture: an exact-score relation (oracle) |
+| `implicit.jl` | [[implicit]] | deterministic implicit inference and its adjoint backward pass |
 
 Concept notes are in `vault/Families/Diffusion/`, entry point [[The Diffusion Family]].
 

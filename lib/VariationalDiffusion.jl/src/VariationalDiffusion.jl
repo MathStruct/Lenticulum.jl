@@ -43,7 +43,7 @@ each source file, per `vault/Start Here.md`.
 module VariationalDiffusion
 
 using DispatchDoctor: @stable
-using LinearAlgebra: LinearAlgebra
+using LinearAlgebra: LinearAlgebra, I, norm, Diagonal, Symmetric, isposdef
 using Random: Random, AbstractRNG, randn, rand
 using LuxCore: LuxCore
 using LenticulumCore: LenticulumCore
@@ -53,6 +53,8 @@ include("schedule.jl")
 include("predictor.jl")
 include("reddiff.jl")
 include("factor.jl")
+include("analytic.jl")
+include("implicit.jl")
 
 # --- Schedules -------------------------------------------------------------
 export AbstractNoiseSchedule, VPSDE
@@ -68,5 +70,12 @@ export REDDiff, reddiff_weight, regulariser_gradient, reddiff_solve, calibrate_l
 # --- The factor ------------------------------------------------------------
 export DiffusionFactor, DiffusionModel
 export statedim, blockranges, precision_vector, assemble_state
+
+# --- Closed-form predictors (oracles) ----------------------------------------
+export GaussianMixtureEps, mixture_logdensity, epsilon_jacobian, epsilon_vjp_params
+
+# --- Implicit inference and its backward pass -----------------------------
+export FieldNodes, field_nodes, noisefree_nodes, ImplicitDiffusion, ImplicitSolution
+export prior_field, prior_jacobian, implicit_residual, implicit_infer, implicit_pullback
 
 end # module

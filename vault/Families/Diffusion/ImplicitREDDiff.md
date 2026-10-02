@@ -1,6 +1,8 @@
 #model #design
 
-> **The founding note of the project.** Worked out in full in [[The Diffusion Family]] and
+> **The founding note of the project.** Carried through — inference, backpropagation, the
+> deterministic relaxation and the statistical-game reading — in [[Implicit Diffusion Learners]].
+> Worked out in full in [[The Diffusion Family]] and
 > implemented in `lib/VariationalDiffusion.jl`; the energy below is the one the code computes
 > (`reddiff.jl`, `factor.jl`).
 

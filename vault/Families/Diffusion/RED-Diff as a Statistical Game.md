@@ -47,6 +47,11 @@ would put the prior in the energy and break the counting correction of
 > `GaussianFactor` in the same graph produce a Bethe total that is not $-\log p(y)$ for
 > anything. See [[The Diffusion Factor]] §5.
 
+> [!note] Superseded reading (2026-10-02)
+> [[The Implicit Diffusion Factor as a Statistical Game]] §2 files the score-matching term as the
+> **energy of a prior game** (Remark 24), not as the entropy: it is a cross-entropy
+> $\mathbb E_q[-\log p_\theta]$, and the entropy slot holds $H(q)$. The table above is kept for the record.
+
 ## 3. Proposition 2: the stop-gradient is the method
 
 $$
@@ -144,12 +149,13 @@ it is chasing the former.
 - **Not a posterior.** $q$ is a point mass; there are no error bars. The general
   $\sigma>0$ case is derived in the paper's §3 and dropped in its experiments, and dropped
   here too — it is the most valuable missing piece ([[The Diffusion Factor]] §5.2).
-- **Not exact at its own fixed point.** Unlike the algebraic and equilibrium families, which
+- **Not exact at its own fixed point** — for the regulariser it starts from. For an exact score its field *is* the exact gradient of a smoothed log-density ([[Implicit Diffusion Learners]] §3), so it is exact for a different, computable prior.
+- *(original wording)* **Not exact at its own fixed point.** Unlike the algebraic and equilibrium families, which
   are approximate because they *stop early*, this one converges to the wrong point by
   construction. [[Inversions and Bayesian Lenses]] permits inexact inversions and the free energy is supposed
   to measure the cost — but here the cost is a Jacobian nobody computes, so it is not
   measured either.
-- **Not trainable here.** See §3.
+- **Not trainable here** — by RED-Diff itself. Training *through* inference is now possible by the adjoint: [[Backpropagation through Implicit Inference]].
 
 Related: [[The Diffusion Family]], [[The VP-SDE]], [[The Diffusion Factor]],
 [[ProxDM and Proximal Alternatives]], [[Factors are Parameterized Statistical Games]], [[Implicit Learners]],

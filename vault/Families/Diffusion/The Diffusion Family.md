@@ -32,8 +32,23 @@ selection matrices ([[The Diffusion Factor]]).
 4. [[ProxDM and Proximal Alternatives]] — the other way to build the prox, and how the family
    relates to DPS, ΠGDM and plain plug-and-play.
 
+**The implicit learner, carried through** (2026-10-02):
+
+5. [[Implicit Diffusion Learners]] — the relation as the zero set of a residual; **the stop-gradient
+   field is the exact gradient of a smoothed log-density**; inference is a proximal point; the
+   smoothing scale decides which relation you get.
+6. [[Inference Signatures]] — point, anytime, message, variational, sampling: what each returns
+   and which algorithm computes it.
+7. [[Backpropagation through Implicit Inference]] — the Lagrangian worked out: state, adjoint,
+   gradient; no stored noise; what to do when inference has not converged; learning a parabola
+   from a circle.
+8. [[Deterministic Relaxation]] — fixed nodes, and the single noise-free level, which is a DEQ
+   whose layer is the Tweedie denoiser.
+9. [[The Implicit Diffusion Factor as a Statistical Game]] — the element-by-element reading; the
+   two training semantics; what is missing.
+
 Implementation notes sit next to the code: [[VariationalDiffusion]], [[schedule]],
-[[predictor]], [[reddiff]], [[factor]].
+[[predictor]], [[reddiff]], [[factor]], [[implicit]], [[analytic]].
 
 ## Where it sits among the three families
 
@@ -44,7 +59,7 @@ than expectation:
 |---|---|---|---|
 | approximator | varieties | fixed points | **score / denoiser network** |
 | inference | Gröbner, homotopy | fixed-point iteration | **proximal descent** |
-| backward pass | implicit function theorem | IFT at the fixed point | **stop-gradient; no Jacobian at all** |
+| backward pass | implicit function theorem | IFT at the fixed point | **stop-gradient (RED-Diff); IFT with fixed nodes ([[Backpropagation through Implicit Inference]])** |
 | inversion type | `SolverInversion` | `SolverInversion` | `ProximalInversion` |
 | posterior | a point (or a branch) | a point | **a point** — $q$ is a Dirac |
 | exactness | exact where the Jacobian is invertible | exact at convergence | **biased, by a computable amount** |

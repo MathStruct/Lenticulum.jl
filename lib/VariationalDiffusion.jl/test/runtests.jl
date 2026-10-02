@@ -50,6 +50,14 @@ end
 
 _mean(v) = sum(v) / length(v)
 
+# a ring of narrow Gaussians: a circle relation with an exact score (implicit-inference tests)
+const RING_J = 48
+const RING_μ = vcat(cos.(range(0, 2π; length = RING_J + 1)[1:RING_J])', sin.(range(0, 2π; length = RING_J + 1)[1:RING_J])')
+const RING = NoisePredictor(GaussianMixtureEps(SCHED, RING_μ; s = 0.05), SCHED)
+const RPS, RST = LuxCore.setup(Random.default_rng(), RING)
+const HARDX = [Inf, 0.0]                      # x clamped, y free
+_fd(f, x, i; h = 1e-6) = (f(x .+ h .* (eachindex(x) .== i)) - f(x .- h .* (eachindex(x) .== i))) / (2h)
+
 @testset "VariationalDiffusion" begin
 
 @testset "VP-SDE: the perturbation kernel preserves variance" begin
@@ -330,6 +338,142 @@ end
     F, _ = Mycelium.local_free_energy(f, (obs = DiracBelief([1.5]),), PS, ST)
     @test sort(collect(keys(F))) == [:clamp, :score]
     @test F[:score] > 0
+end
+
+
+# ---------------------------------------------------------------------------
+# Implicit inference and its backward pass, against closed-form oracles.
+# See `implicit.md` and `Implicit Diffusion Learners.md`.
+# ---------------------------------------------------------------------------
+
+@testset "closed-form mixture: Jacobian and parameter VJP are exact" begin
+    x, t = [0.3, -0.7], 0.02
+    Jε = epsilon_jacobian(RING, x, t, RPS, RST)
+    @test Jε ≈ Jε'                                         # −σ_t × a Hessian: symmetric
+    for i in 1:2
+        @test Jε[:, i] ≈ [_fd(z -> first(epsilon(RING, z, t, RPS, RST))[r], x, i) for r in 1:2] rtol = 1e-6
+    end
+    w = [0.4, -1.1]
+    G = epsilon_vjp_params(RING, x, t, RPS, RST, w).μ
+    for (a, b) in ((1, 1), (2, 7), (1, 30))
+        E = zeros(size(RING_μ)); E[a, b] = 1e-6
+        f(δ) = dot(w, first(epsilon(RING, x, t, (μ = RPS.μ .+ δ .* E ./ 1e-6,), RST)))
+        @test G[a, b] ≈ (f(1e-6) - f(-1e-6)) / 2e-6 rtol = 1e-5 atol = 1e-10
+    end
+end
+
+@testset "the deterministic field is the gradient of a smoothed log-density" begin
+    m = ImplicitDiffusion(RING, field_nodes(Xoshiro(1), 2; samples = 2))
+    Φ(z) = -sum(m.nodes.w[k] * VariationalDiffusion._weight(m, m.nodes.t[k]) * sigma(SCHED, m.nodes.t[k]) /
+                alpha(SCHED, m.nodes.t[k]) * mixture_logdensity(RING.model, VariationalDiffusion._node_input(m, z, k), m.nodes.t[k], RPS)
+                for k in eachindex(m.nodes.t))      # antithetic nodes: no linear tilt
+    z = [0.3, 0.8]
+    g = first(prior_field(m, z, RPS, RST))
+    @test g ≈ [_fd(Φ, z, i) for i in 1:2] rtol = 1e-6
+    Jg = prior_jacobian(m, z, RPS, RST)
+    @test Jg ≈ Jg'
+end
+
+@testset "implicit inference recovers both branches of the circle" begin
+    m = ImplicitDiffusion(RING, field_nodes(Xoshiro(1), 2; samples = 8))
+    up, _ = implicit_infer(m, [0.6, 0.5], HARDX, RPS, RST)
+    dn, _ = implicit_infer(m, [0.6, -0.5], HARDX, RPS, RST)
+    @test up.converged && up.stable && dn.converged && dn.stable
+    @test up.z[2] ≈ 0.8 atol = 0.03
+    @test dn.z[2] ≈ -0.8 atol = 0.03
+    @test up.z[1] == 0.6                                   # the hard clamp is exact
+    # near the branch point the smoothed relation has ONE root: both starts land on it
+    a, _ = implicit_infer(m, [0.99, 0.5], HARDX, RPS, RST)
+    b, _ = implicit_infer(m, [0.99, -0.5], HARDX, RPS, RST)
+    @test a.converged && b.converged
+    @test a.z[2] ≈ b.z[2] atol = 1e-6
+    # outside the support inference still answers, with a point near the ridge ("closest point")
+    o, _ = implicit_infer(m, [1.05, 0.0], HARDX, RPS, RST)
+    @test o.converged && o.stable
+    @test abs(o.z[2]) < 0.2
+end
+
+@testset "smoothing bias: the relation is the ridge of a smoothed density" begin
+    rad(thi) = abs(first(implicit_infer(ImplicitDiffusion(RING, field_nodes(Xoshiro(1), 2;
+                   levels = range(0.002, thi; length = 6), samples = 4)), [0.0, 0.9], HARDX, RPS, RST)).z[2])
+    r = [rad(t) for t in (0.01, 0.05, 0.2, 1.0)]
+    @test issorted(r; rev = true)                          # more smoothing, more shrinkage
+    @test r[1] > 0.99 && r[end] < 0.05                     # RED-Diff's full range collapses the circle
+    # single noise-free level: the mode radius is R − (s² + σ²/α²)/(2R) to first order
+    t = 0.03
+    m = ImplicitDiffusion(RING, noisefree_nodes(2, t))
+    sol, _ = implicit_infer(m, [0.0, 0.9], HARDX, RPS, RST)
+    @test sol.z[2] ≈ 1 - (0.05^2 + (sigma(SCHED, t) / alpha(SCHED, t))^2) / 2 atol = 2e-3
+end
+
+@testset "deterministic relaxation: a fixed point of the Tweedie denoiser (a DEQ)" begin
+    for t in (0.005, 0.03)
+        m = ImplicitDiffusion(RING, noisefree_nodes(2, t))
+        sol, _ = implicit_infer(m, [0.6, 0.7], HARDX, RPS, RST)
+        x̂, _ = denoise(RING, alpha(SCHED, t) .* sol.z, t, RPS, RST)
+        @test sol.converged
+        @test x̂[2] ≈ sol.z[2] atol = 1e-8
+    end
+end
+
+@testset "Gaussian prior: the root and its derivative in closed form" begin
+    # N(0, v₀) data, antithetic nodes: g(z) = κ z exactly, so with a soft anchor ρ on y the root is
+    # y★ = ρ² y₀ / (κ + ρ²) and dy★/dy₀ = ρ²/(κ + ρ²).
+    m = ImplicitDiffusion(PRED, field_nodes(Xoshiro(2), 1; samples = 3))
+    κ = sum(m.nodes.w[k] * VariationalDiffusion._weight(m, m.nodes.t[k]) * alpha(SCHED, m.nodes.t[k]) *
+            sigma(SCHED, m.nodes.t[k]) / marginal_variance(SCHED, m.nodes.t[k], V₀) for k in eachindex(m.nodes.t))
+    ρ, y₀ = [0.7], [1.3]
+    sol, _ = implicit_infer(m, y₀, ρ, PS, ST)
+    @test sol.z[1] ≈ ρ[1]^2 * y₀[1] / (κ + ρ[1]^2) rtol = 1e-8
+    b = implicit_pullback(m, sol, y₀, ρ, [1.0], PS, ST)
+    @test b.z₀[1] ≈ ρ[1]^2 / (κ + ρ[1]^2) rtol = 1e-6
+end
+
+@testset "the adjoint gradient equals finite differences of the solve" begin
+    m = ImplicitDiffusion(RING, field_nodes(Xoshiro(1), 2; samples = 2))
+    ℓ(z) = (z[2] - 0.7)^2 / 2
+    solve(z₀, ρ, ps) = first(implicit_infer(m, z₀, ρ, ps, RST; tol = 1e-12)).z
+    # hard clamp on x: gradients w.r.t. the clamped input and a mixture mean
+    z₀ = [0.6, 0.5]
+    sol, _ = implicit_infer(m, z₀, HARDX, RPS, RST)
+    b = implicit_pullback(m, sol, z₀, HARDX, [0.0, sol.z[2] - 0.7], RPS, RST)
+    @test b.z₀[1] ≈ _fd(q -> ℓ(solve(q, HARDX, RPS)), z₀, 1) rtol = 1e-5
+    E = zeros(size(RING_μ)); E[2, 8] = 1.0
+    fμ(δ) = ℓ(solve(z₀, HARDX, (μ = RPS.μ .+ δ .* E,)))
+    @test b.ps.μ[2, 8] ≈ (fμ(1e-6) - fμ(-1e-6)) / 2e-6 rtol = 1e-5
+    # soft clamps: gradients w.r.t. the soft targets and the precisions themselves
+    ρs = [3.0, 0.5]
+    sol2, _ = implicit_infer(m, z₀, ρs, RPS, RST)
+    b2 = implicit_pullback(m, sol2, z₀, ρs, [0.0, sol2.z[2] - 0.7], RPS, RST)
+    for i in 1:2
+        @test b2.z₀[i] ≈ _fd(q -> ℓ(solve(q, ρs, RPS)), z₀, i) rtol = 1e-5
+        @test b2.ρ[i] ≈ _fd(q -> ℓ(solve(z₀, q, RPS)), ρs, i) rtol = 1e-4 atol = 1e-10
+    end
+    # no IFT gradient at a point that is not a root
+    nc, _ = implicit_infer(m, [0.99, 0.05], HARDX, RPS, RST; maxiters = 3)
+    @test_throws ArgumentError implicit_pullback(m, nc, [0.99, 0.05], HARDX, [0.0, 1.0], RPS, RST)
+end
+
+@testset "learning a relation by backpropagating through inference" begin
+    # start from the circle; move the mixture means so that inference x ↦ y reproduces y = x² − 0.5
+    m = ImplicitDiffusion(RING, field_nodes(Xoshiro(1), 2; samples = 2))
+    target(x) = x^2 - 0.5
+    xs = collect(range(-0.8, 0.8; length = 9))
+    μ = copy(RPS.μ); yw = fill(-0.5, length(xs)); mo = zero(μ); v = zero(μ)
+    loss(μμ) = sum((first(implicit_infer(m, [x, -0.5], HARDX, (μ = μμ,), RST)).z[2] - target(x))^2 for x in xs) / length(xs)
+    L0 = loss(μ)
+    for ep in 1:60
+        G = zero(μ)
+        for (i, x) in enumerate(xs)
+            sol, _ = implicit_infer(m, [x, yw[i]], HARDX, (μ = μ,), RST)
+            (sol.converged && sol.stable) || continue
+            yw[i] = sol.z[2]
+            G .+= implicit_pullback(m, sol, [x, yw[i]], HARDX, [0.0, sol.z[2] - target(x)], (μ = μ,), RST).ps.μ
+        end
+        mo = 0.9 .* mo .+ 0.1 .* G; v = 0.999 .* v .+ 0.001 .* G .^ 2
+        μ .-= 0.01 .* (mo ./ (1 - 0.9^ep)) ./ (sqrt.(v ./ (1 - 0.999^ep)) .+ 1e-8)
+    end
+    @test loss(μ) < L0 / 50
 end
 
 end

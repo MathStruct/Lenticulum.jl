@@ -60,7 +60,7 @@ over-regularises high-variance directions and under-regularises low-variance one
 
 ## Known gaps
 
-- Cannot train ``\varepsilon_\theta``.
+- RED-Diff itself cannot train ``\varepsilon_\theta``. Training *through* implicit inference works by the adjoint (`implicit_infer`, `implicit_pullback`), given `epsilon_vjp_params` for the network; closed-form predictors (`GaussianMixtureEps`) provide it, a Lux network needs AD for that one method.
 - The inversion returns a point, so uncertainty does not propagate.
 - The message is a posterior rather than a likelihood, so it double-counts on a variable of
   degree greater than one.

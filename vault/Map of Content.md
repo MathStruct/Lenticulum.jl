@@ -169,6 +169,12 @@ neither exact nor a root-find but a **proximal solve**. Entry point:
   posterior; the stop-gradient; and **λ is derivable, not merely tunable**
 - *the factor*: [[The Diffusion Factor]] — $P_{in}+P_{out}+P_{latent}=\mathrm{Id}$ becomes a
   `Polarity`; what a Dirac-valued message does to a factor graph
+- *the implicit learner*: [[Implicit Diffusion Learners]] — the stop-gradient field is the exact
+  gradient of a smoothed log-density; inference is a proximal point; the smoothing scale decides
+  the relation · [[Inference Signatures]] · [[Backpropagation through Implicit Inference]] — the
+  Lagrangian worked out, and a parabola learned from a circle by the adjoint alone ·
+  [[Deterministic Relaxation]] — a DEQ whose layer is the denoiser ·
+  [[The Implicit Diffusion Factor as a Statistical Game]]
 - *alternatives*: [[ProxDM and Proximal Alternatives]] — DPS, ΠGDM, ProxDM, plug-and-play, and
   why RED-Diff was implemented first
 
