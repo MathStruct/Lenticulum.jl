@@ -13,20 +13,26 @@
 Specialising the paper's Eq. 8 to the linear clamp of [[ImplicitREDDiff]]:
 
 $$
-E(x_0, x) \;=\;
-\underbrace{\mathbb{E}_{t,\varepsilon}\bigl[\omega(t)\|\varepsilon_\theta(\alpha_t x+\sigma_t\varepsilon,\,t)-\varepsilon\|^2\bigr]}_{\text{the learned prior}}
+E(z; z_0) \;=\;
+\underbrace{\mathbb{E}_{t,\varepsilon}\bigl[\omega(t)\|\varepsilon_\theta(\alpha_t z+\sigma_t\varepsilon,\,t)-\varepsilon\|^2\bigr]}_{\text{the learned prior}}
 \;+\;
-\underbrace{\tfrac12\|P(x_0-x)\|^2}_{\text{data consistency}}
+\underbrace{\tfrac12\|P(z-z_0)\|^2}_{\text{data consistency}}
 $$
 
-The variational family is $q(x_0\mid y) = \mathcal{N}(\mu,\sigma^2 I)$ with $\sigma\to 0$.
+The variational family is $q(z\mid z_0) = \mathcal{N}(\mu,\sigma^2 I)$ with $\sigma\to 0$.
 **The posterior is a Dirac by the paper's own construction**, not by a simplification made
 here — see `factor.md` §5 for what that costs on a graph.
+
+> [!note] Notation
+> RED-Diff writes $x_0$ for the clean signal and $y$ for the measurement; [[ImplicitREDDiff]]
+> writes $x$ for the state and $x_0$ for the clamp. This vault writes $z \in Z$ for the joint
+> state and $z_0$ for the evidence (clamp values and anchors), as fixed in
+> [[Channels and Polarity]] §"Notation".
 
 ## 2. Proposition 2 is the whole implementation
 
 $$
-\nabla_x\,\mathrm{reg}(x)
+\nabla_z\,\mathrm{reg}(z)
 \;=\;
 \mathbb{E}_{t,\varepsilon}\bigl[\lambda_t\,\bigl(\underbrace{\varepsilon_\theta(x_t,t)}_{\text{stop-gradient}}-\varepsilon\bigr)\bigr],
 \qquad
@@ -35,7 +41,7 @@ $$
 
 Two different things are happening in that formula and they are worth separating:
 
-- the **reparametrisation is kept**: $x_t = \alpha_t x + \sigma_t\varepsilon$ is differentiable
+- the **reparametrisation is kept**: $x_t = \alpha_t z + \sigma_t\varepsilon$ is differentiable
   in $x$, and the $\alpha_t$ from that path is absorbed into $\lambda_t$;
 - the **denoiser Jacobian is dropped**: the true gradient carries $J_\theta^\top =
   (\partial\varepsilon_\theta/\partial x_t)^\top$ in front of $(\varepsilon_\theta -
@@ -48,7 +54,7 @@ constructors, and is worth noting as a fifth case rather than forced into an exi
 
 > [!important] This is why the package has no AD dependency
 > The regulariser needs one **forward** pass per Monte-Carlo draw. The clamp's gradient is
-> $P^2(x-x_0)$ in closed form. So the entire inversion is forward passes plus arithmetic, and
+> $P^2(z-z_0)$ in closed form. So the entire inversion is forward passes plus arithmetic, and
 > `Project.toml` lists `LuxCore`, `Random` and `LinearAlgebra`. The stop-gradient is usually
 > sold as a memory optimisation; here it is the difference between a package that depends on
 > Zygote and one that does not.
@@ -72,25 +78,25 @@ asserted in the test suite.
 
 ### 4.1 For isotropic Gaussian data there is exactly one correct λ
 
-For $x_0\sim\mathcal{N}(0,v_0 I)$ the model is available in closed form,
+For data $z\sim p_0=\mathcal{N}(0,v_0 I)$ the model is available in closed form,
 $\varepsilon_\theta(x,t) = \sigma_t x/D_t$ with $D_t = \alpha_t^2v_0+\sigma_t^2$, and the
 expectation collapses:
 
 $$
-\mathbb{E}_\varepsilon\bigl[\varepsilon_\theta(\alpha_t x + \sigma_t\varepsilon,t)-\varepsilon\bigr]
-= \frac{\sigma_t\alpha_t}{D_t}\,x
+\mathbb{E}_\varepsilon\bigl[\varepsilon_\theta(\alpha_t z + \sigma_t\varepsilon,t)-\varepsilon\bigr]
+= \frac{\sigma_t\alpha_t}{D_t}\,z
 \qquad\Longrightarrow\qquad
-\nabla_x\mathrm{reg}(x) = \kappa x,
+\nabla_z\mathrm{reg}(z) = \kappa z,
 \quad
 \kappa = \lambda\!\int_{t_{\min}}^{1}\!\frac{\sigma_t^2}{D_t}\,dt
 $$
 
-The true prior gradient is $x/v_0$. So RED-Diff's regulariser **is** a Gaussian prior, of
+The true prior gradient is $z/v_0$. So RED-Diff's regulariser **is** a Gaussian prior, of
 precision $\kappa$ — and it is the *right* prior only when $\kappa = 1/v_0$.
 `calibrate_lambda` returns that $\lambda$ by quadrature.
 
-With it, the RED-Diff fixed point $\kappa x + \rho^2(x-x_0) = 0$ gives
-$x = \rho^2x_0/(1/v_0+\rho^2)$, which is **exactly** the Gaussian posterior mean. The test
+With it, the RED-Diff fixed point $\kappa z + \rho^2(z-z_0) = 0$ gives
+$z = \rho^2z_0/(1/v_0+\rho^2)$, which is **exactly** the Gaussian posterior mean. The test
 suite checks this to within Monte-Carlo noise and checks that the noise averages away.
 
 > Tuning $\lambda$ is not a knob on "how much regularisation feels right". It is **choosing
@@ -100,7 +106,7 @@ suite checks this to within Monte-Carlo noise and checks that the noise averages
 
 ### 4.2 For correlated data no single λ works
 
-Extend to $x_0\sim\mathcal{N}(0,\Sigma)$. Both $\kappa$ and $\Sigma^{-1}$ are functions of
+Extend to $p_0=\mathcal{N}(0,\Sigma)$. Both $\kappa$ and $\Sigma^{-1}$ are functions of
 $\Sigma$ and are simultaneously diagonalisable, so per eigenvalue $s$ the requirement is
 $\lambda\,s\,I(s) = 1$ with $I(s) = \int\sigma_t^2/(\alpha_t^2 s+\sigma_t^2)\,dt$. That needs
 $s\,I(s)$ to be **constant in $s$**. It is not:

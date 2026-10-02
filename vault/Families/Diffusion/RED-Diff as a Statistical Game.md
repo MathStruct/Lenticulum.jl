@@ -10,16 +10,22 @@
 
 The standard way to condition a diffusion model on data $y$ is to run the reverse SDE with a
 guidance term (DPS, ΠGDM). RED-Diff refuses: it posits a variational posterior
-$q(x_0\mid y) = \mathcal{N}(\mu,\sigma^2I)$, minimises $\mathrm{KL}(q\,\|\,p(x_0\mid y))$, and
+$q(z\mid z_0) = \mathcal{N}(\mu,\sigma^2I)$, minimises $\mathrm{KL}(q\,\|\,p(z\mid z_0))$, and
 turns inference into an optimisation over $\mu$.
+
+> [!note] Notation
+> RED-Diff writes $x_0$ for the clean signal and $y$ for the measurement; [[ImplicitREDDiff]]
+> writes $x$ for the state and $x_0$ for the clamp. This vault writes $z \in Z$ for the joint
+> state and $z_0$ for the evidence (clamp values and anchors), as fixed in
+> [[Channels and Polarity]] §"Notation".
 
 Specialised to [[ImplicitREDDiff]]'s linear clamp, the objective is
 
 $$
-E(x_0, x) \;=\;
-\underbrace{\mathbb{E}_{t,\varepsilon}\bigl[\omega(t)\|\varepsilon_\theta(\alpha_t x+\sigma_t\varepsilon,t)-\varepsilon\|^2\bigr]}_{\text{the learned prior}}
+E(z; z_0) \;=\;
+\underbrace{\mathbb{E}_{t,\varepsilon}\bigl[\omega(t)\|\varepsilon_\theta(\alpha_t z+\sigma_t\varepsilon,t)-\varepsilon\|^2\bigr]}_{\text{the learned prior}}
 \;+\;
-\underbrace{\tfrac12\|P(x_0-x)\|^2}_{\text{data consistency}}
+\underbrace{\tfrac12\|P(z-z_0)\|^2}_{\text{data consistency}}
 $$
 
 which is exactly the energy in the prompt and in [[ImplicitREDDiff]]. So the note's
@@ -32,7 +38,7 @@ entropy $\mathbf{H}^c$. The two terms above sort themselves:
 
 | term | is | why |
 |---|---|---|
-| $\tfrac12\|P(x_0-x)\|^2$ | the **energy** $\mathbf{l}^c$ | pointwise; a function of the *data point* |
+| $\tfrac12\|P(z-z_0)\|^2$ | the **energy** $\mathbf{l}^c$ | pointwise; a function of the *data point* |
 | $\mathbb{E}_{t,\varepsilon}[\omega\|\varepsilon_\theta-\varepsilon\|^2]$ | the **entropy** $\mathbf{H}^c$ | a function of the *learned distribution*, not of the datum |
 
 This is the reading [[Implicit Learners]] §"Diffusion" already gives, and getting it backwards
@@ -55,7 +61,7 @@ would put the prior in the energy and break the counting correction of
 ## 3. Proposition 2: the stop-gradient is the method
 
 $$
-\nabla_x\,\mathrm{reg}(x)
+\nabla_z\,\mathrm{reg}(z)
 =\mathbb{E}_{t,\varepsilon}\bigl[\lambda_t(\,\underbrace{\varepsilon_\theta(x_t,t)}_{\text{stop-grad}}-\varepsilon)\bigr],
 \qquad
 \lambda_t=\frac{\lambda}{\mathrm{SNR}_t}=\frac{\lambda\sigma_t}{\alpha_t}
@@ -63,7 +69,7 @@ $$
 
 Two separate things happen, and conflating them is easy:
 
-- the **reparametrisation is kept** — $x_t = \alpha_t x + \sigma_t\varepsilon$ is
+- the **reparametrisation is kept** — $x_t = \alpha_t z + \sigma_t\varepsilon$ is
   differentiable in $x$, and its $\alpha_t$ is absorbed into $\lambda_t$;
 - the **denoiser Jacobian is dropped** — the true gradient carries
   $(\partial\varepsilon_\theta/\partial x_t)^\top$ in front of the residual, and RED-Diff
@@ -77,11 +83,11 @@ any of the four constructors**, and is worth recording as a fifth case rather th
 
 > [!important] This is why the implementation needs no AD
 > One forward pass of $\varepsilon_\theta$ per Monte-Carlo draw; the clamp's gradient is
-> $P^2(x-x_0)$ in closed form. `lib/VariationalDiffusion.jl` therefore depends on `LuxCore`,
+> $P^2(z-z_0)$ in closed form. `lib/VariationalDiffusion.jl` therefore depends on `LuxCore`,
 > `Random` and `LinearAlgebra` — and not on `Lux`, `Zygote` or `Enzyme`. The stop-gradient is
 > usually sold as a memory saving; here it is the difference between a package with an AD
-> dependency and one without. The price is that the package cannot *train*
-> $\varepsilon_\theta$, only use one.
+> dependency and one without. Training *through* inference does need network derivatives; they
+> come from a backend the user chooses, through a package extension ([[backends]]).
 
 ## 4. λ is derivable, and this is the finding
 
@@ -91,22 +97,22 @@ Both halves below are asserted in `lib/VariationalDiffusion.jl/test/runtests.jl`
 
 Gaussian data is the one case where $\varepsilon_\theta$ has a closed form
 ([[The VP-SDE]] §3), so the expectation can be done by hand. With
-$x_0\sim\mathcal{N}(0,v_0I)$ and $D_t=\alpha_t^2v_0+\sigma_t^2$:
+$z\sim p_0=\mathcal{N}(0,v_0I)$ and $D_t=\alpha_t^2v_0+\sigma_t^2$:
 
 $$
-\mathbb{E}_\varepsilon\bigl[\varepsilon_\theta(\alpha_tx+\sigma_t\varepsilon,t)-\varepsilon\bigr]
-=\frac{\sigma_t\alpha_t}{D_t}x
+\mathbb{E}_\varepsilon\bigl[\varepsilon_\theta(\alpha_tz+\sigma_t\varepsilon,t)-\varepsilon\bigr]
+=\frac{\sigma_t\alpha_t}{D_t}z
 \quad\Longrightarrow\quad
-\nabla_x\mathrm{reg}(x)=\kappa x,
+\nabla_z\mathrm{reg}(z)=\kappa z,
 \quad
 \kappa=\lambda\!\int_{t_{\min}}^{1}\!\frac{\sigma_t^2}{D_t}dt
 $$
 
 **RED-Diff's regulariser *is* a Gaussian prior of precision $\kappa$.** The true prior
-gradient is $x/v_0$, so the regulariser is correct iff $\kappa = 1/v_0$, which pins λ
-uniquely. With that λ, the fixed point $\kappa x+\rho^2(x-x_0)=0$ gives
+gradient is $z/v_0$, so the regulariser is correct iff $\kappa = 1/v_0$, which pins λ
+uniquely. With that λ, the fixed point $\kappa z+\rho^2(z-z_0)=0$ gives
 
-$$x^\star=\frac{\rho^2x_0}{1/v_0+\rho^2}$$
+$$z^\star=\frac{\rho^2z_0}{1/v_0+\rho^2}$$
 
 which is **exactly** the Gaussian posterior mean. For the default schedule and $v_0=1$,
 $\lambda^\star\approx1.38$ — while the paper's tuned value is $0.25$.
@@ -116,7 +122,7 @@ $\lambda^\star\approx1.38$ — while the paper's tuned value is $0.25$.
 
 ### 4.2 For correlated data no single λ works
 
-Take $x_0\sim\mathcal{N}(0,\Sigma)$. Both $\kappa$ and $\Sigma^{-1}$ are functions of $\Sigma$,
+Take $p_0=\mathcal{N}(0,\Sigma)$. Both $\kappa$ and $\Sigma^{-1}$ are functions of $\Sigma$,
 hence simultaneously diagonalisable, so per eigenvalue $s$ the requirement is
 $\lambda\,s\,I(s)=1$ where $I(s)=\int\sigma_t^2/(\alpha_t^2s+\sigma_t^2)dt$. That needs
 $s\,I(s)$ constant in $s$. It is not:

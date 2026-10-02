@@ -27,7 +27,7 @@
 - **The solver trusts Newton only where it should.** A Newton step is taken when the symmetric part of $J_{FF}$ is positive definite, with backtracking on $\lVert r_F\rVert$; otherwise a fixed descent step along the field. Newton is attracted to every root, saddles and maxima included; restricting it to locally convex regions keeps it on stable roots.
 - **Two flags, not one.** `converged` (the residual is small) and `stable` ($\operatorname{sym}J_{FF}\succ0$) are separate, because a converged unstable root is on the zero set but not in the relation one wants.
 - **The pullback refuses non-converged states.** The IFT says nothing about a non-root, and silently returning a gradient there is what made the first prototype diverge.
-- **No AD dependency.** The input Jacobian has a finite-difference fallback (`epsilon_jacobian`); the parameter VJP is an interface method (`epsilon_vjp_params`) that closed-form predictors implement and a Lux network would implement with AD. A model with no parameters skips it.
+- **No AD dependency.** The input Jacobian has a finite-difference fallback (`epsilon_jacobian`); the parameter VJP is an interface method (`epsilon_vjp_params`) that closed-form predictors implement exactly and a Lux network gets from the AD backend in its `ad` field ([[backends]]). A model with no parameters skips it.
 
 ## 3. Implementation difficulties
 

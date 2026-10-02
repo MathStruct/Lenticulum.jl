@@ -72,11 +72,13 @@ end
     epsilon_jacobian(pred::NoisePredictor, x, t, ps, st) -> Matrix
 
 ``\\partial\\varepsilon_\\theta/\\partial x`` at ``(x, t)``. The generic method uses central finite
-differences (``O(n)`` forward passes; fine for small ``n``); closed-form predictors override it.
+differences (``O(n)`` forward passes; fine for small ``n``), or the predictor's AD backend when it
+has one (`ad = …`); closed-form predictors override it.
 For an exact score the matrix is **symmetric** — it is ``-\\sigma_t`` times a Hessian of
 ``\\log p_t`` — and the backward pass does not assume that, because a learned network's is not.
 """
 function epsilon_jacobian(pred::NoisePredictor, x, t, ps, st)
+    pred.ad === nothing || return _ad_jacobian(pred.ad, pred, x, t, ps, st)
     n = length(x)
     J = zeros(eltype(float(x)), n, n)
     for i in 1:n
@@ -102,16 +104,28 @@ end
 
 The vector–Jacobian product ``w^\\top\\,\\partial\\varepsilon_\\theta(x,t)/\\partial\\theta``, shaped
 like `ps`. This is the one place the backward pass needs a derivative *with respect to the
-network's parameters*. Closed-form predictors define it; for a general Lux network it is a
-reverse-mode AD call, which this package deliberately does not depend on (`reddiff.md` §2), so
-the generic method throws.
+network's parameters*.
+
+- Closed-form predictors define it directly (e.g. [`GaussianMixtureEps`](@ref)).
+- Any other model gets it from an **AD backend chosen by the user**: build the predictor with
+  `NoisePredictor(model, schedule; ad = AutoZygote())` (or `AutoEnzyme()`, `AutoMooncake()`,
+  `AutoForwardDiff()`, … — any `ADTypes` backend) and load `DifferentiationInterface` together
+  with the backend package. This package itself depends on none of them.
+
+Without either, it throws.
 """
-function epsilon_vjp_params(pred::NoisePredictor, x, t, ps, st, w)
-    throw(ArgumentError(
-        "epsilon_vjp_params is not defined for $(typeof(pred.model)). The backward pass through " *
-        "implicit inference needs w'∂ε/∂θ; define this method for your model (e.g. with Zygote).",
-    ))
-end
+epsilon_vjp_params(pred::NoisePredictor, x, t, ps, st, w) = _ad_vjp_params(pred.ad, pred, x, t, ps, st, w)
+
+_ad_vjp_params(::Nothing, pred, x, t, ps, st, w) = throw(ArgumentError(
+    "epsilon_vjp_params needs w'∂ε/∂θ for $(typeof(pred.model)). Construct the predictor with an AD " *
+    "backend, e.g. NoisePredictor(model, schedule; ad = AutoZygote()), and load DifferentiationInterface " *
+    "and the backend package."))
+_ad_vjp_params(ad, pred, x, t, ps, st, w) = throw(ArgumentError(
+    "ad = $(ad) given, but no extension implements it: load DifferentiationInterface (and the backend package)."))
+
+# input Jacobian through the chosen AD backend; the extension adds the method
+_ad_jacobian(ad, pred, x, t, ps, st) = throw(ArgumentError(
+    "ad = $(ad) given, but no extension implements it: load DifferentiationInterface (and the backend package)."))
 
 # exact:  (∂ε/∂μ_j)ᵀ w = σ_t α_t γ_j [ -w/v_t + u_j (u_j - ū)ᵀ w ]
 function epsilon_vjp_params(pred::NoisePredictor{<:GaussianMixtureEps}, x, t, ps, st, w)

@@ -178,7 +178,9 @@ neither exact nor a root-find but a **proximal solve**. Entry point:
   [[Deterministic Relaxation]] — a DEQ whose layer is the denoiser ·
   [[The Implicit Diffusion Factor as a Statistical Game]]
 - *alternatives*: [[ProxDM and Proximal Alternatives]] — DPS, ΠGDM, ProxDM, plug-and-play, and
-  why RED-Diff was implemented first
+  why RED-Diff was implemented first; ProxDM is now implemented ([[proxdm]])
+- *small networks, any AD backend*: [[backends]] — Zygote, Enzyme, ForwardDiff or Reactant
+  through one field; a 5k-parameter MLP trained, inferred with and differentiated through
 
 ## 3f. The adversarial family, worked out
 
@@ -219,7 +221,7 @@ Implementation notes live next to the code, per [[Start Here]]:
 **Lenticulum.jl** — [[constraint]] (`beliefs.md` and `gaussian.md` are not yet written)
 
 **VariationalDiffusion.jl** — [[VariationalDiffusion]], [[schedule]], [[predictor]],
-[[reddiff]], [[factor]]
+[[reddiff]], [[factor]], [[analytic]], [[implicit]], [[implicit_factor]], [[proxdm]], [[backends]]
 
 **ImplicitLayers.jl** — [[ImplicitLayers]], [[solve]], [[deq]], [[flow]], [[neuralode]],
 [[luxfactor]]

@@ -54,6 +54,12 @@ X \arrow[r, "f"'] & Y
 \end{document}
 ```
 
+**Notation.** A factor's joint space is $Z = X \times Y \times U$: inputs $X$ (clamped), outputs
+$Y$ (solved for), latents $U$; $z_0$ is the evidence and $\rho$ the per-coordinate precision.
+This is the machine-learning convention, and it is the **reverse** of AutoBayes', where $X$ is
+unobserved and $Y$ observed. Notes quoting a paper use its letters and say so once; everything
+else follows the table in [[Channels and Polarity]] §"Notation".
+
 Links between notes are `[[wikilinks]]` by note name; links to general concepts go to the
 CT-ML wiki's published pages.
 

@@ -7,7 +7,7 @@
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
-## The chain, in seven files
+## The chain, in eight files
 
 | file | note | supplies |
 |---|---|---|
@@ -18,6 +18,8 @@
 | `analytic.jl` | [[analytic]] | closed-form ε* of a Gaussian mixture: an exact-score relation (oracle) |
 | `implicit.jl` | [[implicit]] | deterministic implicit inference and its adjoint backward pass |
 | `implicit_factor.jl` | [[implicit_factor]] | `DiffusionFactor` with `ImplicitProx`: report and per-channel pullback |
+| `proxdm.jl` | [[proxdm]] | proximal diffusion models: prox interface, exact oracle, sampler, proximal inference |
+| `ext/` | [[backends]] | the network's derivatives through any AD backend (DifferentiationInterface, Reactant) |
 
 Concept notes are in `vault/Families/Diffusion/`, entry point [[The Diffusion Family]].
 
@@ -40,11 +42,13 @@ means it is an interface bug rather than a quirk.
 
 ## Two properties worth stating up front
 
-**No automatic differentiation anywhere.** RED-Diff's stop-gradient means the denoiser
-Jacobian is never formed, and the clamp's gradient is $P^2(x-x_0)$ in closed form. So the
+**No automatic-differentiation dependency.** RED-Diff's stop-gradient means the denoiser
+Jacobian is never formed, and the clamp's gradient is $P^2(z-z_0)$ in closed form. So the
 dependency list is `LuxCore`, `Random`, `LinearAlgebra` — and **not `Lux`**, since any Lux
-model is an `AbstractLuxLayer`. The consequence is that this package can *use* a trained
-$\varepsilon_\theta$ and cannot *train* one.
+model is an `AbstractLuxLayer`. Where a learned network *is* differentiated (the implicit
+learner's Newton steps and its backward pass), the user chooses the backend with
+`NoisePredictor(…; ad = AutoZygote())` or any other ADTypes object, and a package extension
+supplies it ([[backends]]). Training the denoiser itself is ordinary Lux training.
 
 **The inversion returns a `DiracBelief`.** That is the paper's own variational family
 ($\sigma\to0$), not a shortcut, and it is the source of most of what is awkward about putting

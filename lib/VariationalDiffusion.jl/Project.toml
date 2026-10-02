@@ -12,6 +12,15 @@ Mycelium = "0a724bc2-760c-4b8c-a26e-202a6d9695cb"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 LuxCore = "bb33d45b-7691-41d6-9220-0943567d0623"
 
+[weakdeps]
+ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
+DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
+Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
+
+[extensions]
+VariationalDiffusionDifferentiationInterfaceExt = "DifferentiationInterface"
+VariationalDiffusionReactantExt = ["Reactant", "ADTypes"]
+
 [sources]
 LenticulumCore = {path = "../LenticulumCore.jl"}
 Mycelium = {path = "../Mycelium.jl"}

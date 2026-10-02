@@ -156,9 +156,11 @@ masked capacity is wasted work proportional to slack.
 
 ## 6. Autodiff: the implicit structure is an asset here, not a liability
 
-Today there is **no AD dependency anywhere** — deliberately. `VariationalDiffusion` avoids it
-via RED-Diff's stop-gradient; `ImplicitLayers` needs it for the implicit function theorem and
-substitutes finite differences, honestly labelled a test-scale tool.
+No package has an AD **dependency** — deliberately. `VariationalDiffusion` avoids one via
+RED-Diff's stop-gradient, and where it does need network derivatives (the implicit learner) the
+backend is a user choice supplied by a package extension: any DifferentiationInterface backend,
+or `AutoReactant()` for XLA-compiled forward and Enzyme VJPs ([[backends]]). `ImplicitLayers`
+still substitutes finite differences, honestly labelled a test-scale tool.
 
 The path to keeping AD under XLA/MLIR is Reactant tracing plus Enzyme, and it imposes the same
 requirement §4 already imposes: no type instability, no `Vector{Any}`, no dynamic dispatch in

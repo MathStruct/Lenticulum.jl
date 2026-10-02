@@ -101,14 +101,16 @@ of what does not work yet.
 ## What is in the repository
 
 One umbrella package over five smaller ones. All depend on **LuxCore** only — not Lux, Zygote
-or Optimisers — so any Lux model wraps as a factor without pulling them in.
+or Optimisers — so any Lux model wraps as a factor without pulling them in. Automatic
+differentiation and Reactant compilation come in through package extensions, for whichever
+backend you load.
 
 | package | gives you |
 |---|---|
 | `LenticulumCore` | what a **factor** is: channels, polarities, beliefs, energies |
 | `Mycelium` | how factors are **wired and scheduled**: graphs, messages, free energy |
 | `Lenticulum` | **linear-Gaussian** factors and Gaussian beliefs (nonlinear factors are planned) |
-| `VariationalDiffusion` | **diffusion models** as relations: VP-SDE, RED-Diff, deterministic implicit inference with an adjoint backward pass |
+| `VariationalDiffusion` | **diffusion models** as relations: VP-SDE, RED-Diff, ProxDM, deterministic implicit inference with an adjoint backward pass |
 | `ImplicitLayers` | **deep equilibrium models and neural ODEs** as factors |
 | `Adversarial` | **implicit generative models**: generators and density-ratio factors |
 
@@ -158,8 +160,10 @@ docs/site/build.sh --serve                 # just the vault, live-previewed (Nod
 ## Status and limits
 
 A prototype. Exactness results are on the linear-Gaussian fragment and on closed-form test
-models; learned networks are supported by the interfaces but have not yet been trained here
-end to end (the backward pass needs one AD call per model, not yet wired for Lux). Point
-inference returns one branch of a multivalued relation; sampling-based inference is not
-implemented. The vault's *Related Julia Projects* says what to use instead when you need only
+models. Learned networks are small by design (a factor's joint space has a handful of
+coordinates, so a few-thousand-parameter MLP is enough); one is trained, queried and
+differentiated through its own inference in `lib/VariationalDiffusion.jl/examples/circle_mlp.jl`,
+with the AD backend chosen per model (Zygote, Enzyme, ForwardDiff, Mooncake, or Reactant for
+compiled XLA). Point inference returns one branch of a multivalued relation; sampling-based
+*conditional* inference is not implemented (ProxDM's unconditional sampler is). The vault's *Related Julia Projects* says what to use instead when you need only
 one of the things this combines.

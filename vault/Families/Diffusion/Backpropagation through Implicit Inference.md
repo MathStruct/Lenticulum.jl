@@ -186,13 +186,16 @@ amortised guess.
 | $\partial_x\varepsilon_\theta$ (inference Newton steps, adjoint solve) | closed form | input JVP/VJP, or finite differences for small $n$ |
 | $(\partial_\theta\varepsilon_\theta)^\top\lambda$ (parameter gradient) | closed form | **reverse-mode AD**: one VJP per node |
 
-`VariationalDiffusion` stays AD-free: `epsilon_jacobian` has a finite-difference fallback, and
-`epsilon_vjp_params` is an interface method that closed-form predictors implement and a Lux
-network would implement with Zygote or Enzyme. That is one method, the only place AD enters.
+`VariationalDiffusion` has no AD dependency of its own: `epsilon_jacobian` has a
+finite-difference fallback, and `epsilon_vjp_params` is an interface method that closed-form
+predictors implement exactly. A Lux network gets both from the backend named in its predictor,
+`NoisePredictor(…; ad = AutoZygote())` (or Enzyme, ForwardDiff, Mooncake, Reactant), through a
+package extension ([[backends]]). A trained 5k-parameter MLP on the circle reproduces the
+finite-difference derivatives of this section to 8 digits (`examples/circle_mlp.jl`).
 Compare [[RED-Diff as a Statistical Game]] §3, where the stop-gradient was "the difference
 between a package with an AD dependency and one without". Training *through* inference brings
 back exactly one VJP per node, no more.
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]], [[Deterministic Relaxation]],
 [[The Implicit Diffusion Factor as a Statistical Game]], [[DEQ as a Relation]],
-[[Backpropagation by the Implicit Function Theorem]], [[implicit]]
+[[Backpropagation by the Implicit Function Theorem]], [[implicit]], [[backends]]

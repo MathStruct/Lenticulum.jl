@@ -89,16 +89,64 @@ cat > "$CONTENT/index.md" <<'MD'
 title: Lenticulum — theory vault
 ---
 
-This is the Obsidian vault of [Lenticulum.jl](https://github.com/MathStruct/Lenticulum.jl):
-the mathematics behind the code, the papers it draws on, the design decisions, and an honest
-record of what does not work yet.
+[Lenticulum.jl](https://github.com/MathStruct/Lenticulum.jl) learns **relations instead of
+functions**: a model of a joint space $Z = X \times Y \times U$ that decides at query time which
+coordinates are inputs $X$, outputs $Y$ and latents $U$. This vault is the larger half of the
+project: the mathematics, the papers, the design decisions, and an honest record of what does
+not work yet. Pick the door that matches what you already know.
 
-- **[[Map of Content]]** — every note, in reading order. Start there.
+## Coming from machine learning
+
+You know neural networks, backpropagation, perhaps diffusion models and deep equilibrium
+models. The short version: a trained denoiser defines a vector field whose stable roots are a
+relation; inference is root-finding with the inputs clamped, as a DEQ is evaluated; the
+backward pass is the implicit function theorem, one adjoint solve, nothing unrolled. The
+networks are **small** (a few thousand parameters over a handful of coordinates), and any Lux
+model with any AD backend works.
+
+1. [[Implicit Learners]] — what "learning a relation" means, and the three families
+2. [[Implicit Diffusion Learners]] — a diffusion model as a relation; the residual field
+3. [[Backpropagation through Implicit Inference]] — the adjoint, and a parabola learned from a circle
+4. [[DEQ as a Relation]] — the same idea for equilibrium models
+5. [[backends]] — Zygote, Enzyme or Reactant; a 5k-parameter MLP end to end
+
+## Coming from statistics or robotics
+
+You know Bayesian inference, Gaussian posteriors, perhaps factor graphs and GTSAM. The short
+version: every factor is a joint model whose conditioning direction is chosen per query;
+message passing on a factor graph is Bayesian inversion of each factor; the exact results are
+on the linear-Gaussian fragment, and the learned factors (diffusion, equilibrium, adversarial)
+plug into the same graph.
+
+1. [[Factor Graphs]] and [[Everything is a Factor]] — the setting
+2. [[Beliefs]] — what flows along the edges: Gaussian, Dirac, samples
+3. [[The Linear Gaussian Chain]] — the case where everything is exact and checked
+4. [[Messages are Inversions]] and [[Bethe Free Energy]] — inference and its objective
+5. [[SLAM and Sensor Fusion]] — the application that motivates the design
+
+## Coming from category theory
+
+You know lenses, Para, Markov categories, perhaps AutoBayes' statistical games. The short
+version: a factor is a parameterized statistical game once a polarity is chosen, and a
+Bayesian lens after that; acausal composition is a hypergraph category; the code mirrors these
+definitions type for type. Notation note: this vault's inputs $X$ are AutoBayes' $Y$ and
+vice versa ([[Channels and Polarity]] §"Notation").
+
+1. [[Factors are Parameterized Statistical Games]] — the central correspondence
+2. [[Channels and Polarity]] — open models, cups and caps, and why direction is chosen late
+3. [[Inversions and Bayesian Lenses]] — what inference is, categorically
+4. [[Acausal Composition is a Hypergraph Category]] — how factors compose
+5. [[The Implicit Diffusion Factor as a Statistical Game]] — a learned factor, checked against the definitions
+
+The general theory these notes build on is in the
+[CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/).
+
+## Everything else
+
+- **[[Map of Content]]** — every note, in reading order.
 - **[[Start Here]]** — how the vault is organised, its conventions, and how to read it in Obsidian.
 - **[[README]]** — the project pitch.
 - **[API documentation](../)** — the Julia packages themselves, built with Documenter.
-- **[CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/)** — the general category
-  theory (Para, lenses, Markov categories, statistical games) these notes build on.
 
 The vault is written for [Obsidian](https://obsidian.md) and rendered here with
 [Quartz](https://quartz.jzhao.xyz), including its `tikz` diagrams, which are compiled to SVG

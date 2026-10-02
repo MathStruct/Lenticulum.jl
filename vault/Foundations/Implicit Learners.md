@@ -89,7 +89,7 @@ much more graceful failure mode than a divergent unroll.
 ### Diffusion — see [[ImplicitREDDiff]]
 
 Energy
-$$E(x_0, x) = \mathbb{E}_{t,\epsilon}\bigl[\omega(t)\|\epsilon_\theta(\alpha_t x + \sigma_t\epsilon, t) - \epsilon\|_2^2\bigr] + \tfrac12\|P(x_0 - x)\|^2$$
+$$E(z; z_0) = \mathbb{E}_{t,\epsilon}\bigl[\omega(t)\|\epsilon_\theta(\alpha_t z + \sigma_t\epsilon, t) - \epsilon\|_2^2\bigr] + \tfrac12\|P(z - z_0)\|^2$$
 
 with $P = \rho_{in}P_{in} + \rho_{out}P_{out} + \rho_{latent}P_{latent}$.
 

@@ -38,6 +38,31 @@ $$P \;=\; \rho_{in}P_{in} + \rho_{out}P_{out} + \rho_{latent}P_{latent}$$
 > data availability, "input" is an *operational* word about evaluation order, and in
 > Bayesian inference those point in opposite directions.
 
+## Notation used in this vault
+
+The rest of the vault uses **one** convention, the machine-learning one, because it is what
+most readers bring:
+
+$$
+Z \;=\; X \times Y \times U, \qquad z = (x, y, u),
+$$
+
+| symbol | role | polarity | selection | AutoBayes |
+|---|---|---|---|---|
+| $Z$, $z$ | the joint space of a factor, a point of it | | $\mathrm{Id}$ | — |
+| $X$, $x$ | **inputs**: clamped to evidence | `Observed()` | $P_{in}$ | $Y$ |
+| $Y$, $y$ | **outputs**: solved for | `Unobserved()` | $P_{out}$ | $X$ |
+| $U$, $u$ | **latents**: internal | `Latent()` | $P_{latent}$ | $\llbracket crbracket$ |
+| $z_0$ | the evidence: clamp values on $X$, anchors elsewhere | | | |
+| $ho$ | per-coordinate precision; $\infty$ = hard clamp, $0$ = free | | $P = \operatorname{diag}(\rho)$ | |
+
+So **our $X$ is AutoBayes' $Y$ and our $Y$ is AutoBayes' $X$**. Notes that quote AutoBayes
+definitions use its letters and say so; everywhere else the table above holds. Papers with
+their own letters (RED-Diff's $x_0$ and $y$, ProxDM's $x$) get a one-line notice in the note that
+discusses them, and are then translated. Where a family has an entrenched name for the joint
+state, such as the DEQ's hidden state $z^\ast$, it is the latent $u$ of this table when the
+DEQ is read as a relation.
+
 Once that is said, the correspondence is exact, and $\rho$ has a clean reading: the
 precision with which each block is clamped. $\rho_{in} \to \infty$ is a hard clamp
 (a [cup](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model#copiers-cups-and-caps-remark-8)); $\rho_{out} = 0$ leaves the block free.
@@ -63,9 +88,9 @@ assignment of one of three states to each channel:
 
 ```julia
 abstract type ChannelPolarity end
-struct Observed  <: ChannelPolarity end   # Y   / P_in    / clamped to data
-struct Unobserved<: ChannelPolarity end   # X   / P_out   / inferred, posterior over it
-struct Latent    <: ChannelPolarity end   # ⟦c⟧ / P_latent/ internal, marginal or revealed
+struct Observed  <: ChannelPolarity end   # input  X (AutoBayes Y)   / P_in     / clamped to data
+struct Unobserved<: ChannelPolarity end   # output Y (AutoBayes X)   / P_out    / inferred, posterior over it
+struct Latent    <: ChannelPolarity end   # latent U (AutoBayes ⟦c⟧) / P_latent / internal, marginal or revealed
 ```
 
 with `Polarity` a `NamedTuple{names}` of these. The type-level `names` means a polarised

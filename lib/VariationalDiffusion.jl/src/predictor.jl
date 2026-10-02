@@ -39,16 +39,18 @@ ps, st = LuxCore.setup(rng, pred)          # == LuxCore.setup(rng, my_unet)
     Any Lux model is an `AbstractLuxLayer`, so `Lux` itself is never needed here — see
     `predictor.md` §1.
 """
-struct NoisePredictor{L,S<:AbstractNoiseSchedule,F} <: LuxCore.AbstractLuxWrapperLayer{:model}
+struct NoisePredictor{L,S<:AbstractNoiseSchedule,F,A} <: LuxCore.AbstractLuxWrapperLayer{:model}
     model::L
     schedule::S
     input::F
+    ad::A
 end
 
 default_input(x, t) = (x, t)
 
-NoisePredictor(model, sched::AbstractNoiseSchedule; input = default_input) =
-    NoisePredictor(model, sched, input)
+NoisePredictor(model, sched::AbstractNoiseSchedule; input = default_input, ad = nothing) =
+    NoisePredictor(model, sched, input, ad)
+
 
 """
     noise_schedule(p::NoisePredictor) -> AbstractNoiseSchedule
@@ -66,12 +68,16 @@ noise_schedule(p::NoisePredictor) = p.schedule
 
 One forward pass of the wrapped network: ``\\varepsilon_\\theta(x, t)``.
 
-**This is the only place the network is evaluated, and it is only ever evaluated forwards.**
-RED-Diff's stop-gradient means no reverse pass through `model` is required anywhere in this
-package, which is why it has no automatic-differentiation dependency at all
-(`reddiff.md` §2).
+**This is the only place the network is evaluated forwards.** RED-Diff's stop-gradient means
+sampling and RED-Diff need no reverse pass through `model`. Only the implicit learner's
+backward pass does (a parameter VJP and an input Jacobian), and it goes through the predictor's
+`ad` backend, provided by a package extension (`predictor.md` §5).
 """
-epsilon(p::NoisePredictor, x, t, ps, st) = LuxCore.apply(p.model, p.input(x, t), ps, st)
+epsilon(p::NoisePredictor, x, t, ps, st) = _apply(p.ad, p, x, t, ps, st)
+
+# The forward hook. Plain Lux by default; an extension may compile it for its backend
+# (`VariationalDiffusionReactantExt` does, for `ad = AutoReactant()`). See `predictor.md` §5.
+_apply(ad, p::NoisePredictor, x, t, ps, st) = LuxCore.apply(p.model, p.input(x, t), ps, st)
 
 """
     score(p::NoisePredictor, x, t, ps, st) -> (s, st)

@@ -125,7 +125,7 @@ prior energy, and would contribute an entropy if its inversion were Gaussian.
 2. **A scalar loss for learned networks**, by the denoising-loss estimate (as
    `DiffusionFactor`'s graded energy already does) or by line integrals of the residual where
    it is nearly conservative.
-3. **AD for `epsilon_vjp_params`** on a Lux network (one method; [[Backpropagation through Implicit Inference]] §8).
+3. ~~**AD for `epsilon_vjp_params`** on a Lux network~~ — done, through any AD backend ([[backends]]).
 4. ~~**The factor interface**~~ — done: `DiffusionFactor(…; prox = ImplicitProx(nodes))` inverts
    with the deterministic solver; `implicit_solution` reports, `implicit_factor_pullback`
    differentiates ([[implicit_factor]]).

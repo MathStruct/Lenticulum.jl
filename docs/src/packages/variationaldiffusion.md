@@ -58,9 +58,40 @@ Worth knowing what tuning `λ` actually does: it sets **how strong the learned p
 A single scalar can only calibrate one eigendirection of a correlated prior, so it
 over-regularises high-variance directions and under-regularises low-variance ones.
 
+## Small networks, any AD backend
+
+A diffusion model here is a prior over the joint space of **one factor**: a few coordinates,
+not an image. It is evaluated many times per query, so small models are the point, and the
+architecture is free. An MLP with a sinusoidal time embedding is the tested baseline;
+`input` adapts ``(x, t)`` to whatever the model expects.
+
+The implicit learner needs two derivatives of the network: the input Jacobian (Newton steps,
+adjoint solve) and a parameter VJP (backward pass). The backend is a field of the predictor:
+
+```julia
+using DifferentiationInterface, Zygote          # or Enzyme, ForwardDiff, Mooncake, …
+pred = NoisePredictor(mlp, VPSDE(); input, ad = AutoZygote())
+
+using Reactant                                  # XLA-compiled forward and Enzyme VJPs
+pred = NoisePredictor(mlp, VPSDE(); input, ad = AutoReactant())
+```
+
+Both are package extensions; without them the Jacobian falls back to finite differences.
+`examples/circle_mlp.jl` trains a 5k-parameter MLP on a circle in about 20 seconds on a CPU,
+then infers both branches and checks the adjoint against finite differences.
+For Enzyme on Lux use `AutoEnzyme(; mode = Enzyme.set_runtime_activity(Enzyme.Reverse))`.
+
+## Proximal diffusion models
+
+ProxDM (Fang et al. 2025) queries the prior through ``\operatorname{prox}_{-\lambda\log p_t}``
+instead of its score. `proximal` is the interface, `ProxNetwork` a learned prox
+(``v - \sqrt\lambda\,\varepsilon_\theta(v; t, \lambda)``), `MixtureProx` the exact one for a Gaussian
+mixture. `proxdm_sample` is the paper's sampler (PDA and PDA-hybrid), `prox_infer` the implicit
+learner's query by half-quadratic splitting, `proximal_matching_loss` the training loss.
+
 ## Known gaps
 
-- RED-Diff itself cannot train ``\varepsilon_\theta``. Training *through* implicit inference works by the adjoint (`implicit_infer`, `implicit_pullback`), given `epsilon_vjp_params` for the network; closed-form predictors (`GaussianMixtureEps`) provide it, a Lux network needs AD for that one method.
+- `prox_infer` has no adjoint yet, and ProxDM is not yet a `DiffusionFactor` inversion.
 - The inversion returns a point, so uncertainty does not propagate.
 - The message is a posterior rather than a likelihood, so it double-counts on a variable of
   degree greater than one.

@@ -7,7 +7,7 @@
 > sketch's signature $X\times\Theta\times Z\times\hat E_X \to Y\times E\times Z$ is the anytime
 > variant with an incoming message.
 
-> Sources: original to this vault (design and analysis); Mardani et al., *A Variational Perspective on Solving Inverse Problems with Diffusion Models*, [arXiv:2305.04391](https://arxiv.org/abs/2305.04391) (RED-Diff); Chung, Kim, McCann, Klasky & Ye, *Diffusion Posterior Sampling for General Noisy Inverse Problems*, ICLR 2023 (DPS); Song et al., [arXiv:2011.13456](https://arxiv.org/abs/2011.13456) (annealed Langevin, probability-flow ODE); Fang, Díaz, Buchanan & Sulam, *Beyond Scores: Proximal Diffusion Models*, [arXiv:2507.08956](https://arxiv.org/abs/2507.08956) (ProxDM); code: `implicit.jl`, `reddiff.jl`, `factor.jl`
+> Sources: original to this vault (design and analysis); Mardani et al., *A Variational Perspective on Solving Inverse Problems with Diffusion Models*, [arXiv:2305.04391](https://arxiv.org/abs/2305.04391) (RED-Diff); Chung, Kim, McCann, Klasky & Ye, *Diffusion Posterior Sampling for General Noisy Inverse Problems*, ICLR 2023 (DPS); Song et al., [arXiv:2011.13456](https://arxiv.org/abs/2011.13456) (annealed Langevin, probability-flow ODE); Fang, Díaz, Buchanan & Sulam, *Beyond Scores: Proximal Diffusion Models*, [arXiv:2507.08956](https://arxiv.org/abs/2507.08956) (ProxDM); code: `implicit.jl`, `reddiff.jl`, `factor.jl`, `proxdm.jl`
 >
 > Theory (CT-ML wiki): [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Markov Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Markov-Category)
 
@@ -27,12 +27,12 @@ an updated state.
 
 | # | name | signature | returns | computed by |
 |---|---|---|---|---|
-| 1 | point (MAP-like) | $X \times \Theta \to Y$ | a stable root $y^\star$ | `implicit_infer` (deterministic nodes); RED-Diff |
+| 1 | point (MAP-like) | $X \times \Theta \to Y$ | a stable root $y^\star$ | `implicit_infer` (deterministic nodes); `prox_infer` (proximal prior); RED-Diff |
 | 2 | point + residual | $X \times \Theta \to Y \times E$ | $y^\star$ and $r(z^\star)$ (or $\mathcal E(z^\star)$) | `implicit_infer` returns `residual`, `converged`, `stable` |
 | 3 | anytime, warm-started | $X \times \Theta \times Z \times \mathbb N \to Y \times E \times Z$ | the state after $k$ steps, its residual, the new state | `implicit_infer(…; z_init, maxiters = k)`; RED-Diff with `steps = k` |
 | 4 | with incoming message | $\mathcal B(X) \times \Theta \times Z \to Y \times E \times Z$ | as 3, with soft evidence | precisions $\rho$ and anchors $z_0$ encode a Gaussian message |
 | 5 | variational | $X \times \Theta \to \mathcal N(Y)$ | mean and covariance | RED-Diff with $\sigma > 0$ (not implemented; [[The Diffusion Factor]] §5) |
-| 6 | sampling | $X \times \Theta \times \Omega \to Y$ | one posterior sample | DPS, annealed Langevin, guided reverse SDE |
+| 6 | sampling | $X \times \Theta \times \Omega \to Y$ | one posterior sample | DPS, annealed Langevin, guided reverse SDE; unconditional: `proxdm_sample` |
 | 7 | amortised | $X \times \Theta \times \Phi \to Y$ | $h_\varphi(x)$, optionally refined by 3 | a learned initialiser (the `AmortisedInversion` slot) |
 
 **The sketch's signature** $X\times\Theta\times Z\times\hat E_X \to Y\times E\times Z$ is #3 combined
@@ -70,7 +70,8 @@ graph LR
 | noise-free single level | a fixed point of the Tweedie denoiser | yes | forward, plus input Jacobian | yes (it is a DEQ, [[Deterministic Relaxation]]) |
 | DPS, ΠGDM | a posterior sample, by guided reverse SDE | no | forward and backward (DPS) | only by differentiating the sampler |
 | annealed Langevin | a posterior sample | no | forward | score-function or pathwise estimators |
-| ProxDM | a proximal step, by a learned prox network | yes per step | the prox network | yes per step |
+| ProxDM sampler (`proxdm_sample`) | a sample, by backward-Euler proximal steps | no | the prox network | only by differentiating the sampler |
+| proximal inference (`prox_infer`) | a mode of the relaxed problem, by half-quadratic splitting | **yes** | the prox network | not yet (the IFT applies; [[proxdm]] §5) |
 
 Sampling methods are needed when the downstream task needs uncertainty, or when the relation is
 multivalued and the branch matters. Point methods are what a factor graph with

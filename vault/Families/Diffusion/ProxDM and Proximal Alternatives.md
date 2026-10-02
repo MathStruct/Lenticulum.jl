@@ -4,7 +4,7 @@
 > achieve a prox."* This note is what that alternative is, and how the whole family of
 > diffusion-based inverse solvers sorts itself.
 
-> Sources: original to this vault (design and analysis; no single paper).
+> Sources: original to this vault (design and analysis); Fang, Díaz, Buchanan & Sulam, *Beyond Scores: Proximal Diffusion Models*, [arXiv:2507.08956](https://arxiv.org/abs/2507.08956); code: `proxdm.jl` ([[proxdm]])
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
@@ -19,7 +19,7 @@ do you optimise?**
 | **DPS** (Chung et al.) | sampled | guidance term $\nabla\log p(y\mid\hat x_0)$ | samples | **yes** — through Tweedie |
 | **ΠGDM** (Song et al.) | sampled | pseudo-inverse guidance | samples | **yes** |
 | **RED-Diff** | *replaced by optimisation* | score-matching regulariser, stop-gradient | a point | **no** |
-| **ProxDM** | replaced by proximal steps | a learned/implicit prox operator | a point | no |
+| **ProxDM** | discretised *backwards*: each step a prox | a learned prox operator | samples (sampler); a point (proximal inference) | no |
 | **PnP-ADMM / RED** | replaced by splitting | an off-the-shelf denoiser | a point | no |
 
 The top two are *samplers with a correction*; the bottom three are *optimisers with a
@@ -70,7 +70,9 @@ Three reasons, in order of weight:
 
 1. **No AD.** The stop-gradient makes the whole inversion forward-only, which is why
    `lib/VariationalDiffusion.jl` depends on `LuxCore`, `Random` and `LinearAlgebra` and
-   nothing else. A prox needs an inner solve that generally needs gradients.
+   nothing else. A prox needs either an inner solve, which needs gradients, or a second
+   network trained to *be* the prox. (AD is now available as a user-chosen backend,
+   [[backends]], so this reason has lapsed.)
 2. **A closed-form check exists.** For Gaussian data the RED-Diff fixed point can be computed
    by hand and compared to the exact posterior — the oracle of
    [[RED-Diff as a Statistical Game]] §4.1. That check is what makes the implementation
@@ -78,33 +80,37 @@ Three reasons, in order of weight:
 3. **It is the prompt's first suggestion.** [[ImplicitREDDiff]] names RED-Diff as the primary
    route and ProxDM as the alternative.
 
-## 4. What implementing ProxDM here would take
+## 4. What is implemented
 
-Sketched rather than done, so that the gap is a shape rather than a shrug:
+ProxDM is now in `proxdm.jl` ([[proxdm]] has the details and the numbers):
 
-- a `ProxDM <: AbstractInversion` config, alongside `REDDiff`;
-- an inner solver for $\arg\min_x\{g(x)+\frac{1}{2\tau}\|x-v\|^2\}$ with $g$ the diffusion
-  prior — which needs either AD or a learned prox network;
-- the same `datagrad` closure interface `reddiff_solve` already takes, so the clamp and the
-  hard-projection logic are reused unchanged;
-- and, if the learned prox network is separate from $\varepsilon_\theta$, a second parameter
-  tree — which is the `AmortisedInversion` situation of [[Inversions and Bayesian Lenses]], where *"a factor has
-  two independently parametrised halves"* and which is given as the structural reason a factor
-  cannot be a Lux layer.
+- **The interface** `proximal(p, v, t, λ, ps, st)`, with `ProxNetwork` (a Lux model in the
+  paper's parametrisation $v - \sqrt\lambda\,\varepsilon_\theta(v; t, \lambda)$) and `MixtureProx`, the
+  exact prox of a Gaussian mixture, the oracle a perfect `ProxNetwork` would match.
+- **The sampler**, the paper's Algorithm 1 in both variants, checked against the moments of a
+  Gaussian: the spread converges at first order in the step size, as backward Euler should.
+- **Proximal inference for the implicit learner**, `prox_infer`: half-quadratic splitting
+  between the prior's prox and the clamp's prox. Its $\lambda\to0$ limit is the implicit
+  learner's problem ([[Deterministic Relaxation]]); hard clamps are exact.
+- **The training loss**, proximal matching, whose $\zeta\to0$ minimiser is the MAP denoiser
+  (the prox) where the squared loss gives the MMSE denoiser.
 
-That last point is the interesting one: **ProxDM would be the first factor in this project to
-actually exhibit the two-parameter-trees structure the vault uses to justify its whole
-architecture.** Currently every factor's inversion is either parameter-free (exact, prox) or
-absent.
+Still open: an adjoint for `prox_infer` (the implicit function theorem applies to its fixed
+point as it does to `implicit_infer`), and a `ProxDM` inversion for `DiffusionFactor`, next to
+`REDDiff` and `ImplicitProx`. That factor would carry **two parameter trees**, the prior's
+$\varepsilon_\theta$ and the prox network. It would be the first factor in this project with the
+structure the vault uses to argue that a factor cannot be a Lux layer
+([[Inversions and Bayesian Lenses]], the `AmortisedInversion` case).
 
 ## 5. The honest ranking
 
 For the problems this repository can currently test — small, Gaussian, closed-form —
-RED-Diff's bias is measurable and its convergence is adequate. For real inverse problems the
+RED-Diff's bias is measurable and its convergence is adequate, and ProxDM's sampler and
+proximal inference agree with the exact answers to the precision stated in [[proxdm]]. For real inverse problems the
 literature's ranking is roughly: DPS and ΠGDM sample better, RED-Diff optimises faster and
 smoother, ProxDM is more stable than RED-Diff at more cost per step. None of that is checkable
 here, and this note does not claim otherwise.
 
 Related: [[The Diffusion Family]], [[RED-Diff as a Statistical Game]],
 [[The Diffusion Factor]], [[reddiff]], [[Inversions and Bayesian Lenses]], [[Implicit Learners]],
-[[ImplicitREDDiff]]
+[[ImplicitREDDiff]], [[proxdm]]

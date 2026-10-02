@@ -37,4 +37,13 @@ usable model: a mixture whose means are trained by [[implicit]]'s adjoint is an 
 with an exact score, which [[Backpropagation through Implicit Inference]] §7 uses to learn a
 parabola from a circle.
 
-Related: [[implicit]], [[predictor]], [[Implicit Diffusion Learners]]
+## 4. The derivative interface it implements
+
+`epsilon_jacobian` and `epsilon_vjp_params` are defined in this file for every predictor. A
+closed-form predictor implements them exactly, as above. A `NoisePredictor` around a Lux network
+gets them from the AD backend in its `ad` field, through a package extension; without one the
+Jacobian falls back to finite differences and the VJP raises an error that names the fix
+([[backends]]). The mixture's gradient and Hessian of $\log p_t$ are reused by `MixtureProx`,
+the exact proximal operator ([[proxdm]]).
+
+Related: [[implicit]], [[predictor]], [[backends]], [[proxdm]], [[Implicit Diffusion Learners]]

@@ -65,16 +65,18 @@ architecture, so it is not validated.
 
 ## 4. Implementation difficulties
 
-### 4.1 Forward-only, and that is a load-bearing constraint
+### 4.1 Forward-only where it can be, any AD backend where it cannot
 
-`epsilon` is the only place the network is evaluated, and it is only ever evaluated
-*forwards*. No reverse pass through `model` happens anywhere in this package, which is why
-there is no AD dependency at all.
+`epsilon` is the only place the network is evaluated forwards, and RED-Diff never needs a
+reverse pass through `model`. That is RED-Diff's stop-gradient, promoted to an architectural
+property: sampling and RED-Diff work with no AD at all. `reddiff.md` §5.
 
-That is not an accident of the implementation — it is RED-Diff's stop-gradient, promoted to
-an architectural property. It also means: **this package cannot train $\varepsilon_\theta$.**
-It consumes an already-trained noise predictor and does inference with it. Training needs
-Zygote/Enzyme and belongs in whatever depends on this, not here. `reddiff.md` §5.
+The implicit learner is different. Its Newton steps want the input Jacobian, and its backward
+pass wants a parameter VJP. Both go through the `ad` field — any ADTypes object — and are
+supplied by package extensions, so the package still has no AD dependency of its own. `epsilon`
+itself calls the hook `_apply(ad, …)`, which a backend may replace by a compiled forward pass
+(`ad = AutoReactant()`). See [[backends]]. Training $\varepsilon_\theta$ by denoising score
+matching is ordinary Lux training (`examples/circle_mlp.jl`).
 
 ### 4.2 The 1/σ_t in `score` is a real singularity
 
@@ -96,5 +98,5 @@ already in closed form and the Jacobian is exactly what the method refuses to co
 vector form would be honest bookkeeping with nothing downstream to consume it. **Recorded as
 a genuine inconsistency with the vault's stated design, with a reason.**
 
-Related: [[schedule]], [[reddiff]], [[factor]], [[The VP-SDE]],
+Related: [[schedule]], [[reddiff]], [[factor]], [[backends]], [[The VP-SDE]],
 [[Lux as a Parametric Lens]], [[Scalar and Multivariate Energy]]

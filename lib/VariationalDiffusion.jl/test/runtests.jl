@@ -6,6 +6,11 @@ using LuxCore
 using LinearAlgebra
 using Random
 using Test
+using Statistics: mean, std
+using Lux: Lux, Chain, Dense, swish
+using DifferentiationInterface: DifferentiationInterface
+using ADTypes: AutoZygote, AutoForwardDiff, AutoEnzyme
+import Zygote, ForwardDiff, Enzyme
 
 # ---------------------------------------------------------------------------
 # The oracle.
@@ -57,6 +62,13 @@ const RING = NoisePredictor(GaussianMixtureEps(SCHED, RING_μ; s = 0.05), SCHED)
 const RPS, RST = LuxCore.setup(Random.default_rng(), RING)
 const HARDX = [Inf, 0.0]                      # x clamped, y free
 _fd(f, x, i; h = 1e-6) = (f(x .+ h .* (eachindex(x) .== i)) - f(x .- h .* (eachindex(x) .== i))) / (2h)
+
+# a small Lux denoiser (MLP on [x; time embedding]) for the AD-extension tests
+const FREQ = [0.5, 1.0, 2.0, 4.0]
+_emb(t) = vcat(sin.((2π * t) .* FREQ), cos.((2π * t) .* FREQ))
+_mlp_input(x, t) = vcat(x, _emb(t))
+const MLP = Chain(Dense(10 => 32, swish), Dense(32 => 32, swish), Dense(32 => 2))
+_f64(x::AbstractArray) = Float64.(x); _f64(x::NamedTuple) = map(_f64, x); _f64(x) = x
 
 @testset "VariationalDiffusion" begin
 
@@ -521,6 +533,87 @@ end
     # a RED-Diff factor has no implicit solution to report
     @test_throws ArgumentError implicit_solution(DiffusionFactor((x = 1, y = 1), RING), p,
                                                  (x = DiracBelief([0.6]),), DiracBelief([0.5]), RPS, RST)
+end
+
+
+# ---------------------------------------------------------------------------
+# AD-backend-agnostic derivatives for a learned (Lux) predictor, via DifferentiationInterface.
+# ---------------------------------------------------------------------------
+
+@testset "a Lux predictor: parameter VJP and input Jacobian through any AD backend" begin
+    ps0, st = Lux.setup(Xoshiro(0), MLP)
+    ps = _f64(ps0)
+    x, t, w, h = [0.3, -0.7], 0.03, [0.4, -1.1], 1e-6
+    # without a backend: a clear error, and finite differences for the Jacobian
+    plain = NoisePredictor(MLP, SCHED; input = _mlp_input)
+    @test_throws ArgumentError epsilon_vjp_params(plain, x, t, ps, st, w)
+    Jfd = epsilon_jacobian(plain, x, t, ps, st)
+    bumped(δ) = merge(ps, (layer_1 = (weight = (W = copy(ps.layer_1.weight); W[7] += δ; W), bias = ps.layer_1.bias),))
+    for ad in (AutoZygote(), AutoForwardDiff(), AutoEnzyme(; mode = Enzyme.set_runtime_activity(Enzyme.Reverse)))
+        pred = NoisePredictor(MLP, SCHED; input = _mlp_input, ad = ad)
+        g = epsilon_vjp_params(pred, x, t, ps, st, w)
+        f(δ) = dot(w, first(epsilon(pred, x, t, bumped(δ), st)))
+        @test g.layer_1.weight[7] ≈ (f(h) - f(-h)) / 2h rtol = 1e-5
+        @test size(g.layer_3.weight) == size(ps.layer_3.weight)        # shaped like ps
+        @test epsilon_jacobian(pred, x, t, ps, st) ≈ Jfd rtol = 1e-5
+        # a batch-style input returns a 2×1 column for a vector x; w stays a vector
+        col = NoisePredictor(MLP, SCHED; input = (x, t) -> reshape(_mlp_input(x, t), :, 1), ad = ad)
+        @test epsilon_vjp_params(col, x, t, ps, st, w).layer_1.weight[7] ≈ g.layer_1.weight[7] rtol = 1e-10
+    end
+end
+
+@testset "implicit inference and its adjoint through a Lux network" begin
+    ps0, st = Lux.setup(Xoshiro(1), MLP)
+    ps = _f64(ps0)
+    pred = NoisePredictor(MLP, SCHED; input = _mlp_input, ad = AutoZygote())
+    m = ImplicitDiffusion(pred, field_nodes(Xoshiro(1), 2; samples = 2))
+    ρ = [Inf, 1.0]                     # an untrained net: anchor y so the root is well posed
+    J = prior_jacobian(m, [0.6, 0.5], ps, st)
+    @test norm(J - J') > 1e-6          # a learned field is not a gradient: the transpose matters
+    sol, _ = implicit_infer(m, [0.6, 0.5], ρ, ps, st; tol = 1e-12)
+    @test sol.converged
+    b = implicit_pullback(m, sol, [0.6, 0.5], ρ, [0.0, sol.z[2] - 0.7], ps, st)
+    L(z₀, p) = (first(implicit_infer(m, z₀, ρ, p, st; tol = 1e-12)).z[2] - 0.7)^2 / 2
+    h = 1e-6
+    @test b.z₀[1] ≈ (L([0.6 + h, 0.5], ps) - L([0.6 - h, 0.5], ps)) / 2h rtol = 1e-5
+    W(δ) = merge(ps, (layer_2 = (weight = (A = copy(ps.layer_2.weight); A[5] += δ; A), bias = ps.layer_2.bias),))
+    @test b.ps.layer_2.weight[5] ≈ (L([0.6, 0.5], W(h)) - L([0.6, 0.5], W(-h))) / 2h rtol = 1e-4 atol = 1e-10
+end
+
+# ---------------------------------------------------------------------------
+# Proximal diffusion models (ProxDM), against the exact proximal operator of a mixture.
+# ---------------------------------------------------------------------------
+@testset "ProxDM: the exact prox, the sampler, proximal inference, the loss" begin
+    m, s = [0.5, -1.0], 0.3
+    G = GaussianMixtureEps(SCHED, reshape(m, 2, 1); s = s)
+    P = MixtureProx(G); ps1 = (μ = reshape(m, 2, 1),)
+    # one Gaussian: prox(v) = (v_t v + λ α m)/(v_t + λ), valid at t = 0 too
+    for (t, λ) in ((0.0, 0.1), (0.3, 0.5), (0.8, 1.5))
+        v = [1.0, 2.0]; a = alpha(SCHED, t); vt = a^2 * s^2 + sigma(SCHED, t)^2
+        @test first(proximal(P, v, t, λ, ps1, NamedTuple())) ≈ (vt .* v .+ λ * a .* m) ./ (vt + λ) atol = 1e-10
+    end
+    # the sampler recovers the moments; its spread converges as the steps increase (first order)
+    for hybrid in (false, true)
+        rng = Xoshiro(3)
+        X = reduce(hcat, [first(proxdm_sample(P, SCHED, randn(rng, 2), ps1, NamedTuple(); steps = 100, hybrid, rng))
+                          for _ in 1:1500])
+        @test vec(mean(X; dims = 2)) ≈ m atol = 0.03
+        @test mean(std(X; dims = 2)) ≈ s atol = 0.03
+    end
+    @test_throws ArgumentError proxdm_sample(P, SCHED, randn(2), ps1, NamedTuple(); steps = 5)   # γ ≥ 2
+    # proximal inference with a hard clamp finds both branches of the circle, exactly symmetric
+    Pc = MixtureProx(RING.model)
+    up, _ = prox_infer(Pc, [0.6, 0.5], HARDX, 0.005, RPS, RST; λ = 0.01)
+    dn, _ = prox_infer(Pc, [0.6, -0.5], HARDX, 0.005, RPS, RST; λ = 0.01)
+    @test up.converged && dn.converged
+    @test up.z[1] == 0.6
+    @test up.z[2] ≈ 0.8 atol = 0.03
+    @test dn.z[2] ≈ -up.z[2] atol = 1e-8
+    # the proximal-matching loss is in [0, 1) and zero exactly when the residual is predicted
+    pn = ProxNetwork(MLP, SCHED; input = (v, t, λ) -> vcat(v, _emb(t) .* λ))
+    pps, pst = Lux.setup(Xoshiro(0), MLP)
+    ℓ, _ = proximal_matching_loss(pn, [0.1, 0.2], 0.1, 0.2, [0.3, -0.4], 0.5, pps, pst)
+    @test 0 ≤ ℓ < 1
 end
 
 end
