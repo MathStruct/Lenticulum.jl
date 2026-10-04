@@ -258,6 +258,8 @@ some parts known and some fitted, and a residual that means something in the dom
   something else**. The nearest neighbour is `RxInfer.jl`; `IncrementalInference.jl`
   has already solved the `combine` gap by kernel-density BP; and Catlab's `oapply` is the
   subgraph-as-factor operation the vault records as missing
+- [[Why Julia]] — why not C++, Rust, PyTorch, JAX or Mojo: in Julia ordinary code *is* the compiled,
+  differentiable computation graph, with evidence from this repository and the costs stated
 - [[Parallelism and Compilation]] — parallelism, GPUs and XLA/MLIR in a *dynamic* SLAM
   setting. There is no junction tree and no parallelism today; a sweep is **quadratic in the
   number of factors** (measured); and the compile-vs-dynamic tension dissolves if you
