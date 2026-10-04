@@ -81,8 +81,8 @@ anything here.
 
 ## Where to go next
 
-- **[Getting started](@ref getting-started)** — a complete worked example you can run:
-  a robot's trajectory estimated from odometry and one GPS reading.
+- **[Getting started](@ref getting-started)** — install, a first query, and which tutorial
+  fits your background.
 - **Tutorials**, each also downloadable as a Jupyter notebook:
   [a relation without training](@ref tutorial-circle),
   [train a small diffusion model](@ref tutorial-train),
@@ -90,7 +90,8 @@ anything here.
   [proximal diffusion models](@ref tutorial-proxdm),
   [symmetry is not a law: learning a force field](@ref tutorial-forces),
   [a conservative score: energy-parametrised diffusion](@ref tutorial-energy),
-  [discovering a force law from particle trajectories](@ref tutorial-particles).
+  [discovering a force law from particle trajectories](@ref tutorial-particles),
+  [localisation as a factor graph, for GTSAM readers](@ref tutorial-localization).
 - **[Vocabulary](@ref vocabulary)** — the six words you need to read the API. Short.
 - The per-package pages, for the reference documentation.
 

@@ -16,7 +16,7 @@ The vault is a map of content with about a hundred notes. A few entry points:
 |---|---|
 | *Map of Content* | the whole map, in reading order |
 | *Lux as a Parametric Lens* | why a factor is not a layer, in terms of code you already use |
-| *The Linear Gaussian Chain* | the [getting-started](@ref getting-started) example, worked through properly |
+| *The Linear Gaussian Chain* | the [localisation tutorial](@ref tutorial-localization)'s graph, worked through properly |
 | *Related Julia Projects* | where this sits next to Turing, RxInfer, ModelingToolkit and Catlab — and when to use those instead |
 | *Motivating Examples* | six problem domains with the same shape |
 
