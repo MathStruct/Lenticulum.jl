@@ -22,6 +22,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      # Rendered tutorials, keyed per tutorial inside docs/make.jl; restoring the latest cache
+      # lets unchanged tutorials be copied instead of re-run (some of them train networks).
+      - uses: actions/cache@v4
+        with:
+          path: docs/cache
+          key: tutorials-${{ hashFiles('docs/literate/**', 'lib/*/src/**', 'lib/*/ext/**', 'src/**', 'docs/Project.toml') }}
+          restore-keys: tutorials-
       - name: Instantiate docs environment
         run: julia --project=docs -e 'using Pkg; Pkg.instantiate()'
       - name: Build API docs and theory vault, then deploy

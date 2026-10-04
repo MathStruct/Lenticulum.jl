@@ -63,6 +63,9 @@ which is why Gaussian belief propagation is exact on trees ([[The Linear Gaussia
 - `belief_logdensity(b, x)` — $\log p_b(x)$; implemented for Gaussians only.
 - `variable_entropy(b)` — the entropy in the [[Bethe Free Energy]]; for Gaussians it can be negative.
 
+Everything else one might do with beliefs (addition, mixture, logic, projection, tempering)
+is catalogued, with what each needs, in [[Belief Algebra]].
+
 Related: [[Messages are Inversions]], [[Factor Graphs]], [[Channels and Polarity]],
 [[Inversions and Bayesian Lenses]], [[Probabilistic Types]]
 

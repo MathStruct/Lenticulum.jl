@@ -128,6 +128,7 @@ Entry point: [[Algebraic Implicit Learners]].
   [[Algebraic Statistics Bridge]]
 - *verdict*: [[The Algebraic Factor as a Statistical Game]],
   [[Open Problems in Algebraic Implicit Learning]]
+- *later*: [[Symbolic Implicit Learning]] — relations as formulas found by search (noted, not built)
 
 ## 3c. Factor graphs and message passing
 
@@ -136,6 +137,8 @@ counterpart in Lux.
 
 - [[Beliefs]] — what travels on an edge: [[Trivial Belief]], [[Dirac Belief]], [[Gaussian Belief]],
   [[Sample Belief]], and their one operation, `combine`
+- [[Belief Algebra]] — every other operation (addition, mixture, logic, projection, tempering) as a
+  factor whose messages are the operation; what exists, what is missing, what to build first
 - [[Factor Graphs]] — bipartite structure; the **two** acyclicity notions (`istree` vs `isdag`)
 - [[Everything is a Factor]] — data, priors, losses and optimisers as graph nodes, forced by Remark 24
 - [[Messages are Inversions]] — a factor → variable message **is** $c'_\pi$; both exclusion principles
