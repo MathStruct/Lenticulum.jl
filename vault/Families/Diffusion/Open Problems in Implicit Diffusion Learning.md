@@ -14,14 +14,16 @@ several entries below are the same problem in a different family.
 
 ## Part I. Theoretical problems
 
-### T1. Finding all answers — **open**
+### T1. Finding all answers — **open; multi-start search implemented**
 
 A query on a multivalued relation has several stable roots (the circle's $y \approx \pm 0.8$, the
 robot arm's elbow up and down). Point inference returns the root whose basin contains the
 start. There is no guarantee that a set of starts finds every stable root, and no way to know
 when all have been found. Sampling the conditional distribution would find them with the
 right frequencies, but then the answer is a distribution, and how to turn a learned relation
-into well-calibrated branch probabilities is itself open. Observed: [[Implicit Diffusion Learners]]
+into well-calibrated branch probabilities is itself open. `implicit_roots` now searches from
+several starts and returns every distinct stable answer it reaches ([[implicit]] §5), which finds
+both circle branches; completeness remains unguaranteed. Observed: [[Implicit Diffusion Learners]]
 §6; tutorials *A relation without training* and *Robot arm*.
 
 ### T2. Bias against conditioning — **intrinsic**
@@ -110,21 +112,22 @@ Design known: a mixture belief type ([[Belief Algebra]] §4, item 2), multi-star
 returning the distinct stable roots, and a conditional sampler (DPS-like, or ProxDM's sampler
 with the clamp) for branch frequencies. None exists; point inference only.
 
-### I2. Uncertainty: a Gaussian answer
+### I2. Uncertainty: a Gaussian answer — **done (as a covariance)**
 
-The adjoint already computes $J_{FF}$ at the solution; $\Sigma = J_{FF}^{-1}$ is a Laplace
-approximation, which would make the answer a Gaussian belief and give the statistical game its
-entropy. Not built ([[The Implicit Diffusion Factor as a Statistical Game]] §6).
+`implicit_laplace` returns the Laplace covariance $(\operatorname{sym} J_{FF})^{-1}$ at an answer, and
+`density_lambda` chooses the weighting under which it is in data units ([[implicit]] §5). Still
+missing: returning it as a `GaussianBelief` (I3) and using its entropy in the statistical game
+([[The Implicit Diffusion Factor as a Statistical Game]] §6).
 
 ### I3. Gaussian messages from learned factors
 
 `GaussianBelief` lives above the `lib/` packages, so diffusion factors cannot emit Gaussians
 even with I2. Fix: move all belief types into one low layer ([[Belief Algebra]] §6).
 
-### I4. Automatic recovery from unstable answers
+### I4. Automatic recovery from unstable answers — **done**
 
-When a solve ends on a saddle (`stable = false`), restart from perturbed points and report
-the stable roots found. Straightforward; not done.
+`implicit_roots` restarts from perturbed points and reports only converged, stable answers
+([[implicit]] §5).
 
 ### I5. Cost: batching and matrix-free solves
 
@@ -168,7 +171,7 @@ nonlinear Gaussian factors and Gauss–Newton in the graph, which Lenticulum doe
 
 | | problem | kind |
 |---|---|---|
-| T1 | finding all answers | open |
+| T1 | finding all answers | open; multi-start search implemented |
 | T2 | smoothing bias vs conditioning | intrinsic |
 | T3 | branch points | intrinsic |
 | T4 | queries off the relation | open (semantics) |
@@ -180,9 +183,9 @@ nonlinear Gaussian factors and Gauss–Newton in the graph, which Lenticulum doe
 | T10 | posterior messages | open design problem |
 | T11 | convergence, existence, identifiability | open |
 | I1 | mixture beliefs, conditional sampling | missing |
-| I2 | Laplace (Gaussian) answers | missing, cheap |
+| I2 | Laplace (Gaussian) answers | done as a covariance; not yet a belief |
 | I3 | Gaussian messages from `lib/` | missing (package layout) |
-| I4 | restarts after unstable solves | missing, cheap |
+| I4 | restarts after unstable solves | done |
 | I5 | batched nodes, Newton–Krylov | missing, needed for scale |
 | I6 | energy networks on Enzyme and Reactant | missing |
 | I7 | ProxDM adjoint and factor | missing |

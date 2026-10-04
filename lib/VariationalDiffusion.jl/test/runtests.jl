@@ -601,6 +601,43 @@ end
 # ---------------------------------------------------------------------------
 # Proximal diffusion models (ProxDM), against the exact proximal operator of a mixture.
 # ---------------------------------------------------------------------------
+@testset "all answers of a query, and their Laplace uncertainty" begin
+    # Gaussian data: the curvature is RED-Diff's κ, so the Laplace covariance has a closed form
+    v0 = 0.5
+    G = NoisePredictor(GaussianMixtureEps(SCHED, zeros(2, 1); s = sqrt(v0)), SCHED)
+    pg, sg = LuxCore.setup(Xoshiro(0), G)
+    nodes = field_nodes(Xoshiro(2), 2; samples = 3)
+    mg = ImplicitDiffusion(G, nodes; λ = 0.7)
+    κ = sum(nodes.w[k] * 0.7 * sigma(SCHED, t)^2 / (alpha(SCHED, t)^2 * v0 + sigma(SCHED, t)^2) for (k, t) in enumerate(nodes.t))
+    ρ, z₀ = [Inf, 2.0], [0.3, 1.0]
+    sol, _ = implicit_infer(mg, z₀, ρ, pg, sg; tol = 1e-12)
+    L = implicit_laplace(mg, sol, ρ, pg, sg)
+    @test L.mean == sol.z
+    @test L.cov[2, 2] ≈ 1 / (κ + 4) rtol = 1e-10
+    @test L.cov[1, 1] == 0 && L.free == [false, true]
+    @test sol.z[2] ≈ 4 * z₀[2] / (κ + 4) rtol = 1e-10
+    @test length(first(implicit_roots(mg, z₀, ρ, pg, sg))) == 1          # a Gaussian has one answer
+
+    # the circle: both branches of "y given x", and none on the unstable centre
+    θ = range(0, 2π; length = 49)[1:48]
+    C = NoisePredictor(GaussianMixtureEps(SCHED, vcat(cos.(θ)', sin.(θ)'); s = 0.05), SCHED)
+    pc, sc = LuxCore.setup(Xoshiro(0), C)
+    cn = field_nodes(Xoshiro(1), 2; samples = 8)
+    mc = ImplicitDiffusion(C, cn; λ = density_lambda(SCHED, cn))
+    roots, _ = implicit_roots(mc, [0.6, 0.0], [Inf, 0.0], pc, sc)
+    @test length(roots) == 2
+    @test sort([r.z[2] for r in roots]) ≈ [-0.78, 0.77] atol = 0.02
+    @test all(r -> r.converged && r.stable, roots)
+    sds = [sqrt(implicit_laplace(mc, r, [Inf, 0.0], pc, sc).cov[2, 2]) for r in roots]
+    @test all(0.1 .< sds .< 0.25)                                         # about the smoothed ring's width
+    # λ rescales the curvature, not the answers, for hard / free queries
+    r1, _ = implicit_roots(ImplicitDiffusion(C, cn), [0.6, 0.0], [Inf, 0.0], pc, sc)
+    @test sort([r.z[2] for r in r1]) ≈ sort([r.z[2] for r in roots]) atol = 1e-6
+    # an unstable answer has no Laplace approximation
+    bad = ImplicitSolution([0.0, 0.0], 0.0, 1, true, false)
+    @test_throws ArgumentError implicit_laplace(mc, bad, [Inf, 0.0], pc, sc)
+end
+
 @testset "energy-parametrised predictor: exact against the mixture, conservative, trainable" begin
     μ = [1.0 -0.5 0.2; 0.3 0.8 -1.0]
     exact = NoisePredictor(GaussianMixtureEps(SCHED, μ; s = 0.3), SCHED)

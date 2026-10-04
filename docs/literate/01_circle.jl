@@ -121,6 +121,47 @@ for ρy in (0.0, 1.0, 5.0, 50.0)
     println("ρ_y = ", rpad(ρy, 5), "  y = ", round(sol.z[2]; digits = 3))
 end
 
+# ## All answers, and how sure
+#
+# A single solve returns the branch whose basin the start lies in. [`implicit_roots`](@ref)
+# solves from several starts (the clamped inputs stay fixed) and keeps every distinct stable
+# answer. [`implicit_laplace`](@ref) then gives each answer a Laplace covariance: the inverse
+# curvature of the query's energy at the answer, from the Jacobian the solver already computes.
+#
+# For the covariance to be in data units, the prior term must be a proper negative
+# log-density. [`density_lambda`](@ref) chooses the weighting λ that makes it an average of the
+# smoothed log-densities at the field's noise levels; for queries with only hard inputs and free
+# outputs it changes the curvature, not the answers.
+
+mλ = ImplicitDiffusion(circle, m.nodes; λ = density_lambda(sched, m.nodes))
+for x in (0.0, 0.6, 0.9, 0.95, 1.05)
+    roots, _ = implicit_roots(mλ, [x, 0.0], [Inf, 0.0], ps, st)
+    sds = [sqrt(implicit_laplace(mλ, r, [Inf, 0.0], ps, st).cov[2, 2]) for r in roots]
+    println("x = ", rpad(x, 5), length(roots), " answer(s): ",
+            join(["y = $(round(r.z[2]; digits = 3)) ± $(round(σ; digits = 3))" for (r, σ) in zip(roots, sds)], ",  "))
+end
+
+# Away from the ends of the circle there are two answers, each with a standard deviation of
+# about the width of the smoothed ring (the data's width 0.05 combined with the noise levels).
+# Towards ``x = \pm 1`` the two branches approach each other, merge into one answer, and the
+# uncertainty grows; off the circle it is largest. The uncertainty says where the relation pins
+# the answer down and where it does not. It is calibrated to the *smoothed* density, so it is
+# wider than the data's own spread; see `implicit.md` §5.
+
+xs = range(-0.98, 0.98; length = 33)
+fig = Figure(size = (520, 480))
+ax = Axis(fig[1, 1]; aspect = DataAspect(), title = "every answer to \"y given x\", ± 2 sd")
+lines!(ax, cos.(range(0, 2π; length = 200)), sin.(range(0, 2π; length = 200)); color = :gray80)
+for x in xs
+    roots, _ = implicit_roots(mλ, [x, 0.0], [Inf, 0.0], ps, st; nstarts = 8)
+    for r in roots
+        σ = sqrt(implicit_laplace(mλ, r, [Inf, 0.0], ps, st).cov[2, 2])
+        rangebars!(ax, [x], [r.z[2] - 2σ], [r.z[2] + 2σ]; color = (:steelblue, 0.5))
+        scatter!(ax, [x], [r.z[2]]; color = :steelblue, markersize = 8)
+    end
+end
+fig
+
 # ## Picture of the three queries
 
 fig = Figure(size = (520, 500))

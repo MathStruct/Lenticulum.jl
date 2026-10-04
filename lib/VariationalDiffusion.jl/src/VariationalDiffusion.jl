@@ -55,6 +55,7 @@ include("reddiff.jl")
 include("analytic.jl")
 include("implicit.jl")
 include("energy.jl")
+include("answers.jl")
 include("factor.jl")
 include("implicit_factor.jl")
 include("proxdm.jl")
@@ -84,6 +85,7 @@ export ImplicitProx, implicit_solution, implicit_factor_pullback
 
 # --- Proximal diffusion models (ProxDM) ----------------------------------------
 export EnergyNetwork, energy, implicit_energy, denoising_gradient
+export implicit_roots, implicit_laplace, density_lambda
 export AbstractProximalPredictor, proximal, ProxNetwork, MixtureProx
 export proxdm_sample, prox_infer, proximal_matching_loss
 

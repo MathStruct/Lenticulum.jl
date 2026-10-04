@@ -45,7 +45,46 @@
 - noise-free roots are Tweedie fixed points;
 - the Gaussian root and its derivative match the closed form;
 - every adjoint cotangent matches finite differences of the full solve;
-- training through inference reduces the loss by more than 50×.
+- training through inference reduces the loss by more than 50×;
+- `implicit_roots` finds both branches of the circle, and the Laplace covariance of a Gaussian
+  query equals the closed form $1/(\kappa + \rho^2)$.
 
-Related: [[analytic]], [[reddiff]], [[factor]], [[Deterministic Relaxation]], [[Inference Signatures]],
+## 5. All answers, and how sure (`answers.jl`)
+
+Two functions build on `implicit_infer` without changing it.
+
+**`implicit_roots`** solves from `z₀` and from perturbed starts (normal on the free coordinates,
+the clamped ones fixed), keeps converged and stable answers, and removes duplicates. For an
+energy-parametrised predictor the answers are ordered by the query's energy. On the circle,
+"$y$ given $x = 0.6$" returns both branches; near $x = \pm 1$ they merge into one. It finds
+what its starts reach: no guarantee of completeness
+([[Open Problems in Implicit Diffusion Learning]] T1).
+
+**`implicit_laplace`** inverts the symmetric part of $J_{FF}$, the residual's Jacobian on the
+free coordinates at the answer, which is the curvature of the query's energy. The subtle part
+is the units. With $x_k = \alpha_k z + \sigma_k\varepsilon_k$ and $\varepsilon_\theta = -\sigma_t\nabla_x\log p_t$,
+
+$$
+g(z) = \nabla_z\Bigl[\sum_k w_k\,\lambda\,\frac{\sigma_k^2}{\alpha_k^2}\bigl(-\log p_{t_k}(x_k)\bigr)\Bigr] + (\text{terms linear in } z),
+$$
+
+so the prior term is a sum of smoothed negative log-densities with weights
+$\lambda\sigma_k^2/\alpha_k^2$. They sum to one exactly when $\lambda = 1/\sum_k w_k\sigma_k^2/\alpha_k^2$,
+`density_lambda(schedule, nodes)`, and then the energy is a proper negative log-density in
+the units of the clamp's Gaussian likelihood, and the covariance is in data units. The
+linear terms come from the noise draws and cancel for antithetic nodes. For queries with only
+hard inputs and free outputs, λ scales the curvature and leaves the answers unchanged.
+
+On the circle with this λ, the standard deviation of $y$ is 0.135 at $x = 0$ (the smoothed
+ring's width: data width 0.05 combined with the noise levels gives about 0.12), 0.17 at
+$x = 0.6$ (the vertical line crosses the ring obliquely), and it grows towards the branch
+points (0.31, then 0.41) and off the circle (0.53). Calibration is to the density **smoothed
+at the field's noise levels**, so it is wider than the data's own spread, the same smoothing
+that biases the answers inwards ([[Implicit Diffusion Learners]] §5).
+
+What is still missing: the covariance is returned as a matrix, not a `GaussianBelief`, because
+that type lives above `lib/` ([[Belief Algebra]] §6); and λ chosen for calibration is not
+always the λ one wants for balancing soft evidence.
+
+Related: [[analytic]], [[reddiff]], [[factor]], [[energy]], [[Deterministic Relaxation]], [[Inference Signatures]],
 [[The Implicit Diffusion Factor as a Statistical Game]]
