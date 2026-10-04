@@ -76,6 +76,12 @@ anything here.
 
 - **[Getting started](@ref getting-started)** — a complete worked example you can run:
   a robot's trajectory estimated from odometry and one GPS reading.
+- **Tutorials**, each also downloadable as a Jupyter notebook:
+  [a relation without training](@ref tutorial-circle),
+  [train a small diffusion model](@ref tutorial-train),
+  [robot arm: one model, every direction](@ref tutorial-arm),
+  [proximal diffusion models](@ref tutorial-proxdm),
+  [symmetry is not a law: learning a force field](@ref tutorial-forces).
 - **[Vocabulary](@ref vocabulary)** — the six words you need to read the API. Short.
 - The per-package pages, for the reference documentation.
 

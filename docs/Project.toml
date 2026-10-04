@@ -1,13 +1,23 @@
 [deps]
+ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
 Adversarial = "5b7e1c94-8d3a-4f26-b0e1-7a9c25d4f318"
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 ImplicitLayers = "3c0d5f2a-7b41-4e88-9a6d-1f5c8e2b4471"
 Lenticulum = "80a378fd-9e01-49e8-9939-ada6559002ad"
 LenticulumCore = "1ac3b398-e9e9-400d-83fd-862c57ff485d"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
+Lux = "b2108857-7c20-44ae-9111-449ecde12c47"
 LuxCore = "bb33d45b-7691-41d6-9220-0943567d0623"
 Mycelium = "0a724bc2-760c-4b8c-a26e-202a6d9695cb"
+Optimisers = "3bd65402-5787-11e9-1adc-39752487f4e2"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 VariationalDiffusion = "ff4e7144-0bbc-4cb1-a056-50f11d0cc546"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [sources]
 Adversarial = {path = "../lib/Adversarial.jl"}

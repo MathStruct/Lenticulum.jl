@@ -183,6 +183,27 @@ prior, beside a `LinearConstraintFactor` for the law — needs no new machinery 
 side. What it needs on the factor side, an equivariance-aware `Channel` and a group action
 on beliefs, is entirely absent and is a real gap.
 
+## 7½. Measured: the tutorial
+
+The documentation's tutorial [*Symmetry is not a law*](https://mathstruct.github.io/Lenticulum.jl/dev/tutorials/05_symmetry_is_not_a_law/)
+runs this note's argument on a particle in a rotation-invariant potential plus a uniform
+field, which breaks the symmetry. Fitted to the same 60 noisy force measurements:
+
+| model class | parameters | force error | work around the unit circle | long simulation |
+|---|---|---|---|---|
+| equivariant force (the full $SO(2)$ class) | 18 | 0.42 | 0.24 | energy swings up to 1.2; never comes to rest |
+| generic force | 98 | 0.57 | 0.23 | gains energy and escapes |
+| generic energy, $F = -\nabla E$ | 49 | 0.12 | 0 | bounded, 0.06 |
+| invariant energy + linear field term, $F = -\nabla E$ | 11 | 0.026 | 0 | bounded, 0.02 |
+
+Two findings go beyond §2. First, when the physics *breaks* the symmetry, the equivariant
+model cannot represent the breaking term, and the misfit does not stay put: it leaks into the
+rotational part of the equivariant class and becomes circulation. Imposing a symmetry the
+physics lacks made the model violate a law the physics has. Second, the arrangement of §7
+works as stated: symmetry inside the energy where it holds, a separate term where it is
+broken, the law as the parametrisation. It is the most accurate class, the most
+data-efficient, and conservative by construction.
+
 ## 8. The statement
 
 - Equivariance constrains the **map**; a law constrains the **configuration**. Orthogonal.
@@ -195,6 +216,8 @@ on beliefs, is entirely absent and is a real gap.
   learning does.
 - Relations win on long horizons, partial observation, attribution and model comparison —
   not on single-shot accuracy.
+- When the physics breaks a symmetry, imposing it anyway does not just cost accuracy: the
+  misfit turns into a law violation (§7½, measured).
 - And this project has no equivariance at all, so the right architecture is equivariant
   factors on a relational graph, and only half of it exists here.
 

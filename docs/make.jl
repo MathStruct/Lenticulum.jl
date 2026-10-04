@@ -1,4 +1,22 @@
 using Documenter
+using Literate
+
+# --- Tutorials: docs/literate/*.jl → a Documenter page and a Jupyter notebook each ---------
+# The page is executed by Documenter (@example blocks, so outputs and plots appear in the
+# docs); the notebook is written unexecuted, for download, and linked from the top of the page.
+const LITERATE = joinpath(@__DIR__, "literate")
+const TUTORIALS = joinpath(@__DIR__, "src", "tutorials")
+tutorial_pages = String[]
+for file in sort(filter(endswith(".jl"), readdir(LITERATE)))
+    name = splitext(file)[1]
+    badge(content) = replace(content, r"^(# # .*\n)"m =>
+        SubstitutionString("\\1#\n#md # [Download as a Jupyter notebook]($(name).ipynb)\n" *
+            "#nb # *Setup:* run this in a Julia environment where Lenticulum's packages are\n" *
+            "#nb # developed (see the README) and the other packages of the first code cell are added.\n"); count = 1)
+    Literate.markdown(joinpath(LITERATE, file), TUTORIALS; documenter = true, preprocess = badge)
+    Literate.notebook(joinpath(LITERATE, file), TUTORIALS; execute = false)
+    push!(tutorial_pages, "tutorials/$(name).md")
+end
 
 using Lenticulum
 using LenticulumCore
@@ -29,6 +47,7 @@ makedocs(;
     pages = [
         "Home" => "index.md",
         "Getting started" => "getting-started.md",
+        "Tutorials" => tutorial_pages,
         "Vocabulary" => "vocabulary.md",
         "Theory vault" => "theory.md",
         "Packages" => [

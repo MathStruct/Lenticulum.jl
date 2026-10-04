@@ -110,6 +110,8 @@ model with any AD backend works.
 4. [[DEQ as a Relation]] — the same idea for equilibrium models
 5. [[backends]] — Zygote, Enzyme or Reactant; a 5k-parameter MLP end to end
 
+Or start with code: the [tutorials](../tutorials/01_circle/) (also Jupyter notebooks).
+
 ## Coming from statistics or robotics
 
 You know Bayesian inference, Gaussian posteriors, perhaps factor graphs and GTSAM. The short
