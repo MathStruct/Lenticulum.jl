@@ -1,7 +1,7 @@
 # # [Proximal diffusion models](@id tutorial-proxdm)
 #
-# A score-based diffusion model is queried through its score, ``\nabla\log p_t``. ProxDM (Fang,
-# Díaz, Buchanan & Sulam, 2025) queries it through its **proximal operator** instead:
+# A score-based diffusion model is queried through its score, ``\nabla\log p_t``. ProxDM
+# [fang2025proxdm](@cite) queries it through its **proximal operator** instead:
 #
 # ```math
 # \operatorname{prox}_{-\lambda\log p_t}(v) \;=\; \arg\min_u\ \tfrac12\lVert u - v\rVert^2 - \lambda\log p_t(u).
@@ -87,3 +87,11 @@ dn, _ = prox_infer(Pc, [0.6, -0.5], [Inf, 0.0], 0.0, psc, NamedTuple(); λ = 0.0
 # A learned [`ProxNetwork`](@ref) replaces `MixtureProx` in all of the above; it is trained with
 # [`proximal_matching_loss`](@ref). See the implementation note `proxdm.md` in the theory vault
 # for details and open ends.
+
+#
+# ## References
+#
+# ```@bibliography
+# Pages = [@__FILE__]
+# Canonical = false
+# ```

@@ -1,6 +1,7 @@
 # # [Symmetry is not a law: learning a force field](@id tutorial-forces)
 #
-# Geometric deep learning builds the **symmetry** of a problem into a model: rotate the input,
+# Geometric deep learning [bronstein2021gdl](@cite) builds the **symmetry** of a problem into a
+# model: rotate the input,
 # the output rotates with it. A physical law is a different kind of statement. A force field
 # that comes from a potential satisfies the **relation** ``F = -\nabla E`` at every point, and a
 # model can respect every symmetry of a problem while violating that relation everywhere.
@@ -137,7 +138,7 @@ end
 # ## Long horizons
 #
 # A small violation of the law per step compounds over a long simulation. Integrate Newton's
-# equations ``\ddot x = F(x)`` with velocity Verlet (a scheme that conserves energy well for any
+# equations ``\ddot x = F(x)`` with velocity Verlet [verlet1967](@cite) (a scheme that conserves energy well for any
 # conservative force) for ``10^5`` steps, and track the true energy
 # ``H = \tfrac12\lVert v\rVert^2 + E(x)``.
 
@@ -175,7 +176,7 @@ fig
 # error. The direct force models do not: A's energy swings by up to 1.2, sixty times D's, as
 # its rotational part alternately pushes and brakes the particle, and B pumps energy into the
 # particle until it escapes the well at ``t \approx 60``. This is the failure reported for direct-force
-# interatomic potentials by Bigi, Langer and Ceriotti (ICML 2025): equivariant, accurate per
+# interatomic potentials by [bigi2025dark](@citet): equivariant, accurate per
 # prediction, unstable in molecular dynamics.
 #
 # ## A relational query: where does the particle rest?
@@ -253,3 +254,11 @@ fig
 # class C or D, is [`EnergyNetwork`](@ref): the network outputs a scalar ``E_\theta`` and
 # ``\varepsilon_\theta = \sigma_t\nabla_x E_\theta``, so the score is a gradient by construction
 # (implementation note `energy.md`).
+
+#
+# ## References
+#
+# ```@bibliography
+# Pages = [@__FILE__]
+# Canonical = false
+# ```

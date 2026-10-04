@@ -1,7 +1,10 @@
 # # [A conservative score: energy-parametrised diffusion](@id tutorial-energy)
 #
 # A diffusion model's noise predictor ``\varepsilon_\theta(x, t)`` is a learned vector field, a
-# *direct* model of the score ``-\nabla\log p_t``, and nothing makes it the gradient of anything.
+# *direct* model of the score ``-\nabla\log p_t`` [song2021sde](@cite), and nothing makes it the
+# gradient of anything. Whether to model the energy or the score is the question of
+# [salimans2021ebm](@citet); energy parametrisations are also what makes diffusion models
+# composable [du2023reduce](@cite).
 # The [force-field tutorial](@ref tutorial-forces) showed what a direct model of a gradient
 # costs. Here is the fix inside diffusion: the network outputs a **scalar energy**
 # ``E_\theta(x, t)`` and the noise prediction is its gradient,
@@ -183,3 +186,11 @@ dn, _ = implicit_infer(m_E, [0.6, -0.5], [Inf, 0.0], ps_E, st_E)
 #
 # The implementation note `energy.md` in the theory vault has the derivation and the
 # validation, including an exact check against a closed-form mixture.
+
+#
+# ## References
+#
+# ```@bibliography
+# Pages = [@__FILE__]
+# Canonical = false
+# ```

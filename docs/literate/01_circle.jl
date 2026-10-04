@@ -4,7 +4,8 @@
 # the alternative Lenticulum is built on: a model of a **relation** ``R \subseteq Z`` on a joint
 # space, queried in whichever direction you like. To keep the first example free of
 # training, the model is a diffusion model whose noise predictor is known in closed form: the
-# exact denoiser of points on the unit circle.
+# exact denoiser of points on the unit circle. Diffusion models and their noise predictors are
+# introduced in [ho2020ddpm](@citet) and [song2021sde](@citet).
 #
 # You will see:
 #
@@ -37,7 +38,8 @@ nothing #hide
 #
 # A diffusion model defines, through its noise predictor, a vector field ``g(z)`` on ``Z``: the
 # averaged denoising residual over a fixed set of noise levels and noise draws (the
-# "field nodes"). It is the gradient of a smoothed negative log-density, so it points away
+# "field nodes"), the deterministic form of RED-Diff's regulariser [mardani2024reddiff](@cite).
+# It is the gradient of a smoothed negative log-density, so it points away
 # from the data. The relation is the set of its **stable roots**: in the plot, the dark ring where
 # the field vanishes, with the arrows pointing onto it from both sides.
 #
@@ -138,3 +140,11 @@ fig
 #   learned network and differentiates through inference.
 # - The theory: [Implicit Diffusion Learners](https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/Implicit-Diffusion-Learners)
 #   in the vault.
+
+#
+# ## References
+#
+# ```@bibliography
+# Pages = [@__FILE__]
+# Canonical = false
+# ```

@@ -12,7 +12,7 @@
 > **improper Gaussian beliefs are not a convenience, they are what makes acausal composition
 > possible at all.**
 
-> Sources: Fong & Spivak, *Hypergraph Categories*, [arXiv:1806.08304](https://arxiv.org/abs/1806.08304); Fong, *The Algebra of Open and Interconnected Systems*, [arXiv:1609.05382](https://arxiv.org/abs/1609.05382); Baez & Courser, *Structured Cospans*; Stein & Samuelson, *A Category for Unifying Gaussian Probability and Nondeterminism*, CALCO 2023, [arXiv:2204.14024](https://arxiv.org/abs/2204.14024); Stein & Samuelson, *Graphical Quadratic Algebra*, [arXiv:2403.02284](https://arxiv.org/abs/2403.02284); Bonchi, Sobociński & Zanasi, *Interacting Hopf Algebras*; Fritz, *A synthetic approach to Markov kernels, conditional independence and theorems on sufficient statistics*; Di Lavore, Román & Sobociński, *Partial Markov Categories*, [arXiv:2502.03477](https://arxiv.org/abs/2502.03477); code: `beliefs.jl`
+> Sources: Fong & Spivak, *Hypergraph Categories*, [arXiv:1806.08304](https://arxiv.org/abs/1806.08304); Fong, *The Algebra of Open and Interconnected Systems*, [arXiv:1609.05382](https://arxiv.org/abs/1609.05382); Baez & Courser, *Structured Cospans*; Stein & Samuelson, *A Category for Unifying Gaussian Probability and Nondeterminism*, CALCO 2023, [arXiv:2204.14024](https://arxiv.org/abs/2204.14024); Stein, Zanasi, Piedeleu & Samuelson, *Graphical Quadratic Algebra*, [arXiv:2403.02284](https://arxiv.org/abs/2403.02284); Bonchi, Sobociński & Zanasi, *Interacting Hopf Algebras*; Fritz, *A synthetic approach to Markov kernels, conditional independence and theorems on sufficient statistics*; Di Lavore, Román & Sobociński, *Partial Markov Categories*, [arXiv:2502.03477](https://arxiv.org/abs/2502.03477); code: `beliefs.jl`
 >
 > Theory (CT-ML wiki): [Hypergraph Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Hypergraph-Category) · [Frobenius Monoid](https://mathstruct.org/CategoryTheory-ML-Wiki/Frobenius-Monoid) · [Markov Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Markov-Category) · [Partial Markov Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Partial-Markov-Category) · [Compact Closed Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Compact-Closed-Category) · [Decorated Cospan](https://mathstruct.org/CategoryTheory-ML-Wiki/Decorated-Cospan) · [Structured Cospan](https://mathstruct.org/CategoryTheory-ML-Wiki/Structured-Cospan) · [Operad](https://mathstruct.org/CategoryTheory-ML-Wiki/Operad) · [Undirected Wiring Diagram](https://mathstruct.org/CategoryTheory-ML-Wiki/Undirected-Wiring-Diagram) · [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Gaussian Relations](https://mathstruct.org/CategoryTheory-ML-Wiki/Gaussian-Relations)
 
@@ -302,7 +302,7 @@ Specific gaps, stated honestly:
 - Stein & Samuelson, *A Category for Unifying Gaussian Probability and Nondeterminism*, CALCO
   2023, [arXiv:2204.14024](https://arxiv.org/abs/2204.14024) — Gaussian relations; improper
   priors as the completion.
-- Stein & Samuelson, *Graphical Quadratic Algebra*,
+- Stein, Zanasi, Piedeleu & Samuelson, *Graphical Quadratic Algebra*,
   [arXiv:2403.02284](https://arxiv.org/abs/2403.02284) — a complete diagrammatic axiomatisation
   of quadratic relations, with Willems' open systems and uninformative priors named as the
   unified phenomena.

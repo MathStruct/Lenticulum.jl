@@ -23,6 +23,10 @@
 
 Read in this order.
 
+
+**References:** [[Bibliography]], every work cited in the vault, the implementation notes and the
+tutorials, generated from one `.bib` file that the documentation also uses.
+
 ## 1. The classical story (what Lux.jl is)
 
 1. [Para](https://mathstruct.org/CategoryTheory-ML-Wiki/Para-Construction) — parameters as a categorical construction

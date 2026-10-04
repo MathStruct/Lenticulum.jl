@@ -41,7 +41,7 @@ end
 pair_energy(X, φ) = sum(φ(norm(X[:, i] .- X[:, j])) for i in axes(X, 2) for j in (i + 1):size(X, 2))
 nothing #hide
 
-# Velocity Verlet, recording positions every ten steps (``\Delta t = 0.01``), and the total
+# Velocity Verlet [verlet1967](@cite), recording positions every ten steps (``\Delta t = 0.01``), and the total
 # energy under a given potential, to check conservation later.
 
 function simulate(X₀, V₀, f; φ = nothing, dt = 1e-3, steps = 20_000, every = 10)
@@ -233,10 +233,11 @@ end
 # ## Naming the law: symbolic regression
 #
 # The learned ``\varphi`` is a curve. To get a formula, search over expressions that fit it.
-# [SymbolicRegression.jl](https://github.com/MilesCranmer/SymbolicRegression.jl) evolves
+# [SymbolicRegression.jl](https://github.com/MilesCranmer/SymbolicRegression.jl) [cranmer2023pysr](@cite) evolves
 # expression trees and returns a Pareto front of complexity against error. The search is easy
 # here because the structure has already reduced the problem to one variable; on the raw
-# 12-dimensional data it would be hopeless.
+# 12-dimensional data it would be hopeless. Learning with built-in structure first and naming
+# the result afterwards is the approach of [cranmer2020symbolic](@citet).
 
 r_obs = collect(range(quantile(dists, 0.01), quantile(dists, 0.99); length = 200))
 opts = Options(; binary_operators = [+, -, *, /], maxsize = 20,
@@ -264,3 +265,11 @@ end
 #
 # Learning *relations* as formulas directly, without a learned curve in between, is an open
 # problem recorded in the vault: [Symbolic Implicit Learning](https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/Symbolic-Implicit-Learning).
+
+#
+# ## References
+#
+# ```@bibliography
+# Pages = [@__FILE__]
+# Canonical = false
+# ```

@@ -61,6 +61,9 @@ CONTENT="$QUARTZ/content"
 rm -rf "$CONTENT"
 mkdir -p "$CONTENT"
 
+# the bibliography note is generated from docs/src/refs.bib, so the vault and the docs agree
+python3 "$ROOT/docs/site/bib2vault.py" > /dev/null
+
 # the theory notes (meta/ — the authoring prompts and the PhD proposals — is not published)
 cp -r "$ROOT/vault/." "$CONTENT/"
 

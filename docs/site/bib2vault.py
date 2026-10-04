@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""Render docs/src/refs.bib as the vault note vault/Bibliography.md.
+
+One bibliography serves both outputs: the Documenter docs read refs.bib through
+DocumenterCitations, and this script writes the same entries as an Obsidian note, so the
+vault and the docs never disagree. Run from anywhere; docs/site/build.sh runs it before
+every vault build.  Usage: bib2vault.py [refs.bib] [Bibliography.md]
+"""
+import re, sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+BIB = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "docs" / "src" / "refs.bib"
+OUT = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "vault" / "Bibliography.md"
+
+
+def entries(text):
+    """Yield (type, key, fields) from a BibTeX file with brace-delimited values."""
+    i = 0
+    while (m := re.compile(r"@(\w+)\s*\{\s*([^,\s]+)\s*,").search(text, i)):
+        typ, key, j, depth, fields = m.group(1).lower(), m.group(2), m.end(), 1, {}
+        start = j
+        while depth and j < len(text):
+            depth += {"{": 1, "}": -1}.get(text[j], 0)
+            j += 1
+        body = text[start:j - 1]
+        for f in re.finditer(r"(\w+)\s*=\s*\{", body):
+            k, d, p = f.group(1).lower(), 1, f.end()
+            while d:
+                d += {"{": 1, "}": -1}.get(body[p], 0)
+                p += 1
+            fields[k] = body[f.end():p - 1]
+        yield typ, key, fields
+        i = j
+
+
+def clean(s):
+    s = s.replace(r"\&", "&").replace(r'{\"o}', "ö").replace("--", "–")
+    return re.sub(r"\s+", " ", s.replace("{", "").replace("}", "")).strip()
+
+
+def names(s):
+    out = []
+    for a in clean(s).split(" and "):
+        last, _, first = a.partition(", ")
+        out.append(f"{first} {last}".strip() if first else last)
+    return out[0] if len(out) == 1 else ", ".join(out[:-1]) + " & " + out[-1]
+
+
+def render(typ, key, f):
+    who = names(f["author"]) if "author" in f else (names(f["editor"]) + " (eds.)" if "editor" in f else "")
+    parts = [f"**{who}**" if who else "", f"({f['year']})" if "year" in f else "", f"*{clean(f['title'])}*."]
+    venue = f.get("journal") or f.get("booktitle") or f.get("school") or f.get("institution") or f.get("howpublished") or f.get("publisher")
+    if venue:
+        extra = ", ".join(x for x in (f.get("volume") and f"vol. {f['volume']}", f.get("number") and f"no. {f['number']}",
+                                       f.get("pages") and f"pp. {clean(f['pages'])}") if x)
+        parts.append(clean(venue) + (f", {extra}" if extra else "") + ".")
+    links = []
+    if "eprint" in f:
+        links.append(f"[arXiv:{f['eprint']}](https://arxiv.org/abs/{f['eprint']})")
+    if "doi" in f:
+        links.append(f"[doi:{f['doi']}](https://doi.org/{f['doi']})")
+    if "url" in f and not links:
+        links.append(f"[link]({f['url']})")
+    return " ".join(p for p in parts if p) + (" " + " · ".join(links) if links else "") + f" `{key}`"
+
+
+def sortkey(item):
+    typ, key, f = item
+    who = clean(f.get("author") or f.get("editor") or f.get("title", ""))
+    return (typ == "misc" and "howpublished" in f and f["howpublished"] == "Software", who.lower(), f.get("year", ""))
+
+
+def main():
+    items = sorted(entries(BIB.read_text(encoding="utf-8")), key=sortkey)
+    papers = [render(*e) for e in items if not (e[2].get("howpublished") == "Software")]
+    software = [render(*e) for e in items if e[2].get("howpublished") == "Software"]
+    OUT.write_text(f"""#reference
+
+> Every work cited in this vault, the implementation notes and the documentation's tutorials,
+> in one list. Generated from `docs/src/refs.bib` by `docs/site/bib2vault.py`; edit the `.bib`
+> file, not this note. The documentation renders the same file on its *References* page.
+
+> Sources: the citations of the individual notes, with metadata checked against arXiv and Crossref.
+>
+> Theory (CT-ML wiki): [Home](https://mathstruct.org/CategoryTheory-ML-Wiki/)
+
+The code in backticks is the BibTeX key, for citing in the documentation as `[key](@cite)`.
+
+## Papers and books ({len(papers)})
+
+""" + "\n".join(f"- {p}" for p in papers) + f"""
+
+## Software ({len(software)})
+
+""" + "\n".join(f"- {s}" for s in software) + "\n\nRelated: [[Map of Content]], [[Start Here]]\n", encoding="utf-8")
+    print(f"wrote {OUT} ({len(papers)} papers, {len(software)} software)")
+
+
+if __name__ == "__main__":
+    main()

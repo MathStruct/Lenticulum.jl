@@ -31,7 +31,8 @@ Lux.parameterlength(net)
 #
 # Take a data point ``z_0``, a noise level ``t`` and noise ``\varepsilon``, form
 # ``z_t = \alpha_t z_0 + \sigma_t \varepsilon``, and train the network to predict ``\varepsilon``
-# from ``(z_t, t)``. This is the standard diffusion-model loss. One deviation from image
+# from ``(z_t, t)``. This is the standard diffusion-model loss [ho2020ddpm](@cite), equivalent to
+# denoising score matching [vincent2011dsm](@cite). One deviation from image
 # diffusion: the implicit learner only reads the model at small noise levels, so we train on
 # ``t \in [0.001, 0.2]`` instead of ``[0, 1]``.
 
@@ -120,7 +121,8 @@ fig
 # derivative with respect to the clamped input ``x`` or to a network weight has to go
 # *through* the solver. Unrolling the Newton iterations would work but costs memory and is
 # fragile. Instead, [`implicit_pullback`](@ref) uses the implicit function theorem: at a root,
-# one linear solve with the transposed Jacobian gives every derivative at once.
+# one linear solve with the transposed Jacobian gives every derivative at once, as in deep
+# equilibrium models [bai2019deq](@cite).
 
 sol, _ = implicit_infer(m, [0.6, 0.5], [Inf, 0.0], ps, st; tol = 1e-12)
 ȳ = [0.0, sol.z[2] - 0.7]                                 # ∂ℓ/∂z*
@@ -148,3 +150,11 @@ fd_w = (ℓ(solve(0.6, bump(h))) - ℓ(solve(0.6, bump(-h)))) / 2h
 # - [Robot arm: one model, every direction](@ref tutorial-arm) applies the same steps to a
 #   four-dimensional problem with a real application.
 # - The derivation of the adjoint: [Backpropagation through Implicit Inference](https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/Backpropagation-through-Implicit-Inference).
+
+#
+# ## References
+#
+# ```@bibliography
+# Pages = [@__FILE__]
+# Canonical = false
+# ```

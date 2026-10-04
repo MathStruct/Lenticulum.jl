@@ -1,4 +1,5 @@
 using Documenter
+using DocumenterCitations
 using Literate
 using SHA: sha1
 
@@ -46,6 +47,10 @@ function tutorial_key(script)
     return bytes2hex(sha1(take!(io)))[1:16]
 end
 
+# notebooks have no bibliography: [key](@cite) becomes "(key)", and the @bibliography block goes
+uncite(s) = replace(replace(s, r"\[([^\]]+)\]\(@cite[tp]?\)" => s"(\1)"),
+                    r"^# ```@bibliography\n(?:# .*\n)*?# ```\n"m => "# See the references page of the documentation.\n")
+
 # Literate's plain-Markdown flavour strips Documenter's (@ref) and (@id …) links; protect them
 protect(s) = replace(s, "(@" => "(LITERATE-AT-")
 restore(s) = replace(s, "(LITERATE-AT-" => "(@")
@@ -75,7 +80,7 @@ for file in sort(filter(endswith(".jl"), readdir(LITERATE)))
         mv(tmp, cached; force = true)
     end
     foreach(f -> cp(joinpath(cached, f), joinpath(TUTORIALS, f); force = true), readdir(cached))
-    Literate.notebook(script, TUTORIALS; execute = false)
+    Literate.notebook(script, TUTORIALS; execute = false, preprocess = uncite)
     push!(tutorial_pages, "tutorials/$(name).md")
 end
 
@@ -86,7 +91,11 @@ using VariationalDiffusion
 using ImplicitLayers
 using Adversarial
 
+# One bibliography for the docs and the vault (docs/site/bib2vault.py renders it there)
+const BIB = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"); style = :authoryear)
+
 makedocs(;
+    plugins = [BIB],
     sitename = "Lenticulum.jl",
     authors = "Daniel Boigk",
     modules = [
@@ -111,6 +120,7 @@ makedocs(;
         "Tutorials" => tutorial_pages,
         "Vocabulary" => "vocabulary.md",
         "Theory vault" => "theory.md",
+        "References" => "references.md",
         "Packages" => [
             "LenticulumCore" => "packages/lenticulumcore.md",
             "Mycelium" => "packages/mycelium.md",

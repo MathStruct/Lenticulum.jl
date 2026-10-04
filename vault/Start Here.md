@@ -37,6 +37,9 @@ Every note opens the same way:
      this vault").
    - `> Theory (CT-ML wiki):` links to the general concepts the note uses.
 
+   Every cited work is collected in [[Bibliography]], generated from `docs/src/refs.bib`;
+   new citations go into that file first.
+
 Implementation notes additionally record, as carefully as what the file does, **what it does
 not do** and the difficulties met on the way.
 

@@ -76,7 +76,8 @@ fig
 # ## Why a function fails
 #
 # The obvious approach is regression: fit a network ``(x, y) \mapsto (\theta_1, \theta_2)`` by
-# least squares. Least squares estimates the conditional *mean*, and with two equally likely
+# least squares. Least squares estimates the conditional *mean* (the classic argument for
+# mixture density networks [bishop1994mdn](@cite)), and with two equally likely
 # answers the mean is their average, a pose that reaches neither.
 
 reg = Chain(Dense(2 => 64, swish), Dense(64 => 64, swish), Dense(64 => 2))
@@ -226,3 +227,11 @@ fig
 #
 # The price of the relation is inference cost: each query is a small root-finding problem.
 # What it buys is one model for every direction, and every answer, not their average.
+
+#
+# ## References
+#
+# ```@bibliography
+# Pages = [@__FILE__]
+# Canonical = false
+# ```
