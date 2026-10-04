@@ -12,7 +12,8 @@
 # ---------------------------------------------------------------------------
 module VariationalDiffusionDifferentiationInterfaceExt
 
-using VariationalDiffusion: VariationalDiffusion, NoisePredictor, epsilon
+using VariationalDiffusion: VariationalDiffusion, NoisePredictor, EnergyNetwork, epsilon
+using LuxCore: LuxCore
 using DifferentiationInterface: DifferentiationInterface as DI
 const ADTypes = DI.ADTypes
 
@@ -80,6 +81,44 @@ end
 function VariationalDiffusion._ad_jacobian(ad::ADTypes.AbstractADType, pred::NoisePredictor, x, t, ps, st)
     return DI.jacobian(_eps_of_input, ad, collect(float.(x)),
                        DI.Constant(pred), DI.Constant(t), DI.Constant(ps), DI.Constant(st))
+end
+
+# --- energy-parametrised predictors: first and second derivatives of a scalar -----------
+# E is summed over the columns of a batch, so its x-gradient is the per-column gradients.
+# The mixed derivative ∂_θ⟨∇ₓE, w⟩ is the θ-block of one Hessian-vector product on the joint
+# vector u = [x; θ] in the direction [w; 0]; its x-block would be ∇²ₓE·w.
+_energy_x(x, pred, t, ps, st) = sum(first(LuxCore.apply(pred.model.model, pred.input(x, t), ps, st)))
+
+function _energy_joint(u, pred, t, xshape, like, offs, st)
+    nx = prod(xshape)
+    x = reshape(u[1:nx], xshape)
+    return _energy_x(x, pred, t, _unflatten(u[(nx + 1):end], offs, like), st)
+end
+
+_first_order(ad) = ad isa DI.SecondOrder ? DI.inner(ad) : ad
+
+function VariationalDiffusion._energy_grad(ad::ADTypes.AbstractADType, pred::NoisePredictor{<:EnergyNetwork},
+                                           x, t, ps, st)
+    return DI.gradient(_energy_x, _first_order(ad), collect(float.(x)),
+                       DI.Constant(pred), DI.Constant(t), DI.Constant(ps), DI.Constant(st))
+end
+
+function VariationalDiffusion._energy_hessian(ad::ADTypes.AbstractADType, pred::NoisePredictor{<:EnergyNetwork},
+                                              x, t, ps, st)
+    return DI.hessian(_energy_x, ad, collect(float.(vec(x))),
+                      DI.Constant(pred), DI.Constant(t), DI.Constant(ps), DI.Constant(st))
+end
+
+function VariationalDiffusion._energy_mixed(ad::ADTypes.AbstractADType, pred::NoisePredictor{<:EnergyNetwork},
+                                            x, t, ps, st, w)
+    θ = _flatten(ps)
+    xv = collect(float.(vec(x)))
+    T = promote_type(eltype(xv), eltype(θ))
+    u = vcat(T.(xv), T.(θ))
+    v = vcat(T.(vec(w)), zeros(T, length(θ)))
+    hv = only(DI.hvp(_energy_joint, ad, u, (v,), DI.Constant(pred), DI.Constant(t), DI.Constant(size(x)),
+                     DI.Constant(ps), DI.Constant(offset_tree(ps)), DI.Constant(st)))
+    return _unflatten(hv[(length(xv) + 1):end], ps)
 end
 
 end # module

@@ -204,6 +204,12 @@ works as stated: symmetry inside the energy where it holds, a separate term wher
 broken, the law as the parametrisation. It is the most accurate class, the most
 data-efficient, and conservative by construction.
 
+The same distinction inside diffusion models is now implemented: a noise predictor that
+outputs $\varepsilon$ directly is a direct score (force) model, and `EnergyNetwork` is the
+energy version, $\varepsilon_\theta = \sigma_t\nabla_x E_\theta$ ([[energy]]). On the circle it
+trains to the same loss and its field is a gradient to machine precision, where the direct
+network's Jacobian is 2.6% asymmetric.
+
 ## 8. The statement
 
 - Equivariance constrains the **map**; a law constrains the **configuration**. Orthogonal.

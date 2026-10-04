@@ -49,7 +49,7 @@ Every element of Definition 20 then has a home:
 | energy $l^c$ (pointwise) | the clamp, $\tfrac12\lVert P(z - z_0)\rVert^2 = -\log$ of a Gaussian observation of precision $\rho^2$ | **present** |
 | the prior as its own game (Remark 24) | energy $\Phi_\theta(z)$, the smoothed $-\log p_\theta$ of [[Implicit Diffusion Learners]] §3, entropy 0 | **present** for an exact score; for a learned network only $\nabla\Phi$ exists (the residual) |
 | entropy $H^c$ | $H(q)$ of the inversion | **missing**: $-\infty$ for a Dirac; needs $q = \mathcal N(\mu, \Sigma)$ |
-| loss $F^c$ | $\mathcal E(z^\star) = \tfrac12\lVert P(z^\star - z_0)\rVert^2 + \Phi_\theta(z^\star)$, up to the entropy constant | **present** for an exact score; a denoising-loss estimate otherwise |
+| loss $F^c$ | $\mathcal E(z^\star) = \tfrac12\lVert P(z^\star - z_0)\rVert^2 + \Phi_\theta(z^\star)$, up to the entropy constant | **present** for an exact score and for an energy-parametrised network (`implicit_energy`, [[energy]]); a denoising-loss estimate otherwise |
 | parameters $\Theta$ (Definition 27, $\mathbf{Para}$) | network weights; **also** the precisions $\rho$ and λ | **present**; $\rho$ is differentiable by the adjoint |
 
 > [!important] A correction to [[RED-Diff as a Statistical Game]] §2
@@ -122,9 +122,10 @@ prior energy, and would contribute an entropy if its inversion were Gaussian.
 1. **A Gaussian inversion.** Keep $\sigma > 0$ in RED-Diff's variational family, iterate on
    $(\mu, \Sigma)$, and $H(q)$ becomes finite. The Laplace approximation $\Sigma = J_{FF}^{-1}$ at
    $z^\star$ is already computed by the adjoint, so a first version costs nothing extra.
-2. **A scalar loss for learned networks**, by the denoising-loss estimate (as
-   `DiffusionFactor`'s graded energy already does) or by line integrals of the residual where
-   it is nearly conservative.
+2. ~~**A scalar loss for learned networks**~~ — done for energy-parametrised networks:
+   with $\varepsilon_\theta = \sigma_t\nabla_x E_\theta$ the field is the gradient of
+   `implicit_energy`, exactly ([[energy]]). A network that outputs $\varepsilon$ directly still
+   has only the denoising-loss estimate.
 3. ~~**AD for `epsilon_vjp_params`** on a Lux network~~ — done, through any AD backend ([[backends]]).
 4. ~~**The factor interface**~~ — done: `DiffusionFactor(…; prox = ImplicitProx(nodes))` inverts
    with the deterministic solver; `implicit_solution` reports, `implicit_factor_pullback`

@@ -88,7 +88,7 @@ learned from a circle) is worked through in the vault.
 
 | you are | start with |
 |---|---|
-| **who learns by running code** | the [tutorials](https://MathStruct.github.io/Lenticulum.jl/dev/tutorials/01_circle/) (also as Jupyter notebooks): the circle, a trained MLP, a robot arm, ProxDM, and equivariant vs. conservative force fields |
+| **who learns by running code** | the [tutorials](https://MathStruct.github.io/Lenticulum.jl/dev/tutorials/01_circle/) (also as Jupyter notebooks): the circle, a trained MLP, a robot arm, ProxDM, equivariant vs. conservative force fields, and an energy-parametrised diffusion model |
 | **from machine learning** | [Implicit Diffusion Learners](https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/Implicit-Diffusion-Learners) → [Backpropagation through Implicit Inference](https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/Backpropagation-through-Implicit-Inference) → [DEQ as a Relation](https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Equilibrium/DEQ-as-a-Relation) |
 | **from statistics / robotics** | the [getting-started page](https://MathStruct.github.io/Lenticulum.jl/dev/getting-started/) (GTSAM's odometry example, exact posterior and marginal likelihood) → [Beliefs](https://mathstruct.org/Lenticulum.jl/dev/vault/Factor-Graphs/Beliefs) → [Bethe Free Energy](https://mathstruct.org/Lenticulum.jl/dev/vault/Factor-Graphs/Bethe-Free-Energy) |
 | **from category theory** | [Factors are Parameterized Statistical Games](https://mathstruct.org/Lenticulum.jl/dev/vault/Foundations/Factors-are-Parameterized-Statistical-Games), with the background in the [CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/) (Track E) |

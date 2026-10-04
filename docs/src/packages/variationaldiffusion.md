@@ -81,6 +81,14 @@ Both are package extensions; without them the Jacobian falls back to finite diff
 then infers both branches and checks the adjoint against finite differences.
 For Enzyme on Lux use `AutoEnzyme(; mode = Enzyme.set_runtime_activity(Enzyme.Reverse))`.
 
+## Energy-parametrised models
+
+`NoisePredictor(EnergyNetwork(net), VPSDE(); input, ad = AutoZygote())`: the network outputs a
+scalar energy and ``\varepsilon_\theta = \sigma_t\nabla_x E_\theta``, so the score is conservative by
+construction. The implicit learner's field is then the gradient of `implicit_energy`, a real
+energy for the learned relation. Train with `denoising_gradient` (the loss gradient as one
+mixed second derivative, no nested AD in the loop) and any optimiser.
+
 ## Proximal diffusion models
 
 ProxDM (Fang et al. 2025) queries the prior through ``\operatorname{prox}_{-\lambda\log p_t}``

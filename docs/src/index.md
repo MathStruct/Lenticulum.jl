@@ -81,7 +81,8 @@ anything here.
   [train a small diffusion model](@ref tutorial-train),
   [robot arm: one model, every direction](@ref tutorial-arm),
   [proximal diffusion models](@ref tutorial-proxdm),
-  [symmetry is not a law: learning a force field](@ref tutorial-forces).
+  [symmetry is not a law: learning a force field](@ref tutorial-forces),
+  [a conservative score: energy-parametrised diffusion](@ref tutorial-energy).
 - **[Vocabulary](@ref vocabulary)** — the six words you need to read the API. Short.
 - The per-package pages, for the reference documentation.
 

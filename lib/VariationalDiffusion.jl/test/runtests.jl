@@ -70,6 +70,24 @@ _mlp_input(x, t) = vcat(x, _emb(t))
 const MLP = Chain(Dense(10 => 32, swish), Dense(32 => 32, swish), Dense(32 => 2))
 _f64(x::AbstractArray) = Float64.(x); _f64(x::NamedTuple) = map(_f64, x); _f64(x) = x
 
+# -log p_t of a Gaussian mixture as an AD-friendly Lux layer: an energy network whose
+# ε = σ∇E must reproduce GaussianMixtureEps exactly
+struct MixEnergy{M} <: LuxCore.AbstractLuxLayer
+    μ₀::M
+    s::Float64
+end
+LuxCore.initialparameters(::AbstractRNG, l::MixEnergy) = (μ = copy(l.μ₀),)
+function (l::MixEnergy)(inp, ps, st)
+    x, t = inp
+    a, sg = alpha(SCHED, t), sigma(SCHED, t)
+    v = a^2 * l.s^2 + sg^2
+    ℓ = vec(-sum(abs2, x .- a .* ps.μ; dims = 1)) ./ (2v)
+    m = maximum(ℓ)
+    return (-(m + log(sum(exp.(ℓ .- m)) / length(ℓ)) - length(x) / 2 * log(2π * v)), st)
+end
+_batch_input(x, t) = vcat(x, vcat(sin.((2π .* t) .* FREQ), cos.((2π .* t) .* FREQ)) .* ones(eltype(x), 1, size(x, 2)))
+const ENERGY_MLP = Chain(Dense(10 => 32, swish), Dense(32 => 32, swish), Dense(32 => 1))
+
 @testset "VariationalDiffusion" begin
 
 @testset "VP-SDE: the perturbation kernel preserves variance" begin
@@ -583,6 +601,50 @@ end
 # ---------------------------------------------------------------------------
 # Proximal diffusion models (ProxDM), against the exact proximal operator of a mixture.
 # ---------------------------------------------------------------------------
+@testset "energy-parametrised predictor: exact against the mixture, conservative, trainable" begin
+    μ = [1.0 -0.5 0.2; 0.3 0.8 -1.0]
+    exact = NoisePredictor(GaussianMixtureEps(SCHED, μ; s = 0.3), SCHED)
+    ps, st = (μ = copy(μ),), NamedTuple()
+    x, t, w = [0.4, -0.2], 0.35, [0.7, -1.3]
+    @test_throws ArgumentError epsilon(NoisePredictor(EnergyNetwork(MixEnergy(μ, 0.3)), SCHED), x, t, ps, st)
+    for ad in (AutoZygote(), DifferentiationInterface.SecondOrder(AutoForwardDiff(), AutoZygote()))
+        en = NoisePredictor(EnergyNetwork(MixEnergy(μ, 0.3)), SCHED; ad)
+        @test first(epsilon(en, x, t, ps, st)) ≈ first(epsilon(exact, x, t, ps, st)) atol = 1e-12
+        @test epsilon_jacobian(en, x, t, ps, st) ≈ epsilon_jacobian(exact, x, t, ps, st) atol = 1e-12
+        @test epsilon_vjp_params(en, x, t, ps, st, w).μ ≈ epsilon_vjp_params(exact, x, t, ps, st, w).μ atol = 1e-12
+    end
+
+    # a Lux energy network: a symmetric field, with a scalar energy for the relation
+    ps0, st = Lux.setup(Xoshiro(0), ENERGY_MLP)
+    ps = _f64(ps0)
+    pred = NoisePredictor(EnergyNetwork(ENERGY_MLP), SCHED; input = _batch_input, ad = AutoZygote())
+    J = epsilon_jacobian(pred, x, t, ps, st)
+    @test J ≈ J' atol = 1e-12
+    m = ImplicitDiffusion(pred, field_nodes(Xoshiro(1), 2; samples = 2))
+    z, h = [0.6, 0.4], 1e-6
+    U(z) = first(implicit_energy(m, z, ps, st))
+    @test [(U(z .+ h .* (1:2 .== i)) - U(z .- h .* (1:2 .== i))) / 2h for i in 1:2] ≈ first(prior_field(m, z, ps, st)) atol = 1e-8
+    Jg = prior_jacobian(m, z, ps, st)
+    @test Jg ≈ Jg' atol = 1e-12
+
+    # inference and the adjoint, unchanged
+    ρ = [Inf, 1.0]
+    sol, _ = implicit_infer(m, [0.6, 0.5], ρ, ps, st; tol = 1e-12)
+    @test sol.converged
+    b = implicit_pullback(m, sol, [0.6, 0.5], ρ, [0.0, 1.0], ps, st)
+    L(z₀, p) = first(implicit_infer(m, z₀, ρ, p, st; tol = 1e-12)).z[2]
+    W(δ) = merge(ps, (layer_2 = (weight = (A = copy(ps.layer_2.weight); A[5] += δ; A), bias = ps.layer_2.bias),))
+    @test b.ps.layer_2.weight[5] ≈ (L([0.6, 0.5], W(h)) - L([0.6, 0.5], W(-h))) / 2h rtol = 1e-5
+
+    # the training gradient on a batch with one t per column
+    x₀, tb, εb = randn(Xoshiro(2), 2, 5), reshape([0.1, 0.2, 0.3, 0.4, 0.5], 1, 5), randn(Xoshiro(3), 2, 5)
+    @test first(epsilon(pred, x₀, tb, ps, st))[:, 2] ≈ first(epsilon(pred, x₀[:, 2], 0.2, ps, st)) atol = 1e-14
+    _, g, _ = denoising_gradient(pred, x₀, tb, εb, ps, st)
+    Lb(p) = first(denoising_gradient(pred, x₀, tb, εb, p, st))
+    V(δ) = merge(ps, (layer_1 = (weight = (A = copy(ps.layer_1.weight); A[3] += δ; A), bias = ps.layer_1.bias),))
+    @test g.layer_1.weight[3] ≈ (Lb(V(h)) - Lb(V(-h))) / 2h rtol = 1e-6
+end
+
 @testset "ProxDM: the exact prox, the sampler, proximal inference, the loss" begin
     m, s = [0.5, -1.0], 0.3
     G = GaussianMixtureEps(SCHED, reshape(m, 2, 1); s = s)

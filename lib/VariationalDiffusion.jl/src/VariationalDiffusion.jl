@@ -43,7 +43,7 @@ each source file, per `vault/Start Here.md`.
 module VariationalDiffusion
 
 using DispatchDoctor: @stable
-using LinearAlgebra: LinearAlgebra, I, norm, Diagonal, Symmetric, isposdef
+using LinearAlgebra: LinearAlgebra, I, norm, dot, Diagonal, Symmetric, isposdef
 using Random: Random, AbstractRNG, randn, rand
 using LuxCore: LuxCore
 using LenticulumCore: LenticulumCore
@@ -54,6 +54,7 @@ include("predictor.jl")
 include("reddiff.jl")
 include("analytic.jl")
 include("implicit.jl")
+include("energy.jl")
 include("factor.jl")
 include("implicit_factor.jl")
 include("proxdm.jl")
@@ -82,6 +83,7 @@ export prior_field, prior_jacobian, implicit_residual, implicit_infer, implicit_
 export ImplicitProx, implicit_solution, implicit_factor_pullback
 
 # --- Proximal diffusion models (ProxDM) ----------------------------------------
+export EnergyNetwork, energy, implicit_energy, denoising_gradient
 export AbstractProximalPredictor, proximal, ProxNetwork, MixtureProx
 export proxdm_sample, prox_infer, proximal_matching_loss
 

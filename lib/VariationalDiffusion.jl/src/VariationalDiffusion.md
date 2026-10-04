@@ -7,7 +7,7 @@
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
-## The chain, in eight files
+## The chain, in nine files
 
 | file | note | supplies |
 |---|---|---|
@@ -17,6 +17,7 @@
 | `factor.jl` | [[factor]] | the `LenticulumFactor`; $P$ from the polarity |
 | `analytic.jl` | [[analytic]] | closed-form ε* of a Gaussian mixture: an exact-score relation (oracle) |
 | `implicit.jl` | [[implicit]] | deterministic implicit inference and its adjoint backward pass |
+| `energy.jl` | [[energy]] | energy-parametrised predictors: $\varepsilon = \sigma_t\nabla_x E_\theta$, a conservative score, an energy for the relation |
 | `implicit_factor.jl` | [[implicit_factor]] | `DiffusionFactor` with `ImplicitProx`: report and per-channel pullback |
 | `proxdm.jl` | [[proxdm]] | proximal diffusion models: prox interface, exact oracle, sampler, proximal inference |
 | `ext/` | [[backends]] | the network's derivatives through any AD backend (DifferentiationInterface, Reactant) |

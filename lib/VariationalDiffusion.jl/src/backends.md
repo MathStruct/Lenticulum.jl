@@ -138,6 +138,8 @@ which is why the adjoint uses $J^\top$ and not $J$.
   handle).
 - **`ad = AutoReactant()` without Reactant loaded** silently uses plain Lux for the forward
   pass and DI (which then fails) for the derivatives. The result is correct but not compiled.
+- **Energy networks need second derivatives** (a Hessian and a mixed derivative), which the
+  DifferentiationInterface extension computes by Hessian-vector products; see [[energy]].
 - **`ProxNetwork` has no `ad` field yet.** Nothing differentiates through `prox_infer`
   (see [[proxdm]] §5), so nothing needs one.
 

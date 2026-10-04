@@ -249,6 +249,7 @@ fig
 # The same distinction appears inside diffusion models. A noise predictor ``\varepsilon_\theta``
 # is a *direct* model of the score ``-\nabla\log p``, class B of this tutorial: nothing makes it a
 # gradient, and a trained circle model like the one in the
-# [training tutorial](@ref tutorial-train) has a Jacobian about 5% away from symmetric (see the
-# implementation note `backends.md`). An energy-parametrised diffusion model, with
-# ``\varepsilon_\theta \propto \nabla_x E_\theta``, would be class C or D.
+# [training tutorial](@ref tutorial-train) has a visibly asymmetric Jacobian. The energy version,
+# class C or D, is [`EnergyNetwork`](@ref): the network outputs a scalar ``E_\theta`` and
+# ``\varepsilon_\theta = \sigma_t\nabla_x E_\theta``, so the score is a gradient by construction
+# (implementation note `energy.md`).
