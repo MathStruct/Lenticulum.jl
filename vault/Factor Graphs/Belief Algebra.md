@@ -3,7 +3,8 @@
 > Which operations can be done with beliefs, and where each one lives. The organising
 > principle: **an operation between variables is a factor, and the operation on beliefs is
 > that factor's message**, one per polarity. Today only pooling (`combine`) exists, and only
-> partially. This note lists the rest, what each needs, and the order in which to build them.
+> partially. This note lists the rest, what each needs, the order in which to build them, and
+> where they should live (§6).
 
 > Sources: Loeliger, *An introduction to factor graphs*, IEEE Signal Processing Magazine 2004; Loeliger, Dauwels, Hu, Korl, Ping & Kschischang, *The factor graph approach to model-based signal processing*, Proc. IEEE 2007 (message tables for equality, addition and matrix nodes); Minka, *Expectation Propagation for approximate Bayesian inference*, UAI 2001; Fritz, *A synthetic approach to Markov kernels, conditional independence and theorems on sufficient statistics*, Adv. Math. 2020 (Markov categories); code: `Mycelium/messages.jl` (`combine`), `LenticulumCore/open_model.jl` (`pushforward`)
 >
@@ -83,6 +84,41 @@ RxInfer.jl (and ForneyLab.jl before it) implements exactly such message rules, p
 and distribution family, including mixtures, addition and equality nodes
 ([[Related Julia Projects]] §5). Its rules are the reference to check against; what this
 project adds is that the factors themselves can be learned relations queried in any polarity.
+
+## 6. Interop and package layout (for later)
+
+**Where the beliefs live is the real constraint.** `TrivialBelief`, `DiracBelief` and
+`SampleBelief` are in `LenticulumCore`; `GaussianBelief` is in the top-level `Lenticulum`
+package, *above* the `lib/` packages. So the diffusion and equilibrium factors cannot return a
+Gaussian message even where they could compute one, e.g. the Laplace approximation from the
+implicit adjoint ([[Gaussian Belief]], [[Beliefs]]). `Mycelium` holds the graph, `combine` and
+the schedules; nothing in the graph machinery needs heavy dependencies.
+
+**The plan, when this is taken up:**
+
+1. **One low layer for all beliefs and their algebra**: the belief types, `combine`,
+   densities, and later mixtures and projection. Either `LenticulumCore` itself, or a small
+   dedicated beliefs package if `LenticulumCore` should stay pure interfaces. Every factor
+   package can then produce and consume every belief type.
+2. **Connectors as package extensions** on that layer, not as a second graph package:
+
+   | connector (Distributions.jl extension) | what it enables |
+   |---|---|
+   | `SampleBelief(rng, d::Distribution, n)` | any distribution as a particle belief |
+   | `GaussianBelief(::MvNormal)`, and back to `MvNormalCanon` | interop with the ecosystem |
+   | belief densities through `logpdf` | densities beyond Gaussians, hence pooling of particle beliefs by importance reweighting (§4, item 1) |
+   | `fit(Family, ::SampleBelief)` | infer a distribution from particles: projection onto a family, the EP step |
+
+   A later ExponentialFamily.jl / BayesBase.jl extension could lend `combine` their
+   closed-form products (`prod` with `ClosedProd`), the most developed product rules in Julia.
+3. **Split `Mycelium` into a core and a full package only if** the graph machinery itself
+   acquires heavy dependencies. Today it does not, and extensions cover the connectors.
+
+Other Julia belief representations worth connecting or checking against: MonteCarloMeasurements.jl
+(particles with arithmetic, so addition is convolution), ParticleFilters.jl, KernelDensity.jl,
+MeasureTheory.jl (densities relative to base measures), AbstractGPs.jl (beliefs over functions),
+Bijectors.jl (pushforward beliefs), and IncrementalInference.jl with ApproxManifoldProducts.jl
+(multimodal, kernel-density beliefs on manifolds: the existing Julia take on non-Gaussian SLAM).
 
 Related: [[Beliefs]], [[Gaussian Belief]], [[Dirac Belief]], [[Sample Belief]], [[Trivial Belief]],
 [[Messages are Inversions]], [[Everything is a Factor]], [[Inference Signatures]],
