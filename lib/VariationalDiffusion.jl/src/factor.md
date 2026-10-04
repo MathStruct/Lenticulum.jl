@@ -103,9 +103,10 @@ consequences:
   iterations (a convergence check, a line search) will see noise.
 - the `score` summand plays the role of $-H(b_c)$ in the Bethe sum, but it is *not* the
   entropy of $b_c$: $b_c$ is a Dirac and its differential entropy is $-\infty$. The
-  substitution follows [[Implicit Learners]] §"Diffusion", which reads the score-matching term
-  as the entropy because it depends on the learned distribution rather than the data point.
-  It is a defensible reading and it is **not** the Bethe formula's $H$.
+  substitution follows the vault's first reading of the score-matching term as the entropy,
+  because it depends on the learned distribution rather than the data point; that reading is
+  revised in [[The Implicit Diffusion Factor as a Statistical Game]] §2 (it is the prior game's
+  energy). Either way it is **not** the Bethe formula's $H$.
 
 So the counting correction of [[Bethe Free Energy]] does not apply to this factor in the way
 it applies to `GaussianFactor`, and mixing the two in one graph produces a total that is not

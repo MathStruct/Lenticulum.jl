@@ -41,9 +41,11 @@ entropy $\mathbf{H}^c$. The two terms above sort themselves:
 | $\tfrac12\|P(z-z_0)\|^2$ | the **energy** $\mathbf{l}^c$ | pointwise; a function of the *data point* |
 | $\mathbb{E}_{t,\varepsilon}[\omega\|\varepsilon_\theta-\varepsilon\|^2]$ | the **entropy** $\mathbf{H}^c$ | a function of the *learned distribution*, not of the datum |
 
-This is the reading [[Implicit Learners]] §"Diffusion" already gives, and getting it backwards
-would put the prior in the energy and break the counting correction of
-[[Bethe Free Energy]]. `LenticulumCore.GradedEnergySpace` expresses it as
+This was the vault's first reading, and the code still splits the terms this way.
+[[The Implicit Diffusion Factor as a Statistical Game]] §2 revises it: the score-matching term
+is the **energy of the prior game** (a cross-entropy, by Remark 24's "priors are games too"),
+and the entropy slot belongs to the inversion's output. The split itself is unchanged; only
+its labels differ. `LenticulumCore.GradedEnergySpace` expresses it as
 `(clamp = ..., score = ...)` with no new type.
 
 > [!warning] But the "entropy" is not an entropy

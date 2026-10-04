@@ -1,130 +1,156 @@
 #definition #overview
 
-> Relating [[README]]'s explicit/implicit table to the AutoBayes machinery, and to the
-> three model families you can actually build.
+> A neural network learns a **function** and runs one way. An **implicit learner** learns a
+> **relation**, a set of admissible configurations, and decides at query time which variables
+> are inputs and which are outputs. Inference is root-finding (as in deep equilibrium models),
+> training differentiates through it by the implicit function theorem, and three model
+> families supply the relation: algebraic, equilibrium and diffusion.
 
-> Sources: original to this vault (design and analysis; no single paper).
+> Sources: original to this vault (design and analysis); LeCun et al., *A Tutorial on Energy-Based Learning*, 2006; Bai, Kolter & Koltun, *Deep Equilibrium Models*, NeurIPS 2019; Mardani et al., *A Variational Perspective on Solving Inverse Problems with Diffusion Models*, ICLR 2024; St Clere Smithe & Perin, *AutoBayes*, [arXiv:2503.18608](https://arxiv.org/abs/2503.18608) (§6 only); full entries in [[Bibliography]]
 >
-> Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model)
+> Theory (CT-ML wiki, for §6): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model)
 
-## The claim
+## 1. The claim: functions versus relations
 
-An explicit learner approximates a **function** $f_\theta : X \to Y$. An implicit learner
-approximates a **relation** $R_\theta \subseteq X_1 \times \cdots \times X_n$, represented by
-a residual
+A regression model learns $f_\theta : X \to Y$. Ask it the reverse question, "which $x$ gives this
+$y$?", and it has no answer; ask it a question with two right answers, and least squares
+returns their average. Many problems are not functions:
+
+- **inverse kinematics**: one hand position, two arm poses (elbow up and down);
+- **physical laws**: $pV = nRT$ determines any one quantity from the other two;
+- **missing data**: whichever columns are missing are the outputs, and that changes per row.
+
+An implicit learner models the **joint space** of all variables,
 
 $$
-r_\theta : X_1 \times \cdots \times X_n \longrightarrow E,
-\qquad (x_1,\ldots,x_n) \in R_\theta :\Longleftrightarrow r_\theta(x_1,\ldots,x_n) \approx 0
+Z = X \times Y \times U, \qquad z = (x, y, u),
 $$
 
-## Where this sits in AutoBayes
+and learns a **residual** $r_\theta : Z \to \mathbb{R}^m$ whose zeros are the admissible
+configurations:
 
-$r_\theta$ **is a multivariate energy** in the sense of
-[[Scalar and Multivariate Energy]]: $\mathbf{l}^c = r_\theta$, with $E$ the residual space
-and $\sigma = \tfrac12\|\cdot\|^2$ the scalarisation. Membership of the relation is
-"$\mathbf{l}^c \approx 0$", i.e. zero energy.
+$$
+R_\theta = \{\, z \in Z : r_\theta(z) = 0 \,\}.
+$$
 
-More precisely, an implicit factor is a statistical game in which:
+Nothing in $r_\theta$ says which coordinates are inputs. A **query** says it: it clamps some
+coordinates (the inputs $X$), leaves others free (the outputs $Y$), and may have latent ones
+($U$) that are inferred but not reported. Notation is fixed vault-wide in
+[[Channels and Polarity]] §"Notation".
 
-- the **forward kernel** $c$ is not given directly — only implicitly, as the solution set
-  of $r_\theta = 0$ after a [[Channels and Polarity|polarity]] is chosen;
-- the **inversion** $c'$ is the solver;
-- the **energy** is $r_\theta$;
-- the **entropy** is whatever regularises the solver's output (a proximal term, a diffusion
-  prior, an entropy over the solution set when it is not a singleton).
+![A diffusion model of points on a circle as a relation: its field (left) and three queries answered by one model (right)](https://raw.githubusercontent.com/MathStruct/Lenticulum.jl/master/docs/src/assets/readme_circle.png)
 
-The energy-based reading also explains the well-posedness row of the README's table: a
-relation may be multi-valued or empty, and then "inference" returns the *closest point to
-the variety* rather than a point on it. That is exactly $\arg\min_x \sigma(r_\theta(x))$ —
-minimising the energy rather than zeroing it. **Energy minimisation is the total version of
-root-finding**, and it is total precisely because $\sigma \ge 0$ always has an infimum.
+The circle is the smallest example: $Z = \mathbb{R}^2$, one model, and the questions "given
+$x = 0.6$, find $y$" (two answers), "given $y = 0.6$, find $x$" (the same model the other way
+round) and "given $x = 1.05$" (just off the circle). The documentation's
+[tutorials](https://mathstruct.org/Lenticulum.jl/dev/tutorials/01_circle/) build this picture,
+then a trained network, then a robot arm.
 
-> [!note] That sentence is LeCun's framework
-> [[Energy-Based Learning]] is the paper this paragraph was reaching for: an energy, an
-> argmin, and no normalisation. [[README]]'s table is, row for row, that tutorial's table —
-> worth knowing because the tutorial also supplies what is missing here, namely a theory of
-> **loss functionals** and the conditions under which shaping an energy surface works at all.
+## 2. Inference and training
 
-## The three families
+**Inference is root-finding.** Given the clamped inputs, solve $r_\theta(z) = 0$ for the free
+coordinates, e.g. by Newton's method, starting from a guess. Where the relation has several
+branches, the starting point picks one. Where the query has no exact answer (a point off the
+relation), minimise the energy $\tfrac12\lVert r_\theta(z)\rVert^2$ instead: **energy minimisation is
+the total version of root-finding**, and it returns the closest admissible point. This is
+LeCun et al.'s energy-based learning ([[Energy-Based Learning]]): an energy, an argmin, no
+normalisation.
 
-| | approximator | inference | backward pass | regime |
+**Training differentiates through inference.** The answer $z^\star(\theta)$ is defined implicitly by
+$r_\theta(z^\star) = 0$, so its derivative comes from the implicit function theorem: one linear
+solve with the Jacobian at the solution, no unrolled solver iterations, constant memory. This
+is exactly how deep equilibrium models are trained ([[Backpropagation by the Implicit Function Theorem]]).
+
+Two things make a relation harder to train than a function. The trivial residual
+$r_\theta \equiv 0$ fits every dataset, so the model class or the loss must rule it out; and a
+task loss through inference only shapes the branches inference visits. Each family handles
+these differently.
+
+## 3. The three families
+
+| family | the residual comes from | inference | backward pass | regime |
 |---|---|---|---|---|
-| **algebraic** | algebraic varieties; differential algebra | Gröbner / homotopy continuation / Newton | implicit function theorem; differential elimination | low dimension, exact structure |
-| **equilibrium** | DEQ, NeuralODE, fixed points | fixed-point iteration, ODE solve | implicit function theorem at the fixed point; adjoint | medium; **needs convergence guarantees** |
-| **diffusion** | score / denoiser networks in a prox operator | annealed proximal steps (RED-Diff, ProxDM) | variational, via the score | high dimension |
+| **algebraic** | polynomials; their zero set is an algebraic variety | Newton, homotopy continuation, Gröbner bases | implicit function theorem | low dimension, exact structure |
+| **equilibrium** | a learned layer $g_\theta$; DEQs and neural ODEs | fixed-point iteration, ODE solve | implicit function theorem; adjoint ODE | needs convergence guarantees |
+| **diffusion** | the denoising field of a diffusion model | root-finding with the inputs clamped; RED-Diff, ProxDM | implicit function theorem through the solve | a few to many coordinates; small networks |
 
-All three are *the same statistical game* with a different realisation of $c'$. That is what
-makes them interchangeable behind the factor interface, and it is the reason the interface
-is worth having.
+All three plug into the same factor interface, which is why a factor graph can mix them.
 
 ### Algebraic
 
-> Worked out in full in [[Algebraic Implicit Learners]] and the twelve notes it indexes:
-> the Veronese parametrisation, the closed-form fit, the Grassmannian parameter, root-finding
-> inference, the branch/discriminant structure, and an honest gap list.
-
-$r_\theta$ a vector of polynomials; $R_\theta$ its variety. Universal approximation via
-Nash–Tognoli (compact smooth manifolds are approximable by real algebraic varieties), the
-implicit counterpart of Weierstraß. Backward pass: [[Backpropagation by the Implicit Function Theorem|the implicit function
-theorem]] where the Jacobian block is invertible; the failure locus is
-[[Branches and the Discriminant|the discriminant]]. Differential algebra enters elsewhere
-than the backward pass — see [[Differential Algebra and DAE Factors]]. **Needs the vector
-residual and its Jacobian** — see [[Scalar and Multivariate Energy]] §6.3.
+$r_\theta$ is a vector of polynomials and $R_\theta$ their zero set. Fitting is linear algebra (a
+nullspace problem), and universal approximation is the Nash–Tognoli theorem: compact smooth
+manifolds can be approximated by real algebraic varieties, the implicit counterpart of
+Weierstraß. The implicit function theorem fails exactly at branch points, the discriminant.
+Worked out in [[Algebraic Implicit Learners]] and the notes it indexes.
 
 ### Equilibrium
 
-$r_\theta(x, z) = z - g_\theta(z, x)$; inference solves for the fixed point $z^*$.
-Differentiating: $\frac{\partial z^*}{\partial \theta} = (I - \partial_z g)^{-1}\partial_\theta g$ —
-one linear solve, no unrolling. The caveat in the original prompt is the right one:
-*this only works if the iteration converges*, and unconstrained DEQs need not. Remedies are
-architectural (contractivity via spectral normalisation, monotone operator parametrisation)
-or a damped/regularised solve.
+A deep equilibrium model's layer $g_\theta$ defines $r_\theta(x, u) = u - g_\theta(u, x)$, with the hidden
+state as the latent $u$; inference solves for the fixed point $u^\star$. The derivative is
+$\partial u^\star/\partial\theta = (I - \partial_u g)^{-1}\partial_\theta g$, one linear solve. The caveat that matters:
+*this only works if the iteration converges, and unconstrained DEQs need not.* Remedies are
+architectural (contractive or monotone layers) or a damped, regularised solve. See
+[[DEQ as a Relation]] and [[The Equilibrium Family]].
 
-In game terms: an equilibrium factor's inversion is a solver whose *entropy* $\mathbf{H}$
-should charge for non-convergence. A solver that stopped early is an inexact inversion, and
-[[Inversions and Bayesian Lenses]] says inexact inversions are legal — the loss just gets worse. That is a
-much more graceful failure mode than a divergent unroll.
+### Diffusion
 
-### Diffusion — see [[ImplicitREDDiff]]
+A diffusion model trained on samples of $Z$ defines a vector field
+$g_\theta(z) = \sum_k w_k\lambda_k\bigl(\varepsilon_\theta(\alpha_k z + \sigma_k\varepsilon_k, t_k) - \varepsilon_k\bigr)$, its denoising residual
+averaged over a fixed set of noise levels and draws. For an ideal model it is the gradient of
+a smoothed negative log-density, so its stable roots are the ridge of the data distribution:
+the learned relation. A query adds a clamp with per-coordinate precision $\rho$
+($\infty$ = input, $0$ = output, in between = soft evidence):
 
-Energy
-$$E(z; z_0) = \mathbb{E}_{t,\epsilon}\bigl[\omega(t)\|\epsilon_\theta(\alpha_t z + \sigma_t\epsilon, t) - \epsilon\|_2^2\bigr] + \tfrac12\|P(z - z_0)\|^2$$
+$$
+r(z) = g_\theta(z) + \rho^2 \odot (z - z_0) = 0 .
+$$
 
-with $P = \rho_{in}P_{in} + \rho_{out}P_{out} + \rho_{latent}P_{latent}$.
+This is the deterministic form of RED-Diff's objective (Mardani et al.). The model is a
+diffusion model over the few coordinates of one relation, so small networks suffice. The
+full account is [[Implicit Diffusion Learners]], the backward pass
+[[Backpropagation through Implicit Inference]], and the code `lib/VariationalDiffusion.jl`.
 
-Read as a statistical game:
+## 4. What it costs
 
-- the first term is the **entropy/regulariser** $\mathbf{H}$ — it depends on the *learned
-  distribution*, not on the data point, and it is the score-matching prior;
-- the second term is the **energy** $\mathbf{l}$ — pointwise, quadratic, and it is where
-  the [[Channels and Polarity|polarity]] enters, as a precision-weighted clamp;
-- $\rho_{in} \to \infty$ recovers a hard [cup](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model#copiers-cups-and-caps-remark-8) on the observed
-  channels.
-
-This is `lib/VariationalDiffusion.jl`, the `LenticulumFactor` whose prox operator is a
-diffusion model. RED-Diff supplies the gradient; ProxDM is the alternative.
-
-## The cost
-
-| | explicit | implicit |
+| | explicit (a function) | implicit (a relation) |
 |---|---|---|
-| inference | forward evaluation, one pass | root-finding: Newton, fixed point, or annealing |
-| wiring | DAG | arbitrary weakly-connected digraph |
-| direction | fixed | chosen per call ([[Channels and Polarity]]) |
+| inference | one forward pass | a root-finding solve: Newton, fixed point, or annealing |
+| wiring | a directed acyclic graph | any graph; no topological order |
+| direction | fixed when the model is built | chosen per query ([[Channels and Polarity]]) |
+| answers | one | possibly several, or none (then the closest point) |
 
-The middle row is why `Mycelium.jl` exists: with a general digraph there is no topological
-order, so "run the network" is replaced by "schedule messages until convergence". The
-bottom row is why a factor cannot be a Lux layer.
+The second row is why `Mycelium.jl` exists: without a topological order, "run the network"
+becomes "pass messages until they agree". The third row is why a factor is not a Lux layer.
+What is still open is collected in [[Open Problems in Implicit Diffusion Learning]] and
+[[Open Problems in Algebraic Implicit Learning]].
 
-> [!important] There is a fourth family, and it is on a different axis
-> `lib/Adversarial.jl` adds implicit **generative** models (GANs). They do not belong in the
-> table above, because they are implicit in a *different sense*: what is missing is the
-> **density**, not the direction, and all three of their factors are unidirectional. The word
-> "implicit" names three independent properties — see [[Three Senses of Implicit]], which
-> corrects the impression that this note's three families exhaust it.
+## 5. Not to be confused with implicit generative models
 
-Related: [[Algebraic Implicit Learners]], [[The Table Revisited]], [[Depth in Implicit Learning]],
-[[Channels and Polarity]],
-[[Scalar and Multivariate Energy]], [[ImplicitREDDiff]], [[Factors are Parameterized Statistical Games]],
-[[Three Senses of Implicit]], [[Implicit Generative Models]]
+`lib/Adversarial.jl` adds implicit **generative** models (GANs). They are implicit in a
+different sense: what is missing is the *density*, not the direction, and their factors run one
+way. The word "implicit" names three independent properties; see [[Three Senses of Implicit]].
+
+## 6. For readers coming from category theory (optional)
+
+The rest of the vault reads every factor as a **statistical game** in the sense of AutoBayes
+(St Clere Smithe & Perin): a generative model with an inversion, an energy and an entropy,
+which becomes a Bayesian lens once a query direction is chosen. For an implicit learner:
+
+- the **forward kernel** is not given directly, only as the solution set of $r_\theta = 0$ once a
+  [[Channels and Polarity|polarity]] is chosen;
+- the **inversion** is the solver;
+- the **energy** is the residual, $\mathbf l = r_\theta$, with $\tfrac12\lVert\cdot\rVert^2$ as the scalarisation
+  ([[Scalar and Multivariate Energy]]);
+- for the diffusion family, the score-matching term is the **energy of the prior game**, and the
+  entropy slot holds the entropy of the inversion's output; the vault first read the score term
+  as the entropy and revised that in [[The Implicit Diffusion Factor as a Statistical Game]] §2.
+
+All three families are then the same statistical game with a different inversion, which is
+what makes them interchangeable behind one interface. See
+[[Factors are Parameterized Statistical Games]] and [[Inversions and Bayesian Lenses]].
+
+Related: [[Implicit Diffusion Learners]], [[Algebraic Implicit Learners]], [[DEQ as a Relation]],
+[[The Table Revisited]], [[Depth in Implicit Learning]], [[Channels and Polarity]],
+[[Scalar and Multivariate Energy]], [[Energy-Based Learning]], [[Three Senses of Implicit]],
+[[Implicit Generative Models]], [[Factors are Parameterized Statistical Games]]
