@@ -132,6 +132,8 @@ Entry point: [[Algebraic Implicit Learners]].
   [[Algebraic Statistics Bridge]]
 - *verdict*: [[The Algebraic Factor as a Statistical Game]],
   [[Open Problems in Algebraic Implicit Learning]]
+- *kernels*: [[Kernel Methods for Implicit Learning]] — RBF and GP implicit surfaces, kernel PCA, density
+  ridges (the first tutorial's model is a kernel density estimate), kernel exponential families
 - *later*: [[Symbolic Implicit Learning]] — relations as formulas found by search (noted, not built)
 
 ## 3c. Factor graphs and message passing
