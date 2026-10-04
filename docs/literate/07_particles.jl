@@ -240,7 +240,7 @@ end
 
 r_obs = collect(range(quantile(dists, 0.01), quantile(dists, 0.99); length = 200))
 opts = Options(; binary_operators = [+, -, *, /], maxsize = 20,
-               deterministic = true, seed = 0, verbosity = 0, progress = false)
+               deterministic = true, seed = 0, verbosity = 0, progress = false, save_to_file = false)
 hof = equation_search(reshape(r_obs, 1, :), φ_fit.(r_obs); options = opts, niterations = 40,
                       parallelism = :serial, variable_names = ["r"])
 for m in calculate_pareto_frontier(hof)
