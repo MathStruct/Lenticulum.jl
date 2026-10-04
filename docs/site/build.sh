@@ -82,6 +82,7 @@ mkdir -p "$CONTENT/src" && cp "$ROOT"/src/*.md "$CONTENT/src/"
 # any vault/<path>.md link becomes a site-relative link (Quartz slugs spaces to hyphens),
 # and links to other files in the repository go to GitHub.
 sed -e 's#](vault/\([^)]*\)\.md)#](\1)#' \
+    -e 's#](docs/src/assets/\([^)]*\))#](https://raw.githubusercontent.com/MathStruct/Lenticulum.jl/master/docs/src/assets/\1)#' \
     -e 's#](\(docs/[^)]*\|meta/[^)]*\))#](https://github.com/MathStruct/Lenticulum.jl/blob/master/\1)#' \
     -e '/](https:/!s#%20#-#g' \
     "$ROOT/README.md" > "$CONTENT/README.md"

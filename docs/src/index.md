@@ -20,6 +20,13 @@ a relation among several named channels, with no distinguished input or output. 
 are inputs is decided *per call*, and the same factor can be run in whichever direction the
 graph needs.
 
+![A diffusion model of points on a circle as a relation: its field (left) and three queries answered by one model (right)](assets/readme_circle.png)
+
+*Left:* the field of a diffusion model of points on a circle; its stable roots are the relation.
+*Right:* "given ``x``, find ``y``" has two answers, "given ``y``, find ``x``" uses the same model
+the other way round, and a query just off the circle returns the nearest ridge point. The
+[first tutorial](@ref tutorial-circle) builds exactly this picture.
+
 ```julia
 # a Lux layer knows which side is the input
 Dense(3 => 5)

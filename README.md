@@ -21,6 +21,14 @@ Train once on points of a circle. Then ask:
 | $y = 0.6$, what is $x$? | $y$ | $x$ | $x \approx \pm 0.8$ — same model, other direction |
 | $x = 1.05$, just off the circle? | $x$ | $y$ | still an answer ($y \approx 0.07$): a point on the smoothed relation's ridge, not an error |
 
+![Left: the field of a diffusion model of points on a circle, vanishing on the circle. Right: the three queries, answered by one model.](docs/src/assets/readme_circle.png)
+
+*Left:* the field of a diffusion model of points on a circle; it vanishes (dark) on the circle,
+and its stable roots are the relation. *Right:* the three queries of the table, answered by that
+one model. This is the closed-form model of the [example below](#a-minimal-example);
+[tutorial 2](https://mathstruct.org/Lenticulum.jl/dev/tutorials/02_train/) trains a small network
+and answers the same queries. ([`docs/readme_figure.jl`](docs/readme_figure.jl) draws it.)
+
 A function cannot do any of these three things. A relation does all of them.
 
 ## The analogy behind it: polynomials and varieties
