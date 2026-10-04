@@ -180,6 +180,8 @@ neither exact nor a root-find but a **proximal solve**. Entry point:
   Lagrangian worked out, and a parabola learned from a circle by the adjoint alone ·
   [[Deterministic Relaxation]] — a DEQ whose layer is the denoiser ·
   [[The Implicit Diffusion Factor as a Statistical Game]]
+- *verdict*: [[Open Problems in Implicit Diffusion Learning]] — theoretical problems (open or
+  intrinsic) separated from missing implementation, each with its evidence
 - *alternatives*: [[ProxDM and Proximal Alternatives]] — DPS, ΠGDM, ProxDM, plug-and-play, and
   why RED-Diff was implemented first; ProxDM is now implemented ([[proxdm]])
 - *a conservative score*: [[energy]] — the network outputs an energy, $\varepsilon = \sigma_t\nabla E$;
