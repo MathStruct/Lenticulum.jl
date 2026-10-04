@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Discovering a force law from particle trajectories · Lenticulum.jl</title><meta name="title" content="Discovering a force law from particle trajectories · Lenticulum.jl"/><meta property="og:title" content="Discovering a force law from particle trajectories · Lenticulum.jl"/><meta property="twitter:title" content="Discovering a force law from particle trajectories · Lenticulum.jl"/><meta name="description" content="Documentation for Lenticulum.jl."/><meta property="og:description" content="Documentation for Lenticulum.jl."/><meta property="twitter:description" content="Documentation for Lenticulum.jl."/><meta property="og:url" content="https://MathStruct.github.io/Lenticulum.jl/tutorials/07_particles/"/><meta property="twitter:url" content="https://MathStruct.github.io/Lenticulum.jl/tutorials/07_particles/"/><link rel="canonical" href="https://MathStruct.github.io/Lenticulum.jl/tutorials/07_particles/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.63.2/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">Lenticulum.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../getting-started/">Getting started</a></li><li><span class="tocitem">Tutorials</span><ul><li><a class="tocitem" href="../01_circle/">A relation without training: the circle</a></li><li><a class="tocitem" href="../02_train/">Train a small diffusion model, use it as a relation</a></li><li><a class="tocitem" href="../03_robot_arm/">Robot arm: one model, every direction</a></li><li><a class="tocitem" href="../04_proxdm/">Proximal diffusion models</a></li><li><a class="tocitem" href="../05_symmetry_is_not_a_law/">Symmetry is not a law: learning a force field</a></li><li><a class="tocitem" href="../06_energy_network/">A conservative score: energy-parametrised diffusion</a></li><li class="is-active"><a class="tocitem" href>Discovering a force law from particle trajectories</a><ul class="internal"><li><a class="tocitem" href="#The-hidden-truth"><span>The hidden truth</span></a></li><li><a class="tocitem" href="#From-positions-to-accelerations"><span>From positions to accelerations</span></a></li><li><a class="tocitem" href="#Learning-the-pair-potential"><span>Learning the pair potential</span></a></li><li><a class="tocitem" href="#Does-the-learned-law-predict?"><span>Does the learned law predict?</span></a></li><li><a class="tocitem" href="#A-relational-query:-where-do-three-particles-come-to-rest?"><span>A relational query: where do three particles come to rest?</span></a></li><li><a class="tocitem" href="#Noisy-positions"><span>Noisy positions</span></a></li><li><a class="tocitem" href="#Naming-the-law:-symbolic-regression"><span>Naming the law: symbolic regression</span></a></li><li><a class="tocitem" href="#Summary"><span>Summary</span></a></li></ul></li></ul></li><li><a class="tocitem" href="../../vocabulary/">Vocabulary</a></li><li><a class="tocitem" href="../../theory/">Theory vault</a></li><li><span class="tocitem">Packages</span><ul><li><a class="tocitem" href="../../packages/lenticulumcore/">LenticulumCore</a></li><li><a class="tocitem" href="../../packages/mycelium/">Mycelium</a></li><li><a class="tocitem" href="../../packages/lenticulum/">Lenticulum</a></li><li><a class="tocitem" href="../../packages/variationaldiffusion/">VariationalDiffusion</a></li><li><a class="tocitem" href="../../packages/implicitlayers/">ImplicitLayers</a></li><li><a class="tocitem" href="../../packages/adversarial/">Adversarial</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Tutorials</a></li><li class="is-active"><a href>Discovering a force law from particle trajectories</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Discovering a force law from particle trajectories</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/MathStruct/Lenticulum.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/MathStruct/Lenticulum.jl/blob/master/docs/src/tutorials/07_particles.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="tutorial-particles"><a class="docs-heading-anchor" href="#tutorial-particles">Discovering a force law from particle trajectories</a><a id="tutorial-particles-1"></a><a class="docs-heading-anchor-permalink" href="#tutorial-particles" title="Permalink"></a></h1><p><a href="../07_particles.ipynb">Download as a Jupyter notebook</a></p><p>A few particles move in the plane and interact through some unknown force. All you observe are their positions over time. What is the force law?</p><p>A generic model of the forces would be a function from all positions (here <span>$2 \times 6 = 12$</span> numbers) to all forces: hopeless with limited data. The physics says much more, and every piece of it shrinks the problem:</p><ul><li>the forces come from an <strong>energy</strong>, <span>$F = -\nabla E$</span> (the law; <a href="../05_symmetry_is_not_a_law/#tutorial-forces">tutorial 5</a>);</li><li>the energy is <strong>invariant</strong> under rotations, translations and relabelling of the particles;</li><li>it is a sum over <strong>pairs</strong>, <span>$E = \sum_{i&lt;j} \varphi(\lVert x_i - x_j\rVert)$</span>.</li></ul><p>Together they reduce the unknown to one function of one variable, the pair potential <span>$\varphi(r)$</span>. This tutorial learns <span>$\varphi$</span> from trajectories, checks it, uses it for a relational query, and finally names it with symbolic regression.</p><pre><code class="language-julia hljs">using ImplicitLayers, LinearAlgebra, Random, Statistics, Printf
+using SymbolicRegression
+using CairoMakie</code></pre><h2 id="The-hidden-truth"><a class="docs-heading-anchor" href="#The-hidden-truth">The hidden truth</a><a id="The-hidden-truth-1"></a><a class="docs-heading-anchor-permalink" href="#The-hidden-truth" title="Permalink"></a></h2><p>The simulation uses <span>$\varphi(r) = r^{-4} - r^{-2}$</span>: repulsive at short range, attractive at long range, with its minimum at <span>$r = \sqrt 2$</span>. The learner never sees this formula.</p><pre><code class="language-julia hljs">φ_true(r) = r^-4 - r^-2
+f_true(r) = 4r^-5 - 2r^-3                         # -φ&#39;(r): pair force along xᵢ - xⱼ, &gt; 0 repels
+
+function forces(X, f)                             # X is 2 × N; f(r) the pair force magnitude
+    F = zero(X)
+    for i in axes(X, 2), j in (i + 1):size(X, 2)
+        d = X[:, i] .- X[:, j]
+        r = norm(d)
+        F[:, i] .+= f(r) .* d ./ r
+        F[:, j] .-= f(r) .* d ./ r
+    end
+    return F
+end
+pair_energy(X, φ) = sum(φ(norm(X[:, i] .- X[:, j])) for i in axes(X, 2) for j in (i + 1):size(X, 2))</code></pre><p>Velocity Verlet, recording positions every ten steps (<span>$\Delta t = 0.01$</span>), and the total energy under a given potential, to check conservation later.</p><pre><code class="language-julia hljs">function simulate(X₀, V₀, f; φ = nothing, dt = 1e-3, steps = 20_000, every = 10)
+    X, V = copy(X₀), copy(V₀)
+    A = forces(X, f)
+    traj, H = [copy(X)], Float64[]
+    for k in 1:steps
+        V .+= 0.5dt .* A
+        X .+= dt .* V
+        A = forces(X, f)
+        V .+= 0.5dt .* A
+        if k % every == 0
+            push!(traj, copy(X))
+            φ === nothing || push!(H, 0.5 * sum(abs2, V) + pair_energy(X, φ))
+        end
+    end
+    return traj, H
+end
+
+const N = 6
+function initial(rng)                             # a jittered triangular patch, small random velocities
+    X = reduce(hcat, [[1.45 * (i + 0.5 * (j % 2)), 1.45 * 0.866 * j] for j in 0:1 for i in 0:2]) .+ 0.08 .* randn(rng, 2, N)
+    V = 0.25 .* randn(rng, 2, N)
+    return X, V .- mean(V; dims = 2)
+end
+runs = [first(simulate(initial(Xoshiro(s))..., f_true)) for s in 1:4]
+const Δ = 0.01
+
+fig = Figure(size = (520, 460))
+ax = Axis(fig[1, 1]; aspect = DataAspect(), title = &quot;one run: the paths of six particles&quot;)
+for i in 1:N
+    lines!(ax, [X[1, i] for X in runs[1]], [X[2, i] for X in runs[1]]; linewidth = 1)
+end
+fig</code></pre><p><img src="../07_particles-6.png" alt/></p><h2 id="From-positions-to-accelerations"><a class="docs-heading-anchor" href="#From-positions-to-accelerations">From positions to accelerations</a><a id="From-positions-to-accelerations-1"></a><a class="docs-heading-anchor-permalink" href="#From-positions-to-accelerations" title="Permalink"></a></h2><p>Only positions are observed, so the accelerations come from central differences, <span>$a_t \approx (x_{t+1} - 2x_t + x_{t-1})/\Delta^2$</span>. With masses equal to one, each snapshot gives <span>$2N = 12$</span> equations &quot;force = acceleration&quot;.</p><pre><code class="language-julia hljs">snaps, accs = Matrix{Float64}[], Matrix{Float64}[]
+for traj in runs, t in 2:(length(traj) - 1)
+    push!(snaps, traj[t])
+    push!(accs, (traj[t + 1] .- 2 .* traj[t] .+ traj[t - 1]) ./ Δ^2)
+end
+dists = [norm(S[:, i] .- S[:, j]) for S in snaps for i in 1:N for j in (i + 1):N]
+(snapshots = length(snaps), distances_1_to_99_percent = round.(quantile(dists, [0.01, 0.99]); digits = 2))</code></pre><pre><code class="nohighlight hljs">(snapshots = 7996, distances_1_to_99_percent = [1.1, 3.73])</code></pre><h2 id="Learning-the-pair-potential"><a class="docs-heading-anchor" href="#Learning-the-pair-potential">Learning the pair potential</a><a id="Learning-the-pair-potential-1"></a><a class="docs-heading-anchor-permalink" href="#Learning-the-pair-potential" title="Permalink"></a></h2><p>Write <span>$\varphi$</span> in a generic basis of Gaussian bumps, <span>$\varphi(r) = \sum_k c_k\,b_k(r)$</span>. The force on particle <span>$i$</span> is then <em>linear</em> in the coefficients:</p><p class="math-container">\[F_i = -\nabla_{x_i} E = \sum_{j \ne i} -\varphi&#39;(r_{ij})\,\frac{x_i - x_j}{r_{ij}}
+    = \sum_k c_k \sum_{j\ne i} -b_k&#39;(r_{ij})\,\frac{x_i - x_j}{r_{ij}} ,\]</p><p>so fitting is one least-squares solve. Note what is built in: conservation (an energy), invariance (<span>$\varphi$</span> depends on distances only), and Newton&#39;s third law (pairs). Nothing about the shape of <span>$\varphi$</span>.</p><pre><code class="language-julia hljs">const MU = range(0.8, 4.5; length = 25)
+const W = 0.18
+b(r, μ) = exp(-(r - μ)^2 / (2W^2))
+db(r, μ) = -(r - μ) / W^2 * b(r, μ)
+
+function design(S)                                # 2N rows (force components) × K columns
+    A = zeros(2N, length(MU))
+    for i in 1:N, j in (i + 1):N
+        d = S[:, i] .- S[:, j]
+        r = norm(d)
+        for k in eachindex(MU)
+            g = -db(r, MU[k]) .* d ./ r
+            A[(2i - 1):2i, k] .+= g
+            A[(2j - 1):2j, k] .-= g
+        end
+    end
+    return A
+end
+fit_pairs(S, A) = (M = reduce(vcat, design.(S)); (M&#39;M + 1e-6 * I) \ (M&#39; * reduce(vcat, vec.(A))))
+
+c = fit_pairs(snaps, accs)
+φ_fit(r) = sum(c[k] * b(r, MU[k]) for k in eachindex(MU))
+f_fit(r) = -sum(c[k] * db(r, MU[k]) for k in eachindex(MU))</code></pre><p>The learned force agrees with the truth wherever pairs were observed; the histogram shows where that is. The potential agrees up to an <strong>additive constant</strong>: forces only see <span>$\varphi&#39;$</span>, so the constant is not identifiable from the data, and it does not matter. Beyond <span>$r \approx 3.8$</span> there are almost no pairs, and the learned force wiggles there: the data say nothing about that range.</p><pre><code class="language-julia hljs">rs = range(0.95, 4.2; length = 300)
+fig = Figure(size = (900, 360))
+ax1 = Axis(fig[1, 1]; xlabel = &quot;r&quot;, ylabel = &quot;pair force −φ′(r)&quot;, title = &quot;force law&quot;)
+lines!(ax1, rs, f_true.(rs); color = :black, label = &quot;truth&quot;)
+lines!(ax1, rs, f_fit.(rs); color = :orangered, linestyle = :dash, linewidth = 3, label = &quot;learned&quot;)
+ylims!(ax1, -0.4, 1.0)
+axislegend(ax1)
+ax2 = Axis(fig[1, 2]; xlabel = &quot;r&quot;, ylabel = &quot;φ(r)&quot;, title = &quot;potential (learned shifted by a constant)&quot;)
+shift = mean(φ_true(r) - φ_fit(r) for r in range(1.5, 3.5; length = 50))
+lines!(ax2, rs, φ_true.(rs); color = :black)
+lines!(ax2, rs, φ_fit.(rs) .+ shift; color = :orangered, linestyle = :dash, linewidth = 3)
+ylims!(ax2, -0.3, 0.3)
+ax3 = Axis(fig[1, 3]; xlabel = &quot;r&quot;, title = &quot;observed pair distances&quot;)
+hist!(ax3, dists; bins = 60, color = :gray60)
+fig</code></pre><p><img src="../07_particles-12.png" alt/></p><h2 id="Does-the-learned-law-predict?"><a class="docs-heading-anchor" href="#Does-the-learned-law-predict?">Does the learned law predict?</a><a id="Does-the-learned-law-predict?-1"></a><a class="docs-heading-anchor-permalink" href="#Does-the-learned-law-predict?" title="Permalink"></a></h2><p>Simulate a new initial condition with the learned law and with the truth. The learned model conserves its own energy (it is conservative by construction), and the two trajectories agree closely at first and then separate.</p><pre><code class="language-julia hljs">X₀, V₀ = initial(Xoshiro(99))
+traj_true, _ = simulate(X₀, V₀, f_true)
+traj_fit, H_fit = simulate(X₀, V₀, f_fit; φ = φ_fit)
+gap = [maximum(norm.(eachcol(traj_true[t] .- traj_fit[t]))) for t in 2:length(traj_true)]
+ts = Δ .* (1:length(gap))
+fig = Figure(size = (820, 320))
+ax1 = Axis(fig[1, 1]; xlabel = &quot;time&quot;, ylabel = &quot;largest position gap&quot;, yscale = log10, title = &quot;learned vs true trajectory&quot;)
+lines!(ax1, ts, max.(gap, 1e-8))
+ax2 = Axis(fig[1, 2]; xlabel = &quot;time&quot;, ylabel = &quot;H(t) − H(0)&quot;, title = &quot;energy of the learned system&quot;)
+lines!(ax2, ts, H_fit .- H_fit[1])
+fig</code></pre><p><img src="../07_particles-14.png" alt/></p><p>The gap grows exponentially (roughly a straight line on the log scale) until it saturates at the size of the cluster: six interacting particles form a chaotic system, and <em>any</em> model error, here below <span>$10^{-3}$</span> in the force, is amplified at the same rate as a perturbation of the initial condition. Short-horizon prediction is the honest test; long-horizon prediction of individual trajectories is impossible for any model, while statistical properties (energy, distance distributions) remain predictable.</p><h2 id="A-relational-query:-where-do-three-particles-come-to-rest?"><a class="docs-heading-anchor" href="#A-relational-query:-where-do-three-particles-come-to-rest?">A relational query: where do three particles come to rest?</a><a id="A-relational-query:-where-do-three-particles-come-to-rest?-1"></a><a class="docs-heading-anchor-permalink" href="#A-relational-query:-where-do-three-particles-come-to-rest?" title="Permalink"></a></h2><p>With friction, three particles settle into a configuration where all forces vanish, a stable root of <span>$F(x) = 0$</span>. It is found by root-finding with damped fixed-point iteration <span>$x \leftarrow x + \eta F(x)$</span> (a Picard solver from <code>ImplicitLayers</code>), which converges only to stable equilibria. The truth is an equilateral triangle with side <span>$\sqrt 2$</span>, the minimum of <span>$\varphi$</span>.</p><pre><code class="language-julia hljs">function rest(f)
+    x, rep = solve_root(x -&gt; -vec(forces(reshape(x, 2, 3), f)), [0.0, 0.0, 1.3, 0.1, 0.6, 1.2],
+                        PicardSolver(maxiters = 50_000, tol = 1e-10, damping = 0.05))
+    Y = reshape(x, 2, 3)
+    return (sides = round.([norm(Y[:, 1] - Y[:, 2]), norm(Y[:, 2] - Y[:, 3]), norm(Y[:, 1] - Y[:, 3])]; digits = 4),
+            converged = rep.converged)
+end
+(truth = rest(f_true), learned = rest(f_fit))</code></pre><pre><code class="nohighlight hljs">(truth = (sides = [1.4142, 1.4142, 1.4142], converged = true), learned = (sides = [1.4145, 1.4145, 1.4145], converged = true))</code></pre><p>The learned law reproduces the true resting triangle to about three decimal places, a quantity it was never trained on. The energy of the learned system, meanwhile, is conserved to <span>$10^{-6}$</span>: a property of the model class, not of the fit.</p><h2 id="Noisy-positions"><a class="docs-heading-anchor" href="#Noisy-positions">Noisy positions</a><a id="Noisy-positions-1"></a><a class="docs-heading-anchor-permalink" href="#Noisy-positions" title="Permalink"></a></h2><p>Real trajectories are measured with noise <span>$\sigma$</span>, and the second difference amplifies it by <span>$1/\Delta^2$</span>. Sampling more coarsely suppresses that, at the cost of a larger discretisation error and fewer snapshots. The error of the learned force law over the observed range:</p><pre><code class="language-julia hljs">function force_error(σ, k; rng = Xoshiro(5))
+    S, A = Matrix{Float64}[], Matrix{Float64}[]
+    for traj in runs
+        obs = [traj[t] .+ σ .* randn(rng, 2, N) for t in 1:k:length(traj)]
+        for t in 2:(length(obs) - 1)
+            push!(S, obs[t])
+            push!(A, (obs[t + 1] .- 2 .* obs[t] .+ obs[t - 1]) ./ (k * Δ)^2)
+        end
+    end
+    cσ = fit_pairs(S, A)
+    fσ(r) = -sum(cσ[q] * db(r, MU[q]) for q in eachindex(MU))
+    return sqrt(mean((fσ(r) - f_true(r))^2 for r in range(1.15, 3.5; length = 100)))
+end
+for σ in (0.0, 1e-3, 1e-2), k in (1, 3, 10)
+    @printf &quot;σ = %-6g  Δ = %.2f   force-law error %.4f\n&quot; σ k * Δ force_error(σ, k)
+end</code></pre><pre><code class="nohighlight hljs">σ = 0       Δ = 0.01   force-law error 0.0007
+σ = 0       Δ = 0.03   force-law error 0.0007
+σ = 0       Δ = 0.10   force-law error 0.0008
+σ = 0.001   Δ = 0.01   force-law error 0.0671
+σ = 0.001   Δ = 0.03   force-law error 0.0071
+σ = 0.001   Δ = 0.10   force-law error 0.0009
+σ = 0.01    Δ = 0.01   force-law error 6.5627
+σ = 0.01    Δ = 0.03   force-law error 0.6909
+σ = 0.01    Δ = 0.10   force-law error 0.0625
+</code></pre><p>Least squares over thousands of snapshots averages a lot of noise away, and coarser sampling rescues moderate noise. At <span>$\sigma = 0.01$</span> even the coarsest sampling leaves an error about a hundred times the noise-free one: the positions themselves are then uncertain, and the right model treats the true positions as <strong>latent variables</strong> in a factor graph, with the dynamics as factors between consecutive times and the measurements as factors on each. That needs nonlinear factors, which Lenticulum does not have yet.</p><h2 id="Naming-the-law:-symbolic-regression"><a class="docs-heading-anchor" href="#Naming-the-law:-symbolic-regression">Naming the law: symbolic regression</a><a id="Naming-the-law:-symbolic-regression-1"></a><a class="docs-heading-anchor-permalink" href="#Naming-the-law:-symbolic-regression" title="Permalink"></a></h2><p>The learned <span>$\varphi$</span> is a curve. To get a formula, search over expressions that fit it. <a href="https://github.com/MilesCranmer/SymbolicRegression.jl">SymbolicRegression.jl</a> evolves expression trees and returns a Pareto front of complexity against error. The search is easy here because the structure has already reduced the problem to one variable; on the raw 12-dimensional data it would be hopeless.</p><pre><code class="language-julia hljs">r_obs = collect(range(quantile(dists, 0.01), quantile(dists, 0.99); length = 200))
+opts = Options(; binary_operators = [+, -, *, /], maxsize = 20,
+               deterministic = true, seed = 0, verbosity = 0, progress = false)
+hof = equation_search(reshape(r_obs, 1, :), φ_fit.(r_obs); options = opts, niterations = 40,
+                      parallelism = :serial, variable_names = [&quot;r&quot;])
+for m in calculate_pareto_frontier(hof)
+    @printf &quot;complexity %2d   loss %.1e   %s\n&quot; compute_complexity(m, opts) m.loss string_tree(m.tree, opts; variable_names = [&quot;r&quot;])
+end</code></pre><pre><code class="nohighlight hljs">complexity  1   loss 3.6e-03   -2.7595063939800184
+complexity  5   loss 3.8e-04   (r * 0.07470053969222279) + -2.9398314924093625
+complexity  7   loss 3.8e-04   ((r * 0.0747005400689227) - 1.782644261667886) + -1.157187231651847
+complexity  9   loss 1.2e-04   (((0.9687076135830645 / r) + -1.356463757944661) / r) + -2.3659742391146854
+complexity 11   loss 1.2e-05   ((((1.5807944785860757 / r) + -1.6606089379093445) / r) / r) + -2.5818197837878905
+complexity 13   loss 3.7e-09   (((((1.0002855910071318 / r) / r) + -1.0002872522845414) / r) / r) + -2.6088376239136197
+</code></pre><p>Read the front from the top. Simple formulas fit poorly; the loss drops by orders of magnitude at the expression that is, up to rounding, <span>$1/r^4 - 1/r^2 + \text{const}$</span>: the true law, plus the additive constant the data cannot fix. Longer formulas add terms without improving the fit, which is the signal to stop.</p><h2 id="Summary"><a class="docs-heading-anchor" href="#Summary">Summary</a><a id="Summary-1"></a><a class="docs-heading-anchor-permalink" href="#Summary" title="Permalink"></a></h2><ul><li><strong>Structure first.</strong> An energy (the law), invariance and pairwise interaction turned a 12-dimensional regression into a one-dimensional one, solvable by least squares.</li><li><strong>Validate on what was not trained.</strong> Short-horizon trajectories, energy conservation, and the resting configuration of three particles.</li><li><strong>Be honest about the limits.</strong> Chaos bounds trajectory prediction for any model; large measurement noise needs latent positions; the potential&#39;s constant is not identifiable.</li><li><strong>Name it last.</strong> Symbolic regression recovers <span>$r^{-4} - r^{-2}$</span> from the learned curve.</li></ul><p>Learning <em>relations</em> as formulas directly, without a learned curve in between, is an open problem recorded in the vault: <a href="https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/Symbolic-Implicit-Learning">Symbolic Implicit Learning</a>.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../06_energy_network/">« A conservative score: energy-parametrised diffusion</a><a class="docs-footer-nextpage" href="../../vocabulary/">Vocabulary »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Sunday 4 October 2026 15:45">Sunday 4 October 2026</span>. Using Julia version 1.13.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
