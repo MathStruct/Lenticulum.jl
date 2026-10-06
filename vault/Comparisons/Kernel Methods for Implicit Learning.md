@@ -107,7 +107,7 @@ relation over a few coordinates.
 and random features reduce this), and kernels with fixed bandwidths behave poorly in high
 dimensions.
 
-**For Lenticulum**, two concrete uses:
+**For Lenticulum**, three concrete uses:
 1. a **kernel baseline** for the diffusion family, **now built and measured**. `kde_predictor`
    turns samples into a KDE noise predictor (the closed-form mixture, so queries are exact) and
    `kde_bandwidth` picks the bandwidth by held-out likelihood. On the robot arm, with the same
@@ -123,7 +123,14 @@ dimensions.
    query errors themselves still leaves about 0.07 at 500 samples. The network interpolates the
    surface between samples. Worked through in the documentation's tutorial *What does the network
    add? A kernel baseline*.
-2. a **GP implicit factor**, not built: the first factor whose answer is a belief over the relation rather
+2. an **online, forgetting kernel model**, **built**: `OnlineKDE` learns from a stream, merging
+   nearby samples, forgetting old ones geometrically, and keeping a fixed budget of centres by
+   merging the lightest. On a circle whose radius drifts from 1.0 to 1.5 it tracks the current
+   radius (1.445 at the end), where a model that remembers everything answers with the average
+   (1.213); queries cost the same throughout. Details in the implementation note [[kernel]],
+   which also sketches the package extensions (KernelFunctions.jl, AbstractGPs.jl,
+   KernelDensity.jl) that would connect the rest of the Julia kernel ecosystem.
+3. a **GP implicit factor**, not built: the first factor whose answer is a belief over the relation rather
    than a point, which also needs the Gaussian-message machinery of [[Belief Algebra]] §6.
 
 Related: [[Implicit Learners]], [[Implicit Diffusion Learners]], [[Algebraic Implicit Learners]],

@@ -53,6 +53,7 @@ include("schedule.jl")
 include("predictor.jl")
 include("reddiff.jl")
 include("analytic.jl")
+include("kernel.jl")
 include("implicit.jl")
 include("energy.jl")
 include("answers.jl")
@@ -77,7 +78,7 @@ export statedim, blockranges, precision_vector, assemble_state
 
 # --- Closed-form predictors (oracles) ----------------------------------------
 export GaussianMixtureEps, mixture_logdensity, epsilon_jacobian, epsilon_vjp_params
-export kde_predictor, kde_bandwidth
+export kde_predictor, kde_bandwidth, OnlineKDE, observe!
 
 # --- Implicit inference and its backward pass -----------------------------
 export FieldNodes, field_nodes, noisefree_nodes, ImplicitDiffusion, ImplicitSolution

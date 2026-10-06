@@ -133,6 +133,59 @@ fig
 # A second difference is cost. The kernel evaluates every sample at every step of every query,
 # so queries slow down linearly with the data; the network's cost is fixed by its size.
 #
+# ## Data that drift: an online, forgetting kernel model
+#
+# The kernel model has one property the network lacks: it can be **updated sample by sample**,
+# and it can **forget**. [`OnlineKDE`](@ref) takes a stream through [`observe!`](@ref): each
+# sample is merged into a nearby centre or becomes a new one, every older weight is multiplied
+# by a forgetting factor (memory of about ``1/(1 - \text{forget})`` samples), and a budget caps
+# the number of centres by merging the lightest into its neighbour
+# [kristan2011okde](@cite).
+#
+# A relation that drifts: points on a circle whose radius grows from 1.0 to 1.5 over 3000
+# samples. Along the stream, ask "``y`` given ``x = 0``" of a model that remembers everything and
+# of one with a memory of about 200 samples.
+
+K = 3000
+radius(k) = 1.0 + 0.5 * k / K
+srng = Xoshiro(4)
+stream = [(φ = 2π * rand(srng); radius(k) .* [cos(φ), sin(φ)] .+ 0.02 .* randn(srng, 2)) for k in 1:K]
+cnodes = field_nodes(Xoshiro(1), 2; samples = 4)
+function answer_y(kde)
+    pred = kde_predictor(sched, kde)
+    ps, st = LuxCore.setup(Xoshiro(0), pred)
+    roots, _ = implicit_roots(ImplicitDiffusion(pred, cnodes), [0.0, 0.0], [Inf, 0.0], ps, st; nstarts = 12, spread = 1.5)
+    return maximum(r.z[2] for r in roots)                  # the upper branch
+end
+remember = OnlineKDE(2; bandwidth = 0.05, forget = 1.0, budget = 400)
+forgetful = OnlineKDE(2; bandwidth = 0.05, forget = 0.995, budget = 400)
+checkpoints, ans_remember, ans_forget = Int[], Float64[], Float64[]
+for (k, z) in enumerate(stream)
+    observe!(remember, z)
+    observe!(forgetful, z)
+    if k % 150 == 0
+        push!(checkpoints, k); push!(ans_remember, answer_y(remember)); push!(ans_forget, answer_y(forgetful))
+    end
+end
+(centres = (remember = size(remember.centres, 2), forgetful = size(forgetful.centres, 2)),
+ final = (truth = radius(K), remember = ans_remember[end], forgetful = ans_forget[end]))
+
+#-
+
+fig = Figure(size = (640, 340))
+ax = Axis(fig[1, 1]; xlabel = "samples seen", ylabel = "answer y for x = 0", title = "a relation that drifts")
+lines!(ax, checkpoints, radius.(checkpoints); color = :black, linestyle = :dash, label = "true radius now")
+scatterlines!(ax, checkpoints, ans_forget; label = "forgetting (memory ≈ 200)")
+scatterlines!(ax, checkpoints, ans_remember; label = "remembering everything")
+axislegend(ax; position = :lt)
+fig
+
+# The forgetting model follows the current relation with a lag of about its memory; the
+# remembering one answers with the average of everything it has seen. Neither is wrong in
+# general: forgetting is right when the system changes, remembering when the variation is noise.
+# Both stay at 400 centres, so a query costs the same after 3000 samples as after 400. A
+# network would have to be retrained, or trained continually, to do the same.
+#
 # ## When the kernel is the right tool
 #
 # - **As the baseline** for any learned relation, as here: cheap to build, no training, exact
@@ -141,6 +194,7 @@ fig
 #   from and the kernel's guarantees are well understood.
 # - **For uncertainty**: a Gaussian-process version gives a belief over the relation itself
 #   (see the vault note above), which the network does not.
+# - **For streams and drift**: updated sample by sample, with forgetting and a fixed budget.
 #
 # ## References
 #

@@ -625,6 +625,48 @@ end
     @test sort([r.z[2] for r in roots]) ≈ [-0.8, 0.8] atol = 0.06
 end
 
+@testset "weighted mixtures and an online, forgetting kernel model" begin
+    # weights: a zero weight removes a component; equal weights are the default
+    μ = [0.0 3.0; 0.0 0.0]
+    one = GaussianMixtureEps(SCHED, μ[:, 1:1]; s = 0.4)
+    two = GaussianMixtureEps(SCHED, μ; s = 0.4, weights = [1.0, 0.0])
+    x = [0.3, -0.2]
+    @test mixture_logdensity(two, x, 0.3, (μ = μ,)) ≈ mixture_logdensity(one, x, 0.3, (μ = μ[:, 1:1],)) atol = 1e-12
+    @test two((x, 0.3), (μ = μ,), NamedTuple())[1] ≈ one((x, 0.3), (μ = μ[:, 1:1],), NamedTuple())[1] atol = 1e-12
+    @test GaussianMixtureEps(SCHED, μ).logw ≈ log.([0.5, 0.5])
+    @test_throws ArgumentError GaussianMixtureEps(SCHED, μ; weights = [1.0])
+
+    # no forgetting and no merging: exactly the batch KDE
+    data = randn(Xoshiro(5), 2, 40)
+    ok = observe!(OnlineKDE(2; bandwidth = 0.3, merge_radius = 0.0), data)
+    a, b = kde_predictor(SCHED, ok), kde_predictor(SCHED, data; bandwidth = 0.3)
+    pa, sa = LuxCore.setup(Xoshiro(0), a); pb, sb = LuxCore.setup(Xoshiro(0), b)
+    @test first(epsilon(a, x, 0.3, pa, sa)) ≈ first(epsilon(b, x, 0.3, pb, sb)) atol = 1e-14
+
+    # forgetting is geometric; merging keeps the weighted mean; the budget merges, never drops mass
+    f = observe!(OnlineKDE(1; bandwidth = 0.1, forget = 0.5), [0.0 5.0 10.0])
+    @test f.weights ≈ [0.25, 0.5, 1.0]
+    g = observe!(OnlineKDE(1; bandwidth = 0.1, merge_radius = 0.2), [1.0 1.1])
+    @test size(g.centres, 2) == 1 && g.centres[1] ≈ 1.05 && g.weights == [2.0]
+    h = observe!(OnlineKDE(2; bandwidth = 0.05, budget = 25), randn(Xoshiro(6), 2, 200))
+    @test size(h.centres, 2) == 25 && sum(h.weights) ≈ 200
+
+    # a drifting relation: a circle whose radius grows from 1.0 to 1.5 over the stream
+    K, rng = 1200, Xoshiro(4)
+    stream = [(φ = 2π * rand(rng); (1 + 0.5k / K) .* [cos(φ), sin(φ)] .+ 0.02 .* randn(rng, 2)) for k in 1:K]
+    nodes = field_nodes(Xoshiro(1), 2; samples = 4)
+    answer(kde) = begin
+        pred = kde_predictor(SCHED, kde); p, s = LuxCore.setup(Xoshiro(0), pred)
+        roots, _ = implicit_roots(ImplicitDiffusion(pred, nodes), [0.0, 0.0], [Inf, 0.0], p, s; nstarts = 12, spread = 1.5)
+        maximum(r.z[2] for r in roots)
+    end
+    remember = OnlineKDE(2; bandwidth = 0.05, budget = 300)
+    forget = OnlineKDE(2; bandwidth = 0.05, forget = 0.99, budget = 300)
+    foreach(z -> (observe!(remember, z); observe!(forget, z)), stream)
+    @test answer(forget) ≈ 1.5 atol = 0.08       # tracks the current radius
+    @test 1.1 < answer(remember) < 1.35          # averages the whole history
+end
+
 @testset "all answers of a query, and their Laplace uncertainty" begin
     # Gaussian data: the curvature is RED-Diff's κ, so the Laplace covariance has a closed form
     v0 = 0.5

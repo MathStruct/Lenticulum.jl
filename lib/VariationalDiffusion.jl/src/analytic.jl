@@ -16,23 +16,30 @@
 # ---------------------------------------------------------------------------
 
 """
-    GaussianMixtureEps(schedule, μ₀::AbstractMatrix; s = 0.05)
+    GaussianMixtureEps(schedule, μ₀::AbstractMatrix; s = 0.05, weights = nothing)
 
 The exact noise predictor ``\\varepsilon^\\ast`` of the data distribution
-``\\frac1J\\sum_j\\mathcal N(\\mu_j, s^2 I)`` under `schedule`. Columns of `μ₀` (an ``n\\times J``
+``\\sum_j w_j\\,\\mathcal N(\\mu_j, s^2 I)`` under `schedule`, with equal weights ``w_j = 1/J`` unless
+`weights` (non-negative, normalised internally) is given. Columns of `μ₀` (an ``n\\times J``
 matrix) are the initial component means; they are the layer's **parameters**
 (`ps.μ`), so a mixture can be moved by gradient descent. The component width `s` is fixed.
 
 Wrap it in a [`NoisePredictor`](@ref) with the same schedule. Its input Jacobian
 ([`epsilon_jacobian`](@ref)) and parameter VJP ([`epsilon_vjp_params`](@ref)) are exact.
 """
-struct GaussianMixtureEps{S<:AbstractNoiseSchedule,M<:AbstractMatrix,T<:Real} <: LuxCore.AbstractLuxLayer
+struct GaussianMixtureEps{S<:AbstractNoiseSchedule,M<:AbstractMatrix,T<:Real,V<:AbstractVector} <: LuxCore.AbstractLuxLayer
     schedule::S
     μ₀::M
     s::T
+    logw::V                                           # normalised log weights, one per component
 end
-GaussianMixtureEps(schedule::AbstractNoiseSchedule, μ₀::AbstractMatrix; s = 0.05) =
-    GaussianMixtureEps(schedule, float.(μ₀), float(s))
+function GaussianMixtureEps(schedule::AbstractNoiseSchedule, μ₀::AbstractMatrix; s = 0.05, weights = nothing)
+    J = size(μ₀, 2)
+    w = weights === nothing ? fill(1.0, J) : float.(collect(weights))
+    length(w) == J || throw(ArgumentError("need one weight per component: $(length(w)) for $J"))
+    all(≥(0), w) && sum(w) > 0 || throw(ArgumentError("weights must be non-negative and not all zero"))
+    return GaussianMixtureEps(schedule, float.(μ₀), float(s), log.(w ./ sum(w)))
+end
 
 LuxCore.initialparameters(::AbstractRNG, l::GaussianMixtureEps) = (μ = copy(l.μ₀),)
 LuxCore.initialstates(::AbstractRNG, ::GaussianMixtureEps) = NamedTuple()
@@ -42,7 +49,7 @@ function _mixture_parts(l::GaussianMixtureEps, x, t, μ)
     a, sg = alpha(l.schedule, t), sigma(l.schedule, t)
     v = a^2 * l.s^2 + sg^2
     D = x .- a .* μ                                   # n × J
-    ℓ = vec(-sum(abs2, D; dims = 1)) ./ (2v)
+    ℓ = vec(-sum(abs2, D; dims = 1)) ./ (2v) .+ l.logw  # log of w_j N(x; α μ_j, v I), up to a constant
     γ = exp.(ℓ .- maximum(ℓ))
     γ ./= sum(γ)
     return (U = D ./ v, γ = γ, v = v, a = a, sg = sg, ℓ = ℓ)
@@ -63,7 +70,7 @@ gradient of a smoothed log-density (`Implicit Diffusion Learners.md` §3).
 function mixture_logdensity(l::GaussianMixtureEps, x, t, ps)
     p = _mixture_parts(l, x, t, ps.μ)
     m = maximum(p.ℓ)
-    return m + log(sum(exp.(p.ℓ .- m)) / length(p.ℓ)) - length(x) / 2 * log(2π * p.v)
+    return m + log(sum(exp.(p.ℓ .- m))) - length(x) / 2 * log(2π * p.v)   # the weights are in ℓ
 end
 
 # --- the two derivatives the backward pass needs, in closed form -----------------
@@ -134,47 +141,4 @@ function epsilon_vjp_params(pred::NoisePredictor{<:GaussianMixtureEps}, x, t, ps
     c = (p.U .- ū)' * w                               # (u_j - ū)ᵀ w, one per component
     G = (p.sg * p.a) .* ((.-w ./ p.v) .* p.γ' .+ p.U .* (p.γ .* c)')
     return (μ = G,)
-end
-
-# --- the kernel baseline: a Gaussian KDE is this mixture with one centre per sample ----------
-
-"""
-    kde_predictor(schedule, data::AbstractMatrix; bandwidth) -> NoisePredictor
-
-A Gaussian **kernel density estimate** of the samples in the columns of `data`, as a noise
-predictor: [`GaussianMixtureEps`](@ref) with one component per sample and width `bandwidth`.
-Its ``\\varepsilon`` is the exact optimal noise predictor for that density, so every query function
-([`implicit_infer`](@ref), [`implicit_roots`](@ref), [`implicit_laplace`](@ref)) works on it with
-exact derivatives and no training. It is the classical baseline for a diffusion network: the
-relation it defines is the ridge of the KDE. Query cost grows linearly with the number of
-samples. Choose the bandwidth with [`kde_bandwidth`](@ref).
-"""
-kde_predictor(s::AbstractNoiseSchedule, data::AbstractMatrix; bandwidth::Real) =
-    NoisePredictor(GaussianMixtureEps(s, float.(data); s = bandwidth), s)
-
-"""
-    kde_bandwidth(data; candidates = nothing, holdout = 0.2, rng = Xoshiro(0)) -> h
-
-The bandwidth of an isotropic Gaussian KDE that maximises the **held-out log-likelihood**: a
-random fraction `holdout` of the columns of `data` is set aside, a KDE on the rest is evaluated
-on it, for each candidate. The default candidates span 0.5 % to 100 % of the data's scale
-(the root mean coordinate variance) on a log grid. This chooses the best *density*, not the
-best answers to queries, and uses no query information.
-"""
-function kde_bandwidth(data::AbstractMatrix; candidates = nothing, holdout = 0.2,
-                       rng::AbstractRNG = Random.Xoshiro(0))
-    n, d = size(data, 2), size(data, 1)
-    perm = Random.randperm(rng, n)
-    m = max(1, round(Int, holdout * n))
-    test, train = data[:, perm[1:m]], data[:, perm[(m + 1):end]]
-    μ = sum(data; dims = 2) ./ n
-    scale = sqrt(sum(abs2, data .- μ) / (n * d))
-    hs = candidates === nothing ? scale .* exp.(range(log(0.005), 0; length = 25)) : collect(candidates)
-    D = [sum(abs2, view(test, :, j) .- view(train, :, i)) for i in axes(train, 2), j in axes(test, 2)]
-    function heldout(h)
-        ℓ = -D ./ (2h^2)
-        mx = maximum(ℓ; dims = 1)
-        return sum(mx .+ log.(sum(exp.(ℓ .- mx); dims = 1) ./ size(train, 2))) / m - d / 2 * log(2π * h^2)
-    end
-    return hs[argmax(heldout.(hs))]
 end

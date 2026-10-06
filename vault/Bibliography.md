@@ -10,7 +10,7 @@
 
 The code in backticks is the BibTeX key, for citing in the documentation as `[key](@cite)`.
 
-## Papers and books (110)
+## Papers and books (111)
 
 - **Sean Anderson, Timothy D. Barfoot, Chi Hay Tong & Simo Särkkä** (2015) *Batch Nonlinear Continuous-Time Trajectory Estimation as Exactly Sparse Gaussian Process Regression*. Autonomous Robots, vol. 39, no. 3, pp. 221–238. [arXiv:1412.0630](https://arxiv.org/abs/1412.0630) `anderson2015batch`
 - **Jason Ansel, Edward Yang, Horace He, Natalia Gimelshein, Animesh Jain, Michael Voznesensky, Bin Bao, Peter Bell, David Berard, Evgeni Burovski, Geeta Chauhan, Anjali Chourdia, Will Constable, Alban Desmaison, Zachary DeVito, Elias Ellison, Will Feng, Jiong Gong, Michael Gschwind, Brian Hirsh, Sherlock Huang, Kshiteej Kalambarkar, Laurent Kirsch, Michael Lazos, Mario Lezcano, Yanbo Liang, Jason Liang, Yinghai Lu, C. K. Luk, Bert Maher, Yunjie Pan, Christian Puhrsch, Matthias Reso, Mark Saroufim, Marcos Yukio Siraichi, Helen Suk, Shunting Zhang, Michael Suo, Phil Tillet, Xu Zhao, Eikan Wang, Keren Zhou, Richard Zou, Xiaodong Wang, Ajit Mathews, William Wen, Gregory Chanan, Peng Wu & Soumith Chintala** (2024) *PyTorch 2: Faster Machine Learning Through Dynamic Python Bytecode Transformation and Graph Compilation*. Proceedings of the 29th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 2, pp. 929–947. [doi:10.1145/3620665.3640366](https://doi.org/10.1145/3620665.3640366) `ansel2024pytorch2`
@@ -72,6 +72,7 @@ The code in backticks is the BibTeX key, for citing in the documentation as `[ke
 - **Shin-ya Katsumata** (2014) *Parametric effect monads and semantics of effect systems*. ACM SIGPLAN Notices, vol. 49, no. 1, pp. 633–645. [doi:10.1145/2578855.2535846](https://doi.org/10.1145/2578855.2535846) `katsumata2014parametric`
 - **Daphne Koller & Nir Friedman** (2009) *Probabilistic Graphical Models: Principles and Techniques*. MIT Press. `koller2009pgm`
 - **Zico Kolter, David Duvenaud & Matt Johnson** (2020) *Deep Implicit Layers: Neural ODEs, Deep Equilibrium Models, and Beyond*. NeurIPS 2020 tutorial. [link](https://implicit-layers-tutorial.org/) `kolter2020implicit`
+- **Matej Kristan, Ale\vs Leonardis & Danijel Sko\vcaj** (2011) *Multivariate online kernel density estimation with Gaussian kernels*. Pattern Recognition, vol. 44, no. 10--11, pp. 2630–2642. [doi:10.1016/j.patcog.2011.03.019](https://doi.org/10.1016/j.patcog.2011.03.019) `kristan2011okde`
 - **Elena Di Lavore, Mario Román & Paweł Sobociński** (2025) *Partial Markov Categories*. [arXiv:2502.03477](https://arxiv.org/abs/2502.03477) `dilavore2025partial`
 - **Yann LeCun, Sumit Chopra, Raia Hadsell, Marc'Aurelio Ranzato & Fu Jie Huang** (2006) *A Tutorial on Energy-Based Learning*. Predicting Structured Data. [link](http://yann.lecun.com/exdb/publis/pdf/lecun-06.pdf) `lecun2006tutorial`
 - **Xiang Lisa Li, Ari Holtzman, Daniel Fried, Percy Liang, Jason Eisner, Tatsunori Hashimoto, Luke Zettlemoyer & Mike Lewis** (2023) *Contrastive Decoding: Open-ended Text Generation as Optimization*. Annual Meeting of the Association for Computational Linguistics (ACL). [arXiv:2210.15097](https://arxiv.org/abs/2210.15097) `li2023contrastive`
