@@ -92,7 +92,8 @@ anything here.
   [a conservative score: energy-parametrised diffusion](@ref tutorial-energy),
   [discovering a force law from particle trajectories](@ref tutorial-particles),
   [localisation as a factor graph, for GTSAM readers](@ref tutorial-localization),
-  [what does the network add? a kernel baseline](@ref tutorial-kernel).
+  [what does the network add? a kernel baseline](@ref tutorial-kernel),
+  [intersections: several learned relations at once](@ref tutorial-intersections).
 - **[Vocabulary](@ref vocabulary)** — the six words you need to read the API. Short.
 - The per-package pages, for the reference documentation.
 

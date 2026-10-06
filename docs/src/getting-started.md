@@ -39,7 +39,7 @@ Swap the precision vector to `[0.0, Inf]` and the same model answers "``x`` give
 
 | you come from | start with |
 |---|---|
-| **machine learning** | [A relation without training](@ref tutorial-circle), then [Train a small diffusion model](@ref tutorial-train), [Robot arm: one model, every direction](@ref tutorial-arm) and [the kernel baseline](@ref tutorial-kernel) |
+| **machine learning** | [A relation without training](@ref tutorial-circle), then [Train a small diffusion model](@ref tutorial-train), [Robot arm: one model, every direction](@ref tutorial-arm), [the kernel baseline](@ref tutorial-kernel) and [Intersections](@ref tutorial-intersections) |
 | **statistics or robotics** (Kalman filters, GTSAM) | [Localisation as a factor graph](@ref tutorial-localization): odometry and GPS, smoothing versus filtering, and the noise level estimated from the marginal likelihood |
 | **physics** | [Symmetry is not a law](@ref tutorial-forces) and [Discovering a force law](@ref tutorial-particles) |
 | **category theory** | the [theory vault](https://mathstruct.github.io/Lenticulum.jl/dev/vault/), entry point *Factors are Parameterized Statistical Games* |

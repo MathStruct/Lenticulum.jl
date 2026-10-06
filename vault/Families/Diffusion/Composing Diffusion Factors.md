@@ -85,5 +85,9 @@ determine the point. This is the composite version of the branch points of a sin
   ($p_1/p_2^\beta$) is a difference of fields and has no stable roots where $p_2$ is flat. See
   [[Belief Algebra]] for the corresponding operations on beliefs.
 
+A worked example with three trained networks (circle, line, ellipse), their intersections,
+Laplace covariances and fine-tuning through an intersection is the documentation's tutorial
+*Intersections: several learned relations at once*.
+
 Related: [[product]], [[Implicit Diffusion Learners]], [[Inference Signatures]],
 [[Open Problems in Implicit Diffusion Learning]], [[Belief Algebra]], [[Kernel Methods for Implicit Learning]]
