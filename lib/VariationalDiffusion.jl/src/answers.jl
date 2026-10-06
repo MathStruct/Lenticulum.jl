@@ -27,7 +27,7 @@ predictor is an [`EnergyNetwork`](@ref) (lowest first, i.e. the most plausible a
 and otherwise in the order found. There is no guarantee that every stable answer is found;
 more starts and a larger `spread` find more.
 """
-function implicit_roots(m::ImplicitDiffusion, z₀, ρ, ps, st; nstarts::Integer = 16, spread = 1.0,
+function implicit_roots(m::AbstractImplicitRelation, z₀, ρ, ps, st; nstarts::Integer = 16, spread = 1.0,
                         starts = nothing, rng::AbstractRNG = Random.Xoshiro(0), unique_tol = 1e-3, kwargs...)
     free = .!isinf.(ρ)
     inits = if starts === nothing
@@ -44,12 +44,15 @@ function implicit_roots(m::ImplicitDiffusion, z₀, ρ, ps, st; nstarts::Integer
         push!(roots, sol)
     end
     roots = [r for r in roots]                                   # concrete element type
-    if m.predictor isa NoisePredictor{<:EnergyNetwork} && length(roots) > 1
+    if _has_energy(m) && length(roots) > 1
         energies = [_query_energy(m, r.z, z₀, ρ, ps, st) for r in roots]
         roots = roots[sortperm(energies)]
     end
     return (roots, st)
 end
+
+_has_energy(m) = false
+_has_energy(::ImplicitDiffusion{<:NoisePredictor{<:EnergyNetwork}}) = true
 
 function _query_energy(m, z, z₀, ρ, ps, st)
     U, _ = implicit_energy(m, z, ps, st)
@@ -93,7 +96,7 @@ covariance is then calibrated to the density *smoothed at the field's noise leve
 the data distribution by those levels). With another λ it is a relative measure of how sharply
 the answer is determined. Throws unless `sol` converged to a stable answer.
 """
-function implicit_laplace(m::ImplicitDiffusion, sol::ImplicitSolution, ρ, ps, st)
+function implicit_laplace(m::AbstractImplicitRelation, sol::ImplicitSolution, ρ, ps, st)
     (sol.converged && sol.stable) ||
         throw(ArgumentError("the Laplace approximation needs a converged, stable answer (a local minimum)"))
     free = .!isinf.(ρ)

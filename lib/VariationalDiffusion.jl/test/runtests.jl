@@ -667,6 +667,41 @@ end
     @test 1.1 < answer(remember) < 1.35          # averages the whole history
 end
 
+@testset "products of relations: intersections" begin
+    curve(f, n) = reduce(hcat, [collect(f(θ)) for θ in range(0, 2π; length = n + 1)[1:n]])
+    nodes = field_nodes(Xoshiro(1), 2; samples = 8)
+    function model(c)
+        p = NoisePredictor(GaussianMixtureEps(SCHED, c; s = 0.05), SCHED)
+        return ImplicitDiffusion(p, nodes), LuxCore.setup(Xoshiro(0), p)...
+    end
+    m1, p1, s1 = model(curve(θ -> (cos(θ), sin(θ)), 64))                       # unit circle
+    m2, p2, s2 = model(reduce(hcat, [[u, u] for u in range(-1.6, 1.6; length = 65)]))   # line y = x
+    m3, p3, s3 = model(curve(θ -> (1.5cos(θ), 0.6sin(θ)), 96))                 # ellipse
+    # the field of a product is the weighted sum of the fields
+    prod = ProductRelation(m1, m2; weights = [1.0, 2.0])
+    z = [0.3, -0.2]
+    @test first(prior_field(prod, z, (p1, p2), (s1, s2))) ≈
+          first(prior_field(m1, z, p1, s1)) .+ 2 .* first(prior_field(m2, z, p2, s2))
+    @test_throws ArgumentError prior_field(prod, z, p1, s1)                    # ps must be a tuple
+    # circle ∩ line: two answers, circle ∩ ellipse: four, near the exact intersections
+    for (other, ps, st, exact) in ((m2, p2, s2, [[0.7071, 0.7071], [-0.7071, -0.7071]]),
+                                   (m3, p3, s3, [[sx * 0.873, sy * 0.488] for sx in (1, -1) for sy in (1, -1)]))
+        roots, _ = implicit_roots(ProductRelation(m1, other), [0.0, 0.0], [0.0, 0.0], (p1, ps), (s1, st);
+                                  nstarts = 40, spread = 1.5, maxiters = 400)
+        @test length(roots) == length(exact)
+        @test all(r -> minimum(norm(r.z .- e) for e in exact) < 0.05, roots)
+    end
+    # the adjoint through a product: w.r.t. the clamped input and a parameter of the second factor
+    pe = ProductRelation(m1, m3); ρ = [Inf, 0.0]; h = 1e-6
+    sol, _ = implicit_infer(pe, [0.95, 0.4], ρ, (p1, p3), (s1, s3); tol = 1e-12)
+    b = implicit_pullback(pe, sol, [0.95, 0.4], ρ, [0.0, 1.0], (p1, p3), (s1, s3))
+    y(x, μ) = first(implicit_infer(pe, [x, 0.4], ρ, (p1, (μ = μ,)), (s1, s3); tol = 1e-12)).z[2]
+    @test b.z₀[1] ≈ (y(0.95 + h, p3.μ) - y(0.95 - h, p3.μ)) / 2h rtol = 1e-6
+    μ₊ = copy(p3.μ); μ₊[2, 10] += h; μ₋ = copy(p3.μ); μ₋[2, 10] -= h
+    @test b.ps[2].μ[2, 10] ≈ (y(0.95, μ₊) - y(0.95, μ₋)) / 2h rtol = 1e-6
+    @test b.ps isa Tuple && length(b.ps) == 2
+end
+
 @testset "all answers of a query, and their Laplace uncertainty" begin
     # Gaussian data: the curvature is RED-Diff's κ, so the Laplace covariance has a closed form
     v0 = 0.5

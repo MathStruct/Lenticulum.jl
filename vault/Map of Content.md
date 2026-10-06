@@ -186,6 +186,8 @@ neither exact nor a root-find but a **proximal solve**. Entry point:
   Lagrangian worked out, and a parabola learned from a circle by the adjoint alone ·
   [[Deterministic Relaxation]] — a DEQ whose layer is the denoiser ·
   [[The Implicit Diffusion Factor as a Statistical Game]]
+- *composition*: [[Composing Diffusion Factors]] — intersections of learned relations by adding
+  fields (a product of experts); conditioning as a special case; exactness at $t > 0$
 - *verdict*: [[Open Problems in Implicit Diffusion Learning]] — theoretical problems (open or
   intrinsic) separated from missing implementation, each with its evidence
 - *alternatives*: [[ProxDM and Proximal Alternatives]] — DPS, ΠGDM, ProxDM, plug-and-play, and

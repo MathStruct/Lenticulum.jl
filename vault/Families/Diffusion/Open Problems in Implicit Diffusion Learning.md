@@ -87,11 +87,14 @@ what relation is learned and how strongly evidence counts. λ is derivable for G
 interacts with the field's scale: on the trained circle, a precision of 1 already pulled an
 answer most of the way from the relation to the anchor.
 
-### T9. Composing diffusion factors at $t > 0$ — **known obstruction, approximate remedies**
+### T9. Composing diffusion factors at $t > 0$ — **known obstruction; mild for root finding**
 
 Noising does not commute with products, $q_t * (p_1 p_2) \ne (q_t * p_1)(q_t * p_2)$, so adding
 the scores of two diffusion factors is exact only at $t = 0$. Remedies (MCMC corrections at each
-level) exist but are approximate. See [[Language Models]] §7.
+level) exist but are approximate. See [[Language Models]] §7. For root finding (intersections
+of relations, `ProductRelation`) the effect is a smoothing bias of the size a single relation
+already has: circle ∩ ellipse is found within 0.029 of the exact points
+([[Composing Diffusion Factors]] §4).
 
 ### T10. Messages are posteriors, not likelihoods — **open design problem**
 
@@ -151,9 +154,11 @@ fails on Lux layers, and Reactant is not wired for energy models ([[energy_netwo
 No adjoint for `prox_infer`, no ProxDM inversion for `DiffusionFactor`, no `ad` field on
 `ProxNetwork`, and the sampler is first order (spread 0.29 against 0.30) ([[proxdm]] §5).
 
-### I8. Corrected composition
+### I8. Composition — **partly done**
 
-MCMC correction steps for products of diffusion factors (T9's remedy). Not built.
+Products of relations on the same variables are built (`ProductRelation`, [[product]]): all
+query functions and the adjoint work on them. Not built: MCMC correction steps (T9's remedy for
+sampling), and products over different variable sets with a separator term.
 
 ### I9. Coverage diagnostics
 
@@ -183,7 +188,7 @@ nonlinear Gaussian factors and Gauss–Newton in the graph, which Lenticulum doe
 | T6 | non-conservative ε-networks | intrinsic; resolved by energy networks at a cost |
 | T7 | training shapes only visited branches | intrinsic to the bilevel objective |
 | T8 | hyperparameters | partly open |
-| T9 | composition at $t > 0$ | known obstruction, approximate remedies |
+| T9 | composition at $t > 0$ | known obstruction; mild for root finding |
 | T10 | posterior messages | open design problem |
 | T11 | convergence, existence, identifiability | open |
 | I1 | mixture beliefs, conditional sampling | partly done: roots, Laplace, mixture type; no branch weights, no sampler |
@@ -193,7 +198,7 @@ nonlinear Gaussian factors and Gauss–Newton in the graph, which Lenticulum doe
 | I5 | batched nodes, Newton–Krylov | missing, needed for scale |
 | I6 | energy networks on Enzyme and Reactant | missing |
 | I7 | ProxDM adjoint and factor | missing |
-| I8 | corrected composition | missing |
+| I8 | composition | products on shared variables done; corrections and separators missing |
 | I9 | coverage diagnostics | missing |
 | I10 | real data, higher dimensions | missing |
 | I11 | nonlinear factors | missing (Lenticulum-wide) |

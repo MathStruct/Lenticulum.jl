@@ -75,12 +75,23 @@ is the denoiser (`Deterministic Relaxation.md`).
 noisefree_nodes(n::Integer, t::Real) = FieldNodes([float(t)], zeros(n, 1), [1.0])
 
 """
+    AbstractImplicitRelation
+
+A learned relation that can be queried by root-finding: anything with a field
+[`prior_field`](@ref) and its Jacobian [`prior_jacobian`](@ref). [`ImplicitDiffusion`](@ref) is one
+diffusion model; [`ProductRelation`](@ref) pools several. The query functions
+([`implicit_infer`](@ref), [`implicit_roots`](@ref), [`implicit_laplace`](@ref),
+[`implicit_pullback`](@ref)) accept any of them.
+"""
+abstract type AbstractImplicitRelation end
+
+"""
     ImplicitDiffusion(predictor, nodes; λ = 1.0)
 
 The relation ``R_\\theta = \\{z : r(z) = 0\\}`` defined by a noise predictor and a fixed node
 set, with RED-Diff's weighting ``\\lambda_t = \\lambda\\sigma_t/\\alpha_t``.
 """
-struct ImplicitDiffusion{P<:NoisePredictor,T<:Real}
+struct ImplicitDiffusion{P<:NoisePredictor,T<:Real} <: AbstractImplicitRelation
     predictor::P
     nodes::FieldNodes{T}
     λ::T
@@ -130,7 +141,7 @@ end
 ``r = g_\\theta(z) + \\rho^2\\odot(z - z_0)`` on the free coordinates (finite `ρ`), zero on the
 hard-clamped ones (``\\rho_i = \\infty``), where the constraint is ``z_i = z_{0,i}`` instead.
 """
-function implicit_residual(m::ImplicitDiffusion, z, z₀, ρ, ps, st)
+function implicit_residual(m::AbstractImplicitRelation, z, z₀, ρ, ps, st)
     g, st = prior_field(m, z, ps, st)
     free = .!isinf.(ρ)
     r = zero(g)
@@ -177,7 +188,7 @@ is only trusted in locally convex regions so that it is not drawn to saddles and
 `z₀` holds the clamp values on hard coordinates and the soft targets elsewhere; `ρ` is the
 precision vector, `Inf` for a hard clamp (cf. [`precision_vector`](@ref)).
 """
-function implicit_infer(m::ImplicitDiffusion, z₀, ρ, ps, st;
+function implicit_infer(m::AbstractImplicitRelation, z₀, ρ, ps, st;
                         z_init = z₀, tol = 1e-9, maxiters::Integer = 200, step = 0.05)
     free = .!isinf.(ρ)
     z = float.(copy(z_init))
@@ -244,7 +255,7 @@ the Jacobians are evaluated at ``z^\\star`` afresh. Throws if `sol` did not conv
 implicit function theorem says nothing about a point that is not a root
 (`Backpropagation through Implicit Inference.md` §6).
 """
-function implicit_pullback(m::ImplicitDiffusion, sol::ImplicitSolution, z₀, ρ, z̄, ps, st)
+function implicit_pullback(m::AbstractImplicitRelation, sol::ImplicitSolution, z₀, ρ, z̄, ps, st)
     sol.converged || throw(ArgumentError(
         "implicit_pullback at a non-converged state (residual $(sol.residual)): the implicit " *
         "function theorem does not apply. Re-solve, or use an unrolled/one-step surrogate."))
@@ -256,12 +267,7 @@ function implicit_pullback(m::ImplicitDiffusion, sol::ImplicitSolution, z₀, ρ
     λF = -(Jff' \ z̄[free])
     λ = zero(float.(z)); λ[free] .= λF
 
-    ps̄ = _zero(ps)
-    for k in (_hasparams(ps) ? eachindex(m.nodes.t) : ())
-        t = m.nodes.t[k]
-        g = epsilon_vjp_params(m.predictor, _node_input(m, z, k), t, ps, st, λ)
-        ps̄ = _axpy(m.nodes.w[k] * _weight(m, t), g, ps̄)
-    end
+    ps̄ = _params_cotangent(m, z, λ, ps, st)
 
     z̄₀ = zero(float.(z))
     z̄₀[free] .= .-(ρ[free] .^ 2) .* λF
@@ -269,6 +275,17 @@ function implicit_pullback(m::ImplicitDiffusion, sol::ImplicitSolution, z₀, ρ
     ρ̄ = zero(float.(z))
     ρ̄[free] .= 2 .* ρ[free] .* (z[free] .- z₀[free]) .* λF
     return (z₀ = z̄₀, ρ = ρ̄, ps = ps̄)
+end
+
+# (∂_θ g)ᵀ λ: the parameter part of the adjoint, one VJP per node
+function _params_cotangent(m::ImplicitDiffusion, z, λ, ps, st)
+    ps̄ = _zero(ps)
+    for k in (_hasparams(ps) ? eachindex(m.nodes.t) : ())
+        t = m.nodes.t[k]
+        g = epsilon_vjp_params(m.predictor, _node_input(m, z, k), t, ps, st, λ)
+        ps̄ = _axpy(m.nodes.w[k] * _weight(m, t), g, ps̄)
+    end
+    return ps̄
 end
 
 # --- As a factor's inversion ----------------------------------------------------

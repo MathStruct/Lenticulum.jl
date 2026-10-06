@@ -7,7 +7,7 @@
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
-## The chain, in ten files
+## The chain, in eleven files
 
 | file | note | supplies |
 |---|---|---|
@@ -19,6 +19,7 @@
 | `kernel.jl` | [[kernel]] | kernel density estimates as relations: batch KDE with bandwidth selection, an online forgetting KDE |
 | `implicit.jl` | [[implicit]] | deterministic implicit inference and its adjoint backward pass |
 | `energy_network.jl` | [[energy_network]] | energy-parametrised predictors: $\varepsilon = \sigma_t\nabla_x E_\theta$, a conservative score, an energy for the relation |
+| `product.jl` | [[product]] | products of relations on the same variables: intersections, with the adjoint into every factor |
 | `implicit_factor.jl` | [[implicit_factor]] | `DiffusionFactor` with `ImplicitProx`: report and per-channel pullback |
 | `proxdm.jl` | [[proxdm]] | proximal diffusion models: prox interface, exact oracle, sampler, proximal inference |
 | `ext/` | [[backends]] | the network's derivatives through any AD backend (DifferentiationInterface, Reactant) |
