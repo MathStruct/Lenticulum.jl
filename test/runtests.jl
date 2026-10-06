@@ -706,3 +706,38 @@ end
 end
 
 end
+
+@testset "belief algebra: Gaussian mixtures, moment matching, reduction" begin
+    dens(b, x) = exp(Mycelium.belief_logdensity(b, [x]))
+    xs = range(-6, 8; length = 20001); dx = step(xs)
+    m = LenticulumCore.MixtureBelief([Gaussian(-1.0, 0.3), Gaussian(2.0, 0.5)], [0.3, 0.7])
+    g = Gaussian(1.0, 1.0)
+    # the product of a mixture and a Gaussian, against numerical integration
+    pm = Mycelium.combine(m, g)
+    num = [dens(m, x) * dens(g, x) for x in xs]; num ./= sum(num) * dx
+    @test maximum(abs, num .- [dens(pm, x) for x in xs]) < 1e-10
+    # an uninformative (improper) message leaves the mixture unchanged
+    pu = Mycelium.combine(m, uninformative(1))
+    @test LenticulumCore.mixture_weights(pu) ≈ [0.3, 0.7]
+    @test belief_mean(pu.components[1]) ≈ [-1.0]
+    # mixture × mixture
+    m2 = LenticulumCore.MixtureBelief([Gaussian(0.0, 1.0), Gaussian(3.0, 0.2)], [0.5, 0.5])
+    pmm = Mycelium.combine(m, m2)
+    num2 = [dens(m, x) * dens(m2, x) for x in xs]; num2 ./= sum(num2) * dx
+    @test length(pmm.components) == 4
+    @test maximum(abs, num2 .- [dens(pmm, x) for x in xs]) < 1e-10
+    # moment matching: the analytic mean and variance of the mixture
+    mm = moment_match(m)
+    @test belief_mean(mm) ≈ [0.3 * -1 + 0.7 * 2]
+    @test belief_cov(mm) ≈ fill(0.3 * 0.3 + 0.7 * 0.5 + 0.3 * 2.1^2 + 0.7 * 0.9^2, 1, 1)
+    # reduction merges while preserving the overall mean and covariance
+    r = reduce_mixture(pmm; max_components = 2)
+    @test length(r.components) == 2
+    @test belief_mean(moment_match(r)) ≈ belief_mean(moment_match(pmm))
+    @test belief_cov(moment_match(r)) ≈ belief_cov(moment_match(pmm))
+    # samples reweighted by a Gaussian, then projected: the conjugate posterior mean
+    s = LenticulumCore.SampleBelief(2 .* randn(Xoshiro(1), 1, 200_000))      # prior N(0, 4)
+    post = moment_match(Mycelium.combine(s, g))
+    @test belief_mean(post)[1] ≈ (1 / 1) / (1 / 4 + 1) atol = 0.02
+    @test belief_cov(post)[1] ≈ 1 / (1 / 4 + 1) atol = 0.02
+end

@@ -30,7 +30,7 @@ The second was **not** in the design; the test suite found it. See [[Mycelium]] 
 
 ## Implementation difficulties
 
-### 1. `combine` is deliberately partial, and this is the package's main gap
+### 1. `combine` is deliberately partial (the main gap, now mostly closed)
 
 | case | result |
 |---|---|
@@ -38,16 +38,29 @@ The second was **not** in the design; the test suite found it. See [[Mycelium]] 
 | agreeing `DiracBelief`s | that Dirac |
 | **disagreeing** `DiracBelief`s | **throws** |
 | `DiracBelief` with anything | the Dirac |
+| `CategoricalBelief` with `CategoricalBelief` | elementwise product, renormalised; disjoint supports throw |
+| `SampleBelief` with a belief that has `belief_logdensity` | the samples, reweighted (warns if the effective sample size collapses) |
+| `MixtureBelief` with anything | componentwise products, weights scaled by each overlap (`_product` rules: categorical here, Gaussian in `Lenticulum`) |
+| two `SampleBelief`s | throws: neither has a density |
 | anything else | throws informatively |
+
+The sample and mixture rules live in the catch-all method, not in new two-argument methods:
+any `(Specific, Abstract)` method next to the existing `(Abstract, Dirac)` and `(Abstract, Trivial)`
+ones would create dispatch ambiguities (§1b), whereas the catch-all is only reached when no
+specific rule applies.
 
 Disagreeing Diracs throw rather than pick one because two hard clamps in contradiction is a
 *wiring* error, not a numerical one, and the error message says how to express the intended
 thing instead (a finite `Observed` precision — a soft clamp, per [[Channels and Polarity]]).
 
-Two `SampleBelief`s cannot be pooled without importance reweighting, which needs
-`belief_logdensity`, which no belief type implements. **Every downstream feature — particle
-messages, conjugate messages, moment matching — is blocked on this**, and it is the same open
-question [[open_model]] §4 records.
+Two `SampleBelief`s still cannot be pooled: neither has a density. A sample belief *can* now
+be pooled with anything that has one (Gaussian, categorical, mixture) by importance
+reweighting, and `moment_match` (in `Lenticulum`) projects samples onto a Gaussian, after which
+two particle sets can meet. The two concerns of §1c below are handled as follows: the
+effective sample size is computed on every reweighting and a collapse **warns** (below 10
+for large sample sets, below 1 % of the samples for medium ones, below 1.5 for tiny ones); and the missing idempotence is the correct
+behaviour of a product (pooling the same evidence twice counts it twice), so it is
+documented, not prevented. See [[Belief Algebra]], [[Categorical Belief]], [[Mixture Belief]].
 
 ### 1b. The unit law was unreachable for the one type that can be pooled
 

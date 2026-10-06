@@ -58,11 +58,12 @@ That intermediate object *is* a belief, and a denoising step *is* a message upda
 the question lands on diffusion LLMs rather than on GPT-style models — the machinery needs
 something to pass, and only the diffusion family has it mid-generation.
 
-## 3. The belief type this wants is the easiest one the project lacks
+## 3. The belief type this wants is the easiest one, and it now exists
 
 Text is discrete, so the belief over a position is a **categorical distribution over the
-vocabulary**. The project has `DiracBelief`, `GaussianBelief`, `SampleBelief`, `TrivialBelief`
-— and no categorical.
+vocabulary**. When this note was written the project had `DiracBelief`, `GaussianBelief`,
+`SampleBelief` and `TrivialBelief`, and no categorical; it now has one
+([[Categorical Belief]]), with exactly the pooling rule argued for below.
 
 That is worth adding, because it is the *cheap* one:
 
@@ -194,8 +195,8 @@ it does not require the composition of §7 to be exact.
 - **The framing is correct and clarifying**: it is a product not a mixture, energies add, and the
   residual is disagreement.
 - **The machinery is overkill for a star** (§4), and this project would be a poor vehicle
-  compared with adding scores directly in an established ML stack — there is no categorical
-  belief, no GPU path ([[Parallelism and Compilation]]) and no tokeniser.
+  compared with adding scores directly in an established ML stack — there is now a categorical
+  belief, but no GPU path for it ([[Parallelism and Compilation]]) and no tokeniser.
 - **Where it would genuinely pay**: heterogeneous spans, hard grammar and type constraints, and
   tool outputs as clamped variables — that is, when the graph is actually a graph.
 

@@ -64,6 +64,8 @@ observed nodes). Anything else throws rather than guess.
 """
 variable_entropy(::LenticulumCore.DiracBelief) = 0.0
 variable_entropy(::LenticulumCore.TrivialBelief) = 0.0
+variable_entropy(b::LenticulumCore.CategoricalBelief) =
+    -sum(l == -Inf ? 0.0 : exp(l) * l for l in b.logp)   # Shannon entropy, 0 log 0 = 0
 variable_entropy(b) = throw(ArgumentError(
     "no `variable_entropy` for $(typeof(b)). The Bethe counting correction needs the \
      entropy of each variable marginal; implement it for your belief representation."))

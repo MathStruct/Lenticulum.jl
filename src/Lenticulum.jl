@@ -42,6 +42,7 @@ include("constraint.jl")
 
 export GaussianBelief, Gaussian, uninformative
 export belief_mean, belief_cov, isproper, logpartition, kl_divergence
+export moment_match, reduce_mixture
 export GaussianFactor, GaussianPrior, LinearGaussianModel
 export LinearConstraintFactor, LinearConstraintModel
 export residual, residual_statistics

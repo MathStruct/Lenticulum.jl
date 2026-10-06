@@ -90,3 +90,18 @@ diag_of(C) = [C[i, i] for i in axes(C, 1)]
         @test H[:second] == 10.0
     end
 end
+
+@testset "categorical and mixture beliefs: construction" begin
+    b = CategoricalBelief([1, 3]; labels = [:a, :b])
+    @test probabilities(b) ≈ [0.25, 0.75]
+    @test b.labels == [:a, :b]
+    @test probabilities(bernoulli(0.2)) ≈ [0.8, 0.2]
+    @test_throws ArgumentError CategoricalBelief([-1, 2])
+    @test_throws ArgumentError CategoricalBelief([0, 0])
+    @test_throws ArgumentError CategoricalBelief([1, 2]; labels = [:a])
+    m = MixtureBelief([b, b], [1, 3])                  # raw weights, normalised
+    @test mixture_weights(m) ≈ [0.25, 0.75]
+    @test mixture_weights(MixtureBelief([b, b])) ≈ [0.5, 0.5]
+    @test_throws ArgumentError MixtureBelief(typeof(b)[])
+    @test_throws ArgumentError MixtureBelief([b, b], [1.0])
+end

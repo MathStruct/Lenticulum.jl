@@ -340,3 +340,38 @@ end
 end
 
 end
+
+@testset "belief algebra: categorical, mixture and sample beliefs" begin
+    a = CategoricalBelief([0.5, 0.3, 0.2]); b = CategoricalBelief([0.1, 0.1, 0.8])
+    c = combine(a, b)
+    @test probabilities(c) ≈ [0.05, 0.03, 0.16] ./ 0.24
+    @test probabilities(combine(b, a)) ≈ probabilities(c)                       # commutative
+    @test_throws ArgumentError combine(CategoricalBelief([1, 0]), CategoricalBelief([0, 1]))   # disjoint
+    @test_throws ArgumentError combine(a, CategoricalBelief([1, 1]))            # different support
+    @test combine(a, TrivialBelief()) === a
+    @test combine(a, DiracBelief(2)) isa DiracBelief                            # a clamp dominates
+    @test variable_entropy(CategoricalBelief([1, 1, 1, 1])) ≈ log(4)
+    @test variable_entropy(CategoricalBelief([1, 0])) == 0.0
+    @test belief_distance(a, b) ≈ 0.6
+    @test probabilities(damp(a, b, 0.25)) ≈ 0.25 .* [0.5, 0.3, 0.2] .+ 0.75 .* [0.1, 0.1, 0.8]
+    lab = CategoricalBelief([1, 3]; labels = [:x, :y])
+    @test belief_logdensity(lab, :y) ≈ log(0.75)
+    @test belief_logdensity(lab, :z) == -Inf
+
+    # a mixture of categoricals pooled with a categorical: the exact product
+    m = MixtureBelief([CategoricalBelief([1, 0, 0]), CategoricalBelief([0, 0.5, 0.5])], [0.5, 0.5])
+    mb = combine(m, b)
+    direct = [0.5, 0.25, 0.25] .* [0.1, 0.1, 0.8]
+    @test [exp(belief_logdensity(mb, k)) for k in 1:3] ≈ direct ./ sum(direct)
+    @test mixture_weights(mb) ≈ [0.05, 0.225] ./ 0.275
+
+    # samples reweighted by any belief with a density; two sample beliefs refuse
+    s = SampleBelief([1, 2, 3, 3])
+    rs = combine(s, b)
+    @test rs.weights ≈ [0.1, 0.1, 0.8, 0.8] ./ 1.8
+    @test combine(b, s).weights ≈ rs.weights
+    @test_throws ArgumentError combine(s, SampleBelief([1, 2]))
+    # a collapse of the effective sample size is reported, not silent
+    peaked = CategoricalBelief([1.0; fill(1e-12, 999)])
+    @test_logs (:warn, r"degenerated") combine(SampleBelief(collect(1:1000)), peaked)
+end

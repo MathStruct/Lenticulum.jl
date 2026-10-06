@@ -116,3 +116,73 @@ The unique belief on the one-point space ``1``. The prior argument of a factor w
 """
 struct TrivialBelief <: AbstractBelief end
 isexact(::TrivialBelief) = true
+
+"""
+    CategoricalBelief(p; labels = nothing)
+
+A distribution over a **finite set** ``\\{1, \\dots, K\\}`` (or over `labels`), stored as
+normalised log-probabilities `logp`. `p` is any non-negative vector with a positive sum; it is
+normalised. Pooling two categorical beliefs is elementwise multiplication and renormalisation:
+exact, associative, commutative, and always defined unless the two have disjoint support
+(`Belief Algebra.md`, `Categorical Belief.md`). [`bernoulli`](@ref) is the two-state case.
+"""
+struct CategoricalBelief{T<:Real,L} <: AbstractBelief
+    logp::Vector{T}
+    labels::L
+    # internal: already-normalised log-probabilities (used by the pooling rules)
+    CategoricalBelief(::Val{:log}, logp::Vector{T}, labels::L) where {T<:Real,L} = new{T,L}(logp, labels)
+end
+function CategoricalBelief(p::AbstractVector{<:Real}; labels = nothing)
+    any(<(0), p) && throw(ArgumentError("probabilities must be non-negative"))
+    s = sum(p)
+    s > 0 || throw(ArgumentError("probabilities must not all be zero"))
+    labels === nothing || length(labels) == length(p) ||
+        throw(ArgumentError("need one label per state: $(length(labels)) labels for $(length(p)) states"))
+    return CategoricalBelief(Val(:log), log.(float.(p) ./ s), labels === nothing ? nothing : collect(labels))
+end
+
+"""
+    probabilities(b::CategoricalBelief) -> Vector
+
+The probabilities of the states, ``\\exp`` of the stored log-probabilities.
+"""
+probabilities(b::CategoricalBelief) = exp.(b.logp)
+
+"""
+    bernoulli(p; labels = [false, true]) -> CategoricalBelief
+
+A two-state belief: probability `p` of the second state (`true`).
+"""
+bernoulli(p::Real; labels = [false, true]) = CategoricalBelief([1 - p, p]; labels)
+
+"""
+    MixtureBelief(components, weights = equal)
+
+A weighted mixture ``\\sum_k w_k\\, b_k`` of beliefs of one type, with normalised log-weights
+`logw`. It is how a belief holds **several answers at once**, e.g. both branches of a relation.
+Its density is the weighted sum of the components' densities; its product with another belief
+is again a mixture, with weights scaled by each component's overlap with that belief
+(`Mixture Belief.md`).
+"""
+struct MixtureBelief{B<:AbstractBelief,T<:Real} <: AbstractBelief
+    components::Vector{B}
+    logw::Vector{T}
+    # internal: already-normalised log-weights (used by the product and reduction rules)
+    MixtureBelief(::Val{:log}, components::Vector{B}, logw::Vector{T}) where {B<:AbstractBelief,T<:Real} =
+        new{B,T}(components, logw)
+end
+function MixtureBelief(components::AbstractVector{<:AbstractBelief}, weights::AbstractVector{<:Real} = fill(1.0, length(components)))
+    isempty(components) && throw(ArgumentError("a mixture needs at least one component"))
+    length(weights) == length(components) || throw(ArgumentError("need one weight per component"))
+    any(<(0), weights) && throw(ArgumentError("weights must be non-negative"))
+    s = sum(weights)
+    s > 0 || throw(ArgumentError("weights must not all be zero"))
+    return MixtureBelief(Val(:log), [c for c in components], log.(float.(weights) ./ s))
+end
+
+"""
+    mixture_weights(m::MixtureBelief) -> Vector
+
+The mixture weights, ``\\exp`` of the stored log-weights.
+"""
+mixture_weights(m::MixtureBelief) = exp.(m.logw)

@@ -142,7 +142,7 @@ Entry point: [[Algebraic Implicit Learners]].
 counterpart in Lux.
 
 - [[Beliefs]] — what travels on an edge: [[Trivial Belief]], [[Dirac Belief]], [[Gaussian Belief]],
-  [[Sample Belief]], and their one operation, `combine`
+  [[Sample Belief]], [[Categorical Belief]], [[Mixture Belief]], and how they pool (`combine`)
 - [[Belief Algebra]] — every other operation (addition, mixture, logic, projection, tempering) as a
   factor whose messages are the operation; what exists, what is missing, what to build first
 - [[Factor Graphs]] — bipartite structure; the **two** acyclicity notions (`istree` vs `isdag`)

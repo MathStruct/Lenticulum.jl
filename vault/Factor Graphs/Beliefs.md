@@ -23,7 +23,7 @@ that need no linear algebra. `GaussianBelief` lives in the top-level `Lenticulum
 which no `lib/` package may depend on — the reason the equilibrium and diffusion factors
 cannot yet return Gaussian messages ([[DEQ as a Relation]] §5, [[The Diffusion Factor]] §5).
 
-## The four types
+## The six types
 
 | type | represents | where | `isexact` | typical source |
 |---|---|---|---|---|
@@ -31,6 +31,8 @@ cannot yet return Gaussian messages ([[DEQ as a Relation]] §5, [[The Diffusion 
 | [[Dirac Belief]] | a point mass, $\delta_x$ | `LenticulumCore` | true | an observation (a hard clamp), a point inference |
 | [[Gaussian Belief]] | $\mathcal N$ in canonical form $(\eta, \Lambda)$, possibly improper | `Lenticulum` | false (the default) | Gaussian factors, Laplace approximations |
 | [[Sample Belief]] | a weighted particle set | `LenticulumCore` | false | samplers, the fallback |
+| [[Categorical Belief]] | a distribution over finitely many states | `LenticulumCore` | false | discrete variables, switches, Bernoulli events |
+| [[Mixture Belief]] | a weighted sum of beliefs of one type | `LenticulumCore` | false | several answers at once (branches), Gaussian-sum filters |
 
 `isexact` says whether a computed belief is exact rather than approximate. It defaults to
 `false` so that silence never implies exactness; only the Trivial and Dirac beliefs override it.
@@ -49,18 +51,26 @@ implements exactly the cases it can do honestly:
 | Dirac with Gaussian, Sample or Trivial | the Dirac | a hard clamp is the $\Lambda \to \infty$ limit and dominates |
 | two equal Diracs | that Dirac | idempotent |
 | two different Diracs | **error** | contradictory hard clamps are a modelling error |
-| anything else (e.g. two Sample beliefs) | **error** | needs densities (`belief_logdensity`) and importance reweighting |
+| Categorical with Categorical | elementwise product, renormalised | exact and total; **error** only for disjoint supports |
+| Sample with anything that has a density | the samples, **reweighted** by that density | importance reweighting |
+| Mixture with anything | each component pooled, weights scaled by its overlap | exact for Gaussian and categorical components |
+| two Sample beliefs | **error** | neither has a density; project one first (`moment_match`) |
+| anything else | **error** | no rule for the pair |
 
 So beliefs form a partial commutative monoid under `combine`, with the Trivial belief as unit
-and the Dirac beliefs as absorbing elements. Gaussians are the one family closed under it,
-which is why Gaussian belief propagation is exact on trees ([[The Linear Gaussian Chain]]).
+and the Dirac beliefs as absorbing elements. Gaussians and categoricals are closed under it,
+which is why Gaussian belief propagation is exact on trees ([[The Linear Gaussian Chain]]);
+mixtures are closed too, at the price of growing (`reduce_mixture` bounds them). The rest of
+the catalogue (addition, logic, projection, tempering) is in [[Belief Algebra]].
 
 ## Other operations
 
 - `belief_distance(a, b)` — how much a message changed, the convergence test of
   `propagate!`. It returns `Inf` whenever it cannot tell, so that a schedule never declares
   convergence it cannot verify.
-- `belief_logdensity(b, x)` — $\log p_b(x)$; implemented for Gaussians only.
+- `belief_logdensity(b, x)` — $\log p_b(x)$; for Gaussians, categoricals (``x`` a state or label) and mixtures.
+- `moment_match(b)` — the Gaussian with the same mean and covariance (samples, Gaussian mixtures); the projection step of expectation propagation.
+- `reduce_mixture(m; max_components)` — merge Gaussian mixture components, preserving mean and covariance.
 - `variable_entropy(b)` — the entropy in the [[Bethe Free Energy]]; for Gaussians it can be negative.
 
 Everything else one might do with beliefs (addition, mixture, logic, projection, tempering)

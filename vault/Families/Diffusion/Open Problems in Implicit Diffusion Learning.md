@@ -108,11 +108,13 @@ smoothed ridges?). In flat regions far from data, descent stalls and the solver 
 
 ## Part II. Missing implementation
 
-### I1. All branches: mixture beliefs and conditional sampling
+### I1. All branches: mixture beliefs and conditional sampling — **partly done**
 
-Design known: a mixture belief type ([[Belief Algebra]] §4, item 2), multi-start inference
-returning the distinct stable roots, and a conditional sampler (DPS-like, or ProxDM's sampler
-with the clamp) for branch frequencies. None exists; point inference only.
+Built: multi-start inference returning the distinct stable roots (`implicit_roots`), their
+Laplace covariances (`implicit_laplace`), and a mixture belief type that can hold them
+([[Mixture Belief]]). Missing: assembling those into a `MixtureBelief` answer with principled
+branch weights (the energy at each root suggests one, for energy networks), and a conditional
+sampler (DPS-like, or ProxDM's sampler with the clamp) for branch frequencies.
 
 ### I2. Uncertainty: a Gaussian answer — **done (as a covariance)**
 
@@ -184,7 +186,7 @@ nonlinear Gaussian factors and Gauss–Newton in the graph, which Lenticulum doe
 | T9 | composition at $t > 0$ | known obstruction, approximate remedies |
 | T10 | posterior messages | open design problem |
 | T11 | convergence, existence, identifiability | open |
-| I1 | mixture beliefs, conditional sampling | missing |
+| I1 | mixture beliefs, conditional sampling | partly done: roots, Laplace, mixture type; no branch weights, no sampler |
 | I2 | Laplace (Gaussian) answers | done as a covariance; not yet a belief |
 | I3 | Gaussian messages from `lib/` | missing (package layout) |
 | I4 | restarts after unstable solves | done |

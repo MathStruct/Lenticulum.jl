@@ -64,6 +64,7 @@ export energy, entropy, scalar_energy
 
 # --- Models and lenses -----------------------------------------------------
 export OpenModelResult, DiracBelief, SampleBelief, TrivialBelief
+export CategoricalBelief, MixtureBelief, probabilities, bernoulli, mixture_weights
 export forward, logdensity, pushforward, isexact, ispure
 export latentspace, observedspace, unobservedspace
 export BayesianLens, ComposedLens, TensorLens, invert, compose

@@ -100,20 +100,118 @@ combine(::LenticulumCore.AbstractBelief, b::LenticulumCore.DiracBelief) = b
 combine(a::LenticulumCore.DiracBelief, ::LenticulumCore.TrivialBelief) = a
 combine(::LenticulumCore.TrivialBelief, b::LenticulumCore.DiracBelief) = b
 
-combine(a::LenticulumCore.AbstractBelief, b::LenticulumCore.AbstractBelief) =
+# --- categorical: elementwise product, exact and total ---------------------------------
+function combine(a::LenticulumCore.CategoricalBelief, b::LenticulumCore.CategoricalBelief)
+    _same_support(a, b) || throw(ArgumentError(
+        "categorical beliefs over different supports ($(length(a.logp)) vs $(length(b.logp)) states, or different labels)"))
+    l = a.logp .+ b.logp
+    m = maximum(l)
+    m == -Inf && throw(ArgumentError(
+        "contradictory categorical beliefs: their supports are disjoint, so the product is zero everywhere"))
+    return LenticulumCore.CategoricalBelief(Val(:log), l .- (m + log(sum(exp.(l .- m)))), a.labels)
+end
+_same_support(a, b) = length(a.logp) == length(b.logp) && a.labels == b.labels
+
+# The catch-all. Specific rules above (and in other packages) win whenever they apply; what
+# reaches this method is handled by representation-independent rules where they exist:
+#   - a SampleBelief pooled with anything that has a density: importance reweighting;
+#   - a MixtureBelief pooled with anything: the product of each component, reweighted by its
+#     overlap (needs a `_product` rule for the component types);
+# and otherwise refused, informatively.
+function combine(a::LenticulumCore.AbstractBelief, b::LenticulumCore.AbstractBelief)
+    if a isa LenticulumCore.SampleBelief && b isa LenticulumCore.SampleBelief
+        throw(ArgumentError(
+            "cannot pool two sample beliefs: neither has a density to reweight the other by. \
+             Project one onto a parametric family first (e.g. a Gaussian by moment matching)."))
+    end
+    a isa LenticulumCore.SampleBelief && return _reweight(a, b)
+    b isa LenticulumCore.SampleBelief && return _reweight(b, a)
+    (a isa LenticulumCore.MixtureBelief || b isa LenticulumCore.MixtureBelief) && return _mixture_product(a, b)
     throw(ArgumentError(
-        "no `combine` method for $(typeof(a)) and $(typeof(b)). Pooling general beliefs \
-         requires densities (importance reweighting); implement `Mycelium.combine` for \
-         your belief representation, or `belief_logdensity` and use the generic path."))
+        "no `combine` method for $(typeof(a)) and $(typeof(b)). Implement `Mycelium.combine` for \
+         this pair, or `belief_logdensity` so that sample beliefs can be reweighted by it."))
+end
+
+# --- sample beliefs: importance reweighting by the other belief's density --------------
+_points(s::LenticulumCore.SampleBelief) = s.samples isa AbstractMatrix ? collect(eachcol(s.samples)) : s.samples
+
+function _reweight(s::LenticulumCore.SampleBelief, b)
+    pts = _points(s)
+    hasmethod(belief_logdensity, Tuple{typeof(b),typeof(first(pts))}) || throw(ArgumentError(
+        "cannot reweight samples by a $(typeof(b)): it has no `belief_logdensity`"))
+    logw0 = s.weights === nothing ? zeros(length(pts)) : log.(s.weights)
+    l = logw0 .+ [belief_logdensity(b, x) for x in pts]
+    m = maximum(l)
+    m == -Inf && throw(ArgumentError("every sample has zero density under the other belief: disjoint supports"))
+    w = exp.(l .- m)
+    w ./= sum(w)
+    ess = 1 / sum(abs2, w)                                    # effective sample size
+    ess < max(1.5, min(10, 0.01 * length(w))) && @warn(
+        "importance reweighting degenerated: effective sample size $(round(ess; digits = 1)) of $(length(w)) samples. \
+         The pooled belief is unreliable; use more samples or a parametric belief.", maxlog = 1)
+    return LenticulumCore.SampleBelief(s.samples, w)
+end
+
+# --- mixtures: componentwise products, weighted by their overlap -----------------------
+"""
+    _product(c, d) -> (belief, logZ)
+
+The pooled belief of two components and ``\\log Z``, the logarithm of their overlap
+``\\int p_c\\,p_d``, up to a constant that may depend on `d` alone (so that an improper `d`,
+e.g. an uninformative Gaussian message, is allowed when it is not itself a mixture component).
+Implemented for categorical pairs here and for Gaussian pairs in `Lenticulum`.
+"""
+function _product end
+
+function _product(c::LenticulumCore.CategoricalBelief, d::LenticulumCore.CategoricalBelief)
+    l = c.logp .+ d.logp
+    m = maximum(l)
+    logZ = m == -Inf ? -Inf : m + log(sum(exp.(l .- m)))
+    return (logZ == -Inf ? c : combine(c, d)), logZ
+end
+
+_parts(m::LenticulumCore.MixtureBelief) = (m.components, m.logw)
+_parts(b) = ([b], [0.0])
+
+function _mixture_product(a, b)
+    (ca, la), (cb, lb) = _parts(a), _parts(b)
+    comps, logw = Any[], Float64[]
+    for (i, c) in enumerate(ca), (j, d) in enumerate(cb)
+        hasmethod(_product, Tuple{typeof(c),typeof(d)}) || throw(ArgumentError(
+            "no product rule for mixture components of types $(typeof(c)) and $(typeof(d))"))
+        cd, logZ = _product(c, d)
+        logZ == -Inf && continue                              # disjoint: this pair contributes nothing
+        push!(comps, cd); push!(logw, la[i] + lb[j] + logZ)
+    end
+    isempty(comps) && throw(ArgumentError("contradictory beliefs: every component pair has disjoint support"))
+    m = maximum(logw)
+    logw .-= m + log(sum(exp.(logw .- m)))
+    return LenticulumCore.MixtureBelief(Val(:log), [c for c in comps], logw)
+end
 
 """
     belief_logdensity(b::AbstractBelief, x) -> Real
 
-``\\log p_b(x)``. Not implemented by any `LenticulumCore` belief type yet; it is the missing
-piece that would make a generic [`combine`](@ref) possible. Declared here so that downstream
-belief representations have a name to extend.
+``\\log p_b(x)``. Implemented for categorical beliefs (``x`` a state index or label), mixtures
+(the log of the weighted sum of the components' densities) and, in `Lenticulum`, Gaussians.
+Any belief with a density can reweight a `SampleBelief` in [`combine`](@ref).
 """
 function belief_logdensity end
+
+function belief_logdensity(b::LenticulumCore.CategoricalBelief, x)
+    if b.labels === nothing
+        x isa Integer || throw(ArgumentError("a categorical belief without labels takes a state index"))
+        return 1 ≤ x ≤ length(b.logp) ? b.logp[x] : -Inf
+    end
+    k = findfirst(==(x), b.labels)
+    return k === nothing ? -Inf : b.logp[k]
+end
+
+function belief_logdensity(m::LenticulumCore.MixtureBelief, x)
+    l = m.logw .+ [belief_logdensity(c, x) for c in m.components]
+    mx = maximum(l)
+    return mx == -Inf ? -Inf : mx + log(sum(exp.(l .- mx)))
+end
 
 """
     belief_distance(a, b) -> Real
@@ -132,6 +230,8 @@ belief_distance(::LenticulumCore.TrivialBelief, ::LenticulumCore.TrivialBelief) 
 function belief_distance(a::LenticulumCore.DiracBelief, b::LenticulumCore.DiracBelief)
     return a.value == b.value ? 0.0 : _numeric_distance(a.value, b.value)
 end
+belief_distance(a::LenticulumCore.CategoricalBelief, b::LenticulumCore.CategoricalBelief) =
+    _same_support(a, b) ? sum(abs, exp.(a.logp) .- exp.(b.logp)) / 2 : Inf   # total variation
 belief_distance(::LenticulumCore.AbstractBelief, ::LenticulumCore.AbstractBelief) = Inf
 
 _numeric_distance(a::Number, b::Number) = abs(float(a - b))
@@ -207,3 +307,6 @@ can_damp(a::LenticulumCore.DiracBelief{<:Union{Number,AbstractArray}},
          b::LenticulumCore.DiracBelief{<:Union{Number,AbstractArray}}) = true
 _damp(a::LenticulumCore.DiracBelief, b::LenticulumCore.DiracBelief, α::Real) =
     LenticulumCore.DiracBelief(α .* a.value .+ (1 - α) .* b.value)
+can_damp(a::LenticulumCore.CategoricalBelief, b::LenticulumCore.CategoricalBelief) = _same_support(a, b)
+_damp(a::LenticulumCore.CategoricalBelief, b::LenticulumCore.CategoricalBelief, α::Real) =
+    LenticulumCore.CategoricalBelief(α .* exp.(a.logp) .+ (1 - α) .* exp.(b.logp); labels = a.labels)

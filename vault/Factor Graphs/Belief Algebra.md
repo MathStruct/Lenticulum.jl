@@ -37,14 +37,14 @@ building blocks.
 | operation | as a factor | on beliefs | Gaussian | Dirac | Sample | status |
 |---|---|---|---|---|---|---|
 | **identification** $x = y$ | equality node; the copy map of a Markov category | product of the incoming beliefs | exact | absorbing | needs densities | implicit: a variable node *is* an equality node |
-| **fusion** (pooling) | the variable node | product of densities, normalised | add $(\eta, \Lambda)$ | absorbing | importance reweighting | `combine`: Gaussian, Dirac, Trivial ([[Beliefs]]) |
+| **fusion** (pooling) | the variable node | product of densities, normalised | add $(\eta, \Lambda)$ | absorbing | importance reweighting | `combine`: Gaussian, Dirac, Trivial, categorical; samples reweighted by any density; mixtures componentwise ([[Beliefs]]) |
 | **addition**, linear maps $z = Ax + By$ | linear factor | convolution / deconvolution | exact | shift | pairwise sums (forward) | Gaussian through the linear factors only |
 | **deterministic function** $z = f(x)$ | function factor | forward: pushforward; backward: inversion | linearised or unscented | exact | exact forward | forward `pushforward`; backward is the implicit learners' job |
-| **mixture** | factor with a categorical switch $s$, $p(x \mid s)$ | weighted sum of components | a Gaussian mixture | a weighted point set | union with weights | **missing**: no mixture belief |
+| **mixture** | factor with a categorical switch $s$, $p(x \mid s)$ | weighted sum of components | a Gaussian mixture | a weighted point set | union with weights | `MixtureBelief` ([[Mixture Belief]]): density, products, `reduce_mixture`; the switch factor itself is not built |
 | **marginalisation** | delete a wire (the delete map) | integrate out | drop blocks | drop coordinates | drop coordinates | Gaussian only, inside the linear-Gaussian code |
 | **conditioning** | clamp | restrict and renormalise | Schur complement | | reweight | Gaussian only |
-| **logic**: implication, AND, OR, XOR | factor on Bernoulli variables | discrete sum-product | | | | **missing**: no discrete beliefs |
-| **projection onto a family** | moment matching | the nearest Gaussian in $\mathrm{KL}(p \Vert q)$ | identity | degenerate | sample moments | **missing**; the EP step |
+| **logic**: implication, AND, OR, XOR | factor on Bernoulli variables | discrete sum-product | | | | beliefs exist ([[Categorical Belief]]); the logic factors are not built |
+| **projection onto a family** | moment matching | the nearest Gaussian in $\mathrm{KL}(p \Vert q)$ | identity | degenerate | sample moments | `moment_match` for samples and Gaussian mixtures; an EP outcome factor is not built |
 | **tempering** $p^\alpha$, **division** $p/q$ | power EP, cavity distributions, counting numbers | scale / subtract natural parameters | exact | | | missing as operations; `counting_number` in `Mycelium` already assumes them |
 | **composition with a kernel** | transition factor (a random walk in time) | Chapman–Kolmogorov | exact for linear-Gaussian | | propagate particles | Gaussian through the linear factors |
 | **max instead of sum** | the semiring | max-product: MAP rather than marginals | same algebra, different meaning | natural | | not a separate mode; point inference already behaves this way |
@@ -60,6 +60,11 @@ needs densities, and can fail (two contradictory Diracs). Everything else in the
 easy in principle; fusion and projection are where the approximations live.
 
 ## 4. What to build, by what it unlocks
+
+Status: items 1–3 are **built** (categorical and mixture beliefs, densities, sample
+reweighting, mixture products and reduction, `moment_match`); item 4 and the relocation of
+§6 are not. What is still missing from item 1 is an actual EP *factor* (e.g. a probit
+win/draw/loss likelihood) that uses `moment_match`.
 
 1. **`belief_logdensity` beyond Gaussians, and moment projection (EP).** Pooling of Sample
    beliefs (densities exist for Gaussians only, [[Beliefs]]), and the first
