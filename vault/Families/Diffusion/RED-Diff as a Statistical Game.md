@@ -4,6 +4,8 @@
 
 > Sources: Mardani et al. 2023, [arXiv:2305.04391](https://arxiv.org/abs/2305.04391), read as AutoBayes Definition 20 — and the sharpest thing this vault has to say about the method: **its regularisation weight λ is derivable, not merely tunable, and one scalar λ cannot fit a correlated prior
 >
+> Bibliography: [[Bibliography#^mardani2024reddiff|Mardani et al. 2024]]
+>
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 ## 1. Don't sample the reverse SDE — optimise

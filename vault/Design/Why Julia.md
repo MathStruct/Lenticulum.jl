@@ -8,7 +8,9 @@
 > small heterogeneous factors, solvers inside differentiable programs, query directions chosen
 > at run time) is exactly where that matters. The costs are real and listed at the end.
 
-> Sources: Bezanson, Edelman, Karpinski & Shah, *Julia: A Fresh Approach to Numerical Computing*, SIAM Review 2017; Bezanson et al., *Julia: dynamism and performance reconciled by design*, OOPSLA 2018; Paszke et al., *PyTorch*, NeurIPS 2019; Ansel et al., *PyTorch 2*, ASPLOS 2024; Frostig, Johnson & Leary, *Compiling machine learning programs via high-level tracing*, SysML 2018; Bradbury et al., *JAX* (software); Moses & Churavy, *Enzyme*, NeurIPS 2020; Innes, *Don't Unroll Adjoint*, 2018 (Zygote); Revels, Lubin & Papamarkou, *Forward-Mode Automatic Differentiation in Julia*, 2016; full entries in [[Bibliography]]. Evidence from this repository: `lib/VariationalDiffusion.jl/ext/`, `energy.jl`, `implicit.jl`, `LenticulumCore/channels.jl`, `Mycelium/messages.jl`, the documentation's tutorials
+> Sources: Bezanson, Edelman, Karpinski & Shah, *Julia: A Fresh Approach to Numerical Computing*, SIAM Review 2017; Bezanson et al., *Julia: dynamism and performance reconciled by design*, OOPSLA 2018; Paszke et al., *PyTorch*, NeurIPS 2019; Ansel et al., *PyTorch 2*, ASPLOS 2024; Frostig, Johnson & Leary, *Compiling machine learning programs via high-level tracing*, SysML 2018; Bradbury et al., *JAX* (software); Moses & Churavy, *Enzyme*, NeurIPS 2020; Innes, *Don't Unroll Adjoint*, 2018 (Zygote); Revels, Lubin & Papamarkou, *Forward-Mode Automatic Differentiation in Julia*, 2016; full entries in [[Bibliography]]. Evidence from this repository: `lib/VariationalDiffusion.jl/ext/`, `energy_network.jl`, `implicit.jl`, `LenticulumCore/channels.jl`, `Mycelium/messages.jl`, the documentation's tutorials
+>
+> Bibliography: [[Bibliography#^bezanson2017julia|Bezanson et al. 2017]] · [[Bibliography#^bezanson2018dynamism|Bezanson et al. 2018]] · [[Bibliography#^paszke2019pytorch|Paszke et al. 2019]] · [[Bibliography#^ansel2024pytorch2|Ansel et al. 2024]] · [[Bibliography#^frostig2018jax|Frostig et al. 2018]] · [[Bibliography#^bradbury2018jax|Bradbury et al. 2018]] · [[Bibliography#^innes2019zygote|Innes 2018]] · [[Bibliography#^revels2016forwarddiff|Revels et al. 2016]]
 >
 > Theory (CT-ML wiki): [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens)
 
@@ -49,7 +51,7 @@ compiled LLVM IR), ForwardDiff through dual numbers that flow through any generi
   energy-parametrised `EnergyNetwork`: the type parameter of the wrapped model selects the
   methods for `epsilon`, its Jacobian and its parameter derivative, and every function
   downstream (the implicit learner, the factor, RED-Diff) accepts all three unchanged
-  ([[energy]] §2).
+  ([[energy_network]] §2).
 
 **Polarity lives in the type domain, so each query direction is specialised by the compiler.**
 `Polarity{names,…}` carries the channel names as type parameters ([[Channels and Polarity]]).
@@ -63,7 +65,7 @@ derivatives). One 124-line extension through DifferentiationInterface gives Zygo
 ForwardDiff, Enzyme and Mooncake; one 76-line extension gives Reactant, i.e. XLA compilation
 with Enzyme inside, the JAX-style path *when* it fits ([[backends]]). Nested derivatives for
 the energy networks (forward-mode over Zygote, through Lux layers) worked without special
-support ([[energy]] §4).
+support ([[energy_network]] §4).
 
 **The scientific ecosystem is native.** The tutorials use, side by side and without glue code:
 Lux for networks, Optimisers, three AD systems, an ODE integrator written in a few lines,
@@ -117,7 +119,7 @@ research. If it matures, the ideas in this vault carry over; the code would not.
 - **AD is powerful but uneven.** Measured here: Zygote rejects array mutation (the time embedding
   and parameter rebuild had to be rewritten), Enzyme needs runtime activity on Lux layers on
   CPU, and Enzyme's forward-over-reverse fails on Lux layers, so energy networks use
-  ForwardDiff-over-Zygote instead ([[backends]] §7, [[energy]] §4).
+  ForwardDiff-over-Zygote instead ([[backends]] §7, [[energy_network]] §4).
 - **Type stability is the programmer's job.** Code that hides types from the compiler is slow;
   the fast path needs some discipline ([[Parallelism and Compilation]]).
 - **A smaller community.** Fewer pretrained models, fewer people to hire, fewer answers online.
@@ -132,4 +134,4 @@ program at no extra cost, and dispatches into everyone else's code by type.** A 
 users define the factors, the beliefs and the solvers needs exactly that.
 
 Related: [[Related Julia Projects]], [[Parallelism and Compilation]], [[The Type Discipline of a Factor Graph]],
-[[Channels and Polarity]], [[Belief Algebra]], [[backends]], [[energy]], [[Bibliography]]
+[[Channels and Polarity]], [[Belief Algebra]], [[backends]], [[energy_network]], [[Bibliography]]

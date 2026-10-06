@@ -7,6 +7,8 @@
 
 > Sources: original to this vault (design and analysis), collecting results from the notes and tutorials linked below; Du et al., *Reduce, Reuse, Recycle*, ICML 2023 (composition at $t > 0$); Chung et al., *Diffusion Posterior Sampling*, ICLR 2023 (conditional sampling)
 >
+> Bibliography: [[Bibliography#^du2023reduce|Du et al. 2023]] · [[Bibliography#^chung2023dps|Chung et al. 2023]]
+>
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion)
 
 The companion ledger for the algebraic family is [[Open Problems in Algebraic Implicit Learning]];
@@ -48,7 +50,7 @@ Observed: tutorial *Train a small diffusion model* (unstable answers near $x = \
 Clamping $x = 1.05$, just off the circle, returns the ridge point on that line with zero
 residual: the clamped problem *has* a root. Whether the right answer is that point, a refusal,
 or a point with a flag is a modelling decision without an agreed answer. Energy-parametrised
-models at least provide the number to decide with ($U$ at the answer, [[energy]] §3);
+models at least provide the number to decide with ($U$ at the answer, [[energy_network]] §3);
 ε-networks provide nothing comparable.
 
 ### T5. Coverage and out-of-distribution queries — **open**
@@ -65,7 +67,7 @@ statistics).
 A network that outputs $\varepsilon$ directly is not the gradient of anything (2.6% Jacobian
 asymmetry on the circle). Then the relation has no energy, "stable" uses the symmetric part
 of the Jacobian as a heuristic, and two answers cannot be compared. The energy
-parametrisation removes the problem by construction ([[energy]]); what remains open is
+parametrisation removes the problem by construction ([[energy_network]]); what remains open is
 whether the extra cost (about 3× in training, second derivatives everywhere) is always worth
 it, and how much the asymmetry of a well-trained ε-network matters in practice.
 
@@ -140,7 +142,7 @@ before anything beyond a handful of dimensions ([[backends]] §5).
 ### I6. Energy networks on every backend
 
 Second derivatives work with Zygote and ForwardDiff-over-Zygote; Enzyme's forward-over-reverse
-fails on Lux layers, and Reactant is not wired for energy models ([[energy]] §4, §7).
+fails on Lux layers, and Reactant is not wired for energy models ([[energy_network]] §4, §7).
 
 ### I7. ProxDM, completed
 
@@ -195,5 +197,5 @@ nonlinear Gaussian factors and Gauss–Newton in the graph, which Lenticulum doe
 | I11 | nonlinear factors | missing (Lenticulum-wide) |
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]], [[Backpropagation through Implicit Inference]],
-[[The Diffusion Factor]], [[The Implicit Diffusion Factor as a Statistical Game]], [[energy]],
+[[The Diffusion Factor]], [[The Implicit Diffusion Factor as a Statistical Game]], [[energy_network]],
 [[proxdm]], [[backends]], [[Belief Algebra]], [[Open Problems in Algebraic Implicit Learning]]

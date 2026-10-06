@@ -10,6 +10,8 @@
 
 > Sources: Willems, *The Behavioral Approach to Open and Interconnected Systems*, IEEE CSM 2007; Ghani, Hedges, Winschel & Zahn, *Compositional Game Theory*, [arXiv:1603.04641](https://arxiv.org/abs/1603.04641); Friston, *The free-energy principle: a unified brain theory?*, Nat. Rev. Neurosci. 2010; Friston et al., *Active Inference: A Process Theory*, Neural Computation 2017; [RxInfer.jl](https://github.com/ReactiveBayes/RxInfer.jl) and [ForneyLab.jl](https://github.com/biaslab/ForneyLab.jl); Feldbaum, *Dual control theory* I–IV, 1960–61
 >
+> Bibliography: [[Bibliography#^willems2007behavioral|Willems 2007]] · [[Bibliography#^ghani2018compositional|Ghani et al. 2018]] · [[Bibliography#^friston2010free|Friston 2010]] · [[Bibliography#^friston2017active|Friston et al. 2017]] · [[Bibliography#^feldbaum1960dual|Feldbaum 1960]]
+>
 > Theory (CT-ML wiki): [Hypergraph Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Hypergraph-Category) · [Compact Closed Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Compact-Closed-Category) · [Open Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Game) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 ## 1. The picture

@@ -253,7 +253,7 @@ fig
 # [training tutorial](@ref tutorial-train) has a visibly asymmetric Jacobian. The energy version,
 # class C or D, is [`EnergyNetwork`](@ref): the network outputs a scalar ``E_\theta`` and
 # ``\varepsilon_\theta = \sigma_t\nabla_x E_\theta``, so the score is a gradient by construction
-# (implementation note `energy.md`).
+# (implementation note `energy_network.md`).
 
 #
 # ## References

@@ -7,6 +7,8 @@
 > (`reddiff.jl`, `factor.jl`).
 
 > Sources: original to this vault (design and analysis; no single paper). Builds on Mardani, Song, Kautz & Vahdat, *A Variational Perspective on Solving Inverse Problems with Diffusion Models* (2023) — [arXiv:2305.04391](https://arxiv.org/abs/2305.04391); Fang, Díaz, Buchanan & Sulam, *Beyond Scores: Proximal Diffusion Models* (2025) — [arXiv:2507.08956](https://arxiv.org/abs/2507.08956); the [Implicit Layers tutorial](https://implicit-layers-tutorial.org/); code: `reddiff.jl`, `factor.jl`
+>
+> Bibliography: [[Bibliography#^mardani2024reddiff|Mardani et al. 2024]] · [[Bibliography#^fang2025proxdm|Fang et al. 2025]]
 
 ## Implicit learning: relations instead of functions
 

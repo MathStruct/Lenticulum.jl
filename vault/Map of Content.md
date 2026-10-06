@@ -190,7 +190,7 @@ neither exact nor a root-find but a **proximal solve**. Entry point:
   intrinsic) separated from missing implementation, each with its evidence
 - *alternatives*: [[ProxDM and Proximal Alternatives]] — DPS, ΠGDM, ProxDM, plug-and-play, and
   why RED-Diff was implemented first; ProxDM is now implemented ([[proxdm]])
-- *a conservative score*: [[energy]] — the network outputs an energy, $\varepsilon = \sigma_t\nabla E$;
+- *a conservative score*: [[energy_network]] — the network outputs an energy, $\varepsilon = \sigma_t\nabla E$;
   the learned relation gets a scalar energy, trained without nested AD in the loop
 - *small networks, any AD backend*: [[backends]] — Zygote, Enzyme, ForwardDiff or Reactant
   through one field; a 5k-parameter MLP trained, inferred with and differentiated through
@@ -234,7 +234,7 @@ Implementation notes live next to the code, per [[Start Here]]:
 **Lenticulum.jl** — [[constraint]] (`beliefs.md` and `gaussian.md` are not yet written)
 
 **VariationalDiffusion.jl** — [[VariationalDiffusion]], [[schedule]], [[predictor]],
-[[reddiff]], [[factor]], [[analytic]], [[implicit]], [[implicit_factor]], [[energy]], [[proxdm]], [[backends]]
+[[reddiff]], [[factor]], [[analytic]], [[implicit]], [[implicit_factor]], [[energy_network]], [[proxdm]], [[backends]]
 
 **ImplicitLayers.jl** — [[ImplicitLayers]], [[solve]], [[deq]], [[flow]], [[neuralode]],
 [[luxfactor]]

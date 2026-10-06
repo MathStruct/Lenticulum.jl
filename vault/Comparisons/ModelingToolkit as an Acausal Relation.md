@@ -10,6 +10,8 @@
 
 > Sources: Willems, *The Behavioral Approach to Open and Interconnected Systems*, IEEE Control Systems Magazine 27(6), 2007; [ModelingToolkit.jl documentation](https://docs.sciml.ai/ModelingToolkit/stable/); Pantelides, *The consistent initialization of differential-algebraic systems*, 1988
 >
+> Bibliography: [[Bibliography#^willems2007behavioral|Willems 2007]] · [[Bibliography#^pantelides1988consistent|Pantelides 1988]]
+>
 > Theory (CT-ML wiki): [Hypergraph Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Hypergraph-Category) · [Frobenius Monoid](https://mathstruct.org/CategoryTheory-ML-Wiki/Frobenius-Monoid) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 ## 1. The claim

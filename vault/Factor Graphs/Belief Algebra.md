@@ -8,6 +8,8 @@
 
 > Sources: Loeliger, *An introduction to factor graphs*, IEEE Signal Processing Magazine 2004; Loeliger, Dauwels, Hu, Korl, Ping & Kschischang, *The factor graph approach to model-based signal processing*, Proc. IEEE 2007 (message tables for equality, addition and matrix nodes); Minka, *Expectation Propagation for approximate Bayesian inference*, UAI 2001; Fritz, *A synthetic approach to Markov kernels, conditional independence and theorems on sufficient statistics*, Adv. Math. 2020 (Markov categories); code: `Mycelium/messages.jl` (`combine`), `LenticulumCore/open_model.jl` (`pushforward`)
 >
+> Bibliography: [[Bibliography#^loeliger2004intro|Loeliger 2004]] · [[Bibliography#^loeliger2007factor|Loeliger et al. 2007]] · [[Bibliography#^minka2001ep|Minka 2001]] · [[Bibliography#^fritz2020synthetic|Fritz 2020]]
+>
 > Theory (CT-ML wiki): [Markov Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Markov-Category) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens)
 
 ## 1. Operations are factors

@@ -6,6 +6,8 @@
 
 > Sources: Schmidt & Lipson, *Distilling free-form natural laws from experimental data*, Science 2009; Mangan, Brunton, Proctor & Kutz, *Inferring biological networks by sparse identification of nonlinear dynamics*, IEEE TMBMC 2016 (implicit SINDy); Kaheman, Kutz & Brunton, *SINDy-PI*, Proc. R. Soc. A 2020; Cranmer, *Interpretable Machine Learning for Science with PySR and SymbolicRegression.jl*, [arXiv:2305.01582](https://arxiv.org/abs/2305.01582), 2023; Cranmer et al., *Discovering Symbolic Models from Deep Learning with Inductive Biases*, NeurIPS 2020
 >
+> Bibliography: [[Bibliography#^schmidt2009distilling|Schmidt & Lipson 2009]] · [[Bibliography#^mangan2016inferring|Mangan et al. 2016]] · [[Bibliography#^kaheman2020sindypi|Kaheman et al. 2020]] · [[Bibliography#^cranmer2023pysr|Cranmer 2023]] · [[Bibliography#^cranmer2020symbolic|Cranmer et al. 2020]]
+>
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
 
 ## 1. The idea

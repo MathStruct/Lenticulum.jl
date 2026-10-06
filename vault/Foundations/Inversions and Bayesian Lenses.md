@@ -4,6 +4,8 @@ Every Lenticulum factor carries, next to its forward kernel, an **inversion** �
 
 > Sources: *AutoBayes* (arXiv:2503.18608) §3, Definitions 9–16, Theorem 13, Remark 11, footnotes 3–4; St Clere Smithe, *Bayesian Updates Compose Optically* (arXiv:2006.01631) Theorem 5.2; code: `lib/LenticulumCore.jl/src/lens.jl` ([[lens]]), `src/gaussian.jl`, `lib/Mycelium.jl/src/passing.jl` ([[passing]]).
 >
+> Bibliography: [[Bibliography#^stclere2025autobayes|St Clere Smithe & Perin 2025]] · [[Bibliography#^stclere2020optics|St Clere Smithe 2020]]
+>
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Almost-Sure Equality](https://mathstruct.org/CategoryTheory-ML-Wiki/Almost-Sure-Equality) · [Markov Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Markov-Category) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 ## The inversion is a free choice — and a type

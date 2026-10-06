@@ -18,7 +18,7 @@
 | `analytic.jl` | [[analytic]] | closed-form ε* of a Gaussian mixture: an exact-score relation (oracle) |
 | `kernel.jl` | [[kernel]] | kernel density estimates as relations: batch KDE with bandwidth selection, an online forgetting KDE |
 | `implicit.jl` | [[implicit]] | deterministic implicit inference and its adjoint backward pass |
-| `energy.jl` | [[energy]] | energy-parametrised predictors: $\varepsilon = \sigma_t\nabla_x E_\theta$, a conservative score, an energy for the relation |
+| `energy_network.jl` | [[energy_network]] | energy-parametrised predictors: $\varepsilon = \sigma_t\nabla_x E_\theta$, a conservative score, an energy for the relation |
 | `implicit_factor.jl` | [[implicit_factor]] | `DiffusionFactor` with `ImplicitProx`: report and per-channel pullback |
 | `proxdm.jl` | [[proxdm]] | proximal diffusion models: prox interface, exact oracle, sampler, proximal inference |
 | `ext/` | [[backends]] | the network's derivatives through any AD backend (DifferentiationInterface, Reactant) |

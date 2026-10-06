@@ -184,7 +184,7 @@ dn, _ = implicit_infer(m_E, [0.6, -0.5], [Inf, 0.0], ps_E, st_E)
 # | the learned relation's energy | none | [`implicit_energy`](@ref) |
 # | `stable` means | the symmetric part of the Jacobian is positive definite | a local minimum of ``U`` |
 #
-# The implementation note `energy.md` in the theory vault has the derivation and the
+# The implementation note `energy_network.md` in the theory vault has the derivation and the
 # validation, including an exact check against a closed-form mixture.
 
 #

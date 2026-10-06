@@ -9,6 +9,8 @@
 
 > Sources: original to this vault (design and analysis); Mardani et al., *A Variational Perspective on Solving Inverse Problems with Diffusion Models*, [arXiv:2305.04391](https://arxiv.org/abs/2305.04391) (RED-Diff); Chung, Kim, McCann, Klasky & Ye, *Diffusion Posterior Sampling for General Noisy Inverse Problems*, ICLR 2023 (DPS); Song et al., [arXiv:2011.13456](https://arxiv.org/abs/2011.13456) (annealed Langevin, probability-flow ODE); Fang, Díaz, Buchanan & Sulam, *Beyond Scores: Proximal Diffusion Models*, [arXiv:2507.08956](https://arxiv.org/abs/2507.08956) (ProxDM); code: `implicit.jl`, `reddiff.jl`, `factor.jl`, `proxdm.jl`
 >
+> Bibliography: [[Bibliography#^mardani2024reddiff|Mardani et al. 2024]] · [[Bibliography#^chung2023dps|Chung et al. 2023]] · [[Bibliography#^song2021sde|Song et al. 2021]] · [[Bibliography#^fang2025proxdm|Fang et al. 2025]]
+>
 > Theory (CT-ML wiki): [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Markov Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Markov-Category)
 
 ## 1. The ingredients every signature draws from

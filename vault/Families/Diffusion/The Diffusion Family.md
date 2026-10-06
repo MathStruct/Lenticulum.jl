@@ -9,6 +9,8 @@
 
 > Sources: Song, Sohl-Dickstein, Kingma, Kumar, Ermon, Poole, *Score-Based Generative Modeling through Stochastic Differential Equations*, ICLR 2021, [arXiv:2011.13456](https://arxiv.org/abs/2011.13456); Mardani, Song, Kautz, Vahdat, *A Variational Perspective on Solving Inverse Problems with Diffusion Models*, [arXiv:2305.04391](https://arxiv.org/abs/2305.04391); Efron, *Tweedie's Formula and Selection Bias*, JASA 2011; Romano, Elad, Milanfar, *The Little Engine that Could: Regularization by Denoising (RED)*, 2017; code: `lens.jl`
 >
+> Bibliography: [[Bibliography#^song2021sde|Song et al. 2021]] · [[Bibliography#^mardani2024reddiff|Mardani et al. 2024]] · [[Bibliography#^efron2011tweedie|Efron 2011]] · [[Bibliography#^romano2017red|Romano et al. 2017]]
+>
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 ## The one-paragraph version

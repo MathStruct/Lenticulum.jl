@@ -7,6 +7,8 @@
 
 > Sources: code: `predictor.jl` (`ad`, `_apply`), `analytic.jl` (`epsilon_jacobian`, `epsilon_vjp_params`), `ext/VariationalDiffusionDifferentiationInterfaceExt.jl`, `ext/VariationalDiffusionReactantExt.jl`, `examples/circle_mlp.jl`; the ADTypes.jl, DifferentiationInterface.jl and Reactant.jl documentation; Moses & Churavy, *Instead of Rewriting Foreign Code for Machine Learning, Automatically Synthesize Fast Gradients*, NeurIPS 2020 (Enzyme)
 >
+> Bibliography: [[Bibliography#^moses2020enzyme|Moses & Churavy 2020]]
+>
 > Theory: [[Backpropagation through Implicit Inference]] §8 says which derivatives are needed and why.
 
 ## 1. What needs a derivative, and what does not
@@ -139,7 +141,7 @@ which is why the adjoint uses $J^\top$ and not $J$.
 - **`ad = AutoReactant()` without Reactant loaded** silently uses plain Lux for the forward
   pass and DI (which then fails) for the derivatives. The result is correct but not compiled.
 - **Energy networks need second derivatives** (a Hessian and a mixed derivative), which the
-  DifferentiationInterface extension computes by Hessian-vector products; see [[energy]].
+  DifferentiationInterface extension computes by Hessian-vector products; see [[energy_network]].
 - **`ProxNetwork` has no `ad` field yet.** Nothing differentiates through `prox_infer`
   (see [[proxdm]] §5), so nothing needs one.
 

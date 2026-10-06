@@ -6,7 +6,9 @@
 > and the learned relation has a real energy. The cost is second derivatives, which the AD
 > extension provides.
 
-> Sources: Salimans & Ho, *Should EBMs model the energy or the score?*, ICLR 2021 EBM workshop; Du et al., *Reduce, Reuse, Recycle: Compositional Generation with Energy-Based Diffusion Models and MCMC*, ICML 2023; Bigi, Langer & Ceriotti, ICML 2025, [arXiv:2412.11569](https://arxiv.org/abs/2412.11569) (the same distinction for force fields); code: `energy.jl`, `ext/VariationalDiffusionDifferentiationInterfaceExt.jl`
+> Sources: Salimans & Ho, *Should EBMs model the energy or the score?*, ICLR 2021 EBM workshop; Du et al., *Reduce, Reuse, Recycle: Compositional Generation with Energy-Based Diffusion Models and MCMC*, ICML 2023; Bigi, Langer & Ceriotti, ICML 2025, [arXiv:2412.11569](https://arxiv.org/abs/2412.11569) (the same distinction for force fields); code: `energy_network.jl`, `ext/VariationalDiffusionDifferentiationInterfaceExt.jl`
+>
+> Bibliography: [[Bibliography#^salimans2021ebm|Salimans & Ho 2021]] · [[Bibliography#^du2023reduce|Du et al. 2023]] · [[Bibliography#^bigi2025dark|Bigi et al. 2025]]
 >
 > Theory: [[Geometric Deep Learning and Physical Laws]] · [[Implicit Diffusion Learners]] · [[The Implicit Diffusion Factor as a Statistical Game]] · [[backends]]
 

@@ -7,6 +7,8 @@
 
 > Sources: code: `kernel.jl`, `analytic.jl` (weights); Kristan, Leonardis & Skočaj, *Multivariate online kernel density estimation with Gaussian kernels*, Pattern Recognition 2011 (online KDE with compression, the idea behind `OnlineKDE`; not checked against its algorithm in detail)
 >
+> Bibliography: [[Bibliography#^kristan2011okde|Kristan et al. 2011]]
+>
 > Theory: [[Kernel Methods for Implicit Learning]] · [[Implicit Diffusion Learners]]
 
 ## 1. The batch KDE

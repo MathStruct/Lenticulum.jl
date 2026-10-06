@@ -6,6 +6,8 @@
 
 > Sources: Fang, Díaz, Buchanan & Sulam, *Beyond Scores: Proximal Diffusion Models*, [arXiv:2507.08956](https://arxiv.org/abs/2507.08956) (Algorithm 1, Eq. 9); Zhu et al., *Denoising Diffusion Models for Plug-and-Play Image Restoration*, CVPR 2023 (DiffPIR, the half-quadratic splitting); code: `proxdm.jl`
 >
+> Bibliography: [[Bibliography#^fang2025proxdm|Fang et al. 2025]] · [[Bibliography#^zhu2023diffpir|Zhu et al. 2023]]
+>
 > Theory: [[ProxDM and Proximal Alternatives]] · [[Deterministic Relaxation]] · [[Inference Signatures]]
 
 **Notation.** As everywhere in this vault, $z \in Z$ is the joint state and the prior is

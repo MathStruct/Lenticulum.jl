@@ -4,6 +4,8 @@ The five worked examples of the AutoBayes appendix, read as **wirings of factors
 
 > Sources: *AutoBayes* (arXiv:2503.18608) Appendix A (Examples 1–5), Appendix B.
 >
+> Bibliography: [[Bibliography#^stclere2025autobayes|St Clere Smithe & Perin 2025]]
+>
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) (the examples table) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) (cups) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
 ## Example 1 — mixture model: maximum likelihood is "all entropies zero"

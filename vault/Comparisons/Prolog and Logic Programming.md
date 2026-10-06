@@ -9,6 +9,8 @@
 
 > Sources: Somogyi, Henderson & Conway, *The execution algorithm of Mercury*; Dechter, *Bucket Elimination: A Unifying Framework for Reasoning*, Artificial Intelligence 113, 1999 (and Constraints 2(1), 1997); Bistarelli, Montanari & Rossi, *Semiring-Based Constraint Satisfaction and Optimization*, JACM 44(2):201–236, 1997; with Fargier, Schiex & Verfaillie, *Semiring-based CSPs and Valued CSPs*, Constraints 4:199–240, 1999; Richardson & Domingos, *Markov Logic Networks*, Machine Learning 62, 2006; De Raedt, Kimmig & Toivonen, *ProbLog*, IJCAI 2007; Sato & Kameya, *PRISM*; Poole, *First-order probabilistic inference*, IJCAI 2003; code: `messages.jl`
 >
+> Bibliography: [[Bibliography#^somogyi1996mercury|Somogyi et al. 1996]] · [[Bibliography#^dechter1999bucket|Dechter 1999]] · [[Bibliography#^bistarelli1997semiring|Bistarelli et al. 1997]] · [[Bibliography#^fargier1999valued|Bistarelli et al. 1999]] · [[Bibliography#^richardson2006mln|Richardson & Domingos 2006]] · [[Bibliography#^deraedt2007problog|De Raedt et al. 2007]] · [[Bibliography#^sato1997prism|Sato & Kameya 1997]] · [[Bibliography#^poole2003first|Poole 2003]]
+>
 > Theory (CT-ML wiki): [Hypergraph Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Hypergraph-Category) · [Frobenius Monoid](https://mathstruct.org/CategoryTheory-ML-Wiki/Frobenius-Monoid) · [Rig (semirings)](https://mathstruct.org/CategoryTheory-ML-Wiki/Rig) · [Cospan](https://mathstruct.org/CategoryTheory-ML-Wiki/Cospan)
 
 ## 1. The scorecard

@@ -14,6 +14,8 @@ The three spaces of an open model are the three channel polarities of a factor:
 
 > Sources: *AutoBayes* (arXiv:2503.18608) Definitions 1–8, Remarks 2–8 (and Fong 2013, Theorem 4.5, for Bayesian networks); code: `lib/LenticulumCore.jl/src/open_model.jl` ([[open_model]]), `channels.jl` ([[channels]]), `lib/Mycelium.jl/src/graph.jl` ([[graph]]).
 >
+> Bibliography: [[Bibliography#^stclere2025autobayes|St Clere Smithe & Perin 2025]]
+>
 > Theory (CT-ML wiki): [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Compact Closed Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Compact-Closed-Category) · [Hypergraph Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Hypergraph-Category) · [Para Construction (CoPara)](https://mathstruct.org/CategoryTheory-ML-Wiki/Para-Construction) · [Markov Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Markov-Category)
 
 ## The latent space is state, not output

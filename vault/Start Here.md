@@ -38,7 +38,8 @@ Every note opens the same way:
    - `> Theory (CT-ML wiki):` links to the general concepts the note uses.
 
    Every cited work is collected in [[Bibliography]], generated from `docs/src/refs.bib`;
-   new citations go into that file first.
+   new citations go into that file first. `docs/site/link_sources.py` then adds a
+   `> Bibliography:` line under each note's sources, linking every recognised work to its entry.
 
 Implementation notes additionally record, as carefully as what the file does, **what it does
 not do** and the difficulties met on the way.

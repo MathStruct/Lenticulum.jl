@@ -10,6 +10,8 @@
 
 > Sources: Bronstein, Bruna, Cohen & Veličković, *Geometric Deep Learning: Grids, Groups, Graphs, Geodesics, and Gauges*, [arXiv:2104.13478](https://arxiv.org/abs/2104.13478), 2021; Bigi, Langer & Ceriotti, *The dark side of the forces: assessing non-conservative force models for atomistic machine learning*, ICML 2025, [arXiv:2412.11569](https://arxiv.org/abs/2412.11569); Greydanus, Dzamba & Yosinski, *Hamiltonian Neural Networks*, NeurIPS 2019; Cranmer et al., *Lagrangian Neural Networks*, 2020; Batzner et al., *E(3)-equivariant graph neural networks for data-efficient and accurate interatomic potentials* (NequIP), Nature Communications 2022; Batatia et al., *MACE*, NeurIPS 2022; Noether, *Invariante Variationsprobleme*, 1918
 >
+> Bibliography: [[Bibliography#^bronstein2021gdl|Bronstein et al. 2021]] · [[Bibliography#^bigi2025dark|Bigi et al. 2025]] · [[Bibliography#^greydanus2019hnn|Greydanus et al. 2019]] · [[Bibliography#^cranmer2020lnn|Cranmer et al. 2020]] · [[Bibliography#^batzner2022nequip|Batzner et al. 2022]] · [[Bibliography#^batatia2022mace|Batatia et al. 2022]] · [[Bibliography#^noether1918invariante|Noether 1918]]
+>
 > Theory (CT-ML wiki): [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 ## 1. What geometric deep learning is
@@ -206,7 +208,7 @@ data-efficient, and conservative by construction.
 
 The same distinction inside diffusion models is now implemented: a noise predictor that
 outputs $\varepsilon$ directly is a direct score (force) model, and `EnergyNetwork` is the
-energy version, $\varepsilon_\theta = \sigma_t\nabla_x E_\theta$ ([[energy]]). On the circle it
+energy version, $\varepsilon_\theta = \sigma_t\nabla_x E_\theta$ ([[energy_network]]). On the circle it
 trains to the same loss and its field is a gradient to machine precision, where the direct
 network's Jacobian is 2.6% asymmetric.
 

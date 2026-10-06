@@ -12,6 +12,8 @@
 
 > Sources: Willems, *The Behavioral Approach to Open and Interconnected Systems*, IEEE CSM 2007; Anderson, Barfoot, Tong, Särkkä, *Batch Nonlinear Continuous-Time Trajectory Estimation as Exactly Sparse Gaussian Process Regression*, RSS 2014 / Autonomous Robots 39(3):221–238, [arXiv:1412.0630](https://arxiv.org/pdf/1412.0630); Särkkä, Solin, Hartikainen, *Spatiotemporal Learning via Infinite-Dimensional Bayesian Filtering and Smoothing*, IEEE Signal Processing Magazine 2013; Dong, Mukadam, Dellaert, Boots, *Motion Planning as Probabilistic Inference using Gaussian Processes and Factor Graphs*, RSS 2016; Rauch, Tung, Striebel, 1965; code: `beliefs.jl`
 >
+> Bibliography: [[Bibliography#^willems2007behavioral|Willems 2007]] · [[Bibliography#^anderson2015batch|Anderson et al. 2015]] · [[Bibliography#^sarkka2013spatiotemporal|Särkkä et al. 2013]] · [[Bibliography#^dong2016motion|Dong et al. 2016]]
+>
 > Theory (CT-ML wiki): [Hypergraph Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Hypergraph-Category) · [Frobenius Monoid](https://mathstruct.org/CategoryTheory-ML-Wiki/Frobenius-Monoid) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
 ## 1. The one-line change

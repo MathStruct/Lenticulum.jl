@@ -5,6 +5,8 @@
 
 > Sources: code: `open_model.jl`, `messages.jl`; AutoBayes [arXiv:2503.18608](https://arxiv.org/abs/2503.18608), Appendix A, Example 4 (a cup collapses the posterior)
 >
+> Bibliography: [[Bibliography#^stclere2025autobayes|St Clere Smithe & Perin 2025]]
+>
 > Theory (CT-ML wiki): [Markov Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Markov-Category) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Copy-Discard Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Copy-Discard-Category)
 
 ## Where it comes from

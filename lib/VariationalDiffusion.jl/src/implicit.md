@@ -86,5 +86,5 @@ What is still missing: the covariance is returned as a matrix, not a `GaussianBe
 that type lives above `lib/` ([[Belief Algebra]] §6); and λ chosen for calibration is not
 always the λ one wants for balancing soft evidence.
 
-Related: [[analytic]], [[reddiff]], [[factor]], [[energy]], [[Deterministic Relaxation]], [[Inference Signatures]],
+Related: [[analytic]], [[reddiff]], [[factor]], [[energy_network]], [[Deterministic Relaxation]], [[Inference Signatures]],
 [[The Implicit Diffusion Factor as a Statistical Game]]

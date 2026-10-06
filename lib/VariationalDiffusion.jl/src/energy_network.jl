@@ -11,7 +11,7 @@
 #
 # The price is second derivatives: ε needs ∇ₓE, the input Jacobian is σ_t times the Hessian,
 # and the parameter VJP is the mixed derivative ∂_θ⟨∇ₓE, w⟩. All three come from the predictor's
-# `ad` backend through a package extension; the core stays AD-free. See `energy.md`.
+# `ad` backend through a package extension; the core stays AD-free. See `energy_network.md`.
 # ---------------------------------------------------------------------------
 
 """
@@ -97,7 +97,7 @@ U(z) = \\sum_k w_k\\,\\lambda_{t_k}\\Bigl[\\tfrac{\\sigma_k}{\\alpha_k}\\,E_\\th
 
 So the learned relation has an energy, and a query has a loss: ``U(z) + \\tfrac12\\lVert P(z - z_0)\\rVert^2``
 on the free coordinates. For a noise predictor that outputs ε directly no such ``U`` exists;
-see `energy.md` §3.
+see `energy_network.md` §3.
 """
 function implicit_energy(m::ImplicitDiffusion{<:NoisePredictor{<:EnergyNetwork}}, z, ps, st)
     s = m.predictor.schedule

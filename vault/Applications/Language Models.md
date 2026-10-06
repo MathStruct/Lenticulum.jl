@@ -13,6 +13,8 @@
 
 > Sources: Hinton, *Training Products of Experts by Minimizing Contrastive Divergence*, Neural Computation 2002; Nie et al., *Large Language Diffusion Models* (LLaDA); Lou, Meng & Ermon, *Discrete Diffusion Modeling by Estimating the Ratios of the Data Distribution* (SEDD, ICML 2024); Sahoo et al., *Simple and Effective Masked Diffusion Language Models* (MDLM); Du et al., *Reduce, Reuse, Recycle: Compositional Generation using Energy-Based Diffusion Models and MCMC*, ICML 2023 — [arXiv:2302.11552](https://arxiv.org/pdf/2302.11552); Liu, Li, Du, Tenenbaum & Torralba, *Compositional Visual Generation with Composable Diffusion Models*, ECCV 2022; Li et al., *Contrastive Decoding*
 >
+> Bibliography: [[Bibliography#^hinton2002poe|Hinton 2002]] · [[Bibliography#^nie2025llada|Nie et al. 2025]] · [[Bibliography#^lou2024sedd|Lou et al. 2024]] · [[Bibliography#^sahoo2024mdlm|Sahoo et al. 2024]] · [[Bibliography#^du2023reduce|Du et al. 2023]] · [[Bibliography#^liu2022composable|Liu et al. 2022]] · [[Bibliography#^li2023contrastive|Li et al. 2023]]
+>
 > Theory (CT-ML wiki): [Frobenius Monoid](https://mathstruct.org/CategoryTheory-ML-Wiki/Frobenius-Monoid) · [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Functor)
 
 ## 1. Product, not mixture

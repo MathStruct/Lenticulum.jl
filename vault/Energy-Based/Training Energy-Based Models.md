@@ -6,6 +6,8 @@
 
 > Sources: Song & Kingma, *How to Train Your Energy-Based Models* ([arXiv:2101.03288](https://arxiv.org/abs/2101.03288)), and Du & Mordatch, *Implicit Generation and Modeling with Energy-Based Models* ([arXiv:1903.08689](https://arxiv.org/abs/1903.08689))
 >
+> Bibliography: [[Bibliography#^song2021train|Song & Kingma 2021]] · [[Bibliography#^du2019implicit|Du & Mordatch 2019]]
+>
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
 ## 1. The problem

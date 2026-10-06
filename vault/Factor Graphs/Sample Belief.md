@@ -5,6 +5,8 @@
 
 > Sources: code: `open_model.jl`, `messages.jl`; Doucet, de Freitas & Gordon (eds.), *Sequential Monte Carlo Methods in Practice* (Springer 2001)
 >
+> Bibliography: [[Bibliography#^doucet2001smc|Doucet et al. 2001]]
+>
 > Theory (CT-ML wiki): [Distribution Monad](https://mathstruct.org/CategoryTheory-ML-Wiki/Distribution-Monad) · [Giry Monad](https://mathstruct.org/CategoryTheory-ML-Wiki/Giry-Monad)
 
 ## What it is

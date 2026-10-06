@@ -7,6 +7,8 @@
 
 > Sources: code: `beliefs.jl` (in the top-level `Lenticulum` package), `messages.jl`; Koller & Friedman, *Probabilistic Graphical Models* (MIT Press 2009), §14.2 (canonical forms)
 >
+> Bibliography: [[Bibliography#^koller2009pgm|Koller & Friedman 2009]]
+>
 > Theory (CT-ML wiki): [Gaussian Relations](https://mathstruct.org/CategoryTheory-ML-Wiki/Gaussian-Relations) · [Markov Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Markov-Category) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion)
 
 ## Why the canonical form

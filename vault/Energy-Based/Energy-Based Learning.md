@@ -10,6 +10,8 @@
 
 > Sources: LeCun, Chopra, Hadsell, Ranzato & Huang, *A Tutorial on Energy-Based Learning*, in *Predicting Structured Data*, MIT Press 2006 — [PDF](http://yann.lecun.com/exdb/publis/pdf/lecun-06.pdf); code: `gaussian.jl`
 >
+> Bibliography: [[Bibliography#^lecun2006tutorial|LeCun et al. 2006]]
+>
 > Theory (CT-ML wiki): [Hypergraph Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Hypergraph-Category) · [Markov Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Markov-Category) · [String Diagram](https://mathstruct.org/CategoryTheory-ML-Wiki/String-Diagram) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
 ## 1. The framework

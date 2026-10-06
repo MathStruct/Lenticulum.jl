@@ -8,6 +8,8 @@
 
 > Sources: original to this vault (design and analysis); Romano, Elad & Milanfar, *The Little Engine that Could: Regularization by Denoising (RED)*, SIAM J. Imaging Sci. 10(4) (2017); Bai, Kolter & Koltun, *Deep Equilibrium Models*, NeurIPS 2019; Efron, *Tweedie's Formula and Selection Bias*, JASA 2011; Song et al. [arXiv:2011.13456](https://arxiv.org/abs/2011.13456) (the probability-flow ODE); code: `implicit.jl` (`noisefree_nodes`, `field_nodes`)
 >
+> Bibliography: [[Bibliography#^romano2017red|Romano et al. 2017]] · [[Bibliography#^bai2019deq|Bai et al. 2019]] · [[Bibliography#^efron2011tweedie|Efron 2011]] · [[Bibliography#^song2021sde|Song et al. 2021]]
+>
 > Theory (CT-ML wiki): [Least Fixed Point](https://mathstruct.org/CategoryTheory-ML-Wiki/Least-Fixed-Point) · [Initial Algebra](https://mathstruct.org/CategoryTheory-ML-Wiki/Initial-Algebra) · [Contextual Equivalence](https://mathstruct.org/CategoryTheory-ML-Wiki/Contextual-Equivalence)
 
 ## 1. Where the randomness is, and what each relaxation removes

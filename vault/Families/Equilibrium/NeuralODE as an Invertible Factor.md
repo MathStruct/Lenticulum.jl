@@ -9,6 +9,8 @@
 
 > Sources: Chen, Rubanova, Bettencourt, Duvenaud, *Neural Ordinary Differential Equations*, NeurIPS 2018; Grathwohl, Chen, Bettencourt, Sutskever, Duvenaud, *FFJORD*, ICLR 2019; [DiffEqFlux.jl NeuralDELayers](https://docs.sciml.ai/DiffEqFlux/stable/layers/NeuralDELayers/)
 >
+> Bibliography: [[Bibliography#^chen2018neuralode|Chen et al. 2018]] · [[Bibliography#^grathwohl2019ffjord|Grathwohl et al. 2019]]
+>
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 ## 1. The relation

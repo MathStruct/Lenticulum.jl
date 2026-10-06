@@ -10,6 +10,8 @@
 
 > Sources: Särkkä & García-Fernández, *Temporal Parallelization of Bayesian Smoothers*, IEEE TAC **66**(1):299–306, 2021 — [arXiv:1905.13002](https://arxiv.org/abs/1905.13002); Kaess et al., *iSAM2: Incremental smoothing and mapping using the Bayes tree*, IJRR 2012; [IncrementalInference.jl](https://github.com/JuliaRobotics/IncrementalInference.jl); [Reactant.jl](https://github.com/EnzymeAD/Reactant.jl); code: `schedules.jl`
 >
+> Bibliography: [[Bibliography#^sarkka2021temporal|Särkkä & García-Fernández 2021]] · [[Bibliography#^kaess2012isam2|Kaess et al. 2012]]
+>
 > Theory (CT-ML wiki): [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category) · [Cospan](https://mathstruct.org/CategoryTheory-ML-Wiki/Cospan) · [Traced Monoidal Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Traced-Monoidal-Category)
 
 ## 1. Two things that are not there

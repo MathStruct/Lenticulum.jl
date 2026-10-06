@@ -12,6 +12,8 @@ and the lens is not stored but **assembled on demand**, once a [[Channels and Po
 
 > Sources: St Clere Smithe & Perin, *AutoBayes* (arXiv:2503.18608) Definitions 20, 22, 27–29, Theorem 23, Remarks 24, 26, 30 and the closing discussion; code: `lib/LenticulumCore.jl/src/statistical_game.jl`, `lens.jl`, `energy.jl`, `abstract_types.jl` ([[statistical_game]], [[energy]], [[lens]]).
 >
+> Bibliography: [[Bibliography#^stclere2025autobayes|St Clere Smithe & Perin 2025]]
+>
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Para Construction](https://mathstruct.org/CategoryTheory-ML-Wiki/Para-Construction) · [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [paper note](https://mathstruct.org/CategoryTheory-ML-Wiki/Papers/AutoBayes---A-Compositional-Framework-for-Generalized-Variational-Inference)
 
 ## The four pieces, as four independent choices

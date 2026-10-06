@@ -11,6 +11,8 @@
 
 > Sources: Bai, Kolter, Koltun, *Deep Equilibrium Models*, NeurIPS 2019; Chen, Rubanova, Bettencourt, Duvenaud, *Neural Ordinary Differential Equations*, NeurIPS 2018; Grathwohl et al., *FFJORD*, ICLR 2019; [DeepEquilibriumNetworks.jl](https://docs.sciml.ai/DeepEquilibriumNetworks/stable/) and [DiffEqFlux.jl](https://docs.sciml.ai/DiffEqFlux/stable/layers/NeuralDELayers/); Broyden, *A class of methods for solving nonlinear simultaneous equations*, 1965
 >
+> Bibliography: [[Bibliography#^bai2019deq|Bai et al. 2019]] · [[Bibliography#^chen2018neuralode|Chen et al. 2018]] · [[Bibliography#^grathwohl2019ffjord|Grathwohl et al. 2019]] · [[Bibliography#^broyden1965class|Broyden 1965]]
+>
 > Theory (CT-ML wiki): [Hypergraph Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Hypergraph-Category) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 ## 1. What SciML gives you

@@ -11,6 +11,8 @@
 
 > Sources: original to this vault (design and analysis); builds on Song et al., *Score-Based Generative Modeling through Stochastic Differential Equations*, ICLR 2021, [arXiv:2011.13456](https://arxiv.org/abs/2011.13456); Mardani, Song, Kautz & Vahdat, *A Variational Perspective on Solving Inverse Problems with Diffusion Models*, [arXiv:2305.04391](https://arxiv.org/abs/2305.04391), Proposition 2; Efron, *Tweedie's Formula and Selection Bias*, JASA 2011; code: `implicit.jl`, `analytic.jl`
 >
+> Bibliography: [[Bibliography#^song2021sde|Song et al. 2021]] · [[Bibliography#^mardani2024reddiff|Mardani et al. 2024]] · [[Bibliography#^efron2011tweedie|Efron 2011]]
+>
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Least Fixed Point](https://mathstruct.org/CategoryTheory-ML-Wiki/Least-Fixed-Point) · [Bisimulation](https://mathstruct.org/CategoryTheory-ML-Wiki/Bisimulation)
 
 ## 1. From functions to relations

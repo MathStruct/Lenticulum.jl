@@ -4,6 +4,8 @@ Lux.jl was not designed from category theory, but it converged almost exactly on
 
 > Sources: Cruttwell, Gavranović, Ghani, Wilson & Zanasi, *Categorical Foundations of Gradient-Based Learning* (arXiv:2103.01931) Definitions 2.1–2.5, 3.3, 3.8, 3.11, 3.14, Proposition 2.7; Lux.jl / LuxCore.jl documentation; code: `lib/LenticulumCore.jl` ([[LenticulumCore]]).
 >
+> Bibliography: [[Bibliography#^cruttwell2022gradient|Cruttwell et al. 2022]]
+>
 > Theory (CT-ML wiki): [Para Construction](https://mathstruct.org/CategoryTheory-ML-Wiki/Para-Construction) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens) · [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category) · [Gradient-Based Learning with Parametric Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Gradient-Based-Learning-with-Parametric-Lenses) · [paper note](https://mathstruct.org/CategoryTheory-ML-Wiki/Papers/Categorical-Foundations-of-Gradient-Based-Learning)
 
 ## The dictionary

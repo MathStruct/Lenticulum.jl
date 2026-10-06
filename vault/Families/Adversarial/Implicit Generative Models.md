@@ -11,6 +11,8 @@
 
 > Sources: Mohamed & Lakshminarayanan, *Learning in Implicit Generative Models* ([arXiv:1610.03483](https://arxiv.org/pdf/1610.03483))
 >
+> Bibliography: [[Bibliography#^mohamed2016implicit|Mohamed & Lakshminarayanan 2016]]
+>
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
 ## 1. The definition

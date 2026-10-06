@@ -8,6 +8,8 @@
 
 > Sources: measurements from `lib/VariationalDiffusion.jl` (`kde_predictor`, `kde_bandwidth`) and the kernel-baseline tutorial; Carr et al., SIGGRAPH 2001; Turk & O'Brien, ACM TOG 2002; Macêdo, Gois & Velho, Computer Graphics Forum 2011; Williams & Fitzgibbon, *Gaussian Process Implicit Surfaces*, 2006; Hoffmann, Pattern Recognition 2007; Schölkopf et al., Neural Computation 2001; Tax & Duin, Machine Learning 2004; Genovese et al., Annals of Statistics 2014; Ozertem & Erdogmus, JMLR 2011; Sriperumbudur et al., JMLR 2017; Livni et al., ICML 2013; full entries in [[Bibliography]]
 >
+> Bibliography: [[Bibliography#^williams2006gpis|Williams & Fitzgibbon 2006]]
+>
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
 
 ## 1. Why plain kernel regression gives no zeros
@@ -77,7 +79,7 @@ finds ridge points iteratively.
 $\log p(z) = f(z) - \log Z$ with $f$ in a reproducing kernel Hilbert space and fit $f$ by score
 matching, which has a closed-form solution there. The score $\nabla f$ is a gradient by
 construction, so this is the kernel counterpart of the energy-parametrised diffusion models
-([[energy]]), with convex fitting in place of training.
+([[energy_network]]), with convex fitting in place of training.
 
 ### Vanishing ideals: the algebraic family with data-driven bases
 
@@ -94,7 +96,7 @@ from the data rather than fixed in advance ([[Algebraic Implicit Learners]]).
 | kernel PCA | reconstruction error in feature space | eigenvector normalisation | a low-error valley | none | algebraic (nullspace fit) |
 | one-class SVM, SVDD | decision function | the margin / volume term | a region | none | not a relation in this sense |
 | KDE ridge, SCMS | the KDE's gradient across the ridge | none needed: the density has ridges | the density ridge | via the density | **diffusion** (`GaussianMixtureEps`) |
-| kernel exponential family | RKHS log-density | normalisation of the density | the density ridge | via the density | diffusion with an energy ([[energy]]) |
+| kernel exponential family | RKHS log-density | normalisation of the density | the density ridge | via the density | diffusion with an energy ([[energy_network]]) |
 | VCA | data-driven polynomials | normalisation of the coefficients | the zero set | none | algebraic |
 
 ## 4. What kernels would offer, and what they cost
@@ -134,5 +136,5 @@ dimensions.
    than a point, which also needs the Gaussian-message machinery of [[Belief Algebra]] §6.
 
 Related: [[Implicit Learners]], [[Implicit Diffusion Learners]], [[Algebraic Implicit Learners]],
-[[Fitting is a Nullspace Problem]], [[energy]], [[Symbolic Implicit Learning]],
+[[Fitting is a Nullspace Problem]], [[energy_network]], [[Symbolic Implicit Learning]],
 [[Open Problems in Implicit Diffusion Learning]], [[Belief Algebra]]

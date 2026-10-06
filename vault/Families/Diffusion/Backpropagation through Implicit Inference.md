@@ -8,6 +8,8 @@
 
 > Sources: original to this vault (design and analysis); the adjoint method as in [[Backpropagation by the Implicit Function Theorem]] and [[DEQ as a Relation]] §4; Bai, Kolter & Koltun, *Deep Equilibrium Models*, NeurIPS 2019; Fung et al., *JFB: Jacobian-Free Backpropagation for Implicit Networks*, AAAI 2022; Mardani et al. [arXiv:2305.04391](https://arxiv.org/abs/2305.04391); code: `implicit.jl` (`implicit_pullback`), `analytic.jl` (`epsilon_jacobian`, `epsilon_vjp_params`)
 >
+> Bibliography: [[Bibliography#^bai2019deq|Bai et al. 2019]] · [[Bibliography#^fung2022jfb|Wu Fung et al. 2022]] · [[Bibliography#^mardani2024reddiff|Mardani et al. 2024]]
+>
 > Theory (CT-ML wiki): [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Compiler Correctness](https://mathstruct.org/CategoryTheory-ML-Wiki/Compiler-Correctness)
 
 ## 1. Setup

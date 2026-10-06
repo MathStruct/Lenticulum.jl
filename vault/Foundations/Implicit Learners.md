@@ -8,6 +8,8 @@
 
 > Sources: original to this vault (design and analysis); LeCun et al., *A Tutorial on Energy-Based Learning*, 2006; Bai, Kolter & Koltun, *Deep Equilibrium Models*, NeurIPS 2019; Mardani et al., *A Variational Perspective on Solving Inverse Problems with Diffusion Models*, ICLR 2024; St Clere Smithe & Perin, *AutoBayes*, [arXiv:2503.18608](https://arxiv.org/abs/2503.18608) (§6 only); full entries in [[Bibliography]]
 >
+> Bibliography: [[Bibliography#^lecun2006tutorial|LeCun et al. 2006]] · [[Bibliography#^bai2019deq|Bai et al. 2019]] · [[Bibliography#^mardani2024reddiff|Mardani et al. 2024]] · [[Bibliography#^stclere2025autobayes|St Clere Smithe & Perin 2025]]
+>
 > Theory (CT-ML wiki, for §6): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model)
 
 ## 1. The claim: functions versus relations

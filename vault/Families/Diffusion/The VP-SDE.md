@@ -4,6 +4,8 @@
 
 > Sources: Song et al. 2021, [arXiv:2011.13456](https://arxiv.org/abs/2011.13456) §3.4 — the forward corruption process, and the three quantities a trained $\varepsilon_\theta$ hands you for free
 >
+> Bibliography: [[Bibliography#^song2021sde|Song et al. 2021]]
+>
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
 
 ## 1. One SDE, and why this one
