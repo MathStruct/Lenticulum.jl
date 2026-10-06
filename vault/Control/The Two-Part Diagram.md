@@ -141,9 +141,11 @@ neighbour to this project, and the closest thing to a demonstration that the coo
 architectures work as factor graphs.
 
 The difference in ambition is worth stating plainly: RxInfer does *inference* on a specified
-probabilistic model, extremely well. Lenticulum is trying to do inference on a graph whose
-factors may be **learned, implicit and non-probabilistic** — an arbitrary residual, a DEQ, a
-diffusion prior. That is more general and much less finished.
+probabilistic model, extremely well, including non-conjugate and nonlinear ones. Lenticulum is
+trying to do inference on a graph whose factors may be **learned, implicit and
+non-probabilistic** — an arbitrary residual, a DEQ, a diffusion prior — and trained through
+their own inference. That is a different target and much less finished; how the two could
+work together is in [[RxInfer as a Backend]].
 
 ## 6. What this means for the three competitive rows
 

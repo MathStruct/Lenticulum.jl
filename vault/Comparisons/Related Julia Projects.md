@@ -76,20 +76,25 @@ thing anyone compares against.
 RxInfer does **reactive message passing on Forney-style factor graphs**: sum-product and
 variational message passing, a constrained Bethe free energy, model specification via
 `GraphPPL.jl`, the `ReactiveMP.jl` engine, and explicit support for building **active
-inference** agents that minimise free energy. `ForneyLab.jl` is its predecessor and generated
-inference algorithms by message passing on FFGs.
+inference** agents that minimise free energy. It also goes beyond conjugate models:
+non-conjugate updates, deterministic nonlinear "delta" nodes with approximation methods, custom
+nodes with one message rule per interface, parameter learning and streaming inference.
+`ForneyLab.jl` is its predecessor and generated inference algorithms by message passing on FFGs.
 
 Almost every structural idea in `Mycelium` has a counterpart there: bipartite graphs, local
 message rules, a free energy that scores the model, schedules, and the tree/loopy distinction.
 
-> [!important] The difference is what a factor is allowed to be
-> RxInfer's factors are **probability distributions from known families**, and its speed comes
-> from exploiting local conjugacy. It does inference on a *specified probabilistic model*,
-> extremely well.
+> [!important] The difference is what a factor is, and where it comes from
+> RxInfer does inference on a **specified probabilistic model**, extremely well: you write the
+> model, and every node has message rules (exact, variational or approximate). Messages flow in
+> every direction there too, so direction itself is not the difference.
 >
-> A factor here may be an arbitrary residual, a root-finder, an ODE solve, a diffusion prior or
-> a neural network — objects with no density, no conjugate structure, and often no direction.
-> That is a more general target and it is much less finished.
+> A factor here is a **relation learned from data** (a diffusion model of a joint space, a DEQ,
+> a residual), answered in a given direction by a root-finding solve, trained by gradients
+> through that solve, typed by its polarity, and allowed to be non-probabilistic. That is a
+> different target and much less finished. Whether RxInfer could serve as the backend is worked
+> out in [[RxInfer as a Backend]]: for the probabilistic part yes; as a replacement, no; the
+> recommended path is a connector, with learned relations as RxInfer nodes.
 
 Two consequences worth being blunt about:
 

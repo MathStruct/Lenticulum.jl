@@ -260,6 +260,8 @@ some parts known and some fitted, and a residual that means something in the dom
   something else**. The nearest neighbour is `RxInfer.jl`; `IncrementalInference.jl`
   has already solved the `combine` gap by kernel-density BP; and Catlab's `oapply` is the
   subgraph-as-factor operation the vault records as missing
+- [[RxInfer as a Backend]] — the nearest neighbour as an engine: gains for the probabilistic part,
+  five things a replacement would lose, and a connector with learned relations as RxInfer nodes
 - [[Why Julia]] — why not C++, Rust, PyTorch, JAX or Mojo: in Julia ordinary code *is* the compiled,
   differentiable computation graph, with evidence from this repository and the costs stated
 - [[Parallelism and Compilation]] — parallelism, GPUs and XLA/MLIR in a *dynamic* SLAM

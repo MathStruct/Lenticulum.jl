@@ -91,6 +91,7 @@ RxInfer.jl (and ForneyLab.jl before it) implements exactly such message rules, p
 and distribution family, including mixtures, addition and equality nodes
 ([[Related Julia Projects]] §5). Its rules are the reference to check against; what this
 project adds is that the factors themselves can be learned relations queried in any polarity.
+Using it as the engine, and what that would gain and lose, is in [[RxInfer as a Backend]].
 
 ## 6. Interop and package layout (for later)
 
