@@ -601,6 +601,30 @@ end
 # ---------------------------------------------------------------------------
 # Proximal diffusion models (ProxDM), against the exact proximal operator of a mixture.
 # ---------------------------------------------------------------------------
+@testset "kernel baseline: a Gaussian KDE as a relation" begin
+    rng = Xoshiro(3)
+    data = randn(rng, 2, 400)
+    h = kde_bandwidth(data)
+    @test 0.15 < h < 0.7                     # the scale of Silverman's rule for 400 Gaussian samples in 2-D
+    kde = kde_predictor(SCHED, data; bandwidth = h)
+    pk, sk = LuxCore.setup(Xoshiro(0), kde)
+    @test pk.μ == data
+    ref = NoisePredictor(GaussianMixtureEps(SCHED, data; s = h), SCHED)
+    x = [0.3, -0.2]
+    @test first(epsilon(kde, x, 0.2, pk, sk)) == first(epsilon(ref, x, 0.2, pk, sk))
+
+    # noisy samples of the unit circle: the KDE ridge answers "y given x" with both branches
+    φ = 2π .* rand(rng, 300)
+    circ = vcat(cos.(φ)', sin.(φ)') .+ 0.02 .* randn(rng, 2, 300)
+    hc = kde_bandwidth(circ)
+    @test hc < 0.2
+    kc = kde_predictor(SCHED, circ; bandwidth = hc)
+    pc, sc = LuxCore.setup(Xoshiro(0), kc)
+    roots, _ = implicit_roots(ImplicitDiffusion(kc, field_nodes(Xoshiro(1), 2; samples = 4)), [0.6, 0.0], [Inf, 0.0], pc, sc)
+    @test length(roots) == 2
+    @test sort([r.z[2] for r in roots]) ≈ [-0.8, 0.8] atol = 0.06
+end
+
 @testset "all answers of a query, and their Laplace uncertainty" begin
     # Gaussian data: the curvature is RED-Diff's κ, so the Laplace covariance has a closed form
     v0 = 0.5

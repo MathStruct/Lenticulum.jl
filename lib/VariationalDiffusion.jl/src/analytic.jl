@@ -135,3 +135,46 @@ function epsilon_vjp_params(pred::NoisePredictor{<:GaussianMixtureEps}, x, t, ps
     G = (p.sg * p.a) .* ((.-w ./ p.v) .* p.γ' .+ p.U .* (p.γ .* c)')
     return (μ = G,)
 end
+
+# --- the kernel baseline: a Gaussian KDE is this mixture with one centre per sample ----------
+
+"""
+    kde_predictor(schedule, data::AbstractMatrix; bandwidth) -> NoisePredictor
+
+A Gaussian **kernel density estimate** of the samples in the columns of `data`, as a noise
+predictor: [`GaussianMixtureEps`](@ref) with one component per sample and width `bandwidth`.
+Its ``\\varepsilon`` is the exact optimal noise predictor for that density, so every query function
+([`implicit_infer`](@ref), [`implicit_roots`](@ref), [`implicit_laplace`](@ref)) works on it with
+exact derivatives and no training. It is the classical baseline for a diffusion network: the
+relation it defines is the ridge of the KDE. Query cost grows linearly with the number of
+samples. Choose the bandwidth with [`kde_bandwidth`](@ref).
+"""
+kde_predictor(s::AbstractNoiseSchedule, data::AbstractMatrix; bandwidth::Real) =
+    NoisePredictor(GaussianMixtureEps(s, float.(data); s = bandwidth), s)
+
+"""
+    kde_bandwidth(data; candidates = nothing, holdout = 0.2, rng = Xoshiro(0)) -> h
+
+The bandwidth of an isotropic Gaussian KDE that maximises the **held-out log-likelihood**: a
+random fraction `holdout` of the columns of `data` is set aside, a KDE on the rest is evaluated
+on it, for each candidate. The default candidates span 0.5 % to 100 % of the data's scale
+(the root mean coordinate variance) on a log grid. This chooses the best *density*, not the
+best answers to queries, and uses no query information.
+"""
+function kde_bandwidth(data::AbstractMatrix; candidates = nothing, holdout = 0.2,
+                       rng::AbstractRNG = Random.Xoshiro(0))
+    n, d = size(data, 2), size(data, 1)
+    perm = Random.randperm(rng, n)
+    m = max(1, round(Int, holdout * n))
+    test, train = data[:, perm[1:m]], data[:, perm[(m + 1):end]]
+    μ = sum(data; dims = 2) ./ n
+    scale = sqrt(sum(abs2, data .- μ) / (n * d))
+    hs = candidates === nothing ? scale .* exp.(range(log(0.005), 0; length = 25)) : collect(candidates)
+    D = [sum(abs2, view(test, :, j) .- view(train, :, i)) for i in axes(train, 2), j in axes(test, 2)]
+    function heldout(h)
+        ℓ = -D ./ (2h^2)
+        mx = maximum(ℓ; dims = 1)
+        return sum(mx .+ log.(sum(exp.(ℓ .- mx); dims = 1) ./ size(train, 2))) / m - d / 2 * log(2π * h^2)
+    end
+    return hs[argmax(heldout.(hs))]
+end

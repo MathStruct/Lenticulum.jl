@@ -77,6 +77,7 @@ export statedim, blockranges, precision_vector, assemble_state
 
 # --- Closed-form predictors (oracles) ----------------------------------------
 export GaussianMixtureEps, mixture_logdensity, epsilon_jacobian, epsilon_vjp_params
+export kde_predictor, kde_bandwidth
 
 # --- Implicit inference and its backward pass -----------------------------
 export FieldNodes, field_nodes, noisefree_nodes, ImplicitDiffusion, ImplicitSolution

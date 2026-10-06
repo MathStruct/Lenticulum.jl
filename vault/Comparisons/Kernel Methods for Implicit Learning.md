@@ -6,7 +6,7 @@
 > classical ones. One of them is already in this project: the closed-form circle model of the
 > first tutorial is a Gaussian kernel density estimate, and its relation is the density ridge.
 
-> Sources: Carr et al., SIGGRAPH 2001; Turk & O'Brien, ACM TOG 2002; Macêdo, Gois & Velho, Computer Graphics Forum 2011; Williams & Fitzgibbon, *Gaussian Process Implicit Surfaces*, 2006; Hoffmann, Pattern Recognition 2007; Schölkopf et al., Neural Computation 2001; Tax & Duin, Machine Learning 2004; Genovese et al., Annals of Statistics 2014; Ozertem & Erdogmus, JMLR 2011; Sriperumbudur et al., JMLR 2017; Livni et al., ICML 2013; full entries in [[Bibliography]]
+> Sources: measurements from `lib/VariationalDiffusion.jl` (`kde_predictor`, `kde_bandwidth`) and the kernel-baseline tutorial; Carr et al., SIGGRAPH 2001; Turk & O'Brien, ACM TOG 2002; Macêdo, Gois & Velho, Computer Graphics Forum 2011; Williams & Fitzgibbon, *Gaussian Process Implicit Surfaces*, 2006; Hoffmann, Pattern Recognition 2007; Schölkopf et al., Neural Computation 2001; Tax & Duin, Machine Learning 2004; Genovese et al., Annals of Statistics 2014; Ozertem & Erdogmus, JMLR 2011; Sriperumbudur et al., JMLR 2017; Livni et al., ICML 2013; full entries in [[Bibliography]]
 >
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
 
@@ -107,11 +107,23 @@ relation over a few coordinates.
 and random features reduce this), and kernels with fixed bandwidths behave poorly in high
 dimensions.
 
-**For Lenticulum**, two concrete uses, neither built:
-1. a **kernel baseline** for the diffusion family: the same queries answered by a KDE-ridge or
-   kernel-exponential-family model, to separate what the network learns from what any density
-   estimate gives;
-2. a **GP implicit factor**: the first factor whose answer is a belief over the relation rather
+**For Lenticulum**, two concrete uses:
+1. a **kernel baseline** for the diffusion family, **now built and measured**. `kde_predictor`
+   turns samples into a KDE noise predictor (the closed-form mixture, so queries are exact) and
+   `kde_bandwidth` picks the bandwidth by held-out likelihood. On the robot arm, with the same
+   fixed data, the diffusion network wins clearly where data are scarce:
+
+   | training samples | KDE ridge: median miss | diffusion network: median miss | KDE s/query | network s/query |
+   |---|---|---|---|---|
+   | 500 | 0.080 | 0.010 | 0.16 | 0.09 |
+   | 4000 | 0.019 | 0.009 | 0.48 | 0.08 |
+
+   The configurations form a 2-D surface in 4-D; the KDE's answers snap towards nearby samples,
+   so its error follows how densely they cover the surface, and tuning the bandwidth on the
+   query errors themselves still leaves about 0.07 at 500 samples. The network interpolates the
+   surface between samples. Worked through in the documentation's tutorial *What does the network
+   add? A kernel baseline*.
+2. a **GP implicit factor**, not built: the first factor whose answer is a belief over the relation rather
    than a point, which also needs the Gaussian-message machinery of [[Belief Algebra]] §6.
 
 Related: [[Implicit Learners]], [[Implicit Diffusion Learners]], [[Algebraic Implicit Learners]],
