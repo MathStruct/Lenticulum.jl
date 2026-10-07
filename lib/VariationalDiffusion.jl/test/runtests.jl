@@ -507,6 +507,63 @@ end
 end
 
 
+@testset "answers as beliefs: Laplace Gaussians, mixtures, Gaussian messages" begin
+    θs = range(0, 2π; length = 129)[1:128]
+    C = reduce(hcat, [[cos(θ), sin(θ)] for θ in θs])
+    nodes = field_nodes(Xoshiro(1), 2; samples = 8)
+    λ = density_lambda(SCHED, nodes)
+    function circle_model(w)
+        p = NoisePredictor(GaussianMixtureEps(SCHED, C; s = 0.05, weights = w), SCHED)
+        ps, st = LuxCore.setup(Xoshiro(0), p)
+        return ImplicitDiffusion(p, nodes; λ), p, ps, st
+    end
+    m, p, ps, st = circle_model(nothing)
+    # a closed-form mixture has an energy, and its gradient is the field
+    z = [0.3, 0.7]; h = 1e-6
+    U(z) = first(implicit_energy(m, z, ps, st))
+    @test [(U(z .+ h .* e) - U(z .- h .* e)) / 2h for e in ([1.0, 0.0], [0.0, 1.0])] ≈ first(prior_field(m, z, ps, st)) rtol = 1e-6
+    # laplace_belief is implicit_laplace's block as a GaussianBelief
+    sol, _ = implicit_infer(m, [0.3, 0.5], [Inf, 0.0], ps, st)
+    b = laplace_belief(m, sol, [Inf, 0.0], ps, st)
+    L = implicit_laplace(m, sol, [Inf, 0.0], ps, st)
+    @test b isa GaussianBelief && dimension(b) == 1
+    @test belief_mean(b) ≈ sol.z[2:2] && belief_cov(b) ≈ L.cov[2:2, 2:2]
+    @test_throws ArgumentError laplace_belief(m, sol, [Inf, 0.0], ps, st; coords = [1])
+    # implicit_mixture: both branches, with weights that track the data's mass on each
+    mix0, _ = implicit_mixture(m, [0.3, 0.0], [Inf, 0.0], ps, st)
+    m3, _, ps3, st3 = circle_model([sin(θ) > 0 ? 3.0 : 1.0 for θ in θs])   # upper half 3× heavier
+    mix3, _ = implicit_mixture(m3, [0.3, 0.0], [Inf, 0.0], ps3, st3)
+    for mix in (mix0, mix3)
+        @test mix isa MixtureBelief && length(mix.components) == 2
+        @test sort([belief_mean(c)[1] for c in mix.components]) ≈ [-0.954, 0.954] atol = 0.04
+    end
+    up(mix) = mixture_weights(mix)[argmax([belief_mean(c)[1] for c in mix.components])]
+    odds(q) = q / (1 - q)
+    @test abs(up(mix0) - 0.5) < 0.1                       # symmetric data: about even
+    @test odds(up(mix3)) / odds(up(mix0)) ≈ 3 rtol = 0.05  # the reweighting, recovered
+    # a DiffusionFactor that sends Gaussian messages
+    @test_throws ArgumentError ImplicitProx(nodes; message = :laplace)
+    f = DiffusionFactor((x = 1, y = 1), p; prox = ImplicitProx(nodes; λ, message = :gaussian))
+    q = Polarity((x = Observed(), y = Unobserved()), (x = Inf, y = 0.5))   # a soft anchor on y
+    lens, _ = LenticulumCore.assemble(f, q, ps, st)
+    post, _ = LenticulumCore.invert(lens, DiracBelief([0.5]), (x = DiracBelief([0.6]),), ps, st)
+    msg, _ = Mycelium.factor_message(f, :y, q, (x = DiracBelief([0.6]),), DiracBelief([0.5]), ps, st)
+    @test post isa GaussianBelief && msg isa GaussianBelief
+    @test belief_mean(post)[1] ≈ 0.78 atol = 0.05
+    # the message times the anchor N(0.5, 1/0.5²) is the posterior: the anchor is not counted twice
+    @test combine(msg, Gaussian([0.5], fill(1 / 0.25, 1, 1))).Λ ≈ post.Λ
+    @test belief_mean(combine(msg, Gaussian([0.5], fill(1 / 0.25, 1, 1)))) ≈ belief_mean(post)
+    # with no anchor (a pure conditional) message and posterior coincide
+    q0 = Polarity((x = Observed(), y = Unobserved()), (x = Inf, y = 0.0))
+    msg0, _ = Mycelium.factor_message(f, :y, q0, (x = DiracBelief([0.6]),), DiracBelief([0.5]), ps, st)
+    post0, _ = LenticulumCore.invert(first(LenticulumCore.assemble(f, q0, ps, st)), DiracBelief([0.5]),
+                                     (x = DiracBelief([0.6]),), ps, st)
+    @test msg0.Λ ≈ post0.Λ && msg0.η ≈ post0.η
+    # a Gaussian prior's mean is now used as the anchor and warm start (it was ignored before)
+    postg, _ = LenticulumCore.invert(lens, Gaussian([-0.5], fill(1.0, 1, 1)), (x = DiracBelief([0.6]),), ps, st)
+    @test belief_mean(postg)[1] ≈ -0.78 atol = 0.05
+end
+
 @testset "DiffusionFactor with the implicit solver as its inversion" begin
     prox = ImplicitProx(field_nodes(Xoshiro(1), 2; samples = 8))
     f = DiffusionFactor((x = 1, y = 1), RING; prox = prox)

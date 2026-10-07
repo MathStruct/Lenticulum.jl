@@ -1,6 +1,6 @@
 #implementation
 
-> Sources: code: `LenticulumCore.jl`, `abstract_types.jl`, `channels.jl`, `energy.jl`, `lens.jl`, `open_model.jl`, `statistical_game.jl`
+> Sources: code: `LenticulumCore.jl`, `abstract_types.jl`, `channels.jl`, `energy.jl`, `lens.jl`, `open_model.jl`, `gaussian_belief.jl`, `statistical_game.jl`
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens) · [Para Construction](https://mathstruct.org/CategoryTheory-ML-Wiki/Para-Construction) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Bicategory](https://mathstruct.org/CategoryTheory-ML-Wiki/Bicategory) · [Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Functor)
 
@@ -31,6 +31,7 @@ See [[Lux as a Parametric Lens]] and [[AutoBayes to Lenticulum]].
 | `channels.jl` | Def. 1's $X/\llbracket c\rrbracket/Y$ | ports and polarity — [[channels]] |
 | `energy.jl` | Def. 20's $l^c$, adapted | the two energies — [[energy]] |
 | `open_model.jl` | Defs. 1, 4, 6 | kernels with latent spaces — [[open_model]] |
+| `gaussian_belief.jl` | — | Gaussians in canonical form — [[gaussian_belief]] |
 | `lens.jl` | Defs. 9, 10, 12, 15 | model + inversion — [[lens]] |
 | `statistical_game.jl` | Defs. 20, 22, 25, 27, 28 | the factor interface — [[statistical_game]] |
 
@@ -42,14 +43,16 @@ See [[Lux as a Parametric Lens]] and [[AutoBayes to Lenticulum]].
   layer's `ps` may be nested inside a factor's without any adapter. This is the single most
   important interop decision in the package.
 - **`Random`** — `initialparameters(rng, factor)`; parameters are *constructed*, not given.
+- **`LinearAlgebra`** (standard library) — for `GaussianBelief`'s Cholesky factorisations,
+  added when the type moved here ([[gaussian_belief]]).
 - **`DispatchDoctor`** — type-stability checking, as LuxCore does. Currently imported but
   not applied; `@stable` should be turned on for `assemble` once concrete factors exist,
   since an assembled lens escaping into a type-unstable region would destroy the point of
   putting polarity in the type domain.
 
 Deliberately **absent**: `Distributions`, `Functors`, `ChainRulesCore`, any AD backend, any
-solver. Beliefs are an abstract type here; concrete representations belong downstream, the
-same way LuxCore has no arrays.
+solver. The concrete belief types are here after all, because every factor package must be
+able to emit them; their algebra (pooling, densities, products) is in `Mycelium`.
 
 ## Status
 

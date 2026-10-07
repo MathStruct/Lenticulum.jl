@@ -43,9 +43,9 @@ sum over the block. A hard clamp's precision is infinite and has no gradient (ze
 2. **Include order.** `ImplicitProx` must exist before `DiffusionFactor`'s type bound is
    evaluated, so `analytic.jl` and `implicit.jl` are included before `factor.jl`, and the
    functions that need both live in this separate file.
-3. **What is still not fixed.** The message is a Dirac and a posterior, not a likelihood
-   ([[The Diffusion Factor]] §4); that needs the Gaussian inversion of
-   [[The Implicit Diffusion Factor as a Statistical Game]] §6.
+3. **What is still not fixed.** The diffusion model's own prior is in every message, so a
+   message is a posterior, not a likelihood ([[The Diffusion Factor]] §4); §5 divides out
+   the anchor, which is the part that can be divided out.
 
 ## 4. How it is tested
 
@@ -53,5 +53,39 @@ The test set "DiffusionFactor with the implicit solver as its inversion": branch
 the prior, agreement with the bare solver, the message, a deterministic free energy, the
 per-channel pullback against finite differences of `invert`, the dimension check, and the error
 for a RED-Diff factor.
+
+The test set "answers as beliefs" covers §5: the energy of a closed-form mixture against the
+field, `laplace_belief` against `implicit_laplace`, both branches of a circle query as a mixture
+whose weights recover a 3:1 reweighting of the data (odds ratio 3.0), and the factor's Gaussian
+message, which times the anchor gives the posterior.
+
+## 5. Gaussian messages
+
+`ImplicitProx(nodes; λ, message = :gaussian)` makes the factor return a `GaussianBelief` on the
+target channel instead of a `DiracBelief`:
+
+| call | returns |
+|---|---|
+| `invert` | the Laplace posterior at the answer, marginalised onto the target ([[implicit]] §5) |
+| `factor_message` | the same, with the target's own anchor divided out |
+
+The solver's query multiplies in an anchor on the target, $\mathcal N(z_0, \rho^{-2})$, from the
+incoming belief and the polarity's precision. If the message kept it, the variable would
+count its own belief twice: once inside the message, once when it pools the message with
+itself. In canonical form the division is a subtraction,
+
+$$\Lambda_{\text{msg}} = \Lambda_{\text{post}} - \operatorname{diag}(\rho^2), \qquad \eta_{\text{msg}} = \eta_{\text{post}} - \rho^2 z_0,$$
+
+exact for the Laplace approximation. Marginalising onto the target commutes with it, because the
+anchor is diagonal and sits on the target's own coordinates. The result may be improper, a
+likelihood that constrains only some directions, which `GaussianBelief` allows.
+
+What cannot be divided out is the diffusion model's own prior: the message is the model's
+*conditional* belief about the target given the inputs, not a likelihood
+([[Open Problems in Implicit Diffusion Learning]] T10). Two more conditions:
+
+- covariances are in data units only with `λ = density_lambda(schedule, nodes)`;
+- the answer must be converged and stable; otherwise the call throws rather than sending a
+  meaningless curvature.
 
 Related: [[implicit]], [[factor]], [[The Diffusion Factor]], [[Inference Signatures]]

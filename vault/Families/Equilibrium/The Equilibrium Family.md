@@ -109,7 +109,13 @@ The algebraic family calls that locus the discriminant
 ([[Branches and the Discriminant]]). Two of the three [[Implicit Learners]] families therefore
 fail in the same place, for the same reason, in different vocabulary.
 
-## 5. `GaussianBelief` is in the wrong package
+## 5. `GaussianBelief` was in the wrong package
+
+> [!success] Resolved (October 2026)
+> The recommendation below was carried out: `GaussianBelief` is in `LenticulumCore`, its rules
+> in `Mycelium`. `VariationalDiffusion` now returns Laplace Gaussians
+> ([[implicit_factor]] §5); the two `ImplicitLayers` rows below are still open, now as work
+> rather than as a wall. The section is kept as the record of why.
 
 Every inversion in `lib/ImplicitLayers.jl` returns a `DiracBelief`, because a root-find and an
 ODE solve both produce a point. To return a *distribution* you would need somewhere to put

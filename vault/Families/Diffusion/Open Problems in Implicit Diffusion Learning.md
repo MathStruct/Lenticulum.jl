@@ -111,25 +111,30 @@ smoothed ridges?). In flat regions far from data, descent stalls and the solver 
 
 ## Part II. Missing implementation
 
-### I1. All branches: mixture beliefs and conditional sampling — **partly done**
+### I1. All branches: mixture beliefs and conditional sampling — **mostly done**
 
 Built: multi-start inference returning the distinct stable roots (`implicit_roots`), their
-Laplace covariances (`implicit_laplace`), and a mixture belief type that can hold them
-([[Mixture Belief]]). Missing: assembling those into a `MixtureBelief` answer with principled
-branch weights (the energy at each root suggests one, for energy networks), and a conditional
-sampler (DPS-like, or ProxDM's sampler with the clamp) for branch frequencies.
+Laplace covariances (`implicit_laplace`), and `implicit_mixture`, which assembles them into a
+`MixtureBelief` ([[Mixture Belief]]) with Laplace mass estimates as branch weights,
+$w_k \propto e^{-E(z_k)}\det(\Sigma_k)^{1/2}$. That needs an energy, which energy networks and
+closed-form mixtures (hence kernel estimates) have; on a circle whose upper half carries three
+times the data, the weights recover the 3:1 ratio. Missing: weights for plain ε-networks (no
+energy, so equal weights), and a conditional sampler (DPS-like, or ProxDM's sampler with the
+clamp) as an independent check of branch frequencies.
 
-### I2. Uncertainty: a Gaussian answer — **done (as a covariance)**
+### I2. Uncertainty: a Gaussian answer — **done**
 
-`implicit_laplace` returns the Laplace covariance $(\operatorname{sym} J_{FF})^{-1}$ at an answer, and
-`density_lambda` chooses the weighting under which it is in data units ([[implicit]] §5). Still
-missing: returning it as a `GaussianBelief` (I3) and using its entropy in the statistical game
-([[The Implicit Diffusion Factor as a Statistical Game]] §6).
+`implicit_laplace` returns the Laplace covariance $(\operatorname{sym} J_{FF})^{-1}$ at an answer,
+`density_lambda` chooses the weighting under which it is in data units ([[implicit]] §5), and
+`laplace_belief` returns it as a `GaussianBelief`. Still missing: using its entropy in the
+statistical game ([[The Implicit Diffusion Factor as a Statistical Game]] §6).
 
-### I3. Gaussian messages from learned factors
+### I3. Gaussian messages from learned factors — **done**
 
-`GaussianBelief` lives above the `lib/` packages, so diffusion factors cannot emit Gaussians
-even with I2. Fix: move all belief types into one low layer ([[Belief Algebra]] §6).
+All belief types now live in `LenticulumCore` ([[Belief Algebra]] §6), and
+`ImplicitProx(…; message = :gaussian)` makes a diffusion factor send the Laplace Gaussian, with
+the target's anchor divided out ([[implicit_factor]] §5). The model's own prior stays in the
+message (T10).
 
 ### I4. Automatic recovery from unstable answers — **done**
 
@@ -191,9 +196,9 @@ nonlinear Gaussian factors and Gauss–Newton in the graph, which Lenticulum doe
 | T9 | composition at $t > 0$ | known obstruction; mild for root finding |
 | T10 | posterior messages | open design problem |
 | T11 | convergence, existence, identifiability | open |
-| I1 | mixture beliefs, conditional sampling | partly done: roots, Laplace, mixture type; no branch weights, no sampler |
-| I2 | Laplace (Gaussian) answers | done as a covariance; not yet a belief |
-| I3 | Gaussian messages from `lib/` | missing (package layout) |
+| I1 | mixture beliefs, conditional sampling | mostly done: `implicit_mixture` with energy-based weights; no sampler |
+| I2 | Laplace (Gaussian) answers | done (`laplace_belief`) |
+| I3 | Gaussian messages from `lib/` | done (`message = :gaussian`) |
 | I4 | restarts after unstable solves | done |
 | I5 | batched nodes, Newton–Krylov | missing, needed for scale |
 | I6 | energy networks on Enzyme and Reactant | missing |

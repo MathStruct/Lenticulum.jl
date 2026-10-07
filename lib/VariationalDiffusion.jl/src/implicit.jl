@@ -291,7 +291,7 @@ end
 # --- As a factor's inversion ----------------------------------------------------
 
 """
-    ImplicitProx(nodes; λ = 1.0, tol = 1e-9, maxiters = 200, step = 0.05)
+    ImplicitProx(nodes; λ = 1.0, tol = 1e-9, maxiters = 200, step = 0.05, message = :point)
 
 The deterministic implicit solver as a [`DiffusionFactor`](@ref)'s inversion, in place of
 [`REDDiff`](@ref):
@@ -305,6 +305,13 @@ precisions (`Inf` = hard clamp). Compared with RED-Diff it is deterministic, it 
 convergence and stability ([`implicit_solution`](@ref)), its free energy is deterministic, and it
 has a backward pass ([`implicit_factor_pullback`](@ref)). `nodes` must have the factor's state
 dimension.
+
+`message` chooses what `invert` and `factor_message` return on the target channel:
+- `:point` — a `DiracBelief` at the answer;
+- `:gaussian` — a `GaussianBelief` from the Laplace approximation at the answer
+  ([`laplace_belief`](@ref)): the posterior marginal from `invert`, and from `factor_message`
+  the same with the target's own anchor divided out, so that a variable does not count its
+  incoming belief twice. Use `λ = density_lambda(schedule, nodes)` for calibrated covariances.
 """
 struct ImplicitProx{T<:Real}
     nodes::FieldNodes{T}
@@ -312,6 +319,12 @@ struct ImplicitProx{T<:Real}
     tol::T
     maxiters::Int
     step::T
+    message::Symbol
+    function ImplicitProx(nodes::FieldNodes{T}, λ::T, tol::T, maxiters::Int, step::T, message::Symbol) where {T<:Real}
+        message in (:point, :gaussian) || throw(ArgumentError("message must be :point or :gaussian, got :$message"))
+        return new{T}(nodes, λ, tol, maxiters, step, message)
+    end
 end
-ImplicitProx(nodes::FieldNodes{T}; λ = 1.0, tol = 1e-9, maxiters::Integer = 200, step = 0.05) where {T} =
-    ImplicitProx(nodes, T(λ), T(tol), Int(maxiters), T(step))
+ImplicitProx(nodes::FieldNodes{T}; λ = 1.0, tol = 1e-9, maxiters::Integer = 200, step = 0.05,
+             message::Symbol = :point) where {T} =
+    ImplicitProx(nodes, T(λ), T(tol), Int(maxiters), T(step), message)

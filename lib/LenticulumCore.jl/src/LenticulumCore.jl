@@ -28,11 +28,13 @@ module LenticulumCore
 using DispatchDoctor: @stable
 using Random: Random, AbstractRNG
 using LuxCore: LuxCore
+using LinearAlgebra: LinearAlgebra, Symmetric, cholesky, isposdef, logdet
 
 include("abstract_types.jl")
 include("channels.jl")
 include("energy.jl")
 include("open_model.jl")
+include("gaussian_belief.jl")
 include("lens.jl")
 include("statistical_game.jl")
 
@@ -65,6 +67,7 @@ export energy, entropy, scalar_energy
 # --- Models and lenses -----------------------------------------------------
 export OpenModelResult, DiracBelief, SampleBelief, TrivialBelief
 export CategoricalBelief, MixtureBelief, probabilities, bernoulli, mixture_weights
+export GaussianBelief, Gaussian, uninformative, belief_mean, belief_cov, isproper, logpartition
 export forward, logdensity, pushforward, isexact, ispure
 export latentspace, observedspace, unobservedspace
 export BayesianLens, ComposedLens, TensorLens, invert, compose

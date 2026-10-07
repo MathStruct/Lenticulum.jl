@@ -51,12 +51,17 @@ precisions of [[Implicit Diffusion Learners]] §2 are Gaussian beliefs on the cl
   directly, so it works for improper messages too.
 - Gaussian messages can be damped (mixed) during loopy message passing ([[Loopy Message Passing]]).
 
-## Where it is missing
+## Where it lives, and who emits it
 
-`GaussianBelief` lives in the top-level package, so factors in `lib/` (equilibrium, diffusion)
-cannot return one. Their point inferences have a natural Gaussian upgrade — the **Laplace
-approximation** $\Lambda = J_{FF}$ at the solution, which the implicit diffusion adjoint already
-computes ([[The Implicit Diffusion Factor as a Statistical Game]] §6).
+The type and its accessors are in `LenticulumCore` (`gaussian_belief.jl`), its message rules in
+`Mycelium` (`gaussian.jl`), the projections in the top-level package (`beliefs.jl`). It used to
+live entirely in the top-level package, out of reach of the factors in `lib/`.
+
+The implicit diffusion learner now emits it: the **Laplace approximation** $\Lambda = J_{FF}$ at
+an answer (`laplace_belief`), a mixture of them over all answers (`implicit_mixture`), and as a
+factor's message with the target's anchor divided out (`ImplicitProx(…; message = :gaussian)`,
+[[implicit_factor]] §5). The equilibrium factors could do the same through their sensitivity
+and do not yet.
 
 Related: [[Beliefs]], [[Dirac Belief]], [[Trivial Belief]], [[The Linear Gaussian Chain]],
 [[Messages are Inversions]], [[Bethe Free Energy]]

@@ -57,8 +57,9 @@ what records the cost.
 
 - `SampleBelief` has no `belief_logdensity`, so two of them cannot be pooled. See
   `Adversarial` for a route around this.
-- `GaussianBelief` lives in `Lenticulum`, not here, so packages under `lib/` cannot produce
-  one and fall back to `DiracBelief`.
+- `GaussianBelief` lives here too (canonical form, `gaussian_belief.jl`); its message rules
+  are in `Mycelium`. So far only `VariationalDiffusion`'s implicit solver emits one
+  (`ImplicitProx(…; message = :gaussian)`); the equilibrium factors still return points.
 
 ## API
 
@@ -84,7 +85,7 @@ Pages = ["channels.jl"]
 
 ```@autodocs
 Modules = [LenticulumCore]
-Pages = ["open_model.jl"]
+Pages = ["open_model.jl", "gaussian_belief.jl"]
 ```
 
 ### Bayesian lenses

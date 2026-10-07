@@ -78,3 +78,26 @@ function implicit_factor_pullback(f::DiffusionFactor{names}, p::LenticulumCore.P
     blocks_ρ = NamedTuple{names}(map(nm -> sum(b.ρ[getfield(rs, nm)]), names))   # one precision per channel
     return (inputs = blocks_in, ps = b.ps, precisions = blocks_ρ)
 end
+
+# --- Gaussian messages --------------------------------------------------------------------
+
+# The Laplace posterior on the target channel; as a message (`likelihood = true`) the target's
+# own anchor N(z₀, ρ⁻²), which the solver multiplied in, is divided out again. In canonical form
+# that is a subtraction, Λ - diag(ρ²) and η - ρ²z₀, exact for the Laplace approximation, and the
+# result may be improper (a likelihood that constrains only some directions). The diffusion
+# model's own prior cannot be divided out (`implicit_factor.md` §5).
+function _target_belief(prox::ImplicitProx, f::DiffusionFactor, p, inputs, π, ps, st, target; likelihood::Bool)
+    prox.message === :point && return invoke(_target_belief, Tuple{Any,DiffusionFactor,Any,Any,Any,Any,Any,Any},
+                                             prox, f, p, inputs, π, ps, st, target; likelihood)
+    z₀, ρ = _implicit_problem(f, p, inputs, π)
+    m = _implicit_model(f)
+    sol, st = implicit_infer(m, z₀, ρ, ps, st; z_init = z₀, tol = prox.tol, maxiters = prox.maxiters, step = prox.step)
+    (sol.converged && sol.stable) || throw(ArgumentError(
+        "a Gaussian message needs a converged, stable answer (converged = $(sol.converged), stable = $(sol.stable))"))
+    r = getfield(blockranges(f), target)
+    post = laplace_belief(m, sol, ρ, ps, st; coords = r)
+    likelihood || return (post, st)
+    D = ρ[r] .^ 2
+    return (LenticulumCore.GaussianBelief(post.η .- D .* z₀[r], Matrix(post.Λ) .- Diagonal(D)), st)
+end
+

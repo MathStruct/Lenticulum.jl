@@ -18,10 +18,11 @@ It is the prior $\pi$ of a [[Inversions and Bayesian Lenses|Bayesian lens]] and 
 inference returns. On an edge it may also be a **likelihood**: a non-negative function that
 need not integrate to one, which is why some beliefs are allowed to be *improper*.
 
-All belief types subtype `LenticulumCore.AbstractBelief`. The core package defines the three
-that need no linear algebra. `GaussianBelief` lives in the top-level `Lenticulum` package,
-which no `lib/` package may depend on — the reason the equilibrium and diffusion factors
-cannot yet return Gaussian messages ([[DEQ as a Relation]] §5, [[The Diffusion Factor]] §5).
+All belief types subtype `LenticulumCore.AbstractBelief` and are defined in `LenticulumCore`,
+`GaussianBelief` included (it moved there from the top-level package in October 2026, so that
+every factor package can emit one); their message rules are in `Mycelium`. The diffusion
+factors now return Laplace Gaussians on request; the equilibrium factors still return points
+([[DEQ as a Relation]] §5).
 
 ## The six types
 

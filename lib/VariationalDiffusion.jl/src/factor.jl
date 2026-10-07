@@ -204,7 +204,7 @@ _point(::LenticulumCore.TrivialBelief) = nothing
 _point(::LenticulumCore.SampleBelief) = nothing   # a particle set has no single point
 _point(b) = hasproperty(b, :η) ? _mean_or_nothing(b) : nothing
 _mean_or_nothing(b) = try
-    Mycelium.belief_mean(b)
+    LenticulumCore.belief_mean(b)
 catch
     nothing
 end
@@ -239,7 +239,8 @@ LenticulumCore.assemble(f::DiffusionFactor, p::LenticulumCore.Polarity, ps, st) 
 
 Run the RED-Diff prox and return the reconstructed unobserved block.
 
-The return type is a **`DiracBelief`**, and that is faithful rather than lazy: RED-Diff's
+The return type is a **`DiracBelief`** (for the implicit solver, a `GaussianBelief` on
+request: `ImplicitProx(…; message = :gaussian)`). For RED-Diff that is faithful rather than lazy: RED-Diff's
 variational family is ``q = \\mathcal{N}(\\mu, \\sigma^2 I)`` with ``\\sigma \\to 0``, so the
 posterior it computes *is* a point mass. The consequence is recorded in `factor.md` §5 —
 a Dirac message dominates every `combine` it meets, so a diffusion factor in a graph
@@ -251,10 +252,8 @@ function LenticulumCore.invert(
 )
     f = lens.model.factor
     p = lens.model.polarity
-    x, st = _run_prox(f, p, inputs, π, ps, st)
     target = first(LenticulumCore.unobserved_channels(p))
-    r = getfield(blockranges(f), target)
-    return (LenticulumCore.DiracBelief(x[r]), st)
+    return _target_belief(f.prox, f, p, inputs, π, ps, st, target; likelihood = false)
 end
 
 # the inversion is chosen by the type of `f.prox`: RED-Diff, or the deterministic implicit solver
@@ -278,7 +277,8 @@ end
     Mycelium.factor_message(f::DiffusionFactor, target, polarity, inputs, prior, ps, st)
 
 The factor → variable message: a `DiracBelief` on `target`, from a RED-Diff prox over the
-joint space.
+joint space, or, for `ImplicitProx(…; message = :gaussian)`, a `GaussianBelief` with the target's
+own anchor divided out (see [`ImplicitProx`](@ref)).
 
 > [!warning] This is the posterior, not the likelihood
 > Every other factor in this project returns a *likelihood* here, with the prior divided out,
@@ -296,7 +296,13 @@ function Mycelium.factor_message(
     haskey(f.blocks, target) || throw(ArgumentError(
         "channel :$target is not a channel of this DiffusionFactor (has $(keys(f.blocks)))"))
     p = polarity isa LenticulumCore.Polarity ? polarity : _default_polarity(f, target, inputs)
-    x, st = _run_prox(f, p, inputs, prior, ps, st)
+    return _target_belief(f.prox, f, p, inputs, prior, ps, st, target; likelihood = true)
+end
+
+# The belief on one channel after inversion: a point, unless the implicit solver is asked for
+# Gaussians (`ImplicitProx(…; message = :gaussian)`, in `implicit_factor.jl`).
+function _target_belief(prox, f::DiffusionFactor, p, inputs, π, ps, st, target; likelihood::Bool)
+    x, st = _run_prox(f, p, inputs, π, ps, st)
     r = getfield(blockranges(f), target)
     return (LenticulumCore.DiracBelief(x[r]), st)
 end

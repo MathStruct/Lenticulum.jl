@@ -97,7 +97,8 @@ U(z) = \\sum_k w_k\\,\\lambda_{t_k}\\Bigl[\\tfrac{\\sigma_k}{\\alpha_k}\\,E_\\th
 
 So the learned relation has an energy, and a query has a loss: ``U(z) + \\tfrac12\\lVert P(z - z_0)\\rVert^2``
 on the free coordinates. For a noise predictor that outputs ε directly no such ``U`` exists;
-see `energy_network.md` §3.
+see `energy_network.md` §3. A closed-form [`GaussianMixtureEps`](@ref) (and so a kernel density
+estimate) has one too, with ``E = -\\log p_t`` in closed form.
 """
 function implicit_energy(m::ImplicitDiffusion{<:NoisePredictor{<:EnergyNetwork}}, z, ps, st)
     s = m.predictor.schedule
@@ -105,6 +106,19 @@ function implicit_energy(m::ImplicitDiffusion{<:NoisePredictor{<:EnergyNetwork}}
     for k in eachindex(m.nodes.t)
         t = m.nodes.t[k]
         E, st = energy(m.predictor, _node_input(m, z, k), t, ps, st)
+        U += m.nodes.w[k] * _weight(m, t) * (sigma(s, t) / alpha(s, t) * E - dot(view(m.nodes.ε, :, k), z))
+    end
+    return (U, st)
+end
+
+# The closed-form mixture is an exact score, ε* = -σ ∇ log p_t, so its energy is E = -log p_t:
+# the same formula, in closed form. This gives kernel and mixture models an energy too.
+function implicit_energy(m::ImplicitDiffusion{<:NoisePredictor{<:GaussianMixtureEps}}, z, ps, st)
+    s = m.predictor.schedule
+    U = zero(float(eltype(z)))
+    for k in eachindex(m.nodes.t)
+        t = m.nodes.t[k]
+        E = -mixture_logdensity(m.predictor.model, _node_input(m, z, k), t, ps)
         U += m.nodes.w[k] * _weight(m, t) * (sigma(s, t) / alpha(s, t) * E - dot(view(m.nodes.ε, :, k), z))
     end
     return (U, st)

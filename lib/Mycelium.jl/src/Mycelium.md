@@ -1,6 +1,6 @@
 #implementation
 
-> Sources: code: `Mycelium.jl`, `factors.jl`, `free_energy.jl`, `graph.jl`, `messages.jl`, `passing.jl`, `polarity_resolution.jl`, `schedules.jl`
+> Sources: code: `Mycelium.jl`, `factors.jl`, `free_energy.jl`, `gaussian.jl`, `graph.jl`, `messages.jl`, `passing.jl`, `polarity_resolution.jl`, `schedules.jl`
 >
 > Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens)
 
@@ -22,11 +22,12 @@ Concept notes: [[Factor Graphs]], [[Everything is a Factor]], [[Messages are Inv
 | `passing.jl` | [[passing]] | executing a schedule; convergence reporting |
 | `free_energy.jl` | [[free_energy]] | counting numbers, Bethe, the graded energy |
 | `factors.jl` | [[factors]] | data, priors, losses, optimisers, relays |
+| `gaussian.jl` | [[gaussian]] | the Gaussian rules: pooling by addition, densities, entropy, damping, products |
 
 ## Dependencies
 
 `LenticulumCore` (the factor interface and the belief/energy types), `LuxCore` (parameter
-trees), `Random`, `DispatchDoctor`. **No graph library**: the adjacency structure needed here is
+trees), `Random`, `DispatchDoctor`, and the `LinearAlgebra` standard library for the Gaussian rules. **No graph library**: the adjacency structure needed here is
 small, bipartite and channel-labelled, and every graph package would need adapting rather than
 using. No solver, no AD, no distributions — same discipline as `LenticulumCore`.
 

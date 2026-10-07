@@ -226,11 +226,9 @@ Not the full extension. The one thing that would make the rest real:
 > A **trajectory belief type** — a Gauss–Markov process represented by its block-tridiagonal
 > precision — together with `combine` and `interpolate` on it.
 
-Everything else in this note is scaffolding around that object. And it is blocked on the same
-thing three factor packages are already blocked on: `GaussianBelief` lives in the top-level
-`Lenticulum` package where no `lib/` package can reach it
-([[The Equilibrium Family]] §5). Moving it to `LenticulumCore` is the prerequisite for this
-note and for three others.
+Everything else in this note is scaffolding around that object. Its prerequisite, moving
+`GaussianBelief` down to `LenticulumCore` where every `lib/` package can reach it
+([[The Equilibrium Family]] §5), is done (October 2026); the trajectory belief is not.
 
 ## Sources
 

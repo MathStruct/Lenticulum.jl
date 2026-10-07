@@ -249,9 +249,8 @@ Run the root solve in the direction the polarity chose.
 
 Returns a `DiracBelief`: a root-find produces a point, not a distribution. Propagating
 uncertainty would need the linearisation of [`deq_sensitivity`](@ref) *and* a
-`GaussianBelief` to put it in — and `GaussianBelief` lives in the top-level `Lenticulum`
-package, which no `lib/` package may depend on. See `deq.md` §4.1; the same wall is recorded
-in `VariationalDiffusion`'s `factor.md`.
+`GaussianBelief` to put it in. The type is in `LenticulumCore` now; the covariance is not
+built yet. See `deq.md` §4.1.
 """
 function LenticulumCore.invert(
     lens::LenticulumCore.BayesianLens{<:DEQModel,<:LenticulumCore.SolverInversion},

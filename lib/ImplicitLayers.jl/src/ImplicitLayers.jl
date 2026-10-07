@@ -53,9 +53,8 @@ is honestly labelled a test-scale tool: the real answer is a VJP from automatic
 differentiation. See [[solve]] §4.
 
 **Every inversion returns a `DiracBelief`.** A root-find and an ODE solve both produce a
-*point*. Transporting a distribution would need `GaussianBelief`, which lives in the top-level
-`Lenticulum` package that no `lib/` package may depend on — the third factor package in a row
-to hit this. See [[The Equilibrium Family]] §5.
+*point*. `GaussianBelief` is now in `LenticulumCore`, so a Gaussian answer (a covariance pushed
+through `deq_sensitivity`) is possible but not built yet. See [[The Equilibrium Family]] §5.
 """
 module ImplicitLayers
 
@@ -78,7 +77,7 @@ _point(b::LenticulumCore.DiracBelief) = _vec(b.value)
 _point(::LenticulumCore.SampleBelief) = nothing   # a particle set has no single point
 _point(b) = hasproperty(b, :η) ? _canonical_mean(b) : nothing
 _canonical_mean(b) = try
-    Mycelium.belief_mean(b)
+    LenticulumCore.belief_mean(b)
 catch
     nothing
 end

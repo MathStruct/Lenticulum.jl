@@ -165,9 +165,9 @@ Forward flow together with ``\\int \\operatorname{tr}\\partial_z f_\\theta\\,dt`
 ```
 
 the instantaneous change of variables. **This is the piece that would make the factor
-transport a density rather than a point** — and it cannot be used for that today, because the
-belief type it would need (`GaussianBelief`, or a normalising-flow belief) is not reachable
-from a `lib/` package. See `neuralode.md` §4.2.
+transport a density rather than a point**. It is not used for that yet: `GaussianBelief` is
+now reachable (in `LenticulumCore`), but a flow needs a non-Gaussian, pushforward belief, which
+does not exist. See `neuralode.md` §4.2.
 """
 function flow_logdet(f::NeuralODEFactor, z₀, ps, st)
     vf, stref = vectorfield(f, ps, st)

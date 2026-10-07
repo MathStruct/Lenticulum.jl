@@ -100,7 +100,7 @@ Pages = ["polarity_resolution.jl"]
 
 ```@autodocs
 Modules = [Mycelium]
-Pages = ["messages.jl"]
+Pages = ["messages.jl", "gaussian.jl"]
 ```
 
 ### Schedules

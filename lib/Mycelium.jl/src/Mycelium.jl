@@ -41,7 +41,9 @@ module Mycelium
 using DispatchDoctor: @stable
 using Random: Random, AbstractRNG
 using LuxCore: LuxCore
-using LenticulumCore: LenticulumCore, AbstractGradientCoupling, DiagonalCoupling
+using LenticulumCore: LenticulumCore, AbstractGradientCoupling, DiagonalCoupling,
+    GaussianBelief, dimension, isproper, logpartition
+using LinearAlgebra: logdet
 
 include("graph.jl")
 include("polarity_resolution.jl")
@@ -50,6 +52,7 @@ include("schedules.jl")
 include("passing.jl")
 include("free_energy.jl")
 include("factors.jl")
+include("gaussian.jl")
 
 # --- Graph -----------------------------------------------------------------
 export FactorGraph, GraphBuilder, VariableNode, FactorNode, Edge

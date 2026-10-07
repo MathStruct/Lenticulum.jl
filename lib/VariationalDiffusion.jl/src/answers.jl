@@ -23,7 +23,8 @@ is solved with [`implicit_infer`](@ref) (`kwargs` are passed on); converged, sta
 are kept, and two are the same answer if they differ by less than `unique_tol` (relative).
 
 The answers are ordered by the query's energy ``U(z) + \\tfrac12\\lVert P(z - z_0)\\rVert^2`` when the
-predictor is an [`EnergyNetwork`](@ref) (lowest first, i.e. the most plausible answer first),
+predictor has an energy, i.e. is an [`EnergyNetwork`](@ref) or a closed-form
+[`GaussianMixtureEps`](@ref) (lowest first, i.e. the most plausible answer first),
 and otherwise in the order found. There is no guarantee that every stable answer is found;
 more starts and a larger `spread` find more.
 """
@@ -53,6 +54,7 @@ end
 
 _has_energy(m) = false
 _has_energy(::ImplicitDiffusion{<:NoisePredictor{<:EnergyNetwork}}) = true
+_has_energy(::ImplicitDiffusion{<:NoisePredictor{<:GaussianMixtureEps}}) = true
 
 function _query_energy(m, z, z₀, ρ, ps, st)
     U, _ = implicit_energy(m, z, ps, st)
@@ -106,4 +108,58 @@ function implicit_laplace(m::AbstractImplicitRelation, sol::ImplicitSolution, ρ
     Σ = zeros(eltype(ΣF), n, n)
     Σ[free, free] .= ΣF
     return (mean = sol.z, cov = Σ, free = free)
+end
+
+# --- Answers as beliefs ----------------------------------------------------------------------
+
+_indices(coords::AbstractVector{Bool}) = findall(coords)
+_indices(coords) = collect(coords)
+
+"""
+    laplace_belief(m, sol, ρ, ps, st; coords = free) -> GaussianBelief
+
+The Laplace approximation at the answer `sol` ([`implicit_laplace`](@ref)) as a
+`GaussianBelief`, marginalised onto `coords` (indices or a mask; default: all free
+coordinates). Hard-clamped coordinates have no variance and cannot be among `coords`.
+Calibrated in data units when the model is built with [`density_lambda`](@ref).
+"""
+function laplace_belief(m::AbstractImplicitRelation, sol::ImplicitSolution, ρ, ps, st;
+                        coords = .!isinf.(ρ))
+    L = implicit_laplace(m, sol, ρ, ps, st)
+    idx = _indices(coords)
+    all(L.free[idx]) || throw(ArgumentError("`coords` must be free coordinates; hard-clamped ones have no variance"))
+    return LenticulumCore.Gaussian(sol.z[idx], Matrix(Symmetric(L.cov[idx, idx])))
+end
+
+"""
+    implicit_mixture(m, z₀, ρ, ps, st; coords = free, kwargs...) -> (MixtureBelief, st)
+
+Every answer to a query as one belief: a mixture of the Laplace Gaussians at the stable roots
+that [`implicit_roots`](@ref) finds (`kwargs` are passed on), marginalised onto `coords`.
+
+The weights are the Laplace estimates of each answer's probability mass,
+``w_k \\propto e^{-E(z_k)}\\,\\det(\\Sigma_k)^{1/2}``, with ``E`` the query's energy (the relation's
+plus the clamp's) and ``\\Sigma_k`` the full free-coordinate covariance, when the relation has an
+energy: an [`EnergyNetwork`](@ref), a closed-form [`GaussianMixtureEps`](@ref), or a product of
+them. Otherwise the field determines no relative heights and the weights are equal. Build the
+model with [`density_lambda`](@ref) so that the energy is a calibrated negative log-density.
+Throws if no stable answer is found.
+"""
+function implicit_mixture(m::AbstractImplicitRelation, z₀, ρ, ps, st; coords = .!isinf.(ρ), kwargs...)
+    roots, st = implicit_roots(m, z₀, ρ, ps, st; kwargs...)
+    isempty(roots) && throw(ArgumentError("no stable answer found; try more starts or a larger spread"))
+    idx = _indices(coords)
+    comps = map(roots) do r
+        L = implicit_laplace(m, r, ρ, ps, st)
+        all(L.free[idx]) || throw(ArgumentError("`coords` must be free coordinates; hard-clamped ones have no variance"))
+        (LenticulumCore.Gaussian(r.z[idx], Matrix(Symmetric(L.cov[idx, idx]))),
+         LinearAlgebra.logdet(Symmetric(L.cov[L.free, L.free])) / 2)
+    end
+    logw = if _has_energy(m)
+        [-_query_energy(m, r.z, z₀, ρ, ps, st) + c[2] for (r, c) in zip(roots, comps)]
+    else
+        zeros(length(roots))
+    end
+    w = exp.(logw .- maximum(logw))
+    return (LenticulumCore.MixtureBelief([c[1] for c in comps], w), st)
 end

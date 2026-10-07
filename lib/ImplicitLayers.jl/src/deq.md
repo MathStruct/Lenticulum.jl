@@ -69,11 +69,11 @@ A root-find returns a point. Propagating a *distribution* would need the lineari
 `deq_sensitivity` already computes — push a covariance through $\partial z^\ast/\partial x$ —
 and somewhere to put it, i.e. a `GaussianBelief`.
 
-**`GaussianBelief` lives in the top-level `Lenticulum` package**, which a `lib/` package must
-not depend on. So this factor cannot return one, `VariationalDiffusion`'s cannot either, and
-the belief type that makes message passing work is unreachable from every package that needs
-it. Three factor packages, one wall — see [[The Equilibrium Family]] §5 for the argument that
-`GaussianBelief` belongs in `LenticulumCore`.
+**`GaussianBelief` used to live in the top-level `Lenticulum` package**, out of reach of every
+`lib/` package. It has moved to `LenticulumCore` (October 2026, [[The Equilibrium Family]] §5),
+and `VariationalDiffusion` already returns Laplace Gaussians. For this factor the same is
+possible, $\Sigma_y = (\partial z^\ast/\partial x)\,\Sigma_x\,(\partial z^\ast/\partial x)^\top$ from `deq_sensitivity`,
+but not built.
 
 ### 4.2 The message is a posterior, not a likelihood
 

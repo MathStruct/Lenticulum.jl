@@ -95,19 +95,18 @@ Using it as the engine, and what that would gain and lose, is in [[RxInfer as a 
 
 ## 6. Interop and package layout (for later)
 
-**Where the beliefs live is the real constraint.** `TrivialBelief`, `DiracBelief` and
-`SampleBelief` are in `LenticulumCore`; `GaussianBelief` is in the top-level `Lenticulum`
-package, *above* the `lib/` packages. So the diffusion and equilibrium factors cannot return a
-Gaussian message even where they could compute one, e.g. the Laplace approximation from the
-implicit adjoint ([[Gaussian Belief]], [[Beliefs]]). `Mycelium` holds the graph, `combine` and
-the schedules; nothing in the graph machinery needs heavy dependencies.
+**Where the beliefs live was the real constraint**, and step 1 below is done (October 2026).
+All six belief types, `GaussianBelief` included, are now in `LenticulumCore`; their rules
+(`combine`, densities, entropy, products) are in `Mycelium`; only the projections
+(`moment_match`, `reduce_mixture`) and `kl_divergence` stay in the top-level package. The
+diffusion factors use it at once: `laplace_belief`, `implicit_mixture`, and Gaussian messages
+from `ImplicitProx(…; message = :gaussian)` ([[implicit_factor]] §5).
 
-**The plan, when this is taken up:**
+**The plan:**
 
-1. **One low layer for all beliefs and their algebra**: the belief types, `combine`,
-   densities, and later mixtures and projection. Either `LenticulumCore` itself, or a small
-   dedicated beliefs package if `LenticulumCore` should stay pure interfaces. Every factor
-   package can then produce and consume every belief type.
+1. **One low layer for all beliefs and their algebra** — *done*, as `LenticulumCore` (types)
+   plus `Mycelium` (rules). Every factor package can now produce and consume every belief
+   type.
 2. **Connectors as package extensions** on that layer, not as a second graph package:
 
    | connector (Distributions.jl extension) | what it enables |

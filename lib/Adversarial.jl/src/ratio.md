@@ -94,8 +94,8 @@ a variable of degree > 1. The same wall [[deq]] §4.2 and `VariationalDiffusion`
 ### 6.2 Only `SampleBelief` can be reweighted
 
 `_score` throws on a parametric belief, because reweighting needs particles. A `GaussianBelief`
-would have to be sampled first — and `GaussianBelief` is not reachable from a `lib/` package
-anyway ([[The Equilibrium Family]] §5, the fourth package to hit this).
+would have to be sampled first. (`GaussianBelief` is in `LenticulumCore` now, so this package
+can see one; sampling it is the missing step.)
 
 A `DiracBelief` passes through unchanged, matching `combine`'s rule that a hard clamp
 dominates.

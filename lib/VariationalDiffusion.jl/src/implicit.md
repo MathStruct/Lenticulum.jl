@@ -82,9 +82,19 @@ points (0.31, then 0.41) and off the circle (0.53). Calibration is to the densit
 at the field's noise levels**, so it is wider than the data's own spread, the same smoothing
 that biases the answers inwards ([[Implicit Diffusion Learners]] §5).
 
-What is still missing: the covariance is returned as a matrix, not a `GaussianBelief`, because
-that type lives above `lib/` ([[Belief Algebra]] §6); and λ chosen for calibration is not
-always the λ one wants for balancing soft evidence.
+**`laplace_belief`** returns that covariance as a `GaussianBelief` (marginalised onto chosen
+free coordinates), and **`implicit_mixture`** combines all answers into a `MixtureBelief`. Its
+weights are Laplace estimates of each answer's probability mass,
+$w_k \propto e^{-E(z_k)}\,\det(\Sigma_k)^{1/2}$, with $E$ the query's energy. That needs an
+energy: energy networks have one, and so does the closed-form mixture, whose energy is the
+same formula with $E_\theta = -\log p_t$ in closed form (so ordering in `implicit_roots` uses it
+too). With $x = 0.3$ on a circle whose upper half carries three times the data, the upper
+answer gets weight 0.78. The unweighted circle gives 0.54 rather than 0.5, because the field's
+random noise draws are not symmetric; the ratio of the two odds is 3.0. For plain ε-networks
+the weights are equal.
+
+What is still missing: λ chosen for calibration is not always the λ one wants for balancing soft
+evidence.
 
 Related: [[analytic]], [[reddiff]], [[factor]], [[energy_network]], [[Deterministic Relaxation]], [[Inference Signatures]],
 [[The Implicit Diffusion Factor as a Statistical Game]]
