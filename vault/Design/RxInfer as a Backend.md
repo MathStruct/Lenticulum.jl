@@ -80,6 +80,10 @@ Keep `Mycelium` as the small reference engine that implements the theory, and ad
 
 1. **Belief conversion** between this project's beliefs (Gaussian, categorical, mixture, Dirac,
    sample) and RxInfer's distribution types; also the connector [[Belief Algebra]] §6 asks for.
+   **Done** (October 2026): `as_distribution` and `as_belief`, an extension of `LenticulumCore`
+   that loads with ExponentialFamily.jl ([[interop]]). Gaussians convert exactly, canonical form
+   to canonical form; pooling agrees with RxInfer's `prod`; and a one-step conjugate model
+   solved by RxInfer and by `Lenticulum`'s Gaussian factors gives the same posterior.
 2. **A shared benchmark**: the localisation tutorial's graph run in both, with identical
    posteriors and free energy, which makes the overlap and the difference concrete.
 3. **A learned relation as an RxInfer node.** The mapping is unusually direct: an incoming

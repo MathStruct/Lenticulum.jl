@@ -18,7 +18,11 @@ Mycelium = {path = "lib/Mycelium.jl"}
 julia = "1.10"
 
 [extras]
+BayesBase = "b4ee3484-f114-42fe-b91c-797d54a0c67e"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+ExponentialFamily = "62312e5e-252a-4322-ace9-a5f4bf9b357b"
+RxInfer = "86711068-29c9-4ff7-b620-ae75d7495b3d"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test"]
+test = ["Test", "BayesBase", "Distributions", "ExponentialFamily", "RxInfer"]

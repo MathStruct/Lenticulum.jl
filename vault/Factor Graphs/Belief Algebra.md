@@ -107,7 +107,10 @@ from `ImplicitProx(…; message = :gaussian)` ([[implicit_factor]] §5).
 1. **One low layer for all beliefs and their algebra** — *done*, as `LenticulumCore` (types)
    plus `Mycelium` (rules). Every factor package can now produce and consume every belief
    type.
-2. **Connectors as package extensions** on that layer, not as a second graph package:
+2. **Connectors as package extensions** on that layer, not as a second graph package. The
+   first one exists: `as_distribution` / `as_belief` to and from the BayesBase /
+   ExponentialFamily / Distributions types RxInfer uses, for all six belief types
+   ([[interop]], [[RxInfer as a Backend]] §4). Still open from the table below:
 
    | connector (Distributions.jl extension) | what it enables |
    |---|---|

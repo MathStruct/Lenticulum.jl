@@ -35,6 +35,7 @@ include("channels.jl")
 include("energy.jl")
 include("open_model.jl")
 include("gaussian_belief.jl")
+include("interop.jl")
 include("lens.jl")
 include("statistical_game.jl")
 
@@ -68,6 +69,7 @@ export energy, entropy, scalar_energy
 export OpenModelResult, DiracBelief, SampleBelief, TrivialBelief
 export CategoricalBelief, MixtureBelief, probabilities, bernoulli, mixture_weights
 export GaussianBelief, Gaussian, uninformative, belief_mean, belief_cov, isproper, logpartition
+export as_distribution, as_belief
 export forward, logdensity, pushforward, isexact, ispure
 export latentspace, observedspace, unobservedspace
 export BayesianLens, ComposedLens, TensorLens, invert, compose
