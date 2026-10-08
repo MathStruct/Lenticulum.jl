@@ -1,0 +1,55 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+title: "Lenticulum.jl: learning relations on factor graphs"
+version: "20261008-proto"
+authors:
+  - family-names: Boigk
+    given-names: Daniel
+license: MIT
+repository-code: "https://github.com/MathStruct/Lenticulum.jl"
+url: "https://mathstruct.github.io/Lenticulum.jl/dev/"
+keywords:
+  - implicit learning
+  - diffusion models
+  - factor graphs
+  - message passing
+  - Bayesian lenses
+  - category theory
+  - probabilistic programming
+  - Julia
+abstract: >-
+  Lenticulum.jl is a Julia library for learning relations instead of functions.
+  A neural network learns a map from inputs to outputs and runs in one direction.
+  Lenticulum learns a relation on a joint space and decides at query time which
+  variables are observed and which are inferred, so one trained model answers
+  "y given x", "x given y" and "complete what is missing", including queries with
+  several answers.
+
+
+  The main learner is an implicit diffusion model. A denoising diffusion model,
+  trained in the standard way, defines a field whose stable roots are the
+  relation, and a query is answered by root finding. Gradients for training
+  through a query come from the implicit function theorem, as in deep equilibrium
+  models. Answers come with Laplace uncertainty: a Gaussian per answer, or a
+  mixture over all answers. Several learned relations combine as a product of
+  experts, so their intersection is found without retraining.
+
+
+  For statisticians, learned relations are factors in a factor graph. They
+  exchange Gaussian, categorical, mixture and particle beliefs by message
+  passing, alongside linear-Gaussian and constraint factors, with a Bethe free
+  energy, and they convert to RxInfer.jl's distribution types.
+
+
+  For category theorists, the design follows compositional accounts of Bayesian
+  inference. Each factor is a parameterised statistical game built from a
+  Bayesian lens, and which channels are observed (the polarity) is part of its
+  type.
+
+
+  The repository includes executable tutorials, a documentation site and a
+  linked notes vault on the theory, references and open problems. Lenticulum is
+  a research prototype under active development, with features added and
+  improved continuously. Each archived version is a snapshot of that work, and
+  the concept DOI always resolves to the latest version.
