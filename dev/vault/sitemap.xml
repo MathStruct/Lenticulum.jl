@@ -1,403 +1,406 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml"><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Applications/Climate-and-Dynamical-Systems</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Applications/Energy-Markets-and-Power-Grids</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Applications/Language-Models</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Applications/Metabolomics-and-Proteomics</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Applications/Molecular-Dynamics</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Applications/Motivating-Examples</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Applications/SLAM-and-Sensor-Fusion</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Applications/Trading-and-Financial-Markets</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Bibliography</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Comparisons/Geometric-Deep-Learning-and-Physical-Laws</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Comparisons/Kernel-Methods-for-Implicit-Learning</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Comparisons/ModelingToolkit-as-an-Acausal-Relation</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Comparisons/Prolog-and-Logic-Programming</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Comparisons/Related-Julia-Projects</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Control/The-Inferencer-and-the-Optimizer</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Control/The-Two-Part-Diagram</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Design/Parallelism-and-Compilation</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Design/RxInfer-as-a-Backend</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Design/Sharing-Types-with-RxInfer</loc>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Design/The-Structural-Gap-to-ModelingToolkit</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Design/Time-as-a-Base</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Design/Why-Julia</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Energy-Based/Energy-Based-Factor-Graphs</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Energy-Based/Energy-Based-Learning</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.625Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Energy-Based/Training-Energy-Based-Models</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/Acausal-Composition-is-a-Hypergraph-Category</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/Belief-Algebra</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/Beliefs</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/Bethe-Free-Energy</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/Categorical-Belief</loc>
-    <lastmod>2026-10-07T15:42:17.738Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/Dirac-Belief</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/Everything-is-a-Factor</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/Factor-Graphs</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/Gaussian-Belief</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/Loopy-Message-Passing</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/Messages-are-Inversions</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/Mixture-Belief</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/Polarity-Resolution</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/Sample-Belief</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/Schedules</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/The-Linear-Gaussian-Chain</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/Trivial-Belief</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Adversarial/GANs-as-Two-Factors</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Adversarial/Implicit-Generative-Models</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/Algebraic-Implicit-Learners</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/Algebraic-Statistics-Bridge</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/Algebraic-versus-Geometric-Distance</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/Backpropagation-by-the-Implicit-Function-Theorem</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/Branches-and-the-Discriminant</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/Composition-is-Elimination</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/Differential-Algebra-and-DAE-Factors</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/Fitting-is-a-Nullspace-Problem</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/Inference-as-Root-Finding</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/Open-Problems-in-Algebraic-Implicit-Learning</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/Symbolic-Implicit-Learning</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/The-Algebraic-Factor-as-a-Statistical-Game</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/The-Parameter-is-a-Grassmannian</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/The-Veronese-Parametrisation</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/Universal-Approximation-by-Nash-Tognoli</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/Varieties-Ideals-and-Real-Nullstellensatz</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/Backpropagation-through-Implicit-Inference</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/Composing-Diffusion-Factors</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/Deterministic-Relaxation</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/Implicit-Diffusion-Learners</loc>
-    <lastmod>2026-10-07T15:42:17.739Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/ImplicitREDDiff</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/Inference-Signatures</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/Open-Problems-in-Implicit-Diffusion-Learning</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/ProxDM-and-Proximal-Alternatives</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/RED-Diff-as-a-Statistical-Game</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/The-Diffusion-Factor</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/The-Diffusion-Family</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/The-Implicit-Diffusion-Factor-as-a-Statistical-Game</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/The-VP-SDE</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Equilibrium/DEQ-as-a-Relation</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Equilibrium/NeuralODE-as-an-Invertible-Factor</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Equilibrium/The-Equilibrium-Family</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Foundations/AutoBayes-Examples-as-Factor-Graphs</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Foundations/AutoBayes-to-Lenticulum</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Foundations/Channels-and-Polarity</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Foundations/Depth-in-Implicit-Learning</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Foundations/Factors-are-Parameterized-Statistical-Games</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Foundations/Implicit-Learners</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Foundations/Inversions-and-Bayesian-Lenses</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Foundations/Lux-as-a-Parametric-Lens</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Foundations/Open-Models-and-Latent-Channels</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Foundations/Scalar-and-Multivariate-Energy</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.626Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Foundations/The-Table-Revisited</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.627Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Foundations/Three-Senses-of-Implicit</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.627Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Map-of-Content</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.627Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/README</loc>
-    <lastmod>2026-10-07T15:42:17.759Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.642Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Start-Here</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.627Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Types/Probabilistic-Types</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.627Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/Types/The-Type-Discipline-of-a-Factor-Graph</loc>
-    <lastmod>2026-10-07T15:42:17.740Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.627Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/</loc>
-    <lastmod>2026-10-07T15:42:17.760Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.643Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/Adversarial.jl/Adversarial</loc>
-    <lastmod>2026-10-07T15:42:17.743Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.629Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/Adversarial.jl/generator</loc>
-    <lastmod>2026-10-07T15:42:17.743Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.629Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/Adversarial.jl/ratio</loc>
-    <lastmod>2026-10-07T15:42:17.743Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.629Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/ImplicitLayers.jl/ImplicitLayers</loc>
-    <lastmod>2026-10-07T15:42:17.746Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.632Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/ImplicitLayers.jl/deq</loc>
-    <lastmod>2026-10-07T15:42:17.746Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.632Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/ImplicitLayers.jl/flow</loc>
-    <lastmod>2026-10-07T15:42:17.746Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.632Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/ImplicitLayers.jl/luxfactor</loc>
-    <lastmod>2026-10-07T15:42:17.746Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.632Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/ImplicitLayers.jl/neuralode</loc>
-    <lastmod>2026-10-07T15:42:17.746Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.632Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/ImplicitLayers.jl/solve</loc>
-    <lastmod>2026-10-07T15:42:17.746Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.632Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/LenticulumCore.jl/LenticulumCore</loc>
-    <lastmod>2026-10-07T15:42:17.749Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.634Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/LenticulumCore.jl/abstract_types</loc>
-    <lastmod>2026-10-07T15:42:17.749Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.634Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/LenticulumCore.jl/channels</loc>
-    <lastmod>2026-10-07T15:42:17.749Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.635Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/LenticulumCore.jl/energy</loc>
-    <lastmod>2026-10-07T15:42:17.749Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.635Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/LenticulumCore.jl/gaussian_belief</loc>
-    <lastmod>2026-10-07T15:42:17.749Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.635Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/LenticulumCore.jl/interop</loc>
-    <lastmod>2026-10-07T15:42:17.749Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.635Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/LenticulumCore.jl/lens</loc>
-    <lastmod>2026-10-07T15:42:17.749Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.635Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/LenticulumCore.jl/open_model</loc>
-    <lastmod>2026-10-07T15:42:17.749Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.635Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/LenticulumCore.jl/statistical_game</loc>
-    <lastmod>2026-10-07T15:42:17.749Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.635Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/Mycelium.jl/Mycelium</loc>
-    <lastmod>2026-10-07T15:42:17.752Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.637Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/Mycelium.jl/factors</loc>
-    <lastmod>2026-10-07T15:42:17.752Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.637Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/Mycelium.jl/free_energy</loc>
-    <lastmod>2026-10-07T15:42:17.752Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.637Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/Mycelium.jl/gaussian</loc>
-    <lastmod>2026-10-07T15:42:17.752Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.637Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/Mycelium.jl/graph</loc>
-    <lastmod>2026-10-07T15:42:17.752Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.637Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/Mycelium.jl/messages</loc>
-    <lastmod>2026-10-07T15:42:17.752Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.637Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/Mycelium.jl/passing</loc>
-    <lastmod>2026-10-07T15:42:17.752Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.637Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/Mycelium.jl/polarity_resolution</loc>
-    <lastmod>2026-10-07T15:42:17.752Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.637Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/Mycelium.jl/schedules</loc>
-    <lastmod>2026-10-07T15:42:17.752Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.637Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/VariationalDiffusion</loc>
-    <lastmod>2026-10-07T15:42:17.755Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.640Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/analytic</loc>
-    <lastmod>2026-10-07T15:42:17.755Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.640Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/backends</loc>
-    <lastmod>2026-10-07T15:42:17.755Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.640Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/energy_network</loc>
-    <lastmod>2026-10-07T15:42:17.755Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.640Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/factor</loc>
-    <lastmod>2026-10-07T15:42:17.755Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.640Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/implicit</loc>
-    <lastmod>2026-10-07T15:42:17.755Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.640Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/implicit_factor</loc>
-    <lastmod>2026-10-07T15:42:17.755Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.640Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/kernel</loc>
-    <lastmod>2026-10-07T15:42:17.755Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.640Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/predictor</loc>
-    <lastmod>2026-10-07T15:42:17.755Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.640Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/product</loc>
-    <lastmod>2026-10-07T15:42:17.755Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.640Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/proxdm</loc>
-    <lastmod>2026-10-07T15:42:17.756Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.640Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/reddiff</loc>
-    <lastmod>2026-10-07T15:42:17.756Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.640Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/schedule</loc>
-    <lastmod>2026-10-07T15:42:17.756Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.640Z</lastmod>
   </url><url>
     <loc>https://mathstruct.github.io/Lenticulum.jl/dev/vault/src/constraint</loc>
-    <lastmod>2026-10-07T15:42:17.757Z</lastmod>
+    <lastmod>2026-10-08T14:03:50.642Z</lastmod>
   </url></urlset>
