@@ -41,7 +41,14 @@ reaches well beyond conjugate models.
 | `combine`, densities, `moment_match` ([[Belief Algebra]]) | BayesBase / ExponentialFamily products and projections | far more families, tested |
 | Bethe free energy (`bethe_free_energy`) | constrained Bethe free energy | local constraints, VMP |
 | Gaussian and linear factors | a library of nodes and rules | breadth |
-| — | delta nodes, non-conjugate updates | nonlinear factors, which `Lenticulum` lacks |
+| — | delta nodes, non-conjugate updates | factors from **hand-written** nonlinear functions, $y = f(x)$ with $f$ given, which `Lenticulum` lacks (its nonlinear factors are learned: diffusion, DEQ, neural ODE) |
+
+"Nonlinear" needs care here. A diffusion factor is as nonlinear as a factor gets, but its
+nonlinearity is learned and implicit (a relation, answered by root finding in any direction).
+A delta node is the other kind: the user writes $y = f(x)$, and RxInfer turns the known $f$ into
+Gaussian messages by linearisation, the unscented transform or CVI, which is how an extended or
+unscented Kalman filter is written there. A generic factor of that kind, `NonlinearFactor(f)`,
+is what `Lenticulum` is missing ([[Open Problems in Implicit Diffusion Learning]] I11).
 
 Everything on the **probabilistic, specified-model** side of this project would run faster and
 more completely there. The localisation tutorial, for example, is a model RxInfer handles
@@ -95,5 +102,9 @@ Keep `Mycelium` as the small reference engine that implements the theory, and ad
 Item 3 is the real backend question answered in the useful direction: RxInfer as the engine
 *around* learned relations, with the relations staying in this project.
 
-Related: [[Related Julia Projects]], [[Belief Algebra]], [[Inference Signatures]],
+Whether `Mycelium` could store RxInfer's own types instead of converting, and how a
+hand-written nonlinear factor could reuse RxInfer's approximations: [[Sharing Types with RxInfer]]
+(noted for later).
+
+Related: [[Sharing Types with RxInfer]], [[Related Julia Projects]], [[Belief Algebra]], [[Inference Signatures]],
 [[Messages are Inversions]], [[Why Julia]], [[The Two-Part Diagram]]

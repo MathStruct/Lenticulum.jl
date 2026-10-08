@@ -264,6 +264,8 @@ some parts known and some fitted, and a residual that means something in the dom
   subgraph-as-factor operation the vault records as missing
 - [[RxInfer as a Backend]] — the nearest neighbour as an engine: gains for the probabilistic part,
   five things a replacement would lose, and a connector with learned relations as RxInfer nodes
+- [[Sharing Types with RxInfer]] — (later) wrap ExponentialFamily types as beliefs instead of
+  converting; reuse RxInfer's linearisation and unscented code for hand-written nonlinear factors
 - [[Why Julia]] — why not C++, Rust, PyTorch, JAX or Mojo: in Julia ordinary code *is* the compiled,
   differentiable computation graph, with evidence from this repository and the costs stated
 - [[Parallelism and Compilation]] — parallelism, GPUs and XLA/MLIR in a *dynamic* SLAM

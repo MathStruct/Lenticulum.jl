@@ -179,7 +179,10 @@ benchmark, and a problem with tens of coordinates, are the obvious next tests; I
 ### I11. Nonlinear factors around the learner
 
 Latent states with nonlinear dynamics (the particle tutorial's noisy positions, SLAM) need
-nonlinear Gaussian factors and Gauss–Newton in the graph, which Lenticulum does not have yet.
+nonlinear Gaussian factors and Gauss–Newton in the graph, which Lenticulum does not have yet:
+a factor from a **hand-written** function $y = f(x)$, with Gaussian messages by linearisation or
+the unscented transform (RxInfer's delta nodes, [[RxInfer as a Backend]] §2). The learned
+factors are nonlinear too, but their nonlinearity comes from data.
 
 ## Summary
 
