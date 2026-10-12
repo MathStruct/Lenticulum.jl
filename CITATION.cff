@@ -3,6 +3,7 @@ message: "If you use this software, please cite it using the metadata from this 
 type: software
 title: "Lenticulum.jl: learning relations on factor graphs"
 version: "20261008-proto"
+doi: 10.5281/zenodo.23314723
 authors:
   - family-names: Boigk
     given-names: Daniel
