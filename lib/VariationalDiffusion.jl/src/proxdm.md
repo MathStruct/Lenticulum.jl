@@ -39,7 +39,18 @@ $-\varepsilon/\sigma_t$, so it is valid at $t = 0$, where the sampler's last ste
 On a uniform grid $0 = t_0 < \dots < t_N = T$ with $\gamma_k = \int_{t_{k-1}}^{t_k}\beta$:
 
 - **PDA** (`hybrid = false`): $z_{k-1} = \operatorname{prox}_{-\frac{2\gamma_k}{2-\gamma_k}\log p_{t_{k-1}}}\bigl(\tfrac{2}{2-\gamma_k}(z_k + \sqrt{\gamma_k}\,\xi_k)\bigr)$, which needs $\gamma_k < 2$; `proxdm_sample` throws otherwise.
-- **PDA-hybrid** (`hybrid = true`): $z_{k-1} = \operatorname{prox}_{-\gamma_k\log p_{t_{k-1}}}\bigl((1+\tfrac12\gamma_k)z_k + \sqrt{\gamma_k}\,\xi_k\bigr)$: the linear drift explicit, the score implicit; no step-size limit.
+- **PDA-hybrid** (`scheme = :hybrid`, or `hybrid = true`): $z_{k-1} = \operatorname{prox}_{-\gamma_k\log p_{t_{k-1}}}\bigl((1+\tfrac12\gamma_k)z_k + \sqrt{\gamma_k}\,\xi_k\bigr)$: the linear drift explicit, the score implicit; no step-size limit.
+- **Trapezoidal** (`scheme = :trapezoidal`): the drift averaged over both ends of the step (Crank–Nicolson),
+
+  $$
+  z_{k-1} = z_k + \tfrac{\gamma_k}{2}\bigl[(\tfrac12 z_k + s_k) + (\tfrac12 z_{k-1} + s_{k-1})\bigr] + \sqrt{\gamma_k}\,\xi_k,
+  $$
+
+  which is again one prox: $z_{k-1} = \operatorname{prox}_{-\lambda\log p_{t_{k-1}}}(v)$ with
+  $\lambda = \frac{2\gamma_k}{4-\gamma_k}$ and $v = \frac{(1+\gamma_k/4)z_k + (\gamma_k/2)s_k + \sqrt{\gamma_k}\,\xi_k}{1-\gamma_k/4}$; it needs $\gamma_k < 4$.
+  The explicit score $s_k = \nabla\log p_{t_k}(z_k)$ is free: the previous step returned
+  $z_k = \operatorname{prox}_\lambda(v)$, and the prox's optimality condition gives
+  $s_k = (z_k - v)/\lambda$. The first step is a hybrid step, which supplies the first score.
 
 The last step evaluates the prox at $t_0 = 0$, so the output is already denoised; there is no
 separate final denoising step.
@@ -51,7 +62,36 @@ separate final denoising step.
 | sample std (true 0.30) | 0.248 | 0.268 | 0.286 | 0.293 |
 
 The mean is right at every step count; the spread converges at first order, as a backward
-Euler scheme should. The sampler on the circle mixture gives radius $1.002 \pm 0.024$.
+Euler scheme should. The trapezoidal scheme is second order. Its error in the spread, against
+PDA and the hybrid scheme (same Gaussian, 20,000 samples, common random numbers; the Monte Carlo
+floor is about 0.001):
+
+| steps | 10 | 20 | 40 | 80 | 160 |
+|---|---|---|---|---|---|
+| PDA | −0.097 | −0.054 | −0.028 | −0.015 | −0.007 |
+| hybrid | −0.099 | −0.056 | −0.030 | −0.016 | −0.007 |
+| trapezoidal | −0.023 | −0.007 | −0.001 | (floor) | (floor) |
+
+Halving the step halves the first-order error and divides the trapezoidal one by 3 to 6 before
+it reaches the floor. For a linear drift with constant coefficients and additive noise the
+trapezoidal step keeps the stationary variance exactly (the factors $1 \pm \gamma/4$ cancel in it), which is why the
+spread, the hard part for backward Euler, is right.
+
+On the circle mixture (radial width 0.050, 3,000 samples), the radius's spread:
+
+| steps | 20 | 50 | 100 |
+|---|---|---|---|
+| PDA | 0.015 | 0.029 | 0.038 |
+| hybrid | 0.016 | 0.030 | 0.038 |
+| trapezoidal | 0.027 | 0.044 | 0.048 |
+
+All three put the mean radius at 1.001 to 1.002. Fifty trapezoidal steps beat a hundred PDA steps;
+the remaining error sits at small $t$, where the ring's fine structure is and a uniform grid
+in $t$ is coarse (the clamped sampler of [[sampler]] uses a log-SNR grid for that reason).
+
+The free score holds only as far as the prox is exact. A learned `ProxNetwork` is an
+approximate prox; $(u - v)/\lambda$ is then its implied score, consistent with its own
+implicit steps but carrying its training error into the explicit half too.
 
 ## 3. Proximal inference for the implicit learner
 
@@ -200,7 +240,9 @@ struct's bounds are part of it), so Julia never prefers it and silently calls th
 - **`stable` is not assessed** by the splitting; it reports `true` when converged. The
   adjoint's matrix $I - \operatorname{diag}(a)D_{FF}$ is nonsingular wherever the splitting
   contracts, which is when it converges at all.
-- **The sampler is first order** (§2), as backward Euler is; no higher-order scheme yet.
+- **A log-SNR time grid** for `proxdm_sample` would move the steps to small $t$; with it the
+  first steps near $T$ get larger, which PDA's $\gamma_k < 2$ and the trapezoidal $\gamma_k < 4$
+  would then hit (the hybrid first step has no limit).
 - **Point messages only.** A Laplace Gaussian for proximal inference would need the Hessian
   of the relaxed problem, which the prox gives only through its Jacobian
   ($\nabla^2(-\log p_t) = (D^{-1} - I)/\lambda$ at the prox's output); not built.

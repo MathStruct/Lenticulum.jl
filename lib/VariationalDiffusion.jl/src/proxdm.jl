@@ -109,28 +109,47 @@ end
 # --- 2. the sampler: Algorithm 1 -------------------------------------------------
 
 """
-    proxdm_sample(p, schedule, x, ps, st; steps = 50, hybrid = false, rng = Random.default_rng(),
+    proxdm_sample(p, schedule, x, ps, st; steps = 50, scheme = :pda, rng = Random.default_rng(),
                   T = 1.0) -> (x₀, st)
 
 ProxDM's sampler (Fang et al., Algorithm 1), started from `x` (pure noise for the full reverse
 process). With ``\\gamma_k = \\int_{t_{k-1}}^{t_k}\\beta(s)\\,ds`` on a uniform grid ``0 = t_0 < \\dots < t_N = T``:
 
 - **PDA** (backward Euler): ``X_{k-1} = \\operatorname{prox}_{-\\frac{2\\gamma_k}{2-\\gamma_k}\\log p_{t_{k-1}}}\\bigl(\\tfrac{2}{2-\\gamma_k}(X_k + \\sqrt{\\gamma_k}\\,z_k)\\bigr)``, which needs ``\\gamma_k < 2``;
-- **PDA-hybrid** (`hybrid = true`): ``X_{k-1} = \\operatorname{prox}_{-\\gamma_k\\log p_{t_{k-1}}}\\bigl((1+\\tfrac12\\gamma_k)X_k + \\sqrt{\\gamma_k}\\,z_k\\bigr)``, no step-size limit.
+- **PDA-hybrid** (`scheme = :hybrid`): ``X_{k-1} = \\operatorname{prox}_{-\\gamma_k\\log p_{t_{k-1}}}\\bigl((1+\\tfrac12\\gamma_k)X_k + \\sqrt{\\gamma_k}\\,z_k\\bigr)``, no step-size limit.
+- **Trapezoidal** (`scheme = :trapezoidal`, second order): the drift averaged over both ends,
+  ``X_{k-1} = X_k + \\tfrac{\\gamma_k}2\\bigl[(\\tfrac12X_k + s_k) + (\\tfrac12X_{k-1} + s_{k-1})\\bigr] + \\sqrt{\\gamma_k}\\,z_k``, i.e.
+  ``X_{k-1} = \\operatorname{prox}_{-\\frac{2\\gamma_k}{4-\\gamma_k}\\log p_{t_{k-1}}}\\bigl(\\tfrac{(1+\\gamma_k/4)X_k + (\\gamma_k/2)s_k + \\sqrt{\\gamma_k}z_k}{1-\\gamma_k/4}\\bigr)``,
+  which needs ``\\gamma_k < 4``. The explicit score ``s_k = \\nabla\\log p_{t_k}(X_k)`` costs nothing: the
+  previous prox returned ``X_k = \\operatorname{prox}_\\lambda(v)``, and its optimality condition gives
+  ``s_k = (X_k - v)/\\lambda``. The first step is a hybrid step, which supplies the first score.
+  Still one prox call per step.
 
-Both follow from discretising the drift of the reverse VP-SDE at the *new* point (hybrid: the
-score term only), which turns each step into a proximal step. Unlike score-based samplers the
-last step denoises *after* adding noise, so no final denoising step is needed.
+PDA and hybrid follow from discretising the drift of the reverse VP-SDE at the *new* point
+(hybrid: the score term only), which turns each step into a proximal step; they are first order
+in the step (the spread converges like ``1/N``), the trapezoidal scheme second order. Unlike
+score-based samplers the last step denoises *after* adding noise, so no final denoising step is
+needed. `hybrid = true` is the old spelling of `scheme = :hybrid`.
 """
 function proxdm_sample(p, s::AbstractNoiseSchedule, x, ps, st; steps::Integer = 50, hybrid::Bool = false,
-                       rng::AbstractRNG = Random.default_rng(), T = 1.0)
+                       scheme::Symbol = hybrid ? :hybrid : :pda, rng::AbstractRNG = Random.default_rng(), T = 1.0)
+    scheme in (:pda, :hybrid, :trapezoidal) || throw(ArgumentError("scheme must be :pda, :hybrid or :trapezoidal, got :$scheme"))
     ts = range(0.0, float(T); length = steps + 1)
     x = float.(copy(x))
+    score = nothing                                   # ∇log p_t at x, once a prox has returned it
     for k in steps:-1:1
         γ = integrated_beta(s, ts[k + 1]) - integrated_beta(s, ts[k])
         z = randn(rng, eltype(x), size(x))
-        if hybrid
-            x, st = proximal(p, (1 + γ / 2) .* x .+ sqrt(γ) .* z, ts[k], γ, ps, st)
+        if scheme === :trapezoidal && score !== nothing
+            γ < 4 || throw(ArgumentError("the trapezoidal scheme needs γ_k < 4 (got $γ at step $k); use more steps"))
+            λ = (γ / 2) / (1 - γ / 4)
+            v = ((1 + γ / 4) .* x .+ (γ / 2) .* score .+ sqrt(γ) .* z) ./ (1 - γ / 4)
+            x, st = proximal(p, v, ts[k], λ, ps, st)
+            score = (x .- v) ./ λ                     # the prox's optimality condition
+        elseif scheme !== :pda                        # hybrid, and the trapezoidal scheme's first step
+            v = (1 + γ / 2) .* x .+ sqrt(γ) .* z
+            x, st = proximal(p, v, ts[k], γ, ps, st)
+            score = (x .- v) ./ γ
         else
             γ < 2 || throw(ArgumentError("PDA needs γ_k < 2 (got $γ at step $k); use more steps or hybrid = true"))
             x, st = proximal(p, (2 / (2 - γ)) .* (x .+ sqrt(γ) .* z), ts[k], 2γ / (2 - γ), ps, st)

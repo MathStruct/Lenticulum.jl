@@ -28,7 +28,10 @@ factor then has two parameter trees, `(predictor = …, prox = …)`: the invers
 prox's, the free energy's score term the predictor's. `implicit_solution` and
 `implicit_factor_pullback` work as for `ImplicitProx`, the latter through `prox_pullback`.
 
-Known gaps: the sampler is first order, and the message is a point only (no Laplace Gaussian).
+`proxdm_sample(…; scheme = :trapezoidal)` is a second-order sampler at the same cost as
+PDA: one prox per step, the explicit score read off the previous prox.
+
+Known gap: the factor's message is a point only (no Laplace Gaussian).
 
 ## API
 

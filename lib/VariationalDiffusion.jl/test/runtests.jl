@@ -1126,6 +1126,24 @@ end
         @test mean(std(X; dims = 2)) ≈ s atol = 0.03
     end
     @test_throws ArgumentError proxdm_sample(P, SCHED, randn(2), ps1, NamedTuple(); steps = 5)   # γ ≥ 2
+    # the trapezoidal scheme is second order: at 20 steps PDA's spread is 0.05 short, its is not
+    sd(scheme) = (rng = Xoshiro(4);
+                  X = reduce(hcat, [first(proxdm_sample(P, SCHED, randn(rng, 2), ps1, NamedTuple(); steps = 20, scheme, rng))
+                                    for _ in 1:2000]);
+                  (vec(mean(X; dims = 2)), mean(std(X; dims = 2))))
+    (mp, sp), (mt, stz) = sd(:pda), sd(:trapezoidal)
+    @test sp < s - 0.04
+    @test abs(stz - s) < 0.015
+    @test mt ≈ m atol = 0.03
+    # on the ring (radial width 0.05) the same: 50 trapezoidal steps beat 100 of PDA
+    radial(scheme, steps) = (rng = Xoshiro(5);
+                             std([norm(first(proxdm_sample(MixtureProx(RING.model), SCHED, randn(rng, 2), RPS, RST; steps, scheme, rng)))
+                                  for _ in 1:1000]))
+    @test radial(:trapezoidal, 50) > radial(:pda, 100) + 0.003
+    @test radial(:trapezoidal, 50) ≈ 0.05 atol = 0.01
+    @test first(proxdm_sample(P, SCHED, [0.1, 0.2], ps1, NamedTuple(); steps = 10, hybrid = true, rng = Xoshiro(6))) ==
+          first(proxdm_sample(P, SCHED, [0.1, 0.2], ps1, NamedTuple(); steps = 10, scheme = :hybrid, rng = Xoshiro(6)))
+    @test_throws ArgumentError proxdm_sample(P, SCHED, randn(2), ps1, NamedTuple(); scheme = :heun)
     # proximal inference with a hard clamp finds both branches of the circle, exactly symmetric
     Pc = MixtureProx(RING.model)
     up, _ = prox_infer(Pc, [0.6, 0.5], HARDX, 0.005, RPS, RST; λ = 0.01)

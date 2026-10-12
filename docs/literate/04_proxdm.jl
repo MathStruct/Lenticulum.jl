@@ -37,9 +37,9 @@ a, vt = alpha(sched, t), alpha(sched, t)^2 * s^2 + sigma(sched, t)^2
 # step-size condition is mild (PDA needs ``\gamma_k < 2``; the hybrid variant has none). For the
 # Gaussian above, the samples should have mean ``m`` and standard deviation ``0.3``:
 
-function draw(n; steps, hybrid = false)
+function draw(n; steps, scheme = :pda)
     rng = Xoshiro(1)
-    reduce(hcat, [first(proxdm_sample(P, sched, randn(rng, 2), ps1, NamedTuple(); steps, hybrid, rng)) for _ in 1:n])
+    reduce(hcat, [first(proxdm_sample(P, sched, randn(rng, 2), ps1, NamedTuple(); steps, scheme, rng)) for _ in 1:n])
 end
 X = draw(1000; steps = 100)
 (mean = vec(mean(X; dims = 2)), std = vec(std(X; dims = 2)))
@@ -49,6 +49,15 @@ X = draw(1000; steps = 100)
 
 for steps in (20, 40, 100, 400)
     println(rpad(steps, 4), " steps:  std = ", round.(vec(std(draw(600; steps); dims = 2)); digits = 3))
+end
+
+# A trapezoidal step averages the drift over both ends of the step and is second order, at the
+# same cost: one prox call per step. The explicit half needs the score at the current point,
+# and the previous prox already returned it, through its optimality condition
+# ``\nabla\log p_t(u) = (u - v)/\lambda``:
+
+for steps in (10, 20, 40)
+    println(rpad(steps, 4), " steps:  std = ", round.(vec(std(draw(600; steps, scheme = :trapezoidal); dims = 2)); digits = 3))
 end
 
 # ## A multimodal example: the circle

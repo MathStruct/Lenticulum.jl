@@ -90,7 +90,9 @@ ProxDM is now in `proxdm.jl` ([[proxdm]] has the details and the numbers):
   paper's parametrisation $v - \sqrt\lambda\,\varepsilon_\theta(v; t, \lambda)$) and `MixtureProx`, the
   exact prox of a Gaussian mixture, the oracle a perfect `ProxNetwork` would match.
 - **The sampler**, the paper's Algorithm 1 in both variants, checked against the moments of a
-  Gaussian: the spread converges at first order in the step size, as backward Euler should.
+  Gaussian: the spread converges at first order in the step size, as backward Euler should. A
+  trapezoidal variant (`scheme = :trapezoidal`) is second order at the same cost, reading the
+  explicit score off the previous prox's optimality condition ([[proxdm]] §2).
 - **Proximal inference for the implicit learner**, `prox_infer`: half-quadratic splitting
   between the prior's prox and the clamp's prox. Its $\lambda\to0$ limit is the implicit
   learner's problem ([[Deterministic Relaxation]]); hard clamps are exact.
