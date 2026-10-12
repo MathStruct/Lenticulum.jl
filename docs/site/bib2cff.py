@@ -102,6 +102,8 @@ def main():
     refs = [reference(*e) for e in entries(BIB.read_text(encoding="utf-8"))]
     note = ("# Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the\n"
             "# tutorials, implementation notes and theory vault. Edit the .bib file, not this list.\n")
+    while head.endswith(note):                 # the note from earlier runs, written above `references:`
+        head = head[: -len(note)].rstrip() + "\n"
     CFF.write_text(head + note + "references:\n" + "\n".join(refs) + "\n", encoding="utf-8")
     print(f"wrote {len(refs)} references into {CFF}")
 

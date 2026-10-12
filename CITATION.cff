@@ -57,22 +57,6 @@ abstract: >-
   the concept DOI always resolves to the latest version.
 # Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
 # tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
-# Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
-# tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
-# Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
-# tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
-# Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
-# tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
-# Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
-# tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
-# Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
-# tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
-# Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
-# tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
-# Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
-# tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
-# Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
-# tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
 references:
   - type: article
     title: "Batch Nonlinear Continuous-Time Trajectory Estimation as Exactly Sparse Gaussian Process Regression"
