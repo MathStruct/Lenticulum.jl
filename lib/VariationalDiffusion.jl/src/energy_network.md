@@ -88,9 +88,24 @@ naively is AD over AD. But its gradient is ``\partial_\theta\langle\nabla_x E, 2
 ``r`` the residual, the same mixed derivative. `denoising_gradient(pred, x₀, t, ε, ps, st)`
 returns the loss and that gradient for a batch; apply it with any optimiser.
 
-Backends tested: `AutoZygote()` and `SecondOrder(AutoForwardDiff(), AutoZygote())` agree with
-the closed form to 1e-16. Enzyme's forward-over-reverse fails on Lux layers on CPU
-(`jl_eqtable_get` not implemented in forward mode); Reactant is not wired for energy models.
+Backends, checked on a two-layer tanh network against its closed-form Hessian (2026-10-12;
+Julia 1.12.6, Lux 1.31.4, LuxLib 1.15.9, Enzyme 0.13.216, Mooncake 0.5.63):
+
+| second-order backend | result |
+|---|---|
+| `AutoZygote()`, `SecondOrder(AutoForwardDiff(), AutoZygote())` | exact to 1e-16; in the test suite |
+| `SecondOrder(AutoMooncakeForward(), AutoMooncake())` | exact to 3e-16; slow first call (about 70 s of compilation); not in the test suite |
+| `SecondOrder(AutoForwardDiff(), AutoMooncake())` | fails: Mooncake's gradient rejects a dual-number return value |
+| `SecondOrder(AutoMooncake(), AutoMooncake())` | fails: Mooncake has no reverse-over-reverse |
+| Enzyme forward-over-reverse inside `Reactant.@compile` | exact to 1e-16, but not yet wired into the Reactant extension |
+| Enzyme forward-over-reverse on CPU (`AutoEnzyme`) | fails, for two upstream reasons below |
+
+Enzyme on CPU fails twice over. LuxLib defines `augmented_primal` and `reverse` Enzyme rules for
+`fused_dense!` but no `forward` rule, so the outer forward pass through any `Dense` layer is a
+`MethodError`. Without Lux, `sum(tanh.(W * x))` hits Enzyme.jl issue #3368 on Julia 1.12
+(`cannot handle unknown binary operator` under runtime activity, which forward-over-reverse
+needs); Enzyme 0.13.181, from before that regression, runs it but returns a wrong Hessian. Neither
+affects Reactant, which differentiates the traced MLIR program, not the Julia code.
 
 ## 5. Validation
 
@@ -140,7 +155,8 @@ them. A point method returns one branch; the energy says the other is equally go
   energy computations here convert parameters to Float64 first.
 - **The input must accept a batch.** `input(x, t)` is called with ``x`` a matrix and ``t`` a
   scalar or a ``1\times B`` row during training, and with a vector during inference.
-- **Reactant** would need its own compiled Hessian and mixed derivative; not done.
+- **Reactant** needs its own compiled Hessian, Hessian-vector product and mixed derivative. Nested
+  Enzyme works inside `@compile` (§4); the five `_energy_*` hooks are not yet wired.
 
 Related: [[predictor]], [[implicit]], [[backends]], [[analytic]],
 [[Geometric Deep Learning and Physical Laws]], [[The Implicit Diffusion Factor as a Statistical Game]]

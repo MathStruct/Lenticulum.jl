@@ -38,7 +38,8 @@ scalar energy, [`implicit_energy`](@ref).
 Derivatives need an AD backend in `ad`, and second derivatives at that: the input Jacobian is
 a Hessian and the parameter VJP a mixed derivative. `AutoZygote()` and
 `DifferentiationInterface.SecondOrder(AutoForwardDiff(), AutoZygote())` work with Lux layers
-(load DifferentiationInterface and the backend); Enzyme's forward-over-reverse does not yet.
+(load DifferentiationInterface and the backend), as does `SecondOrder(AutoMooncakeForward(), AutoMooncake())`;
+Enzyme's forward-over-reverse on CPU does not yet (`energy_network.md` §4).
 """
 struct EnergyNetwork{L} <: LuxCore.AbstractLuxWrapperLayer{:model}
     model::L

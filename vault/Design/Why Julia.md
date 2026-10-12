@@ -118,8 +118,9 @@ research. If it matures, the ideas in this vault carry over; the code would not.
   minutes, most of it compilation; the project caches rendered tutorials for that reason.
 - **AD is powerful but uneven.** Measured here: Zygote rejects array mutation (the time embedding
   and parameter rebuild had to be rewritten), Enzyme needs runtime activity on Lux layers on
-  CPU, and Enzyme's forward-over-reverse fails on Lux layers, so energy networks use
-  ForwardDiff-over-Zygote instead ([[backends]] §7, [[energy_network]] §4).
+  CPU, and Enzyme's forward-over-reverse fails on Lux layers on CPU (a missing LuxLib rule and an
+  Enzyme regression on Julia 1.12), so energy networks use ForwardDiff-over-Zygote instead, or
+  Mooncake; the same nested Enzyme works inside Reactant ([[backends]] §7, [[energy_network]] §4).
 - **Type stability is the programmer's job.** Code that hides types from the compiler is slow;
   the fast path needs some discipline ([[Parallelism and Compilation]]).
 - **A smaller community.** Fewer pretrained models, fewer people to hire, fewer answers online.

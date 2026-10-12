@@ -237,7 +237,7 @@ Implementation notes live next to the code, per [[Start Here]]:
 
 **VariationalDiffusion.jl** — [[VariationalDiffusion]], [[schedule]], [[predictor]],
 [[reddiff]], [[factor]], [[analytic]], [[implicit]], [[implicit_factor]], [[energy_network]], [[proxdm]], [[backends]],
-[[krylov]], [[sampler]]
+[[krylov]], [[sampler]], [[coverage]]
 
 **ImplicitLayers.jl** — [[ImplicitLayers]], [[solve]], [[deq]], [[flow]], [[neuralode]],
 [[luxfactor]]

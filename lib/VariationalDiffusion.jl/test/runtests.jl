@@ -873,6 +873,56 @@ end
     @test Z1 ≈ Z2 rtol = 1e-12
 end
 
+@testset "coverage: answers off the data are flagged, typical ones are not" begin
+    draw(rng, N) = RING_μ[:, rand(rng, 1:RING_J, N)] .+ 0.05 .* randn(rng, 2, N)   # the ring's data
+    m = ImplicitDiffusion(RING, field_nodes(Xoshiro(1), 2; samples = 8))
+    data, cal = draw(Xoshiro(2), 2000), draw(Xoshiro(3), 500)
+    ref = coverage_reference(m, data, RPS, RST; calibration = cal)
+    # valid: about 5% of fresh in-distribution points have p < 0.05, for every score
+    fresh = coverage(ref, draw(Xoshiro(4), 400))
+    for f in (:p_distance, :p_reconstruction, :p_energy, :p)
+        @test mean(c -> getfield(c, f) < 0.05, fresh) < 0.08
+    end
+    # points off the ring are beyond every reference point
+    for z in ([0.0, 0.0], [1.3, 0.0], [0.0, 0.8])
+        c = coverage(ref, z)
+        @test c.p_distance == c.p_reconstruction == 1 / 501
+        @test c.p < 0.01
+    end
+    # an answer on the relation passes; a clamp off it (x = 1.3) still converges, and is flagged
+    ok, _ = implicit_infer(m, [0.6, 0.5], HARDX, RPS, RST)
+    off, _ = implicit_infer(m, [1.3, 0.5], HARDX, RPS, RST)
+    @test ok.converged && off.converged
+    @test coverage(ref, ok).p > 0.1
+    @test coverage(ref, off).p < 0.01
+    @test coverage(ref, ok) == coverage(ref, ok.z)                  # fixed noise draws: deterministic
+    # default calibration: columns of the data, each left out of its own nearest-neighbour search
+    ref2 = coverage_reference(m, data, RPS, RST; ncal = 300)
+    @test length(ref2.distance) == 300 && all(>(0), ref2.distance)
+    @test coverage(ref2, ok).p > 0.1 && coverage(ref2, off).p < 0.01
+    @test_throws ArgumentError coverage_reference(m, data, RPS, RST; scale = [1.0, -1.0])
+    @test coverage_reference(m, data, RPS, RST; calibration = cal[:, 1:5], scale = [1.0, 2.0]).distance ≈
+          [minimum(norm(([1.0, 0.5]) .* (cal[:, j] .- data[:, k])) for k in axes(data, 2)) for j in 1:5]
+    # an energy network's energy score is its own E: here the mixture's -log p_t
+    en = NoisePredictor(EnergyNetwork(MixEnergy(RING_μ, 0.05)), SCHED; ad = AutoZygote())
+    refe = coverage_reference(ImplicitDiffusion(en, m.nodes), data, (μ = copy(RING_μ),), NamedTuple(); calibration = cal[:, 1:50])
+    refm = coverage_reference(m, data, RPS, RST; calibration = cal[:, 1:50])
+    @test refe.energy ≈ refm.energy rtol = 1e-10
+    @test refe.reconstruction ≈ refm.reconstruction rtol = 1e-8
+    # a plain ε-network has no energy: two scores, and batched calls give the same ones
+    ps0, stm = Lux.setup(Xoshiro(0), MLP)
+    psm = _f64(ps0)
+    pred = NoisePredictor(MLP, SCHED; input = _batch_input)
+    nodes = field_nodes(Xoshiro(1), 2; samples = 2)
+    refp = coverage_reference(ImplicitDiffusion(pred, nodes), data, psm, stm; calibration = cal[:, 1:50], draws = 4)
+    refb = coverage_reference(ImplicitDiffusion(pred, nodes; batched = true), data, psm, stm; calibration = cal[:, 1:50], draws = 4)
+    @test refp.energy === nothing
+    @test refb.reconstruction ≈ refp.reconstruction rtol = 1e-12
+    c = coverage(refp, [0.6, 0.8])
+    @test c.energy === nothing && c.p_energy === nothing
+    @test c.p == min(1, 2 * min(c.p_distance, c.p_reconstruction))
+end
+
 # ---------------------------------------------------------------------------
 # Proximal diffusion models (ProxDM), against the exact proximal operator of a mixture.
 # ---------------------------------------------------------------------------

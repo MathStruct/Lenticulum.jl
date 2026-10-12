@@ -36,6 +36,15 @@ vector-Jacobian products (`prior_vjp`), stability is tested by Lanczos, and the 
 covariance is computed only on the coordinates asked for. On a 794-dimensional MLP with 784
 free coordinates, `implicit_infer` takes about 1 s; one dense 784 × 784 block takes 33 s.
 
+## Off the data
+
+Inference answers every query, also one the data never covered. `coverage_reference(m, data,
+ps, st; calibration)` scores held-out points; `coverage(ref, sol)` then ranks an answer by its
+distance to the data, the denoiser's reconstruction error and, with an energy, $-\log p_t$,
+each as a conformal p-value ([bates2023conformal](@cite)). On the unit circle about 5% of
+fresh data points get `p < 0.05`, and the answer to the clamp $x = 1.3$, which converges, gets
+0.006.
+
 ## Samples, not only modes
 
 The root finders return modes. `implicit_sample(m, z₀, ρ, ps, st; n, steps, resample)` draws
@@ -76,6 +85,13 @@ Pages = ["answers.jl"]
 ```@autodocs
 Modules = [VariationalDiffusion]
 Pages = ["krylov.jl"]
+```
+
+### Coverage
+
+```@autodocs
+Modules = [VariationalDiffusion]
+Pages = ["coverage.jl"]
 ```
 
 ### Sampling

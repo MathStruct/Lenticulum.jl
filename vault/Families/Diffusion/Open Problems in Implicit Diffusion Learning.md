@@ -53,13 +53,14 @@ or a point with a flag is a modelling decision without an agreed answer. Energy-
 models at least provide the number to decide with ($U$ at the answer, [[energy_network]] §3);
 ε-networks provide nothing comparable.
 
-### T5. Coverage and out-of-distribution queries — **open**
+### T5. Coverage and out-of-distribution queries — **open; per-answer flag implemented**
 
 The relation is only learned where data were seen. Outside, the field is extrapolation, and
 answers degrade silently (robot arm: misses up to 0.18 at targets needing angles outside the
 training range). Where data are sparse *along* the relation, the ridge can thin out or break.
-There is no measure of how well a learned relation covers a region, and no guarantee that it
-is connected where the true one is. Measured: tutorial *Robot arm* (in- vs out-of-distribution
+`coverage` (I9) now flags a single answer that lies outside the data, but there is still no
+measure of how well a learned relation covers a region, and no guarantee that it is connected
+where the true one is. Measured: tutorial *Robot arm* (in- vs out-of-distribution
 statistics).
 
 ### T6. A non-conservative field defines no energy — **intrinsic to ε-networks; resolved by energy networks at a cost**
@@ -163,10 +164,13 @@ conjugate gradients and stochastic Lanczos quadrature for the Laplace approximat
 794 coordinates free, `implicit_infer` takes 1.1 s where one dense block took 33 s ([[krylov]]).
 Not built: many queries at once (a batch of test images as one solve).
 
-### I6. Energy networks on every backend
+### I6. Energy networks on every backend — **partly done**
 
-Second derivatives work with Zygote and ForwardDiff-over-Zygote; Enzyme's forward-over-reverse
-fails on Lux layers, and Reactant is not wired for energy models ([[energy_network]] §4, §7).
+Second derivatives work with Zygote, ForwardDiff-over-Zygote and Mooncake forward-over-reverse.
+Enzyme's forward-over-reverse fails on CPU for two upstream reasons (a missing LuxLib forward rule
+for `fused_dense!`, and Enzyme.jl #3368 on Julia 1.12). The same nested Enzyme is exact inside
+`Reactant.@compile`, so Reactant is not blocked, only unwired: its extension lacks the five
+`_energy_*` hooks ([[energy_network]] §4, §7).
 
 ### I7. ProxDM, completed
 
@@ -181,11 +185,14 @@ Products of relations on the same variables are built (`ProductRelation`, [[prod
 query functions and the adjoint work on them. Not built: MCMC correction steps (T9's remedy for
 sampling), and products over different variable sets with a separator term.
 
-### I9. Coverage diagnostics
+### I9. Coverage diagnostics — **done**
 
-A practical flag for T5: the energy at the answer (energy networks), the distance to the
-nearest training data, or a density estimate on $Z$. Any of them would mark out-of-distribution
-answers. Not built.
+`coverage` flags answers outside the data for T5 (and clamps off the relation, T4): the
+distance to the nearest data point, Tweedie's reconstruction error at a small noise level (any
+predictor) and $-\log p_t$ (energy networks, mixtures, KDEs), each a conformal p-value against
+held-out points. On the circle it flags about 5% of fresh data at $\alpha = 0.05$ and the
+answer to $x = 1.3$ at $p = 0.006$ ([[coverage]]). Open: scores of the free block given the
+clamp, which would separate T4 from T5, and embeddings for high dimensions.
 
 ### I10. Real data and higher dimensions
 
@@ -214,7 +221,7 @@ channels, and a SLAM or particle example that uses it.
 | T2 | smoothing bias vs conditioning | intrinsic |
 | T3 | branch points | intrinsic |
 | T4 | queries off the relation | open (semantics) |
-| T5 | coverage, out of distribution | open |
+| T5 | coverage, out of distribution | open; per-answer flag implemented (`coverage`) |
 | T6 | non-conservative ε-networks | intrinsic; resolved by energy networks at a cost |
 | T7 | training shapes only visited branches | intrinsic to the bilevel objective |
 | T8 | hyperparameters | partly open |
@@ -226,10 +233,10 @@ channels, and a SLAM or particle example that uses it.
 | I3 | Gaussian messages from `lib/` | done (`message = :gaussian`) |
 | I4 | restarts after unstable solves | done |
 | I5 | batched nodes, Newton–Krylov | done: free-coordinate blocks, batched nodes, `KrylovSolve` |
-| I6 | energy networks on Enzyme and Reactant | missing |
+| I6 | energy networks on Enzyme and Reactant | Zygote and Mooncake work; Reactant unwired but unblocked; Enzyme on CPU blocked upstream |
 | I7 | ProxDM adjoint and factor | missing |
 | I8 | composition | products on shared variables done; corrections and separators missing |
-| I9 | coverage diagnostics | missing |
+| I9 | coverage diagnostics | done: `coverage` (distance, reconstruction, energy as conformal p-values) |
 | I10 | real data, higher dimensions | missing |
 | I11 | nonlinear factors | done: `NonlinearFactor` (EKF, UKF, iterated) |
 

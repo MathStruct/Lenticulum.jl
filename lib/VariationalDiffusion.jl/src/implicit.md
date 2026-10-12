@@ -96,6 +96,11 @@ answer gets weight 0.78. The unweighted circle gives 0.54 rather than 0.5, becau
 random noise draws are not symmetric; the ratio of the two odds is 3.0. For plain ε-networks
 the weights are equal.
 
+**`coverage`** (`coverage.jl`) says whether an answer lies where the model has seen data: the
+distance to the nearest data point, the denoiser's reconstruction error and the energy, each as
+a p-value against held-out points. A clamp off the relation still converges, and is flagged
+there ([[coverage]]).
+
 What is still missing: λ chosen for calibration is not always the λ one wants for balancing soft
 evidence.
 
