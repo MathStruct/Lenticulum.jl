@@ -59,6 +59,14 @@ abstract: >-
 # tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
 # Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
 # tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
+# Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
+# tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
+# Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
+# tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
+# Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
+# tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
+# Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
+# tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
 references:
   - type: article
     title: "Batch Nonlinear Continuous-Time Trajectory Estimation as Exactly Sparse Gaussian Process Regression"
@@ -1835,3 +1843,211 @@ references:
     issue: "7"
     start: "807"
     doi: "10.3390/e23070807"
+  - type: conference-paper
+    title: "Your Classifier is Secretly an Energy Based Model and You Should Treat it Like One"
+    authors:
+      - family-names: "Grathwohl"
+        given-names: "Will"
+      - family-names: "Wang"
+        given-names: "Kuan-Chieh"
+      - family-names: "Jacobsen"
+        given-names: "Jörn-Henrik"
+      - family-names: "Duvenaud"
+        given-names: "David"
+      - family-names: "Norouzi"
+        given-names: "Mohammad"
+      - family-names: "Swersky"
+        given-names: "Kevin"
+    year: 2020
+    collection-title: "International Conference on Learning Representations (ICLR)"
+    url: "https://arxiv.org/abs/1912.03263"
+  - type: conference-paper
+    title: "Your Diffusion Model is Secretly a Zero-Shot Classifier"
+    authors:
+      - family-names: "Li"
+        given-names: "Alexander C."
+      - family-names: "Prabhudesai"
+        given-names: "Mihir"
+      - family-names: "Duggal"
+        given-names: "Shivam"
+      - family-names: "Brown"
+        given-names: "Ellis"
+      - family-names: "Pathak"
+        given-names: "Deepak"
+    year: 2023
+    collection-title: "IEEE/CVF International Conference on Computer Vision (ICCV)"
+    url: "https://arxiv.org/abs/2303.16203"
+  - type: conference-paper
+    title: "Text-to-Image Diffusion Models are Zero-Shot Classifiers"
+    authors:
+      - family-names: "Clark"
+        given-names: "Kevin"
+      - family-names: "Jaini"
+        given-names: "Priyank"
+    year: 2023
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/2303.15233"
+  - type: conference-paper
+    title: "One Transformer Fits All Distributions in Multi-Modal Diffusion at Scale"
+    authors:
+      - family-names: "Bao"
+        given-names: "Fan"
+      - family-names: "Nie"
+        given-names: "Shen"
+      - family-names: "Xue"
+        given-names: "Kaiwen"
+      - family-names: "Li"
+        given-names: "Chongxuan"
+      - family-names: "Pu"
+        given-names: "Shi"
+      - family-names: "Wang"
+        given-names: "Yaole"
+      - family-names: "Yue"
+        given-names: "Gang"
+      - family-names: "Cao"
+        given-names: "Yue"
+      - family-names: "Su"
+        given-names: "Hang"
+      - family-names: "Zhu"
+        given-names: "Jun"
+    year: 2023
+    collection-title: "International Conference on Machine Learning (ICML)"
+    url: "https://arxiv.org/abs/2303.06555"
+  - type: conference-paper
+    title: "RePaint: Inpainting using Denoising Diffusion Probabilistic Models"
+    authors:
+      - family-names: "Lugmayr"
+        given-names: "Andreas"
+      - family-names: "Danelljan"
+        given-names: "Martin"
+      - family-names: "Romero"
+        given-names: "Andres"
+      - family-names: "Yu"
+        given-names: "Fisher"
+      - family-names: "Timofte"
+        given-names: "Radu"
+      - family-names: "Van Gool"
+        given-names: "Luc"
+    year: 2022
+    collection-title: "IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)"
+    url: "https://arxiv.org/abs/2201.09865"
+  - type: article
+    title: "Gradient-Based Learning Applied to Document Recognition"
+    authors:
+      - family-names: "LeCun"
+        given-names: "Yann"
+      - family-names: "Bottou"
+        given-names: "Léon"
+      - family-names: "Bengio"
+        given-names: "Yoshua"
+      - family-names: "Haffner"
+        given-names: "Patrick"
+    year: 1998
+    journal: "Proceedings of the IEEE"
+    volume: "86"
+    issue: "11"
+    start: "2278"
+    end: "2324"
+    doi: "10.1109/5.726791"
+  - type: conference-paper
+    title: "Hyperparameter Optimization with Approximate Gradient"
+    authors:
+      - family-names: "Pedregosa"
+        given-names: "Fabian"
+    year: 2016
+    collection-title: "International Conference on Machine Learning (ICML)"
+    url: "https://arxiv.org/abs/1602.02355"
+  - type: conference-paper
+    title: "On the Iteration Complexity of Hypergradient Computation"
+    authors:
+      - family-names: "Grazzi"
+        given-names: "Riccardo"
+      - family-names: "Franceschi"
+        given-names: "Luca"
+      - family-names: "Pontil"
+        given-names: "Massimiliano"
+      - family-names: "Salzo"
+        given-names: "Saverio"
+    year: 2020
+    collection-title: "International Conference on Machine Learning (ICML)"
+    url: "https://arxiv.org/abs/2006.16218"
+  - type: conference-paper
+    title: "On Training Implicit Models"
+    authors:
+      - family-names: "Geng"
+        given-names: "Zhengyang"
+      - family-names: "Zhang"
+        given-names: "Xin-Yu"
+      - family-names: "Bai"
+        given-names: "Shaojie"
+      - family-names: "Wang"
+        given-names: "Yisen"
+      - family-names: "Lin"
+        given-names: "Zhouchen"
+    year: 2021
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/2111.05177"
+  - type: conference-paper
+    title: "DreamFusion: Text-to-3D using 2D Diffusion"
+    authors:
+      - family-names: "Poole"
+        given-names: "Ben"
+      - family-names: "Jain"
+        given-names: "Ajay"
+      - family-names: "Barron"
+        given-names: "Jonathan T."
+      - family-names: "Mildenhall"
+        given-names: "Ben"
+    year: 2023
+    collection-title: "International Conference on Learning Representations (ICLR)"
+    url: "https://arxiv.org/abs/2209.14988"
+  - type: conference-paper
+    title: "Directly Fine-Tuning Diffusion Models on Differentiable Rewards"
+    authors:
+      - family-names: "Clark"
+        given-names: "Kevin"
+      - family-names: "Vicol"
+        given-names: "Paul"
+      - family-names: "Swersky"
+        given-names: "Kevin"
+      - family-names: "Fleet"
+        given-names: "David J."
+    year: 2024
+    collection-title: "International Conference on Learning Representations (ICLR)"
+    url: "https://arxiv.org/abs/2309.17400"
+  - type: generic
+    title: "Aligning Text-to-Image Diffusion Models with Reward Backpropagation"
+    authors:
+      - family-names: "Prabhudesai"
+        given-names: "Mihir"
+      - family-names: "Goyal"
+        given-names: "Anirudh"
+      - family-names: "Pathak"
+        given-names: "Deepak"
+      - family-names: "Fragkiadaki"
+        given-names: "Katerina"
+    year: 2023
+    url: "https://arxiv.org/abs/2310.03739"
+  - type: conference-paper
+    title: "Diffusion Models as Plug-and-Play Priors"
+    authors:
+      - family-names: "Graikos"
+        given-names: "Alexandros"
+      - family-names: "Malkin"
+        given-names: "Nikolay"
+      - family-names: "Jojic"
+        given-names: "Nebojsa"
+      - family-names: "Samaras"
+        given-names: "Dimitris"
+    year: 2022
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/2206.09012"
+  - type: conference-paper
+    title: "On the Link between Gaussian Homotopy Continuation and Convex Envelopes"
+    authors:
+      - family-names: "Mobahi"
+        given-names: "Hossein"
+      - family-names: "Fisher"
+        given-names: "John W."
+    year: 2015
+    collection-title: "Energy Minimization Methods in Computer Vision and Pattern Recognition (EMMCVPR)"

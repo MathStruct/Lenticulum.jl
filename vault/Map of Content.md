@@ -255,6 +255,8 @@ some parts known and some fitted, and a residual that means something in the dom
   [[Climate and Dynamical Systems]]
 - [[Language Models]] — a **product** of diffusion experts, not a mixture; why the framing
   clarifies and the machinery does not
+- [[MNIST in Both Directions]] — (later) one model of (image, label): classify, draw, and
+  inpaint-and-classify by choosing ρ; the interfaces it needs first
 
 ## Orientation
 

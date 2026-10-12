@@ -6,9 +6,9 @@
 > reduced the energy. Every gradient below is checked against finite differences of the full
 > solve in `lib/VariationalDiffusion.jl/test/runtests.jl`.
 
-> Sources: original to this vault (design and analysis); the adjoint method as in [[Backpropagation by the Implicit Function Theorem]] and [[DEQ as a Relation]] §4; Bai, Kolter & Koltun, *Deep Equilibrium Models*, NeurIPS 2019; Fung et al., *JFB: Jacobian-Free Backpropagation for Implicit Networks*, AAAI 2022; Mardani et al. [arXiv:2305.04391](https://arxiv.org/abs/2305.04391); code: `implicit.jl` (`implicit_pullback`), `analytic.jl` (`epsilon_jacobian`, `epsilon_vjp_params`)
+> Sources: original to this vault (design and analysis); the adjoint method as in [[Backpropagation by the Implicit Function Theorem]] and [[DEQ as a Relation]] §4; Bai, Kolter & Koltun, *Deep Equilibrium Models*, NeurIPS 2019; Fung et al., *JFB: Jacobian-Free Backpropagation for Implicit Networks*, AAAI 2022; Mardani et al. [arXiv:2305.04391](https://arxiv.org/abs/2305.04391); for §9: Pedregosa, ICML 2016; Grazzi et al., ICML 2020; Geng et al., NeurIPS 2021; Poole et al., ICLR 2023; Clark et al., ICLR 2024; Prabhudesai et al. 2023; Graikos et al., NeurIPS 2022; Mobahi & Fisher, EMMCVPR 2015; code: `implicit.jl` (`implicit_pullback`), `analytic.jl` (`epsilon_jacobian`, `epsilon_vjp_params`)
 >
-> Bibliography: [[Bibliography#^bai2019deq|Bai et al. 2019]] · [[Bibliography#^fung2022jfb|Wu Fung et al. 2022]] · [[Bibliography#^mardani2024reddiff|Mardani et al. 2024]]
+> Bibliography: [[Bibliography#^bai2019deq|Bai et al. 2019]] · [[Bibliography#^fung2022jfb|Wu Fung et al. 2022]] · [[Bibliography#^mardani2024reddiff|Mardani et al. 2024]] · [[Bibliography#^pedregosa2016hoag|Pedregosa 2016]] · [[Bibliography#^grazzi2020iteration|Grazzi et al. 2020]] · [[Bibliography#^geng2021training|Geng et al. 2021]] · [[Bibliography#^poole2023dreamfusion|Poole et al. 2023]] · [[Bibliography#^clark2024draft|Clark et al. 2024]] · [[Bibliography#^prabhudesai2023alignprop|Prabhudesai et al. 2023]] · [[Bibliography#^graikos2022plugandplay|Graikos et al. 2022]] · [[Bibliography#^mobahi2015homotopy|Mobahi & Fisher 2015]]
 >
 > Theory (CT-ML wiki): [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Compiler Correctness](https://mathstruct.org/CategoryTheory-ML-Wiki/Compiler-Correctness)
 
@@ -197,6 +197,54 @@ finite-difference derivatives of this section to 8 digits (`examples/circle_mlp.
 Compare [[RED-Diff as a Statistical Game]] §3, where the stop-gradient was "the difference
 between a package with an AD dependency and one without". Training *through* inference brings
 back exactly one VJP per node, no more.
+
+## 9. Backpropagating at higher noise levels than inference (later)
+
+An open idea, not yet tried. Inference may stop at a lowest noise level $t_2 > 0$: a sampler run
+only from $t_1$ down to $t_2$, or, in the implicit setting, field nodes only on $[t_2, t_1]$
+(`field_nodes(…; levels)`). The question is whether the backward pass should use **higher**
+levels $t_3 > t_2$.
+
+**It does not have to.** The adjoint with the forward's own nodes is the *exact* gradient of the
+truncated problem, the one smoothed at level $t_2$; that is just §2 with the same model.
+
+**It may want to**, for two reasons:
+- *Conditioning.* Across the data manifold the Jacobian of the score grows like $1/\sigma(t)^2$, so
+  near small $t$ the adjoint solve $J_{FF}^\top\lambda = -\bar z_F$ is stiff, and the gradient is
+  large and dominated by the network's errors.
+- *Where the state lives.* A state from a truncated forward pass sits about $\sigma(t_2)$ off the
+  clean manifold; evaluating the network there at levels *below* $t_2$ is out of distribution. So
+  the backward pass should never go lower than $t_2$, and going higher is a regulariser.
+
+**The price is bias.** With $J_f$ the forward's Jacobian and $J_b$ the one at the higher levels, the
+surrogate adjoint is $\lambda_b = -J_b^{-\top}\bar z_F$ instead of $\lambda = -J_f^{-\top}\bar z_F$: the
+gradient of a more smoothed problem than the one solved. It stays a descent direction while
+$J_b^{-1}J_f$ is close enough to the identity, the same kind of condition under which JFB
+(replacing $J^{-1}$ by $I$, §6) is a descent direction. Graduated smoothing is known to help
+non-convex optimisation (Gaussian homotopy, Mobahi & Fisher 2015), so a biased, smoother
+gradient might train *better*; that is the hypothesis.
+
+**Related work.** Nothing found that does exactly this (forward at $t_2$, adjoint at $t_3$, and a
+study of $t_3 - t_2$); every ingredient exists separately:
+
+| idea | work | relation |
+|---|---|---|
+| inexact forward and inexact backward, with bounds | Pedregosa 2016; Grazzi et al. 2020 | hypergradient error ≲ forward error + backward error |
+| approximate backward through an implicit layer | Fung et al. 2022 (JFB); Geng et al. 2021 (phantom gradients) | $J^{-1}$ replaced by $I$ or a few unrolled steps: biased descent directions |
+| backward at a noise level unrelated to the forward | Poole et al. 2023 (score distillation) | gradient at a random $t$ with the denoiser's Jacobian dropped: the extreme case |
+| backward through part of a sampler's schedule | Clark et al. 2024 (DRaFT-K); Prabhudesai et al. 2023 (AlignProp) | the converse truncation: only the last, low-noise steps |
+| optimising against a diffusion prior at a chosen or annealed $t$ | Graikos et al. 2022; Mardani et al. 2024 (RED-Diff) | the noise level as a smoothing knob for the gradient |
+
+**The experiment needs almost no new code.** Build two `ImplicitDiffusion`s on the same network,
+one with `levels` on $[t_2, t_1]$ for the forward and one on $[t_3, t_1]$ for the backward. Solve
+with the first and call `implicit_pullback(m_backward, sol, …)`: it needs only `sol.z` and the
+Jacobian, so it returns exactly the surrogate. Measure
+1. the cosine between surrogate and exact gradient as $t_3$ grows, and
+2. whether the training of §7 converges faster or more stably with $t_3 > t_2$.
+
+For ProxDM the same experiment waits on an adjoint for `prox_infer`
+([[Open Problems in Implicit Diffusion Learning]] I7); the prox at a single $t$ has the same
+implicit-function structure.
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]], [[Deterministic Relaxation]],
 [[The Implicit Diffusion Factor as a Statistical Game]], [[DEQ as a Relation]],
