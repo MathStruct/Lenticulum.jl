@@ -79,6 +79,9 @@ function epsilon_vjp_input(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st, W)
     return sigma(p.schedule, t) .* _energy_hvp(p.ad, p, X, t, ps, st, W)
 end
 
+# the Hessian is symmetric: the JVP is the same Hessian-vector product
+epsilon_jvp_input(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st, V) = epsilon_vjp_input(p, X, t, ps, st, V)
+
 # ∂_θ⟨σ_t ∇ₓE, w⟩ = ∂_θ⟨∇ₓE, σ_t w⟩, with σ_t per column for a batch
 function epsilon_vjp_params(p::NoisePredictor{<:EnergyNetwork}, x, t, ps, st, w)
     p.ad === nothing && _need_ad()

@@ -34,7 +34,7 @@ an updated state.
 | 3 | anytime, warm-started | $X \times \Theta \times Z \times \mathbb N \to Y \times E \times Z$ | the state after $k$ steps, its residual, the new state | `implicit_infer(…; z_init, maxiters = k)`; RED-Diff with `steps = k` |
 | 4 | with incoming message | $\mathcal B(X) \times \Theta \times Z \to Y \times E \times Z$ | as 3, with soft evidence | precisions $\rho$ and anchors $z_0$ encode a Gaussian message |
 | 5 | variational | $X \times \Theta \to \mathcal N(Y)$ | mean and covariance | RED-Diff with $\sigma > 0$ (not implemented; [[The Diffusion Factor]] §5) |
-| 6 | sampling | $X \times \Theta \times \Omega \to Y$ | one posterior sample | DPS, annealed Langevin, guided reverse SDE; unconditional: `proxdm_sample` |
+| 6 | sampling | $X \times \Theta \times \Omega \to Y$ | one posterior sample | DPS, annealed Langevin, guided reverse SDE; hard clamps: `implicit_sample`; unconditional: `proxdm_sample` |
 | 7 | amortised | $X \times \Theta \times \Phi \to Y$ | $h_\varphi(x)$, optionally refined by 3 | a learned initialiser (the `AmortisedInversion` slot) |
 
 **The sketch's signature** $X\times\Theta\times Z\times\hat E_X \to Y\times E\times Z$ is #3 combined
@@ -73,6 +73,7 @@ graph LR
 | DPS, ΠGDM | a posterior sample, by guided reverse SDE | no | forward and backward (DPS) | only by differentiating the sampler |
 | annealed Langevin | a posterior sample | no | forward | score-function or pathwise estimators |
 | ProxDM sampler (`proxdm_sample`) | a sample, by backward-Euler proximal steps | no | the prox network | only by differentiating the sampler |
+| replacement + RePaint (`implicit_sample`) | a sample given hard clamps, by the ancestral reverse step | no | the ε-network, forwards only | only by differentiating the sampler |
 | proximal inference (`prox_infer`) | a mode of the relaxed problem, by half-quadratic splitting | **yes** | the prox network | not yet (the IFT applies; [[proxdm]] §5) |
 
 Sampling methods are needed when the downstream task needs uncertainty, or when the relation is

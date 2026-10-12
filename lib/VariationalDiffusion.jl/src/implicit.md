@@ -15,9 +15,9 @@
 |---|---|
 | `FieldNodes`, `field_nodes`, `noisefree_nodes` | the fixed $(t_k, \varepsilon_k, w_k)$ that make the field deterministic |
 | `ImplicitDiffusion` | the relation: a `NoisePredictor` plus a node set plus λ; `batched = true` evaluates one noise level per network call |
-| `prior_field`, `prior_jacobian`, `prior_vjp` | $g_\theta(z)$, the block of $\partial g/\partial z$ on chosen coordinates (`coords`), and $(\partial g/\partial z)^\top w$ |
+| `prior_field`, `prior_jacobian`, `prior_vjp`, `prior_jvp` | $g_\theta(z)$, the block of $\partial g/\partial z$ on chosen coordinates (`coords`), $(\partial g/\partial z)^\top w$ and $(\partial g/\partial z)\,v$ |
 | `implicit_residual` | $r = g + \rho^2\odot(z - z_0)$ on the free coordinates |
-| `implicit_infer` → `ImplicitSolution` | a root, with `residual`, `iters`, `converged`, `stable` |
+| `implicit_infer` → `ImplicitSolution` | a root, with `residual`, `iters`, `converged`, `stable`; `linsolve = DenseSolve()` or `KrylovSolve()` ([[krylov]]) |
 | `implicit_pullback` | the adjoint: `(z₀ = …, ρ = …, ps = …)` |
 
 ## 2. Design decisions
@@ -34,7 +34,7 @@
 1. **The tolerance floor.** The field of a narrow mixture at small $t$ has a floating-point noise floor around $10^{-11}$ (it scales like $1/\sigma_t$). An absolute tolerance of $10^{-11}$ made a third of the solves "fail"; the tolerance is relative, `tol * (1 + ‖z‖)`.
 2. **The prototype's solver.** A version with a fixed descent step in non-convex regions and an energy line search dropped about 60% of solves during training, and its training stalled at RMSE 0.15. The package's solver (Newton where convex, residual backtracking) dropped none and reached 0.012.
 3. **Smoothing levels.** With RED-Diff's training range of noise levels, the deterministic field of a circle has its only root at the centre. The default `levels` stop at $t = 0.05$; the trade-off is measured in [[Implicit Diffusion Learners]] §5.
-4. **Dense Jacobians.** The block $J_{FF}$ is still formed densely, which is fine while few coordinates are free (§6) but not when a whole image is free. That case needs a matrix-free GMRES in both the Newton step and the adjoint, and a Lanczos test of stability ([[Open Problems in Implicit Diffusion Learning]] I5).
+4. **Dense Jacobians.** The block $J_{FF}$ is formed densely by default, which is fine while few coordinates are free (§6) but not when a whole image is free. `linsolve = KrylovSolve()` replaces it by GMRES on Jacobian-vector products in the Newton step and on vector-Jacobian products in the adjoint, and by a Lanczos test of stability ([[krylov]]).
 
 ## 4. How it is tested
 
@@ -46,6 +46,8 @@
 - the Gaussian root and its derivative match the closed form;
 - every adjoint cotangent matches finite differences of the full solve;
 - training through inference reduces the loss by more than 50×;
+- the Krylov solver, adjoint, Laplace marginals and mixtures agree with the dense ones, and `prior_jvp` equals $Jv$ on every backend;
+- Zygote through `implicit_infer` (its `rrule`) equals `implicit_pullback` and finite differences;
 - the free-coordinate block equals the slice of the full Jacobian and `prior_vjp` equals $J^\top w$, for the closed form, finite differences, Zygote, ForwardDiff, Enzyme, energy networks, products and (separate suite) Reactant; batched and unbatched nodes give the same field, Jacobian, answer and gradient;
 - `implicit_roots` finds both branches of the circle, and the Laplace covariance of a Gaussian
   query equals the closed form $1/(\kappa + \rho^2)$.
@@ -134,5 +136,11 @@ coordinates free, as in the MNIST classification of [[MNIST in Both Directions]]
 
 With ForwardDiff the block costs 0.04 s either way: forward mode already pays per free coordinate.
 
-Related: [[analytic]], [[reddiff]], [[factor]], [[energy_network]], [[Deterministic Relaxation]], [[Inference Signatures]],
+**Many free coordinates** (the image generated, the label clamped: 784 of 794 free) make the block
+itself the cost: one dense $784\times784$ block takes 33 s. With `KrylovSolve` a whole
+`implicit_infer` takes 1.1 s (two Newton iterations), the adjoint 0.24 s and a Laplace marginal on
+ten coordinates 0.8 s; one Jacobian-vector product costs 3.2 ms and one vector-Jacobian product
+5.7 ms ([[krylov]] §4).
+
+Related: [[analytic]], [[reddiff]], [[factor]], [[energy_network]], [[krylov]], [[sampler]], [[Deterministic Relaxation]], [[Inference Signatures]],
 [[The Implicit Diffusion Factor as a Statistical Game]]

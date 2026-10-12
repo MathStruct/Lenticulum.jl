@@ -88,4 +88,10 @@ What cannot be divided out is the diffusion model's own prior: the message is th
 - the answer must be converged and stable; otherwise the call throws rather than sending a
   meaningless curvature.
 
+## 6. Cost options
+
+`ImplicitProx(nodes; batched = true, linsolve = KrylovSolve())` passes both options on: the
+factor's model evaluates one noise level per network call, and its solve, its backward pass and
+its Gaussian message are matrix-free ([[krylov]]). The defaults are the old behaviour.
+
 Related: [[implicit]], [[factor]], [[The Diffusion Factor]], [[Inference Signatures]]

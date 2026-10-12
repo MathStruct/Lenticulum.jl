@@ -111,16 +111,19 @@ smoothed ridges?). In flat regions far from data, descent stalls and the solver 
 
 ## Part II. Missing implementation
 
-### I1. All branches: mixture beliefs and conditional sampling — **mostly done**
+### I1. All branches: mixture beliefs and conditional sampling — **done**
 
 Built: multi-start inference returning the distinct stable roots (`implicit_roots`), their
 Laplace covariances (`implicit_laplace`), and `implicit_mixture`, which assembles them into a
 `MixtureBelief` ([[Mixture Belief]]) with Laplace mass estimates as branch weights,
 $w_k \propto e^{-E(z_k)}\det(\Sigma_k)^{1/2}$. That needs an energy, which energy networks and
 closed-form mixtures (hence kernel estimates) have; on a circle whose upper half carries three
-times the data, the weights recover the 3:1 ratio. Missing: weights for plain ε-networks (no
-energy, so equal weights), and a conditional sampler (DPS-like, or ProxDM's sampler with the
-clamp) as an independent check of branch frequencies.
+times the data, the weights recover the 3:1 ratio. The conditional sampler exists too:
+`implicit_sample` runs the reverse diffusion with the hard-clamped coordinates replaced at every
+step (with RePaint's resampling), and on that circle draws the upper branch with frequency 0.75,
+the exact conditional's ([[sampler]]). Still missing: weights for plain ε-networks (no energy,
+so equal weights; the sampler's frequencies are the substitute), and sampling under soft
+evidence, which needs guidance.
 
 ### I2. Uncertainty: a Gaussian answer — **done**
 
@@ -141,7 +144,7 @@ message (T10).
 `implicit_roots` restarts from perturbed points and reports only converged, stable answers
 ([[implicit]] §5).
 
-### I5. Cost: batching and matrix-free solves — **partly done**
+### I5. Cost: batching and matrix-free solves — **done**
 
 Each field evaluation calls the network once per node (128 times by default), sequentially;
 the Jacobian costs one derivative pass per coordinate, and the linear algebra is dense,
@@ -153,8 +156,12 @@ Done: every Jacobian is now computed only on the free coordinates (`prior_jacobi
 at a cost that grows with their number), the clamped part of the adjoint is one VJP
 (`prior_vjp`), and `ImplicitDiffusion(…; batched = true)` evaluates one noise level per network
 call. A query with 10 of 794 coordinates free went from about 26 s per solver iteration to
-0.04 s ([[implicit]] §6). Missing: Newton–Krylov and a Lanczos stability test for when *many*
-coordinates are free (generating an image).
+0.04 s ([[implicit]] §6). For when *many* coordinates are free (generating an image),
+`linsolve = KrylovSolve()` makes every solve matrix-free: GMRES on Jacobian-vector products for
+the Newton step, on vector-Jacobian products for the adjoint, Lanczos for the stability test,
+conjugate gradients and stochastic Lanczos quadrature for the Laplace approximation. With 784 of
+794 coordinates free, `implicit_infer` takes 1.1 s where one dense block took 33 s ([[krylov]]).
+Not built: many queries at once (a batch of test images as one solve).
 
 ### I6. Energy networks on every backend
 
@@ -183,15 +190,21 @@ answers. Not built.
 ### I10. Real data and higher dimensions
 
 Everything validated is two- to four-dimensional and synthetic or closed-form. A real-data
-benchmark, and a problem with tens of coordinates, are the obvious next tests; I5 comes first.
+benchmark, and a problem with tens of coordinates, are the obvious next tests; with I5 done the
+cost no longer stands in the way ([[MNIST in Both Directions]]).
 
-### I11. Nonlinear factors around the learner
+### I11. Nonlinear factors around the learner — **done**
 
 Latent states with nonlinear dynamics (the particle tutorial's noisy positions, SLAM) need
 nonlinear Gaussian factors and Gauss–Newton in the graph, which Lenticulum does not have yet:
 a factor from a **hand-written** function $y = f(x)$, with Gaussian messages by linearisation or
 the unscented transform (RxInfer's delta nodes, [[RxInfer as a Backend]] §2). The learned
 factors are nonlinear too, but their nonlinearity comes from data.
+
+Built: `NonlinearFactor(f, nin => nout; method = Linearization() | Unscented())` in `Lenticulum`,
+with backward messages linearised at the cavity and `invert` relinearising at the posterior
+(Gauss–Newton, the iterated EKF) ([[nonlinear]]). Missing: parameters inside $f$, several input
+channels, and a SLAM or particle example that uses it.
 
 ## Summary
 
@@ -208,17 +221,17 @@ factors are nonlinear too, but their nonlinearity comes from data.
 | T9 | composition at $t > 0$ | known obstruction; mild for root finding |
 | T10 | posterior messages | open design problem |
 | T11 | convergence, existence, identifiability | open |
-| I1 | mixture beliefs, conditional sampling | mostly done: `implicit_mixture` with energy-based weights; no sampler |
+| I1 | mixture beliefs, conditional sampling | done: `implicit_mixture` with energy-based weights; `implicit_sample` (hard clamps) |
 | I2 | Laplace (Gaussian) answers | done (`laplace_belief`) |
 | I3 | Gaussian messages from `lib/` | done (`message = :gaussian`) |
 | I4 | restarts after unstable solves | done |
-| I5 | batched nodes, Newton–Krylov | partly done: free-coordinate blocks and batched nodes; matrix-free solves missing |
+| I5 | batched nodes, Newton–Krylov | done: free-coordinate blocks, batched nodes, `KrylovSolve` |
 | I6 | energy networks on Enzyme and Reactant | missing |
 | I7 | ProxDM adjoint and factor | missing |
 | I8 | composition | products on shared variables done; corrections and separators missing |
 | I9 | coverage diagnostics | missing |
 | I10 | real data, higher dimensions | missing |
-| I11 | nonlinear factors | missing (Lenticulum-wide) |
+| I11 | nonlinear factors | done: `NonlinearFactor` (EKF, UKF, iterated) |
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]], [[Backpropagation through Implicit Inference]],
 [[The Diffusion Factor]], [[The Implicit Diffusion Factor as a Statistical Game]], [[energy_network]],

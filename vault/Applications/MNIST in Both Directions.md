@@ -3,9 +3,9 @@
 > **One implicit diffusion model of (image, label) on MNIST, queried in both directions:**
 > clamp the image and the free label is a classification; clamp the label and the free image is
 > a digit; clamp half an image and both the rest and the label come out at once. The demo of
-> "one relation, polarity chosen at query time" that everyone recognises. Not to be built yet:
-> §4 lists the interfaces that have to exist first, most of them already items in
-> [[Open Problems in Implicit Diffusion Learning]] Part II.
+> "one relation, polarity chosen at query time" that everyone recognises. Not built yet:
+> §4 lists the interfaces it needs; the cost, the sampler and the solver's backward pass now
+> exist, the categorical answer and GPU energy networks do not.
 
 > Sources: original to this vault (experiment design); LeCun, Bottou, Bengio & Haffner, *Gradient-Based Learning Applied to Document Recognition*, Proc. IEEE 1998 (MNIST); Grathwohl et al., *Your Classifier is Secretly an Energy Based Model…*, ICLR 2020 (JEM); Li et al., *Your Diffusion Model is Secretly a Zero-Shot Classifier*, ICCV 2023; Clark & Jaini, *Text-to-Image Diffusion Models are Zero-Shot Classifiers*, NeurIPS 2023; Bao et al., *One Transformer Fits All Distributions in Multi-Modal Diffusion at Scale*, ICML 2023 (UniDiffuser); Lugmayr et al., *RePaint*, CVPR 2022; code: `implicit.jl`, `answers.jl`, `energy_network.jl`
 >
@@ -25,7 +25,7 @@ by the precisions $\rho$:
 |---|---|---|---|
 | classify | $x$ | $y$ | `implicit_roots` / `implicit_mixture` on 10 coordinates |
 | the most typical "3" | $y$ | $x$ | `implicit_infer`: a mode, §2 |
-| draw a "3" | $y$ | $x$ | a clamped sampler (signature #6 of [[Inference Signatures]]): missing, §4 |
+| draw a "3" | $y$ | $x$ | `implicit_sample`, the clamped sampler (signature #6 of [[Inference Signatures]]) |
 | inpaint and classify | half of $x$ | the other half, and $y$ | `implicit_infer` |
 
 The last row is the one no ordinary classifier or generator does, and it costs nothing extra.
@@ -67,12 +67,14 @@ estimates of a denoising loss. The accuracy will most likely sit below a plain c
 1. **Partial Jacobians** — *done.* `prior_jacobian(…; coords = free)` computes only $J_{FF}$, and
    the pullback gets $J_{FC}^\top\lambda$ from one VJP (`prior_vjp`). On a 794-dimensional MLP with 10
    free coordinates a solver iteration went from about 26 s to 0.04 s ([[implicit]] §6).
-2. **Batching and matrix-free solves** ([[Open Problems in Implicit Diffusion Learning]] I5): one
-   network call per noise level (*done*, `batched = true`); many queries at once (10,000 test
-   images); Newton–Krylov, and a Lanczos estimate of stability and of $\log\det \Sigma$ when the image is free.
-3. **A clamped sampler for ε- and energy networks** (I1): `implicit_sample(m, z₀, ρ, ps, st; rng,
-   steps)`, the reverse SDE with hard-clamped coordinates replaced at every step. Today only
-   `proxdm_sample` exists, and it is unconditional.
+2. **Batching and matrix-free solves** ([[Open Problems in Implicit Diffusion Learning]] I5) —
+   *done*: one network call per noise level (`batched = true`), and `linsolve = KrylovSolve()`
+   (GMRES, Lanczos stability, stochastic Lanczos $\log\det\Sigma$). With the image free (784 of 794
+   coordinates) a solve takes 1.1 s ([[krylov]]). Still missing: many queries at once (10,000
+   test images as one batched solve).
+3. **A clamped sampler for ε- and energy networks** (I1) — *done*: `implicit_sample(m, z₀, ρ, ps,
+   st; n, steps, resample, rng)`, the reverse diffusion with the hard-clamped coordinates
+   replaced at every step and RePaint's resampling ([[sampler]]).
 4. **A categorical answer.** `implicit_mixture` returns a mixture of Gaussians over $\mathbb
    R^{10}$; a classification wants a `CategoricalBelief`. Needed: a projection that assigns each
    root to its nearest one-hot vector and sums the weights, with the residual mass (roots far from
@@ -81,7 +83,8 @@ estimates of a denoising loss. The accuracy will most likely sit below a plain c
    network, which Zygote and ForwardDiff-over-Zygote handle and Enzyme does not yet.
 6. **Optional: the backward signatures** ([[Backward Signatures]]), only if the generative model
    is fine-tuned discriminatively through the classification query. Pure denoising training
-   needs none of it.
+   needs none of it. The solver level is there: `Zygote.gradient` differentiates through
+   `implicit_infer` by its `rrule`.
 
 The data loader (MLDatasets.jl) belongs in the tutorial's environment, never in a package's
 dependencies.

@@ -718,6 +718,161 @@ end
     @test prior_vjp(pr, z, w, (RPS, RPS), (RST, RST)) ≈ 3 .* (J' * w) atol = 1e-12
 end
 
+@testset "matrix-free solves: GMRES, Lanczos, Krylov inference and adjoint" begin
+    VD = VariationalDiffusion
+    # the linear algebra, against dense factorisations
+    rng = Xoshiro(3)
+    A = randn(rng, 30, 30) + 8I
+    b = randn(rng, 30)
+    x, ok, _ = VD._gmres(v -> A * v, b; rtol = 1e-12, restart = 7)          # restarts several times
+    @test ok
+    @test x ≈ A \ b rtol = 1e-9
+    Ssym = Symmetric(A + A') / 2
+    x, ok = VD._cg(v -> Ssym * v, b; rtol = 1e-12)
+    @test ok
+    @test x ≈ Ssym \ b rtol = 1e-9
+    ls = KrylovSolve(lanczos = 30, probes = 40)
+    @test VD._lambda_min(v -> Ssym * v, 30, ls) ≈ eigmin(Ssym) rtol = 1e-8   # exact: a full Krylov space
+    @test VD._logdet(v -> Ssym * v, 30, ls) ≈ logdet(Ssym) rtol = 1e-8       # exact: unit-vector probes
+    est = VD._logdet(v -> Ssym * v, 30, KrylovSolve(lanczos = 15, probes = 8))
+    @test est ≈ logdet(Ssym) rtol = 0.05                                     # a stochastic estimate
+    @test VD._lambda_min(v -> -(Ssym * v), 30, ls) < 0                       # an indefinite operator is caught
+
+    # prior_jvp is J v: closed form, finite differences, every AD backend, energy, product
+    z, v = [0.6, 0.5], [0.3, -0.8]
+    nodes = field_nodes(Xoshiro(1), 2; samples = 2)
+    m = ImplicitDiffusion(RING, nodes)
+    J = prior_jacobian(m, z, RPS, RST)
+    @test prior_jvp(m, z, v, RPS, RST) ≈ J * v atol = 1e-12
+    @test prior_jvp(ProductRelation(m, m; weights = [1.0, 2.0]), z, v, (RPS, RPS), (RST, RST)) ≈ 3 .* (J * v) atol = 1e-12
+    ps0, st = Lux.setup(Xoshiro(0), MLP)
+    ps = _f64(ps0)
+    plain = ImplicitDiffusion(NoisePredictor(MLP, SCHED; input = _mlp_input), nodes)
+    @test prior_jvp(plain, z, v, ps, st) ≈ prior_jacobian(plain, z, ps, st) * v rtol = 1e-6
+    for ad in (AutoZygote(), AutoForwardDiff(), AutoEnzyme(; mode = Enzyme.set_runtime_activity(Enzyme.Forward)))
+        pred = NoisePredictor(MLP, SCHED; input = _batch_input, ad = ad)
+        for batched in (false, true)
+            mm = ImplicitDiffusion(pred, nodes; batched)
+            @test prior_jvp(mm, z, v, ps, st) ≈ prior_jacobian(mm, z, ps, st) * v rtol = 1e-7
+        end
+    end
+    eps0, est_ = Lux.setup(Xoshiro(0), ENERGY_MLP)
+    eps_ = _f64(eps0)
+    em = ImplicitDiffusion(NoisePredictor(EnergyNetwork(ENERGY_MLP), SCHED; input = _batch_input, ad = AutoZygote()), nodes)
+    @test prior_jvp(em, z, v, eps_, est_) ≈ prior_jacobian(em, z, eps_, est_) * v rtol = 1e-10
+
+    # Krylov inference, adjoint and Laplace agree with the dense path on the circle
+    K = KrylovSolve()
+    for ρ in ([Inf, 0.0], [1.0, 0.0], [0.5, 0.5])
+        s1, _ = implicit_infer(m, z, ρ, RPS, RST)
+        s2, _ = implicit_infer(m, z, ρ, RPS, RST; linsolve = K)
+        @test s2.converged && s2.stable
+        @test s2.z ≈ s1.z atol = 1e-10
+        b1 = implicit_pullback(m, s1, z, ρ, [0.2, 1.0], RPS, RST)
+        b2 = implicit_pullback(m, s2, z, ρ, [0.2, 1.0], RPS, RST; linsolve = K)
+        @test b2.z₀ ≈ b1.z₀ atol = 1e-8
+        @test b2.ρ ≈ b1.ρ atol = 1e-8
+        @test b2.ps.μ ≈ b1.ps.μ atol = 1e-8
+        g1 = laplace_belief(m, s1, ρ, RPS, RST)
+        g2 = laplace_belief(m, s2, ρ, RPS, RST; linsolve = K)
+        @test belief_mean(g2) ≈ belief_mean(g1)
+        @test belief_cov(g2) ≈ belief_cov(g1) rtol = 1e-7
+    end
+    # the centre of the circle is a maximum of the energy: unstable in both
+    c1, _ = implicit_infer(m, [0.0, 0.0], [Inf, 0.0], RPS, RST; maxiters = 0)
+    c2, _ = implicit_infer(m, [0.0, 0.0], [Inf, 0.0], RPS, RST; maxiters = 0, linsolve = K)
+    @test !c1.stable && !c2.stable
+    # mixtures: the same roots, covariances and (closed-form energy) weights
+    mx1, _ = implicit_mixture(m, [0.3, 0.0], [Inf, 0.0], RPS, RST)
+    mx2, _ = implicit_mixture(m, [0.3, 0.0], [Inf, 0.0], RPS, RST; linsolve = K)
+    @test length(mx2.components) == length(mx1.components) == 2
+    @test belief_mean.(mx2.components) ≈ belief_mean.(mx1.components) atol = 1e-8
+    @test mx2.logw ≈ mx1.logw atol = 1e-8
+
+    # a Lux network: Zygote's JVPs are differences, the adjoint's VJPs exact
+    pred = NoisePredictor(MLP, SCHED; input = _batch_input, ad = AutoZygote())
+    mm = ImplicitDiffusion(pred, nodes; batched = true)
+    ρ = [Inf, 1.0]
+    s1, _ = implicit_infer(mm, z, ρ, ps, st; tol = 1e-12)
+    s2, _ = implicit_infer(mm, z, ρ, ps, st; tol = 1e-12, linsolve = K)
+    @test s2.converged
+    @test s2.z ≈ s1.z atol = 1e-10
+    b1 = implicit_pullback(mm, s1, z, ρ, [0.0, 1.0], ps, st)
+    b2 = implicit_pullback(mm, s2, z, ρ, [0.0, 1.0], ps, st; linsolve = K)
+    @test b2.z₀ ≈ b1.z₀ rtol = 1e-8
+    @test b2.ps.layer_2.weight ≈ b1.ps.layer_2.weight rtol = 1e-8 atol = 1e-12
+
+    # a factor configured with batched nodes and Krylov solves gives the same inversion
+    fd = DiffusionFactor((x = 1, y = 1), RING; prox = ImplicitProx(field_nodes(Xoshiro(1), 2; samples = 8)))
+    fk = DiffusionFactor((x = 1, y = 1), RING; prox = ImplicitProx(field_nodes(Xoshiro(1), 2; samples = 8);
+                                                                    linsolve = K, message = :gaussian))
+    p = Polarity((x = Observed(), y = Unobserved()), (x = Inf, y = 0.3))
+    sd, _ = implicit_solution(fd, p, (x = DiracBelief([0.6]),), DiracBelief([0.5]), RPS, RST)
+    sk, _ = implicit_solution(fk, p, (x = DiracBelief([0.6]),), DiracBelief([0.5]), RPS, RST)
+    @test sk.z ≈ sd.z atol = 1e-10
+    gd = implicit_factor_pullback(fd, p, (x = DiracBelief([0.6]),), DiracBelief([0.5]), (y = [1.0],), RPS, RST)
+    gk = implicit_factor_pullback(fk, p, (x = DiracBelief([0.6]),), DiracBelief([0.5]), (y = [1.0],), RPS, RST)
+    @test gk.inputs.x ≈ gd.inputs.x atol = 1e-8
+    @test ImplicitProx(nodes; batched = true).batched
+end
+
+@testset "Zygote differentiates through implicit_infer (the rrule)" begin
+    nodes = field_nodes(Xoshiro(1), 2; samples = 2)
+    m = ImplicitDiffusion(RING, nodes)
+    z₀, ρ = [0.6, 0.5], [Inf, 0.3]
+    loss(z₀, ρ, ps) = (first(implicit_infer(m, z₀, ρ, ps, RST)).z[2] - 0.7)^2 / 2
+    gz, gρ, gp = Zygote.gradient(loss, z₀, ρ, RPS)
+    sol, _ = implicit_infer(m, z₀, ρ, RPS, RST)
+    b = implicit_pullback(m, sol, z₀, ρ, [0.0, sol.z[2] - 0.7], RPS, RST)
+    @test gz ≈ b.z₀ && gρ ≈ b.ρ && gp.μ ≈ b.ps.μ
+    h = 1e-6
+    @test gz[1] ≈ (loss([0.6 + h, 0.5], ρ, RPS) - loss([0.6 - h, 0.5], ρ, RPS)) / 2h rtol = 1e-5
+    @test gρ[2] ≈ (loss(z₀, [Inf, 0.3 + h], RPS) - loss(z₀, [Inf, 0.3 - h], RPS)) / 2h rtol = 1e-5
+    # a loss on the solver's report only has no gradient; Krylov solves give the same one
+    @test Zygote.gradient(ps -> Float64(first(implicit_infer(m, z₀, ρ, ps, RST)).iters), RPS) == (nothing,)
+    gk = Zygote.gradient(ps -> (first(implicit_infer(m, z₀, ρ, ps, RST; linsolve = KrylovSolve())).z[2] - 0.7)^2 / 2, RPS)
+    @test gk[1].μ ≈ b.ps.μ atol = 1e-8
+    # a Lux network inside a larger Zygote computation: training through inference
+    ps0, st = Lux.setup(Xoshiro(1), MLP)
+    ps = _f64(ps0)
+    mm = ImplicitDiffusion(NoisePredictor(MLP, SCHED; input = _batch_input, ad = AutoZygote()), nodes; batched = true)
+    L(p) = sum(abs2, first(implicit_infer(mm, [0.6, 0.5], [Inf, 1.0], p, st; tol = 1e-12)).z .- [0.6, 0.7]) / 2
+    g = only(Zygote.gradient(L, ps))
+    W(δ) = merge(ps, (layer_2 = (weight = (A = copy(ps.layer_2.weight); A[5] += δ; A), bias = ps.layer_2.bias),))
+    @test g.layer_2.weight[5] ≈ (L(W(h)) - L(W(-h))) / 2h rtol = 1e-4 atol = 1e-10
+    @test size(g.layer_1.weight) == size(ps.layer_1.weight)
+end
+
+@testset "clamped sampling: branch frequencies and spread match the data" begin
+    θs = range(0, 2π; length = 129)[1:128]
+    C = reduce(hcat, [[cos(θ), sin(θ)] for θ in θs])
+    w = [sin(θ) > 0 ? 3.0 : 1.0 for θ in θs]                       # upper half 3× heavier
+    p = NoisePredictor(GaussianMixtureEps(SCHED, C; s = 0.05, weights = w), SCHED)
+    ps, st = LuxCore.setup(Xoshiro(0), p)
+    m = ImplicitDiffusion(p, field_nodes(Xoshiro(1), 2; samples = 8))
+    # unconditional: the ring's radius and width
+    Z, _ = implicit_sample(m, [0.0, 0.0], [0.0, 0.0], ps, st; n = 2000, rng = Xoshiro(1))
+    r = vec(sqrt.(sum(abs2, Z; dims = 1)))
+    @test mean(r) ≈ 1 atol = 0.01
+    @test std(r) ≈ 0.05 rtol = 0.1
+    # x clamped at 0.3: the exact conditional puts 0.75 on the upper branch, |y| = 0.952 ± 0.052
+    Z, _ = implicit_sample(m, [0.3, 0.0], [Inf, 0.0], ps, st; n = 2000, resample = 3, rng = Xoshiro(2))
+    @test all(==(0.3), Z[1, :])                                     # the clamp is exact
+    @test mean(Z[2, :] .> 0) ≈ 0.75 atol = 0.03
+    @test mean(abs.(Z[2, :])) ≈ 0.952 atol = 0.01
+    @test std(abs.(Z[2, :])) ≈ 0.052 rtol = 0.15
+    @test_throws ArgumentError implicit_sample(m, [0.3, 0.0], [1.0, 0.0], ps, st)   # soft evidence
+    # batched and unbatched chains are the same draws
+    ps0, stm = Lux.setup(Xoshiro(0), MLP)
+    psm = _f64(ps0)
+    pred = NoisePredictor(MLP, SCHED; input = _batch_input)
+    nodes = field_nodes(Xoshiro(1), 2; samples = 2)
+    Z1, _ = implicit_sample(ImplicitDiffusion(pred, nodes), [0.3, 0.0], [Inf, 0.0], psm, stm; n = 5, steps = 10, rng = Xoshiro(3))
+    Z2, _ = implicit_sample(ImplicitDiffusion(pred, nodes; batched = true), [0.3, 0.0], [Inf, 0.0], psm, stm;
+                            n = 5, steps = 10, rng = Xoshiro(3))
+    @test Z1 ≈ Z2 rtol = 1e-12
+end
+
 # ---------------------------------------------------------------------------
 # Proximal diffusion models (ProxDM), against the exact proximal operator of a mixture.
 # ---------------------------------------------------------------------------

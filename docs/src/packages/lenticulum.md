@@ -36,6 +36,7 @@ pseudo-mean.
 | `GaussianFactor` | ``p(y \mid x) = \mathcal{N}(y; Ax+b, Q)`` | two, named |
 | `GaussianPrior` | ``\mathcal{N}(\mu, \Sigma)`` on one channel | one |
 | `LinearConstraintFactor` | ``0 = \sum_i A_i x_i - c + \varepsilon`` | **any number** |
+| `NonlinearFactor` | ``p(y \mid x) = \mathcal{N}(y; f(x), Q)``, ``f`` given | two, named |
 
 `GaussianFactor` is *bidirectional*: both `(x observed, y unobserved)` and the reverse, each
 exact. Parameters are `(A, b)`; `noise` is a fixed hyperparameter, not learned.
@@ -49,6 +50,16 @@ laws, balance equations and anything written as a relation rather than an assign
 # Kirchhoff's current law at a three-way node: i₁ + i₂ + i₃ = 0
 f  = LinearConstraintFactor((i1 = 1, i2 = 1, i3 = 1), 1; noise = 1e-8)
 ps = (A = (i1 = ones(1,1), i2 = ones(1,1), i3 = ones(1,1)), c = [0.0])
+```
+
+`NonlinearFactor` takes a hand-written function (a measurement model, known dynamics) and
+approximates its messages through a local linear model: the Jacobian (`Linearization()`, the
+extended Kalman filter) or sigma points (`Unscented()`, the unscented Kalman filter). Backward
+messages are linearised at the cavity belief, and `iterations > 1` relinearises the posterior
+in `invert`, which is Gauss–Newton on the MAP:
+
+```julia
+f = NonlinearFactor(x -> [hypot(x[1], x[2])], 2 => 1; noise = 0.01, method = Unscented())
 ```
 
 ## Known gaps

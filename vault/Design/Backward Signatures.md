@@ -4,8 +4,8 @@
 > signature: the solver, the factor and the graph. **Short version:** a backward function takes
 > the forward's arguments, the forward's *result* and a cotangent of that result, and returns
 > cotangents shaped like the inputs. On top sit `ChainRulesCore.rrule`s, so that Zygote (and
-> Enzyme, by import) differentiate through `infer!` without users calling the pullbacks. Only the
-> solver level exists in this form; the rest is a design, nothing here is built.
+> Enzyme, by import) differentiate through `infer!` without users calling the pullbacks. The
+> solver level exists, with its `rrule` (§6, step 1); the factor and graph levels are a design.
 
 > Sources: original to this vault (design); the ChainRules.jl `rrule` / `Tangent` / `NoTangent` conventions; Lux.jl's `(ps, st)` convention; Bai, Kolter & Koltun, *Deep Equilibrium Models*, NeurIPS 2019 (backward by the implicit function theorem); code: `implicit.jl` (`implicit_pullback`), `implicit_factor.jl` (`implicit_factor_pullback`), `solve.jl` / `deq.jl` (`ift_sensitivity`, `deq_sensitivity`), `passing.jl` (`factor_message`, `propagate!`, `infer!`), `lens.jl`
 >
@@ -143,7 +143,11 @@ tested API, and every rule is checked against finite differences, as `implicit_p
 
 ## 6. What to build, in order
 
-1. An `rrule` for `implicit_infer` around `implicit_pullback` (small; the content exists).
+1. An `rrule` for `implicit_infer` around `implicit_pullback` — **built**, in the extension
+   `VariationalDiffusionChainRulesCoreExt`. It passes the solver's `linsolve` on to the
+   pullback, returns no cotangent for the report fields (residual, iterations, flags), and is
+   tested against `implicit_pullback` and finite differences, including a Lux network trained
+   through inference with `Zygote.gradient`.
 2. `factor_pullback` as a generic function in `Mycelium`, with methods for the structural factors
    and the implicit diffusion factor (rewriting `implicit_factor_pullback` to take the forward
    result).

@@ -807,3 +807,80 @@ end
     @test belief_mean(post_rx) ≈ belief_mean(post) && belief_cov(post_rx) ≈ belief_cov(post)
 end
 
+
+@testset "NonlinearFactor: EKF and UKF messages, iterated to the MAP" begin
+    fwd = LenticulumCore.Polarity(; x = Observed(), y = Unobserved())
+    bwd = LenticulumCore.Polarity(; x = Unobserved(), y = Observed())
+    # an affine f: both methods reproduce GaussianFactor exactly, in both directions
+    Am, bm = [1.0 2.0; -0.5 0.3; 0.0 1.0], [0.1, -0.2, 0.4]
+    Qm = Diagonal([0.2, 0.3, 0.1])
+    g = GaussianFactor(2 => 3; noise = Matrix(Qm))
+    gps = (A = Am, b = bm)
+    px = Gaussian([0.3, -0.4], [0.5 0.1; 0.1 0.4])
+    py = Gaussian([1.0, 0.0, 2.0], Matrix(0.2I, 3, 3))
+    for method in (Linearization(), Unscented())
+        f = NonlinearFactor(x -> Am * x .+ bm, 2 => 3; noise = Matrix(Qm), method)
+        ps, st = LuxCore.setup(Random.default_rng(), f)
+        @test ps == NamedTuple() && !LenticulumCore.islearnable(f)
+        for (target, pol, inputs) in ((:y, fwd, (; x = px)), (:x, bwd, (; y = py)), (:x, bwd, (; y = DiracBelief([1.0, 0.0, 2.0]))))
+            mn, _ = Mycelium.factor_message(f, target, pol, inputs, px, ps, st)
+            mg, _ = Mycelium.factor_message(g, target, pol, inputs, px, gps, NamedTuple())
+            @test mn.η ≈ mg.η && mn.Λ ≈ mg.Λ
+        end
+        Fn, _ = Mycelium.local_free_energy(f, (; x = px, y = DiracBelief([1.0, 0.0, 2.0])), ps, st)
+        Fg, _ = Mycelium.local_free_energy(g, (; x = px, y = DiracBelief([1.0, 0.0, 2.0])), gps, NamedTuple())
+        @test LenticulumCore.scalarise(LenticulumCore.scalarisation(f), Fn) ≈ LenticulumCore.scalarise(LenticulumCore.scalarisation(g), Fg)
+    end
+    # a point input is exact: N(f(x), Q)
+    sq = NonlinearFactor(x -> x .^ 2, 1 => 1; noise = 0.01)
+    m1, _ = Mycelium.factor_message(sq, :y, fwd, (; x = DiracBelief([1.5])), TrivialBelief(), NamedTuple(), NamedTuple())
+    @test belief_mean(m1) ≈ [2.25] && belief_cov(m1) ≈ fill(0.01, 1, 1)
+    # y = x² for x ~ N(m, s²): E y = m² + s², Var y = 4m²s² + 2s⁴. The UKF gets both, the EKF neither
+    m, s² = 1.0, 0.25
+    u, _ = Mycelium.factor_message(NonlinearFactor(x -> x .^ 2, 1 => 1; noise = 1e-8, method = Unscented()),
+                                   :y, fwd, (; x = Gaussian([m], fill(s², 1, 1))), TrivialBelief(), NamedTuple(), NamedTuple())
+    @test belief_mean(u)[1] ≈ m^2 + s² rtol = 1e-6
+    @test belief_cov(u)[1] ≈ 4m^2 * s² + 2s²^2 rtol = 1e-6
+    e, _ = Mycelium.factor_message(sq, :y, fwd, (; x = Gaussian([m], fill(s², 1, 1))), TrivialBelief(), NamedTuple(), NamedTuple())
+    @test belief_mean(e)[1] ≈ m^2 && belief_cov(e)[1] ≈ 4m^2 * s² + 0.01
+    # finite-difference and supplied Jacobians agree
+    cube(x) = [x[1]^3 + x[2], sin(x[2])]
+    fd = NonlinearFactor(cube, 2 => 2)
+    ex = NonlinearFactor(cube, 2 => 2; jacobian = x -> [3x[1]^2 1.0; 0.0 cos(x[2])])
+    @test linearize(fd, [0.7, -0.2], zeros(2, 2))[1] ≈ linearize(ex, [0.7, -0.2], zeros(2, 2))[1] rtol = 1e-8
+    # backwards, iterated: the posterior mean is the MAP of N(x; 1, 0.5²) N(2; x³, 0.1²)
+    f3 = NonlinearFactor(x -> x .^ 3, 1 => 1; noise = 0.01, method = Linearization(iterations = 30))
+    prior = Gaussian([1.0], fill(0.25, 1, 1))
+    lens, _ = LenticulumCore.assemble(f3, bwd, NamedTuple(), NamedTuple())
+    post, _ = LenticulumCore.invert(lens, prior, (; y = DiracBelief([2.0])), NamedTuple(), NamedTuple())
+    xs = range(0.5, 1.8; length = 200001)
+    logp(x) = -(x - 1)^2 / (2 * 0.25) - (2 - x^3)^2 / (2 * 0.01)
+    xmap = xs[argmax(logp.(xs))]
+    @test belief_mean(post)[1] ≈ xmap atol = 1e-5
+    @test belief_cov(post)[1] ≈ inv(1 / 0.25 + (3xmap^2)^2 / 0.01) rtol = 1e-4   # Gauss–Newton curvature
+    one_step, _ = LenticulumCore.invert(first(LenticulumCore.assemble(NonlinearFactor(x -> x .^ 3, 1 => 1; noise = 0.01), bwd,
+                                              NamedTuple(), NamedTuple())), prior, (; y = DiracBelief([2.0])), NamedTuple(), NamedTuple())
+    @test abs(belief_mean(one_step)[1] - xmap) > 10 * abs(belief_mean(post)[1] - xmap)   # one EKF step is not the MAP
+    # no expansion point: uninformative, unless x0 is given
+    b0, _ = Mycelium.factor_message(f3, :x, bwd, (; y = DiracBelief([2.0])), TrivialBelief(), NamedTuple(), NamedTuple())
+    @test b0 isa TrivialBelief
+    f30 = NonlinearFactor(x -> x .^ 3, 1 => 1; noise = 0.01, x0 = [1.0])
+    @test Mycelium.factor_message(f30, :x, bwd, (; y = DiracBelief([2.0])), TrivialBelief(), NamedTuple(), NamedTuple())[1] isa GaussianBelief
+    # in a graph: prior → x ─[x³]─ y ← data. The backward message needs its cavity (the prior's
+    # message), which a single tree sweep sends too late; repeated sweeps give one EKF update
+    gb = GraphBuilder()
+    variable!(gb, :x, 1); variable!(gb, :y, 1)
+    factor!(gb, :prior, GaussianPrior(:x, 1.0, 0.25))
+    factor!(gb, :meas, NonlinearFactor(x -> x .^ 3, 1 => 1; noise = 0.01))
+    factor!(gb, :data, DataFactor(:y, [2.0]))
+    connect!(gb, :prior, :x, :x; direction = Bidirectional())
+    connect!(gb, :meas, :x, :x; direction = Bidirectional())
+    connect!(gb, :meas, :y, :y; direction = Bidirectional())
+    connect!(gb, :data, :y, :y; direction = Emitting())
+    G = validate(build(gb))
+    pz = (prior = NamedTuple(), meas = NamedTuple(), data = NamedTuple())
+    marg, report, _, _ = infer!(G, SequentialSchedule(tasks(tree_schedule(G))), pz, pz)
+    @test report.converged
+    @test belief_mean(marg.x) ≈ belief_mean(one_step) && belief_cov(marg.x) ≈ belief_cov(one_step)
+    @test_throws ArgumentError NonlinearFactor(identity, 1 => 1; method = :ukf)
+end

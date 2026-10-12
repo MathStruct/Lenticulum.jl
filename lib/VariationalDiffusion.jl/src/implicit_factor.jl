@@ -25,11 +25,10 @@ function implicit_solution(f::DiffusionFactor, p::LenticulumCore.Polarity, input
     _require_implicit(f)
     z₀, ρ = _implicit_problem(f, p, inputs, π)
     m = _implicit_model(f)
-    return implicit_infer(m, z₀, ρ, ps, st; z_init = z₀, tol = f.prox.tol,
-                          maxiters = f.prox.maxiters, step = f.prox.step)
+    return implicit_infer(m, z₀, ρ, ps, st; z_init = z₀, _solver_kwargs(f.prox)...)
 end
 
-_implicit_model(f::DiffusionFactor) = ImplicitDiffusion(f.predictor, f.prox.nodes; λ = f.prox.λ)
+_implicit_model(f::DiffusionFactor) = ImplicitDiffusion(f.predictor, f.prox.nodes; λ = f.prox.λ, batched = f.prox.batched)
 
 _require_implicit(f::DiffusionFactor) = f.prox isa ImplicitProx || throw(ArgumentError(
     "this DiffusionFactor inverts with $(typeof(f.prox)); construct it with prox = ImplicitProx(nodes)"))
@@ -65,15 +64,14 @@ function implicit_factor_pullback(f::DiffusionFactor{names}, p::LenticulumCore.P
     _require_implicit(f)
     z₀, ρ = _implicit_problem(f, p, inputs, π)
     m = _implicit_model(f)
-    sol, st = implicit_infer(m, z₀, ρ, ps, st; z_init = z₀, tol = f.prox.tol,
-                             maxiters = f.prox.maxiters, step = f.prox.step)
+    sol, st = implicit_infer(m, z₀, ρ, ps, st; z_init = z₀, _solver_kwargs(f.prox)...)
     rs = blockranges(f)
     zbar = zeros(Float64, statedim(f))
     for (k, v) in pairs(z̄)
         haskey(rs, k) || throw(ArgumentError("channel :$k is not a channel of this DiffusionFactor"))
         zbar[getfield(rs, k)] .= _vec(v)
     end
-    b = implicit_pullback(m, sol, z₀, ρ, zbar, ps, st)
+    b = implicit_pullback(m, sol, z₀, ρ, zbar, ps, st; linsolve = f.prox.linsolve)
     blocks_in = NamedTuple{names}(map(nm -> b.z₀[getfield(rs, nm)], names))
     blocks_ρ = NamedTuple{names}(map(nm -> sum(b.ρ[getfield(rs, nm)]), names))   # one precision per channel
     return (inputs = blocks_in, ps = b.ps, precisions = blocks_ρ)
@@ -91,11 +89,11 @@ function _target_belief(prox::ImplicitProx, f::DiffusionFactor, p, inputs, π, p
                                              prox, f, p, inputs, π, ps, st, target; likelihood)
     z₀, ρ = _implicit_problem(f, p, inputs, π)
     m = _implicit_model(f)
-    sol, st = implicit_infer(m, z₀, ρ, ps, st; z_init = z₀, tol = prox.tol, maxiters = prox.maxiters, step = prox.step)
+    sol, st = implicit_infer(m, z₀, ρ, ps, st; z_init = z₀, _solver_kwargs(prox)...)
     (sol.converged && sol.stable) || throw(ArgumentError(
         "a Gaussian message needs a converged, stable answer (converged = $(sol.converged), stable = $(sol.stable))"))
     r = getfield(blockranges(f), target)
-    post = laplace_belief(m, sol, ρ, ps, st; coords = r)
+    post = laplace_belief(m, sol, ρ, ps, st; coords = r, linsolve = prox.linsolve)
     likelihood || return (post, st)
     D = ρ[r] .^ 2
     return (LenticulumCore.GaussianBelief(post.η .- D .* z₀[r], Matrix(post.Λ) .- Diagonal(D)), st)

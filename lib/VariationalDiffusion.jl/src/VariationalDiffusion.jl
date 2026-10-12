@@ -54,9 +54,11 @@ include("predictor.jl")
 include("reddiff.jl")
 include("analytic.jl")
 include("kernel.jl")
+include("krylov.jl")
 include("implicit.jl")
 include("energy_network.jl")
 include("answers.jl")
+include("sampler.jl")
 include("product.jl")
 include("factor.jl")
 include("implicit_factor.jl")
@@ -79,17 +81,18 @@ export statedim, blockranges, precision_vector, assemble_state
 
 # --- Closed-form predictors (oracles) ----------------------------------------
 export GaussianMixtureEps, mixture_logdensity, epsilon_jacobian, epsilon_vjp_params
-export epsilon_jacobian_block, epsilon_vjp_input
+export epsilon_jacobian_block, epsilon_vjp_input, epsilon_jvp_input
 export kde_predictor, kde_bandwidth, OnlineKDE, observe!
 
 # --- Implicit inference and its backward pass -----------------------------
 export FieldNodes, field_nodes, noisefree_nodes, ImplicitDiffusion, ImplicitSolution
-export prior_field, prior_jacobian, prior_vjp, implicit_residual, implicit_infer, implicit_pullback
+export prior_field, prior_jacobian, prior_vjp, prior_jvp, implicit_residual, implicit_infer, implicit_pullback
+export AbstractLinearSolve, DenseSolve, KrylovSolve
 export ImplicitProx, implicit_solution, implicit_factor_pullback
 
 # --- Proximal diffusion models (ProxDM) ----------------------------------------
 export EnergyNetwork, energy, implicit_energy, denoising_gradient
-export implicit_roots, implicit_laplace, density_lambda, laplace_belief, implicit_mixture
+export implicit_roots, implicit_laplace, density_lambda, laplace_belief, implicit_mixture, implicit_sample
 export AbstractImplicitRelation, ProductRelation
 export AbstractProximalPredictor, proximal, ProxNetwork, MixtureProx
 export proxdm_sample, prox_infer, proximal_matching_loss

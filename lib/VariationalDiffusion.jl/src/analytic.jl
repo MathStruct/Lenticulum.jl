@@ -183,6 +183,37 @@ function epsilon_vjp_input(pred::NoisePredictor{<:GaussianMixtureEps}, X, t, ps,
 end
 
 """
+    epsilon_jvp_input(pred::NoisePredictor, X, t, ps, st, V) -> Ẋ
+
+The input Jacobian-vector product ``\\dot x_b = (\\partial\\varepsilon_\\theta(x_b,t)/\\partial x_b)\\,V_b``,
+column by column, shaped like `X`. The matrix-free solver ([`KrylovSolve`](@ref)) needs one per
+noise level and Krylov step ([`prior_jvp`](@ref)). In forward mode through the predictor's AD
+backend when it has one; in closed form for [`GaussianMixtureEps`](@ref) and an
+[`EnergyNetwork`](@ref) (whose Jacobians are symmetric); otherwise, and for reverse-only
+backends such as Zygote, by one central difference along `V` (two batched forward passes,
+accurate to about ``10^{-8}`` relative).
+"""
+function epsilon_jvp_input(pred::NoisePredictor, X, t, ps, st, V)
+    pred.ad === nothing || return _ad_jvp_input(pred.ad, pred, X, t, ps, st, V)
+    return _fd_jvp_input(pred, X, t, ps, st, V)
+end
+
+# backends with no forward mode, or no extension for it: a directional difference
+_ad_jvp_input(ad, pred, X, t, ps, st, V) = _fd_jvp_input(pred, X, t, ps, st, V)
+
+function _fd_jvp_input(pred, X, t, ps, st, V)
+    nv = maximum(abs, V)
+    nv == 0 && return zero(float.(X))
+    h = 1e-6 * (1 + maximum(abs, X)) / nv
+    fp, _ = epsilon(pred, X .+ h .* reshape(V, size(X)), t, ps, st)
+    fm, _ = epsilon(pred, X .- h .* reshape(V, size(X)), t, ps, st)
+    return reshape((fp .- fm) ./ (2h), size(X))
+end
+
+# the mixture's Jacobian is symmetric: the JVP is the VJP
+epsilon_jvp_input(pred::NoisePredictor{<:GaussianMixtureEps}, X, t, ps, st, V) = epsilon_vjp_input(pred, X, t, ps, st, V)
+
+"""
     epsilon_vjp_params(pred::NoisePredictor, x, t, ps, st, w) -> ps̄
 
 The vector–Jacobian product ``w^\\top\\,\\partial\\varepsilon_\\theta(x,t)/\\partial\\theta``, shaped

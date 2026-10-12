@@ -116,23 +116,57 @@ _indices(coords::AbstractVector{Bool}) = findall(coords)
 _indices(coords) = collect(coords)
 
 """
-    laplace_belief(m, sol, ρ, ps, st; coords = free) -> GaussianBelief
+    laplace_belief(m, sol, ρ, ps, st; coords = free, linsolve = DenseSolve()) -> GaussianBelief
 
 The Laplace approximation at the answer `sol` ([`implicit_laplace`](@ref)) as a
 `GaussianBelief`, marginalised onto `coords` (indices or a mask; default: all free
 coordinates). Hard-clamped coordinates have no variance and cannot be among `coords`.
 Calibrated in data units when the model is built with [`density_lambda`](@ref).
+
+With `linsolve = KrylovSolve()` only the marginal is computed, one conjugate-gradient solve per
+coordinate in `coords`, so a label's covariance can be read off a query whose image is free.
 """
 function laplace_belief(m::AbstractImplicitRelation, sol::ImplicitSolution, ρ, ps, st;
-                        coords = .!isinf.(ρ))
-    L = implicit_laplace(m, sol, ρ, ps, st)
+                        coords = .!isinf.(ρ), linsolve::AbstractLinearSolve = DenseSolve())
     idx = _indices(coords)
-    all(L.free[idx]) || throw(ArgumentError("`coords` must be free coordinates; hard-clamped ones have no variance"))
-    return LenticulumCore.Gaussian(sol.z[idx], Matrix(Symmetric(L.cov[idx, idx])))
+    Σ, _ = _laplace_marginal(linsolve, m, sol, ρ, ps, st, idx; logdet = false)
+    return LenticulumCore.Gaussian(sol.z[idx], Σ)
+end
+
+_check_free(free, idx) = all(free[idx]) ||
+    throw(ArgumentError("`coords` must be free coordinates; hard-clamped ones have no variance"))
+
+# The Laplace covariance on the coordinates `idx` (all free), and ½ log det Σ_FF of the whole
+# free block (the mixture weights need it).
+function _laplace_marginal(::DenseSolve, m, sol, ρ, ps, st, idx; logdet::Bool)
+    L = implicit_laplace(m, sol, ρ, ps, st)
+    _check_free(L.free, idx)
+    hld = logdet ? LinearAlgebra.logdet(Symmetric(L.cov[L.free, L.free])) / 2 : NaN
+    return (Matrix(Symmetric(L.cov[idx, idx])), hld)
+end
+
+# matrix-free: Σ e_i by conjugate gradients on sym J_FF for each i in idx, log det by stochastic
+# Lanczos quadrature (Σ_FF = (sym J_FF)⁻¹, so ½ log det Σ_FF = -½ log det sym J_FF)
+function _laplace_marginal(ls::KrylovSolve, m, sol, ρ, ps, st, idx; logdet::Bool)
+    (sol.converged && sol.stable) ||
+        throw(ArgumentError("the Laplace approximation needs a converged, stable answer (a local minimum)"))
+    free = .!isinf.(ρ)
+    _check_free(free, idx)
+    op = _free_operators(m, sol.z, ρ, ps, st)
+    pos = cumsum(free)[idx]                            # positions among the free coordinates
+    Σ = zeros(eltype(float(sol.z)), length(idx), length(idx))
+    for (a, i) in enumerate(pos)
+        e = zeros(eltype(Σ), op.n); e[i] = 1
+        x, ok = _cg(op.S, e; rtol = ls.rtol, maxiters = ls.maxiters)
+        ok || @warn "laplace: conjugate gradients stopped short of rtol = $(ls.rtol); the covariance is approximate"
+        Σ[:, a] .= x[pos]
+    end
+    hld = logdet ? -_logdet(op.S, op.n, ls) / 2 : NaN
+    return (Matrix(Symmetric((Σ .+ Σ') ./ 2)), hld)
 end
 
 """
-    implicit_mixture(m, z₀, ρ, ps, st; coords = free, kwargs...) -> (MixtureBelief, st)
+    implicit_mixture(m, z₀, ρ, ps, st; coords = free, linsolve = DenseSolve(), kwargs...) -> (MixtureBelief, st)
 
 Every answer to a query as one belief: a mixture of the Laplace Gaussians at the stable roots
 that [`implicit_roots`](@ref) finds (`kwargs` are passed on), marginalised onto `coords`.
@@ -144,16 +178,19 @@ energy: an [`EnergyNetwork`](@ref), a closed-form [`GaussianMixtureEps`](@ref), 
 them. Otherwise the field determines no relative heights and the weights are equal. Build the
 model with [`density_lambda`](@ref) so that the energy is a calibrated negative log-density.
 Throws if no stable answer is found.
+
+With `linsolve = KrylovSolve()` the roots are found matrix-free, the covariances are computed
+on `coords` only, and ``\\log\\det\\Sigma_k`` is a stochastic Lanczos estimate (exact when at most
+`probes` coordinates are free).
 """
-function implicit_mixture(m::AbstractImplicitRelation, z₀, ρ, ps, st; coords = .!isinf.(ρ), kwargs...)
-    roots, st = implicit_roots(m, z₀, ρ, ps, st; kwargs...)
+function implicit_mixture(m::AbstractImplicitRelation, z₀, ρ, ps, st; coords = .!isinf.(ρ),
+                          linsolve::AbstractLinearSolve = DenseSolve(), kwargs...)
+    roots, st = implicit_roots(m, z₀, ρ, ps, st; linsolve, kwargs...)
     isempty(roots) && throw(ArgumentError("no stable answer found; try more starts or a larger spread"))
     idx = _indices(coords)
     comps = map(roots) do r
-        L = implicit_laplace(m, r, ρ, ps, st)
-        all(L.free[idx]) || throw(ArgumentError("`coords` must be free coordinates; hard-clamped ones have no variance"))
-        (LenticulumCore.Gaussian(r.z[idx], Matrix(Symmetric(L.cov[idx, idx]))),
-         LinearAlgebra.logdet(Symmetric(L.cov[L.free, L.free])) / 2)
+        Σ, hld = _laplace_marginal(linsolve, m, r, ρ, ps, st, idx; logdet = _has_energy(m))
+        (LenticulumCore.Gaussian(r.z[idx], Σ), hld)
     end
     logw = if _has_energy(m)
         [-_query_energy(m, r.z, z₀, ρ, ps, st) + c[2] for (r, c) in zip(roots, comps)]

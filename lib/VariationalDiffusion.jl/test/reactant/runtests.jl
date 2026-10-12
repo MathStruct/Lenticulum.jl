@@ -66,6 +66,18 @@ _f64(ps) = Lux.Functors.fmap(a -> a isa AbstractArray ? Float64.(a) : a, ps)
             @test first(prior_field(mr, z, ps, st)) ≈ first(prior_field(mp, z, ps, st)) atol = 1e-10
             @test prior_jacobian(mr, z, ps, st; coords = [2]) ≈ J[[2], [2]] rtol = 1e-6
             @test prior_vjp(mr, z, w, ps, st) ≈ J' * w rtol = 1e-6
+            @test prior_jvp(mr, z, w, ps, st) ≈ J * w rtol = 1e-6     # a difference through the compiled forward
         end
+        # matrix-free inference and adjoint through the compiled network
+        mr = ImplicitDiffusion(rx, nodes; batched = true)
+        ρ = [Inf, 1.0]
+        sp, _ = implicit_infer(mp, z, ρ, ps, st)
+        sk, _ = implicit_infer(mr, z, ρ, ps, st; linsolve = KrylovSolve())
+        @test sk.converged && sk.stable
+        @test sk.z ≈ sp.z atol = 1e-8
+        bd = implicit_pullback(mr, sk, z, ρ, [0.0, 1.0], ps, st)
+        bk = implicit_pullback(mr, sk, z, ρ, [0.0, 1.0], ps, st; linsolve = KrylovSolve())
+        @test bk.z₀ ≈ bd.z₀ rtol = 1e-6
+        @test bk.ps.layer_2.weight ≈ bd.ps.layer_2.weight rtol = 1e-6 atol = 1e-12
     end
 end

@@ -191,6 +191,28 @@ end
 prior_vjp(m::AbstractImplicitRelation, z, w, ps, st) = prior_jacobian(m, z, ps, st)' * w
 
 """
+    prior_jvp(m, z, v, ps, st) -> Vector
+
+The Jacobian-vector product ``(\\partial g/\\partial z)\\,v`` of the field, without forming the
+Jacobian: one input JVP per noise level ([`epsilon_jvp_input`](@ref)), with every node's column
+moved along the same `v`. The matrix-free solver ([`KrylovSolve`](@ref)) is built on it and on
+[`prior_vjp`](@ref).
+"""
+function prior_jvp(m::ImplicitDiffusion, z, v, ps, st)
+    out = zero(float.(z))
+    for grp in _groups(m)
+        t = m.nodes.t[first(grp)]
+        c = _weight(m, t) * alpha(m.predictor.schedule, t)
+        V = m.batched ? repeat(v, 1, length(grp)) : v
+        Ẋ = epsilon_jvp_input(m.predictor, _group_input(m, z, grp), t, ps, st, V)
+        out .+= c .* (reshape(Ẋ, length(z), :) * view(m.nodes.w, grp))
+    end
+    return out
+end
+
+prior_jvp(m::AbstractImplicitRelation, z, v, ps, st) = prior_jacobian(m, z, ps, st) * v
+
+"""
     implicit_residual(m, z, z₀, ρ, ps, st) -> (r, st)
 
 ``r = g_\\theta(z) + \\rho^2\\odot(z - z_0)`` on the free coordinates (finite `ρ`), zero on the
@@ -230,8 +252,8 @@ function _stable(Jff)
 end
 
 """
-    implicit_infer(m, z₀, ρ, ps, st; z_init = z₀, tol = 1e-9, maxiters = 200, step = 0.05)
-        -> (ImplicitSolution, st)
+    implicit_infer(m, z₀, ρ, ps, st; z_init = z₀, tol = 1e-9, maxiters = 200, step = 0.05,
+                   linsolve = DenseSolve()) -> (ImplicitSolution, st)
 
 Find a stable root of the residual on the free coordinates, warm-started from `z_init`.
 
@@ -242,24 +264,28 @@ is only trusted in locally convex regions so that it is not drawn to saddles and
 
 `z₀` holds the clamp values on hard coordinates and the soft targets elsewhere; `ρ` is the
 precision vector, `Inf` for a hard clamp (cf. [`precision_vector`](@ref)).
+
+`linsolve` chooses the linear algebra: [`DenseSolve`](@ref) forms ``J_{FF}``;
+[`KrylovSolve`](@ref) takes the Newton step by GMRES on Jacobian-vector products and tests
+stability by Lanczos, without forming it (for many free coordinates).
 """
 function implicit_infer(m::AbstractImplicitRelation, z₀, ρ, ps, st;
-                        z_init = z₀, tol = 1e-9, maxiters::Integer = 200, step = 0.05)
+                        z_init = z₀, tol = 1e-9, maxiters::Integer = 200, step = 0.05,
+                        linsolve::AbstractLinearSolve = DenseSolve())
     free = .!isinf.(ρ)
     z = float.(copy(z_init))
     z[.!free] .= z₀[.!free]
-    ρ²F = ρ[free] .^ 2
     rnorm(zz) = norm(first(implicit_residual(m, zz, z₀, ρ, ps, st))[free])
     for it in 1:maxiters
         r, st = implicit_residual(m, z, z₀, ρ, ps, st)
         rF = r[free]
         nr = norm(rF)
-        Jff = prior_jacobian(m, z, ps, st; coords = free) .+ Diagonal(ρ²F)
+        sys = _newton_system(linsolve, m, z, ρ, ps, st)
         if nr ≤ tol * (1 + norm(z))
-            return (ImplicitSolution(z, nr, it - 1, true, _stable(Jff)), st)
+            return (ImplicitSolution(z, nr, it - 1, true, sys.stable), st)
         end
-        if _stable(Jff)
-            d = -(Jff \ rF)
+        if sys.stable
+            d = -sys.solve(rF)
             η = 1.0
             while η > 1e-8
                 zn = copy(z); zn[free] .+= η .* d
@@ -272,9 +298,36 @@ function implicit_infer(m::AbstractImplicitRelation, z₀, ρ, ps, st;
         end
     end
     r, st = implicit_residual(m, z, z₀, ρ, ps, st)
-    Jff = prior_jacobian(m, z, ps, st; coords = free) .+ Diagonal(ρ²F)
     nr = norm(r[free])
-    return (ImplicitSolution(z, nr, maxiters, nr ≤ tol * (1 + norm(z)), _stable(Jff)), st)
+    stable = _newton_system(linsolve, m, z, ρ, ps, st).stable
+    return (ImplicitSolution(z, nr, maxiters, nr ≤ tol * (1 + norm(z)), stable), st)
+end
+
+# The linear algebra of one iteration: is sym J_FF positive definite, and d ↦ J_FF⁻¹ d.
+function _newton_system(::DenseSolve, m, z, ρ, ps, st)
+    free = .!isinf.(ρ)
+    Jff = prior_jacobian(m, z, ps, st; coords = free) .+ Diagonal(ρ[free] .^ 2)
+    return (stable = _stable(Jff), solve = r -> Jff \ r)
+end
+
+function _newton_system(ls::KrylovSolve, m, z, ρ, ps, st)
+    op = _free_operators(m, z, ρ, ps, st)
+    solve(r) = first(_gmres(op.J, r; rtol = ls.rtol, maxiters = ls.maxiters, restart = ls.restart))
+    return (stable = _lambda_min(op.S, op.n, ls) > 0, solve = solve)
+end
+
+# λ_F from J_FFᵀ λ_F = b
+function _adjoint_solve(::DenseSolve, m, z, ρ, b, ps, st)
+    free = .!isinf.(ρ)
+    Jff = prior_jacobian(m, z, ps, st; coords = free) .+ Diagonal(ρ[free] .^ 2)
+    return Jff' \ b
+end
+
+function _adjoint_solve(ls::KrylovSolve, m, z, ρ, b, ps, st)
+    op = _free_operators(m, z, ρ, ps, st)
+    λ, ok, k = _gmres(op.Jt, b; rtol = ls.rtol, maxiters = ls.maxiters, restart = ls.restart)
+    ok || @warn "implicit_pullback: GMRES stopped after $k products without reaching rtol = $(ls.rtol); the gradient is approximate"
+    return λ
 end
 
 # ps-shaped arithmetic for the parameter cotangent
@@ -287,7 +340,7 @@ _zero(x::Real) = zero(x)
 _hasparams(ps) = !(ps isa NamedTuple && isempty(ps))
 
 """
-    implicit_pullback(m, sol, z₀, ρ, z̄, ps, st) -> (z₀ = z̄₀, ρ = ρ̄, ps = ps̄)
+    implicit_pullback(m, sol, z₀, ρ, z̄, ps, st; linsolve = DenseSolve()) -> (z₀ = z̄₀, ρ = ρ̄, ps = ps̄)
 
 Reverse-mode derivative of ``z^\\star(z_0,\\rho,\\theta)`` by the adjoint method. Given the
 cotangent `z̄` ``= \\partial\\ell/\\partial z^\\star`` of a downstream loss, solve
@@ -309,16 +362,19 @@ once, and read every gradient off ``\\lambda``:
 the Jacobians are evaluated at ``z^\\star`` afresh. Throws if `sol` did not converge, because the
 implicit function theorem says nothing about a point that is not a root
 (`Backpropagation through Implicit Inference.md` §6).
+
+With `linsolve = KrylovSolve()` the adjoint system is solved by GMRES on vector-Jacobian
+products, so ``J_{FF}`` is never formed; it then warns if GMRES stops short of its tolerance.
 """
-function implicit_pullback(m::AbstractImplicitRelation, sol::ImplicitSolution, z₀, ρ, z̄, ps, st)
+function implicit_pullback(m::AbstractImplicitRelation, sol::ImplicitSolution, z₀, ρ, z̄, ps, st;
+                           linsolve::AbstractLinearSolve = DenseSolve())
     sol.converged || throw(ArgumentError(
         "implicit_pullback at a non-converged state (residual $(sol.residual)): the implicit " *
         "function theorem does not apply. Re-solve, or use an unrolled/one-step surrogate."))
     z = sol.z
     free = .!isinf.(ρ)
     clamped = .!free
-    Jff = prior_jacobian(m, z, ps, st; coords = free) .+ Diagonal(ρ[free] .^ 2)
-    λF = -(Jff' \ z̄[free])
+    λF = -_adjoint_solve(linsolve, m, z, ρ, z̄[free], ps, st)
     λ = zero(float.(z)); λ[free] .= λF
 
     ps̄ = _params_cotangent(m, z, λ, ps, st)
@@ -352,7 +408,8 @@ end
 # --- As a factor's inversion ----------------------------------------------------
 
 """
-    ImplicitProx(nodes; λ = 1.0, tol = 1e-9, maxiters = 200, step = 0.05, message = :point)
+    ImplicitProx(nodes; λ = 1.0, tol = 1e-9, maxiters = 200, step = 0.05, message = :point,
+                 batched = false, linsolve = DenseSolve())
 
 The deterministic implicit solver as a [`DiffusionFactor`](@ref)'s inversion, in place of
 [`REDDiff`](@ref):
@@ -373,19 +430,30 @@ dimension.
   ([`laplace_belief`](@ref)): the posterior marginal from `invert`, and from `factor_message`
   the same with the target's own anchor divided out, so that a variable does not count its
   incoming belief twice. Use `λ = density_lambda(schedule, nodes)` for calibrated covariances.
+
+`batched` and `linsolve` are passed on to [`ImplicitDiffusion`](@ref) and to the solver: one
+network call per noise level, and the matrix-free [`KrylovSolve`](@ref) for factors with many
+free coordinates.
 """
-struct ImplicitProx{T<:Real}
+struct ImplicitProx{T<:Real,L<:AbstractLinearSolve}
     nodes::FieldNodes{T}
     λ::T
     tol::T
     maxiters::Int
     step::T
     message::Symbol
-    function ImplicitProx(nodes::FieldNodes{T}, λ::T, tol::T, maxiters::Int, step::T, message::Symbol) where {T<:Real}
+    batched::Bool
+    linsolve::L
+    function ImplicitProx(nodes::FieldNodes{T}, λ::T, tol::T, maxiters::Int, step::T, message::Symbol,
+                          batched::Bool, linsolve::L) where {T<:Real,L<:AbstractLinearSolve}
         message in (:point, :gaussian) || throw(ArgumentError("message must be :point or :gaussian, got :$message"))
-        return new{T}(nodes, λ, tol, maxiters, step, message)
+        return new{T,L}(nodes, λ, tol, maxiters, step, message, batched, linsolve)
     end
 end
 ImplicitProx(nodes::FieldNodes{T}; λ = 1.0, tol = 1e-9, maxiters::Integer = 200, step = 0.05,
-             message::Symbol = :point) where {T} =
-    ImplicitProx(nodes, T(λ), T(tol), Int(maxiters), T(step), message)
+             message::Symbol = :point, batched::Bool = false,
+             linsolve::AbstractLinearSolve = DenseSolve()) where {T} =
+    ImplicitProx(nodes, T(λ), T(tol), Int(maxiters), T(step), message, batched, linsolve)
+
+# the solver's keyword arguments, as the factor configures them
+_solver_kwargs(p::ImplicitProx) = (tol = p.tol, maxiters = p.maxiters, step = p.step, linsolve = p.linsolve)

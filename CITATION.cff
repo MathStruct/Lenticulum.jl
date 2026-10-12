@@ -67,6 +67,10 @@ abstract: >-
 # tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
 # Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
 # tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
+# Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
+# tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
+# Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
+# tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
 references:
   - type: article
     title: "Batch Nonlinear Continuous-Time Trajectory Estimation as Exactly Sparse Gaussian Process Regression"
@@ -2051,3 +2055,114 @@ references:
         given-names: "John W."
     year: 2015
     collection-title: "Energy Minimization Methods in Computer Vision and Pattern Recognition (EMMCVPR)"
+  - type: article
+    title: "GMRES: A Generalized Minimal Residual Algorithm for Solving Nonsymmetric Linear Systems"
+    authors:
+      - family-names: "Saad"
+        given-names: "Youcef"
+      - family-names: "Schultz"
+        given-names: "Martin H."
+    year: 1986
+    journal: "SIAM Journal on Scientific and Statistical Computing"
+    volume: "7"
+    issue: "3"
+    start: "856"
+    end: "869"
+    doi: "10.1137/0907058"
+  - type: article
+    title: "Jacobian-free Newton–Krylov methods: a survey of approaches and applications"
+    authors:
+      - family-names: "Knoll"
+        given-names: "Dana A."
+      - family-names: "Keyes"
+        given-names: "David E."
+    year: 2004
+    journal: "Journal of Computational Physics"
+    volume: "193"
+    issue: "2"
+    start: "357"
+    end: "397"
+    doi: "10.1016/j.jcp.2003.08.010"
+  - type: article
+    title: "Fast Estimation of tr(f(A)) via Stochastic Lanczos Quadrature"
+    authors:
+      - family-names: "Ubaru"
+        given-names: "Shashanka"
+      - family-names: "Chen"
+        given-names: "Jie"
+      - family-names: "Saad"
+        given-names: "Yousef"
+    year: 2017
+    journal: "SIAM Journal on Matrix Analysis and Applications"
+    volume: "38"
+    issue: "4"
+    start: "1075"
+    end: "1099"
+    doi: "10.1137/16M1104974"
+  - type: conference-paper
+    title: "Variational Diffusion Models"
+    authors:
+      - family-names: "Kingma"
+        given-names: "Diederik P."
+      - family-names: "Salimans"
+        given-names: "Tim"
+      - family-names: "Poole"
+        given-names: "Ben"
+      - family-names: "Ho"
+        given-names: "Jonathan"
+    year: 2021
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/2107.00630"
+  - type: conference-paper
+    title: "New extension of the Kalman filter to nonlinear systems"
+    authors:
+      - family-names: "Julier"
+        given-names: "Simon J."
+      - family-names: "Uhlmann"
+        given-names: "Jeffrey K."
+    year: 1997
+    collection-title: "Signal Processing, Sensor Fusion, and Target Recognition VI"
+    volume: "3068"
+    doi: "10.1117/12.280797"
+  - type: conference-paper
+    title: "The Unscented Kalman Filter for Nonlinear Estimation"
+    authors:
+      - family-names: "Wan"
+        given-names: "Eric A."
+      - family-names: "van der Merwe"
+        given-names: "Rudolph"
+    year: 2000
+    collection-title: "Proceedings of the IEEE Adaptive Systems for Signal Processing, Communications, and Control Symposium"
+    start: "153"
+    end: "158"
+    doi: "10.1109/ASSPCC.2000.882463"
+  - type: article
+    title: "The iterated Kalman filter update as a Gauss–Newton method"
+    authors:
+      - family-names: "Bell"
+        given-names: "Bradley M."
+      - family-names: "Cathey"
+        given-names: "Frederick W."
+    year: 1993
+    journal: "IEEE Transactions on Automatic Control"
+    volume: "38"
+    issue: "2"
+    start: "294"
+    end: "297"
+    doi: "10.1109/9.250476"
+  - type: article
+    title: "Iterated Posterior Linearization Smoother"
+    authors:
+      - family-names: "García-Fernández"
+        given-names: "Ángel F."
+      - family-names: "Svensson"
+        given-names: "Lennart"
+      - family-names: "Särkkä"
+        given-names: "Simo"
+    year: 2017
+    journal: "IEEE Transactions on Automatic Control"
+    volume: "62"
+    issue: "4"
+    start: "2056"
+    end: "2063"
+    doi: "10.1109/TAC.2016.2592681"

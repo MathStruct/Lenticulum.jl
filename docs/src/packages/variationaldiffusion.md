@@ -89,6 +89,31 @@ construction. The implicit learner's field is then the gradient of `implicit_ene
 energy for the learned relation. Train with `denoising_gradient` (the loss gradient as one
 mixed second derivative, no nested AD in the loop) and any optimiser.
 
+## Many free coordinates
+
+Every solver step, the Laplace covariance and the adjoint need only the Jacobian block on the
+**free** coordinates, and that is all they compute. With `ImplicitDiffusion(pred, nodes;
+batched = true)` all nodes of one noise level go through the network in one call. When most of
+the state is free (generating an image), pass `linsolve = KrylovSolve()` to `implicit_infer`,
+`implicit_pullback`, `laplace_belief`, `implicit_mixture` or `ImplicitProx`: Newton steps and
+the adjoint are then solved by GMRES on Jacobian-vector products (`prior_jvp`) and
+vector-Jacobian products (`prior_vjp`), stability is tested by Lanczos, and the Laplace
+covariance is computed only on the coordinates asked for. On a 794-dimensional MLP with 784
+free coordinates, `implicit_infer` takes about 1 s; one dense 784 × 784 block takes 33 s.
+
+## Samples, not only modes
+
+The root finders return modes. `implicit_sample(m, z₀, ρ, ps, st; n, steps, resample)` draws
+`n` samples of the free coordinates given the hard-clamped ones (`ρ = Inf`) with the reverse
+diffusion, replacing the clamped coordinates at every step; `resample > 0` adds RePaint's
+harmonisation, which a strongly coupled clamp needs.
+
+## Differentiating through inference
+
+With ChainRulesCore loaded (Zygote loads it), `implicit_infer` has an `rrule` whose pullback is
+`implicit_pullback`: `Zygote.gradient(ps -> loss(first(implicit_infer(m, z₀, ρ, ps, st)).z), ps)`
+works without unrolling the solver, and gives gradients for `z₀` and `ρ` too.
+
 ## Proximal diffusion models
 
 ProxDM (Fang et al. 2025) queries the prior through ``\operatorname{prox}_{-\lambda\log p_t}``
@@ -100,9 +125,11 @@ learner's query by half-quadratic splitting, `proximal_matching_loss` the traini
 ## Known gaps
 
 - `prox_infer` has no adjoint yet, and ProxDM is not yet a `DiffusionFactor` inversion.
-- The inversion returns a point, so uncertainty does not propagate.
-- The message is a posterior rather than a likelihood, so it double-counts on a variable of
-  degree greater than one.
+- RED-Diff's inversion returns a point, so uncertainty does not propagate; the implicit
+  solver's `message = :gaussian` does send a Laplace Gaussian.
+- `implicit_sample` takes hard clamps only; soft evidence would need likelihood guidance.
+- The `KrylovSolve` stability test and log-determinant are estimates once more coordinates are
+  free than Lanczos steps and probes.
 
 ## API
 

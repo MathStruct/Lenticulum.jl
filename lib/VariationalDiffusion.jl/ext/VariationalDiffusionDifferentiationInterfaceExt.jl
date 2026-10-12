@@ -110,6 +110,15 @@ function VariationalDiffusion._ad_vjp_input(ad::ADTypes.AbstractADType, pred::No
     return reshape(only(X̄), size(X))
 end
 
+# a forward-mode JVP where the backend has one; reverse-only backends (Zygote, Mooncake) would pay
+# one pullback per coordinate for it, so they take the directional difference instead
+function VariationalDiffusion._ad_jvp_input(ad::ADTypes.AbstractADType, pred::NoisePredictor, X, t, ps, st, V)
+    ADTypes.mode(ad) isa ADTypes.ReverseMode && return VariationalDiffusion._fd_jvp_input(pred, X, t, ps, st, V)
+    Ẋ = DI.pushforward(_eps_of_inputs, ad, collect(float.(X)), (collect(float.(reshape(V, size(X)))),),
+                       DI.Constant(pred), DI.Constant(t), DI.Constant(ps), DI.Constant(st))
+    return reshape(only(Ẋ), size(X))
+end
+
 # --- energy-parametrised predictors: first and second derivatives of a scalar -----------
 # E is summed over the columns of a batch, so its x-gradient is the per-column gradients.
 # The mixed derivative ∂_θ⟨∇ₓE, w⟩ is the θ-block of one Hessian-vector product on the joint

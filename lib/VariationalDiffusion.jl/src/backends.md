@@ -17,7 +17,8 @@
 |---|---|---|
 | $\varepsilon_\theta(x, t)$ | everything | `epsilon` → `_apply(ad, …)`: plain Lux, or compiled |
 | $\partial_x\varepsilon_\theta$ on the free coordinates, a $\lvert F\rvert\times\lvert F\rvert$ block | `implicit_infer` (Newton, stability), `implicit_laplace`, `implicit_pullback` (adjoint solve) | `epsilon_jacobian_block`: the backend, or finite differences along the free coordinates without one ([[implicit]] §6) |
-| $(\partial_x\varepsilon_\theta)^\top w$, an input VJP | `implicit_pullback` (cotangent of the clamped inputs) | `epsilon_vjp_input`: the backend, or the finite-difference Jacobian |
+| $(\partial_x\varepsilon_\theta)^\top w$, an input VJP | `implicit_pullback` (cotangent of the clamped inputs); `KrylovSolve` (adjoint GMRES, Lanczos) | `epsilon_vjp_input`: the backend, or the finite-difference Jacobian |
+| $(\partial_x\varepsilon_\theta)\,v$, an input JVP | `KrylovSolve` (Newton GMRES, Lanczos, conjugate gradients) | `epsilon_jvp_input`: forward mode through the backend; one directional difference for reverse-only backends and without one ([[krylov]]) |
 | the full $\partial_x\varepsilon_\theta$ | tests, tutorials, the per-node Jacobian | `epsilon_jacobian` |
 | $(\partial_\theta\varepsilon_\theta)^\top w$, a parameter VJP | `implicit_pullback` only | `epsilon_vjp_params`: the backend; an error without one |
 
@@ -27,13 +28,13 @@ inference. Nothing is ever differentiated through a *solver*: the solver loop st
 Julia, and the implicit function theorem turns the backward pass into one linear solve plus one
 VJP per field node ([[Parallelism and Compilation]] §6, "never trace through a solver").
 
-## 2. The design: an `ad` field and five hooks
+## 2. The design: an `ad` field and six hooks
 
 ```julia
 pred = NoisePredictor(model, VPSDE(); input, ad = AutoZygote())
 ```
 
-`ad` is any ADTypes object, or `nothing` (the default). The core defines five internal
+`ad` is any ADTypes object, or `nothing` (the default). The core defines six internal
 functions, and the extensions add methods for them:
 
 | hook | default (no extension) | `DifferentiationInterface` loaded | `Reactant` loaded, `ad = AutoReactant()` |
@@ -42,6 +43,7 @@ functions, and the extensions add methods for them:
 | `_ad_jacobian(ad, …)` | not called: finite differences | `DI.jacobian` | compiled Enzyme input-VJP, one call per output row |
 | `_ad_jacobian_block(ad, …, idx, w)` | not called: finite differences | `DI.jacobian` of the restricted map | compiled input-VJP, one call per free coordinate |
 | `_ad_vjp_input(ad, …, W)` | not called: finite differences | `DI.pullback` | compiled input-VJP |
+| `_ad_jvp_input(ad, …, V)` | not called: one directional difference | `DI.pushforward`; a directional difference for reverse-mode backends | a directional difference through the compiled forward |
 | `_ad_vjp_params(ad, …, w)` | `ArgumentError` naming the fix | `DI.pullback` | compiled Enzyme parameter-VJP |
 
 So the package's own dependency list is unchanged (`LuxCore`, `Random`, `LinearAlgebra`, …).

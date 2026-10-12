@@ -233,10 +233,11 @@ Implementation notes live next to the code, per [[Start Here]]:
 **Mycelium.jl** — [[Mycelium]], [[graph]], [[polarity_resolution]], [[messages]],
 [[schedules]], [[passing]], [[free_energy]], [[factors]]
 
-**Lenticulum.jl** — [[constraint]] (`beliefs.md` and `gaussian.md` are not yet written)
+**Lenticulum.jl** — [[constraint]], [[nonlinear]] (`beliefs.md` and `gaussian.md` are not yet written)
 
 **VariationalDiffusion.jl** — [[VariationalDiffusion]], [[schedule]], [[predictor]],
-[[reddiff]], [[factor]], [[analytic]], [[implicit]], [[implicit_factor]], [[energy_network]], [[proxdm]], [[backends]]
+[[reddiff]], [[factor]], [[analytic]], [[implicit]], [[implicit_factor]], [[energy_network]], [[proxdm]], [[backends]],
+[[krylov]], [[sampler]]
 
 **ImplicitLayers.jl** — [[ImplicitLayers]], [[solve]], [[deq]], [[flow]], [[neuralode]],
 [[luxfactor]]
@@ -268,8 +269,9 @@ some parts known and some fitted, and a residual that means something in the dom
   five things a replacement would lose, and a connector with learned relations as RxInfer nodes
 - [[Sharing Types with RxInfer]] — (later) wrap ExponentialFamily types as beliefs instead of
   converting; reuse RxInfer's linearisation and unscented code for hand-written nonlinear factors
-- [[Backward Signatures]] — (later) the backward pass at solver, factor and graph level: forward
-  arguments + forward result + cotangent; `rrule`s on top; unrolled vs adjoint message passing
+  (`NonlinearFactor` now does both itself)
+- [[Backward Signatures]] — the backward pass at solver, factor and graph level: forward
+  arguments + forward result + cotangent; `rrule`s on top (the solver's is built); unrolled vs adjoint message passing
 - [[Why Julia]] — why not C++, Rust, PyTorch, JAX or Mojo: in Julia ordinary code *is* the compiled,
   differentiable computation graph, with evidence from this repository and the costs stated
 - [[Parallelism and Compilation]] — parallelism, GPUs and XLA/MLIR in a *dynamic* SLAM
