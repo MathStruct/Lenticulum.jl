@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/MathStruct/Lenticulum.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/MathStruct/Lenticulum.jl/actions/workflows/CI.yml?query=branch%3Amaster)
 [![Docs](https://github.com/MathStruct/Lenticulum.jl/actions/workflows/Docs.yml/badge.svg?branch=master)](https://MathStruct.github.io/Lenticulum.jl/dev/)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23314723.svg)](https://doi.org/10.5281/zenodo.23314723)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.23314723-blue)](https://doi.org/10.5281/zenodo.23314723)
 
 **Learn relations, not functions.** A neural network learns $f_\theta : X \to Y$ and can only be
 run one way. Lenticulum learns a *relation* $R_\theta$ on a joint space $Z$ and decides at query
