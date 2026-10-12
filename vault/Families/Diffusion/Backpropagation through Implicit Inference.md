@@ -198,9 +198,9 @@ Compare [[RED-Diff as a Statistical Game]] §3, where the stop-gradient was "the
 between a package with an AD dependency and one without". Training *through* inference brings
 back exactly one VJP per node, no more.
 
-## 9. Backpropagating at higher noise levels than inference (later)
+## 9. Backpropagating at higher noise levels than inference
 
-An open idea, not yet tried. Inference may stop at a lowest noise level $t_2 > 0$: a sampler run
+An open idea, tried once (for ProxDM, below). Inference may stop at a lowest noise level $t_2 > 0$: a sampler run
 only from $t_1$ down to $t_2$, or, in the implicit setting, field nodes only on $[t_2, t_1]$
 (`field_nodes(…; levels)`). The question is whether the backward pass should use **higher**
 levels $t_3 > t_2$.
@@ -242,9 +242,14 @@ Jacobian, so it returns exactly the surrogate. Measure
 1. the cosine between surrogate and exact gradient as $t_3$ grows, and
 2. whether the training of §7 converges faster or more stably with $t_3 > t_2$.
 
-For ProxDM the same experiment is now possible: `prox_pullback` takes the noise level `t` as
-its own argument, so evaluating it at a larger `t` than `prox_infer` used gives the analogous
-surrogate ([[proxdm]] §5, [[Open Problems in Implicit Diffusion Learning]] I7). Not run yet.
+**Run for ProxDM** ([[proxdm]] §8), where `prox_pullback` takes the noise level as its own
+argument. On the §7 task with an exact prox: the surrogate's cosine to the exact gradient is 0.98
+at $\sigma(t_b) \approx 1.7\sigma(t_f)$, 0.89 at $2.9\sigma(t_f)$ and below 0.4 beyond. Over five
+training sets, surrogates up to $\sigma(t_b) \approx 6\sigma(t_f)$ train about as well as the exact
+gradient, none consistently better; at $12\sigma(t_f)$ the bias stalls training in one run of
+five. So no benefit, but also little cost over a wide range. The test had no conditioning
+problem to fix (one free coordinate, an exact prox); the stiff case, a learned prox at small
+$t_f$ with many free coordinates, is still untried, and so is the experiment for `implicit_infer`.
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]], [[Deterministic Relaxation]],
 [[The Implicit Diffusion Factor as a Statistical Game]], [[DEQ as a Relation]],

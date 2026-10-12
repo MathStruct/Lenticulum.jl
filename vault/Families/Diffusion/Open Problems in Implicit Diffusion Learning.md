@@ -172,14 +172,17 @@ for `fused_dense!`, and Enzyme.jl #3368 on Julia 1.12). The same nested Enzyme i
 `Reactant.@compile`, so Reactant is not blocked, only unwired: its extension lacks the five
 `_energy_*` hooks ([[energy_network]] §4, §7).
 
-### I7. ProxDM, completed — **done but for one experiment**
+### I7. ProxDM, completed — **done**
 
 Done: the adjoint of `prox_infer` (`prox_pullback`, also its `rrule`; dense or GMRES on prox
 VJPs), exact derivatives of `MixtureProx`, and an `ad` field on `ProxNetwork`; checked against
 finite differences of the whole solve ([[proxdm]] §5); and `ProxDM` as a `DiffusionFactor`
 inversion, with two parameter trees ([[proxdm]] §6); and a second-order sampler, the
-trapezoidal scheme, with one prox per step ([[proxdm]] §2). Missing: a test of backpropagating
-at a higher noise level than inference used, an inexact but better-conditioned gradient ([[Backpropagation through Implicit Inference]] §9).
+trapezoidal scheme, with one prox per step ([[proxdm]] §2); and the experiment of
+backpropagating at a higher noise level than inference used: no benefit on the circle task,
+little cost up to $\sigma(t_b) \approx 6\sigma(t_f)$ ([[proxdm]] §8). Open: the same experiment
+where conditioning matters, with a learned prox and many free coordinates
+([[Backpropagation through Implicit Inference]] §9).
 
 ### I8. Composition — **partly done**
 
@@ -236,7 +239,7 @@ channels, and a SLAM or particle example that uses it.
 | I4 | restarts after unstable solves | done |
 | I5 | batched nodes, Newton–Krylov | done: free-coordinate blocks, batched nodes, `KrylovSolve` |
 | I6 | energy networks on Enzyme and Reactant | Zygote and Mooncake work; Reactant unwired but unblocked; Enzyme on CPU blocked upstream |
-| I7 | ProxDM adjoint, factor, sampler | adjoint, factor inversion (`ProxDM`), trapezoidal sampler done; higher-noise backprop untested |
+| I7 | ProxDM adjoint, factor, sampler | done: adjoint, factor inversion (`ProxDM`), trapezoidal sampler; higher-noise backprop tried (no benefit on the circle) |
 | I8 | composition | products on shared variables done; corrections and separators missing |
 | I9 | coverage diagnostics | done: `coverage` (distance, reconstruction, energy as conformal p-values) |
 | I10 | real data, higher dimensions | missing |

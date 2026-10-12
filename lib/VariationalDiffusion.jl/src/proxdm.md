@@ -232,10 +232,8 @@ struct's bounds are part of it), so Julia never prefers it and silently calls th
 - **The PDA step-size limit.** $\gamma_k < 2$ fails for coarse grids near $t = T$ under the
   default VP schedule. The hybrid scheme removes it; PDA throws with a message saying so
   instead of returning garbage.
-- **Backpropagating at a different noise level.** `prox_pullback` takes `t` separately, but
-  away from the inference level the fixed-point equation no longer holds and the result is not
-  the gradient of anything; whether it is a useful, better-conditioned surrogate
-  ([[Backpropagation through Implicit Inference]] §9) is untested.
+- **Backpropagating at a different noise level** gives a surrogate, not a gradient (§8). In
+  the one experiment so far it trains no better than the exact adjoint.
 - **No derivative in `t` or `λ`.** Both are treated as hyperparameters.
 - **`stable` is not assessed** by the splitting; it reports `true` when converged. The
   adjoint's matrix $I - \operatorname{diag}(a)D_{FF}$ is nonsingular wherever the splitting
@@ -248,6 +246,59 @@ struct's bounds are part of it), so Julia never prefers it and silently calls th
   ($\nabla^2(-\log p_t) = (D^{-1} - I)/\lambda$ at the prox's output); not built.
 - **The two trees are separate even when they could be shared.** For `MixtureProx` of the
   factor's own mixture, both trees hold the same means; training one does not move the other.
+
+## 8. Experiment: backpropagating at a higher noise level
+
+[[Backpropagation through Implicit Inference]] §9 asks whether the adjoint should be taken at
+a noise level $t_b$ above the forward's $t_f$: the gradient of a more smoothed problem, biased
+but better conditioned, with graduated smoothing as the hoped-for benefit. `prox_pullback`
+takes the noise level as its own argument, so the surrogate is one call with `t = t_b`. Away
+from $t_f$ the fixed-point equation no longer holds at $w$, so the result is not the gradient of
+anything.
+
+**Setup** (`examples/proxdm_backprop_noise.jl`). The task of §7 there: 64
+mixture components on the unit circle (width 0.05), means trained by Adam so that proximal
+inference "$x \mapsto y$" ($x$ clamped) reproduces $y = x^2 - 0.5$ on 9 training inputs, with
+gradients from the adjoint only. `MixtureProx`, $t_f = 0.005$ ($\sigma = 0.027$), $\lambda = 0.01$,
+150 epochs; $t_b \in \{0.005, 0.01, 0.02, 0.05, 0.1\}$, i.e. $\sigma(t_b)$ from 0.027 to 0.32.
+
+**The surrogate's direction.** Cosine to the exact gradient, and its norm relative to the exact
+one, on the 9 training points:
+
+| $t_b$ | 0.01 | 0.02 | 0.05 | 0.1 |
+|---|---|---|---|---|
+| at the start | 0.98 (0.77) | 0.89 (0.53) | 0.39 (0.30) | 0.28 (0.26) |
+| after exact training | 0.98 (0.82) | 0.80 (0.66) | 0.47 (0.79) | 0.34 (0.43) |
+
+Up to $\sigma(t_b) \approx 3\sigma(t_f)$ it points the same way and is shorter (smoother); beyond, the
+direction decorrelates.
+
+**Training** (learning rate 0.01, five training sets: the grid and four random draws of 9
+inputs; median and range):
+
+| $t_b$ | final loss | loss spikes (+10%) | test RMSE, warm start | test RMSE, cold start |
+|---|---|---|---|---|
+| 0.005 (exact) | 1.3e-4 [4e-7, 6e-4] | 3 [0, 11] | 0.14 [0.08, 0.30] | 0.30 [0.28, 0.34] |
+| 0.01 | 7.5e-5 [5e-6, 3e-4] | 5 [1, 13] | 0.14 [0.07, 0.28] | 0.29 [0.26, 0.30] |
+| 0.02 | 1.1e-4 [3e-7, 3e-4] | 2 [0, 8] | 0.14 [0.09, 0.29] | 0.23 [0.15, 0.33] |
+| 0.05 | 2.6e-4 [2e-5, 2e-3] | 5 [0, 8] | 0.12 [0.05, 0.31] | 0.28 [0.05, 0.32] |
+| 0.1 | 6.6e-4 [3e-4, 1.7e-2] | 2 [0, 3] | 0.16 [0.12, 0.25] | 0.22 [0.10, 0.24] |
+
+At learning rate 0.03 (grid only) the exact adjoint reaches loss 1e-3 fastest (36 epochs, against
+43–53 for $t_b$ up to 0.05) and $t_b = 0.1$ never does.
+
+**Reading.** The hypothesis is not supported here. Surrogates up to $t_b = 0.05$ train about as
+well as the exact gradient, none consistently better, and $t_b = 0.1$ is too biased: it stalls in
+one of five runs. On the grid training set alone, $t_b = 0.05$ looked best (test RMSE 0.05 against
+0.08, cold start 0.05 against 0.31) and $t_b = 0.02$ had no loss spikes against eleven; neither
+survived the other four sets, which is why the table reports five.
+
+**Why this is not the last word.** The motivation was conditioning, and this problem has none to
+fix: one free coordinate, an exact prox, an adjoint solve that is a scalar division. The cases
+where a high-$t_b$ adjoint could pay off are a learned prox (whose Jacobian at small $t$ carries
+its errors), many free coordinates, and a forward at very small $t_f$, which is where the
+stiffness argument applies. The 9-point task also overfits (test RMSE 0.14 at training loss
+1e-4), so generalisation differences of this size are noise.
 
 Related: [[implicit]], [[reddiff]], [[backends]], [[analytic]],
 [[ProxDM and Proximal Alternatives]], [[Inference Signatures]], [[Deterministic Relaxation]]
