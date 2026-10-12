@@ -73,4 +73,25 @@ function VariationalDiffusion._ad_jacobian(ad::AutoReactant, pred::NoisePredicto
     return J
 end
 
+# the free-coordinate block, one compiled input-VJP per free coordinate: row i of
+# Σ_b w_b ∂ε(x_b)/∂x_b is the VJP with cotangent e_i w' (every column of X at once)
+function VariationalDiffusion._ad_jacobian_block(ad::AutoReactant, pred::NoisePredictor, X, t, ps, st, idx, w)
+    T = float(eltype(X))
+    X = collect(T.(X))
+    n = size(X, 1)
+    J = zeros(T, length(idx), length(idx))
+    for (a, i) in enumerate(idx)
+        W = zeros(T, size(X))
+        reshape(W, n, :)[i, :] .= w
+        X̄ = Array(_run(_vjp_x, pred, _args(X, t, ps, st)..., W))
+        J[a, :] = vec(sum(reshape(X̄, n, :); dims = 2))[idx]
+    end
+    return J
+end
+
+function VariationalDiffusion._ad_vjp_input(ad::AutoReactant, pred::NoisePredictor, X, t, ps, st, W)
+    T = float(eltype(X))
+    return reshape(Array(_run(_vjp_x, pred, _args(collect(T.(X)), t, ps, st)..., collect(T.(reshape(W, size(X)))))), size(X))
+end
+
 end

@@ -14,8 +14,8 @@
 | name | is |
 |---|---|
 | `FieldNodes`, `field_nodes`, `noisefree_nodes` | the fixed $(t_k, \varepsilon_k, w_k)$ that make the field deterministic |
-| `ImplicitDiffusion` | the relation: a `NoisePredictor` plus a node set plus λ |
-| `prior_field`, `prior_jacobian` | $g_\theta(z)$ and $\partial g/\partial z$ |
+| `ImplicitDiffusion` | the relation: a `NoisePredictor` plus a node set plus λ; `batched = true` evaluates one noise level per network call |
+| `prior_field`, `prior_jacobian`, `prior_vjp` | $g_\theta(z)$, the block of $\partial g/\partial z$ on chosen coordinates (`coords`), and $(\partial g/\partial z)^\top w$ |
 | `implicit_residual` | $r = g + \rho^2\odot(z - z_0)$ on the free coordinates |
 | `implicit_infer` → `ImplicitSolution` | a root, with `residual`, `iters`, `converged`, `stable` |
 | `implicit_pullback` | the adjoint: `(z₀ = …, ρ = …, ps = …)` |
@@ -34,7 +34,7 @@
 1. **The tolerance floor.** The field of a narrow mixture at small $t$ has a floating-point noise floor around $10^{-11}$ (it scales like $1/\sigma_t$). An absolute tolerance of $10^{-11}$ made a third of the solves "fail"; the tolerance is relative, `tol * (1 + ‖z‖)`.
 2. **The prototype's solver.** A version with a fixed descent step in non-convex regions and an energy line search dropped about 60% of solves during training, and its training stalled at RMSE 0.15. The package's solver (Newton where convex, residual backtracking) dropped none and reached 0.012.
 3. **Smoothing levels.** With RED-Diff's training range of noise levels, the deterministic field of a circle has its only root at the centre. The default `levels` stop at $t = 0.05$; the trade-off is measured in [[Implicit Diffusion Learners]] §5.
-4. **Dense Jacobians.** `prior_jacobian` forms $J$ densely, which is fine for the small $n$ of factor blocks but not for images. Large $n$ needs a matrix-free GMRES in both the Newton step and the adjoint, each iteration costing one VJP per node.
+4. **Dense Jacobians.** The block $J_{FF}$ is still formed densely, which is fine while few coordinates are free (§6) but not when a whole image is free. That case needs a matrix-free GMRES in both the Newton step and the adjoint, and a Lanczos test of stability ([[Open Problems in Implicit Diffusion Learning]] I5).
 
 ## 4. How it is tested
 
@@ -46,6 +46,7 @@
 - the Gaussian root and its derivative match the closed form;
 - every adjoint cotangent matches finite differences of the full solve;
 - training through inference reduces the loss by more than 50×;
+- the free-coordinate block equals the slice of the full Jacobian and `prior_vjp` equals $J^\top w$, for the closed form, finite differences, Zygote, ForwardDiff, Enzyme, energy networks, products and (separate suite) Reactant; batched and unbatched nodes give the same field, Jacobian, answer and gradient;
 - `implicit_roots` finds both branches of the circle, and the Laplace covariance of a Gaussian
   query equals the closed form $1/(\kappa + \rho^2)$.
 
@@ -95,6 +96,43 @@ the weights are equal.
 
 What is still missing: λ chosen for calibration is not always the λ one wants for balancing soft
 evidence.
+
+
+## 6. Cost: free-coordinate blocks and batched nodes
+
+Every consumer of the Jacobian needs only a block of it: the solver and its stability check need
+$J_{FF}$, the Laplace covariance needs $J_{FF}$, and the adjoint needs $J_{FF}$ and
+$J_{FC}^\top\lambda$. So `prior_jacobian(m, z, ps, st; coords = free)` computes only $J_{FF}$, and
+`prior_vjp` computes $J^\top\lambda$ (hence $J_{FC}^\top\lambda$) without forming $J$. The cost
+then grows with the number of **free** coordinates, not with the dimension:
+
+| backend | the block $J_{FF}$, per noise level | $J^\top w$ |
+|---|---|---|
+| none (finite differences) | $2\lvert F\rvert$ forward passes along the free coordinates | from the per-node Jacobian (slow; small $n$ only) |
+| `GaussianMixtureEps` | closed form, restricted | closed form |
+| DifferentiationInterface | one Jacobian of $u \mapsto (\sum_b w_b\,\varepsilon(x_b + Pu))_F$, a map $\mathbb R^{\lvert F\rvert}\to\mathbb R^{\lvert F\rvert}$: $\lvert F\rvert$ JVPs or VJPs | one input VJP |
+| energy networks | the Hessian of $\sum_b w_b E(x_b + Pu)$: $\lvert F\rvert$ Hessian-vector products | one HVP |
+| Reactant | $\lvert F\rvert$ compiled input VJPs | one compiled VJP |
+
+All columns move together with $z$ ($x_b = \alpha z + \sigma\varepsilon_b$), so one derivative of the
+weighted sum over a noise level's nodes covers all of them.
+
+**Batching.** With `batched = true` the nodes of one noise level go through the network as the
+columns of one matrix, for the field, the block, the VJPs and the parameter cotangent: 8 calls
+instead of 64 with the default nodes. It is opt-in because the predictor must accept a matrix at
+a scalar time; the closed-form mixture does not.
+
+**Measured** (an MLP $802 \to 256 \to 256 \to 794$, 64 nodes, Zygote, CPU), a query with 10 of 794
+coordinates free, as in the MNIST classification of [[MNIST in Both Directions]]:
+
+| | time |
+|---|---|
+| full $794\times794$ Jacobian, as every solver iteration used to compute it | ≈ 26 s (batched; unbatched is slower) |
+| the $10\times10$ block, unbatched | 0.74 s |
+| the $10\times10$ block, batched | 0.04 s |
+| the field, unbatched / batched | 3.1 ms / 1.0 ms |
+
+With ForwardDiff the block costs 0.04 s either way: forward mode already pays per free coordinate.
 
 Related: [[analytic]], [[reddiff]], [[factor]], [[energy_network]], [[Deterministic Relaxation]], [[Inference Signatures]],
 [[The Implicit Diffusion Factor as a Statistical Game]]

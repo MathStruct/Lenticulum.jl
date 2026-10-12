@@ -86,22 +86,48 @@ diffusion model; [`ProductRelation`](@ref) pools several. The query functions
 abstract type AbstractImplicitRelation end
 
 """
-    ImplicitDiffusion(predictor, nodes; λ = 1.0)
+    ImplicitDiffusion(predictor, nodes; λ = 1.0, batched = false)
 
 The relation ``R_\\theta = \\{z : r(z) = 0\\}`` defined by a noise predictor and a fixed node
 set, with RED-Diff's weighting ``\\lambda_t = \\lambda\\sigma_t/\\alpha_t``.
+
+With `batched = true` all nodes of one noise level go through the network in **one call**, as
+the columns of an ``n\\times B`` matrix at a scalar time: one call per level instead of one per
+node, for the field and for every derivative. The predictor must then accept a matrix input
+(a Lux `Chain` of `Dense` layers does, with an `input` function that repeats the time embedding
+across columns). The answers are the same either way (`implicit.md` §6).
 """
 struct ImplicitDiffusion{P<:NoisePredictor,T<:Real} <: AbstractImplicitRelation
     predictor::P
     nodes::FieldNodes{T}
     λ::T
+    batched::Bool
 end
-ImplicitDiffusion(pred::NoisePredictor, nodes::FieldNodes{T}; λ = 1.0) where {T} =
-    ImplicitDiffusion(pred, nodes, T(λ))
+ImplicitDiffusion(pred::NoisePredictor, nodes::FieldNodes{T}; λ = 1.0, batched::Bool = false) where {T} =
+    ImplicitDiffusion(pred, nodes, T(λ), batched)
 
 _weight(m::ImplicitDiffusion, t) = m.λ * sigma(m.predictor.schedule, t) / alpha(m.predictor.schedule, t)
 _node_input(m::ImplicitDiffusion, z, k) =
     perturb(m.predictor.schedule, z, m.nodes.t[k], view(m.nodes.ε, :, k))
+
+# The nodes evaluated in one network call: one noise level each when batched, else one node.
+function _groups(m::ImplicitDiffusion)
+    m.batched || return [[k] for k in eachindex(m.nodes.t)]
+    ts = m.nodes.t
+    return [findall(==(u), ts) for u in unique(ts)]
+end
+# a vector for a single node (as the predictor has always been called), an n × B matrix when batched
+_group_input(m::ImplicitDiffusion, z, grp) =
+    m.batched ? perturb(m.predictor.schedule, z, m.nodes.t[first(grp)], m.nodes.ε[:, grp]) :
+                _node_input(m, z, only(grp))
+
+# coordinates as a sorted index vector: `:` (all), a mask, or indices
+_coords(::Colon, n) = collect(1:n)
+function _coords(c::AbstractVector{Bool}, n)
+    length(c) == n || throw(DimensionMismatch("a coordinate mask needs $n entries, got $(length(c))"))
+    return findall(c)
+end
+_coords(c, n) = collect(Int, c)
 
 """
     prior_field(m, z, ps, st) -> (g, st)
@@ -110,30 +136,59 @@ _node_input(m::ImplicitDiffusion, z, k) =
 """
 function prior_field(m::ImplicitDiffusion, z, ps, st)
     g = zero(float.(z))
-    for k in eachindex(m.nodes.t)
-        t = m.nodes.t[k]
-        ε̂, st = epsilon(m.predictor, _node_input(m, z, k), t, ps, st)
-        g = g .+ (m.nodes.w[k] * _weight(m, t)) .* (ε̂ .- view(m.nodes.ε, :, k))
+    for grp in _groups(m)
+        t = m.nodes.t[first(grp)]
+        ε̂, st = epsilon(m.predictor, _group_input(m, z, grp), t, ps, st)
+        g = g .+ _weight(m, t) .* ((reshape(ε̂, length(z), :) .- view(m.nodes.ε, :, grp)) * view(m.nodes.w, grp))
     end
     return (g, st)
 end
 
 """
-    prior_jacobian(m, z, ps, st) -> Matrix
+    prior_jacobian(m, z, ps, st; coords = :) -> Matrix
 
 ``\\partial g/\\partial z = \\sum_k w_k\\lambda_{t_k}\\alpha_{t_k}\\,\\partial_x\\varepsilon_\\theta``. Symmetric iff
 the field is (locally) a gradient.
+
+With `coords` (indices or a mask) only the block ``J_{II}`` on those coordinates is computed, at
+a cost that grows with their number, not with the dimension (see
+[`epsilon_jacobian_block`](@ref)). The solver, the Laplace approximation and the adjoint only
+ever need the block on the free coordinates, so a query with ten free coordinates in a
+794-dimensional state costs ten derivative passes per noise level, not 794.
 """
-function prior_jacobian(m::ImplicitDiffusion, z, ps, st)
-    n = length(z)
-    J = zeros(eltype(float(z)), n, n)
-    for k in eachindex(m.nodes.t)
-        t = m.nodes.t[k]
-        c = m.nodes.w[k] * _weight(m, t) * alpha(m.predictor.schedule, t)
-        J .+= c .* epsilon_jacobian(m.predictor, _node_input(m, z, k), t, ps, st)
+function prior_jacobian(m::ImplicitDiffusion, z, ps, st; coords = Colon())
+    idx = _coords(coords, length(z))
+    J = zeros(eltype(float(z)), length(idx), length(idx))
+    isempty(idx) && return J
+    for grp in _groups(m)
+        t = m.nodes.t[first(grp)]
+        c = _weight(m, t) * alpha(m.predictor.schedule, t)
+        J .+= c .* epsilon_jacobian_block(m.predictor, _group_input(m, z, grp), t, ps, st, idx, m.nodes.w[grp])
     end
     return J
 end
+
+"""
+    prior_vjp(m, z, w, ps, st) -> Vector
+
+The vector–Jacobian product ``(\\partial g/\\partial z)^\\top w`` of the field, without forming the
+Jacobian: one input VJP per noise level ([`epsilon_vjp_input`](@ref)). The adjoint uses it for
+the cotangent of the clamped inputs, ``J_{FC}^\\top\\lambda``.
+"""
+function prior_vjp(m::ImplicitDiffusion, z, w, ps, st)
+    v = zero(float.(z))
+    for grp in _groups(m)
+        t = m.nodes.t[first(grp)]
+        c = _weight(m, t) * alpha(m.predictor.schedule, t)
+        W = m.batched ? w * transpose(m.nodes.w[grp]) : w .* m.nodes.w[only(grp)]
+        X̄ = epsilon_vjp_input(m.predictor, _group_input(m, z, grp), t, ps, st, W)
+        v .+= c .* vec(sum(reshape(X̄, length(z), :); dims = 2))
+    end
+    return v
+end
+
+# any other relation: through its full Jacobian
+prior_vjp(m::AbstractImplicitRelation, z, w, ps, st) = prior_jacobian(m, z, ps, st)' * w
 
 """
     implicit_residual(m, z, z₀, ρ, ps, st) -> (r, st)
@@ -199,7 +254,7 @@ function implicit_infer(m::AbstractImplicitRelation, z₀, ρ, ps, st;
         r, st = implicit_residual(m, z, z₀, ρ, ps, st)
         rF = r[free]
         nr = norm(rF)
-        Jff = prior_jacobian(m, z, ps, st)[free, free] .+ Diagonal(ρ²F)
+        Jff = prior_jacobian(m, z, ps, st; coords = free) .+ Diagonal(ρ²F)
         if nr ≤ tol * (1 + norm(z))
             return (ImplicitSolution(z, nr, it - 1, true, _stable(Jff)), st)
         end
@@ -217,7 +272,7 @@ function implicit_infer(m::AbstractImplicitRelation, z₀, ρ, ps, st;
         end
     end
     r, st = implicit_residual(m, z, z₀, ρ, ps, st)
-    Jff = prior_jacobian(m, z, ps, st)[free, free] .+ Diagonal(ρ²F)
+    Jff = prior_jacobian(m, z, ps, st; coords = free) .+ Diagonal(ρ²F)
     nr = norm(r[free])
     return (ImplicitSolution(z, nr, maxiters, nr ≤ tol * (1 + norm(z)), _stable(Jff)), st)
 end
@@ -262,8 +317,7 @@ function implicit_pullback(m::AbstractImplicitRelation, sol::ImplicitSolution, z
     z = sol.z
     free = .!isinf.(ρ)
     clamped = .!free
-    J = prior_jacobian(m, z, ps, st)
-    Jff = J[free, free] .+ Diagonal(ρ[free] .^ 2)
+    Jff = prior_jacobian(m, z, ps, st; coords = free) .+ Diagonal(ρ[free] .^ 2)
     λF = -(Jff' \ z̄[free])
     λ = zero(float.(z)); λ[free] .= λF
 
@@ -271,19 +325,26 @@ function implicit_pullback(m::AbstractImplicitRelation, sol::ImplicitSolution, z
 
     z̄₀ = zero(float.(z))
     z̄₀[free] .= .-(ρ[free] .^ 2) .* λF
-    z̄₀[clamped] .= z̄[clamped] .+ J[free, clamped]' * λF
+    any(clamped) && (z̄₀[clamped] .= z̄[clamped] .+ prior_vjp(m, z, λ, ps, st)[clamped])   # J_FCᵀλ
     ρ̄ = zero(float.(z))
     ρ̄[free] .= 2 .* ρ[free] .* (z[free] .- z₀[free]) .* λF
     return (z₀ = z̄₀, ρ = ρ̄, ps = ps̄)
 end
 
-# (∂_θ g)ᵀ λ: the parameter part of the adjoint, one VJP per node
+# (∂_θ g)ᵀ λ: the parameter part of the adjoint, one VJP per node (per noise level when batched)
 function _params_cotangent(m::ImplicitDiffusion, z, λ, ps, st)
     ps̄ = _zero(ps)
-    for k in (_hasparams(ps) ? eachindex(m.nodes.t) : ())
-        t = m.nodes.t[k]
-        g = epsilon_vjp_params(m.predictor, _node_input(m, z, k), t, ps, st, λ)
-        ps̄ = _axpy(m.nodes.w[k] * _weight(m, t), g, ps̄)
+    _hasparams(ps) || return ps̄
+    for grp in _groups(m)
+        t = m.nodes.t[first(grp)]
+        X = _group_input(m, z, grp)
+        if m.batched                    # the node weights go into the cotangent, one per column
+            g = epsilon_vjp_params(m.predictor, X, t, ps, st, λ * transpose(m.nodes.w[grp]))
+            ps̄ = _axpy(_weight(m, t), g, ps̄)
+        else
+            g = epsilon_vjp_params(m.predictor, X, t, ps, st, λ)
+            ps̄ = _axpy(m.nodes.w[only(grp)] * _weight(m, t), g, ps̄)
+        end
     end
     return ps̄
 end

@@ -73,7 +73,8 @@ $$
 | quantity | needed for | computed as |
 |---|---|---|
 | ``\nabla_x E`` | ``\varepsilon`` itself | `DI.gradient` with the first-order backend |
-| ``\nabla_x^2 E`` | Newton steps, adjoint solve | `DI.hessian` |
+| ``\nabla_x^2 E`` on the free coordinates | Newton steps, adjoint solve, Laplace | `DI.hessian` of ``u \mapsto \sum_b w_b E(x_b + Pu)``, ``u`` the free coordinates ([[implicit]] §6) |
+| ``\nabla_x^2 E\, w`` | cotangent of the clamped inputs | `DI.hvp` |
 | ``\partial_\theta\langle\nabla_x E, w\rangle`` | backward pass, training | θ-block of `DI.hvp` on ``u = (x, \theta)`` in direction ``(w, 0)`` |
 
 The mixed derivative is the one that looks hard: a derivative with respect to the parameters

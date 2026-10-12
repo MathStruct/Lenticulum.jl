@@ -83,6 +83,33 @@ function VariationalDiffusion._ad_jacobian(ad::ADTypes.AbstractADType, pred::Noi
                        DI.Constant(pred), DI.Constant(t), DI.Constant(ps), DI.Constant(st))
 end
 
+# --- the free-coordinate block, and input VJPs ------------------------------------------
+# All columns of X move together with z (x_b = α z + σ ε_b), so the block is the Jacobian of
+# u ↦ (Σ_b w_b ε(x_b + P u))_I at u = 0, a map ℝ^|I| → ℝ^|I|: |I| JVPs in forward mode, |I| VJPs
+# in reverse mode. P embeds u into the coordinates I.
+_embedding(T, n, idx) = (P = zeros(T, n, length(idx)); foreach(((a, j),) -> P[j, a] = 1, enumerate(idx)); P)
+
+function _eps_block(u, pred, X, t, ps, st, P, w, idx)
+    ε̂ = first(epsilon(pred, X .+ P * u, t, ps, st))
+    return (reshape(ε̂, size(X, 1), :) * w)[idx]
+end
+
+function VariationalDiffusion._ad_jacobian_block(ad::ADTypes.AbstractADType, pred::NoisePredictor,
+                                                 X, t, ps, st, idx, w)
+    T = float(eltype(X))
+    return DI.jacobian(_eps_block, ad, zeros(T, length(idx)), DI.Constant(pred), DI.Constant(collect(T.(X))),
+                       DI.Constant(t), DI.Constant(ps), DI.Constant(st), DI.Constant(_embedding(T, size(X, 1), idx)),
+                       DI.Constant(collect(T.(w))), DI.Constant(idx))
+end
+
+_eps_of_inputs(X, pred, t, ps, st) = vec(first(epsilon(pred, X, t, ps, st)))
+
+function VariationalDiffusion._ad_vjp_input(ad::ADTypes.AbstractADType, pred::NoisePredictor, X, t, ps, st, W)
+    X̄ = DI.pullback(_eps_of_inputs, ad, collect(float.(X)), (collect(float.(vec(W))),),
+                    DI.Constant(pred), DI.Constant(t), DI.Constant(ps), DI.Constant(st))
+    return reshape(only(X̄), size(X))
+end
+
 # --- energy-parametrised predictors: first and second derivatives of a scalar -----------
 # E is summed over the columns of a batch, so its x-gradient is the per-column gradients.
 # The mixed derivative ∂_θ⟨∇ₓE, w⟩ is the θ-block of one Hessian-vector product on the joint
@@ -107,6 +134,28 @@ function VariationalDiffusion._energy_hessian(ad::ADTypes.AbstractADType, pred::
                                               x, t, ps, st)
     return DI.hessian(_energy_x, ad, collect(float.(vec(x))),
                       DI.Constant(pred), DI.Constant(t), DI.Constant(ps), DI.Constant(st))
+end
+
+# the block: the Hessian in u of Σ_b w_b E(x_b + P u), |I| Hessian-vector products
+function _energy_block(u, pred, X, t, ps, st, P, w)
+    E = first(LuxCore.apply(pred.model.model, pred.input(X .+ P * u, t), ps, st))
+    return E isa Number ? E * only(w) : sum(vec(E) .* w)
+end
+
+function VariationalDiffusion._energy_hessian_block(ad::ADTypes.AbstractADType, pred::NoisePredictor{<:EnergyNetwork},
+                                                    X, t, ps, st, idx, w)
+    T = float(eltype(X))
+    return DI.hessian(_energy_block, ad, zeros(T, length(idx)), DI.Constant(pred), DI.Constant(collect(T.(X))),
+                      DI.Constant(t), DI.Constant(ps), DI.Constant(st), DI.Constant(_embedding(T, size(X, 1), idx)),
+                      DI.Constant(collect(T.(w))))
+end
+
+# ∇²E W column by column: the energy is summed over columns, so its Hessian is block diagonal
+function VariationalDiffusion._energy_hvp(ad::ADTypes.AbstractADType, pred::NoisePredictor{<:EnergyNetwork},
+                                          X, t, ps, st, W)
+    hv = DI.hvp(_energy_x, ad, collect(float.(X)), (collect(float.(reshape(W, size(X)))),),
+                DI.Constant(pred), DI.Constant(t), DI.Constant(ps), DI.Constant(st))
+    return reshape(only(hv), size(X))
 end
 
 function VariationalDiffusion._energy_mixed(ad::ADTypes.AbstractADType, pred::NoisePredictor{<:EnergyNetwork},

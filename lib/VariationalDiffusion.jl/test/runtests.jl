@@ -655,6 +655,69 @@ end
     @test b.ps.layer_2.weight[5] ≈ (L([0.6, 0.5], W(h)) - L([0.6, 0.5], W(-h))) / 2h rtol = 1e-4 atol = 1e-10
 end
 
+@testset "free-coordinate Jacobian blocks, input VJPs, batched nodes" begin
+    z, w = [0.6, 0.5], [0.3, -0.8]
+    nodes = field_nodes(Xoshiro(1), 2; samples = 2)
+    # the closed-form mixture: the block is the slice, the VJP is Jᵀw
+    m = ImplicitDiffusion(RING, nodes)
+    J = prior_jacobian(m, z, RPS, RST)
+    @test prior_jacobian(m, z, RPS, RST; coords = [2]) ≈ J[[2], [2]] atol = 1e-12
+    @test prior_jacobian(m, z, RPS, RST; coords = [false, true]) ≈ J[[2], [2]] atol = 1e-12
+    @test size(prior_jacobian(m, z, RPS, RST; coords = Int[])) == (0, 0)
+    @test prior_vjp(m, z, w, RPS, RST) ≈ J' * w atol = 1e-12
+    @test_throws DimensionMismatch prior_jacobian(m, z, RPS, RST; coords = [true])
+
+    ps0, st = Lux.setup(Xoshiro(0), MLP)
+    ps = _f64(ps0)
+    # no backend: finite differences along the free coordinates only
+    plain = ImplicitDiffusion(NoisePredictor(MLP, SCHED; input = _mlp_input), nodes)
+    Jp = prior_jacobian(plain, z, ps, st)
+    @test prior_jacobian(plain, z, ps, st; coords = [1]) ≈ Jp[[1], [1]] rtol = 1e-6
+    @test prior_vjp(plain, z, w, ps, st) ≈ Jp' * w rtol = 1e-6
+
+    # every AD backend, one node per call and one noise level per call
+    for ad in (AutoZygote(), AutoForwardDiff(), AutoEnzyme(; mode = Enzyme.set_runtime_activity(Enzyme.Reverse)))
+        pred = NoisePredictor(MLP, SCHED; input = _batch_input, ad = ad)
+        single, batched = ImplicitDiffusion(pred, nodes), ImplicitDiffusion(pred, nodes; batched = true)
+        J1 = prior_jacobian(single, z, ps, st)
+        @test J1 ≈ Jp rtol = 1e-5
+        @test prior_jacobian(single, z, ps, st; coords = [2]) ≈ J1[[2], [2]] rtol = 1e-10
+        @test prior_vjp(single, z, w, ps, st) ≈ J1' * w rtol = 1e-10
+        @test first(prior_field(batched, z, ps, st)) ≈ first(prior_field(single, z, ps, st)) rtol = 1e-12
+        @test prior_jacobian(batched, z, ps, st) ≈ J1 rtol = 1e-10
+        @test prior_jacobian(batched, z, ps, st; coords = [2]) ≈ J1[[2], [2]] rtol = 1e-10
+        @test prior_vjp(batched, z, w, ps, st) ≈ J1' * w rtol = 1e-10
+    end
+
+    # inference and the adjoint do not depend on how the nodes are batched
+    pred = NoisePredictor(MLP, SCHED; input = _batch_input, ad = AutoZygote())
+    single, batched = ImplicitDiffusion(pred, nodes), ImplicitDiffusion(pred, nodes; batched = true)
+    ρ = [Inf, 1.0]
+    s1, _ = implicit_infer(single, z, ρ, ps, st; tol = 1e-12)
+    s2, _ = implicit_infer(batched, z, ρ, ps, st; tol = 1e-12)
+    @test s1.converged && s2.converged
+    @test s2.z ≈ s1.z atol = 1e-10
+    b1 = implicit_pullback(single, s1, z, ρ, [0.0, 1.0], ps, st)
+    b2 = implicit_pullback(batched, s2, z, ρ, [0.0, 1.0], ps, st)
+    @test b2.z₀ ≈ b1.z₀ rtol = 1e-8
+    @test b2.ps.layer_2.weight ≈ b1.ps.layer_2.weight rtol = 1e-8 atol = 1e-12
+
+    # energy networks: the block is a Hessian block, the VJP a Hessian-vector product
+    eps0, est = Lux.setup(Xoshiro(0), ENERGY_MLP)
+    eps_ = _f64(eps0)
+    epred = NoisePredictor(EnergyNetwork(ENERGY_MLP), SCHED; input = _batch_input, ad = AutoZygote())
+    es, eb = ImplicitDiffusion(epred, nodes), ImplicitDiffusion(epred, nodes; batched = true)
+    Je = prior_jacobian(es, z, eps_, est)
+    @test prior_jacobian(es, z, eps_, est; coords = [1]) ≈ Je[[1], [1]] rtol = 1e-10
+    @test prior_jacobian(eb, z, eps_, est) ≈ Je rtol = 1e-10
+    @test prior_vjp(eb, z, w, eps_, est) ≈ Je' * w rtol = 1e-10
+
+    # products: the block and the VJP are the weighted sums
+    pr = ProductRelation(m, m; weights = [1.0, 2.0])
+    @test prior_jacobian(pr, z, (RPS, RPS), (RST, RST); coords = [2]) ≈ 3 .* J[[2], [2]] atol = 1e-12
+    @test prior_vjp(pr, z, w, (RPS, RPS), (RST, RST)) ≈ 3 .* (J' * w) atol = 1e-12
+end
+
 # ---------------------------------------------------------------------------
 # Proximal diffusion models (ProxDM), against the exact proximal operator of a mixture.
 # ---------------------------------------------------------------------------

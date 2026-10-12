@@ -2,7 +2,7 @@
 
 > How a learned network's derivatives are computed: through **whatever AD backend the user
 > picks**, on whatever device, while the package itself keeps no AD dependency. One field on
-> `NoisePredictor`, three hooks, two package extensions. And the models this is meant for:
+> `NoisePredictor`, five hooks, two package extensions. And the models this is meant for:
 > **small** diffusion models on a low-dimensional joint space, not image U-Nets.
 
 > Sources: code: `predictor.jl` (`ad`, `_apply`), `analytic.jl` (`epsilon_jacobian`, `epsilon_vjp_params`), `ext/VariationalDiffusionDifferentiationInterfaceExt.jl`, `ext/VariationalDiffusionReactantExt.jl`, `examples/circle_mlp.jl`; the ADTypes.jl, DifferentiationInterface.jl and Reactant.jl documentation; Moses & Churavy, *Instead of Rewriting Foreign Code for Machine Learning, Automatically Synthesize Fast Gradients*, NeurIPS 2020 (Enzyme)
@@ -16,7 +16,9 @@
 | quantity | used by | how it is computed |
 |---|---|---|
 | $\varepsilon_\theta(x, t)$ | everything | `epsilon` → `_apply(ad, …)`: plain Lux, or compiled |
-| $\partial_x\varepsilon_\theta$, an $n\times n$ Jacobian | `implicit_infer` (Newton), `implicit_pullback` (adjoint solve) | `epsilon_jacobian`: the backend, or finite differences without one |
+| $\partial_x\varepsilon_\theta$ on the free coordinates, a $\lvert F\rvert\times\lvert F\rvert$ block | `implicit_infer` (Newton, stability), `implicit_laplace`, `implicit_pullback` (adjoint solve) | `epsilon_jacobian_block`: the backend, or finite differences along the free coordinates without one ([[implicit]] §6) |
+| $(\partial_x\varepsilon_\theta)^\top w$, an input VJP | `implicit_pullback` (cotangent of the clamped inputs) | `epsilon_vjp_input`: the backend, or the finite-difference Jacobian |
+| the full $\partial_x\varepsilon_\theta$ | tests, tutorials, the per-node Jacobian | `epsilon_jacobian` |
 | $(\partial_\theta\varepsilon_\theta)^\top w$, a parameter VJP | `implicit_pullback` only | `epsilon_vjp_params`: the backend; an error without one |
 
 Sampling, RED-Diff and inference with a closed-form predictor need none of this. A learned
@@ -25,19 +27,21 @@ inference. Nothing is ever differentiated through a *solver*: the solver loop st
 Julia, and the implicit function theorem turns the backward pass into one linear solve plus one
 VJP per field node ([[Parallelism and Compilation]] §6, "never trace through a solver").
 
-## 2. The design: an `ad` field and three hooks
+## 2. The design: an `ad` field and five hooks
 
 ```julia
 pred = NoisePredictor(model, VPSDE(); input, ad = AutoZygote())
 ```
 
-`ad` is any ADTypes object, or `nothing` (the default). The core defines three internal
+`ad` is any ADTypes object, or `nothing` (the default). The core defines five internal
 functions, and the extensions add methods for them:
 
 | hook | default (no extension) | `DifferentiationInterface` loaded | `Reactant` loaded, `ad = AutoReactant()` |
 |---|---|---|---|
 | `_apply(ad, pred, x, t, ps, st)` | `LuxCore.apply` | unchanged | compiled forward, cached per shape |
 | `_ad_jacobian(ad, …)` | not called: finite differences | `DI.jacobian` | compiled Enzyme input-VJP, one call per output row |
+| `_ad_jacobian_block(ad, …, idx, w)` | not called: finite differences | `DI.jacobian` of the restricted map | compiled input-VJP, one call per free coordinate |
+| `_ad_vjp_input(ad, …, W)` | not called: finite differences | `DI.pullback` | compiled input-VJP |
 | `_ad_vjp_params(ad, …, w)` | `ArgumentError` naming the fix | `DI.pullback` | compiled Enzyme parameter-VJP |
 
 So the package's own dependency list is unchanged (`LuxCore`, `Random`, `LinearAlgebra`, …).

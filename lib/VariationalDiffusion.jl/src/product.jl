@@ -52,9 +52,14 @@ function prior_field(m::ProductRelation, z, ps, st)
     return (g, Tuple(sts))
 end
 
-function prior_jacobian(m::ProductRelation, z, ps, st)
+function prior_jacobian(m::ProductRelation, z, ps, st; coords = Colon())
     _check_tuple(m, ps, "ps"); _check_tuple(m, st, "st")
-    return sum(m.weights[i] .* prior_jacobian(m.relations[i], z, ps[i], st[i]) for i in eachindex(m.relations))
+    return sum(m.weights[i] .* prior_jacobian(m.relations[i], z, ps[i], st[i]; coords) for i in eachindex(m.relations))
+end
+
+function prior_vjp(m::ProductRelation, z, w, ps, st)
+    _check_tuple(m, ps, "ps"); _check_tuple(m, st, "st")
+    return sum(m.weights[i] .* prior_vjp(m.relations[i], z, w, ps[i], st[i]) for i in eachindex(m.relations))
 end
 
 _params_cotangent(m::ProductRelation, z, λ, ps, st) =

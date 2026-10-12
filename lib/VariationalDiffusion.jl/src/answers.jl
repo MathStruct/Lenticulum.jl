@@ -102,7 +102,7 @@ function implicit_laplace(m::AbstractImplicitRelation, sol::ImplicitSolution, ρ
     (sol.converged && sol.stable) ||
         throw(ArgumentError("the Laplace approximation needs a converged, stable answer (a local minimum)"))
     free = .!isinf.(ρ)
-    J = prior_jacobian(m, sol.z, ps, st)[free, free] .+ Diagonal(ρ[free] .^ 2)
+    J = prior_jacobian(m, sol.z, ps, st; coords = free) .+ Diagonal(ρ[free] .^ 2)
     ΣF = inv(Symmetric((J .+ J') ./ 2))
     n = length(sol.z)
     Σ = zeros(eltype(ΣF), n, n)

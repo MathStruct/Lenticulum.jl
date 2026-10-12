@@ -107,6 +107,82 @@ function epsilon_jacobian(pred::NoisePredictor{<:GaussianMixtureEps}, x, t, ps, 
 end
 
 """
+    epsilon_jacobian_block(pred::NoisePredictor, X, t, ps, st, idx, w) -> Matrix
+
+The block ``\\sum_b w_b\\,\\partial\\varepsilon_\\theta(x_b, t)_{I}/\\partial x_{b,I}`` of the input
+Jacobian on the coordinates ``I`` = `idx`, summed over the columns ``x_b`` of `X` (a vector is
+one column) with weights `w`. This is what the implicit solver needs: the Jacobian of the field
+on the **free** coordinates only, for all nodes of one noise level at once.
+
+The cost grows with `length(idx)`, not with the dimension: central differences along `idx`
+(``2|I|`` batched forward passes) without a backend; one AD Jacobian of a map
+``\\mathbb R^{|I|}\\to\\mathbb R^{|I|}`` with one (``|I|`` JVPs or VJPs, whichever the backend does);
+closed form for [`GaussianMixtureEps`](@ref); ``|I|`` Hessian-vector products for an
+[`EnergyNetwork`](@ref).
+"""
+function epsilon_jacobian_block(pred::NoisePredictor, X, t, ps, st, idx, w)
+    pred.ad === nothing || return _ad_jacobian_block(pred.ad, pred, X, t, ps, st, idx, w)
+    n, k = size(X, 1), length(idx)
+    J = zeros(eltype(float(X)), k, k)
+    f(Y) = (reshape(first(epsilon(pred, Y, t, ps, st)), n, :) * w)[idx]
+    for (a, j) in enumerate(idx)
+        h = 1e-6 * (1 + maximum(abs, view(X, j, :)))
+        Xp = float.(copy(X)); Xm = float.(copy(X))
+        Xp[j, :] .+= h; Xm[j, :] .-= h
+        J[:, a] = (f(Xp) .- f(Xm)) ./ (2h)
+    end
+    return J
+end
+
+_ad_jacobian_block(ad, pred, X, t, ps, st, idx, w) = throw(ArgumentError(
+    "ad = $(ad) given, but no extension implements it: load DifferentiationInterface (and the backend package)."))
+
+# exact, column by column:  σ_t [ I/v_t - (U_I .* γ')(U_I .- ū_I)ᵀ ]
+function epsilon_jacobian_block(pred::NoisePredictor{<:GaussianMixtureEps}, X, t, ps, st, idx, w)
+    k = length(idx)
+    J = zeros(eltype(float(X)), k, k)
+    for (b, x) in enumerate(eachcol(reshape(X, size(X, 1), :)))
+        p = _mixture_parts(pred.model, x, t, ps.μ)
+        UI = p.U[idx, :]
+        ūI = UI * p.γ
+        J .+= (w[b] * p.sg) .* (Matrix{eltype(J)}(I, k, k) ./ p.v .- (UI .* p.γ') * (UI .- ūI)')
+    end
+    return J
+end
+
+"""
+    epsilon_vjp_input(pred::NoisePredictor, X, t, ps, st, W) -> X̄
+
+The input vector–Jacobian product ``\\bar x_b = (\\partial\\varepsilon_\\theta(x_b,t)/\\partial x_b)^\\top W_b``,
+column by column, shaped like `X`. The adjoint needs it once per noise level for the cotangent
+of the clamped inputs ([`prior_vjp`](@ref)). Through the predictor's AD backend when it has one,
+in closed form for [`GaussianMixtureEps`](@ref), and from the finite-difference Jacobian otherwise.
+"""
+function epsilon_vjp_input(pred::NoisePredictor, X, t, ps, st, W)
+    pred.ad === nothing || return _ad_vjp_input(pred.ad, pred, X, t, ps, st, W)
+    X̄ = similar(float.(X))
+    for (x̄, x, w) in zip(eachcol(reshape(X̄, size(X, 1), :)), eachcol(reshape(X, size(X, 1), :)),
+                         eachcol(reshape(W, size(X, 1), :)))
+        x̄ .= epsilon_jacobian(pred, collect(x), t, ps, st)' * w
+    end
+    return X̄
+end
+
+_ad_vjp_input(ad, pred, X, t, ps, st, W) = throw(ArgumentError(
+    "ad = $(ad) given, but no extension implements it: load DifferentiationInterface (and the backend package)."))
+
+# exact:  Jᵀw = σ_t [ w/v_t - (U .- ū)(γ .* Uᵀw) ]
+function epsilon_vjp_input(pred::NoisePredictor{<:GaussianMixtureEps}, X, t, ps, st, W)
+    X̄ = similar(float.(X))
+    for (x̄, x, w) in zip(eachcol(reshape(X̄, size(X, 1), :)), eachcol(reshape(X, size(X, 1), :)),
+                         eachcol(reshape(W, size(X, 1), :)))
+        p = _mixture_parts(pred.model, x, t, ps.μ)
+        x̄ .= p.sg .* (w ./ p.v .- (p.U .- p.U * p.γ) * (p.γ .* (p.U' * w)))
+    end
+    return X̄
+end
+
+"""
     epsilon_vjp_params(pred::NoisePredictor, x, t, ps, st, w) -> ps̄
 
 The vector–Jacobian product ``w^\\top\\,\\partial\\varepsilon_\\theta(x,t)/\\partial\\theta``, shaped

@@ -39,7 +39,7 @@ parabola from a circle.
 
 ## 4. The derivative interface it implements
 
-`epsilon_jacobian` and `epsilon_vjp_params` are defined in this file for every predictor. A
+`epsilon_jacobian`, `epsilon_jacobian_block` (the block on the free coordinates, summed over a noise level's nodes), `epsilon_vjp_input` and `epsilon_vjp_params` are defined in this file for every predictor. A
 closed-form predictor implements them exactly, as above. A `NoisePredictor` around a Lux network
 gets them from the AD backend in its `ad` field, through a package extension; without one the
 Jacobian falls back to finite differences and the VJP raises an error that names the fix

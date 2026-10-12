@@ -79,11 +79,12 @@ export statedim, blockranges, precision_vector, assemble_state
 
 # --- Closed-form predictors (oracles) ----------------------------------------
 export GaussianMixtureEps, mixture_logdensity, epsilon_jacobian, epsilon_vjp_params
+export epsilon_jacobian_block, epsilon_vjp_input
 export kde_predictor, kde_bandwidth, OnlineKDE, observe!
 
 # --- Implicit inference and its backward pass -----------------------------
 export FieldNodes, field_nodes, noisefree_nodes, ImplicitDiffusion, ImplicitSolution
-export prior_field, prior_jacobian, implicit_residual, implicit_infer, implicit_pullback
+export prior_field, prior_jacobian, prior_vjp, implicit_residual, implicit_infer, implicit_pullback
 export ImplicitProx, implicit_solution, implicit_factor_pullback
 
 # --- Proximal diffusion models (ProxDM) ----------------------------------------

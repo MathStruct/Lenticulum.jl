@@ -67,6 +67,18 @@ function epsilon_jacobian(p::NoisePredictor{<:EnergyNetwork}, x, t, ps, st)
     return sigma(p.schedule, t) .* _energy_hessian(p.ad, p, x, t, ps, st)
 end
 
+# the free-coordinate block: σ_t times the Hessian of Σ_b w_b E(x_b + P u) in u
+function epsilon_jacobian_block(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st, idx, w)
+    p.ad === nothing && _need_ad()
+    return sigma(p.schedule, t) .* _energy_hessian_block(p.ad, p, X, t, ps, st, idx, w)
+end
+
+# Jᵀw = σ_t ∇²E w, column by column: one Hessian-vector product of the summed energy
+function epsilon_vjp_input(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st, W)
+    p.ad === nothing && _need_ad()
+    return sigma(p.schedule, t) .* _energy_hvp(p.ad, p, X, t, ps, st, W)
+end
+
 # ∂_θ⟨σ_t ∇ₓE, w⟩ = ∂_θ⟨∇ₓE, σ_t w⟩, with σ_t per column for a batch
 function epsilon_vjp_params(p::NoisePredictor{<:EnergyNetwork}, x, t, ps, st, w)
     p.ad === nothing && _need_ad()
@@ -77,10 +89,12 @@ _need_ad() = throw(ArgumentError(
     "an EnergyNetwork needs an AD backend for ε = σ∇E: NoisePredictor(EnergyNetwork(net), schedule; ad = AutoZygote()), " *
     "with DifferentiationInterface and Zygote loaded"))
 
-# the three hooks the DifferentiationInterface extension implements
+# the hooks the DifferentiationInterface extension implements
 _energy_grad(ad, p, x, t, ps, st) = _no_energy_ad(ad)
 _energy_hessian(ad, p, x, t, ps, st) = _no_energy_ad(ad)
 _energy_mixed(ad, p, x, t, ps, st, w) = _no_energy_ad(ad)
+_energy_hessian_block(ad, p, X, t, ps, st, idx, w) = _no_energy_ad(ad)
+_energy_hvp(ad, p, X, t, ps, st, W) = _no_energy_ad(ad)
 _no_energy_ad(ad) = throw(ArgumentError(
     "no energy derivatives for the backend $(typeof(ad)): load DifferentiationInterface and the backend package"))
 

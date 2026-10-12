@@ -55,4 +55,17 @@ _f64(ps) = Lux.Functors.fmap(a -> a isa AbstractArray ? Float64.(a) : a, ps)
         z(x) = first(implicit_infer(mp, [x, 0.5], ρ, ps, st)).z[2]
         @test b.z₀[1] ≈ (z(0.6 + h) - z(0.6 - h)) / 2h atol = 1e-6
     end
+
+    @testset "free-coordinate blocks, input VJPs and batched nodes, compiled" begin
+        nodes = field_nodes(Xoshiro(1), 2; samples = 2)
+        mp = ImplicitDiffusion(plain, nodes)
+        z, w = [0.6, 0.5], [0.3, -0.8]
+        J = prior_jacobian(mp, z, ps, st)
+        for batched in (false, true)
+            mr = ImplicitDiffusion(rx, nodes; batched)
+            @test first(prior_field(mr, z, ps, st)) ≈ first(prior_field(mp, z, ps, st)) atol = 1e-10
+            @test prior_jacobian(mr, z, ps, st; coords = [2]) ≈ J[[2], [2]] rtol = 1e-6
+            @test prior_vjp(mr, z, w, ps, st) ≈ J' * w rtol = 1e-6
+        end
+    end
 end

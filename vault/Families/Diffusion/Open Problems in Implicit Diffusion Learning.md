@@ -141,13 +141,20 @@ message (T10).
 `implicit_roots` restarts from perturbed points and reports only converged, stable answers
 ([[implicit]] §5).
 
-### I5. Cost: batching and matrix-free solves
+### I5. Cost: batching and matrix-free solves — **partly done**
 
 Each field evaluation calls the network once per node (128 times by default), sequentially;
 the Jacobian costs one derivative pass per coordinate, and the linear algebra is dense,
 $O(n^3)$. Known fixes: evaluate all nodes in one batched call (also the right shape for
 Reactant), and replace dense Newton by Newton–Krylov with Jacobian-vector products. Required
 before anything beyond a handful of dimensions ([[backends]] §5).
+
+Done: every Jacobian is now computed only on the free coordinates (`prior_jacobian(…; coords)`,
+at a cost that grows with their number), the clamped part of the adjoint is one VJP
+(`prior_vjp`), and `ImplicitDiffusion(…; batched = true)` evaluates one noise level per network
+call. A query with 10 of 794 coordinates free went from about 26 s per solver iteration to
+0.04 s ([[implicit]] §6). Missing: Newton–Krylov and a Lanczos stability test for when *many*
+coordinates are free (generating an image).
 
 ### I6. Energy networks on every backend
 
@@ -158,6 +165,8 @@ fails on Lux layers, and Reactant is not wired for energy models ([[energy_netwo
 
 No adjoint for `prox_infer`, no ProxDM inversion for `DiffusionFactor`, no `ad` field on
 `ProxNetwork`, and the sampler is first order (spread 0.29 against 0.30) ([[proxdm]] §5).
+An adjoint would also allow backpropagating at higher noise levels than inference used, an
+inexact but better-conditioned gradient ([[Backpropagation through Implicit Inference]] §9).
 
 ### I8. Composition — **partly done**
 
@@ -203,7 +212,7 @@ factors are nonlinear too, but their nonlinearity comes from data.
 | I2 | Laplace (Gaussian) answers | done (`laplace_belief`) |
 | I3 | Gaussian messages from `lib/` | done (`message = :gaussian`) |
 | I4 | restarts after unstable solves | done |
-| I5 | batched nodes, Newton–Krylov | missing, needed for scale |
+| I5 | batched nodes, Newton–Krylov | partly done: free-coordinate blocks and batched nodes; matrix-free solves missing |
 | I6 | energy networks on Enzyme and Reactant | missing |
 | I7 | ProxDM adjoint and factor | missing |
 | I8 | composition | products on shared variables done; corrections and separators missing |
