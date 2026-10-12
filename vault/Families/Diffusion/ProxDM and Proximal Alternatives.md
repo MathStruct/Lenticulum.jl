@@ -99,12 +99,12 @@ ProxDM is now in `proxdm.jl` ([[proxdm]] has the details and the numbers):
 
 The adjoint of `prox_infer` is built (`prox_pullback`, [[proxdm]] §5): the implicit function
 theorem applies to the splitting's fixed point as it does to `implicit_infer`, with one solve in
-$I - \operatorname{diag}(a)D_{FF}$, $D$ the prox's Jacobian. Still open: a `ProxDM` inversion
-for `DiffusionFactor`, next to
-`REDDiff` and `ImplicitProx`. That factor would carry **two parameter trees**, the prior's
-$\varepsilon_\theta$ and the prox network. It would be the first factor in this project with the
-structure the vault uses to argue that a factor cannot be a Lux layer
-([[Inversions and Bayesian Lenses]], the `AmortisedInversion` case).
+$I - \operatorname{diag}(a)D_{FF}$, $D$ the prox's Jacobian. And `ProxDM` is a
+`DiffusionFactor` inversion next to `REDDiff` and `ImplicitProx` ([[proxdm]] §6). As predicted,
+that factor carries **two parameter trees**, `(predictor = …, prox = …)`: the prior's
+$\varepsilon_\theta$ for the free energy and the prox network for the inversion. It is the first
+factor in this project with the structure the vault uses to argue that a factor cannot be a Lux
+layer ([[Inversions and Bayesian Lenses]], the `AmortisedInversion` case).
 
 ## 5. The honest ranking
 

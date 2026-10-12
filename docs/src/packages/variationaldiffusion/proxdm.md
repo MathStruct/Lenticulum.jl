@@ -21,7 +21,14 @@ the prox's parameters. It is also the `ChainRulesCore.rrule` of `prox_infer`, so
 differentiates through it. `MixtureProx` has exact derivatives; a `ProxNetwork` takes them from
 its `ad` backend. With `linsolve = KrylovSolve()` only prox VJPs are used.
 
-Known gaps: ProxDM is not a `DiffusionFactor` inversion, and the sampler is first order.
+## In a factor graph
+
+`DiffusionFactor(blocks, pred; prox = ProxDM(prox; t, λ))` inverts by `prox_infer`. The
+factor then has two parameter trees, `(predictor = …, prox = …)`: the inversion reads the
+prox's, the free energy's score term the predictor's. `implicit_solution` and
+`implicit_factor_pullback` work as for `ImplicitProx`, the latter through `prox_pullback`.
+
+Known gaps: the sampler is first order, and the message is a point only (no Laplace Gaussian).
 
 ## API
 

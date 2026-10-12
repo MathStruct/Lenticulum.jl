@@ -61,9 +61,10 @@ include("answers.jl")
 include("sampler.jl")
 include("coverage.jl")
 include("product.jl")
+include("proxdm.jl")
 include("factor.jl")
 include("implicit_factor.jl")
-include("proxdm.jl")
+include("proxdm_factor.jl")
 
 # --- Schedules -------------------------------------------------------------
 export AbstractNoiseSchedule, VPSDE
@@ -98,6 +99,6 @@ export CoverageReference, coverage_reference, coverage
 export AbstractImplicitRelation, ProductRelation
 export AbstractProximalPredictor, proximal, ProxNetwork, MixtureProx
 export proxdm_sample, prox_infer, proximal_matching_loss
-export prox_pullback, prox_vjp_input, prox_vjp_params, prox_jacobian
+export prox_pullback, prox_vjp_input, prox_vjp_params, prox_jacobian, ProxDM
 
 end # module

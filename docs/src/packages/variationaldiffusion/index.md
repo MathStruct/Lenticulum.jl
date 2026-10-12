@@ -75,7 +75,7 @@ over-regularises high-variance directions and under-regularises low-variance one
 
 ## Known gaps
 
-- ProxDM is not yet a `DiffusionFactor` inversion (`prox_infer` and its adjoint `prox_pullback` exist).
+- A `ProxDM` factor sends point messages only; there is no Laplace Gaussian for proximal inference yet.
 - RED-Diff's inversion returns a point, so uncertainty does not propagate; the implicit
   solver's `message = :gaussian` does send a Laplace Gaussian.
 - `implicit_sample` takes hard clamps only; soft evidence would need likelihood guidance.

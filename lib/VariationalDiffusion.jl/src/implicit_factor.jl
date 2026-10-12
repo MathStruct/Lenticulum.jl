@@ -20,18 +20,23 @@ which is how a message schedule reuses the previous belief: as in `ImplicitLayer
 the prior seeds the solver. Whether it also *pulls* the solution is decided by the polarity's
 precision on the unobserved channels — `default_precision(Unobserved()) == 1`, an anchor; set it
 to 0 for a pure conditional.
+
+For a [`ProxDM`](@ref) inversion the solver is [`prox_infer`](@ref) instead, with the same
+problem and warm start.
 """
 function implicit_solution(f::DiffusionFactor, p::LenticulumCore.Polarity, inputs, π, ps, st)
     _require_implicit(f)
     z₀, ρ = _implicit_problem(f, p, inputs, π)
-    m = _implicit_model(f)
-    return implicit_infer(m, z₀, ρ, ps, st; z_init = z₀, _solver_kwargs(f.prox)...)
+    return _factor_solve(f.prox, f, z₀, ρ, ps, st)
 end
+
+_factor_solve(prox::ImplicitProx, f::DiffusionFactor, z₀, ρ, ps, st) =
+    implicit_infer(_implicit_model(f), z₀, ρ, ps, st; z_init = z₀, _solver_kwargs(prox)...)
 
 _implicit_model(f::DiffusionFactor) = ImplicitDiffusion(f.predictor, f.prox.nodes; λ = f.prox.λ, batched = f.prox.batched)
 
-_require_implicit(f::DiffusionFactor) = f.prox isa ImplicitProx || throw(ArgumentError(
-    "this DiffusionFactor inverts with $(typeof(f.prox)); construct it with prox = ImplicitProx(nodes)"))
+_require_implicit(f::DiffusionFactor) = f.prox isa Union{ImplicitProx,ProxDM} || throw(ArgumentError(
+    "this DiffusionFactor inverts with $(typeof(f.prox)); construct it with prox = ImplicitProx(nodes) or ProxDM(prox)"))
 
 function _implicit_problem(f::DiffusionFactor, p::LenticulumCore.Polarity, inputs, π)
     z₀ = assemble_state(f, inputs, π)
@@ -57,25 +62,29 @@ Returns the cotangents with respect to
 - each channel's precision (`precisions`; zero for hard-clamped channels, whose precision is
   infinite and not a differentiable quantity).
 
-Throws if the solve did not converge, as `implicit_pullback` does.
+Throws if the solve did not converge, as `implicit_pullback` does. For a [`ProxDM`](@ref)
+inversion the adjoint is [`prox_pullback`](@ref), and `ps` is `(predictor = 0, prox = ps̄)`: the
+inversion does not read the prior's parameters.
 """
 function implicit_factor_pullback(f::DiffusionFactor{names}, p::LenticulumCore.Polarity,
                                   inputs, π, z̄::NamedTuple, ps, st) where {names}
     _require_implicit(f)
     z₀, ρ = _implicit_problem(f, p, inputs, π)
-    m = _implicit_model(f)
-    sol, st = implicit_infer(m, z₀, ρ, ps, st; z_init = z₀, _solver_kwargs(f.prox)...)
+    sol, st = _factor_solve(f.prox, f, z₀, ρ, ps, st)
     rs = blockranges(f)
     zbar = zeros(Float64, statedim(f))
     for (k, v) in pairs(z̄)
         haskey(rs, k) || throw(ArgumentError("channel :$k is not a channel of this DiffusionFactor"))
         zbar[getfield(rs, k)] .= _vec(v)
     end
-    b = implicit_pullback(m, sol, z₀, ρ, zbar, ps, st; linsolve = f.prox.linsolve)
+    b = _factor_pullback(f.prox, f, sol, z₀, ρ, zbar, ps, st)
     blocks_in = NamedTuple{names}(map(nm -> b.z₀[getfield(rs, nm)], names))
     blocks_ρ = NamedTuple{names}(map(nm -> sum(b.ρ[getfield(rs, nm)]), names))   # one precision per channel
     return (inputs = blocks_in, ps = b.ps, precisions = blocks_ρ)
 end
+
+_factor_pullback(prox::ImplicitProx, f::DiffusionFactor, sol, z₀, ρ, z̄, ps, st) =
+    implicit_pullback(_implicit_model(f), sol, z₀, ρ, z̄, ps, st; linsolve = prox.linsolve)
 
 # --- Gaussian messages --------------------------------------------------------------------
 

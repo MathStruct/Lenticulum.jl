@@ -352,3 +352,52 @@ function _prox_adjoint(ls::KrylovSolve, p, w, t, λ, ps, st, F, a, b)
     ok || @warn "prox_pullback: GMRES stopped after $k products without reaching rtol = $(ls.rtol); the gradient is approximate"
     return μ
 end
+
+# --- 5. as a factor's inversion ------------------------------------------------------
+
+"""
+    ProxDM(prox; t = 0.005, λ = 0.01, tol = 1e-9, maxiters = 500, linsolve = DenseSolve(),
+           nodes = nothing)
+
+Proximal inference ([`prox_infer`](@ref)) as a [`DiffusionFactor`](@ref)'s inversion, in place
+of [`REDDiff`](@ref) or [`ImplicitProx`](@ref):
+
+```julia
+f = DiffusionFactor((x = 1, y = 1), pred; prox = ProxDM(MixtureProx(mixture)))
+ps, st = LuxCore.setup(rng, f)          # (predictor = …, prox = …), two parameter trees
+```
+
+`prox` is the proximal predictor ([`MixtureProx`](@ref), a [`ProxNetwork`](@ref), or any
+[`AbstractProximalPredictor`](@ref)); `t` and `λ` are the prox's noise level and the
+splitting's coupling. Inversion runs `prox_infer` on the factor's state space with the
+polarity's precisions (`Inf` = hard clamp), warm-started at the incoming points, and returns a
+`DiracBelief` on the target; [`implicit_solution`](@ref) returns the report and
+[`implicit_factor_pullback`](@ref) the backward pass (through [`prox_pullback`](@ref), with
+`linsolve`).
+
+**Two parameter trees.** The factor keeps its `NoisePredictor`, which the free energy's score
+summand needs; the prox is a second model with its own parameters. The factor's parameters and
+states are therefore `(predictor = …, prox = …)`, and the inversion reads only `prox`. A
+`ProxNetwork` must be a Lux layer; a `MixtureProx` gets `(μ = …,)`.
+
+`nodes` (a [`FieldNodes`](@ref) of the factor's dimension) fix the score summand of the free
+energy, as for `ImplicitProx` with ``\\lambda = 1``; by default 8 nodes from `Xoshiro(0)`.
+"""
+struct ProxDM{P,T<:Real,L<:AbstractLinearSolve,N}
+    prox::P
+    t::T
+    λ::T
+    tol::T
+    maxiters::Int
+    linsolve::L
+    nodes::N
+end
+ProxDM(prox; t = 0.005, λ = 0.01, tol = 1e-9, maxiters::Integer = 500,
+       linsolve::AbstractLinearSolve = DenseSolve(), nodes::Union{Nothing,FieldNodes} = nothing) =
+    ProxDM(prox, float(t), float(λ), float(tol), Int(maxiters), linsolve, nodes)
+
+# MixtureProx is not a Lux layer, but a factor has to set it up: its parameters are the means
+LuxCore.initialparameters(::AbstractRNG, p::MixtureProx) = (μ = copy(p.mixture.μ₀),)
+LuxCore.initialstates(::AbstractRNG, ::MixtureProx) = NamedTuple()
+LuxCore.parameterlength(p::MixtureProx) = length(p.mixture.μ₀)
+LuxCore.statelength(::MixtureProx) = 0

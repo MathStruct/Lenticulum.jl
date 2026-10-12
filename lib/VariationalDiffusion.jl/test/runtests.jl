@@ -1202,4 +1202,74 @@ end
     @test b.ps.layer_1.weight[3, 1] ≈ (Lw(1e-3) - Lw(-1e-3)) / 2e-3 rtol = 1e-4
 end
 
+@testset "DiffusionFactor with ProxDM as its inversion: two parameter trees" begin
+    P = MixtureProx(RING.model; tol = 1e-13)
+    f = DiffusionFactor((x = 1, y = 1), RING; prox = ProxDM(P))
+    @test f.prox.nodes isa FieldNodes && size(f.prox.nodes.ε, 1) == 2   # score nodes filled in
+    @test_throws DimensionMismatch DiffusionFactor((x = 1, y = 1), RING;
+                                                   prox = ProxDM(P; nodes = field_nodes(Xoshiro(1), 3)))
+    ps, st = LuxCore.setup(Xoshiro(0), f)
+    @test keys(ps) == (:predictor, :prox) && keys(st) == (:predictor, :prox)
+    @test ps.prox.μ == RING_μ && ps.predictor.μ == RING_μ
+    @test LuxCore.parameterlength(f) == 2 * length(RING_μ)
+    p = Polarity((x = Observed(), y = Unobserved()), (x = Inf, y = 0.0))
+    lens, _ = LenticulumCore.assemble(f, p, ps, st)
+    # the prior point is the warm start, and it selects the branch
+    up, _ = LenticulumCore.invert(lens, DiracBelief([0.5]), (x = DiracBelief([0.6]),), ps, st)
+    dn, _ = LenticulumCore.invert(lens, DiracBelief([-0.5]), (x = DiracBelief([0.6]),), ps, st)
+    @test up isa DiracBelief
+    @test up.value[1] ≈ 0.79 atol = 0.02
+    @test dn.value[1] ≈ -up.value[1] atol = 1e-8
+    # the same answer as the bare solver, with a report
+    sol, _ = implicit_solution(f, p, (x = DiracBelief([0.6]),), DiracBelief([0.5]), ps, st)
+    ref, _ = prox_infer(P, [0.6, 0.5], [Inf, 0.0], 0.005, ps.prox, st.prox; λ = 0.01)
+    @test sol.converged && sol.z == ref.z
+    msg, _ = Mycelium.factor_message(f, :y, p, (x = DiracBelief([0.6]),), DiracBelief([0.5]), ps, st)
+    @test msg.value == up.value
+    # the inversion reads the prox's tree only: moving the prior's means changes nothing
+    ps_moved = (predictor = (μ = RING_μ .+ 0.3,), prox = ps.prox)
+    @test first(LenticulumCore.invert(lens, DiracBelief([0.5]), (x = DiracBelief([0.6]),), ps_moved, st)).value == up.value
+    # the free energy is deterministic, and its score summand reads the prior's tree
+    F1, _ = Mycelium.local_free_energy(f, (x = DiracBelief([0.6]),), ps, st)
+    F2, _ = Mycelium.local_free_energy(f, (x = DiracBelief([0.6]),), ps, st)
+    F3, _ = Mycelium.local_free_energy(f, (x = DiracBelief([0.6]),), ps_moved, st)
+    @test F1[:clamp] == F2[:clamp] && F1[:score] == F2[:score]
+    @test F3[:score] != F1[:score]
+    # the factor-level pullback agrees with finite differences of the factor's inversion
+    ℓ(xin, ρy) = begin
+        q = Polarity((x = Observed(), y = Unobserved()), (x = Inf, y = ρy))
+        b, _ = LenticulumCore.invert(first(LenticulumCore.assemble(f, q, ps, st)), DiracBelief([0.5]),
+                                     (x = DiracBelief([xin]),), ps, st)
+        (b.value[1] - 0.7)^2 / 2
+    end
+    psoft = Polarity((x = Observed(), y = Unobserved()), (x = Inf, y = 0.3))
+    sol2, _ = implicit_solution(f, psoft, (x = DiracBelief([0.6]),), DiracBelief([0.5]), ps, st)
+    g = implicit_factor_pullback(f, psoft, (x = DiracBelief([0.6]),), DiracBelief([0.5]),
+                                 (y = [sol2.z[2] - 0.7],), ps, st)
+    h = 1e-4
+    @test g.inputs.x[1] ≈ (ℓ(0.6 + h, 0.3) - ℓ(0.6 - h, 0.3)) / 2h rtol = 1e-4
+    @test g.precisions.y ≈ (ℓ(0.6, 0.3 + h) - ℓ(0.6, 0.3 - h)) / 2h rtol = 1e-4
+    @test g.precisions.x == 0
+    @test all(iszero, g.ps.predictor.μ)                   # the inversion does not read the prior
+    @test size(g.ps.prox.μ) == size(RING_μ) && any(!iszero, g.ps.prox.μ)
+
+    # a learned prox: a ProxNetwork's parameters are the factor's `prox` tree
+    net = Chain(Dense(4 => 16, tanh), Dense(16 => 2))
+    pn = ProxNetwork(net, SCHED; input = (v, t, λ) -> vcat(v, [t, λ]), ad = AutoZygote())
+    fn = DiffusionFactor((x = 1, y = 1), RING; prox = ProxDM(pn; t = 0.1, λ = 0.2, tol = 1e-12, maxiters = 5000))
+    psn, stn = LuxCore.setup(Xoshiro(0), fn)
+    psn = (predictor = psn.predictor, prox = _f64(psn.prox))
+    @test keys(psn.prox) == (:layer_1, :layer_2)
+    gn = implicit_factor_pullback(fn, p, (x = DiracBelief([0.6]),), DiracBelief([0.5]), (y = [1.0],), psn, stn)
+    @test size(gn.ps.prox.layer_1.weight) == (16, 4)
+    function ℓw(δ)
+        q = deepcopy(psn.prox)
+        q.layer_1.weight[3, 1] += δ
+        b, _ = LenticulumCore.invert(first(LenticulumCore.assemble(fn, p, psn, stn)), DiracBelief([0.5]),
+                                     (x = DiracBelief([0.6]),), (predictor = psn.predictor, prox = q), stn)
+        b.value[1]
+    end
+    @test gn.ps.prox.layer_1.weight[3, 1] ≈ (ℓw(1e-3) - ℓw(-1e-3)) / 2e-3 rtol = 1e-3
+end
+
 end

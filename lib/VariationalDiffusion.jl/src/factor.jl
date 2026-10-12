@@ -35,7 +35,7 @@ This is the third of the three [`Implicit Learners`] families — the diffusion 
 only one whose inversion is neither exact nor a root-find. `LenticulumCore` anticipated it:
 [`LenticulumCore.ProximalInversion`](@ref) exists in `lens.jl` and names this package.
 """
-struct DiffusionFactor{names,D<:Tuple,P<:NoisePredictor,C<:Union{REDDiff,ImplicitProx}} <:
+struct DiffusionFactor{names,D<:Tuple,P<:NoisePredictor,C<:Union{REDDiff,ImplicitProx,ProxDM}} <:
        LenticulumCore.AbstractLenticulumFactor
     blocks::NamedTuple{names,D}
     predictor::P
@@ -46,10 +46,14 @@ function DiffusionFactor(blocks::NamedTuple, predictor::NoisePredictor; prox = R
     isempty(blocks) && throw(ArgumentError("a DiffusionFactor needs at least one channel"))
     all(d -> d isa Int && d > 0, values(blocks)) ||
         throw(ArgumentError("channel dimensions must be positive Ints; got $blocks"))
-    if prox isa ImplicitProx
-        n = sum(values(blocks))
+    n = sum(values(blocks))
+    if prox isa ProxDM && prox.nodes === nothing            # the free energy's score nodes, fixed
+        prox = ProxDM(prox.prox, prox.t, prox.λ, prox.tol, prox.maxiters, prox.linsolve,
+                      field_nodes(Random.Xoshiro(0), n; samples = 8))
+    end
+    if prox isa Union{ImplicitProx,ProxDM}
         size(prox.nodes.ε, 1) == n || throw(DimensionMismatch(
-            "the ImplicitProx nodes have dimension $(size(prox.nodes.ε, 1)) but the channels tile ℝ^$n"))
+            "the $(nameof(typeof(prox))) nodes have dimension $(size(prox.nodes.ε, 1)) but the channels tile ℝ^$n"))
     end
     return DiffusionFactor(blocks, predictor, prox)
 end
@@ -78,13 +82,24 @@ function blockranges(f::DiffusionFactor{names}) where {names}
     return NamedTuple{names}(rs)
 end
 
-# Parameters and state are the network's, untouched.
+const _ProxDMFactor = DiffusionFactor{N,D,P,<:ProxDM} where {N,D<:Tuple,P<:NoisePredictor}   # the struct's bounds, or it is not more specific
+
+# Parameters and state are the network's, untouched; with a ProxDM inversion there is a second
+# model, the prox, and they are `(predictor = …, prox = …)`.
 LuxCore.initialparameters(rng::AbstractRNG, f::DiffusionFactor) =
     LuxCore.initialparameters(rng, f.predictor)
 LuxCore.initialstates(rng::AbstractRNG, f::DiffusionFactor) =
     LuxCore.initialstates(rng, f.predictor)
 LuxCore.parameterlength(f::DiffusionFactor) = LuxCore.parameterlength(f.predictor)
 LuxCore.statelength(f::DiffusionFactor) = LuxCore.statelength(f.predictor)
+LuxCore.initialparameters(rng::AbstractRNG, f::_ProxDMFactor) =
+    (predictor = LuxCore.initialparameters(rng, f.predictor), prox = LuxCore.initialparameters(rng, f.prox.prox))
+LuxCore.initialstates(rng::AbstractRNG, f::_ProxDMFactor) =
+    (predictor = LuxCore.initialstates(rng, f.predictor), prox = LuxCore.initialstates(rng, f.prox.prox))
+LuxCore.parameterlength(f::_ProxDMFactor) =
+    LuxCore.parameterlength(f.predictor) + LuxCore.parameterlength(f.prox.prox)
+LuxCore.statelength(f::_ProxDMFactor) =
+    LuxCore.statelength(f.predictor) + LuxCore.statelength(f.prox.prox)
 
 LenticulumCore.channels(f::DiffusionFactor{names}) where {names} =
     map((n, d) -> LenticulumCore.Channel(n, d), names, values(f.blocks))
@@ -326,11 +341,20 @@ function _score_term(prox::REDDiff, pred, x, ps, st)
     return (reddiff_weight(prox, pred.schedule, t) * sc, st)
 end
 function _score_term(prox::ImplicitProx, pred, x, ps, st)
+    return _node_score(prox.nodes, prox.λ, pred, x, ps, st)
+end
+# ProxDM: the same quadrature at weight λ = 1 (its λ is the splitting's coupling), on the prior's
+# own parameter tree
+function _score_term(prox::ProxDM, pred, x, ps, st)
+    sc, stp = _node_score(prox.nodes, one(prox.λ), pred, x, ps.predictor, st.predictor)
+    return (sc, merge(st, (predictor = stp,)))
+end
+function _node_score(nodes, λ, pred, x, ps, st)
     acc = zero(float(eltype(x)))
-    for k in eachindex(prox.nodes.t)
-        t = prox.nodes.t[k]
-        sc, st = denoising_loss(pred, x, t, prox.nodes.ε[:, k], ps, st)
-        acc += prox.nodes.w[k] * prox.λ * sigma(pred.schedule, t) / alpha(pred.schedule, t) * sc
+    for k in eachindex(nodes.t)
+        t = nodes.t[k]
+        sc, st = denoising_loss(pred, x, t, nodes.ε[:, k], ps, st)
+        acc += nodes.w[k] * λ * sigma(pred.schedule, t) / alpha(pred.schedule, t) * sc
     end
     return (acc, st)
 end

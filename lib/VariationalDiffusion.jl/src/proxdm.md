@@ -2,7 +2,8 @@
 
 > Proximal diffusion models: a diffusion prior that is queried through its **proximal operator**
 > instead of its score. Implemented here are the interface, an exact oracle, ProxDM's sampler,
-> proximal inference for the implicit learner and its adjoint, and the training loss.
+> proximal inference for the implicit learner and its adjoint, ProxDM as a factor's inversion,
+> and the training loss.
 
 > Sources: Fang, Díaz, Buchanan & Sulam, *Beyond Scores: Proximal Diffusion Models*, [arXiv:2507.08956](https://arxiv.org/abs/2507.08956) (Algorithm 1, Eq. 9); Zhu et al., *Denoising Diffusion Models for Plug-and-Play Image Restoration*, CVPR 2023 (DiffPIR, the half-quadratic splitting); code: `proxdm.jl`
 >
@@ -150,7 +151,38 @@ inside the full suite at 1.5e-4, so the tests run the reference solves for a fix
 instead of to a tolerance. The adjoint does not have this problem: it solves the linear system
 to its own tolerance.
 
-## 6. Implementation difficulties and open ends
+## 6. As a factor's inversion
+
+`DiffusionFactor(blocks, pred; prox = ProxDM(prox; t, λ, tol, maxiters, linsolve))` makes
+ProxDM usable in a factor graph, alongside `REDDiff` and `ImplicitProx`. `invert` and
+`factor_message` run `prox_infer` on the factor's state space with the polarity's precisions,
+warm-started at the incoming points (the same problem `implicit_solution` builds for
+`ImplicitProx`), and return a `DiracBelief` on the target. `implicit_solution` returns the
+report and `implicit_factor_pullback` the backward pass through `prox_pullback`.
+
+**Two parameter trees.** It is the first factor in the project with two models: the
+`NoisePredictor` (the prior; the free energy's score term needs it) and the prox (the
+inversion). Its parameters and states are `(predictor = …, prox = …)`, set up by
+`LuxCore.setup(rng, f)`; a `MixtureProx` gets `(μ = …,)`. This is the structure
+[[ProxDM and Proximal Alternatives]] §4 anticipated: the inversion is a separate learned object,
+not a function of the prior's parameters, so the factor cannot be one Lux layer over one tree.
+The factor-level pullback returns `ps = (predictor = 0, prox = ps̄)`, and the tests check that
+moving the prior's means leaves the inversion unchanged while changing the score term.
+
+The score summand uses fixed nodes (`nodes`, by default 8 from `Xoshiro(0)`) at weight
+$\lambda = 1$, since `ProxDM`'s own `λ` is the splitting's coupling and has no score meaning.
+
+**Validation** (`RING`, `MixtureProx`): the factor's answer equals bare `prox_infer` exactly;
+the two branches from opposite warm starts are symmetric to 1e-8; the pullback's input and
+precision cotangents match finite differences of `invert`; with a `ProxNetwork`, a weight's
+cotangent in the `prox` tree matches finite differences of the factor's answer to 1e-3.
+
+**A dispatch trap.** The methods for a ProxDM factor dispatch on
+`DiffusionFactor{N,D,P,<:ProxDM} where {N, D<:Tuple, P<:NoisePredictor}`. Written with
+unbounded `D` and `P` the signature is not a subtype of the plain `DiffusionFactor` signature (the
+struct's bounds are part of it), so Julia never prefers it and silently calls the generic method.
+
+## 7. Implementation difficulties and open ends
 
 - **Non-convex priors make the prox multivalued.** For a mixture, $-\log p_t$ is not convex,
   and $\operatorname{prox}$ can have several minimisers. `MixtureProx` uses Newton where
@@ -169,10 +201,11 @@ to its own tolerance.
   adjoint's matrix $I - \operatorname{diag}(a)D_{FF}$ is nonsingular wherever the splitting
   contracts, which is when it converges at all.
 - **The sampler is first order** (§2), as backward Euler is; no higher-order scheme yet.
-- **A `ProxDM` factor inversion** (alongside `REDDiff` and `ImplicitProx` in `factor.jl`) is the
-  natural next step and would make ProxDM usable inside a factor graph. It is the first case
-  with two parameter trees (the prior's $\varepsilon_\theta$ and the prox network), the
-  structure [[ProxDM and Proximal Alternatives]] §4 anticipated.
+- **Point messages only.** A Laplace Gaussian for proximal inference would need the Hessian
+  of the relaxed problem, which the prox gives only through its Jacobian
+  ($\nabla^2(-\log p_t) = (D^{-1} - I)/\lambda$ at the prox's output); not built.
+- **The two trees are separate even when they could be shared.** For `MixtureProx` of the
+  factor's own mixture, both trees hold the same means; training one does not move the other.
 
 Related: [[implicit]], [[reddiff]], [[backends]], [[analytic]],
 [[ProxDM and Proximal Alternatives]], [[Inference Signatures]], [[Deterministic Relaxation]]
