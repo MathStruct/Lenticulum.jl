@@ -2,7 +2,7 @@
 
 > Proximal diffusion models: a diffusion prior that is queried through its **proximal operator**
 > instead of its score. Implemented here are the interface, an exact oracle, ProxDM's sampler,
-> proximal inference for the implicit learner, and the training loss.
+> proximal inference for the implicit learner and its adjoint, and the training loss.
 
 > Sources: Fang, Díaz, Buchanan & Sulam, *Beyond Scores: Proximal Diffusion Models*, [arXiv:2507.08956](https://arxiv.org/abs/2507.08956) (Algorithm 1, Eq. 9); Zhu et al., *Denoising Diffusion Models for Plug-and-Play Image Restoration*, CVPR 2023 (DiffPIR, the half-quadratic splitting); code: `proxdm.jl`
 >
@@ -27,7 +27,7 @@ discretise the reverse SDE backwards, and the network you need is a prox, not a 
 | type | what it is |
 |---|---|
 | `AbstractProximalPredictor` | anything with `proximal(p, v, t, λ, ps, st) -> (u, st)` |
-| `ProxNetwork(model, schedule; input)` | a Lux model in ProxDM's parametrisation $f_\theta(v; t, \lambda) = v - \sqrt\lambda\,\varepsilon_\theta(v; t, \lambda)$; conditioned on **two** scalars |
+| `ProxNetwork(model, schedule; input, ad)` | a Lux model in ProxDM's parametrisation $f_\theta(v; t, \lambda) = v - \sqrt\lambda\,\varepsilon_\theta(v; t, \lambda)$; conditioned on **two** scalars |
 | `MixtureProx(::GaussianMixtureEps)` | the exact prox of a Gaussian mixture, by Newton with backtracking; the oracle a perfectly trained `ProxNetwork` would match |
 
 `MixtureProx` uses $\nabla\log p_t$ and its Hessian directly from the mixture, not
@@ -91,7 +91,66 @@ The squared loss would train the MMSE denoiser $\mathbb E[z \mid v]$; this bound
 $\zeta \to 0$, trains the **MAP** denoiser, which is the prox. Shrink $\zeta$ over training.
 The loss is a plain function of `ps`, so any Lux training loop and any AD backend trains it.
 
-## 5. Implementation difficulties and open ends
+## 5. The adjoint of proximal inference
+
+`prox_infer` returns the fixed point of the splitting. With $a_i = 1/(1 + \lambda\rho_i^2)$ it
+satisfies, on the coordinates that are not hard-clamped ($F$),
+
+$$
+w_F = a \odot \operatorname{prox}(w)_F + (1 - a)\odot z_{0,F}, \qquad w_C = z_{0,C},
+$$
+
+a root of $r(w_F) = w_F - a\odot\operatorname{prox}(w)_F - (1-a)\odot z_{0,F}$, so the implicit
+function theorem applies as it does to `implicit_infer` ([[Backpropagation through Implicit Inference]]).
+With $D$ the prox's input Jacobian at $w$ and $u = \operatorname{prox}(w)$, one linear solve
+
+$$
+(I - \operatorname{diag}(a)\,D_{FF})^\top \mu = \bar z_F, \qquad y = a\odot\mu \text{ on } F,\ 0 \text{ on } C,
+$$
+
+gives every cotangent:
+
+| w.r.t. | cotangent |
+|---|---|
+| parameters $\theta$ of the prox | $(\partial_\theta\operatorname{prox})^\top y$ |
+| hard-clamped inputs $z_{0,C}$ | $\bar z_C + (D^\top y)_C$ |
+| soft and free targets $z_{0,F}$ | $(1 - a)\odot\mu$ |
+| precisions $\rho_F$ | $-2\lambda\rho_F\odot a^2\odot(u_F - z_{0,F})\odot\mu$ |
+
+`prox_pullback(p, sol, z₀, ρ, t, z̄, ps, st; λ, linsolve)` computes them; it is also the
+`ChainRulesCore.rrule` of `prox_infer`, so Zygote differentiates through proximal inference
+without unrolling it. The matrix is $I - \operatorname{diag}(a)D_{FF}$, not a Jacobian of a
+field: the prox is already a solved problem, and its derivative is what the adjoint needs.
+Only vector-Jacobian products of the prox appear, so `linsolve = KrylovSolve()` runs GMRES on
+them and never forms $D$.
+
+The prox's derivatives come from three places:
+
+| prox | input VJP / Jacobian | parameter VJP |
+|---|---|---|
+| `MixtureProx` | exact: $D = (I - \lambda\nabla^2\log p_t(u))^{-1}$, the implicit function theorem on the prox's own optimality condition | exact: $\lambda(\partial_\mu\nabla\log p_t)^\top D^\top y$, valid at $t = 0$ |
+| `ProxNetwork(…; ad)` | $y - \sqrt\lambda(\partial_v\varepsilon_\theta)^\top y$ through DifferentiationInterface | $-\sqrt\lambda(\partial_\theta\varepsilon_\theta)^\top y$ through DifferentiationInterface |
+| anything else, or no `ad` | central differences of `proximal` | `ArgumentError` |
+
+**Validation** (`RING`, $t = 0.005$, $\lambda = 0.01$). Against central differences of the
+whole solve, for a hard clamp, a soft target, a soft clamp with a free coordinate, and all
+coordinates soft, every cotangent (clamps, targets, precisions, mixture means) agrees to
+between 1e-8 and 1e-5 relative, limited by the finite differences, not the adjoint; the test
+suite asserts 1e-4 relative against a cheaper reference (below). GMRES and the dense solve agree to 1e-12; Zygote through the `rrule` equals
+the pullback exactly. A `ProxNetwork` (a two-layer MLP) with `AutoZygote()`: input VJP and
+Jacobian equal finite differences to 1e-8, a weight's cotangent through the whole solve to
+3e-6 relative.
+
+Finite differences need care here. The splitting contracts slowly when the answer can slide
+along the relation (a soft clamp, or an untrained network: 350 iterations), and then its
+stopping rule leaves an error of about $\text{tol}/(1-\kappa)$, with $\kappa$ the contraction factor. A
+difference step of 1e-6 divides that by 1e-6 and disagreed with the adjoint by 1e-3; steps of
+1e-4 to 1e-3 agree. Even then the reference was fragile: the same check passed alone and failed
+inside the full suite at 1.5e-4, so the tests run the reference solves for a fixed 1000 sweeps
+instead of to a tolerance. The adjoint does not have this problem: it solves the linear system
+to its own tolerance.
+
+## 6. Implementation difficulties and open ends
 
 - **Non-convex priors make the prox multivalued.** For a mixture, $-\log p_t$ is not convex,
   and $\operatorname{prox}$ can have several minimisers. `MixtureProx` uses Newton where
@@ -101,11 +160,15 @@ The loss is a plain function of `ps`, so any Lux training loop and any AD backen
 - **The PDA step-size limit.** $\gamma_k < 2$ fails for coarse grids near $t = T$ under the
   default VP schedule. The hybrid scheme removes it; PDA throws with a message saying so
   instead of returning garbage.
-- **No adjoint for `prox_infer` yet.** The fixed point satisfies
-  $u = \operatorname{prox}(w(u))$, so the implicit function theorem applies just as for
-  `implicit_infer`. It needs the prox's input Jacobian and parameter VJP, which is why
-  `ProxNetwork` would get an `ad` field when this is added ([[backends]]).
-- **`stable` is not assessed** by the splitting; it reports `true` when converged.
+- **Backpropagating at a different noise level.** `prox_pullback` takes `t` separately, but
+  away from the inference level the fixed-point equation no longer holds and the result is not
+  the gradient of anything; whether it is a useful, better-conditioned surrogate
+  ([[Backpropagation through Implicit Inference]] §9) is untested.
+- **No derivative in `t` or `λ`.** Both are treated as hyperparameters.
+- **`stable` is not assessed** by the splitting; it reports `true` when converged. The
+  adjoint's matrix $I - \operatorname{diag}(a)D_{FF}$ is nonsingular wherever the splitting
+  contracts, which is when it converges at all.
+- **The sampler is first order** (§2), as backward Euler is; no higher-order scheme yet.
 - **A `ProxDM` factor inversion** (alongside `REDDiff` and `ImplicitProx` in `factor.jl`) is the
   natural next step and would make ProxDM usable inside a factor graph. It is the first case
   with two parameter trees (the prior's $\varepsilon_\theta$ and the prox network), the

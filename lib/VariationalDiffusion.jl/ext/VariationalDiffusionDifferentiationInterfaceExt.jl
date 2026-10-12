@@ -12,7 +12,7 @@
 # ---------------------------------------------------------------------------
 module VariationalDiffusionDifferentiationInterfaceExt
 
-using VariationalDiffusion: VariationalDiffusion, NoisePredictor, EnergyNetwork, epsilon
+using VariationalDiffusion: VariationalDiffusion, NoisePredictor, EnergyNetwork, ProxNetwork, epsilon
 using LuxCore: LuxCore
 using DifferentiationInterface: DifferentiationInterface as DI
 const ADTypes = DI.ADTypes
@@ -177,6 +177,28 @@ function VariationalDiffusion._energy_mixed(ad::ADTypes.AbstractADType, pred::No
     hv = only(DI.hvp(_energy_joint, ad, u, (v,), DI.Constant(pred), DI.Constant(t), DI.Constant(size(x)),
                      DI.Constant(ps), DI.Constant(offset_tree(ps)), DI.Constant(st)))
     return _unflatten(hv[(length(xv) + 1):end], ps)
+end
+
+# --- ProxDM: the network's residual ε̂(v; t, λ), for the adjoint of `prox_infer` ------------
+_prox_eps(v, p, t, λ, ps, st) = vec(first(LuxCore.apply(p.model, p.input(v, t, λ), ps, st)))
+_prox_eps_params(θ, p, v, t, λ, like, offs, st) = _prox_eps(v, p, t, λ, _unflatten(θ, offs, like), st)
+
+function VariationalDiffusion._prox_ad_vjp_input(ad::ADTypes.AbstractADType, p::ProxNetwork, v, t, λ, ps, st, y)
+    v̄ = DI.pullback(_prox_eps, ad, collect(float.(v)), (collect(float.(vec(y))),),
+                    DI.Constant(p), DI.Constant(t), DI.Constant(λ), DI.Constant(ps), DI.Constant(st))
+    return reshape(only(v̄), size(v))
+end
+
+function VariationalDiffusion._prox_ad_vjp_params(ad::ADTypes.AbstractADType, p::ProxNetwork, v, t, λ, ps, st, y)
+    tθ = DI.pullback(_prox_eps_params, ad, _flatten(ps), (collect(float.(vec(y))),),
+                     DI.Constant(p), DI.Constant(collect(float.(v))), DI.Constant(t), DI.Constant(λ), DI.Constant(ps),
+                     DI.Constant(offset_tree(ps)), DI.Constant(st))
+    return _unflatten(only(tθ), ps)
+end
+
+function VariationalDiffusion._prox_ad_jacobian(ad::ADTypes.AbstractADType, p::ProxNetwork, v, t, λ, ps, st)
+    return DI.jacobian(_prox_eps, ad, collect(float.(v)),
+                       DI.Constant(p), DI.Constant(t), DI.Constant(λ), DI.Constant(ps), DI.Constant(st))
 end
 
 end # module

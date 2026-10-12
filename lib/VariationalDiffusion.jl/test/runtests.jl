@@ -1141,4 +1141,65 @@ end
     @test 0 ≤ ℓ < 1
 end
 
+@testset "ProxDM adjoint: prox_pullback against finite differences of prox_infer" begin
+    P = MixtureProx(RING.model; tol = 1e-13)
+    t, λ, c = 0.005, 0.01, [0.3, -0.7]
+    _e(i, n) = float.(1:n .== i)
+    # the prox's own derivatives: the closed-form Jacobian against differences
+    v = [0.62, 0.71]
+    @test prox_jacobian(P, v, t, λ, RPS, RST) ≈ invoke(prox_jacobian, NTuple{6,Any}, P, v, t, λ, RPS, RST) atol = 1e-6
+    # hard clamp; soft target; soft clamp with a free coordinate; all coordinates soft
+    for ρ in ([Inf, 0.0], [Inf, 2.0], [3.0, 0.0], [3.0, 1.0])
+        z₀ = [0.6, 0.5]
+        sol, _ = prox_infer(P, z₀, ρ, t, RPS, RST; λ, tol = 1e-12, maxiters = 5000)
+        @test sol.converged
+        # the reference runs a fixed 1000 sweeps (tol = 0): where the splitting contracts slowly, a
+        # stopping rule leaves an error of tol/(1-κ), which a difference quotient amplifies by 1/h
+        L(z0, r, ps) = dot(c, first(prox_infer(P, z0, r, t, ps, RST; λ, z_init = sol.z, tol = 0.0, maxiters = 1000)).z)
+        b = prox_pullback(P, sol, z₀, ρ, t, c, RPS, RST; λ)
+        h = 1e-4
+        for i in 1:2
+            @test b.z₀[i] ≈ (L(z₀ .+ h .* _e(i, 2), ρ, RPS) - L(z₀ .- h .* _e(i, 2), ρ, RPS)) / 2h rtol = 1e-4
+            isinf(ρ[i]) || @test b.ρ[i] ≈ (L(z₀, ρ .+ h .* _e(i, 2), RPS) - L(z₀, ρ .- h .* _e(i, 2), RPS)) / 2h rtol = 1e-4
+        end
+        k = argmin(vec(sum(abs2, RING_μ .- sol.z; dims = 1)))           # the component nearest the answer
+        for i in 1:2
+            E = _e(i, 2) * _e(k, RING_J)'
+            @test b.ps.μ[i, k] ≈ (L(z₀, ρ, (μ = RING_μ .+ h .* E,)) - L(z₀, ρ, (μ = RING_μ .- h .* E,))) / 2h rtol = 1e-4
+        end
+        # matrix-free: GMRES on prox VJPs gives the same cotangents
+        bk = prox_pullback(P, sol, z₀, ρ, t, c, RPS, RST; λ, linsolve = KrylovSolve(rtol = 1e-12))
+        @test bk.z₀ ≈ b.z₀ atol = 1e-12
+        @test bk.ρ ≈ b.ρ atol = 1e-12
+        @test bk.ps.μ ≈ b.ps.μ atol = 1e-12
+    end
+    bad, _ = prox_infer(P, [0.6, 0.5], HARDX, t, RPS, RST; λ, maxiters = 2)
+    @test_throws ArgumentError prox_pullback(P, bad, [0.6, 0.5], HARDX, t, c, RPS, RST; λ)
+    # Zygote differentiates through prox_infer with the rrule, which is the pullback
+    sol, _ = prox_infer(P, [0.6, 0.5], HARDX, t, RPS, RST; λ)
+    gz = Zygote.gradient(z -> dot(c, first(prox_infer(P, z, HARDX, t, RPS, RST; λ)).z), [0.6, 0.5])[1]
+    @test gz == prox_pullback(P, sol, [0.6, 0.5], HARDX, t, c, RPS, RST; λ).z₀
+
+    # a learned prox: a ProxNetwork with an AD backend
+    input(v, t, λ) = vcat(v, [t, λ])
+    net = Chain(Dense(4 => 16, tanh), Dense(16 => 2))
+    pp0, pst = Lux.setup(Xoshiro(0), net)
+    pp = _f64(pp0)
+    pn = ProxNetwork(net, SCHED; input, ad = AutoZygote())
+    pn0 = ProxNetwork(net, SCHED; input)                            # no backend: differences, and no parameter VJP
+    y = [0.4, -0.9]
+    @test prox_vjp_input(pn, v, 0.1, 0.2, pp, pst, y) ≈ prox_vjp_input(pn0, v, 0.1, 0.2, pp, pst, y) atol = 1e-8
+    @test prox_jacobian(pn, v, 0.1, 0.2, pp, pst) ≈ prox_jacobian(pn0, v, 0.1, 0.2, pp, pst) atol = 1e-8
+    @test_throws ArgumentError prox_vjp_params(pn0, v, 0.1, 0.2, pp, pst, y)
+    sol, _ = prox_infer(pn, [0.6, 0.5], HARDX, 0.1, pp, pst; λ = 0.2, tol = 1e-12, maxiters = 5000)
+    @test sol.converged
+    b = prox_pullback(pn, sol, [0.6, 0.5], HARDX, 0.1, c, pp, pst; λ = 0.2)
+    function Lw(δ)
+        q = deepcopy(pp)
+        q.layer_1.weight[3, 1] += δ
+        return dot(c, first(prox_infer(pn, [0.6, 0.5], HARDX, 0.1, q, pst; λ = 0.2, z_init = sol.z, tol = 0.0, maxiters = 1000)).z)
+    end
+    @test b.ps.layer_1.weight[3, 1] ≈ (Lw(1e-3) - Lw(-1e-3)) / 2e-3 rtol = 1e-4
+end
+
 end

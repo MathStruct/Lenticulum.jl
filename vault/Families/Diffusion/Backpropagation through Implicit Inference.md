@@ -242,9 +242,9 @@ Jacobian, so it returns exactly the surrogate. Measure
 1. the cosine between surrogate and exact gradient as $t_3$ grows, and
 2. whether the training of §7 converges faster or more stably with $t_3 > t_2$.
 
-For ProxDM the same experiment waits on an adjoint for `prox_infer`
-([[Open Problems in Implicit Diffusion Learning]] I7); the prox at a single $t$ has the same
-implicit-function structure.
+For ProxDM the same experiment is now possible: `prox_pullback` takes the noise level `t` as
+its own argument, so evaluating it at a larger `t` than `prox_infer` used gives the analogous
+surrogate ([[proxdm]] §5, [[Open Problems in Implicit Diffusion Learning]] I7). Not run yet.
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]], [[Deterministic Relaxation]],
 [[The Implicit Diffusion Factor as a Statistical Game]], [[DEQ as a Relation]],

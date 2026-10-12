@@ -12,7 +12,7 @@
 module VariationalDiffusionChainRulesCoreExt
 
 using VariationalDiffusion: VariationalDiffusion, AbstractImplicitRelation, ImplicitSolution, DenseSolve,
-                            implicit_infer, implicit_pullback
+                            implicit_infer, implicit_pullback, prox_infer, prox_pullback
 using ChainRulesCore: ChainRulesCore, NoTangent, ZeroTangent, AbstractZero, Tangent, unthunk
 
 # the cotangent of `sol.z`, from whatever form the AD package hands back
@@ -33,6 +33,22 @@ function ChainRulesCore.rrule(::typeof(implicit_infer), m::AbstractImplicitRelat
         return (NoTangent(), NoTangent(), b.z₀, b.ρ, b.ps, NoTangent())
     end
     return (sol, st′), implicit_infer_pullback
+end
+
+# the same for proximal inference; `t` (the prox's noise level) gets no cotangent
+function ChainRulesCore.rrule(::typeof(prox_infer), p, z₀, ρ, t, ps, st; kwargs...)
+    sol, st′ = prox_infer(p, z₀, ρ, t, ps, st; kwargs...)
+    λ = get(kwargs, :λ, 0.01)
+    linsolve = get(kwargs, :linsolve, DenseSolve())
+    function prox_infer_pullback(ȳ)
+        ȳ = unthunk(ȳ)
+        s̄ = ȳ isa Union{Tuple,Tangent} ? unthunk(ȳ[1]) : ȳ
+        z̄ = _zbar(s̄, sol.z)
+        z̄ === nothing && return (NoTangent(), NoTangent(), ZeroTangent(), ZeroTangent(), NoTangent(), ZeroTangent(), NoTangent())
+        b = prox_pullback(p, sol, z₀, ρ, t, collect(float.(unthunk(z̄))), ps, st; λ, linsolve)
+        return (NoTangent(), NoTangent(), b.z₀, b.ρ, NoTangent(), b.ps, NoTangent())
+    end
+    return (sol, st′), prox_infer_pullback
 end
 
 end # module

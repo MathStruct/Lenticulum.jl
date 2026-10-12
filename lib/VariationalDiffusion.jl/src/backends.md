@@ -150,8 +150,9 @@ which is why the adjoint uses $J^\top$ and not $J$.
   DifferentiationInterface extension computes by Hessian-vector products. Zygote (alone or under
   ForwardDiff) and Mooncake forward-over-reverse give them; Enzyme on CPU does not, and the
   Reactant extension does not compute them yet; see [[energy_network]] §4.
-- **`ProxNetwork` has no `ad` field yet.** Nothing differentiates through `prox_infer`
-  (see [[proxdm]] §5), so nothing needs one.
+- **`ProxNetwork` has its own `ad` field**, used only by the adjoint of `prox_infer`
+  (`prox_pullback`): the input VJP and Jacobian of the network's residual through
+  DifferentiationInterface, and its parameter VJP ([[proxdm]] §5). Reactant is not wired for it.
 
 Related: [[predictor]], [[analytic]], [[implicit]], [[proxdm]],
 [[Backpropagation through Implicit Inference]], [[Parallelism and Compilation]],

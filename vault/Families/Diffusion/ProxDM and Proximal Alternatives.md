@@ -97,8 +97,10 @@ ProxDM is now in `proxdm.jl` ([[proxdm]] has the details and the numbers):
 - **The training loss**, proximal matching, whose $\zeta\to0$ minimiser is the MAP denoiser
   (the prox) where the squared loss gives the MMSE denoiser.
 
-Still open: an adjoint for `prox_infer` (the implicit function theorem applies to its fixed
-point as it does to `implicit_infer`), and a `ProxDM` inversion for `DiffusionFactor`, next to
+The adjoint of `prox_infer` is built (`prox_pullback`, [[proxdm]] §5): the implicit function
+theorem applies to the splitting's fixed point as it does to `implicit_infer`, with one solve in
+$I - \operatorname{diag}(a)D_{FF}$, $D$ the prox's Jacobian. Still open: a `ProxDM` inversion
+for `DiffusionFactor`, next to
 `REDDiff` and `ImplicitProx`. That factor would carry **two parameter trees**, the prior's
 $\varepsilon_\theta$ and the prox network. It would be the first factor in this project with the
 structure the vault uses to argue that a factor cannot be a Lux layer

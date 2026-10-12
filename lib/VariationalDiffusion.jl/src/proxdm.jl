@@ -35,21 +35,26 @@ a MAP denoiser at level `t` with regularisation `λ`. Its optimality condition i
 function proximal end
 
 """
-    ProxNetwork(model, schedule; input = (v, t, λ) -> (v, t, λ))
+    ProxNetwork(model, schedule; input = (v, t, λ) -> (v, t, λ), ad = nothing)
 
 A learned proximal operator in ProxDM's parametrisation
 ``f_\\theta(v; t, \\lambda) = v - \\sqrt\\lambda\\,\\varepsilon_\\theta(v; t, \\lambda)``: the network predicts the
 normalised residual of the prox, conditioned on **two** scalars, ``t`` and ``\\lambda``. `model` is
 any Lux layer; `input` adapts ``(v, t, \\lambda)`` to what it expects. Parameters are the model's.
 Train it with [`proximal_matching_loss`](@ref).
+
+`ad` is an ADTypes backend (`AutoZygote()`, …; load DifferentiationInterface and the backend)
+for the derivatives the adjoint of [`prox_infer`](@ref) needs: the parameter VJP, which has no
+other route, and the input VJP, which otherwise falls back to finite differences.
 """
-struct ProxNetwork{L,S<:AbstractNoiseSchedule,F} <: LuxCore.AbstractLuxWrapperLayer{:model}
+struct ProxNetwork{L,S<:AbstractNoiseSchedule,F,A} <: LuxCore.AbstractLuxWrapperLayer{:model}
     model::L
     schedule::S
     input::F
+    ad::A
 end
-ProxNetwork(model, schedule::AbstractNoiseSchedule; input = (v, t, λ) -> (v, t, λ)) =
-    ProxNetwork(model, schedule, input)
+ProxNetwork(model, schedule::AbstractNoiseSchedule; input = (v, t, λ) -> (v, t, λ), ad = nothing) =
+    ProxNetwork(model, schedule, input, ad)
 
 function proximal(p::ProxNetwork, v, t, λ, ps, st)
     ε̂, st = LuxCore.apply(p.model, p.input(v, t, λ), ps, st)
@@ -137,8 +142,8 @@ end
 # --- 3. proximal inference for the implicit learner, and training -----------------
 
 """
-    prox_infer(p, z₀, ρ, t, ps, st; λ = 0.01, z_init = z₀, maxiters = 500, tol = 1e-9)
-        -> (ImplicitSolution, st)
+    prox_infer(p, z₀, ρ, t, ps, st; λ = 0.01, z_init = z₀, maxiters = 500, tol = 1e-9,
+               linsolve = DenseSolve()) -> (ImplicitSolution, st)
 
 Deterministic inference for the implicit learner with a **proximal** prior instead of a score:
 half-quadratic splitting between the prior's prox at level `t` and the clamp's prox,
@@ -155,8 +160,12 @@ relaxed problem whose ``\\lambda\\to0`` limit is the implicit learner's (`Determ
 Relaxation.md`); this is the plug-and-play / DiffPIR splitting. Hard clamps are exact. Returns `w`
 (which satisfies the clamps) as `z`, with `residual` ``= \\lVert u - w\\rVert``; `stable` is not
 assessed by this solver and is reported `true` when converged.
+
+Its derivative is [`prox_pullback`](@ref), which is also the `ChainRulesCore.rrule` of this
+function; `linsolve` is the linear solver that adjoint uses (the forward pass does not use it).
 """
-function prox_infer(p, z₀, ρ, t, ps, st; λ = 0.01, z_init = z₀, maxiters::Integer = 500, tol = 1e-9)
+function prox_infer(p, z₀, ρ, t, ps, st; λ = 0.01, z_init = z₀, maxiters::Integer = 500, tol = 1e-9,
+                    linsolve::AbstractLinearSolve = DenseSolve())
     hard = isinf.(ρ)
     w = float.(copy(z_init)); w[hard] .= z₀[hard]
     u = copy(w)
@@ -187,4 +196,159 @@ function proximal_matching_loss(p::ProxNetwork, x_t, t, λ, ε, ζ, ps, st)
     ε̂, st = LuxCore.apply(p.model, p.input(x_t .+ sqrt(λ) .* ε, t, λ), ps, st)
     d = length(ε)
     return (1 - exp(-sum(abs2, ε̂ .- ε) / (d * ζ^2)), st)
+end
+
+# --- 4. the adjoint of proximal inference -------------------------------------------
+
+"""
+    prox_vjp_input(p, v, t, λ, ps, st, y) -> v̄
+
+``(\\partial_v \\operatorname{prox}_{-\\lambda\\log p_t}(v))^\\top y``. Exact for [`MixtureProx`](@ref) (the
+implicit function theorem on the prox's optimality condition: ``(I - \\lambda\\nabla^2\\log p_t(u))^{-1}y``);
+through `ad` for a [`ProxNetwork`](@ref); by central differences otherwise.
+"""
+prox_vjp_input(p, v, t, λ, ps, st, y) = prox_jacobian(p, v, t, λ, ps, st)' * y
+
+"""
+    prox_vjp_params(p, v, t, λ, ps, st, y) -> ps̄
+
+``(\\partial_\\theta \\operatorname{prox}_{-\\lambda\\log p_t}(v))^\\top y``, shaped like `ps`. Exact for
+[`MixtureProx`](@ref); through `ad` for a [`ProxNetwork`](@ref).
+"""
+prox_vjp_params(p, v, t, λ, ps, st, y) = throw(ArgumentError(
+    "prox_vjp_params has no method for $(typeof(p)): implement it, or use a ProxNetwork with an AD backend"))
+
+"""
+    prox_jacobian(p, v, t, λ, ps, st) -> Matrix
+
+The input Jacobian of the prox at `v`. Exact for [`MixtureProx`](@ref); through `ad` for a
+[`ProxNetwork`](@ref); central differences (step ``10^{-6}(1 + \\lVert v\\rVert_\\infty)``) otherwise.
+"""
+function prox_jacobian(p, v, t, λ, ps, st)
+    v = float.(collect(v))
+    h = 1e-6 * (1 + maximum(abs, v))
+    J = zeros(eltype(v), length(v), length(v))
+    for j in eachindex(v)
+        e = h .* (eachindex(v) .== j)
+        J[:, j] .= (vec(first(proximal(p, v .+ e, t, λ, ps, st))) .- vec(first(proximal(p, v .- e, t, λ, ps, st)))) ./ (2h)
+    end
+    return J
+end
+
+# MixtureProx: u - v = λ g(u; μ) with g = ∇log p_t, so du = K⁻¹(dv + λ ∂g/∂μ dμ), K = I - λ∇²log p_t(u),
+# which is symmetric. (∂g/∂μ_j)ᵀ q = -α γ_j [-q/v_t + u_j (u_j - ū)ᵀ q], the ε formula of
+# `epsilon_vjp_params` without the factor σ_t, so it holds at t = 0 too.
+function _prox_K(p::MixtureProx, v, t, λ, ps, st)
+    u, _ = proximal(p, v, t, λ, ps, st)
+    _, H = _mixture_grad_hess(p.mixture, u, t, ps.μ)
+    return (u, Symmetric(Matrix{eltype(u)}(I, length(u), length(u)) .- λ .* (H .+ H') ./ 2))
+end
+prox_jacobian(p::MixtureProx, v, t, λ, ps, st) = inv(last(_prox_K(p, v, t, λ, ps, st)))
+prox_vjp_input(p::MixtureProx, v, t, λ, ps, st, y) = last(_prox_K(p, v, t, λ, ps, st)) \ y
+function prox_vjp_params(p::MixtureProx, v, t, λ, ps, st, y)
+    u, K = _prox_K(p, v, t, λ, ps, st)
+    q = K \ y
+    m = _mixture_parts(p.mixture, u, t, ps.μ)
+    ū = m.U * m.γ
+    c = (m.U .- ū)' * q
+    return (μ = (-λ * m.a) .* ((.-q ./ m.v) .* m.γ' .+ m.U .* (m.γ .* c)'),)
+end
+
+# ProxNetwork: prox(v) = v - √λ ε̂(v), so the VJPs are y - √λ (∂ε̂/∂v)ᵀy and -√λ (∂ε̂/∂θ)ᵀy
+prox_vjp_input(p::ProxNetwork, v, t, λ, ps, st, y) =
+    p.ad === nothing ? prox_jacobian(p, v, t, λ, ps, st)' * y : y .- sqrt(λ) .* _prox_ad_vjp_input(p.ad, p, v, t, λ, ps, st, y)
+prox_jacobian(p::ProxNetwork, v, t, λ, ps, st) =
+    p.ad === nothing ? invoke(prox_jacobian, Tuple{Any,Any,Any,Any,Any,Any}, p, v, t, λ, ps, st) :
+    I - sqrt(λ) .* _prox_ad_jacobian(p.ad, p, v, t, λ, ps, st)
+function prox_vjp_params(p::ProxNetwork, v, t, λ, ps, st, y)
+    p.ad === nothing && throw(ArgumentError(
+        "prox_vjp_params needs an AD backend: ProxNetwork(model, schedule; input, ad = AutoZygote()), " *
+        "with DifferentiationInterface and the backend package loaded"))
+    return _scale(-sqrt(λ), _prox_ad_vjp_params(p.ad, p, v, t, λ, ps, st, y))
+end
+_scale(a, x::NamedTuple) = map(xi -> _scale(a, xi), x)
+_scale(a, x::AbstractArray) = a .* x
+_scale(a, x::Real) = a * x
+
+# the extension adds methods for ADTypes backends
+_prox_ad_vjp_input(ad, p, v, t, λ, ps, st, y) = _no_prox_ad(ad)
+_prox_ad_vjp_params(ad, p, v, t, λ, ps, st, y) = _no_prox_ad(ad)
+_prox_ad_jacobian(ad, p, v, t, λ, ps, st) = _no_prox_ad(ad)
+_no_prox_ad(ad) = throw(ArgumentError(
+    "ad = $(ad) given, but no extension implements it: load DifferentiationInterface (and the backend package)."))
+
+"""
+    prox_pullback(p, sol, z₀, ρ, t, z̄, ps, st; λ = 0.01, linsolve = DenseSolve())
+        -> (z₀ = z̄₀, ρ = ρ̄, ps = ps̄)
+
+Reverse-mode derivative of [`prox_infer`](@ref)'s answer ``w^\\star(z_0, \\rho, \\theta)`` by the
+adjoint method; `λ` and `t` must be the ones inference used. The fixed point of the splitting
+satisfies, on the coordinates that are not hard-clamped (``F``),
+
+```math
+w_F = a\\odot\\operatorname{prox}(w)_F + (1-a)\\odot z_{0,F},\\qquad a_i = \\frac1{1+\\lambda\\rho_i^2},
+```
+
+and ``w_C = z_{0,C}`` on the clamped ones. With ``D`` the prox's input Jacobian at ``w`` and
+``u = \\operatorname{prox}(w)``, solve once
+
+```math
+(I - \\operatorname{diag}(a)\\,D_{FF})^\\top\\mu = \\bar z_F,\\qquad y = (a\\odot\\mu \\text{ on } F,\\ 0 \\text{ on } C),
+```
+
+and read off every gradient:
+
+| w.r.t. | cotangent |
+|---|---|
+| parameters ``\\theta`` | ``(\\partial_\\theta\\operatorname{prox})^\\top y`` (via [`prox_vjp_params`](@ref)) |
+| hard-clamped inputs ``z_{0,C}`` | ``\\bar z_C + (D^\\top y)_C`` |
+| soft and free targets ``z_{0,F}`` | ``(1-a)\\odot\\mu`` |
+| precisions ``\\rho_F`` | ``-2\\lambda\\rho_F\\odot a^2\\odot(u_F - z_{0,F})\\odot\\mu`` |
+
+Only vector-Jacobian products of the prox appear, so `linsolve = KrylovSolve()` runs GMRES on
+them and never forms ``D``; `DenseSolve()` forms it ([`prox_jacobian`](@ref)). Throws if `sol` did
+not converge. See `proxdm.md` §5.
+"""
+function prox_pullback(p, sol::ImplicitSolution, z₀, ρ, t, z̄, ps, st; λ = 0.01,
+                       linsolve::AbstractLinearSolve = DenseSolve())
+    sol.converged || throw(ArgumentError("prox_pullback: the solve did not converge, so there is no fixed point to differentiate"))
+    w = sol.z
+    n = length(w)
+    T = float(eltype(w))
+    F = findall(!isinf, ρ)
+    C = findall(isinf, ρ)
+    a = 1 ./ (1 .+ λ .* T.(ρ[F]) .^ 2)
+    μ = _prox_adjoint(linsolve, p, w, t, λ, ps, st, F, a, T.(z̄[F]))
+    y = zeros(T, n)
+    y[F] .= a .* μ
+    z̄₀ = zeros(T, n)
+    z̄₀[F] .= (1 .- a) .* μ
+    if !isempty(C)
+        q = prox_vjp_input(p, w, t, λ, ps, st, y)
+        z̄₀[C] .= z̄[C] .+ q[C]
+    end
+    ρ̄ = zeros(T, n)
+    if any(>(0), ρ[F])
+        u, _ = proximal(p, w, t, λ, ps, st)
+        ρ̄[F] .= -2λ .* ρ[F] .* a .^ 2 .* (u[F] .- z₀[F]) .* μ
+    end
+    ps̄ = _hasparams(ps) ? prox_vjp_params(p, w, t, λ, ps, st, y) : ps
+    return (z₀ = z̄₀, ρ = ρ̄, ps = ps̄)
+end
+
+function _prox_adjoint(::DenseSolve, p, w, t, λ, ps, st, F, a, b)
+    D = prox_jacobian(p, w, t, λ, ps, st)
+    return (I - Diagonal(a) * D[F, F])' \ b
+end
+
+function _prox_adjoint(ls::KrylovSolve, p, w, t, λ, ps, st, F, a, b)
+    y = zeros(eltype(b), length(w))
+    function At(μ)                                   # μ - (Dᵀ y)_F with y = a⊙μ on F
+        fill!(y, 0)
+        y[F] .= a .* μ
+        return μ .- prox_vjp_input(p, w, t, λ, ps, st, y)[F]
+    end
+    μ, ok, k = _gmres(At, b; rtol = ls.rtol, maxiters = ls.maxiters, restart = ls.restart)
+    ok || @warn "prox_pullback: GMRES stopped after $k products without reaching rtol = $(ls.rtol); the gradient is approximate"
+    return μ
 end
