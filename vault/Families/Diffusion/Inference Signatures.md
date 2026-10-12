@@ -100,6 +100,6 @@ consume Gaussian messages as $(\rho, z_0)$. #5 would produce a Gaussian and fix 
 listed in [[The Diffusion Factor]] §4. #6 needs a `SampleBelief`, which exists in the core but
 which no diffusion factor produces yet.
 
-Related: [[Implicit Diffusion Learners]], [[Backpropagation through Implicit Inference]],
+Related: [[Implicit Diffusion Learners]], [[Backpropagation through Implicit Inference]], [[Backward Signatures]],
 [[Deterministic Relaxation]], [[The Implicit Diffusion Factor as a Statistical Game]],
 [[RED-Diff as a Statistical Game]], [[ProxDM and Proximal Alternatives]]

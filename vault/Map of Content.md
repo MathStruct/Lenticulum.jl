@@ -266,6 +266,8 @@ some parts known and some fitted, and a residual that means something in the dom
   five things a replacement would lose, and a connector with learned relations as RxInfer nodes
 - [[Sharing Types with RxInfer]] — (later) wrap ExponentialFamily types as beliefs instead of
   converting; reuse RxInfer's linearisation and unscented code for hand-written nonlinear factors
+- [[Backward Signatures]] — (later) the backward pass at solver, factor and graph level: forward
+  arguments + forward result + cotangent; `rrule`s on top; unrolled vs adjoint message passing
 - [[Why Julia]] — why not C++, Rust, PyTorch, JAX or Mojo: in Julia ordinary code *is* the compiled,
   differentiable computation graph, with evidence from this repository and the costs stated
 - [[Parallelism and Compilation]] — parallelism, GPUs and XLA/MLIR in a *dynamic* SLAM
