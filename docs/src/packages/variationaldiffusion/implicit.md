@@ -1,0 +1,93 @@
+# [Implicit inference](@id vd-implicit)
+
+```@meta
+CurrentModule = VariationalDiffusion
+```
+
+The implicit learner turns a noise predictor into a **relation**: a fixed set of field nodes
+makes RED-Diff's regulariser gradient a deterministic field ``g_\theta``, and a query clamps
+some coordinates (`ρ = Inf`), anchors others softly (finite `ρ`) and solves
+``g_\theta(z) + \rho^2 \odot (z - z_0) = 0`` on the rest.
+
+```julia
+nodes = field_nodes(rng, n)                       # fixed (t, ε, w)
+m     = ImplicitDiffusion(pred, nodes; batched = true)
+sol, st = implicit_infer(m, z₀, ρ, ps, st)        # a root, with converged / stable flags
+b = implicit_pullback(m, sol, z₀, ρ, z̄, ps, st)   # gradients by the adjoint
+```
+
+## All answers, and how sure
+
+`implicit_roots` solves from several starts and keeps the distinct stable answers;
+`implicit_laplace` and `laplace_belief` give the Laplace covariance at an answer;
+`implicit_mixture` combines all answers into a `MixtureBelief` whose weights are Laplace mass
+estimates when the model has an energy. Build the model with `λ = density_lambda(schedule,
+nodes)` for covariances in data units.
+
+## Many free coordinates
+
+Every solver step, the Laplace covariance and the adjoint need only the Jacobian block on the
+**free** coordinates, and that is all they compute. With `ImplicitDiffusion(pred, nodes;
+batched = true)` all nodes of one noise level go through the network in one call. When most of
+the state is free (generating an image), pass `linsolve = KrylovSolve()` to `implicit_infer`,
+`implicit_pullback`, `laplace_belief`, `implicit_mixture` or `ImplicitProx`: Newton steps and
+the adjoint are then solved by GMRES on Jacobian-vector products (`prior_jvp`) and
+vector-Jacobian products (`prior_vjp`), stability is tested by Lanczos, and the Laplace
+covariance is computed only on the coordinates asked for. On a 794-dimensional MLP with 784
+free coordinates, `implicit_infer` takes about 1 s; one dense 784 × 784 block takes 33 s.
+
+## Samples, not only modes
+
+The root finders return modes. `implicit_sample(m, z₀, ρ, ps, st; n, steps, resample)` draws
+`n` samples of the free coordinates given the hard-clamped ones (`ρ = Inf`) with the reverse
+diffusion, replacing the clamped coordinates at every step; `resample > 0` adds RePaint's
+harmonisation, which a strongly coupled clamp needs.
+
+## Differentiating through inference
+
+With ChainRulesCore loaded (Zygote loads it), `implicit_infer` has an `rrule` whose pullback is
+`implicit_pullback`: `Zygote.gradient(ps -> loss(first(implicit_infer(m, z₀, ρ, ps, st)).z), ps)`
+works without unrolling the solver, and gives gradients for `z₀` and `ρ` too.
+
+## Products of relations
+
+`ProductRelation(m₁, m₂; weights)` pools relations on the same variables: its field is the
+weighted sum, its stable roots are where all relations hold, e.g. the intersections of a
+learned circle and a learned line. Every query function and the adjoint accept it.
+
+## API
+
+### The relation, the solver and the adjoint
+
+```@autodocs
+Modules = [VariationalDiffusion]
+Pages = ["implicit.jl"]
+```
+
+### Answers and uncertainty
+
+```@autodocs
+Modules = [VariationalDiffusion]
+Pages = ["answers.jl"]
+```
+
+### Matrix-free linear algebra
+
+```@autodocs
+Modules = [VariationalDiffusion]
+Pages = ["krylov.jl"]
+```
+
+### Sampling
+
+```@autodocs
+Modules = [VariationalDiffusion]
+Pages = ["sampler.jl"]
+```
+
+### Products
+
+```@autodocs
+Modules = [VariationalDiffusion]
+Pages = ["product.jl"]
+```
