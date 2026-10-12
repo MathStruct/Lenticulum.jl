@@ -273,7 +273,3 @@ some parts known and some fitted, and a residual that means something in the dom
   number of factors** (measured); and the compile-vs-dynamic tension dissolves if you
   **compile the factor types, not the graph**
 - [[README]] — the pitch
-- [PhD Proposal](https://github.com/MathStruct/Lenticulum.jl/blob/master/meta/PhD%20Proposal.md)
-  and [PhD Proposal v2](https://github.com/MathStruct/Lenticulum.jl/blob/master/meta/PhD%20Proposal%20v2.md)
-  — the same programme argued two ways: problem-first and capability-first. Working material
-  in `meta/`, not part of the published vault

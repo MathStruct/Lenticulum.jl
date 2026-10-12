@@ -12,7 +12,7 @@ The vault is the whole repository. Its notes sit in three places:
 | `vault/` | **concept and design notes**, grouped by topic | `vault/Factor Graphs/Messages are Inversions.md` |
 | `lib/*/src/*.md` | **implementation notes**, one beside each Julia file | `lib/Mycelium.jl/src/messages.md` beside `messages.jl` |
 | `src/*.md` | implementation notes for the top-level package | `src/constraint.md` |
-| `meta/` | working material: authoring prompts and the PhD proposals (not published) | |
+| `meta/` | local working material, not part of the repository (ignored by git) | |
 
 The general category theory these notes build on (Para, lenses, Markov categories, Bayesian
 lenses, statistical games, free energy) is **not** repeated here. It lives in the

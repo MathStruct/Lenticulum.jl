@@ -67,6 +67,5 @@ $$
 
 ## What does not render
 
-- **`meta/`** is excluded — the authoring prompts and the PhD proposals are working material,
-  not vault content.
+- **`meta/`** is excluded — local working material, not tracked in git and not vault content.
 - `lib/*/README.md` are excluded to keep `[[README]]` unambiguous (it means the root one).

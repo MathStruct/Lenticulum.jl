@@ -66,7 +66,7 @@ mkdir -p "$CONTENT"
 python3 "$ROOT/docs/site/bib2vault.py" > /dev/null
 python3 "$ROOT/docs/site/bib2cff.py" > /dev/null
 
-# the theory notes (meta/ — the authoring prompts and the PhD proposals — is not published)
+# the theory notes (meta/ is local working material, ignored by git and never published)
 cp -r "$ROOT/vault/." "$CONTENT/"
 
 # the implementation notes that sit beside the Julia source
