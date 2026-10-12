@@ -115,6 +115,13 @@ page and the vault's [Bibliography](https://MathStruct.github.io/Lenticulum.jl/d
 and it is the reference list of [`CITATION.cff`](CITATION.cff). To cite Lenticulum itself, use
 the Zenodo DOI [10.5281/zenodo.23314723](https://doi.org/10.5281/zenodo.23314723).
 
+**A graphical editor.** [Moonkale](https://github.com/MathStruct/Moonkale), a sister project
+written in Rust (desktop, web and Android), is a graph-native editor for code and notes. One of
+its goals is to edit factor graphs for Lenticulum, Lux.jl, ModelingToolkit.jl and RxInfer.jl as
+diagrams that stay diagrams instead of becoming code
+([the plan](https://mathstruct.github.io/Moonkale/architecture/Julia-and-Lenticulum)). It is a
+prototype; the vault can already be browsed in it as a graph.
+
 ## What is in the repository
 
 One umbrella package over five smaller ones. All depend on **LuxCore** only — not Lux, Zygote

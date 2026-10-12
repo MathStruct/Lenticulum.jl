@@ -274,4 +274,7 @@ some parts known and some fitted, and a residual that means something in the dom
   setting. There is no junction tree and no parallelism today; a sweep is **quadratic in the
   number of factors** (measured); and the compile-vs-dynamic tension dissolves if you
   **compile the factor types, not the graph**
+- [Moonkale](https://github.com/MathStruct/Moonkale) — a sister project in Rust: a graph-native
+  editor for code and notes, meant to become a diagram editor for these factor graphs (prototype;
+  [the plan](https://mathstruct.github.io/Moonkale/architecture/Julia-and-Lenticulum))
 - [[README]] — the pitch
