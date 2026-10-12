@@ -8,7 +8,7 @@
 
 > Sources: Bagaev, Podusenko & de Vries, *RxInfer: A Julia package for reactive real-time Bayesian inference*, JOSS 2023; Bagaev & de Vries, *Reactive Message Passing for Scalable Bayesian Inference*, Scientific Programming 2023; Şenöz, van de Laar, Bagaev & de Vries, *Variational Message Passing and Local Constraint Manipulation in Factor Graphs*, Entropy 2021; the RxInfer documentation (custom nodes, deterministic nodes, non-conjugate inference), read October 2026
 >
-> Bibliography: [[Bibliography#^bagaev2023rxinfer|Bagaev et al. 2023]] · [[Bibliography#^bagaev2023reactive|Bagaev & de Vries 2023]] · [[Bibliography#^senoz2021local|\cSenöz et al. 2021]]
+> Bibliography: [[Bibliography#^bagaev2023rxinfer|Bagaev et al. 2023]] · [[Bibliography#^bagaev2023reactive|Bagaev & de Vries 2023]] · [[Bibliography#^senoz2021local|Şenöz et al. 2021]]
 >
 > Theory (CT-ML wiki): [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 

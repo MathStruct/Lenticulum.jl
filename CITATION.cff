@@ -54,3 +54,1783 @@ abstract: >-
   a research prototype under active development, with features added and
   improved continuously. Each archived version is a snapshot of that work, and
   the concept DOI always resolves to the latest version.
+# Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
+# tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
+# Generated from docs/src/refs.bib by docs/site/bib2cff.py: the works cited in the
+# tutorials, implementation notes and theory vault. Edit the .bib file, not this list.
+references:
+  - type: article
+    title: "Batch Nonlinear Continuous-Time Trajectory Estimation as Exactly Sparse Gaussian Process Regression"
+    authors:
+      - family-names: "Anderson"
+        given-names: "Sean"
+      - family-names: "Barfoot"
+        given-names: "Timothy D."
+      - family-names: "Tong"
+        given-names: "Chi Hay"
+      - family-names: "Särkkä"
+        given-names: "Simo"
+    year: 2015
+    journal: "Autonomous Robots"
+    volume: "39"
+    issue: "3"
+    start: "221"
+    end: "238"
+    url: "https://arxiv.org/abs/1412.0630"
+  - type: conference-paper
+    title: "Syntax and Semantics of Quantitative Type Theory"
+    authors:
+      - family-names: "Atkey"
+        given-names: "Robert"
+    year: 2018
+    collection-title: "Proceedings of the 33rd Annual ACM/IEEE Symposium on Logic in Computer Science"
+    start: "56"
+    end: "65"
+    doi: "10.1145/3209108.3209189"
+  - type: article
+    title: "Structured Cospans"
+    authors:
+      - family-names: "Baez"
+        given-names: "John C."
+      - family-names: "Courser"
+        given-names: "Kenny"
+    year: 2020
+    journal: "Theory and Applications of Categories"
+    volume: "35"
+    url: "https://arxiv.org/abs/1911.04630"
+  - type: article
+    title: "RxInfer: A Julia package for reactive real-time Bayesian inference"
+    authors:
+      - family-names: "Bagaev"
+        given-names: "Dmitry"
+      - family-names: "Podusenko"
+        given-names: "Albert"
+      - family-names: "de Vries"
+        given-names: "Bert"
+    year: 2023
+    journal: "Journal of Open Source Software"
+    volume: "8"
+    issue: "84"
+    start: "5161"
+    doi: "10.21105/joss.05161"
+  - type: conference-paper
+    title: "Deep Equilibrium Models"
+    authors:
+      - family-names: "Bai"
+        given-names: "Shaojie"
+      - family-names: "Kolter"
+        given-names: "J. Zico"
+      - family-names: "Koltun"
+        given-names: "Vladlen"
+    year: 2019
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/1909.01377"
+  - type: conference-paper
+    title: "MACE: Higher Order Equivariant Message Passing Neural Networks for Fast and Accurate Force Fields"
+    authors:
+      - family-names: "Batatia"
+        given-names: "Ilyes"
+      - family-names: "Kovacs"
+        given-names: "David P"
+      - family-names: "Simm"
+        given-names: "Gregor"
+      - family-names: "Ortner"
+        given-names: "Christoph"
+      - family-names: "Csanyi"
+        given-names: "Gabor"
+    year: 2022
+    collection-title: "Advances in Neural Information Processing Systems 35"
+    start: "11423"
+    end: "11436"
+    doi: "10.52202/068431-0830"
+  - type: article
+    title: "E(3)-equivariant graph neural networks for data-efficient and accurate interatomic potentials"
+    authors:
+      - family-names: "Batzner"
+        given-names: "Simon"
+      - family-names: "Musaelian"
+        given-names: "Albert"
+      - family-names: "Sun"
+        given-names: "Lixin"
+      - family-names: "Geiger"
+        given-names: "Mario"
+      - family-names: "Mailoa"
+        given-names: "Jonathan P."
+      - family-names: "Kornbluth"
+        given-names: "Mordechai"
+      - family-names: "Molinari"
+        given-names: "Nicola"
+      - family-names: "Smidt"
+        given-names: "Tess E."
+      - family-names: "Kozinsky"
+        given-names: "Boris"
+    year: 2022
+    journal: "Nature Communications"
+    volume: "13"
+    issue: "1"
+    doi: "10.1038/s41467-022-29939-5"
+  - type: conference-paper
+    title: "The dark side of the forces: assessing non-conservative force models for atomistic machine learning"
+    authors:
+      - family-names: "Bigi"
+        given-names: "Filippo"
+      - family-names: "Langer"
+        given-names: "Marcel"
+      - family-names: "Ceriotti"
+        given-names: "Michele"
+    year: 2025
+    collection-title: "International Conference on Machine Learning (ICML)"
+    url: "https://arxiv.org/abs/2412.11569"
+  - type: article
+    title: "Semiring-based constraint satisfaction and optimization"
+    authors:
+      - family-names: "Bistarelli"
+        given-names: "Stefano"
+      - family-names: "Montanari"
+        given-names: "Ugo"
+      - family-names: "Rossi"
+        given-names: "Francesca"
+    year: 1997
+    journal: "Journal of the ACM"
+    volume: "44"
+    issue: "2"
+    start: "201"
+    end: "236"
+    doi: "10.1145/256303.256306"
+  - type: article
+    title: "Interacting Hopf algebras"
+    authors:
+      - family-names: "Bonchi"
+        given-names: "Filippo"
+      - family-names: "Sobociński"
+        given-names: "Paweł"
+      - family-names: "Zanasi"
+        given-names: "Fabio"
+    year: 2017
+    journal: "Journal of Pure and Applied Algebra"
+    volume: "221"
+    issue: "1"
+    start: "144"
+    end: "184"
+    doi: "10.1016/j.jpaa.2016.06.002"
+  - type: generic
+    title: "Geometric Deep Learning: Grids, Groups, Graphs, Geodesics, and Gauges"
+    authors:
+      - family-names: "Bronstein"
+        given-names: "Michael M."
+      - family-names: "Bruna"
+        given-names: "Joan"
+      - family-names: "Cohen"
+        given-names: "Taco"
+      - family-names: "Veličković"
+        given-names: "Petar"
+    year: 2021
+    url: "https://arxiv.org/abs/2104.13478"
+  - type: article
+    title: "A class of methods for solving nonlinear simultaneous equations"
+    authors:
+      - family-names: "Broyden"
+        given-names: "C. G."
+    year: 1965
+    journal: "Mathematics of Computation"
+    volume: "19"
+    issue: "92"
+    start: "577"
+    end: "593"
+    doi: "10.1090/s0025-5718-1965-0198670-6"
+  - type: conference-paper
+    title: "Neural Ordinary Differential Equations"
+    authors:
+      - family-names: "Chen"
+        given-names: "Ricky T. Q."
+      - family-names: "Rubanova"
+        given-names: "Yulia"
+      - family-names: "Bettencourt"
+        given-names: "Jesse"
+      - family-names: "Duvenaud"
+        given-names: "David"
+    year: 2018
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/1806.07366"
+  - type: conference-paper
+    title: "Diffusion Posterior Sampling for General Noisy Inverse Problems"
+    authors:
+      - family-names: "Chung"
+        given-names: "Hyungjin"
+      - family-names: "Kim"
+        given-names: "Jeongsol"
+      - family-names: "McCann"
+        given-names: "Michael T."
+      - family-names: "Klasky"
+        given-names: "Marc L."
+      - family-names: "Ye"
+        given-names: "Jong Chul"
+    year: 2023
+    collection-title: "International Conference on Learning Representations (ICLR)"
+    url: "https://arxiv.org/abs/2209.14687"
+  - type: article
+    title: "Probabilistic Type Theory and Natural Language Semantics"
+    authors:
+      - family-names: "Cooper"
+        given-names: "Robin"
+      - family-names: "Dobnik"
+        given-names: "Simon"
+      - family-names: "Lappin"
+        given-names: "Shalom"
+      - family-names: "Larsson"
+        given-names: "Staffan"
+    year: 2015
+    journal: "Linguistic Issues in Language Technology"
+    volume: "10"
+    doi: "10.33011/lilt.v10i.1357"
+  - type: generic
+    title: "Lagrangian Neural Networks"
+    authors:
+      - family-names: "Cranmer"
+        given-names: "Miles"
+      - family-names: "Greydanus"
+        given-names: "Sam"
+      - family-names: "Hoyer"
+        given-names: "Stephan"
+      - family-names: "Battaglia"
+        given-names: "Peter"
+      - family-names: "Spergel"
+        given-names: "David"
+      - family-names: "Ho"
+        given-names: "Shirley"
+    year: 2020
+    url: "https://arxiv.org/abs/2003.04630"
+  - type: conference-paper
+    title: "Discovering Symbolic Models from Deep Learning with Inductive Biases"
+    authors:
+      - family-names: "Cranmer"
+        given-names: "Miles"
+      - family-names: "Sanchez-Gonzalez"
+        given-names: "Alvaro"
+      - family-names: "Battaglia"
+        given-names: "Peter"
+      - family-names: "Xu"
+        given-names: "Rui"
+      - family-names: "Cranmer"
+        given-names: "Kyle"
+      - family-names: "Spergel"
+        given-names: "David"
+      - family-names: "Ho"
+        given-names: "Shirley"
+    year: 2020
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/2006.11287"
+  - type: generic
+    title: "Interpretable Machine Learning for Science with PySR and SymbolicRegression.jl"
+    authors:
+      - family-names: "Cranmer"
+        given-names: "Miles"
+    year: 2023
+    url: "https://arxiv.org/abs/2305.01582"
+  - type: conference-paper
+    title: "Categorical Foundations of Gradient-Based Learning"
+    authors:
+      - family-names: "Cruttwell"
+        given-names: "G. S. H."
+      - family-names: "Gavranović"
+        given-names: "Bruno"
+      - family-names: "Ghani"
+        given-names: "Neil"
+      - family-names: "Wilson"
+        given-names: "Paul"
+      - family-names: "Zanasi"
+        given-names: "Fabio"
+    year: 2022
+    collection-title: "European Symposium on Programming (ESOP)"
+    url: "https://arxiv.org/abs/2103.01931"
+  - type: article
+    title: "Bucket elimination: A unifying framework for reasoning"
+    authors:
+      - family-names: "Dechter"
+        given-names: "Rina"
+    year: 1999
+    journal: "Artificial Intelligence"
+    volume: "113"
+    issue: "1-2"
+    start: "41"
+    end: "85"
+    doi: "10.1016/s0004-3702(99)00059-4"
+  - type: generic
+    title: "Partial Markov Categories"
+    authors:
+      - family-names: "Lavore"
+        given-names: "Elena Di"
+      - family-names: "Román"
+        given-names: "Mario"
+      - family-names: "Sobociński"
+        given-names: "Paweł"
+    year: 2025
+    url: "https://arxiv.org/abs/2502.03477"
+  - type: conference-paper
+    title: "Motion Planning as Probabilistic Inference using Gaussian Processes and Factor Graphs"
+    authors:
+      - family-names: "Dong"
+        given-names: "Jing"
+      - family-names: "Mukadam"
+        given-names: "Mustafa"
+      - family-names: "Dellaert"
+        given-names: "Frank"
+      - family-names: "Boots"
+        given-names: "Byron"
+    year: 2016
+    collection-title: "Robotics: Science and Systems XII"
+    doi: "10.15607/rss.2016.xii.001"
+  - type: conference-paper
+    title: "Implicit Generation and Generalization in Energy-Based Models"
+    authors:
+      - family-names: "Du"
+        given-names: "Yilun"
+      - family-names: "Mordatch"
+        given-names: "Igor"
+    year: 2019
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/1903.08689"
+  - type: conference-paper
+    title: "Reduce, Reuse, Recycle: Compositional Generation with Energy-Based Diffusion Models and MCMC"
+    authors:
+      - family-names: "Du"
+        given-names: "Yilun"
+      - family-names: "Durkan"
+        given-names: "Conor"
+      - family-names: "Strudel"
+        given-names: "Robin"
+      - family-names: "Tenenbaum"
+        given-names: "Joshua B."
+      - family-names: "Dieleman"
+        given-names: "Sander"
+      - family-names: "Fergus"
+        given-names: "Rob"
+      - family-names: "Sohl-Dickstein"
+        given-names: "Jascha"
+      - family-names: "Doucet"
+        given-names: "Arnaud"
+      - family-names: "Grathwohl"
+        given-names: "Will"
+    year: 2023
+    collection-title: "International Conference on Machine Learning (ICML)"
+    url: "https://arxiv.org/abs/2302.11552"
+  - type: article
+    title: "Tweedie's Formula and Selection Bias"
+    authors:
+      - family-names: "Efron"
+        given-names: "Bradley"
+    year: 2011
+    journal: "Journal of the American Statistical Association"
+    volume: "106"
+    issue: "496"
+    start: "1602"
+    end: "1614"
+    doi: "10.1198/jasa.2011.tm11181"
+  - type: generic
+    title: "Beyond Scores: Proximal Diffusion Models"
+    authors:
+      - family-names: "Fang"
+        given-names: "Zhenghan"
+      - family-names: "Díaz"
+        given-names: "Mateo"
+      - family-names: "Buchanan"
+        given-names: "Sam"
+      - family-names: "Sulam"
+        given-names: "Jeremias"
+    year: 2025
+    url: "https://arxiv.org/abs/2507.08956"
+  - type: article
+    title: "Semiring-Based CSPs and Valued CSPs: Frameworks, Properties, and Comparison"
+    authors:
+      - family-names: "Bistarelli"
+        given-names: "S."
+      - family-names: "Montanari"
+        given-names: "U."
+      - family-names: "Rossi"
+        given-names: "F."
+      - family-names: "Schiex"
+        given-names: "T."
+      - family-names: "Verfaillie"
+        given-names: "G."
+      - family-names: "Fargier"
+        given-names: "H."
+    year: 1999
+    journal: "Constraints"
+    volume: "4"
+    issue: "3"
+    start: "199"
+    end: "240"
+    doi: "10.1023/a:1026441215081"
+  - type: thesis
+    title: "Causal Theories: A Categorical Perspective on Bayesian Networks"
+    authors:
+      - family-names: "Fong"
+        given-names: "Brendan"
+    year: 2013
+    institution:
+      name: "University of Oxford"
+    thesis-type: "Master"
+    url: "https://arxiv.org/abs/1301.6201"
+  - type: thesis
+    title: "The Algebra of Open and Interconnected Systems"
+    authors:
+      - family-names: "Fong"
+        given-names: "Brendan"
+    year: 2016
+    institution:
+      name: "University of Oxford"
+    thesis-type: "PhD"
+    url: "https://arxiv.org/abs/1609.05382"
+  - type: article
+    title: "Hypergraph Categories"
+    authors:
+      - family-names: "Fong"
+        given-names: "Brendan"
+      - family-names: "Spivak"
+        given-names: "David I"
+    year: 2019
+    journal: "Journal of Pure and Applied Algebra"
+    url: "https://arxiv.org/abs/1806.08304"
+  - type: article
+    title: "The free-energy principle: a unified brain theory?"
+    authors:
+      - family-names: "Friston"
+        given-names: "Karl"
+    year: 2010
+    journal: "Nature Reviews Neuroscience"
+    volume: "11"
+    issue: "2"
+    start: "127"
+    end: "138"
+    doi: "10.1038/nrn2787"
+  - type: article
+    title: "Active Inference: A Process Theory"
+    authors:
+      - family-names: "Friston"
+        given-names: "Karl"
+      - family-names: "FitzGerald"
+        given-names: "Thomas"
+      - family-names: "Rigoli"
+        given-names: "Francesco"
+      - family-names: "Schwartenbeck"
+        given-names: "Philipp"
+      - family-names: "Pezzulo"
+        given-names: "Giovanni"
+    year: 2017
+    journal: "Neural Computation"
+    volume: "29"
+    issue: "1"
+    start: "1"
+    end: "49"
+    doi: "10.1162/neco_a_00912"
+  - type: article
+    title: "A synthetic approach to Markov kernels, conditional independence and theorems on sufficient statistics"
+    authors:
+      - family-names: "Fritz"
+        given-names: "Tobias"
+    year: 2020
+    journal: "Advances in Mathematics"
+    volume: "370"
+    doi: "10.1016/j.aim.2020.107239"
+    url: "https://arxiv.org/abs/1908.07021"
+  - type: conference-paper
+    title: "JFB: Jacobian-Free Backpropagation for Implicit Networks"
+    authors:
+      - family-names: "Wu Fung"
+        given-names: "Samy"
+      - family-names: "Heaton"
+        given-names: "Howard"
+      - family-names: "Li"
+        given-names: "Qiuwei"
+      - family-names: "McKenzie"
+        given-names: "Daniel"
+      - family-names: "Osher"
+        given-names: "Stanley"
+      - family-names: "Yin"
+        given-names: "Wotao"
+    year: 2022
+    collection-title: "AAAI Conference on Artificial Intelligence"
+    url: "https://arxiv.org/abs/2103.12803"
+  - type: conference-paper
+    title: "Compositional game theory"
+    authors:
+      - family-names: "Ghani"
+        given-names: "Neil"
+      - family-names: "Hedges"
+        given-names: "Jules"
+      - family-names: "Winschel"
+        given-names: "Viktor"
+      - family-names: "Zahn"
+        given-names: "Philipp"
+    year: 2018
+    collection-title: "Logic in Computer Science (LICS)"
+    url: "https://arxiv.org/abs/1603.04641"
+  - type: generic
+    title: "A categorical approach to probability theory"
+    authors:
+      - family-names: "Giry"
+        given-names: "Michèle"
+    year: 1982
+    collection-title: "Lecture Notes in Mathematics"
+    start: "68"
+    end: "85"
+    doi: "10.1007/bfb0092872"
+  - type: conference-paper
+    title: "FFJORD: Free-form Continuous Dynamics for Scalable Reversible Generative Models"
+    authors:
+      - family-names: "Grathwohl"
+        given-names: "Will"
+      - family-names: "Chen"
+        given-names: "Ricky T. Q."
+      - family-names: "Bettencourt"
+        given-names: "Jesse"
+      - family-names: "Sutskever"
+        given-names: "Ilya"
+      - family-names: "Duvenaud"
+        given-names: "David"
+    year: 2019
+    collection-title: "International Conference on Learning Representations (ICLR)"
+    url: "https://arxiv.org/abs/1810.01367"
+  - type: conference-paper
+    title: "Hamiltonian Neural Networks"
+    authors:
+      - family-names: "Greydanus"
+        given-names: "Sam"
+      - family-names: "Dzamba"
+        given-names: "Misko"
+      - family-names: "Yosinski"
+        given-names: "Jason"
+    year: 2019
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/1906.01563"
+  - type: article
+    title: "Training Products of Experts by Minimizing Contrastive Divergence"
+    authors:
+      - family-names: "Hinton"
+        given-names: "Geoffrey E."
+    year: 2002
+    journal: "Neural Computation"
+    volume: "14"
+    issue: "8"
+    start: "1771"
+    end: "1800"
+    doi: "10.1162/089976602760128018"
+  - type: conference-paper
+    title: "Denoising Diffusion Probabilistic Models"
+    authors:
+      - family-names: "Ho"
+        given-names: "Jonathan"
+      - family-names: "Jain"
+        given-names: "Ajay"
+      - family-names: "Abbeel"
+        given-names: "Pieter"
+    year: 2020
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/2006.11239"
+  - type: article
+    title: "iSAM2: Incremental smoothing and mapping using the Bayes tree"
+    authors:
+      - family-names: "Kaess"
+        given-names: "Michael"
+      - family-names: "Johannsson"
+        given-names: "Hordur"
+      - family-names: "Roberts"
+        given-names: "Richard"
+      - family-names: "Ila"
+        given-names: "Viorela"
+      - family-names: "Leonard"
+        given-names: "John J"
+      - family-names: "Dellaert"
+        given-names: "Frank"
+    year: 2012
+    journal: "The International Journal of Robotics Research"
+    volume: "31"
+    issue: "2"
+    start: "216"
+    end: "235"
+    doi: "10.1177/0278364911430419"
+  - type: article
+    title: "SINDy-PI: A Robust Algorithm for Parallel Implicit Sparse Identification of Nonlinear Dynamics"
+    authors:
+      - family-names: "Kaheman"
+        given-names: "Kadierdan"
+      - family-names: "Kutz"
+        given-names: "J. Nathan"
+      - family-names: "Brunton"
+        given-names: "Steven L."
+    year: 2020
+    journal: "Proceedings of the Royal Society A"
+    doi: "10.1098/rspa.2020.0279"
+    url: "https://arxiv.org/abs/2004.02322"
+  - type: article
+    title: "Parametric effect monads and semantics of effect systems"
+    authors:
+      - family-names: "Katsumata"
+        given-names: "Shin-ya"
+    year: 2014
+    journal: "ACM SIGPLAN Notices"
+    volume: "49"
+    issue: "1"
+    start: "633"
+    end: "645"
+    doi: "10.1145/2578855.2535846"
+  - type: conference-paper
+    title: "Contrastive Decoding: Open-ended Text Generation as Optimization"
+    authors:
+      - family-names: "Li"
+        given-names: "Xiang Lisa"
+      - family-names: "Holtzman"
+        given-names: "Ari"
+      - family-names: "Fried"
+        given-names: "Daniel"
+      - family-names: "Liang"
+        given-names: "Percy"
+      - family-names: "Eisner"
+        given-names: "Jason"
+      - family-names: "Hashimoto"
+        given-names: "Tatsunori"
+      - family-names: "Zettlemoyer"
+        given-names: "Luke"
+      - family-names: "Lewis"
+        given-names: "Mike"
+    year: 2023
+    collection-title: "Annual Meeting of the Association for Computational Linguistics (ACL)"
+    url: "https://arxiv.org/abs/2210.15097"
+  - type: conference-paper
+    title: "Compositional Visual Generation with Composable Diffusion Models"
+    authors:
+      - family-names: "Liu"
+        given-names: "Nan"
+      - family-names: "Li"
+        given-names: "Shuang"
+      - family-names: "Du"
+        given-names: "Yilun"
+      - family-names: "Torralba"
+        given-names: "Antonio"
+      - family-names: "Tenenbaum"
+        given-names: "Joshua B."
+    year: 2022
+    collection-title: "European Conference on Computer Vision (ECCV)"
+    url: "https://arxiv.org/abs/2206.01714"
+  - type: article
+    title: "An Introduction to factor graphs"
+    authors:
+      - family-names: "Loeliger"
+        given-names: "Hans-Andrea"
+    year: 2004
+    journal: "IEEE Signal Processing Magazine"
+    volume: "21"
+    issue: "1"
+    start: "28"
+    end: "41"
+    doi: "10.1109/msp.2004.1267047"
+  - type: article
+    title: "The Factor Graph Approach to Model-Based Signal Processing"
+    authors:
+      - family-names: "Loeliger"
+        given-names: "Hans-Andrea"
+      - family-names: "Dauwels"
+        given-names: "Justin"
+      - family-names: "Hu"
+        given-names: "Junli"
+      - family-names: "Korl"
+        given-names: "Sascha"
+      - family-names: "Ping"
+        given-names: "Li"
+      - family-names: "Kschischang"
+        given-names: "Frank R."
+    year: 2007
+    journal: "Proceedings of the IEEE"
+    volume: "95"
+    issue: "6"
+    start: "1295"
+    end: "1322"
+    doi: "10.1109/jproc.2007.896497"
+  - type: conference-paper
+    title: "Discrete Diffusion Modeling by Estimating the Ratios of the Data Distribution"
+    authors:
+      - family-names: "Lou"
+        given-names: "Aaron"
+      - family-names: "Meng"
+        given-names: "Chenlin"
+      - family-names: "Ermon"
+        given-names: "Stefano"
+    year: 2024
+    collection-title: "International Conference on Machine Learning (ICML)"
+    url: "https://arxiv.org/abs/2310.16834"
+  - type: article
+    title: "Inferring biological networks by sparse identification of nonlinear dynamics"
+    authors:
+      - family-names: "Mangan"
+        given-names: "Niall M."
+      - family-names: "Brunton"
+        given-names: "Steven L."
+      - family-names: "Proctor"
+        given-names: "Joshua L."
+      - family-names: "Kutz"
+        given-names: "J. Nathan"
+    year: 2016
+    journal: "IEEE Transactions on Molecular, Biological and Multi-Scale Communications"
+    url: "https://arxiv.org/abs/1605.08368"
+  - type: conference-paper
+    title: "A Variational Perspective on Solving Inverse Problems with Diffusion Models"
+    authors:
+      - family-names: "Mardani"
+        given-names: "Morteza"
+      - family-names: "Song"
+        given-names: "Jiaming"
+      - family-names: "Kautz"
+        given-names: "Jan"
+      - family-names: "Vahdat"
+        given-names: "Arash"
+    year: 2024
+    collection-title: "International Conference on Learning Representations (ICLR)"
+    url: "https://arxiv.org/abs/2305.04391"
+  - type: conference-paper
+    title: "Expectation Propagation for approximate Bayesian inference"
+    authors:
+      - family-names: "Minka"
+        given-names: "Thomas P."
+    year: 2001
+    collection-title: "Conference on Uncertainty in Artificial Intelligence (UAI)"
+    url: "https://arxiv.org/abs/1301.2294"
+  - type: generic
+    title: "Learning in Implicit Generative Models"
+    authors:
+      - family-names: "Mohamed"
+        given-names: "Shakir"
+      - family-names: "Lakshminarayanan"
+        given-names: "Balaji"
+    year: 2016
+    url: "https://arxiv.org/abs/1610.03483"
+  - type: conference-paper
+    title: "Instead of Rewriting Foreign Code for Machine Learning, Automatically Synthesize Fast Gradients"
+    authors:
+      - family-names: "Moses"
+        given-names: "William S."
+      - family-names: "Churavy"
+        given-names: "Valentin"
+    year: 2020
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    doi: "10.5555/3495724.3496770"
+    url: "https://arxiv.org/abs/2010.01709"
+  - type: generic
+    title: "Large Language Diffusion Models"
+    authors:
+      - family-names: "Nie"
+        given-names: "Shen"
+      - family-names: "Zhu"
+        given-names: "Fengqi"
+      - family-names: "You"
+        given-names: "Zebin"
+      - family-names: "Zhang"
+        given-names: "Xiaolu"
+      - family-names: "Ou"
+        given-names: "Jingyang"
+      - family-names: "Hu"
+        given-names: "Jun"
+      - family-names: "Zhou"
+        given-names: "Jun"
+      - family-names: "Lin"
+        given-names: "Yankai"
+      - family-names: "Wen"
+        given-names: "Ji-Rong"
+      - family-names: "Li"
+        given-names: "Chongxuan"
+    year: 2025
+    url: "https://arxiv.org/abs/2502.09992"
+  - type: article
+    title: "The Consistent Initialization of Differential-Algebraic Systems"
+    authors:
+      - family-names: "Pantelides"
+        given-names: "Constantinos C."
+    year: 1988
+    journal: "SIAM Journal on Scientific and Statistical Computing"
+    volume: "9"
+    issue: "2"
+    start: "213"
+    end: "231"
+    doi: "10.1137/0909014"
+  - type: article
+    title: "Maximum likelihood estimates of linear dynamic systems"
+    authors:
+      - family-names: "Rauch"
+        given-names: "H. E."
+      - family-names: "Tung"
+        given-names: "F."
+      - family-names: "Striebel"
+        given-names: "C. T."
+    year: 1965
+    journal: "AIAA Journal"
+    volume: "3"
+    issue: "8"
+    start: "1445"
+    end: "1450"
+    doi: "10.2514/3.3166"
+  - type: article
+    title: "Markov logic networks"
+    authors:
+      - family-names: "Richardson"
+        given-names: "Matthew"
+      - family-names: "Domingos"
+        given-names: "Pedro"
+    year: 2006
+    journal: "Machine Learning"
+    volume: "62"
+    issue: "1-2"
+    start: "107"
+    end: "136"
+    doi: "10.1007/s10994-006-5833-1"
+  - type: article
+    title: "The Little Engine that Could: Regularization by Denoising (RED)"
+    authors:
+      - family-names: "Romano"
+        given-names: "Yaniv"
+      - family-names: "Elad"
+        given-names: "Michael"
+      - family-names: "Milanfar"
+        given-names: "Peyman"
+    year: 2017
+    journal: "SIAM Journal on Imaging Sciences"
+    volume: "10"
+    issue: "4"
+    url: "https://arxiv.org/abs/1611.02862"
+  - type: conference-paper
+    title: "Simple and Effective Masked Diffusion Language Models"
+    authors:
+      - family-names: "Sahoo"
+        given-names: "Subham Sekhar"
+      - family-names: "Arriola"
+        given-names: "Marianne"
+      - family-names: "Schiff"
+        given-names: "Yair"
+      - family-names: "Gokaslan"
+        given-names: "Aaron"
+      - family-names: "Marroquin"
+        given-names: "Edgar"
+      - family-names: "Chiu"
+        given-names: "Justin T"
+      - family-names: "Rush"
+        given-names: "Alexander"
+      - family-names: "Kuleshov"
+        given-names: "Volodymyr"
+    year: 2024
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/2406.07524"
+  - type: article
+    title: "Spatiotemporal Learning via Infinite-Dimensional Bayesian Filtering and Smoothing: A Look at Gaussian Process Regression Through Kalman Filtering"
+    authors:
+      - family-names: "Särkkä"
+        given-names: "Simo"
+      - family-names: "Solin"
+        given-names: "Arno"
+      - family-names: "Hartikainen"
+        given-names: "Jouni"
+    year: 2013
+    journal: "IEEE Signal Processing Magazine"
+    volume: "30"
+    issue: "4"
+    start: "51"
+    end: "61"
+    doi: "10.1109/msp.2013.2246292"
+  - type: article
+    title: "Temporal Parallelization of Bayesian Smoothers"
+    authors:
+      - family-names: "Särkkä"
+        given-names: "Simo"
+      - family-names: "García-Fernández"
+        given-names: "Ángel F."
+    year: 2021
+    journal: "IEEE Transactions on Automatic Control"
+    volume: "66"
+    issue: "1"
+    start: "299"
+    end: "306"
+    url: "https://arxiv.org/abs/1905.13002"
+  - type: article
+    title: "Distilling Free-Form Natural Laws from Experimental Data"
+    authors:
+      - family-names: "Schmidt"
+        given-names: "Michael"
+      - family-names: "Lipson"
+        given-names: "Hod"
+    year: 2009
+    journal: "Science"
+    volume: "324"
+    issue: "5923"
+    start: "81"
+    end: "85"
+    doi: "10.1126/science.1165893"
+  - type: article
+    title: "The execution algorithm of mercury, an efficient purely declarative logic programming language"
+    authors:
+      - family-names: "Somogyi"
+        given-names: "Zoltan"
+      - family-names: "Henderson"
+        given-names: "Fergus"
+      - family-names: "Conway"
+        given-names: "Thomas"
+    year: 1996
+    journal: "The Journal of Logic Programming"
+    volume: "29"
+    issue: "1-3"
+    start: "17"
+    end: "64"
+    doi: "10.1016/s0743-1066(96)00068-4"
+  - type: conference-paper
+    title: "Score-Based Generative Modeling through Stochastic Differential Equations"
+    authors:
+      - family-names: "Song"
+        given-names: "Yang"
+      - family-names: "Sohl-Dickstein"
+        given-names: "Jascha"
+      - family-names: "Kingma"
+        given-names: "Diederik P."
+      - family-names: "Kumar"
+        given-names: "Abhishek"
+      - family-names: "Ermon"
+        given-names: "Stefano"
+      - family-names: "Poole"
+        given-names: "Ben"
+    year: 2021
+    collection-title: "International Conference on Learning Representations (ICLR)"
+    url: "https://arxiv.org/abs/2011.13456"
+  - type: generic
+    title: "How to Train Your Energy-Based Models"
+    authors:
+      - family-names: "Song"
+        given-names: "Yang"
+      - family-names: "Kingma"
+        given-names: "Diederik P."
+    year: 2021
+    url: "https://arxiv.org/abs/2101.03288"
+  - type: generic
+    title: "Bayesian Updates Compose Optically"
+    authors:
+      - family-names: "St Clere Smithe"
+        given-names: "Toby"
+    year: 2020
+    url: "https://arxiv.org/abs/2006.01631"
+  - type: generic
+    title: "AutoBayes: A Compositional Framework for Generalized Variational Inference"
+    authors:
+      - family-names: "St Clere Smithe"
+        given-names: "Toby"
+      - family-names: "Perin"
+        given-names: "Marco"
+    year: 2025
+    url: "https://arxiv.org/abs/2503.18608"
+  - type: conference-paper
+    title: "A Category for unifying Gaussian Probability and Nondeterminism"
+    authors:
+      - family-names: "Stein"
+        given-names: "Dario"
+      - family-names: "Samuelson"
+        given-names: "Richard"
+    year: 2023
+    collection-title: "Conference on Algebra and Coalgebra in Computer Science (CALCO)"
+    url: "https://arxiv.org/abs/2204.14024"
+  - type: generic
+    title: "Graphical Quadratic Algebra"
+    authors:
+      - family-names: "Stein"
+        given-names: "Dario"
+      - family-names: "Zanasi"
+        given-names: "Fabio"
+      - family-names: "Piedeleu"
+        given-names: "Robin"
+      - family-names: "Samuelson"
+        given-names: "Richard"
+    year: 2024
+    url: "https://arxiv.org/abs/2403.02284"
+  - type: article
+    title: "An analysis of temporal-difference learning with function approximation"
+    authors:
+      - family-names: "Tsitsiklis"
+        given-names: "J.N."
+      - family-names: "Van Roy"
+        given-names: "B."
+    year: 1997
+    journal: "IEEE Transactions on Automatic Control"
+    volume: "42"
+    issue: "5"
+    start: "674"
+    end: "690"
+    doi: "10.1109/9.580874"
+  - type: article
+    title: "Computer \"Experiments\" on Classical Fluids. I. Thermodynamical Properties of Lennard-Jones Molecules"
+    authors:
+      - family-names: "Verlet"
+        given-names: "Loup"
+    year: 1967
+    journal: "Physical Review"
+    volume: "159"
+    issue: "1"
+    start: "98"
+    end: "103"
+    doi: "10.1103/physrev.159.98"
+  - type: article
+    title: "A Connection Between Score Matching and Denoising Autoencoders"
+    authors:
+      - family-names: "Vincent"
+        given-names: "Pascal"
+    year: 2011
+    journal: "Neural Computation"
+    volume: "23"
+    issue: "7"
+    start: "1661"
+    end: "1674"
+    doi: "10.1162/neco_a_00142"
+  - type: article
+    title: "The Behavioral Approach to Open and Interconnected Systems"
+    authors:
+      - family-names: "Willems"
+        given-names: "Jan"
+    year: 2007
+    journal: "IEEE Control Systems Magazine"
+    volume: "27"
+    issue: "99"
+    start: "x1"
+    end: "x1"
+    doi: "10.1109/mcs.2007.4339280"
+  - type: conference-paper
+    title: "Denoising Diffusion Models for Plug-and-Play Image Restoration"
+    authors:
+      - family-names: "Zhu"
+        given-names: "Yuanzhi"
+      - family-names: "Zhang"
+        given-names: "Kai"
+      - family-names: "Liang"
+        given-names: "Jingyun"
+      - family-names: "Cao"
+        given-names: "Jiezhang"
+      - family-names: "Wen"
+        given-names: "Bihan"
+      - family-names: "Timofte"
+        given-names: "Radu"
+      - family-names: "Van Gool"
+        given-names: "Luc"
+    year: 2023
+    collection-title: "IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)"
+    url: "https://arxiv.org/abs/2305.08995"
+  - type: generic
+    title: "A Tutorial on Energy-Based Learning"
+    authors:
+      - family-names: "LeCun"
+        given-names: "Yann"
+      - family-names: "Chopra"
+        given-names: "Sumit"
+      - family-names: "Hadsell"
+        given-names: "Raia"
+      - family-names: "Ranzato"
+        given-names: "Marc'Aurelio"
+      - family-names: "Huang"
+        given-names: "Fu Jie"
+    year: 2006
+    collection-title: "Predicting Structured Data"
+    publisher:
+      name: "MIT Press"
+    url: "http://yann.lecun.com/exdb/publis/pdf/lecun-06.pdf"
+  - type: article
+    title: "Invariante Variationsprobleme"
+    authors:
+      - family-names: "Noether"
+        given-names: "Emmy"
+    year: 1918
+    journal: "Nachrichten von der Gesellschaft der Wissenschaften zu Göttingen, Mathematisch-Physikalische Klasse"
+  - type: conference-paper
+    title: "First-order probabilistic inference"
+    authors:
+      - family-names: "Poole"
+        given-names: "David"
+    year: 2003
+    collection-title: "International Joint Conference on Artificial Intelligence (IJCAI)"
+  - type: conference-paper
+    title: "Should EBMs model the energy or the score?"
+    authors:
+      - family-names: "Salimans"
+        given-names: "Tim"
+      - family-names: "Ho"
+        given-names: "Jonathan"
+    year: 2021
+    collection-title: "Energy Based Models Workshop, International Conference on Learning Representations (ICLR)"
+  - type: conference-paper
+    title: "ProbLog: A Probabilistic Prolog and Its Application in Link Discovery"
+    authors:
+      - family-names: "De Raedt"
+        given-names: "Luc"
+      - family-names: "Kimmig"
+        given-names: "Angelika"
+      - family-names: "Toivonen"
+        given-names: "Hannu"
+    year: 2007
+    collection-title: "International Joint Conference on Artificial Intelligence (IJCAI)"
+  - type: book
+    title: "Sequential Monte Carlo Methods in Practice"
+    authors:
+      - family-names: "Doucet"
+        given-names: "Arnaud"
+      - family-names: "de Freitas"
+        given-names: "Nando"
+      - family-names: "Gordon"
+        given-names: "Neil"
+    year: 2001
+    publisher:
+      name: "Springer"
+  - type: article
+    title: "Dual control theory I–IV"
+    authors:
+      - family-names: "Feldbaum"
+        given-names: "A. A."
+    year: 1960
+    journal: "Automation and Remote Control"
+  - type: book
+    title: "Probabilistic Graphical Models: Principles and Techniques"
+    authors:
+      - family-names: "Koller"
+        given-names: "Daphne"
+      - family-names: "Friedman"
+        given-names: "Nir"
+    year: 2009
+    publisher:
+      name: "MIT Press"
+  - type: conference-paper
+    title: "PRISM: A Language for Symbolic-Statistical Modeling"
+    authors:
+      - family-names: "Sato"
+        given-names: "Taisuke"
+      - family-names: "Kameya"
+        given-names: "Yoshitaka"
+    year: 1997
+    collection-title: "International Joint Conference on Artificial Intelligence (IJCAI)"
+  - type: report
+    title: "Mixture Density Networks"
+    authors:
+      - family-names: "Bishop"
+        given-names: "Christopher M."
+    year: 1994
+    issue: "NCRG/94/004"
+    institution:
+      name: "Aston University"
+  - type: conference-paper
+    title: "Turing: A Language for Flexible Probabilistic Inference"
+    authors:
+      - family-names: "Ge"
+        given-names: "Hong"
+      - family-names: "Xu"
+        given-names: "Kai"
+      - family-names: "Ghahramani"
+        given-names: "Zoubin"
+    year: 2018
+    collection-title: "International Conference on Artificial Intelligence and Statistics (AISTATS)"
+  - type: conference-paper
+    title: "Gen: A General-Purpose Probabilistic Programming System with Programmable Inference"
+    authors:
+      - family-names: "Cusumano-Towner"
+        given-names: "Marco F."
+      - family-names: "Saad"
+        given-names: "Feras A."
+      - family-names: "Lew"
+        given-names: "Alexander K."
+      - family-names: "Mansinghka"
+        given-names: "Vikash K."
+    year: 2019
+    collection-title: "ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI)"
+  - type: generic
+    title: "ModelingToolkit: A Composable Graph Transformation System for Equation-Based Modeling"
+    authors:
+      - family-names: "Ma"
+        given-names: "Yingbo"
+      - family-names: "Gowda"
+        given-names: "Shashi"
+      - family-names: "Anantharaman"
+        given-names: "Ranjan"
+      - family-names: "Laughman"
+        given-names: "Chris"
+      - family-names: "Shah"
+        given-names: "Viral"
+      - family-names: "Rackauckas"
+        given-names: "Chris"
+    year: 2021
+    url: "https://arxiv.org/abs/2103.05244"
+  - type: generic
+    title: "DiffEqFlux.jl – A Julia Library for Neural Differential Equations"
+    authors:
+      - family-names: "Rackauckas"
+        given-names: "Chris"
+      - family-names: "Innes"
+        given-names: "Mike"
+      - family-names: "Ma"
+        given-names: "Yingbo"
+      - family-names: "Bettencourt"
+        given-names: "Jesse"
+      - family-names: "White"
+        given-names: "Lyndon"
+      - family-names: "Dixit"
+        given-names: "Vaibhav"
+    year: 2019
+    url: "https://arxiv.org/abs/1902.02376"
+  - type: generic
+    title: "Deep Implicit Layers: Neural ODEs, Deep Equilibrium Models, and Beyond"
+    authors:
+      - family-names: "Kolter"
+        given-names: "Zico"
+      - family-names: "Duvenaud"
+        given-names: "David"
+      - family-names: "Johnson"
+        given-names: "Matt"
+    year: 2020
+    url: "https://implicit-layers-tutorial.org/"
+  - type: software
+    title: "Lux.jl: Explicitly parameterized neural networks in Julia"
+    authors:
+      - name: "LuxDL contributors"
+    year: 2026
+    url: "https://github.com/LuxDL/Lux.jl"
+  - type: software
+    title: "Reactant.jl: Optimize Julia functions with MLIR and XLA"
+    authors:
+      - name: "EnzymeAD contributors"
+    year: 2026
+    url: "https://github.com/EnzymeAD/Reactant.jl"
+  - type: software
+    title: "DifferentiationInterface.jl: An interface to various automatic differentiation backends in Julia"
+    authors:
+      - name: "JuliaDiff contributors"
+    year: 2026
+    url: "https://github.com/JuliaDiff/DifferentiationInterface.jl"
+  - type: software
+    title: "Catlab.jl: A framework for applied category theory in Julia"
+    authors:
+      - name: "AlgebraicJulia contributors"
+    year: 2026
+    url: "https://github.com/AlgebraicJulia/Catlab.jl"
+  - type: software
+    title: "IncrementalInference.jl: Non-parametric factor graph inference, part of Caesar.jl"
+    authors:
+      - name: "JuliaRobotics contributors"
+    year: 2026
+    url: "https://github.com/JuliaRobotics/IncrementalInference.jl"
+  - type: software
+    title: "ForneyLab.jl: Generating fast and flexible message passing algorithms"
+    authors:
+      - name: "biaslab contributors"
+    year: 2026
+    url: "https://github.com/biaslab/ForneyLab.jl"
+  - type: article
+    title: "Julia: A Fresh Approach to Numerical Computing"
+    authors:
+      - family-names: "Bezanson"
+        given-names: "Jeff"
+      - family-names: "Edelman"
+        given-names: "Alan"
+      - family-names: "Karpinski"
+        given-names: "Stefan"
+      - family-names: "Shah"
+        given-names: "Viral B."
+    year: 2017
+    journal: "SIAM Review"
+    volume: "59"
+    issue: "1"
+    start: "65"
+    end: "98"
+    url: "https://arxiv.org/abs/1411.1607"
+  - type: article
+    title: "Julia: dynamism and performance reconciled by design"
+    authors:
+      - family-names: "Bezanson"
+        given-names: "Jeff"
+      - family-names: "Chen"
+        given-names: "Jiahao"
+      - family-names: "Chung"
+        given-names: "Benjamin"
+      - family-names: "Karpinski"
+        given-names: "Stefan"
+      - family-names: "Shah"
+        given-names: "Viral B."
+      - family-names: "Vitek"
+        given-names: "Jan"
+      - family-names: "Zoubritzky"
+        given-names: "Lionel"
+    year: 2018
+    journal: "Proceedings of the ACM on Programming Languages"
+    volume: "2"
+    issue: "OOPSLA"
+    start: "1"
+    end: "23"
+    doi: "10.1145/3276490"
+  - type: conference-paper
+    title: "PyTorch: An Imperative Style, High-Performance Deep Learning Library"
+    authors:
+      - family-names: "Paszke"
+        given-names: "Adam"
+      - family-names: "Gross"
+        given-names: "Sam"
+      - family-names: "Massa"
+        given-names: "Francisco"
+      - family-names: "Lerer"
+        given-names: "Adam"
+      - family-names: "Bradbury"
+        given-names: "James"
+      - family-names: "Chanan"
+        given-names: "Gregory"
+      - family-names: "Killeen"
+        given-names: "Trevor"
+      - family-names: "Lin"
+        given-names: "Zeming"
+      - family-names: "Gimelshein"
+        given-names: "Natalia"
+      - family-names: "Antiga"
+        given-names: "Luca"
+      - family-names: "Desmaison"
+        given-names: "Alban"
+      - family-names: "Köpf"
+        given-names: "Andreas"
+      - family-names: "Yang"
+        given-names: "Edward"
+      - family-names: "DeVito"
+        given-names: "Zach"
+      - family-names: "Raison"
+        given-names: "Martin"
+      - family-names: "Tejani"
+        given-names: "Alykhan"
+      - family-names: "Chilamkurthy"
+        given-names: "Sasank"
+      - family-names: "Steiner"
+        given-names: "Benoit"
+      - family-names: "Fang"
+        given-names: "Lu"
+      - family-names: "Bai"
+        given-names: "Junjie"
+      - family-names: "Chintala"
+        given-names: "Soumith"
+    year: 2019
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/1912.01703"
+  - type: conference-paper
+    title: "PyTorch 2: Faster Machine Learning Through Dynamic Python Bytecode Transformation and Graph Compilation"
+    authors:
+      - family-names: "Ansel"
+        given-names: "Jason"
+      - family-names: "Yang"
+        given-names: "Edward"
+      - family-names: "He"
+        given-names: "Horace"
+      - family-names: "Gimelshein"
+        given-names: "Natalia"
+      - family-names: "Jain"
+        given-names: "Animesh"
+      - family-names: "Voznesensky"
+        given-names: "Michael"
+      - family-names: "Bao"
+        given-names: "Bin"
+      - family-names: "Bell"
+        given-names: "Peter"
+      - family-names: "Berard"
+        given-names: "David"
+      - family-names: "Burovski"
+        given-names: "Evgeni"
+      - family-names: "Chauhan"
+        given-names: "Geeta"
+      - family-names: "Chourdia"
+        given-names: "Anjali"
+      - family-names: "Constable"
+        given-names: "Will"
+      - family-names: "Desmaison"
+        given-names: "Alban"
+      - family-names: "DeVito"
+        given-names: "Zachary"
+      - family-names: "Ellison"
+        given-names: "Elias"
+      - family-names: "Feng"
+        given-names: "Will"
+      - family-names: "Gong"
+        given-names: "Jiong"
+      - family-names: "Gschwind"
+        given-names: "Michael"
+      - family-names: "Hirsh"
+        given-names: "Brian"
+      - family-names: "Huang"
+        given-names: "Sherlock"
+      - family-names: "Kalambarkar"
+        given-names: "Kshiteej"
+      - family-names: "Kirsch"
+        given-names: "Laurent"
+      - family-names: "Lazos"
+        given-names: "Michael"
+      - family-names: "Lezcano"
+        given-names: "Mario"
+      - family-names: "Liang"
+        given-names: "Yanbo"
+      - family-names: "Liang"
+        given-names: "Jason"
+      - family-names: "Lu"
+        given-names: "Yinghai"
+      - family-names: "Luk"
+        given-names: "C. K."
+      - family-names: "Maher"
+        given-names: "Bert"
+      - family-names: "Pan"
+        given-names: "Yunjie"
+      - family-names: "Puhrsch"
+        given-names: "Christian"
+      - family-names: "Reso"
+        given-names: "Matthias"
+      - family-names: "Saroufim"
+        given-names: "Mark"
+      - family-names: "Siraichi"
+        given-names: "Marcos Yukio"
+      - family-names: "Suk"
+        given-names: "Helen"
+      - family-names: "Zhang"
+        given-names: "Shunting"
+      - family-names: "Suo"
+        given-names: "Michael"
+      - family-names: "Tillet"
+        given-names: "Phil"
+      - family-names: "Zhao"
+        given-names: "Xu"
+      - family-names: "Wang"
+        given-names: "Eikan"
+      - family-names: "Zhou"
+        given-names: "Keren"
+      - family-names: "Zou"
+        given-names: "Richard"
+      - family-names: "Wang"
+        given-names: "Xiaodong"
+      - family-names: "Mathews"
+        given-names: "Ajit"
+      - family-names: "Wen"
+        given-names: "William"
+      - family-names: "Chanan"
+        given-names: "Gregory"
+      - family-names: "Wu"
+        given-names: "Peng"
+      - family-names: "Chintala"
+        given-names: "Soumith"
+    year: 2024
+    collection-title: "Proceedings of the 29th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 2"
+    start: "929"
+    end: "947"
+    doi: "10.1145/3620665.3640366"
+  - type: generic
+    title: "Fashionable Modelling with Flux"
+    authors:
+      - family-names: "Innes"
+        given-names: "Michael"
+      - family-names: "Saba"
+        given-names: "Elliot"
+      - family-names: "Fischer"
+        given-names: "Keno"
+      - family-names: "Gandhi"
+        given-names: "Dhairya"
+      - family-names: "Rudilosso"
+        given-names: "Marco Concetto"
+      - family-names: "Joy"
+        given-names: "Neethu Mariya"
+      - family-names: "Karmali"
+        given-names: "Tejan"
+      - family-names: "Pal"
+        given-names: "Avik"
+      - family-names: "Shah"
+        given-names: "Viral"
+    year: 2018
+    url: "https://arxiv.org/abs/1811.01457"
+  - type: generic
+    title: "Forward-Mode Automatic Differentiation in Julia"
+    authors:
+      - family-names: "Revels"
+        given-names: "Jarrett"
+      - family-names: "Lubin"
+        given-names: "Miles"
+      - family-names: "Papamarkou"
+        given-names: "Theodore"
+    year: 2016
+    url: "https://arxiv.org/abs/1607.07892"
+  - type: generic
+    title: "Don't Unroll Adjoint: Differentiating SSA-Form Programs"
+    authors:
+      - family-names: "Innes"
+        given-names: "Michael"
+    year: 2018
+    url: "https://arxiv.org/abs/1810.07951"
+  - type: conference-paper
+    title: "Compiling machine learning programs via high-level tracing"
+    authors:
+      - family-names: "Frostig"
+        given-names: "Roy"
+      - family-names: "Johnson"
+        given-names: "Matthew James"
+      - family-names: "Leary"
+        given-names: "Chris"
+    year: 2018
+    collection-title: "Systems for Machine Learning (SysML)"
+  - type: software
+    title: "JAX: composable transformations of Python+NumPy programs"
+    authors:
+      - family-names: "Bradbury"
+        given-names: "James"
+      - family-names: "Frostig"
+        given-names: "Roy"
+      - family-names: "Hawkins"
+        given-names: "Peter"
+      - family-names: "Johnson"
+        given-names: "Matthew James"
+      - family-names: "Leary"
+        given-names: "Chris"
+      - family-names: "Maclaurin"
+        given-names: "Dougal"
+      - family-names: "Necula"
+        given-names: "George"
+      - family-names: "Paszke"
+        given-names: "Adam"
+      - family-names: "VanderPlas"
+        given-names: "Jake"
+      - family-names: "Wanderman-Milne"
+        given-names: "Skye"
+      - family-names: "Zhang"
+        given-names: "Qiao"
+    year: 2018
+    url: "https://github.com/jax-ml/jax"
+  - type: conference-paper
+    title: "Reconstruction and representation of 3D objects with radial basis functions"
+    authors:
+      - family-names: "Carr"
+        given-names: "J. C."
+      - family-names: "Beatson"
+        given-names: "R. K."
+      - family-names: "Cherrie"
+        given-names: "J. B."
+      - family-names: "Mitchell"
+        given-names: "T. J."
+      - family-names: "Fright"
+        given-names: "W. R."
+      - family-names: "McCallum"
+        given-names: "B. C."
+      - family-names: "Evans"
+        given-names: "T. R."
+    year: 2001
+    collection-title: "Proceedings of the 28th Annual Conference on Computer Graphics and Interactive Techniques (SIGGRAPH)"
+    doi: "10.1145/383259.383266"
+  - type: article
+    title: "Modelling with implicit surfaces that interpolate"
+    authors:
+      - family-names: "Turk"
+        given-names: "Greg"
+      - family-names: "O'Brien"
+        given-names: "James F."
+    year: 2002
+    journal: "ACM Transactions on Graphics"
+    volume: "21"
+    issue: "4"
+    start: "855"
+    end: "873"
+    doi: "10.1145/571647.571650"
+  - type: article
+    title: "Hermite Radial Basis Functions Implicits"
+    authors:
+      - family-names: "Macêdo"
+        given-names: "I."
+      - family-names: "Gois"
+        given-names: "J. P."
+      - family-names: "Velho"
+        given-names: "L."
+    year: 2011
+    journal: "Computer Graphics Forum"
+    volume: "30"
+    issue: "1"
+    start: "27"
+    end: "42"
+    doi: "10.1111/j.1467-8659.2010.01785.x"
+  - type: conference-paper
+    title: "Gaussian Process Implicit Surfaces"
+    authors:
+      - family-names: "Williams"
+        given-names: "Oliver"
+      - family-names: "Fitzgibbon"
+        given-names: "Andrew"
+    year: 2006
+    collection-title: "Gaussian Processes in Practice workshop"
+  - type: article
+    title: "Kernel PCA for novelty detection"
+    authors:
+      - family-names: "Hoffmann"
+        given-names: "Heiko"
+    year: 2007
+    journal: "Pattern Recognition"
+    volume: "40"
+    issue: "3"
+    start: "863"
+    end: "874"
+    doi: "10.1016/j.patcog.2006.07.009"
+  - type: article
+    title: "Estimating the Support of a High-Dimensional Distribution"
+    authors:
+      - family-names: "Schölkopf"
+        given-names: "Bernhard"
+      - family-names: "Platt"
+        given-names: "John C."
+      - family-names: "Shawe-Taylor"
+        given-names: "John"
+      - family-names: "Smola"
+        given-names: "Alex J."
+      - family-names: "Williamson"
+        given-names: "Robert C."
+    year: 2001
+    journal: "Neural Computation"
+    volume: "13"
+    issue: "7"
+    start: "1443"
+    end: "1471"
+    doi: "10.1162/089976601750264965"
+  - type: article
+    title: "Support Vector Data Description"
+    authors:
+      - family-names: "Tax"
+        given-names: "David M. J."
+      - family-names: "Duin"
+        given-names: "Robert P. W."
+    year: 2004
+    journal: "Machine Learning"
+    volume: "54"
+    doi: "10.1023/B:MACH.0000008084.60811.49"
+  - type: article
+    title: "Nonparametric ridge estimation"
+    authors:
+      - family-names: "Genovese"
+        given-names: "Christopher R."
+      - family-names: "Perone-Pacifico"
+        given-names: "Marco"
+      - family-names: "Verdinelli"
+        given-names: "Isabella"
+      - family-names: "Wasserman"
+        given-names: "Larry"
+    year: 2014
+    journal: "The Annals of Statistics"
+    volume: "42"
+    doi: "10.1214/14-AOS1218"
+  - type: article
+    title: "Locally Defined Principal Curves and Surfaces"
+    authors:
+      - family-names: "Ozertem"
+        given-names: "Umut"
+      - family-names: "Erdogmus"
+        given-names: "Deniz"
+    year: 2011
+    journal: "Journal of Machine Learning Research"
+    volume: "12"
+  - type: article
+    title: "Density Estimation in Infinite Dimensional Exponential Families"
+    authors:
+      - family-names: "Sriperumbudur"
+        given-names: "Bharath"
+      - family-names: "Fukumizu"
+        given-names: "Kenji"
+      - family-names: "Gretton"
+        given-names: "Arthur"
+      - family-names: "Hyvärinen"
+        given-names: "Aapo"
+      - family-names: "Kumar"
+        given-names: "Revant"
+    year: 2017
+    journal: "Journal of Machine Learning Research"
+    volume: "18"
+    url: "https://arxiv.org/abs/1312.3516"
+  - type: conference-paper
+    title: "Vanishing Component Analysis"
+    authors:
+      - family-names: "Livni"
+        given-names: "Roi"
+      - family-names: "Lehavi"
+        given-names: "David"
+      - family-names: "Schein"
+        given-names: "Sagi"
+      - family-names: "Nachlieli"
+        given-names: "Hila"
+      - family-names: "Shalev-Shwartz"
+        given-names: "Shai"
+      - family-names: "Globerson"
+        given-names: "Amir"
+    year: 2013
+    collection-title: "International Conference on Machine Learning (ICML)"
+  - type: book
+    title: "Factor Graphs for Robot Perception"
+    authors:
+      - family-names: "Dellaert"
+        given-names: "Frank"
+      - family-names: "Kaess"
+        given-names: "Michael"
+    year: 2017
+    publisher:
+      name: "Now Publishers"
+    doi: "10.1561/9781680833270"
+  - type: article
+    title: "A New Approach to Linear Filtering and Prediction Problems"
+    authors:
+      - family-names: "Kalman"
+        given-names: "R. E."
+    year: 1960
+    journal: "Journal of Basic Engineering"
+    volume: "82"
+    issue: "1"
+    start: "35"
+    end: "45"
+    doi: "10.1115/1.3662552"
+  - type: article
+    title: "Multivariate online kernel density estimation with Gaussian kernels"
+    authors:
+      - family-names: "Kristan"
+        given-names: "Matej"
+      - family-names: "Leonardis"
+        given-names: "Aleš"
+      - family-names: "Skočaj"
+        given-names: "Danijel"
+    year: 2011
+    journal: "Pattern Recognition"
+    volume: "44"
+    issue: "10–11"
+    start: "2630"
+    end: "2642"
+    doi: "10.1016/j.patcog.2011.03.019"
+  - type: article
+    title: "Kullback-Leibler Approach to Gaussian Mixture Reduction"
+    authors:
+      - family-names: "Runnalls"
+        given-names: "A. R."
+    year: 2007
+    journal: "IEEE Transactions on Aerospace and Electronic Systems"
+    volume: "43"
+    issue: "3"
+    start: "989"
+    end: "999"
+    doi: "10.1109/TAES.2007.4383588"
+  - type: article
+    title: "Reactive Message Passing for Scalable Bayesian Inference"
+    authors:
+      - family-names: "Bagaev"
+        given-names: "Dmitry"
+      - family-names: "de Vries"
+        given-names: "Bert"
+    year: 2023
+    journal: "Scientific Programming"
+    volume: "2023"
+    start: "1"
+    end: "26"
+    doi: "10.1155/2023/6601690"
+  - type: article
+    title: "Variational Message Passing and Local Constraint Manipulation in Factor Graphs"
+    authors:
+      - family-names: "Şenöz"
+        given-names: "İsmail"
+      - family-names: "van de Laar"
+        given-names: "Thijs"
+      - family-names: "Bagaev"
+        given-names: "Dmitry"
+      - family-names: "de Vries"
+        given-names: "Bert"
+    year: 2021
+    journal: "Entropy"
+    volume: "23"
+    issue: "7"
+    start: "807"
+    doi: "10.3390/e23070807"

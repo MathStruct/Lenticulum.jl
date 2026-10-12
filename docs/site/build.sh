@@ -61,8 +61,10 @@ CONTENT="$QUARTZ/content"
 rm -rf "$CONTENT"
 mkdir -p "$CONTENT"
 
-# the bibliography note is generated from docs/src/refs.bib, so the vault and the docs agree
+# the bibliography note is generated from docs/src/refs.bib, so the vault and the docs agree,
+# and so is the reference list of CITATION.cff (GitHub's citation button, the Zenodo archive)
 python3 "$ROOT/docs/site/bib2vault.py" > /dev/null
+python3 "$ROOT/docs/site/bib2cff.py" > /dev/null
 
 # the theory notes (meta/ — the authoring prompts and the PhD proposals — is not published)
 cp -r "$ROOT/vault/." "$CONTENT/"

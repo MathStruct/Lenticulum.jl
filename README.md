@@ -97,7 +97,7 @@ learned from a circle) is worked through in the vault.
 
 | you are | start with |
 |---|---|
-| **who learns by running code** | the [tutorials](https://MathStruct.github.io/Lenticulum.jl/dev/tutorials/01_circle/) (also as Jupyter notebooks): the circle, a trained MLP, a robot arm, ProxDM, equivariant vs. conservative force fields, an energy-parametrised diffusion model, a force law discovered from particle trajectories, GTSAM-style localisation, and a kernel baseline the network has to beat |
+| **who learns by running code** | the [tutorials](https://MathStruct.github.io/Lenticulum.jl/dev/tutorials/01_circle/) (also as Jupyter notebooks): the circle, a trained MLP, a robot arm, ProxDM, equivariant vs. conservative force fields, an energy-parametrised diffusion model, a force law discovered from particle trajectories, GTSAM-style localisation, a kernel baseline the network has to beat, and intersections of separately trained models |
 | **from machine learning** | [Implicit Diffusion Learners](https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/Implicit-Diffusion-Learners) → [Backpropagation through Implicit Inference](https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/Backpropagation-through-Implicit-Inference) → [DEQ as a Relation](https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Equilibrium/DEQ-as-a-Relation) |
 | **from statistics / robotics** | the [localisation tutorial](https://mathstruct.org/Lenticulum.jl/dev/tutorials/08_localization/) (GTSAM's odometry example: smoothing vs filtering, noise estimated from the marginal likelihood) → [Beliefs](https://mathstruct.org/Lenticulum.jl/dev/vault/Factor-Graphs/Beliefs) → [Bethe Free Energy](https://mathstruct.org/Lenticulum.jl/dev/vault/Factor-Graphs/Bethe-Free-Energy) |
 | **from category theory** | [Factors are Parameterized Statistical Games](https://mathstruct.org/Lenticulum.jl/dev/vault/Foundations/Factors-are-Parameterized-Statistical-Games), with the background in the [CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/) (Track E) |
@@ -108,6 +108,13 @@ repository opened in [Obsidian](https://obsidian.md), starting from `vault/Start
 larger half of the project: the derivations, the papers, the design decisions, and an honest list
 of what does not work yet.
 
+**References.** Every work cited in the tutorials, the notes and the vault (121 papers, books and
+software packages) is in one BibTeX file, [`docs/src/refs.bib`](docs/src/refs.bib). It is rendered
+as the documentation's [References](https://MathStruct.github.io/Lenticulum.jl/dev/references/)
+page and the vault's [Bibliography](https://MathStruct.github.io/Lenticulum.jl/dev/vault/Bibliography),
+and it is the reference list of [`CITATION.cff`](CITATION.cff). To cite Lenticulum itself, use
+the Zenodo DOI [10.5281/zenodo.23314723](https://doi.org/10.5281/zenodo.23314723).
+
 ## What is in the repository
 
 One umbrella package over five smaller ones. All depend on **LuxCore** only — not Lux, Zygote
@@ -117,9 +124,9 @@ backend you load.
 
 | package | gives you |
 |---|---|
-| `LenticulumCore` | what a **factor** is: channels, polarities, beliefs, energies |
+| `LenticulumCore` | what a **factor** is: channels, polarities, energies; all **belief** types (Gaussian, categorical, mixture, Dirac, sample), convertible to RxInfer's |
 | `Mycelium` | how factors are **wired and scheduled**: graphs, messages, free energy |
-| `Lenticulum` | **linear-Gaussian** factors and Gaussian beliefs (nonlinear factors are planned) |
+| `Lenticulum` | **linear-Gaussian** and constraint factors, belief projections (nonlinear factors are planned) |
 | `VariationalDiffusion` | **diffusion models** as relations: VP-SDE, RED-Diff, ProxDM, deterministic implicit inference with an adjoint backward pass |
 | `ImplicitLayers` | **deep equilibrium models and neural ODEs** as factors |
 | `Adversarial` | **implicit generative models**: generators and density-ratio factors |

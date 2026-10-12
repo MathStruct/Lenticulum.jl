@@ -6,7 +6,7 @@ DocumenterCitations, and this script writes the same entries as an Obsidian note
 vault and the docs never disagree. Run from anywhere; docs/site/build.sh runs it before
 every vault build.  Usage: bib2vault.py [refs.bib] [Bibliography.md]
 """
-import re, sys
+import re, sys, unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -34,8 +34,20 @@ def entries(text):
         i = j
 
 
+# LaTeX accent commands -> Unicode combining marks: {\"o} -> ö, {\c{S}} -> Ş, {\.I} -> İ, ...
+ACCENTS = {'"': "\u0308", "'": "\u0301", "`": "\u0300", "^": "\u0302", "~": "\u0303", "=": "\u0304",
+           ".": "\u0307", "u": "\u0306", "v": "\u030c", "H": "\u030b", "c": "\u0327", "k": "\u0328"}
+
+
+def _accent(m):
+    cmd, letter = m.group(1), m.group(2) or m.group(3)
+    return unicodedata.normalize("NFC", letter + ACCENTS[cmd])
+
+
 def clean(s):
-    s = s.replace(r"\&", "&").replace(r'{\"o}', "ö").replace("--", "–")
+    s = s.replace(r"\&", "&").replace("--", "–")
+    s = re.sub(r"""\\([\"'`^~=.]|[uvHck](?=[{\s]))\s*(?:\{(\w)\}|(\w))""", _accent, s)
+    s = re.sub(r"\\(ss|o|l|i)(?![A-Za-z])", lambda m: {"ss": "ß", "o": "ø", "l": "ł", "i": "ı"}[m.group(1)], s)
     return re.sub(r"\s+", " ", s.replace("{", "").replace("}", "")).strip()
 
 

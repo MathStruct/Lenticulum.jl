@@ -8,3 +8,4 @@
 /docs/src/tutorials/
 /docs/cache/
 /outputs/
+__pycache__/
