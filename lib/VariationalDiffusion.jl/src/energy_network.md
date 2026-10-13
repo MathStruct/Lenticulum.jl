@@ -97,7 +97,7 @@ Julia 1.12.6, Lux 1.31.4, LuxLib 1.15.9, Enzyme 0.13.216, Mooncake 0.5.63):
 | `SecondOrder(AutoMooncakeForward(), AutoMooncake())` | exact to 3e-16; slow first call (about 70 s of compilation); not in the test suite |
 | `SecondOrder(AutoForwardDiff(), AutoMooncake())` | fails: Mooncake's gradient rejects a dual-number return value |
 | `SecondOrder(AutoMooncake(), AutoMooncake())` | fails: Mooncake has no reverse-over-reverse |
-| Enzyme forward-over-reverse inside `Reactant.@compile` | exact to 1e-16, but not yet wired into the Reactant extension |
+| Enzyme forward-over-reverse inside `Reactant.@compile` (`ad = AutoReactant()`) | exact to 1e-16; in the Reactant suite (§7) |
 | Enzyme forward-over-reverse on CPU (`AutoEnzyme`) | fails, for two upstream reasons below |
 
 Enzyme on CPU fails twice over. LuxLib defines `augmented_primal` and `reverse` Enzyme rules for
@@ -161,8 +161,14 @@ them. A point method returns one branch; the energy says the other is equally go
   numbers, so the parameters can stay on a GPU. Other backends keep the joint form.
 - **The input must accept a batch.** `input(x, t)` is called with ``x`` a matrix and ``t`` a
   scalar or a ``1\times B`` row during training, and with a vector during inference.
-- **Reactant** needs its own compiled Hessian, Hessian-vector product and mixed derivative. Nested
-  Enzyme works inside `@compile` (§4); the five `_energy_*` hooks are not yet wired.
+- **Reactant** has its own five `_energy_*` hooks, since DifferentiationInterface has no Reactant
+  backend. Each is Enzyme forward mode over a reverse gradient, compiled once per shape: the
+  Hessian-vector product differentiates the input gradient, the mixed derivative the parameter
+  gradient, both in the input direction. One program, the energy weighted per column
+  $\sum_b w_b E(x_b)$, gives the gradient ($w = 1$) and the free-coordinate block ($w$ the
+  field's weights, one product per free coordinate). The Reactant suite checks them against
+  finite differences of the plain forward energy, and inference, `implicit_energy` and the
+  adjoint through them.
 
 ## 8. On a GPU
 

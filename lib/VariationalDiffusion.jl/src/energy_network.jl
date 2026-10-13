@@ -39,7 +39,8 @@ Derivatives need an AD backend in `ad`, and second derivatives at that: the inpu
 a Hessian and the parameter VJP a mixed derivative. `AutoZygote()` and
 `DifferentiationInterface.SecondOrder(AutoForwardDiff(), AutoZygote())` work with Lux layers
 (load DifferentiationInterface and the backend), as does `SecondOrder(AutoMooncakeForward(), AutoMooncake())`;
-Enzyme's forward-over-reverse on CPU does not yet (`energy_network.md` §4).
+Enzyme's forward-over-reverse on CPU does not yet, but `ad = AutoReactant()` (with Reactant
+loaded) runs it inside the compiled program (`energy_network.md` §4, §7).
 """
 struct EnergyNetwork{L} <: LuxCore.AbstractLuxWrapperLayer{:model}
     model::L

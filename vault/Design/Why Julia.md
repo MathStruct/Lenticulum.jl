@@ -120,7 +120,7 @@ research. If it matures, the ideas in this vault carry over; the code would not.
   and parameter rebuild had to be rewritten), Enzyme needs runtime activity on Lux layers on
   CPU, and Enzyme's forward-over-reverse fails on Lux layers on CPU (a missing LuxLib rule and an
   Enzyme regression on Julia 1.12), so energy networks use ForwardDiff-over-Zygote instead, or
-  Mooncake; the same nested Enzyme works inside Reactant ([[backends]] §7, [[energy_network]] §4).
+  Mooncake; the same nested Enzyme works inside Reactant, which is how `ad = AutoReactant()` runs energy networks ([[backends]] §7, [[energy_network]] §4).
 - **Type stability is the programmer's job.** Code that hides types from the compiler is slow;
   the fast path needs some discipline ([[Parallelism and Compilation]]).
 - **A smaller community.** Fewer pretrained models, fewer people to hire, fewer answers online.

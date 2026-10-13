@@ -148,8 +148,9 @@ which is why the adjoint uses $J^\top$ and not $J$.
   pass and DI (which then fails) for the derivatives. The result is correct but not compiled.
 - **Energy networks need second derivatives** (a Hessian and a mixed derivative), which the
   DifferentiationInterface extension computes by Hessian-vector products. Zygote (alone or under
-  ForwardDiff) and Mooncake forward-over-reverse give them; Enzyme on CPU does not, and the
-  Reactant extension does not compute them yet; see [[energy_network]] §4.
+  ForwardDiff) and Mooncake forward-over-reverse give them; Enzyme on CPU does not. The Reactant
+  extension computes them with nested Enzyme inside the compiled program, which works; see
+  [[energy_network]] §4, §7.
 - **`ProxNetwork` has its own `ad` field**, used only by the adjoint of `prox_infer`
   (`prox_pullback`): the input VJP and Jacobian of the network's residual through
   DifferentiationInterface, and its parameter VJP ([[proxdm]] §5). Reactant is not wired for it.

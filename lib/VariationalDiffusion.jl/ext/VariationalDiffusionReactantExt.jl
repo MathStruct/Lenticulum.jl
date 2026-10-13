@@ -1,7 +1,9 @@
 # ---------------------------------------------------------------------------
 # `NoisePredictor(model, schedule; ad = AutoReactant())`: the network's forward pass, its
 # parameter VJP and its input Jacobian, each compiled once by Reactant (XLA) and cached per
-# argument shape, with Enzyme as the differentiator inside the compiled program.
+# argument shape, with Enzyme as the differentiator inside the compiled program. For an
+# `EnergyNetwork`, the gradient, Hessian-vector products and the mixed derivative likewise
+# (nested Enzyme, forward over reverse).
 #
 # DifferentiationInterface has no Reactant backend, hence this separate extension. Inputs and
 # outputs stay ordinary Julia arrays: the solvers in this package are CPU code that calls the
@@ -12,7 +14,7 @@
 # ---------------------------------------------------------------------------
 module VariationalDiffusionReactantExt
 
-using VariationalDiffusion: VariationalDiffusion, NoisePredictor
+using VariationalDiffusion: VariationalDiffusion, NoisePredictor, EnergyNetwork
 using LuxCore: LuxCore
 using ADTypes: AutoReactant
 using Reactant: Reactant
@@ -92,6 +94,82 @@ end
 function VariationalDiffusion._ad_vjp_input(ad::AutoReactant, pred::NoisePredictor, X, t, ps, st, W)
     T = float(eltype(X))
     return reshape(Array(_run(_vjp_x, pred, _args(collect(T.(X)), t, ps, st)..., collect(T.(reshape(W, size(X)))))), size(X))
+end
+
+
+# --- energy-parametrised predictors: nested Enzyme inside the compiled program -------------
+# Enzyme's forward-over-reverse fails on Julia code (energy_network.md §4) but is exact on the
+# traced program, so every second derivative is forward mode over a compiled reverse gradient.
+# The energy is weighted per column, Σ_b w_b E(x_b), so one program serves the plain gradient
+# (w = 1) and the free-coordinate block (w the field's weights).
+_ew(pred, x, t, ps, st, w) = sum(vec(first(LuxCore.apply(pred.model.model, pred.input(x, t), ps, st))) .* vec(w))
+_ew_ps(ps, pred, x, t, st, w) = _ew(pred, x, t, ps, st, w)
+
+_egrad(pred, x, t, ps, st, w) =
+    Enzyme.gradient(Enzyme.Reverse, Enzyme.Const(_ew), Enzyme.Const(pred), x, Enzyme.Const(t), Enzyme.Const(ps),
+                    Enzyme.Const(st), Enzyme.Const(w))[2]
+_egrad_ps(pred, x, t, ps, st, w) =
+    first(Enzyme.gradient(Enzyme.Reverse, Enzyme.Const(_ew_ps), ps, Enzyme.Const(pred), Enzyme.Const(x), Enzyme.Const(t),
+                          Enzyme.Const(st), Enzyme.Const(w)))
+
+# ∇²E v, column by column (x-direction v), and ∂_θ⟨∇ₓE, v⟩: the forward derivative in x of
+# the x-gradient and of the θ-gradient
+_ehvp(pred, x, t, ps, st, w, v) =
+    only(Enzyme.autodiff(Enzyme.Forward, Enzyme.Const(_egrad), Enzyme.Const(pred), Enzyme.Duplicated(x, v), Enzyme.Const(t),
+                         Enzyme.Const(ps), Enzyme.Const(st), Enzyme.Const(w)))
+_emixed(pred, x, t, ps, st, w, v) =
+    only(Enzyme.autodiff(Enzyme.Forward, Enzyme.Const(_egrad_ps), Enzyme.Const(pred), Enzyme.Duplicated(x, v),
+                         Enzyme.Const(t), Enzyme.Const(ps), Enzyme.Const(st), Enzyme.Const(w)))
+
+_ncols(x) = x isa AbstractVector ? 1 : prod(size(x)[2:end])
+_ones(x, T) = ones(T, _ncols(x))
+_dense(T, x) = collect(T.(x))
+
+function VariationalDiffusion._energy_grad(::AutoReactant, pred::NoisePredictor{<:EnergyNetwork}, x, t, ps, st)
+    T = float(eltype(x))
+    return reshape(Array(_run(_egrad, pred, _args(_dense(T, x), t, ps, st)..., _ones(x, T))), size(x))
+end
+
+function VariationalDiffusion._energy_hvp(::AutoReactant, pred::NoisePredictor{<:EnergyNetwork}, X, t, ps, st, W)
+    T = float(eltype(X))
+    V = _dense(T, reshape(W, size(X)))
+    return reshape(Array(_run(_ehvp, pred, _args(_dense(T, X), t, ps, st)..., _ones(X, T), V)), size(X))
+end
+
+# one compiled Hessian-vector product per coordinate; dim Z is small here
+function VariationalDiffusion._energy_hessian(ad::AutoReactant, pred::NoisePredictor{<:EnergyNetwork}, x, t, ps, st)
+    T = float(eltype(x))
+    x = _dense(T, vec(x))
+    n = length(x)
+    H = zeros(T, n, n)
+    for i in 1:n
+        H[:, i] = VariationalDiffusion._energy_hvp(ad, pred, x, t, ps, st, T.(1:n .== i))
+    end
+    return (H .+ H') ./ 2
+end
+
+# the Hessian in u of Σ_b w_b E(x_b + P u): column a is Σ_b w_b ∇²E(x_b) e_{idx[a]} restricted to idx,
+# one weighted Hessian-vector product with the direction e_{idx[a]} in every column
+function VariationalDiffusion._energy_hessian_block(::AutoReactant, pred::NoisePredictor{<:EnergyNetwork},
+                                                    X, t, ps, st, idx, w)
+    T = float(eltype(X))
+    X = _dense(T, X)
+    n, k = size(X, 1), length(idx)
+    wd = _dense(T, vec(w))
+    H = zeros(T, k, k)
+    for (a, i) in enumerate(idx)
+        V = zeros(T, size(X))
+        reshape(V, n, :)[i, :] .= 1
+        HV = Array(_run(_ehvp, pred, _args(X, t, ps, st)..., wd, V))
+        H[:, a] = vec(sum(reshape(HV, n, :); dims = 2))[idx]
+    end
+    return (H .+ H') ./ 2
+end
+
+function VariationalDiffusion._energy_mixed(::AutoReactant, pred::NoisePredictor{<:EnergyNetwork}, x, t, ps, st, w)
+    T = float(eltype(x))
+    V = _dense(T, reshape(w, size(x)))
+    return _host(_run(_emixed, pred, _args(_dense(T, x), t, ps, st)..., _ones(x, T), V))
 end
 
 end

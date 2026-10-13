@@ -167,15 +167,17 @@ conjugate gradients and stochastic Lanczos quadrature for the Laplace approximat
 794 coordinates free, `implicit_infer` takes 1.1 s where one dense block took 33 s ([[krylov]]).
 Not built: many queries at once (a batch of test images as one solve).
 
-### I6. Energy networks on every backend — **partly done**
+### I6. Energy networks on every backend — **done (Enzyme on CPU blocked upstream)**
 
-Second derivatives work with Zygote, ForwardDiff-over-Zygote and Mooncake forward-over-reverse.
-Enzyme's forward-over-reverse fails on CPU for two upstream reasons (a missing LuxLib forward rule
-for `fused_dense!`, and Enzyme.jl #3368 on Julia 1.12). The same nested Enzyme is exact inside
-`Reactant.@compile`, so Reactant is not blocked, only unwired: its extension lacks the five
-`_energy_*` hooks ([[energy_network]] §4, §7). On a GPU the question is settled without either:
-with `device = (to = gpu_device(), back = cpu_device())` and ForwardDiff over Zygote, every
-derivative runs on CUDA and agrees with the CPU to about 1e-7 ([[energy_network]] §8).
+Second derivatives work with Zygote, ForwardDiff-over-Zygote, Mooncake forward-over-reverse and
+Reactant. Reactant has its own five `_energy_*` hooks: Enzyme forward mode over a reverse
+gradient inside `Reactant.@compile`, exact against finite differences, with inference, the
+energy and the adjoint tested through them ([[energy_network]] §7). Enzyme's forward-over-reverse
+on plain Julia code still fails on CPU for two upstream reasons (a missing LuxLib forward rule
+for `fused_dense!`, and Enzyme.jl #3368 on Julia 1.12); Reactant does not need it. On a GPU
+there is also the route without either: with `device = (to = gpu_device(), back = cpu_device())`
+and ForwardDiff over Zygote, every derivative runs on CUDA and agrees with the CPU to about 1e-7
+([[energy_network]] §8).
 
 ### I7. ProxDM, completed — **done**
 
@@ -294,7 +296,7 @@ Also from MNIST:
 | I3 | Gaussian messages from `lib/` | done (`message = :gaussian`) |
 | I4 | restarts after unstable solves | done |
 | I5 | batched nodes, Newton–Krylov | done: free-coordinate blocks, batched nodes, `KrylovSolve` |
-| I6 | energy networks on Enzyme and Reactant | Zygote and Mooncake work, and on CUDA through `device` (forward over Zygote); Reactant unwired but unblocked; Enzyme on CPU blocked upstream |
+| I6 | energy networks on Enzyme and Reactant | done: Zygote, Mooncake, Reactant (nested Enzyme, compiled), CUDA through `device`; Enzyme on plain CPU code blocked upstream |
 | I7 | ProxDM adjoint, factor, sampler | done: adjoint, factor inversion (`ProxDM`), trapezoidal sampler; higher-noise backprop tried (no benefit on the circle) |
 | I8 | composition | done: products on shared and overlapping variables (separators), MCMC correctors and SMC reweighting for sampling |
 | I9 | coverage diagnostics | done: `coverage` (distance, reconstruction, energy as conformal p-values) |
