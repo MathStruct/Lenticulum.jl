@@ -9,7 +9,7 @@
     <lastmod>2026-10-06T18:27:41.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Applications/MNIST-in-Both-Directions</loc>
-    <lastmod>2026-10-13T13:42:55.000Z</lastmod>
+    <lastmod>2026-10-13T19:36:59.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Applications/Metabolomics-and-Proteomics</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -27,7 +27,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Bibliography</loc>
-    <lastmod>2026-10-13T11:12:49.000Z</lastmod>
+    <lastmod>2026-10-13T19:36:59.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Comparisons/Geometric-Deep-Learning-and-Physical-Laws</loc>
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
@@ -204,7 +204,7 @@
     <lastmod>2026-10-12T18:34:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/Open-Problems-in-Implicit-Diffusion-Learning</loc>
-    <lastmod>2026-10-13T16:27:53.000Z</lastmod>
+    <lastmod>2026-10-13T19:36:59.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/ProxDM-and-Proximal-Alternatives</loc>
     <lastmod>2026-10-12T23:07:17.000Z</lastmod>
@@ -378,7 +378,7 @@
     <lastmod>2026-10-13T16:27:53.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/coverage</loc>
-    <lastmod>2026-10-12T21:34:47.000Z</lastmod>
+    <lastmod>2026-10-13T19:36:59.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/energy_network</loc>
     <lastmod>2026-10-13T16:27:53.000Z</lastmod>
@@ -387,7 +387,7 @@
     <lastmod>2026-10-04T20:33:34.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/implicit</loc>
-    <lastmod>2026-10-13T11:11:38.000Z</lastmod>
+    <lastmod>2026-10-13T19:36:59.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/implicit_factor</loc>
     <lastmod>2026-10-12T18:34:57.000Z</lastmod>
@@ -399,7 +399,7 @@
     <lastmod>2026-10-12T18:34:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/predictor</loc>
-    <lastmod>2026-10-13T11:11:38.000Z</lastmod>
+    <lastmod>2026-10-13T19:36:59.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/product</loc>
     <lastmod>2026-10-13T09:51:57.000Z</lastmod>
@@ -411,7 +411,7 @@
     <lastmod>2026-10-02T13:21:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/sampler</loc>
-    <lastmod>2026-10-13T09:51:57.000Z</lastmod>
+    <lastmod>2026-10-13T19:36:59.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/schedule</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
