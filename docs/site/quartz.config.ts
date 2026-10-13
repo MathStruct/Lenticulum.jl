@@ -19,7 +19,9 @@ const config: QuartzConfig = {
     analytics: null,
     locale: "en-GB",
     // The Documenter site deploys to <root>/dev/ from `master`; the vault lives under it.
-    baseUrl: "mathstruct.github.io/Lenticulum.jl/dev/vault",
+    // The custom domain, not mathstruct.github.io: that redirects here, and giscus loads its
+    // theme stylesheet from this URL, which a redirect (without a CORS header) would block.
+    baseUrl: "mathstruct.org/Lenticulum.jl/dev/vault",
     // Prompts/ holds the authoring prompts, not vault content.
     ignorePatterns: ["private", "templates", ".obsidian", "Prompts", ".tikz-cache"],
     defaultDateType: "modified",
