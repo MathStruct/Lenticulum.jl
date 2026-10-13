@@ -2,13 +2,33 @@ import { PageLayout, SharedLayout } from "./quartz/cfg"
 import * as Component from "./quartz/components"
 
 // Copied over the stock `quartz.layout.ts` by `docs/site/build.sh`.
-// The one deliberate change from stock: the footer links back to the API documentation
-// (the Documenter site this vault is deployed inside) and to the repository.
+// Deliberate changes from stock: the footer links back to the API documentation (the
+// Documenter site this vault is deployed inside) and to the repository, and every note has a
+// Giscus comment thread, stored as a GitHub Discussion in the repository's "Announcements"
+// category (only maintainers and the giscus app open threads there; anyone signed in to GitHub
+// can reply and react). A note opts out with `comments: false` in its frontmatter.
 
 export const sharedPageComponents: SharedLayout = {
   head: Component.Head(),
   header: [],
-  afterBody: [],
+  afterBody: [
+    Component.ConditionalRender({
+      component: Component.Comments({
+        provider: "giscus",
+        options: {
+          repo: "MathStruct/Lenticulum.jl",
+          repoId: "R_kgDOUPo0Lw",
+          category: "Announcements",
+          categoryId: "DIC_kwDOUPo0L84DIUJp",
+          mapping: "pathname",
+          strict: true,
+          reactionsEnabled: true,
+          inputPosition: "bottom",
+        },
+      }),
+      condition: (page) => !(page.fileData.slug ?? "").startsWith("tags/"),
+    }),
+  ],
   footer: Component.Footer({
     links: {
       "API documentation": "../",
