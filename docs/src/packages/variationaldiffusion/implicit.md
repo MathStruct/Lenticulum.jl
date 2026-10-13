@@ -54,9 +54,11 @@ from radius 0.978 to 0.993 (field levels up to 0.05). When a query has a single 
 `categorical_answer(…; temperature, cov_scale)` reads class probabilities from the root's position
 and covariance, with both fitted on held-out answers by `calibrate_temperature` (on MNIST a
 calibration error of 0.009). The solvers' default
-tolerance follows the arithmetic precision (`default_tolerance`), and `continuation = (8, 3)`
-solves at higher noise levels first, which helps a start far from every basin but stops at the
-symmetric point between two branches.
+tolerance follows the arithmetic precision (`default_tolerance`). For relations with an energy,
+`implicit_infer` uses a trust-region method on the query's energy (`method = :auto`;
+[nocedal2006numopt](@cite), [steihaug1983cg](@cite)): on the
+circle every one of 160 starts converges (against 122 for Newton-or-descent), and on MNIST 19 of
+20 modes with 784 free pixels, in about 6 s each, where Newton-or-descent found none.
 
 ## Off the data
 

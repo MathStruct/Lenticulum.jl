@@ -765,10 +765,13 @@ end
     # Krylov inference, adjoint and Laplace agree with the dense path on the circle
     K = KrylovSolve()
     for ρ in ([Inf, 0.0], [1.0, 0.0], [0.5, 0.5])
-        s1, _ = implicit_infer(m, z, ρ, RPS, RST)
-        s2, _ = implicit_infer(m, z, ρ, RPS, RST; linsolve = K)
+        s1, _ = implicit_infer(m, z, ρ, RPS, RST; method = :newton)       # GMRES Newton steps = dense ones
+        s2, _ = implicit_infer(m, z, ρ, RPS, RST; linsolve = K, method = :newton)
         @test s2.converged && s2.stable
         @test s2.z ≈ s1.z atol = 1e-10
+        t1, _ = implicit_infer(m, z, ρ, RPS, RST)                         # trust region: exact steps against Steihaug
+        t2, _ = implicit_infer(m, z, ρ, RPS, RST; linsolve = K)
+        @test t2.converged && t2.stable && t2.z ≈ t1.z && t1.z ≈ s1.z
         b1 = implicit_pullback(m, s1, z, ρ, [0.2, 1.0], RPS, RST)
         b2 = implicit_pullback(m, s2, z, ρ, [0.2, 1.0], RPS, RST; linsolve = K)
         @test b2.z₀ ≈ b1.z₀ atol = 1e-8
@@ -1222,7 +1225,7 @@ end
     Z₀ = vcat(collect(xs)', fill(0.5, 1, 7))
     sols, _ = implicit_infer_many(m, Z₀, HARDX, RPS, RST; tol = 1e-12)
     for (b, x) in enumerate(xs)
-        ref, _ = implicit_infer(m, [x, 0.5], HARDX, RPS, RST; tol = 1e-12)
+        ref, _ = implicit_infer(m, [x, 0.5], HARDX, RPS, RST; tol = 1e-12, method = :newton)   # the same iteration
         @test sols[b].z ≈ ref.z atol = 1e-10
         @test sols[b].converged && sols[b].stable && sols[b].iters == ref.iters
     end
@@ -1372,7 +1375,7 @@ end
     @test first(prior_field(mh, z, ps, st)) ≈ [_fd(Ue, z, i) for i in 1:2] atol = 1e-7
     Zq = [0.3 -0.2 0.6; 0.1 0.4 -0.3]
     sm, _ = implicit_infer_many(mb, Zq, HARDX, ps, st; tol = 1e-10)
-    @test all(q -> sm[q].z ≈ first(implicit_infer(mh, Zq[:, q], HARDX, ps, st; tol = 1e-10)).z, 1:3)
+    @test all(q -> sm[q].z ≈ first(implicit_infer(mh, Zq[:, q], HARDX, ps, st; tol = 1e-10, method = :newton)).z, 1:3)
 
     # the same on a device (JLArrays): blocks' times move with x, σ is spread on the device
     JLArrays.allowscalar(false)
@@ -1465,9 +1468,9 @@ end
     dev32 = ImplicitDiffusion(NoisePredictor(EnergyNetwork(ENERGY_MLP), SCHED; input = _batch_input, ad = AutoZygote(),
                                              device = (to = a -> JLArray(Float32.(a)), back = Array)), nod)
     @test default_tolerance(cpu32, [0.0, 0.0], ps32) == 1e-9               # Float32 weights, Float64 arithmetic
-    @test default_tolerance(cpu32, Float32[0, 0], ps32) ≈ 10 * eps(Float32)
-    @test default_tolerance(dev32, [0.0, 0.0], ps32) ≈ 10 * eps(Float32)   # on the device the inputs become Float32
-    @test default_tolerance(ProductRelation(dev32, cpu32), [0.0, 0.0], (ps32, ps32)) ≈ 10 * eps(Float32)
+    @test default_tolerance(cpu32, Float32[0, 0], ps32) ≈ 30 * eps(Float32)
+    @test default_tolerance(dev32, [0.0, 0.0], ps32) ≈ 30 * eps(Float32)   # on the device the inputs become Float32
+    @test default_tolerance(ProductRelation(dev32, cpu32), [0.0, 0.0], (ps32, ps32)) ≈ 30 * eps(Float32)
     @test default_tolerance(cpu32, [0.0, 0.0], (a = ps32, b = _f64(ps32))) == 1e-9
 
     # continuation: smoother relations first, the iterations counted; from a start in the basin it
@@ -1481,8 +1484,64 @@ end
     @test VariationalDiffusion._rescaled(mr, 30).nodes.t == min.(30 .* mr.nodes.t, 1.0)
     @test_throws ArgumentError implicit_infer(ProductRelation(mr, mr), [0.0, 0.5], HARDX,
                                               (RPS, RPS), (RST, RST); continuation = (2,))
-    cs, _ = implicit_infer(mr, [0.6, 3.0], HARDX, RPS, RST; continuation = (8, 3), maxiters = 30)
-    @test abs(cs.z[2]) < 0.1                           # the symmetric point, not a branch
+    cs, _ = implicit_infer(mr, [0.6, 3.0], HARDX, RPS, RST; continuation = (8, 3), maxiters = 30, method = :newton)
+    @test abs(cs.z[2]) < 0.1                           # Newton-or-descent: the symmetric point, not a branch
+    ct, _ = implicit_infer(mr, [0.6, 3.0], HARDX, RPS, RST; continuation = (8, 3), maxiters = 30)
+    @test ct.converged && ct.stable && abs(ct.z[2]) > 0.7   # the trust region walks off it, onto a branch
+end
+
+@testset "trust region: the exact step, robust convergence, both merits" begin
+    VD = VariationalDiffusion
+    # the dense step minimises the model within the ball: against a brute-force search on a grid
+    model(g, H, p) = dot(g, p) + dot(p, H * p) / 2
+    function brute(g, H, Δ)
+        best, bp = Inf, zeros(2)
+        for r in range(0, Δ; length = 401), θ in range(0, 2π; length = 721)
+            p = r .* [cos(θ), sin(θ)]
+            v = model(g, H, p)
+            v < best && (best = v; bp = p)
+        end
+        return best
+    end
+    for (g, H, Δ) in (([1.0, 0.5], [2.0 0.3; 0.3 1.0], 5.0),          # interior Newton step
+                      ([1.0, 0.5], [2.0 0.3; 0.3 1.0], 0.2),          # on the boundary
+                      ([0.3, -1.0], [-1.0 0.2; 0.2 0.5], 0.7),        # indefinite
+                      ([0.0, 1.0], [-1.0 0.0; 0.0 2.0], 0.9))         # hard case: g ⊥ lowest eigenvector
+        p = VD._tr_step(DenseSolve(), g, Symmetric(H), Δ)
+        @test norm(p) ≤ Δ * (1 + 1e-8)
+        @test model(g, H, p) ≤ brute(g, H, Δ) + 1e-4
+        q = VD._tr_step(KrylovSolve(), g, v -> H * v, Δ)         # Steihaug: within the ball, a decrease
+        @test norm(q) ≤ Δ * (1 + 1e-8) && model(g, H, q) < 0
+    end
+    @test VD._tr_step(DenseSolve(), [1.0, 0.5], Symmetric([2.0 0.3; 0.3 1.0]), 5.0) ≈ -([2.0 0.3; 0.3 1.0] \ [1.0, 0.5])
+
+    # on the circle every start reaches a branch, where Newton-or-descent stalls in a quarter
+    m = ImplicitDiffusion(RING, field_nodes(Xoshiro(1), 2; samples = 2))
+    starts = [[x, y] for x in range(-0.95, 0.95; length = 10) for y in (-6.0, -0.3, 0.0, 0.02, 1.0, 6.0)]
+    tr = [first(implicit_infer(m, s, HARDX, RPS, RST; maxiters = 50, method = :trust_region)) for s in starts]
+    nw = [first(implicit_infer(m, s, HARDX, RPS, RST; maxiters = 50, method = :newton)) for s in starts]
+    @test all(i -> first(implicit_infer(m, starts[i], HARDX, RPS, RST; maxiters = 50)).z == tr[i].z, 1:6)   # the default
+    @test all(s -> s.converged && s.stable, tr)
+    @test count(s -> s.converged && s.stable, nw) < length(starts)
+    @test all(s -> 0.95 < norm(s.z) < 1.0, tr)                          # on the (smoothed) circle
+    @test all(i -> !(nw[i].converged && nw[i].stable) || abs(abs(nw[i].z[2]) - abs(tr[i].z[2])) < 1e-6, eachindex(starts))
+    @test sum(s -> s.iters, tr) < sum(s -> s.iters, nw)
+    kr = [first(implicit_infer(m, s, HARDX, RPS, RST; maxiters = 50, method = :trust_region, linsolve = KrylovSolve())) for s in starts[1:12]]
+    @test all(i -> kr[i].z ≈ tr[i].z, 1:12)
+    # with continuation, and a given starting radius
+    c, _ = implicit_infer(m, [0.0, 3.0], HARDX, RPS, RST; method = :trust_region, continuation = (3,), radius = 1.0)
+    @test c.converged && c.stable && abs(abs(c.z[2]) - 0.98) < 0.01
+    @test_throws ArgumentError implicit_infer(m, [0.0, 3.0], HARDX, RPS, RST; method = :gauss)
+
+    # without an energy (Gaussian oracle, correlated): ½‖r‖² with the Gauss–Newton model, same root
+    pg = NoisePredictor(AnalyticEps(SCHED, [1.0 0.8; 0.8 1.0]), SCHED)
+    gps, gst = LuxCore.setup(Random.default_rng(), pg)
+    mg = ImplicitDiffusion(pg, field_nodes(Xoshiro(1), 2; samples = 2))
+    @test !VD._has_energy(mg)
+    a, _ = implicit_infer(mg, [0.7, 20.0], HARDX, gps, gst; method = :trust_region)
+    b, _ = implicit_infer(mg, [0.7, 0.0], HARDX, gps, gst)
+    @test a.converged && a.stable
+    @test a.z ≈ b.z atol = 1e-8
 end
 
 @testset "a predictor on a device: every hook through device arrays" begin

@@ -312,16 +312,20 @@ end
     default_tolerance(m, z, ps) -> Real
 
 The solvers' default tolerance for the relation `m` with parameters `ps` at states like `z`:
-``\\max(10^{-9},\\ 10\\,\\epsilon)`` with ``\\epsilon`` the machine epsilon of the arithmetic the field is
+``\\max(10^{-9},\\ 30\\,\\epsilon)``, with ``\\epsilon`` the machine epsilon of the arithmetic the field is
 computed in. On a device ([`NoisePredictor`](@ref)'s `device`) that is the parameters' type, since
-the inputs are converted to it: a network in Float32 on a GPU has a field accurate to about
-``10^{-6}``, and a tolerance below that is never reached. On the CPU, Julia promotes Float32
-parameters against Float64 states to Float64, so the tolerance stays ``10^{-9}``.
+the inputs are converted to it. A Float32 network's field has a rounding floor of 10 to 15 ``\\epsilon``
+relative (measured on MNIST with 10 and with 784 free coordinates, `implicit.md` §11), so the
+tolerance, about ``3.6\\cdot10^{-6}``, sits a factor of two to three above it. On the CPU, Julia
+promotes Float32 parameters against Float64 states to Float64, so the tolerance stays ``10^{-9}``.
 """
-function default_tolerance(m, z, ps)
+default_tolerance(m, z, ps) = max(1e-9, 30 * _arith_eps(m, z, ps))
+
+# the machine epsilon of the arithmetic the field is computed in
+function _arith_eps(m, z, ps)
     Tp = _coarsest_type(ps)
     T = Tp === nothing ? float(eltype(z)) : _ondevice(m) ? Tp : promote_type(Tp, float(eltype(z)))
-    return max(1e-9, 10 * Float64(eps(T)))
+    return Float64(eps(T))
 end
 _coarsest_type(x::AbstractArray{T}) where {T<:AbstractFloat} = T
 _coarsest_type(x::AbstractFloat) = typeof(x)
@@ -334,8 +338,9 @@ _ondevice(m::ImplicitDiffusion) = _ondevice(m.predictor)
 _ondevice(m::AbstractImplicitRelation) = false
 
 """
-    implicit_infer(m, z₀, ρ, ps, st; z_init = z₀, tol = default_tolerance(ps), maxiters = 200, step = 0.05,
-                   linsolve = DenseSolve(), continuation = ()) -> (ImplicitSolution, st)
+    implicit_infer(m, z₀, ρ, ps, st; z_init = z₀, tol = default_tolerance(m, z₀, ps), maxiters = 200, step = 0.05,
+                   linsolve = DenseSolve(), continuation = (), method = :auto,
+                   radius = nothing) -> (ImplicitSolution, st)
 
 Find a stable root of the residual on the free coordinates, warm-started from `z_init`.
 
@@ -358,22 +363,45 @@ fewer, wider basins, so a start far from every basin (a blank image, say) is car
 before the sharp field is solved. Each stage takes at most `maxiters` iterations and is used
 whether or not it converged; `iters` counts all of them. For an [`ImplicitDiffusion`](@ref).
 
+**Trust region.** `method = :trust_region` replaces the Newton-or-descent iteration by a
+trust-region method on a merit function, which converges from far starts and in non-convex
+regions where Newton-or-descent stalls (`implicit.md` §11). The default, `method = :auto`, uses
+it when the relation has an energy and Newton-or-descent otherwise; `:newton` forces the latter.
+
+- with an energy ([`EnergyNetwork`](@ref), [`GaussianMixtureEps`](@ref), products of them) the merit
+  is the query's energy ``Q(z) = U(z) + \\tfrac12\\lVert\\rho_F(z_F - z_{0,F})\\rVert^2``, whose gradient is the
+  residual and whose Hessian is ``\\operatorname{sym}J_{FF}``: every accepted step lowers ``Q``, so the
+  iteration is not drawn to saddles or maxima;
+- without one it is ``\\tfrac12\\lVert r_F\\rVert^2`` with the Gauss–Newton model (Levenberg–Marquardt),
+  which can stop at a minimum of the residual that is not a root (then `converged` is false).
+
+Each step minimises the quadratic model within a ball of radius ``\\Delta``: exactly from an
+eigendecomposition with [`DenseSolve`](@ref), by Steihaug's truncated conjugate gradients on
+Hessian-vector products with [`KrylovSolve`](@ref). ``\\Delta`` starts at `radius` (default
+``0.1\\sqrt{|F|}``) and grows or shrinks with the ratio of actual to predicted decrease. `step`
+is not used.
+
 `tol` is relative, ``\\lVert r_F\\rVert \\le \\mathrm{tol}\\,(1 + \\lVert z\\rVert)``, and defaults to
-[`default_tolerance`](@ref): ``10^{-9}`` in Float64, about ``10^{-6}`` for a Float32 network on a device.
+[`default_tolerance`](@ref): ``10^{-9}`` in Float64, about ``3.6\\cdot10^{-6}`` for a Float32 network on a device.
 """
 function implicit_infer(m::AbstractImplicitRelation, z₀, ρ, ps, st;
                         z_init = z₀, tol = nothing, maxiters::Integer = 200, step = 0.05,
-                        linsolve::AbstractLinearSolve = DenseSolve(), continuation = ())
+                        linsolve::AbstractLinearSolve = DenseSolve(), continuation = (), method::Symbol = :auto,
+                        radius = nothing)
+    method in (:auto, :newton, :trust_region) ||
+        throw(ArgumentError("method must be :auto, :newton or :trust_region, got :$method"))
+    method === :auto && (method = _has_energy(m) ? :trust_region : :newton)
     tol === nothing && (tol = default_tolerance(m, z₀, ps))
     if !isempty(continuation)
         z, its = z_init, 0
         for c in continuation
-            sc, st = implicit_infer(_rescaled(m, c), z₀, ρ, ps, st; z_init = z, tol, maxiters, step, linsolve)
+            sc, st = implicit_infer(_rescaled(m, c), z₀, ρ, ps, st; z_init = z, tol, maxiters, step, linsolve, method, radius)
             z, its = sc.z, its + sc.iters
         end
-        sol, st = implicit_infer(m, z₀, ρ, ps, st; z_init = z, tol, maxiters, step, linsolve)
+        sol, st = implicit_infer(m, z₀, ρ, ps, st; z_init = z, tol, maxiters, step, linsolve, method, radius)
         return (ImplicitSolution(sol.z, sol.residual, sol.iters + its, sol.converged, sol.stable), st)
     end
+    method === :trust_region && return _infer_trust_region(m, z₀, ρ, ps, st; z_init, tol, maxiters, linsolve, radius)
     free = .!isinf.(ρ)
     z = float.(copy(z_init))
     z[.!free] .= z₀[.!free]
@@ -403,6 +431,126 @@ function implicit_infer(m::AbstractImplicitRelation, z₀, ρ, ps, st;
     nr = norm(r[free])
     stable = _newton_system(linsolve, m, z, ρ, ps, st).stable
     return (ImplicitSolution(z, nr, maxiters, nr ≤ tol * (1 + norm(z)), stable), st)
+end
+
+# --- the trust-region method ---------------------------------------------------------
+# A merit f on the free coordinates with gradient g and model Hessian H at z: the query energy
+# (g = r_F, H = sym J_FF) when the relation has one, else ½‖r_F‖² (g = J_FFᵀ r_F, H = J_FFᵀ J_FF).
+# Each step minimises gᵀp + ½pᵀHp over ‖p‖ ≤ Δ; Δ follows the ratio of actual to predicted
+# decrease (Nocedal & Wright, Algorithm 4.1).
+function _infer_trust_region(m, z₀, ρ, ps, st; z_init, tol, maxiters, linsolve, radius)
+    free = .!isinf.(ρ)
+    nF = count(free)
+    z = float.(copy(z_init))
+    z[.!free] .= z₀[.!free]
+    T = eltype(z)
+    energetic = _has_energy(m)
+    resid(zz) = first(implicit_residual(m, zz, z₀, ρ, ps, st))[free]
+    merit(zz, rF) = energetic ? _query_energy(m, zz, z₀, ρ, ps, st) : sum(abs2, rF) / 2
+    Δ = T(radius === nothing ? 0.1 * sqrt(max(nF, 1)) : radius)
+    εa = _arith_eps(m, z₀, ps)                         # the arithmetic's precision (Float32 on a device)
+    rF = resid(z)
+    f = merit(z, rF)
+    for it in 0:maxiters
+        nr = norm(rF)
+        if nr ≤ tol * (1 + norm(z)) || it == maxiters || Δ < 10εa * (1 + norm(z))
+            stable = _newton_system(linsolve, m, z, ρ, ps, st).stable
+            return (ImplicitSolution(z, nr, it, nr ≤ tol * (1 + norm(z)), stable), st)
+        end
+        g, H = _tr_model(linsolve, m, z, ρ, ps, st, rF, energetic)
+        p = _tr_step(linsolve, g, H, Δ)
+        pred = -(dot(g, p) + dot(p, _apply_H(H, p)) / 2)
+        zn = copy(z); zn[free] .+= p
+        rn = resid(zn)
+        fn = merit(zn, rn)
+        # near a root the decrease drowns in the rounding of the merit (computed in the network's
+        # precision, Float32 on a GPU): then a smaller residual decides
+        noisy = pred ≤ 100 * εa * max(abs(f), one(T))
+        ratio = noisy ? (norm(rn) < nr ? one(T) : zero(T)) : (f - fn) / pred
+        np = norm(p)
+        if ratio < 0.25
+            Δ = np / 4
+        elseif ratio > 0.75 && np ≥ 0.99Δ
+            Δ = 2Δ
+        end
+        if ratio > 1e-4
+            z, rF, f = zn, rn, fn
+        end
+    end
+end
+
+# the model's gradient and Hessian: a dense matrix, or an operator v ↦ Hv
+function _tr_model(::DenseSolve, m, z, ρ, ps, st, rF, energetic)
+    free = .!isinf.(ρ)
+    J = prior_jacobian(m, z, ps, st; coords = free) .+ Diagonal(ρ[free] .^ 2)
+    energetic && return (rF, Symmetric((J .+ J') ./ 2))
+    return (J' * rF, Symmetric(J' * J))
+end
+function _tr_model(::KrylovSolve, m, z, ρ, ps, st, rF, energetic)
+    op = _free_operators(m, z, ρ, ps, st)
+    energetic && return (rF, op.S)
+    return (op.Jt(rF), v -> op.Jt(op.J(v)))
+end
+_apply_H(H::AbstractMatrix, p) = H * p
+_apply_H(H, p) = H(p)
+
+# the exact step: p(λ) = -(H + λI)⁻¹g with λ ≥ max(0, -λ_min) and ‖p‖ ≤ Δ (Moré–Sorensen, from
+# the eigendecomposition; in the hard case a move along the lowest eigenvector to the boundary)
+function _tr_step(::DenseSolve, g, H::AbstractMatrix, Δ)
+    E = LinearAlgebra.eigen(H)
+    λs, V = E.values, E.vectors
+    gt = V' * g
+    pof(λ) = -(V * (gt ./ (λs .+ λ)))
+    λmin = first(λs)
+    if λmin > 0
+        p = pof(zero(λmin))
+        norm(p) ≤ Δ && return p
+    end
+    lo = max(zero(λmin), -λmin)
+    hi = lo + norm(g) / Δ + abs(lo) + one(λmin)
+    while norm(pof(hi)) > Δ
+        hi *= 2
+    end
+    if !(norm(pof(lo + sqrt(eps(λmin)) * (1 + abs(lo)))) > Δ)    # hard case: g ⊥ lowest eigenvector
+        p = pof(lo + sqrt(eps(λmin)) * (1 + abs(lo)))
+        v = V[:, 1]
+        τ = _to_boundary(p, v, Δ)
+        return p .+ τ .* v
+    end
+    for _ in 1:100                                     # ‖p(λ)‖ decreases in λ: bisection
+        mid = (lo + hi) / 2
+        norm(pof(mid)) > Δ ? (lo = mid) : (hi = mid)
+    end
+    return pof(hi)
+end
+
+# Steihaug's truncated conjugate gradients: CG on Hp = -g until it leaves the ball, meets
+# negative curvature (then to the boundary along that direction) or converges
+function _tr_step(ls::KrylovSolve, g, H, Δ)
+    p = zero(g)
+    r = copy(g)
+    d = -r
+    gn = norm(g)
+    gn == 0 && return p
+    for _ in 1:ls.maxiters
+        Hd = _apply_H(H, d)
+        κ = dot(d, Hd)
+        κ ≤ 0 && return p .+ _to_boundary(p, d, Δ) .* d
+        α = dot(r, r) / κ
+        pn = p .+ α .* d
+        norm(pn) ≥ Δ && return p .+ _to_boundary(p, d, Δ) .* d
+        rn = r .+ α .* Hd
+        norm(rn) ≤ ls.rtol * gn && return pn
+        d = -rn .+ (dot(rn, rn) / dot(r, r)) .* d
+        p, r = pn, rn
+    end
+    return p
+end
+
+# τ ≥ 0 with ‖p + τd‖ = Δ
+function _to_boundary(p, d, Δ)
+    a, b, c = dot(d, d), 2dot(p, d), dot(p, p) - Δ^2
+    return (-b + sqrt(max(b^2 - 4a * c, zero(a)))) / (2a)
 end
 
 # the relation with every node's level multiplied by c (at most 1): a smoother field

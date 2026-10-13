@@ -261,7 +261,7 @@ Result: on MNIST, 85.5% of label-clamped samples are recognised as their label, 
 for the same network sampled the old way. Guidance lowered it (74%). Remaining: image quality
 (I10), and a cost of one to two points in classification for the block-trained network.
 
-### I13. Answers of a single root — **done, except a general globalisation and a cost model**
+### I13. Answers of a single root — **done, except a cost model**
 
 On MNIST every classification query had one stable root, so the Laplace mixture had one
 component and its class probabilities were 0 or 1. Built:
@@ -271,13 +271,15 @@ component and its class probabilities were 0 or 1. Built:
   the hard reading ([[MNIST in Both Directions]] §7);
 - **unassigned mass as a coverage flag**: `coverage(…; unassigned)` sets `flagged`;
 - **tolerances that follow the arithmetic**: `default_tolerance(m, z, ps)`;
-- **continuation in the noise level** (`implicit_infer(…; continuation)`): on MNIST modes with
-  784 free pixels it raises the converged-and-stable solves from 0 to 3–4 of 10, at five to nine
-  times the cost. On the circle it lands on the symmetric point between the branches.
+- **a trust-region solver** (`method = :trust_region`, the default for relations with an energy):
+  a step that must lower the query's energy, exact or by Steihaug CG. On the circle 160 of 160
+  starts converge against 122; on MNIST 19 of 20 modes with 784 free pixels against none, in a
+  third of the time ([[implicit]] §11);
+- **continuation in the noise level** (`implicit_infer(…; continuation)`): with Newton-or-descent
+  3–4 of 10 MNIST modes, at five to nine times the cost; superseded by the trust region.
 
 Open:
-- a globalisation that converges reliably in many free coordinates (trust region, or a line
-  search on the energy for the descent steps);
+- the trust region for many queries at once (`implicit_infer_many` keeps Newton-or-descent);
 - **root finding is not cheaper than the diffusion classifier** at equal accuracy (18 ms against
   3.1 ms per query); a cost model that predicts when it is would help.
 
@@ -308,7 +310,7 @@ Open:
 | I10 | real data, higher dimensions | MNIST: image → label 96.1% (= diffusion classifier); label → image conditions with noise blocks (85.5% recognised) but the images are poor |
 | I11 | nonlinear factors | done: `NonlinearFactor` (EKF, UKF, iterated) |
 | I12 | both directions of one relation | done: noise blocks, block times, loss weights, held clamps, guidance (MNIST: 85.5% against 10.5%) |
-| I13 | answers of a single root | done: calibrated code posterior (ECE 0.009), unassigned flag, precision-aware tolerances, continuation; open: reliable globalisation, a cost model |
+| I13 | answers of a single root | done: calibrated code posterior (ECE 0.009), unassigned flag, precision-aware tolerances, trust-region solver (MNIST modes 19/20 against 0/20); open: a cost model |
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]], [[Backpropagation through Implicit Inference]],
 [[The Diffusion Factor]], [[The Implicit Diffusion Factor as a Statistical Game]], [[energy_network]],

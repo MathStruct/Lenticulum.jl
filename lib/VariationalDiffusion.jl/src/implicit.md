@@ -5,7 +5,9 @@
 > gradients for parameters, inputs, anchors and precisions. The theory is in
 > [[Implicit Diffusion Learners]] and [[Backpropagation through Implicit Inference]].
 
-> Sources: code: `implicit.jl`
+> Sources: code: `implicit.jl`; the trust-region solver (§11): Nocedal & Wright, *Numerical Optimization*, 2nd ed., ch. 4 and 7; Steihaug 1983
+>
+> Bibliography: [[Bibliography#^nocedal2006numopt|Nocedal & Wright 2006]] · [[Bibliography#^steihaug1983cg|Steihaug 1983]]
 >
 > Theory (CT-ML wiki): [Least Fixed Point](https://mathstruct.org/CategoryTheory-ML-Wiki/Least-Fixed-Point) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category)
 
@@ -244,19 +246,69 @@ Found on MNIST ([[MNIST in Both Directions]] §6; Open Problems I13):
 - **Unassigned mass as a coverage flag.** `coverage(ref, z; unassigned)` returns the mass and
   sets `flagged` when $p < \alpha$ or at least half the answer lies between the codes.
 - **Tolerances that follow the arithmetic.** `tol` defaults to `default_tolerance(m, z, ps)`,
-  $\max(10^{-9}, 10\,\epsilon)$ for the type the field is computed in: the parameters' type on a
-  device (Float32 on a GPU gives about $1.2\cdot10^{-6}$), and on the CPU the promotion of parameters
-  and state (Float32 weights against a Float64 state compute in Float64, so $10^{-9}$).
+  $\max(10^{-9}, 30\,\epsilon)$ for the type the field is computed in: the parameters' type on a
+  device (Float32 on a GPU gives about $3.6\cdot10^{-6}$), and on the CPU the promotion of parameters
+  and state (Float32 weights against a Float64 state compute in Float64, so $10^{-9}$). A Float32
+  field's rounding floor is 10 to 15 $\epsilon$ relative, with 10 free coordinates and with 784 (§11);
+  the first version, $10\,\epsilon$, sat on it, and solves stalled just above.
 - **Continuation in the noise level.** `implicit_infer(…; continuation = (8, 3))` solves first
   with every node's level multiplied by 8 (capped at 1), then by 3, each from the previous
-  answer, then the actual relation. A smoother field has fewer, wider basins. It is not a
-  general cure: on the circle a high level smooths both branches into one blob centred on the
-  origin, and the continuation stops at the symmetric point between them (from $x = 0.6$,
-  $y = 3$ the plain solve finds the branch $y = 0.78$ in 5 iterations; the continuation ends at
-  $y = 0.06$, unstable). It is for starts far from every basin with a single plausible answer,
+  answer, then the actual relation. A smoother field has fewer, wider basins. With
+  Newton-or-descent it is not a general cure: on the circle a high level smooths both branches
+  into one blob centred on the origin, and the continuation stops at the symmetric point between
+  them (from $x = 0.6$, $y = 3$ the plain solve finds the branch $y = 0.78$ in 5 iterations; the
+  continuation ends at $y = 0.06$, unstable). With the trust region (§11) it walks off that point
+  onto a branch. It is for starts far from every basin with a single plausible answer,
   such as a clamped label and a blank image: on MNIST, 3–4 of 10 modes with 784 free pixels
   converge with it and none without, at five to nine times the cost
   ([[MNIST in Both Directions]] §7).
+
+## 11. A trust-region solver
+
+Newton-or-descent takes a Newton step where $\operatorname{sym}J_{FF}$ is positive definite and a fixed
+descent step along the residual elsewhere. Far from a basin, and in non-convex regions, the
+descent steps are too short and the Newton steps are not taken, so the iteration stalls.
+`implicit_infer(…; method = :trust_region)` is a trust-region method on a merit function
+(Nocedal & Wright 2006, ch. 4):
+
+- **with an energy**, the query energy $Q(z) = U(z) + \tfrac12\lVert\rho_F(z_F - z_{0,F})\rVert^2$, whose gradient is
+  the residual and whose Hessian is $\operatorname{sym}J_{FF}$. Every accepted step lowers $Q$, so the
+  iteration cannot settle on a saddle or a maximum; negative curvature is a direction to move in,
+  not a reason to fall back;
+- **without one**, $\tfrac12\lVert r_F\rVert^2$ with the Gauss–Newton model (Levenberg–Marquardt), which
+  can stop at a minimum of the residual that is not a root; `converged` then says so.
+
+Each step minimises the quadratic model in a ball of radius $\Delta$: exactly with `DenseSolve`
+(the eigendecomposition and a one-dimensional search for the shift, with the hard case), by
+Steihaug's truncated conjugate gradients (Steihaug 1983) with `KrylovSolve` (Hessian-vector products only).
+$\Delta$ starts at $0.1\sqrt{|F|}$ and is halved or doubled by the ratio of actual to predicted decrease.
+Near the answer that ratio drowns in the rounding of $Q$, computed in the network's precision;
+there a smaller residual decides instead.
+
+`method = :auto`, the default, uses it for relations with an energy (energy networks, mixtures,
+products of them) and Newton-or-descent otherwise. `implicit_infer_many` keeps Newton-or-descent.
+
+**Measured.** On the circle (y given x, 20 values of $x$ and 8 starts each, 50 iterations at
+most):
+
+| | converged and stable | mean iterations |
+|---|---|---|
+| Newton-or-descent | 122/160 | 18.3 |
+| trust region (dense or Krylov, identical) | **160/160** | **6.6** |
+
+On MNIST, modes with the label held and 784 free pixels ([[MNIST in Both Directions]] §7, at most
+50 iterations):
+
+| start | method | converged and stable | median residual | iterations | time per mode |
+|---|---|---|---|---|---|
+| blank image | Newton-or-descent | 0/10 | 2.9 | 50 | 22 s |
+| blank image | trust region | **10/10** | $6\cdot10^{-5}$ | 16 | **6 s** |
+| a sample | Newton-or-descent | 0/10 | 16 | 50 | 19 s |
+| a sample | trust region | **9/10** | $6\cdot10^{-5}$ | 37 | 6 s |
+
+Continuation in the noise level with Newton-or-descent reached 3–4 of 10 at 120–220 s per mode;
+the trust region needs neither it nor the time. Getting there needed the tolerance fix of §10:
+the solves first stalled at residuals of $5\cdot10^{-5}$, just above a tolerance of $10\,\epsilon$.
 
 Related: [[analytic]], [[reddiff]], [[factor]], [[energy_network]], [[krylov]], [[sampler]], [[Deterministic Relaxation]], [[Inference Signatures]],
 [[The Implicit Diffusion Factor as a Statistical Game]]

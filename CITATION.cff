@@ -823,6 +823,17 @@ references:
     collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
     doi: "10.5555/3495724.3496770"
     url: "https://arxiv.org/abs/2010.01709"
+  - type: book
+    title: "Numerical Optimization"
+    authors:
+      - family-names: "Nocedal"
+        given-names: "Jorge"
+      - family-names: "Wright"
+        given-names: "Stephen J."
+    year: 2006
+    publisher:
+      name: "Springer"
+    doi: "10.1007/978-0-387-40065-5"
   - type: generic
     title: "Large Language Diffusion Models"
     authors:
@@ -1029,6 +1040,18 @@ references:
         given-names: "Marco"
     year: 2025
     url: "https://arxiv.org/abs/2503.18608"
+  - type: article
+    title: "The Conjugate Gradient Method and Trust Regions in Large Scale Optimization"
+    authors:
+      - family-names: "Steihaug"
+        given-names: "Trond"
+    year: 1983
+    journal: "SIAM Journal on Numerical Analysis"
+    volume: "20"
+    issue: "3"
+    start: "626"
+    end: "637"
+    doi: "10.1137/0720042"
   - type: conference-paper
     title: "A Category for unifying Gaussian Probability and Nondeterminism"
     authors:

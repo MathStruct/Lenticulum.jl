@@ -106,8 +106,9 @@ answers.** These are open problems I12 and I13 in [[Open Problems in Implicit Di
 10. **A class probability from a single root** — *done*: `categorical_answer(…; temperature,
     cov_scale)` with `calibrate_temperature`; calibration error 0.009 (§7). The `unassigned` mass
     goes to `coverage(…; unassigned)` as a flag.
-11. **A globalised solver** — *partly*: `continuation` in the noise level raises the converged
-    modes from 0 to 3–4 of 10 at five to nine times the cost (§7); no trust region yet.
+11. **A globalised solver** — *done*: the trust-region method (the default for energy
+    relations) finds stable modes for 19 of 20 starts in about 6 s each, where Newton-or-descent
+    found none (§7). Continuation in the noise level, tried first, reached 3–4 of 10.
 12. **Tolerances that follow the arithmetic** — *done*: `default_tolerance` (about 1e-6 for Float32
     on a device).
 13. **A convolutional energy network** for image quality — open; the samples of §7 show why.
@@ -281,7 +282,17 @@ lower accuracy. The hard reading loses the 2% of roots that lie between codes.
 | a sample | (8, 3) | 4/10 | 8/10 | 0.48 | 123 s |
 
 Continuation in the noise level helps the solver into basins, but at five to nine times the
-cost and still converging in fewer than half the cases.
+cost and still converging in fewer than half the cases. The trust-region solver ([[implicit]]
+§11), on the same queries:
+
+| start | converged and stable | judged as the label | median residual | iterations | time per mode |
+|---|---|---|---|---|---|
+| blank image | **10/10** | 6/10 | $6\cdot10^{-5}$ | 16 | 6 s |
+| a sample | **9/10** | 9/10 | $6\cdot10^{-5}$ | 37 | 6 s |
+
+Every converged mode is a stable minimum of the query's energy. That several are judged as another
+digit (an 8 most often) is the model's mode, not the solver's: the most probable image of an MLP
+energy given a label need not look like a typical sample of it.
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]], [[Composing Diffusion Factors]],
 [[Open Problems in Implicit Diffusion Learning]], [[Language Models]], [[Motivating Examples]]
