@@ -186,6 +186,9 @@ if bad:
     sys.exit(1)
 PY
 
+# --- 3c. dates: each page as old as its source's last change, not as new as this copy ----
+python3 "$HERE/git_dates.py" "$CONTENT"
+
 # --- 4. build ---------------------------------------------------------------------
 cd "$QUARTZ"
 if [[ $SERVE -eq 1 ]]; then
