@@ -34,22 +34,58 @@ ps, st = LuxCore.setup(rng, pred)          # == LuxCore.setup(rng, my_unet)
 ε, st  = epsilon(pred, x, 0.3, ps, st)
 ```
 
+`device = (to = gpu_device(), back = cpu_device())` runs the network on an accelerator while
+the solvers keep their state on the CPU: arguments go to the device on every call, derivatives
+are taken there, results come back. The parameters must be moved to the device by the caller
+(`ps = gpu_device()(ps)`); their cotangents stay there. MLDataDevices' `gpu_device()` converts
+`Float64` arrays to `Float32`, which a consumer GPU needs for speed. `input` then receives
+device arrays and must build any time embedding on the same device (`predictor.md` §5).
+
 !!! note "LuxCore, not Lux"
     This package depends on **LuxCore**, the interface package, exactly as `Lenticulum` does.
     Any Lux model is an `AbstractLuxLayer`, so `Lux` itself is never needed here — see
     `predictor.md` §1.
 """
-struct NoisePredictor{L,S<:AbstractNoiseSchedule,F,A} <: LuxCore.AbstractLuxWrapperLayer{:model}
+struct NoisePredictor{L,S<:AbstractNoiseSchedule,F,A,D} <: LuxCore.AbstractLuxWrapperLayer{:model}
     model::L
     schedule::S
     input::F
     ad::A
+    device::D
 end
 
 default_input(x, t) = (x, t)
 
-NoisePredictor(model, sched::AbstractNoiseSchedule; input = default_input, ad = nothing) =
-    NoisePredictor(model, sched, input, ad)
+"""
+    DeviceTransfer(to, back)
+
+Where a [`NoisePredictor`](@ref) runs: `to` moves arrays to the device, `back` brings results
+home. Built from the keyword `device = (to = …, back = …)`.
+"""
+struct DeviceTransfer{T,B}
+    to::T
+    back::B
+end
+_device(::Nothing) = nothing
+_device(d::DeviceTransfer) = d
+_device(d::NamedTuple) = DeviceTransfer(d.to, d.back)
+
+NoisePredictor(model, sched::AbstractNoiseSchedule; input = default_input, ad = nothing, device = nothing) =
+    NoisePredictor(model, sched, input, ad, _device(device))
+
+# --- running on a device -------------------------------------------------------------
+# With `device = (to, back)` every evaluation and derivative of the network takes its array
+# arguments to the device once, runs there, with derivatives taken there too (dual numbers
+# are made on the device, never moved), and brings plain arrays back. The solvers' state, the
+# field's noise draws and the small linear algebra stay where they are. Inside, a copy of the
+# predictor without a device does the work, so the hooks see device arrays and nothing else.
+_local(p::NoisePredictor) = NoisePredictor(p.model, p.schedule, p.input, p.ad, nothing)
+_ondevice(p::NoisePredictor) = p.device !== nothing
+_to(p::NoisePredictor, x::AbstractArray) = p.device.to(x)
+_to(p::NoisePredictor, x) = x
+_back(p::NoisePredictor, y::AbstractArray) = p.device.back(y)
+_back(p::NoisePredictor, y::Number) = y
+_back(p::NoisePredictor, y::Union{NamedTuple,Tuple}) = y      # parameter cotangents stay with the parameters
 
 
 """
@@ -73,7 +109,15 @@ sampling and RED-Diff need no reverse pass through `model`. Only the implicit le
 backward pass does (a parameter VJP and an input Jacobian), and it goes through the predictor's
 `ad` backend, provided by a package extension (`predictor.md` §5).
 """
-epsilon(p::NoisePredictor, x, t, ps, st) = _apply(p.ad, p, x, t, ps, st)
+function epsilon(p::NoisePredictor, x, t, ps, st)
+    _ondevice(p) && return _epsilon_device(p, x, t, ps, st)
+    return _apply(p.ad, p, x, t, ps, st)
+end
+
+function _epsilon_device(p, x, t, ps, st)
+    e, st = epsilon(_local(p), _to(p, x), _to(p, t), ps, st)
+    return (_back(p, e), st)
+end
 
 # The forward hook. Plain Lux by default; an extension may compile it for its backend
 # (`VariationalDiffusionReactantExt` does, for `ad = AutoReactant()`). See `predictor.md` §5.

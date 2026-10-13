@@ -52,6 +52,7 @@ The network's energy ``E_\\theta(x, t)``: a scalar for a single point, the sum o
 a batch. One forward pass; no derivative needed.
 """
 function energy(p::NoisePredictor{<:EnergyNetwork}, x, t, ps, st)
+    _ondevice(p) && return energy(_local(p), _to(p, x), _to(p, t), ps, st)        # a scalar comes back as it is
     E, st = LuxCore.apply(p.model.model, p.input(x, t), ps, st)
     return (sum(E), st)
 end
@@ -59,23 +60,27 @@ end
 _sigmas(s, t) = t isa Number ? sigma(s, t) : sigma.(Ref(s), t)
 
 function epsilon(p::NoisePredictor{<:EnergyNetwork}, x, t, ps, st)
+    _ondevice(p) && return _epsilon_device(p, x, t, ps, st)
     p.ad === nothing && _need_ad()
     return (_sigmas(p.schedule, t) .* reshape(_energy_grad(p.ad, p, x, t, ps, st), size(x)), st)
 end
 
 function epsilon_jacobian(p::NoisePredictor{<:EnergyNetwork}, x, t, ps, st)
+    _ondevice(p) && return _back(p, epsilon_jacobian(_local(p), _to(p, x), _to(p, t), ps, st))
     p.ad === nothing && _need_ad()
     return sigma(p.schedule, t) .* _energy_hessian(p.ad, p, x, t, ps, st)
 end
 
 # the free-coordinate block: σ_t times the Hessian of Σ_b w_b E(x_b + P u) in u
 function epsilon_jacobian_block(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st, idx, w)
+    _ondevice(p) && return _back(p, epsilon_jacobian_block(_local(p), _to(p, X), _to(p, t), ps, st, idx, _to(p, w)))
     p.ad === nothing && _need_ad()
     return sigma(p.schedule, t) .* _energy_hessian_block(p.ad, p, X, t, ps, st, idx, w)
 end
 
 # Jᵀw = σ_t ∇²E w, column by column: one Hessian-vector product of the summed energy
 function epsilon_vjp_input(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st, W)
+    _ondevice(p) && return _back(p, epsilon_vjp_input(_local(p), _to(p, X), _to(p, t), ps, st, _to(p, W)))
     p.ad === nothing && _need_ad()
     return sigma(p.schedule, t) .* _energy_hvp(p.ad, p, X, t, ps, st, W)
 end
@@ -85,6 +90,7 @@ epsilon_jvp_input(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st, V) = epsilon
 
 # ∂_θ⟨σ_t ∇ₓE, w⟩ = ∂_θ⟨∇ₓE, σ_t w⟩, with σ_t per column for a batch
 function epsilon_vjp_params(p::NoisePredictor{<:EnergyNetwork}, x, t, ps, st, w)
+    _ondevice(p) && return epsilon_vjp_params(_local(p), _to(p, x), _to(p, t), ps, st, _to(p, w))
     p.ad === nothing && _need_ad()
     return _energy_mixed(p.ad, p, x, t, ps, st, reshape(w, size(x)) .* _sigmas(p.schedule, t))
 end
@@ -159,4 +165,14 @@ function denoising_gradient(p::NoisePredictor, x₀, t, ε, ps, st)
     B = size(x₀, 2)
     r = ε̂ .- ε
     return (sum(abs2, r) / B, epsilon_vjp_params(p, xt, t, ps, st, (2 / B) .* r), st)
+end
+
+# the energy of every column: one network call (with a device, there), no derivative
+function energy_columns(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st)
+    if _ondevice(p)
+        E, st = energy_columns(_local(p), _to(p, X), _to(p, t), ps, st)
+        return (_back(p, E), st)
+    end
+    E, st = LuxCore.apply(p.model.model, p.input(X, t), ps, st)
+    return (vec(E), st)
 end

@@ -34,8 +34,21 @@ _eltype(x::AbstractArray{<:Number}) = eltype(x)
 _eltype(x::Number) = typeof(x)
 _eltype(x::Union{NamedTuple,Tuple}) = isempty(x) ? Float64 : promote_type(map(_eltype, values(x))...)
 
+# the vector lives where the parameters do (a GPU array for parameters on a GPU)
+_firstleaf(x::AbstractArray{<:Number}) = x
+_firstleaf(x::Number) = nothing
+function _firstleaf(x::Union{NamedTuple,Tuple})
+    for y in values(x)
+        l = _firstleaf(y)
+        l === nothing || return l
+    end
+    return nothing
+end
+
 function _flatten(ps)
-    v = Vector{_eltype(ps)}(undef, _flatlen(ps))
+    T, n = _eltype(ps), _flatlen(ps)
+    leaf = _firstleaf(ps)
+    v = leaf === nothing ? Vector{T}(undef, n) : similar(leaf, T, n)
     _flatfill!(v, 1, ps)
     return v
 end
@@ -62,6 +75,14 @@ _rebuild(θ, o::Tuple, x::Tuple) = map((oi, xi) -> _rebuild(θ, oi, xi), o, x)
 _unflatten(θ, offs, like) = _rebuild(θ, offs, like)
 _unflatten(θ, like) = _rebuild(θ, offset_tree(like), like)
 
+# --- arrays where the caller's arrays are ----------------------------------------------
+# A dense floating-point copy on the same device (`collect` would bring a GPU array home), and
+# a CPU-built constant moved next to `X`.
+_dense(x::AbstractArray) = copyto!(similar(x, float(eltype(x)), size(x)), x)
+_dense(x::Number) = float(x)
+_like(X, A::AbstractArray) = X isa Array ? A : copyto!(similar(X, eltype(A), size(A)), A)
+_onehot(X, T, n, a) = _like(X, (e = zeros(T, n); e[a] = 1; e))
+
 # --- the two operations ---------------------------------------------------------
 # Outputs are flattened: a model may return a column (n×1) for a vector input, and the
 # cotangent `w` must then match the output's shape, not the input's.
@@ -79,7 +100,7 @@ function VariationalDiffusion._ad_vjp_params(ad::ADTypes.AbstractADType, pred::N
 end
 
 function VariationalDiffusion._ad_jacobian(ad::ADTypes.AbstractADType, pred::NoisePredictor, x, t, ps, st)
-    return DI.jacobian(_eps_of_input, ad, collect(float.(x)),
+    return DI.jacobian(_eps_of_input, ad, _dense(x),
                        DI.Constant(pred), DI.Constant(t), DI.Constant(ps), DI.Constant(st))
 end
 
@@ -97,15 +118,30 @@ end
 function VariationalDiffusion._ad_jacobian_block(ad::ADTypes.AbstractADType, pred::NoisePredictor,
                                                  X, t, ps, st, idx, w)
     T = float(eltype(X))
-    return DI.jacobian(_eps_block, ad, zeros(T, length(idx)), DI.Constant(pred), DI.Constant(collect(T.(X))),
-                       DI.Constant(t), DI.Constant(ps), DI.Constant(st), DI.Constant(_embedding(T, size(X, 1), idx)),
-                       DI.Constant(collect(T.(w))), DI.Constant(idx))
+    Xd, P, wd = _dense(X), _like(X, _embedding(T, size(X, 1), idx)), _like(X, T.(collect(w)))
+    ctx = (DI.Constant(pred), DI.Constant(Xd), DI.Constant(t), DI.Constant(ps), DI.Constant(st), DI.Constant(P),
+           DI.Constant(wd), DI.Constant(idx))
+    X isa Array && return DI.jacobian(_eps_block, ad, zeros(T, length(idx)), ctx...)
+    # on a device: one product per coordinate, with basis vectors made there
+    k = length(idx)
+    u = _like(X, zeros(T, k))
+    J = zeros(T, k, k)
+    if ADTypes.mode(ad) isa ADTypes.ReverseMode
+        for a in 1:k                                  # row a
+            J[a, :] .= Array(only(DI.pullback(_eps_block, ad, u, (_onehot(X, T, k, a),), ctx...)))
+        end
+    else
+        for a in 1:k                                  # column a
+            J[:, a] .= Array(only(DI.pushforward(_eps_block, ad, u, (_onehot(X, T, k, a),), ctx...)))
+        end
+    end
+    return J
 end
 
 _eps_of_inputs(X, pred, t, ps, st) = vec(first(epsilon(pred, X, t, ps, st)))
 
 function VariationalDiffusion._ad_vjp_input(ad::ADTypes.AbstractADType, pred::NoisePredictor, X, t, ps, st, W)
-    X̄ = DI.pullback(_eps_of_inputs, ad, collect(float.(X)), (collect(float.(vec(W))),),
+    X̄ = DI.pullback(_eps_of_inputs, ad, _dense(X), (_dense(vec(W)),),
                     DI.Constant(pred), DI.Constant(t), DI.Constant(ps), DI.Constant(st))
     return reshape(only(X̄), size(X))
 end
@@ -114,10 +150,11 @@ end
 # one pullback per coordinate for it, so they take the directional difference instead
 function VariationalDiffusion._ad_jvp_input(ad::ADTypes.AbstractADType, pred::NoisePredictor, X, t, ps, st, V)
     ADTypes.mode(ad) isa ADTypes.ReverseMode && return VariationalDiffusion._fd_jvp_input(pred, X, t, ps, st, V)
-    Ẋ = DI.pushforward(_eps_of_inputs, ad, collect(float.(X)), (collect(float.(reshape(V, size(X)))),),
+    Ẋ = DI.pushforward(_eps_of_inputs, ad, _dense(X), (_dense(reshape(V, size(X))),),
                        DI.Constant(pred), DI.Constant(t), DI.Constant(ps), DI.Constant(st))
     return reshape(only(Ẋ), size(X))
 end
+
 
 # --- energy-parametrised predictors: first and second derivatives of a scalar -----------
 # E is summed over the columns of a batch, so its x-gradient is the per-column gradients.
@@ -135,13 +172,13 @@ _first_order(ad) = ad isa DI.SecondOrder ? DI.inner(ad) : ad
 
 function VariationalDiffusion._energy_grad(ad::ADTypes.AbstractADType, pred::NoisePredictor{<:EnergyNetwork},
                                            x, t, ps, st)
-    return DI.gradient(_energy_x, _first_order(ad), collect(float.(x)),
+    return DI.gradient(_energy_x, _first_order(ad), _dense(x),
                        DI.Constant(pred), DI.Constant(t), DI.Constant(ps), DI.Constant(st))
 end
 
 function VariationalDiffusion._energy_hessian(ad::ADTypes.AbstractADType, pred::NoisePredictor{<:EnergyNetwork},
                                               x, t, ps, st)
-    return DI.hessian(_energy_x, ad, collect(float.(vec(x))),
+    return DI.hessian(_energy_x, ad, _dense(vec(x)),
                       DI.Constant(pred), DI.Constant(t), DI.Constant(ps), DI.Constant(st))
 end
 
@@ -154,26 +191,53 @@ end
 function VariationalDiffusion._energy_hessian_block(ad::ADTypes.AbstractADType, pred::NoisePredictor{<:EnergyNetwork},
                                                     X, t, ps, st, idx, w)
     T = float(eltype(X))
-    return DI.hessian(_energy_block, ad, zeros(T, length(idx)), DI.Constant(pred), DI.Constant(collect(T.(X))),
-                      DI.Constant(t), DI.Constant(ps), DI.Constant(st), DI.Constant(_embedding(T, size(X, 1), idx)),
-                      DI.Constant(collect(T.(w))))
+    Xd, P, wd = _dense(X), _like(X, _embedding(T, size(X, 1), idx)), _like(X, T.(collect(w)))
+    ctx = (DI.Constant(pred), DI.Constant(Xd), DI.Constant(t), DI.Constant(ps), DI.Constant(st), DI.Constant(P),
+           DI.Constant(wd))
+    X isa Array && return DI.hessian(_energy_block, ad, zeros(T, length(idx)), ctx...)
+    # on a device: one Hessian-vector product per coordinate
+    k = length(idx)
+    u = _like(X, zeros(T, k))
+    H = zeros(T, k, k)
+    for a in 1:k
+        H[:, a] .= Array(only(DI.hvp(_energy_block, ad, u, (_onehot(X, T, k, a),), ctx...)))
+    end
+    return (H .+ H') ./ 2
 end
 
 # ∇²E W column by column: the energy is summed over columns, so its Hessian is block diagonal
 function VariationalDiffusion._energy_hvp(ad::ADTypes.AbstractADType, pred::NoisePredictor{<:EnergyNetwork},
                                           X, t, ps, st, W)
-    hv = DI.hvp(_energy_x, ad, collect(float.(X)), (collect(float.(reshape(W, size(X)))),),
+    hv = DI.hvp(_energy_x, ad, _dense(X), (_dense(reshape(W, size(X))),),
                 DI.Constant(pred), DI.Constant(t), DI.Constant(ps), DI.Constant(st))
     return reshape(only(hv), size(X))
+end
+
+# With a forward outer backend the mixed derivative is the derivative in h of the parameter
+# gradient at x + h w: ∂_h ∇_θ E(x + h w) = ∇_θ⟨∇ₓE, w⟩. Only the input carries dual numbers,
+# the parameters stay where they are (on a GPU), and no joint [x; θ] vector is formed.
+_energy_theta(θ, pred, x, t, like, offs, st) = _energy_x(x, pred, t, _unflatten(θ, offs, like), st)
+_mixed_at(h, pred, x, w, t, θ, inner, like, offs, st) =
+    DI.gradient(_energy_theta, inner, θ, DI.Constant(pred), DI.Constant(x .+ h .* w), DI.Constant(t),
+                DI.Constant(like), DI.Constant(offs), DI.Constant(st))
+
+function VariationalDiffusion._energy_mixed(ad::DI.SecondOrder{<:ADTypes.AutoForwardDiff}, pred::NoisePredictor{<:EnergyNetwork},
+                                            x, t, ps, st, w)
+    θ = _flatten(ps)
+    xv = float.(x)
+    g = DI.derivative(_mixed_at, DI.outer(ad), zero(eltype(xv)), DI.Constant(pred), DI.Constant(xv),
+                      DI.Constant(reshape(float.(w), size(xv))), DI.Constant(t), DI.Constant(θ), DI.Constant(DI.inner(ad)),
+                      DI.Constant(ps), DI.Constant(offset_tree(ps)), DI.Constant(st))
+    return _unflatten(g, ps)
 end
 
 function VariationalDiffusion._energy_mixed(ad::ADTypes.AbstractADType, pred::NoisePredictor{<:EnergyNetwork},
                                             x, t, ps, st, w)
     θ = _flatten(ps)
-    xv = collect(float.(vec(x)))
+    xv = _dense(vec(x))
     T = promote_type(eltype(xv), eltype(θ))
     u = vcat(T.(xv), T.(θ))
-    v = vcat(T.(vec(w)), zeros(T, length(θ)))
+    v = vcat(T.(vec(w)), fill!(similar(θ, T, length(θ)), 0))
     hv = only(DI.hvp(_energy_joint, ad, u, (v,), DI.Constant(pred), DI.Constant(t), DI.Constant(size(x)),
                      DI.Constant(ps), DI.Constant(offset_tree(ps)), DI.Constant(st)))
     return _unflatten(hv[(length(xv) + 1):end], ps)
@@ -184,20 +248,20 @@ _prox_eps(v, p, t, λ, ps, st) = vec(first(LuxCore.apply(p.model, p.input(v, t, 
 _prox_eps_params(θ, p, v, t, λ, like, offs, st) = _prox_eps(v, p, t, λ, _unflatten(θ, offs, like), st)
 
 function VariationalDiffusion._prox_ad_vjp_input(ad::ADTypes.AbstractADType, p::ProxNetwork, v, t, λ, ps, st, y)
-    v̄ = DI.pullback(_prox_eps, ad, collect(float.(v)), (collect(float.(vec(y))),),
+    v̄ = DI.pullback(_prox_eps, ad, _dense(v), (_dense(vec(y)),),
                     DI.Constant(p), DI.Constant(t), DI.Constant(λ), DI.Constant(ps), DI.Constant(st))
     return reshape(only(v̄), size(v))
 end
 
 function VariationalDiffusion._prox_ad_vjp_params(ad::ADTypes.AbstractADType, p::ProxNetwork, v, t, λ, ps, st, y)
-    tθ = DI.pullback(_prox_eps_params, ad, _flatten(ps), (collect(float.(vec(y))),),
-                     DI.Constant(p), DI.Constant(collect(float.(v))), DI.Constant(t), DI.Constant(λ), DI.Constant(ps),
+    tθ = DI.pullback(_prox_eps_params, ad, _flatten(ps), (_dense(vec(y)),),
+                     DI.Constant(p), DI.Constant(_dense(v)), DI.Constant(t), DI.Constant(λ), DI.Constant(ps),
                      DI.Constant(offset_tree(ps)), DI.Constant(st))
     return _unflatten(only(tθ), ps)
 end
 
 function VariationalDiffusion._prox_ad_jacobian(ad::ADTypes.AbstractADType, p::ProxNetwork, v, t, λ, ps, st)
-    return DI.jacobian(_prox_eps, ad, collect(float.(v)),
+    return DI.jacobian(_prox_eps, ad, _dense(v),
                        DI.Constant(p), DI.Constant(t), DI.Constant(λ), DI.Constant(ps), DI.Constant(st))
 end
 

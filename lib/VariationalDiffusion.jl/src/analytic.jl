@@ -85,6 +85,7 @@ For an exact score the matrix is **symmetric** — it is ``-\\sigma_t`` times a 
 ``\\log p_t`` — and the backward pass does not assume that, because a learned network's is not.
 """
 function epsilon_jacobian(pred::NoisePredictor, x, t, ps, st)
+    _ondevice(pred) && return _back(pred, epsilon_jacobian(_local(pred), _to(pred, x), _to(pred, t), ps, st))
     pred.ad === nothing || return _ad_jacobian(pred.ad, pred, x, t, ps, st)
     n = length(x)
     J = zeros(eltype(float(x)), n, n)
@@ -121,6 +122,7 @@ closed form for [`GaussianMixtureEps`](@ref); ``|I|`` Hessian-vector products fo
 [`EnergyNetwork`](@ref).
 """
 function epsilon_jacobian_block(pred::NoisePredictor, X, t, ps, st, idx, w)
+    _ondevice(pred) && return _back(pred, epsilon_jacobian_block(_local(pred), _to(pred, X), _to(pred, t), ps, st, idx, _to(pred, w)))
     pred.ad === nothing || return _ad_jacobian_block(pred.ad, pred, X, t, ps, st, idx, w)
     n, k = size(X, 1), length(idx)
     J = zeros(eltype(float(X)), k, k)
@@ -159,6 +161,7 @@ of the clamped inputs ([`prior_vjp`](@ref)). Through the predictor's AD backend 
 in closed form for [`GaussianMixtureEps`](@ref), and from the finite-difference Jacobian otherwise.
 """
 function epsilon_vjp_input(pred::NoisePredictor, X, t, ps, st, W)
+    _ondevice(pred) && return _back(pred, epsilon_vjp_input(_local(pred), _to(pred, X), _to(pred, t), ps, st, _to(pred, W)))
     pred.ad === nothing || return _ad_vjp_input(pred.ad, pred, X, t, ps, st, W)
     X̄ = similar(float.(X))
     for (x̄, x, w) in zip(eachcol(reshape(X̄, size(X, 1), :)), eachcol(reshape(X, size(X, 1), :)),
@@ -194,6 +197,7 @@ backends such as Zygote, by one central difference along `V` (two batched forwar
 accurate to about ``10^{-8}`` relative).
 """
 function epsilon_jvp_input(pred::NoisePredictor, X, t, ps, st, V)
+    _ondevice(pred) && return _back(pred, epsilon_jvp_input(_local(pred), _to(pred, X), _to(pred, t), ps, st, _to(pred, V)))
     pred.ad === nothing || return _ad_jvp_input(pred.ad, pred, X, t, ps, st, V)
     return _fd_jvp_input(pred, X, t, ps, st, V)
 end
@@ -228,7 +232,10 @@ network's parameters*.
 
 Without either, it throws.
 """
-epsilon_vjp_params(pred::NoisePredictor, x, t, ps, st, w) = _ad_vjp_params(pred.ad, pred, x, t, ps, st, w)
+function epsilon_vjp_params(pred::NoisePredictor, x, t, ps, st, w)
+    _ondevice(pred) && return epsilon_vjp_params(_local(pred), _to(pred, x), _to(pred, t), ps, st, _to(pred, w))
+    return _ad_vjp_params(pred.ad, pred, x, t, ps, st, w)
+end
 
 _ad_vjp_params(::Nothing, pred, x, t, ps, st, w) = throw(ArgumentError(
     "epsilon_vjp_params needs w'∂ε/∂θ for $(typeof(pred.model)). Construct the predictor with an AD " *

@@ -35,6 +35,18 @@ construction. The implicit learner's field is then the gradient of `implicit_ene
 energy for the learned relation. Train with `denoising_gradient` (the loss gradient as one
 mixed second derivative, no nested AD in the loop) and any optimiser.
 
+## On a GPU
+
+`device = (to = gpu_device(), back = cpu_device())` (MLDataDevices) runs the network and all
+its derivatives on the GPU, while the solvers keep their state on the CPU. Move the parameters
+yourself (`ps = gpu_device()(ps)`), and build the time features in `input` on the device of
+`x`. For an energy network use `ad = SecondOrder(AutoForwardDiff(), AutoZygote())`: the
+second derivatives are then taken forward over reverse on the device. At MNIST size (794
+inputs, two hidden layers of 512) on an RTX 3080, a training step on 128 points takes 6 ms
+against 300 ms on the CPU. A classification query with ten free coordinates takes 1.8 ms per
+iteration when 1000 queries are solved together. Results agree with the CPU in Float64 to about
+1e-7.
+
 ## Closed-form and kernel predictors
 
 `GaussianMixtureEps` is the exact noise predictor of a Gaussian mixture: every derivative the

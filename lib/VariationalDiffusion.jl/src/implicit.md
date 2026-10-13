@@ -147,5 +147,50 @@ itself the cost: one dense $784\times784$ block takes 33 s. With `KrylovSolve` a
 ten coordinates 0.8 s; one Jacobian-vector product costs 3.2 ms and one vector-Jacobian product
 5.7 ms ([[krylov]] §4).
 
+## 7. Many queries at once (`many.jl`)
+
+`implicit_infer_many(m, Z₀, ρ, ps, st)` solves the columns of `Z₀` as separate queries with
+one polarity. Each query keeps its own Newton or descent step, backtracking, stability test and
+stopping rule, and leaves the batch when it converges. What is shared is the network: per
+iteration, one call per noise level evaluates the field of all unfinished queries. The
+free-coordinate blocks of all of them come from one more call per level, which stacks the
+$\lvert F\rvert$ directions as copies of the inputs side by side: JVPs in general, VJPs (rows)
+when the predictor has an AD backend. The blocks are dense, so this suits few free coordinates,
+which is classification's shape.
+
+The answers are those of `implicit_infer`, query by query: equal to $10^{-10}$ on the circle,
+with the same iteration counts, and to $10^{-6}$ for a Lux network with every backend, batched or
+not (tests). On the CPU the gain is small: 1.9 s against 2.6 s one by one, for 100 queries with finite
+differences, where the network's cost dominates. On a GPU it is the difference between 24 ms and
+1.8 ms per query and iteration ([[energy_network]] §8).
+
+## 8. Classification: categorical answers
+
+`implicit_classify(m, z₀, ρ, ps, st; label, classes)` makes the label coordinates free, starts
+the solver from every class code (the columns of `classes`, e.g. one-hot vectors), and reads the
+`implicit_mixture` on the label coordinates as a class with `categorical_answer`. Each root goes
+to its nearest code, and the Laplace masses of the roots of a class are summed. Roots at least
+half the smallest distance between two codes away from every code are reported as `unassigned`
+mass, not dropped and not renormalised away. The answer keeps the mixture it was read from. With
+a matrix of queries, `implicit_classify` solves all queries from all codes in one
+`implicit_infer_many`, and batches the Jacobian blocks and energies of the roots as well.
+
+**Measured** on three classes in the plane with one-hot labels (closed-form mixtures, width
+0.15, `density_lambda`), against the exact posterior $p(\text{class}\mid x)$ of the data:
+
+| $x$ | answer | exact |
+|---|---|---|
+| a class centre | 1.000 | 1.000 |
+| on the boundary between two classes | 0.500 / 0.500 | 0.500 / 0.500 |
+| 0.02 off the boundary | 0.713 / 0.287 | 0.744 / 0.256 |
+| 0.04 off | 0.860 / 0.140 | 0.895 / 0.105 |
+| 0.06 off | 0.939 / 0.061 | 0.961 / 0.039 |
+
+Within 0.04 everywhere, and slightly less confident than the data. This is the smoothing: the
+answer is the posterior of the density smoothed at the field's noise levels, which is wider
+than the data's. A query far from every class ($x = (3, 3)$) is still answered with certainty
+(class 3, the nearest). Classification inherits the extrapolation problem, and `coverage` is the
+flag for it ([[coverage]]).
+
 Related: [[analytic]], [[reddiff]], [[factor]], [[energy_network]], [[krylov]], [[sampler]], [[Deterministic Relaxation]], [[Inference Signatures]],
 [[The Implicit Diffusion Factor as a Statistical Game]]

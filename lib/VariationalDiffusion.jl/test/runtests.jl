@@ -10,6 +10,7 @@ using Statistics: mean, std
 using Lux: Lux, Chain, Dense, swish
 using DifferentiationInterface: DifferentiationInterface
 using ADTypes: AutoZygote, AutoForwardDiff, AutoEnzyme
+using JLArrays: JLArrays, JLArray
 import Zygote, ForwardDiff, Enzyme
 
 # ---------------------------------------------------------------------------
@@ -1174,6 +1175,156 @@ end
     # an unstable answer has no Laplace approximation
     bad = ImplicitSolution([0.0, 0.0], 0.0, 1, true, false)
     @test_throws ArgumentError implicit_laplace(mc, bad, [Inf, 0.0], pc, sc)
+end
+
+@testset "categorical answers: classification as a query" begin
+    # three classes in the plane, each a ring of 8 components plus its centre, with the label as
+    # a one-hot code: the exact posterior p(class | x) is a ratio of Gaussian sums
+    s = 0.15
+    centres = [[-1.0, 0.0], [1.0, 0.0], [0.0, 1.5]]
+    pts = [(k, m .+ r .* [cos(a), sin(a)]) for (k, m) in enumerate(centres) for (r, a) in
+           [(0.0, 0.0); [(0.4, a) for a in range(0, 2π; length = 9)[1:8]]]]
+    μ = reduce(hcat, [[x; 1:3 .== k] for (k, x) in pts])
+    p = NoisePredictor(GaussianMixtureEps(SCHED, float.(μ); s), SCHED)
+    ps, st = LuxCore.setup(Xoshiro(0), p)
+    nodes = field_nodes(Xoshiro(1), 5; samples = 8, levels = range(0.002, 0.02; length = 6))
+    m = ImplicitDiffusion(p, nodes; λ = density_lambda(SCHED, nodes))
+    codes = Matrix(1.0I, 3, 3)
+    exact(x) = (l = [sum(exp(-sum(abs2, x .- y) / (2s^2)) for (k, y) in pts if k == c) for c in 1:3]; l ./ sum(l))
+    ρ = [Inf, Inf, 0, 0, 0]
+    for x in ([-1.0, 0.0], [0.0, 0.0], [-0.02, 0.0], [0.04, 0.0], [0.0, 0.8])
+        a, _ = implicit_classify(m, [x; zeros(3)], ρ, ps, st; label = 3:5, classes = codes, labels = [:a, :b, :c])
+        @test a.unassigned < 1e-8
+        @test maximum(abs, probabilities(a.belief) .- exact(x)) < 0.04
+        @test a.belief.labels == [:a, :b, :c]
+        @test a.mixture isa MixtureBelief
+    end
+    # the boundary point: two answers of equal weight, the third class negligible
+    a, _ = implicit_classify(m, [0.0, 0.0, 0, 0, 0], ρ, ps, st; label = [3, 4, 5], classes = codes)
+    @test probabilities(a.belief) ≈ [0.5, 0.5, 0.0] atol = 1e-3
+    # reading a mixture: assignment, summing, unassigned mass reported, not dropped
+    G(μ) = Gaussian(μ, 0.01 * Matrix(1.0I, 3, 3))
+    mix = MixtureBelief([G([0.9, 0.1, 0]), G([0, 1.05, 0]), G([0.95, 0, 0.05]), G([0.5, 0.5, 0.0])], [0.2, 0.3, 0.1, 0.4])
+    r = categorical_answer(mix, codes)
+    @test r.assignment == [1, 2, 1, 0]
+    @test r.unassigned ≈ 0.4
+    @test probabilities(r.belief) ≈ [0.5, 0.5, 0.0]
+    @test categorical_answer(mix, codes; radius = 1.0).unassigned ≈ 0 atol = 1e-12
+    @test categorical_answer(MixtureBelief([G([0.5, 0.5, 0.0])]), codes).belief === nothing
+    @test_throws DimensionMismatch categorical_answer(mix, Matrix(1.0I, 2, 2))
+    @test_throws ArgumentError implicit_classify(m, zeros(5), [Inf, Inf, Inf, 0, 0], ps, st; label = 3:5, classes = codes)
+end
+
+@testset "many queries at once: the same answers, shared network calls" begin
+    # the circle: y given x for many x, against implicit_infer query by query
+    m = ImplicitDiffusion(RING, field_nodes(Xoshiro(1), 2; samples = 8))
+    xs = range(-0.9, 0.9; length = 7)
+    Z₀ = vcat(collect(xs)', fill(0.5, 1, 7))
+    sols, _ = implicit_infer_many(m, Z₀, HARDX, RPS, RST; tol = 1e-12)
+    for (b, x) in enumerate(xs)
+        ref, _ = implicit_infer(m, [x, 0.5], HARDX, RPS, RST; tol = 1e-12)
+        @test sols[b].z ≈ ref.z atol = 1e-10
+        @test sols[b].converged && sols[b].stable && sols[b].iters == ref.iters
+    end
+    # starts on the other branch, and soft targets
+    Zi = copy(Z₀); Zi[2, :] .= -0.5
+    sols, _ = implicit_infer_many(m, Z₀, HARDX, RPS, RST; Z_init = Zi, tol = 1e-12)
+    @test all(s -> s.z[2] < 0, sols)
+    ρs = [Inf, 0.5]
+    sols, _ = implicit_infer_many(m, Z₀, ρs, RPS, RST; tol = 1e-12)
+    @test all(b -> sols[b].z ≈ first(implicit_infer(m, Z₀[:, b], ρs, RPS, RST; tol = 1e-12)).z, 1:7)
+    @test_throws DimensionMismatch implicit_infer_many(m, Z₀, [Inf, 0.0, 0.0], RPS, RST)
+
+    # a Lux network, batched (one call per noise level for all queries) and unbatched, with an
+    # AD backend (the Jacobian blocks from VJPs) and without (from finite-difference JVPs)
+    ps0, stm = Lux.setup(Xoshiro(0), MLP)
+    psm = _f64(ps0)
+    nodes = field_nodes(Xoshiro(1), 2; samples = 2)
+    Zq = [0.3 -0.2 0.6; 0.1 0.4 -0.3]
+    for ad in (nothing, AutoForwardDiff(), AutoZygote()), batched in (false, true)
+        pred = NoisePredictor(MLP, SCHED; input = _batch_input, ad)
+        mm = ImplicitDiffusion(pred, nodes; batched)
+        sols, _ = implicit_infer_many(mm, Zq, HARDX, psm, stm; tol = 1e-10, maxiters = 100)
+        for b in 1:3
+            ref, _ = implicit_infer(mm, Zq[:, b], HARDX, psm, stm; tol = 1e-10, maxiters = 100)
+            @test sols[b].z ≈ ref.z rtol = 1e-6
+            @test sols[b].converged == ref.converged
+        end
+    end
+
+    # classification of many queries: the single-query answers
+    s = 0.15
+    centres = [[-1.0, 0.0], [1.0, 0.0], [0.0, 1.5]]
+    pts = [(k, c .+ r .* [cos(a), sin(a)]) for (k, c) in enumerate(centres) for (r, a) in
+           [(0.0, 0.0); [(0.4, a) for a in range(0, 2π; length = 9)[1:8]]]]
+    p = NoisePredictor(GaussianMixtureEps(SCHED, float.(reduce(hcat, [[x; 1:3 .== k] for (k, x) in pts])); s), SCHED)
+    pp, sp = LuxCore.setup(Xoshiro(0), p)
+    nodes5 = field_nodes(Xoshiro(1), 5; samples = 8, levels = range(0.002, 0.02; length = 6))
+    mc = ImplicitDiffusion(p, nodes5; λ = density_lambda(SCHED, nodes5))
+    X = [-1.0 -0.02 0.0 0.04 0.0 0.9; 0.0 0.0 0.0 0.0 0.8 0.1]
+    Zc = vcat(X, zeros(3, size(X, 2)))
+    ρ = [Inf, Inf, 0, 0, 0]
+    many, _ = implicit_classify(mc, Zc, ρ, pp, sp; label = 3:5, classes = Matrix(1.0I, 3, 3))
+    @test length(many) == size(X, 2)
+    for b in axes(X, 2)
+        one, _ = implicit_classify(mc, Zc[:, b], ρ, pp, sp; label = 3:5, classes = Matrix(1.0I, 3, 3))
+        @test probabilities(many[b].belief) ≈ probabilities(one.belief) atol = 1e-6
+        @test length(many[b].mixture.components) == length(one.mixture.components)
+    end
+end
+
+@testset "a predictor on a device: every hook through device arrays" begin
+    # JLArrays is the reference GPU array, on the CPU and without scalar indexing: what passes
+    # here moves to CUDA unchanged. Time features are made on the CPU and placed beside x.
+    JLArrays.allowscalar(false)
+    to(x::AbstractArray) = JLArray(Float64.(x)); to(x) = x
+    tojl(ps) = Lux.fmap(a -> a isa AbstractArray ? JLArray(a) : a, ps)
+    function dev_input(x, t)
+        te = Zygote.@ignore begin
+            tt = t isa Number ? fill(Float64(t), 1, size(x, 2)) : Array(t)
+            f = vcat(sin.((2π .* tt) .* FREQ), cos.((2π .* tt) .* FREQ))
+            x isa Array ? f : copyto!(similar(x, Float64, size(f)), f)
+        end
+        return vcat(x, te)
+    end
+    X, W = randn(Xoshiro(1), 2, 6), randn(Xoshiro(2), 2, 6)
+    t, w = 0.05, fill(1 / 6, 6)
+    rel(a, b) = norm(Array(a) .- b) / norm(b)
+    ps0, st = Lux.setup(Xoshiro(0), ENERGY_MLP)
+    ps = _f64(ps0)
+    ad = DifferentiationInterface.SecondOrder(AutoForwardDiff(), AutoZygote())
+    host = NoisePredictor(EnergyNetwork(ENERGY_MLP), SCHED; input = dev_input, ad)
+    dev = NoisePredictor(EnergyNetwork(ENERGY_MLP), SCHED; input = dev_input, ad, device = (to = to, back = Array))
+    pd = tojl(ps)
+    @test first(epsilon(dev, X, t, pd, st)) isa Matrix
+    @test rel(first(epsilon(dev, X, t, pd, st)), first(epsilon(host, X, t, ps, st))) < 1e-12
+    @test rel(epsilon_vjp_input(dev, X, t, pd, st, W), epsilon_vjp_input(host, X, t, ps, st, W)) < 1e-12
+    @test rel(epsilon_jacobian_block(dev, X, t, pd, st, [2], w), epsilon_jacobian_block(host, X, t, ps, st, [2], w)) < 1e-10
+    @test first(VariationalDiffusion.energy(dev, X, t, pd, st)) ≈ first(VariationalDiffusion.energy(host, X, t, ps, st)) rtol = 1e-12
+    # the training gradient: the cotangent stays with the parameters, on the device
+    x₀, tb, εb = randn(Xoshiro(3), 2, 5), reshape([0.1, 0.2, 0.3, 0.4, 0.5], 1, 5), randn(Xoshiro(4), 2, 5)
+    Lh, gh, _ = denoising_gradient(host, x₀, tb, εb, ps, st)
+    Ld, gd, _ = denoising_gradient(dev, x₀, tb, εb, pd, st)
+    @test Ld ≈ Lh rtol = 1e-12
+    @test gd.layer_1.weight isa JLArray
+    @test rel(gd.layer_1.weight, gh.layer_1.weight) < 1e-10
+    # batched solves and classification-shaped queries give the host's answers
+    nodes = field_nodes(Xoshiro(1), 2; samples = 2)
+    mh, md = ImplicitDiffusion(host, nodes; batched = true), ImplicitDiffusion(dev, nodes; batched = true)
+    Zq = [0.3 -0.2 0.6; 0.1 0.4 -0.3]
+    sh, _ = implicit_infer_many(mh, Zq, HARDX, ps, st; tol = 1e-10, maxiters = 50)
+    sd, _ = implicit_infer_many(md, Zq, HARDX, pd, st; tol = 1e-10, maxiters = 50)
+    @test all(b -> sd[b].z ≈ sh[b].z, 1:3)
+    @test first(implicit_energy(md, Zq[:, 1], pd, st)) ≈ first(implicit_energy(mh, Zq[:, 1], ps, st)) rtol = 1e-12
+    # an ε-network, with a reverse and a forward backend (the Jacobian block by rows and by columns)
+    psm = _f64(first(Lux.setup(Xoshiro(0), MLP))); stm = last(Lux.setup(Xoshiro(0), MLP))
+    for ad in (AutoZygote(), AutoForwardDiff())
+        h = NoisePredictor(MLP, SCHED; input = dev_input, ad)
+        g = NoisePredictor(MLP, SCHED; input = dev_input, ad, device = (to = to, back = Array))
+        @test rel(epsilon_jacobian_block(g, X, t, tojl(psm), stm, [1, 2], w), epsilon_jacobian_block(h, X, t, psm, stm, [1, 2], w)) < 1e-10
+        @test rel(epsilon_vjp_params(g, X[:, 1], t, tojl(psm), stm, W[:, 1]).layer_2.weight,
+                  epsilon_vjp_params(h, X[:, 1], t, psm, stm, W[:, 1]).layer_2.weight) < 1e-10
+    end
 end
 
 @testset "energy-parametrised predictor: exact against the mixture, conservative, trainable" begin

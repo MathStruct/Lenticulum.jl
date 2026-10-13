@@ -200,3 +200,76 @@ function implicit_mixture(m::AbstractImplicitRelation, z₀, ρ, ps, st; coords 
     w = exp.(logw .- maximum(logw))
     return (LenticulumCore.MixtureBelief([c[1] for c in comps], w), st)
 end
+
+# --- Categorical answers ---------------------------------------------------------------------
+
+"""
+    categorical_answer(mix::MixtureBelief, classes::AbstractMatrix; labels = nothing, radius = nothing)
+        -> (belief, unassigned, assignment)
+
+A mixture answer on label coordinates read as a class: each component is assigned to the
+nearest column of `classes` (the class codes, e.g. scaled one-hot vectors, one column per
+class), and the weights of the components assigned to a class are summed.
+
+- `belief`: a `CategoricalBelief` over the classes (with `labels`), normalised over the
+  **assigned** mass; `nothing` if no component is assigned.
+- `unassigned`: the mixture weight of the components at least `radius` from every class
+  code, reported rather than dropped. A root between the codes is an answer the relation gives
+  but no class describes (a smoothing artefact, or a query outside the data).
+- `assignment`: the class of each component, `0` for unassigned.
+
+`radius` defaults to half the smallest distance between two class codes, so that the regions
+do not overlap. The means are compared, not the Gaussians: a component's own spread does not
+split its mass between classes.
+"""
+function categorical_answer(mix::LenticulumCore.MixtureBelief, classes::AbstractMatrix; labels = nothing,
+                            radius::Union{Nothing,Real} = nothing)
+    K = size(classes, 2)
+    K ≥ 1 || throw(ArgumentError("need at least one class code"))
+    r = radius === nothing ? (K == 1 ? Inf :
+        minimum(norm(classes[:, a] .- classes[:, b]) for a in 1:K for b in (a + 1):K) / 2) : float(radius)
+    w = LenticulumCore.mixture_weights(mix)
+    assignment = map(mix.components) do c
+        μ = LenticulumCore.belief_mean(c)
+        length(μ) == size(classes, 1) || throw(DimensionMismatch(
+            "components on $(length(μ)) coordinates, class codes on $(size(classes, 1))"))
+        d = [norm(μ .- view(classes, :, k)) for k in 1:K]
+        k = argmin(d)
+        d[k] < r ? k : 0
+    end
+    p = zeros(eltype(w), K)
+    for (a, wi) in zip(assignment, w)
+        a > 0 && (p[a] += wi)
+    end
+    unassigned = one(eltype(w)) - sum(p)
+    belief = sum(p) > 0 ? LenticulumCore.CategoricalBelief(p; labels) : nothing
+    return (belief = belief, unassigned = max(unassigned, zero(unassigned)), assignment = assignment)
+end
+
+"""
+    implicit_classify(m, z₀, ρ, ps, st; label, classes, labels = nothing, radius = nothing,
+                      starts = class codes, kwargs...) -> (answer, st)
+
+Classification as a query: the coordinates `label` (indices) are free and read as a class,
+the others are clamped or soft as `ρ` says. Runs [`implicit_mixture`](@ref) on the label
+coordinates, by default started from every class code (the columns of `classes` placed in
+the label coordinates, the rest of `z₀` unchanged), and reads the answer with
+[`categorical_answer`](@ref). `kwargs` go to the solver (`maxiters`, `linsolve`, …).
+
+`answer` holds `belief` (a `CategoricalBelief`, or `nothing`), `unassigned`, `assignment` and
+`mixture`, the Gaussian mixture it was read from. The class probabilities are the Laplace masses
+of the roots, so they are calibrated only when the relation has an energy (an
+[`EnergyNetwork`](@ref) or a closed-form mixture) and λ is [`density_lambda`](@ref); without
+an energy every root weighs the same.
+"""
+function implicit_classify(m::AbstractImplicitRelation, z₀, ρ, ps, st; label, classes::AbstractMatrix,
+                           labels = nothing, radius = nothing, starts = nothing, kwargs...)
+    idx = _indices(label)
+    length(idx) == size(classes, 1) || throw(DimensionMismatch(
+        "$(length(idx)) label coordinates, class codes of length $(size(classes, 1))"))
+    all(!isinf, ρ[idx]) || throw(ArgumentError("the label coordinates must not be hard-clamped"))
+    inits = starts === nothing ? [(z = float.(copy(z₀)); z[idx] .= c; z) for c in eachcol(classes)] : starts
+    mix, st = implicit_mixture(m, z₀, ρ, ps, st; coords = idx, starts = inits, kwargs...)
+    a = categorical_answer(mix, classes; labels, radius)
+    return ((a..., mixture = mix), st)
+end

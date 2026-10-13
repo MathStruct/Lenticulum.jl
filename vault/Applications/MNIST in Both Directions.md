@@ -3,9 +3,10 @@
 > **One implicit diffusion model of (image, label) on MNIST, queried in both directions:**
 > clamp the image and the free label is a classification; clamp the label and the free image is
 > a digit; clamp half an image and both the rest and the label come out at once. The demo of
-> "one relation, polarity chosen at query time" that everyone recognises. Not built yet:
-> §4 lists the interfaces it needs; the cost, the sampler and the solver's backward pass now
-> exist, the categorical answer and GPU energy networks do not.
+> "one relation, polarity chosen at query time" that everyone recognises. Not built yet, but
+> every interface in §4 now exists and is tested: free-coordinate blocks, batched and
+> matrix-free solves, many queries at once, the clamped sampler, the categorical answer, and
+> energy networks on a GPU.
 
 > Sources: original to this vault (experiment design); LeCun, Bottou, Bengio & Haffner, *Gradient-Based Learning Applied to Document Recognition*, Proc. IEEE 1998 (MNIST); Grathwohl et al., *Your Classifier is Secretly an Energy Based Model…*, ICLR 2020 (JEM); Li et al., *Your Diffusion Model is Secretly a Zero-Shot Classifier*, ICCV 2023; Clark & Jaini, *Text-to-Image Diffusion Models are Zero-Shot Classifiers*, NeurIPS 2023; Bao et al., *One Transformer Fits All Distributions in Multi-Modal Diffusion at Scale*, ICML 2023 (UniDiffuser); Lugmayr et al., *RePaint*, CVPR 2022; code: `implicit.jl`, `answers.jl`, `energy_network.jl`
 >
@@ -70,17 +71,20 @@ estimates of a denoising loss. The accuracy will most likely sit below a plain c
 2. **Batching and matrix-free solves** ([[Open Problems in Implicit Diffusion Learning]] I5) —
    *done*: one network call per noise level (`batched = true`), and `linsolve = KrylovSolve()`
    (GMRES, Lanczos stability, stochastic Lanczos $\log\det\Sigma$). With the image free (784 of 794
-   coordinates) a solve takes 1.1 s ([[krylov]]). Still missing: many queries at once (10,000
-   test images as one batched solve).
+   coordinates) a solve takes 1.1 s ([[krylov]]). Many queries at once: *done*,
+   `implicit_infer_many` evaluates all unfinished queries in one network call per noise level
+   ([[implicit]] §7).
 3. **A clamped sampler for ε- and energy networks** (I1) — *done*: `implicit_sample(m, z₀, ρ, ps,
    st; n, steps, resample, rng)`, the reverse diffusion with the hard-clamped coordinates
    replaced at every step and RePaint's resampling ([[sampler]]).
-4. **A categorical answer.** `implicit_mixture` returns a mixture of Gaussians over $\mathbb
-   R^{10}$; a classification wants a `CategoricalBelief`. Needed: a projection that assigns each
-   root to its nearest one-hot vector and sums the weights, with the residual mass (roots far from
-   every class) reported, not dropped.
-5. **Energy networks at this size, on a GPU backend** (I6): second derivatives of a 794-input
-   network, which Zygote and ForwardDiff-over-Zygote handle and Enzyme does not yet.
+4. **A categorical answer** — *done*: `implicit_classify` starts from every class code and
+   reads the mixture of roots as a `CategoricalBelief`. The mass of roots far from every code is
+   reported as `unassigned`. On three closed-form classes the probabilities are within 0.04 of
+   the exact posterior ([[implicit]] §8).
+5. **Energy networks at this size, on a GPU** — *done*: `device = (to = gpu_device(), back =
+   cpu_device())` with `ad = SecondOrder(AutoForwardDiff(), AutoZygote())`. At this network size
+   a training step takes 6 ms and a classification iteration 1.8 ms per query, in batches of 1000
+   ([[energy_network]] §8). Enzyme and Reactant are not needed for it.
 6. **Optional: the backward signatures** ([[Backward Signatures]]), only if the generative model
    is fine-tuned discriminatively through the classification query. Pure denoising training
    needs none of it. The solver level is there: `Zygote.gradient` differentiates through

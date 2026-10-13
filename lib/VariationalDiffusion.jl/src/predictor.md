@@ -98,5 +98,36 @@ already in closed form and the Jacobian is exactly what the method refuses to co
 vector form would be honest bookkeeping with nothing downstream to consume it. **Recorded as
 a genuine inconsistency with the vault's stated design, with a reason.**
 
+## 5. Running on a device
+
+`NoisePredictor(model, schedule; input, ad, device = (to = gpu_device(), back = cpu_device()))`
+runs the network on an accelerator and leaves everything else where it is. The solvers' state,
+the field's noise draws, the small dense blocks and the Krylov vectors stay on the CPU. Every
+entry point that evaluates or differentiates the network (`epsilon`, `energy`,
+`energy_columns`, the input Jacobian and its blocks, the input VJP and JVP, the parameter VJP)
+moves its array arguments with `to`, calls a copy of the predictor without a device, and
+returns its result through `back`. Parameter cotangents are not moved back: they belong to the
+parameters, which the caller has put on the device.
+
+Two decisions make this fast rather than merely correct.
+
+- **Derivatives happen on the device.** The first version wrapped the model in a layer that
+  moved its input. Forward-mode dual numbers were then made on the CPU, converted, and moved in
+  and out of every Hessian-vector product: 234 ms for one product over 4000 columns, where the
+  device itself needs about 20. With the device at the predictor's entry points the duals are
+  created on the device, and the same product takes 21 ms.
+- **No CPU-only constructions in the hooks.** `collect` brings a GPU array home and a basis
+  vector made with `zeros` lives on the CPU. The DifferentiationInterface extension copies with
+  `similar` and moves its constants next to the input. On a device it builds Jacobian and
+  Hessian blocks from one product per free coordinate instead of a chunked Jacobian.
+
+The `input` function receives device arrays and must build its time features there. Eight
+numbers per column are made on the CPU and copied next to `x`. MLDataDevices' `gpu_device()`
+also converts `Float64` to `Float32`; a consumer GPU computes `Float64` at 1/64 of the rate.
+
+The tests run every hook on JLArrays, the reference GPU array type that runs on the CPU and
+forbids scalar indexing, so a CPU-only construction fails in CI without a GPU. The measured
+costs on CUDA are in [[energy_network]] §8.
+
 Related: [[schedule]], [[reddiff]], [[factor]], [[backends]], [[The VP-SDE]],
 [[Lux as a Parametric Lens]], [[Scalar and Multivariate Energy]]

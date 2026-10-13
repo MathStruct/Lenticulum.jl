@@ -60,6 +60,7 @@ include("energy_network.jl")
 include("answers.jl")
 include("sampler.jl")
 include("coverage.jl")
+include("many.jl")
 include("product.jl")
 include("proxdm.jl")
 include("factor.jl")
@@ -72,7 +73,7 @@ export beta, integrated_beta, alpha, sigma, snr, drift, diffusion
 export perturb, sample_time, marginal_variance
 
 # --- The noise predictor ---------------------------------------------------
-export NoisePredictor, noise_schedule, epsilon, score, denoise, denoising_loss
+export NoisePredictor, DeviceTransfer, noise_schedule, epsilon, score, denoise, denoising_loss
 
 # --- RED-Diff --------------------------------------------------------------
 export REDDiff, reddiff_weight, regulariser_gradient, reddiff_solve, calibrate_lambda
@@ -95,6 +96,7 @@ export ImplicitProx, implicit_solution, implicit_factor_pullback
 # --- Proximal diffusion models (ProxDM) ----------------------------------------
 export EnergyNetwork, energy, implicit_energy, denoising_gradient
 export implicit_roots, implicit_laplace, density_lambda, laplace_belief, implicit_mixture, implicit_sample
+export categorical_answer, implicit_classify, implicit_infer_many
 export CoverageReference, coverage_reference, coverage
 export AbstractImplicitRelation, ProductRelation
 export AbstractProximalPredictor, proximal, ProxNetwork, MixtureProx

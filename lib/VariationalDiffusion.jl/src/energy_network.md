@@ -150,13 +150,42 @@ them. A point method returns one branch; the energy says the other is equally go
 - **The mixture code is not AD-friendly.** `_mixture_parts` normalises the responsibilities in
   place (`γ ./= sum(γ)`), which Zygote cannot differentiate, so the exact test uses its own
   non-mutating mixture energy.
-- **Float32 parameters pollute second derivatives.** Lux initialises in Float32; a
-  finite-difference check at step ``10^{-5}`` against Float32 parameters disagrees at 1e-3. All
-  energy computations here convert parameters to Float64 first.
+- **Float32 parameters pollute finite-difference checks.** Lux initialises in Float32; a
+  finite-difference check at step ``10^{-5}`` against Float32 parameters disagrees at 1e-3. The
+  tests convert parameters to Float64 first. On a GPU the AD derivatives themselves are fine in
+  Float32 (§8): they agree with Float64 to about 1e-7.
+- **The mixed derivative without a joint vector.** The parameter VJP was the θ-block of one
+  Hessian-vector product on $u = [x; \theta]$, which flattens the parameters next to the input.
+  With a forward outer backend (`SecondOrder(AutoForwardDiff(), …)`) it is now the derivative in
+  $h$ of the parameter gradient at $x + hw$: $\partial_h\nabla_\theta E(x + hw) = \nabla_\theta\langle\nabla_xE, w\rangle$. Only the input carries dual
+  numbers, so the parameters can stay on a GPU. Other backends keep the joint form.
 - **The input must accept a batch.** `input(x, t)` is called with ``x`` a matrix and ``t`` a
   scalar or a ``1\times B`` row during training, and with a vector during inference.
 - **Reactant** needs its own compiled Hessian, Hessian-vector product and mixed derivative. Nested
   Enzyme works inside `@compile` (§4); the five `_energy_*` hooks are not yet wired.
+
+## 8. On a GPU
+
+`examples/gpu_energy.jl`: an energy network at MNIST size, $E$ on $x\in\mathbb R^{794}$,
+802 → 512 → 512 → 1. It uses `ad = SecondOrder(AutoForwardDiff(), AutoZygote())` and
+`device = (to = gpu_device(), back = cpu_device())`, so the network runs in Float32 on an RTX 3080
+while the solver's state stays in Float64 on the CPU. The reference is the same network on the
+CPU in Float64.
+
+| | GPU | CPU (8 threads) | agreement |
+|---|---|---|---|
+| training step, 128 points (loss and parameter gradient) | 6.4 ms | 299 ms | gradient 3e-8 |
+| ε for 4000 columns | 10 ms | | 4e-7 |
+| Hessian-vector product, 4000 columns | 21 ms | | 9e-7 |
+| $10\times10$ Hessian block of 400 columns | | | 6e-8 |
+| classification-shaped solves (784 clamped, 10 free, 16 nodes), per query and iteration | 1.8 ms at 1000 queries, 2.6 ms at 100, 24 ms alone | 324 ms (100 queries) | iterates 2e-12 |
+
+So training an energy network on MNIST is ordinary GPU training at a few milliseconds per batch.
+Classifying the 10,000 test images from all ten class codes (about six iterations each) is
+about 20 minutes. Batched queries ([[implicit]] §7) are what make this work: one query alone
+spends its time on transfers and launches. Without the GPU, Lux's nested AD
+(`StatefulLuxLayer`, Zygote over Zygote) failed on this network, on the CPU and on the GPU. The
+package does not need it, because the mixed derivative is taken forward over reverse (§7).
 
 Related: [[predictor]], [[implicit]], [[backends]], [[analytic]],
 [[Geometric Deep Learning and Physical Laws]], [[The Implicit Diffusion Factor as a Statistical Game]]

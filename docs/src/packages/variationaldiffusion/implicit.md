@@ -36,6 +36,17 @@ vector-Jacobian products (`prior_vjp`), stability is tested by Lanczos, and the 
 covariance is computed only on the coordinates asked for. On a 794-dimensional MLP with 784
 free coordinates, `implicit_infer` takes about 1 s; one dense 784 × 784 block takes 33 s.
 
+## Many queries, and classification
+
+`implicit_infer_many(m, Z₀, ρ, ps, st)` solves the columns of `Z₀` as separate queries with
+one polarity, and evaluates all of them in each network call: one call per noise level for
+the field, one more for the free-coordinate blocks. The answers are those of `implicit_infer`
+query by query. `implicit_classify(m, z₀, ρ, ps, st; label, classes)` frees the label
+coordinates, starts from every class code and returns a `CategoricalBelief`. The mass of
+roots far from every code is reported as `unassigned`, and the Gaussian mixture the belief was
+read from is kept. Given a matrix of queries, it solves them all at once. On three classes with
+a closed-form model the class probabilities are within 0.04 of the exact posterior.
+
 ## Off the data
 
 Inference answers every query, also one the data never covered. `coverage_reference(m, data,
@@ -100,6 +111,13 @@ Pages = ["answers.jl"]
 ```@autodocs
 Modules = [VariationalDiffusion]
 Pages = ["krylov.jl"]
+```
+
+### Many queries at once
+
+```@autodocs
+Modules = [VariationalDiffusion]
+Pages = ["many.jl"]
 ```
 
 ### Coverage

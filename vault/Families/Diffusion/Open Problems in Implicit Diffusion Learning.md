@@ -173,7 +173,9 @@ Second derivatives work with Zygote, ForwardDiff-over-Zygote and Mooncake forwar
 Enzyme's forward-over-reverse fails on CPU for two upstream reasons (a missing LuxLib forward rule
 for `fused_dense!`, and Enzyme.jl #3368 on Julia 1.12). The same nested Enzyme is exact inside
 `Reactant.@compile`, so Reactant is not blocked, only unwired: its extension lacks the five
-`_energy_*` hooks ([[energy_network]] §4, §7).
+`_energy_*` hooks ([[energy_network]] §4, §7). On a GPU the question is settled without either:
+with `device = (to = gpu_device(), back = cpu_device())` and ForwardDiff over Zygote, every
+derivative runs on CUDA and agrees with the CPU to about 1e-7 ([[energy_network]] §8).
 
 ### I7. ProxDM, completed — **done**
 
@@ -211,8 +213,15 @@ clamp, which would separate T4 from T5, and embeddings for high dimensions.
 ### I10. Real data and higher dimensions
 
 Everything validated is two- to four-dimensional and synthetic or closed-form. A real-data
-benchmark, and a problem with tens of coordinates, are the obvious next tests; with I5 done the
-cost no longer stands in the way ([[MNIST in Both Directions]]).
+benchmark, and a problem with tens of coordinates, are the obvious next tests
+([[MNIST in Both Directions]]). The prerequisites are in place and tested:
+- many queries solved at once (`implicit_infer_many`);
+- classification as a categorical answer (`implicit_classify`), within 0.04 of the exact
+  posterior on a closed-form test;
+- energy networks at MNIST size on a GPU (`device = …`): 6 ms per training step and 1.8 ms
+  per query and iteration ([[energy_network]] §8).
+
+The experiment itself is not run yet.
 
 ### I11. Nonlinear factors around the learner — **done**
 
@@ -247,11 +256,11 @@ channels, and a SLAM or particle example that uses it.
 | I3 | Gaussian messages from `lib/` | done (`message = :gaussian`) |
 | I4 | restarts after unstable solves | done |
 | I5 | batched nodes, Newton–Krylov | done: free-coordinate blocks, batched nodes, `KrylovSolve` |
-| I6 | energy networks on Enzyme and Reactant | Zygote and Mooncake work; Reactant unwired but unblocked; Enzyme on CPU blocked upstream |
+| I6 | energy networks on Enzyme and Reactant | Zygote and Mooncake work, and on CUDA through `device` (forward over Zygote); Reactant unwired but unblocked; Enzyme on CPU blocked upstream |
 | I7 | ProxDM adjoint, factor, sampler | done: adjoint, factor inversion (`ProxDM`), trapezoidal sampler; higher-noise backprop tried (no benefit on the circle) |
 | I8 | composition | done: products on shared and overlapping variables (separators), MCMC correctors and SMC reweighting for sampling |
 | I9 | coverage diagnostics | done: `coverage` (distance, reconstruction, energy as conformal p-values) |
-| I10 | real data, higher dimensions | missing |
+| I10 | real data, higher dimensions | prerequisites done (batched queries, categorical answers, GPU energy networks); experiment not run |
 | I11 | nonlinear factors | done: `NonlinearFactor` (EKF, UKF, iterated) |
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]], [[Backpropagation through Implicit Inference]],
