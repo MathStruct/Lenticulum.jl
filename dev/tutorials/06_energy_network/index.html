@@ -48,7 +48,7 @@ end
 
 t_eps = @elapsed (ps_e, st_e, loss_e) = train_eps(Xoshiro(0))
 t_en = @elapsed (ps_E, st_E, loss_E) = train_energy(Xoshiro(0))
-(seconds_eps = round(t_eps; digits = 1), seconds_energy = round(t_en; digits = 1))</code></pre><pre><code class="nohighlight hljs">(seconds_eps = 7.1, seconds_energy = 55.5)</code></pre><p>The energy network is slower per step, the price of a second derivative. Both reach the same loss:</p><pre><code class="language-julia hljs">movmean(v, k = 200) = [mean(v[max(1, i - k + 1):i]) for i in eachindex(v)]
+(seconds_eps = round(t_eps; digits = 1), seconds_energy = round(t_en; digits = 1))</code></pre><pre><code class="nohighlight hljs">(seconds_eps = 5.3, seconds_energy = 55.4)</code></pre><p>The energy network is slower per step, the price of a second derivative. Both reach the same loss:</p><pre><code class="language-julia hljs">movmean(v, k = 200) = [mean(v[max(1, i - k + 1):i]) for i in eachindex(v)]
 fig = Figure(size = (620, 320))
 ax = Axis(fig[1, 1]; xlabel = &quot;step&quot;, ylabel = &quot;denoising loss (200-step mean)&quot;)
 lines!(ax, movmean(loss_e); label = &quot;ε-network&quot;)
