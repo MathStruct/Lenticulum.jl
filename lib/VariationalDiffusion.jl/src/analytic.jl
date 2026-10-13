@@ -44,12 +44,15 @@ end
 LuxCore.initialparameters(::AbstractRNG, l::GaussianMixtureEps) = (μ = copy(l.μ₀),)
 LuxCore.initialstates(::AbstractRNG, ::GaussianMixtureEps) = NamedTuple()
 
-# u_j, γ_j and v_t at (x, t): the three quantities every formula below is built from
+# u_j, γ_j and v_t at (x, t): the three quantities every formula below is built from. `t` is a
+# number, or a vector with one time per coordinate (noise blocks): then α, σ and v are vectors
+# and every formula holds coordinate by coordinate, p_t(x) = Σ_j w_j N(x; α ⊙ μ_j, diag(v)).
 function _mixture_parts(l::GaussianMixtureEps, x, t, μ)
-    a, sg = alpha(l.schedule, t), sigma(l.schedule, t)
-    v = a^2 * l.s^2 + sg^2
+    a = t isa Number ? alpha(l.schedule, t) : alpha.(Ref(l.schedule), t)
+    sg = t isa Number ? sigma(l.schedule, t) : sigma.(Ref(l.schedule), t)
+    v = a .^ 2 .* l.s^2 .+ sg .^ 2
     D = x .- a .* μ                                   # n × J
-    ℓ = vec(-sum(abs2, D; dims = 1)) ./ (2v) .+ l.logw  # log of w_j N(x; α μ_j, v I), up to a constant
+    ℓ = vec(-sum(abs2.(D) ./ v; dims = 1)) ./ 2 .+ l.logw  # log of w_j N(x; α μ_j, diag v), up to a constant
     γ = exp.(ℓ .- maximum(ℓ))
     γ ./= sum(γ)
     return (U = D ./ v, γ = γ, v = v, a = a, sg = sg, ℓ = ℓ)
@@ -61,6 +64,12 @@ function (l::GaussianMixtureEps)(inp, ps, st)
     return (p.sg .* (p.U * p.γ), st)
 end
 
+# a mixture's time per coordinate for column b: the predictor's blocks spread over coordinates
+_ctimes(pred::NoisePredictor, t, b = 1) = pred.blocks === nothing ? t : t[pred.blocks.owner, b]
+_apply(ad, p::NoisePredictor{<:GaussianMixtureEps}, x, t, ps, st) =
+    LuxCore.apply(p.model, p.input(x, _ctimes(p, t)), ps, st)
+_vec(a, n) = a isa Number ? fill(a, n) : a
+
 """
     mixture_logdensity(l::GaussianMixtureEps, x, t, ps) -> Real
 
@@ -70,7 +79,7 @@ gradient of a smoothed log-density (`Implicit Diffusion Learners.md` §3).
 function mixture_logdensity(l::GaussianMixtureEps, x, t, ps)
     p = _mixture_parts(l, x, t, ps.μ)
     m = maximum(p.ℓ)
-    return m + log(sum(exp.(p.ℓ .- m))) - length(x) / 2 * log(2π * p.v)   # the weights are in ℓ
+    return m + log(sum(exp.(p.ℓ .- m))) - sum(log.(2π .* _vec(p.v, length(x)))) / 2   # the weights are in ℓ
 end
 
 # --- the two derivatives the backward pass needs, in closed form -----------------
@@ -85,6 +94,7 @@ For an exact score the matrix is **symmetric** — it is ``-\\sigma_t`` times a 
 ``\\log p_t`` — and the backward pass does not assume that, because a learned network's is not.
 """
 function epsilon_jacobian(pred::NoisePredictor, x, t, ps, st)
+    t = _times(pred, x, t)
     _ondevice(pred) && return _back(pred, epsilon_jacobian(_local(pred), _to(pred, x), _to(pred, t), ps, st))
     pred.ad === nothing || return _ad_jacobian(pred.ad, pred, x, t, ps, st)
     n = length(x)
@@ -99,12 +109,13 @@ function epsilon_jacobian(pred::NoisePredictor, x, t, ps, st)
     return J
 end
 
-# exact:  ∂ε/∂x = σ_t [ I/v_t - Σ_j γ_j u_j (u_j - ū)ᵀ ],  ū = Σ_j γ_j u_j   (symmetric)
+# exact:  ∂ε/∂x = σ_t [ I/v_t - Σ_j γ_j u_j (u_j - ū)ᵀ ],  ū = Σ_j γ_j u_j   (symmetric for one
+# noise level; with noise blocks σ and v are per coordinate, σ scales the rows)
 function epsilon_jacobian(pred::NoisePredictor{<:GaussianMixtureEps}, x, t, ps, st)
-    p = _mixture_parts(pred.model, x, t, ps.μ)
+    p = _mixture_parts(pred.model, x, _ctimes(pred, _times(pred, x, t)), ps.μ)
     ū = p.U * p.γ
     n = length(x)
-    return p.sg .* (Matrix{eltype(ū)}(I, n, n) ./ p.v .- (p.U .* p.γ') * (p.U .- ū)')
+    return p.sg .* (Matrix(Diagonal(1 ./ _vec(p.v, n))) .- (p.U .* p.γ') * (p.U .- ū)')
 end
 
 """
@@ -122,6 +133,7 @@ closed form for [`GaussianMixtureEps`](@ref); ``|I|`` Hessian-vector products fo
 [`EnergyNetwork`](@ref).
 """
 function epsilon_jacobian_block(pred::NoisePredictor, X, t, ps, st, idx, w)
+    t = _times(pred, X, t)
     _ondevice(pred) && return _back(pred, epsilon_jacobian_block(_local(pred), _to(pred, X), _to(pred, t), ps, st, idx, _to(pred, w)))
     pred.ad === nothing || return _ad_jacobian_block(pred.ad, pred, X, t, ps, st, idx, w)
     n, k = size(X, 1), length(idx)
@@ -141,13 +153,14 @@ _ad_jacobian_block(ad, pred, X, t, ps, st, idx, w) = throw(ArgumentError(
 
 # exact, column by column:  σ_t [ I/v_t - (U_I .* γ')(U_I .- ū_I)ᵀ ]
 function epsilon_jacobian_block(pred::NoisePredictor{<:GaussianMixtureEps}, X, t, ps, st, idx, w)
-    k = length(idx)
+    k, n = length(idx), size(X, 1)
     J = zeros(eltype(float(X)), k, k)
-    for (b, x) in enumerate(eachcol(reshape(X, size(X, 1), :)))
-        p = _mixture_parts(pred.model, x, t, ps.μ)
+    t = _times(pred, X, t)
+    for (b, x) in enumerate(eachcol(reshape(X, n, :)))
+        p = _mixture_parts(pred.model, x, _ctimes(pred, t, b), ps.μ)
         UI = p.U[idx, :]
         ūI = UI * p.γ
-        J .+= (w[b] * p.sg) .* (Matrix{eltype(J)}(I, k, k) ./ p.v .- (UI .* p.γ') * (UI .- ūI)')
+        J .+= w[b] .* _vec(p.sg, n)[idx] .* (Matrix(Diagonal(1 ./ _vec(p.v, n)[idx])) .- (UI .* p.γ') * (UI .- ūI)')
     end
     return J
 end
@@ -161,6 +174,7 @@ of the clamped inputs ([`prior_vjp`](@ref)). Through the predictor's AD backend 
 in closed form for [`GaussianMixtureEps`](@ref), and from the finite-difference Jacobian otherwise.
 """
 function epsilon_vjp_input(pred::NoisePredictor, X, t, ps, st, W)
+    t = _times(pred, X, t)
     _ondevice(pred) && return _back(pred, epsilon_vjp_input(_local(pred), _to(pred, X), _to(pred, t), ps, st, _to(pred, W)))
     pred.ad === nothing || return _ad_vjp_input(pred.ad, pred, X, t, ps, st, W)
     X̄ = similar(float.(X))
@@ -174,15 +188,29 @@ end
 _ad_vjp_input(ad, pred, X, t, ps, st, W) = throw(ArgumentError(
     "ad = $(ad) given, but no extension implements it: load DifferentiationInterface (and the backend package)."))
 
-# exact:  Jᵀw = σ_t [ w/v_t - (U .- ū)(γ .* Uᵀw) ]
+# exact:  Jᵀw = (σ ⊙ w)/v - (U .- ū)(γ .* Uᵀ(σ ⊙ w))
 function epsilon_vjp_input(pred::NoisePredictor{<:GaussianMixtureEps}, X, t, ps, st, W)
     X̄ = similar(float.(X))
-    for (x̄, x, w) in zip(eachcol(reshape(X̄, size(X, 1), :)), eachcol(reshape(X, size(X, 1), :)),
-                         eachcol(reshape(W, size(X, 1), :)))
-        p = _mixture_parts(pred.model, x, t, ps.μ)
-        x̄ .= p.sg .* (w ./ p.v .- (p.U .- p.U * p.γ) * (p.γ .* (p.U' * w)))
+    t = _times(pred, X, t)
+    for (b, (x̄, x, w)) in enumerate(zip(eachcol(reshape(X̄, size(X, 1), :)), eachcol(reshape(X, size(X, 1), :)),
+                                         eachcol(reshape(W, size(X, 1), :))))
+        p = _mixture_parts(pred.model, x, _ctimes(pred, t, b), ps.μ)
+        sw = p.sg .* w
+        x̄ .= sw ./ p.v .- (p.U .- p.U * p.γ) * (p.γ .* (p.U' * sw))
     end
     return X̄
+end
+
+# exact:  J v = σ ⊙ [ v/v_t - U (γ .* (U .- ū)ᵀ v) ]
+function epsilon_jvp_input(pred::NoisePredictor{<:GaussianMixtureEps}, X, t, ps, st, V)
+    Ẋ = similar(float.(X))
+    t = _times(pred, X, t)
+    for (b, (ẋ, x, v)) in enumerate(zip(eachcol(reshape(Ẋ, size(X, 1), :)), eachcol(reshape(X, size(X, 1), :)),
+                                        eachcol(reshape(V, size(X, 1), :))))
+        p = _mixture_parts(pred.model, x, _ctimes(pred, t, b), ps.μ)
+        ẋ .= p.sg .* (v ./ p.v .- p.U * (p.γ .* ((p.U .- p.U * p.γ)' * v)))
+    end
+    return Ẋ
 end
 
 """
@@ -197,6 +225,7 @@ backends such as Zygote, by one central difference along `V` (two batched forwar
 accurate to about ``10^{-8}`` relative).
 """
 function epsilon_jvp_input(pred::NoisePredictor, X, t, ps, st, V)
+    t = _times(pred, X, t)
     _ondevice(pred) && return _back(pred, epsilon_jvp_input(_local(pred), _to(pred, X), _to(pred, t), ps, st, _to(pred, V)))
     pred.ad === nothing || return _ad_jvp_input(pred.ad, pred, X, t, ps, st, V)
     return _fd_jvp_input(pred, X, t, ps, st, V)
@@ -214,8 +243,6 @@ function _fd_jvp_input(pred, X, t, ps, st, V)
     return reshape((fp .- fm) ./ (2h), size(X))
 end
 
-# the mixture's Jacobian is symmetric: the JVP is the VJP
-epsilon_jvp_input(pred::NoisePredictor{<:GaussianMixtureEps}, X, t, ps, st, V) = epsilon_vjp_input(pred, X, t, ps, st, V)
 
 """
     epsilon_vjp_params(pred::NoisePredictor, x, t, ps, st, w) -> ps̄
@@ -233,6 +260,7 @@ network's parameters*.
 Without either, it throws.
 """
 function epsilon_vjp_params(pred::NoisePredictor, x, t, ps, st, w)
+    t = _times(pred, x, t)
     _ondevice(pred) && return epsilon_vjp_params(_local(pred), _to(pred, x), _to(pred, t), ps, st, _to(pred, w))
     return _ad_vjp_params(pred.ad, pred, x, t, ps, st, w)
 end
@@ -248,11 +276,12 @@ _ad_vjp_params(ad, pred, x, t, ps, st, w) = throw(ArgumentError(
 _ad_jacobian(ad, pred, x, t, ps, st) = throw(ArgumentError(
     "ad = $(ad) given, but no extension implements it: load DifferentiationInterface (and the backend package)."))
 
-# exact:  (∂ε/∂μ_j)ᵀ w = σ_t α_t γ_j [ -w/v_t + u_j (u_j - ū)ᵀ w ]
+# exact:  (∂ε/∂μ_j)ᵀ w = α ⊙ γ_j [ -(σ ⊙ w)/v + u_j (u_j - ū)ᵀ (σ ⊙ w) ]
 function epsilon_vjp_params(pred::NoisePredictor{<:GaussianMixtureEps}, x, t, ps, st, w)
-    p = _mixture_parts(pred.model, x, t, ps.μ)
+    p = _mixture_parts(pred.model, x, _ctimes(pred, _times(pred, x, t)), ps.μ)
     ū = p.U * p.γ
-    c = (p.U .- ū)' * w                               # (u_j - ū)ᵀ w, one per component
-    G = (p.sg * p.a) .* ((.-w ./ p.v) .* p.γ' .+ p.U .* (p.γ .* c)')
+    sw = p.sg .* vec(w)
+    c = (p.U .- ū)' * sw                              # (u_j - ū)ᵀ (σ ⊙ w), one per component
+    G = p.a .* ((.-sw ./ p.v) .* p.γ' .+ p.U .* (p.γ .* c)')
     return (μ = G,)
 end

@@ -105,20 +105,27 @@ answer outside the data with high probability. A matrix scores each column.
 The scores read the model at the answer and the data near it; they do not certify the answer.
 A root on the relation can still be the wrong branch (T1), and an answer of the smoothed
 relation sits slightly off the data (T2), which the reconstruction score sees.
+
+For a classification answer pass `unassigned`, the mass of [`categorical_answer`](@ref) that
+lies between the class codes: it is returned, and `flagged` is true when `p < alpha` or at least
+half the answer is unassigned, so that a root between two codes is flagged rather than read as
+a class.
 """
-function coverage(ref::CoverageReference, z::AbstractVector)
+function coverage(ref::CoverageReference, z::AbstractVector; unassigned::Real = 0.0, alpha::Real = 0.05)
     T = eltype(ref.distance)
     d = _nearest(ref.data, ref.scale, z, 0)
     r, e, _ = _model_scores(ref.m, collect(T.(z)), ref.t, ref.ξ, ref.ps, ref.st)
     pd, pr = _pvalue(ref.distance, d), _pvalue(ref.reconstruction, r)
     pe = ref.energy === nothing ? nothing : _pvalue(ref.energy, e)
     ps = pe === nothing ? (pd, pr) : (pd, pr, pe)
+    p = min(one(T), length(ps) * minimum(ps))
     return (distance = d, reconstruction = r, energy = ref.energy === nothing ? nothing : e,
-            p_distance = pd, p_reconstruction = pr, p_energy = pe,
-            p = min(one(T), length(ps) * minimum(ps)))
+            p_distance = pd, p_reconstruction = pr, p_energy = pe, p = p,
+            unassigned = unassigned, flagged = p < alpha || unassigned ≥ 0.5)
 end
-coverage(ref::CoverageReference, sol::ImplicitSolution) = coverage(ref, sol.z)
-coverage(ref::CoverageReference, Z::AbstractMatrix) = [coverage(ref, Z[:, j]) for j in axes(Z, 2)]
+coverage(ref::CoverageReference, sol::ImplicitSolution; kwargs...) = coverage(ref, sol.z; kwargs...)
+coverage(ref::CoverageReference, Z::AbstractMatrix; unassigned = zeros(size(Z, 2)), alpha::Real = 0.05) =
+    [coverage(ref, Z[:, j]; unassigned = unassigned[j], alpha) for j in axes(Z, 2)]
 
 _pvalue(reference, s) = (1 + count(≥(s), reference)) / (1 + length(reference))
 

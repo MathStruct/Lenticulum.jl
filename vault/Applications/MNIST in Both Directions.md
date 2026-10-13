@@ -96,15 +96,21 @@ dependencies.
 **Found by the experiment (§6): still needed for the generative direction and for graded
 answers.** These are open problems I12 and I13 in [[Open Problems in Implicit Diffusion Learning]].
 
-7. **A noise level per block of coordinates** (UniDiffuser), in the predictor, training, the
-   sampler and the field's nodes, so that a clean label can condition a noisy image.
-8. **Block dropout and classifier-free guidance**, so that the image score uses the label.
-9. **Loss weights per block** as an option of `denoising_gradient` (the example has its own).
-10. **A class probability from a single root**, and the `unassigned` mass passed on to `coverage`.
-11. **A globalised solver** (trust region, or continuation in the noise level) for modes in
-    hundreds of free coordinates.
-12. **Tolerances that follow the predictor's precision** (Float32 on a GPU stops near 1e-6).
-13. **A convolutional energy network** for image quality.
+7. **A noise level per block of coordinates** (UniDiffuser) — *done*: `NoisePredictor(…; blocks)`,
+   `block_times`, block `levels` on the relation, held clamps in the sampler ([[predictor]] §6,
+   [[implicit]] §9, [[sampler]] §5). It makes label → image work (§7).
+8. **Classifier-free guidance** — *done* (`guidance`), but on this model it lowers the rate at
+   which samples are recognised as their label (§7). Independent block times already train the
+   unconditional score, so no separate label dropout is needed.
+9. **Loss weights per coordinate** — *done*: `denoising_gradient(…; weights)`.
+10. **A class probability from a single root** — *done*: `categorical_answer(…; temperature,
+    cov_scale)` with `calibrate_temperature`; calibration error 0.009 (§7). The `unassigned` mass
+    goes to `coverage(…; unassigned)` as a flag.
+11. **A globalised solver** — *partly*: `continuation` in the noise level raises the converged
+    modes from 0 to 3–4 of 10 at five to nine times the cost (§7); no trust region yet.
+12. **Tolerances that follow the arithmetic** — *done*: `default_tolerance` (about 1e-6 for Float32
+    on a device).
+13. **A convolutional energy network** for image quality — open; the samples of §7 show why.
 
 ## 5. What the tutorial was meant to show
 
@@ -199,7 +205,83 @@ text-to-image literature already found necessary:
 - a convolutional energy for image quality.
 
 The first two are changes to the training and the sampler, not to the query machinery. The
-second needs a noise level per block of coordinates, which the package does not have.
+second needs a noise level per block of coordinates, which the package did not have; §7 adds it.
+
+## 7. With a noise level per block (October 2026)
+
+The same network and training, except that image and label are two noise blocks
+(`blocks = [1:784, 785:794]`, 32 time features), each trained at its own time drawn from
+$[t_{\min}, 1]$ (`block_times`; 20% of each batch with one shared time), label weight 100,
+100 epochs (`BLOCKS=1 MODEL=blocks_w100`). A query holds its clamped block clean and anneals the
+free one (`conditional_levels`, `clamp_level`).
+
+**Label → image now uses the label.** 20 samples per class, scored by the same softmax judge
+(chance 10%):
+
+| sampler, same block-trained network | recognised as the clamped label | mean judge probability |
+|---|---|---|
+| label held clean (`clamp_level = tmin`) | **85.5%** | 0.852 |
+| held, guidance 1 | 74.0% | 0.736 |
+| held, guidance 3 | 71.5% | 0.711 |
+| label replaced by its forward marginal (as in §6) | 10.5% | 0.110 |
+
+Training with independent block times alone is not enough. With the label replaced, as the
+old sampler did, the same network is at chance. Holding the label clean was tried on the old
+network in §6 and did not help, because that network had never seen a clean label beside a
+noisy image. It is the combination that conditions: a network trained on every pair of levels,
+and a sampler that gives it the clamp clean. Guidance, the usual remedy, makes it worse here.
+
+**The images are still not good digits.** The judge picks up label-specific structure, but the
+samples are mostly noise; the old model's few clean digits do not reappear:
+
+![Samples with the label held clean (rows: 0 to 9), block-trained energy network](https://raw.githubusercontent.com/MathStruct/Lenticulum.jl/master/docs/src/assets/mnist_samples_blocks.png)
+
+The bottleneck is the image score of an MLP energy over 794 coordinates (item 13), not the
+conditioning.
+
+**Image → label, held against joint.** One start, argmax of the root, tuning images 9001–10000,
+same network:
+
+| field levels | image held clean | joint field (image noised too) |
+|---|---|---|
+| 0.002–0.05 | 93.9% | 93.7% |
+| 0.05–0.2 | 95.0% | 94.0% |
+| 0.1–0.4 | **95.3%** | 93.1% |
+| 0.02–0.5 | 95.0% | 92.6% |
+
+Holding the image clean matters more the more the field smooths, as on the circle ([[implicit]]
+§9). But the block-trained network classifies slightly worse than the joint-only network of §6:
+95.3% against 95.9% on the tuning images, and on test images 1–3000 (mid levels) 92.6% against
+94.6%. One network for both directions costs about one to two points here.
+
+**Class probabilities from single roots.** Every query again has one stable root. Reading the
+root's Laplace Gaussian as evidence about the code (`categorical_answer(…; temperature,
+cov_scale)`), fitted on the tuning images and scored on test images 1–3000 (mid levels, ten
+starts):
+
+| reading | accuracy | NLL | calibration error (ECE) | mean max-probability |
+|---|---|---|---|---|
+| Laplace weights, hard assignment | 90.3% | 1.459 | 0.052 | 0.955 |
+| code posterior, τ only (τ at its bound 0.001) | 92.5% | 0.509 | 0.250 | 0.675 |
+| code posterior, τ = 0.001 and κ = 0.45 | 92.5% | **0.244** | **0.009** | 0.926 |
+| softmax MLP (§6, test images 1–9000) | 97.7% | | 0.011 | |
+
+The Laplace covariance at `density_lambda` is about twice too wide (κ = 0.45 shrinks it), so a
+temperature alone, which can only widen it, makes the answers underconfident. With κ the root's
+position gives calibrated probabilities, as calibrated as the discriminative baseline's, at its
+lower accuracy. The hard reading loses the 2% of roots that lie between codes.
+
+**Modes with the label held** (784 free coordinates, `KrylovSolve`, 50 iterations per stage):
+
+| start | continuation | converged and stable | judged as the label | median residual | time per mode |
+|---|---|---|---|---|---|
+| blank image | none | 0/10 | 5/10 | 2.9 | 25 s |
+| blank image | (8, 3) | 3/10 | 8/10 | 1.4 | 221 s |
+| a sample | none | 0/10 | 8/10 | 16 | 19 s |
+| a sample | (8, 3) | 4/10 | 8/10 | 0.48 | 123 s |
+
+Continuation in the noise level helps the solver into basins, but at five to nine times the
+cost and still converging in fewer than half the cases.
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]], [[Composing Diffusion Factors]],
 [[Open Problems in Implicit Diffusion Learning]], [[Language Models]], [[Motivating Examples]]

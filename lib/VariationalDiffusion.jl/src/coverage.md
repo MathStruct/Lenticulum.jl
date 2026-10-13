@@ -104,6 +104,11 @@ c.p < 0.05 && @warn "answer outside the data" c
 The reference stores the parameters; rebuild it after training. `coverage(ref, Z)` scores the
 columns of a matrix, such as the output of [[sampler|implicit_sample]].
 
+For a classification answer, `coverage(ref, z; unassigned = a.unassigned)` carries the mass of
+`categorical_answer` that lies between the class codes, and `flagged` is true when `p < alpha`
+(default 0.05) or at least half the answer is unassigned: a root between two codes is flagged
+rather than read as a class ([[implicit]] §10).
+
 ## 6. Not done
 
 - **Scores of the free coordinates only.** A clamp is given, not inferred; a score of the free

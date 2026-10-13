@@ -626,6 +626,16 @@ references:
     year: 2020
     collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
     url: "https://arxiv.org/abs/2006.11239"
+  - type: conference-paper
+    title: "Classifier-Free Diffusion Guidance"
+    authors:
+      - family-names: "Ho"
+        given-names: "Jonathan"
+      - family-names: "Salimans"
+        given-names: "Tim"
+    year: 2022
+    collection-title: "NeurIPS 2021 Workshop on Deep Generative Models and Downstream Applications"
+    url: "https://arxiv.org/abs/2207.12598"
   - type: article
     title: "iSAM2: Incremental smoothing and mapping using the Bayes tree"
     authors:

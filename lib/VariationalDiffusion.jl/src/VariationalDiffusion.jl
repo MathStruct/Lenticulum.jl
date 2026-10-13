@@ -73,7 +73,7 @@ export beta, integrated_beta, alpha, sigma, snr, drift, diffusion
 export perturb, sample_time, marginal_variance
 
 # --- The noise predictor ---------------------------------------------------
-export NoisePredictor, DeviceTransfer, noise_schedule, epsilon, score, denoise, denoising_loss
+export NoisePredictor, DeviceTransfer, NoiseBlocks, nblocks, noise_schedule, epsilon, score, denoise, denoising_loss
 
 # --- RED-Diff --------------------------------------------------------------
 export REDDiff, reddiff_weight, regulariser_gradient, reddiff_solve, calibrate_lambda
@@ -88,15 +88,15 @@ export epsilon_jacobian_block, epsilon_vjp_input, epsilon_jvp_input
 export kde_predictor, kde_bandwidth, OnlineKDE, observe!
 
 # --- Implicit inference and its backward pass -----------------------------
-export FieldNodes, field_nodes, noisefree_nodes, ImplicitDiffusion, ImplicitSolution
-export prior_field, prior_jacobian, prior_vjp, prior_jvp, implicit_residual, implicit_infer, implicit_pullback
+export FieldNodes, field_nodes, noisefree_nodes, ImplicitDiffusion, ImplicitSolution, conditional_levels
+export prior_field, prior_jacobian, prior_vjp, prior_jvp, implicit_residual, implicit_infer, implicit_pullback, default_tolerance
 export AbstractLinearSolve, DenseSolve, KrylovSolve
 export ImplicitProx, implicit_solution, implicit_factor_pullback
 
 # --- Proximal diffusion models (ProxDM) ----------------------------------------
-export EnergyNetwork, energy, implicit_energy, denoising_gradient
+export EnergyNetwork, energy, implicit_energy, denoising_gradient, block_times
 export implicit_roots, implicit_laplace, density_lambda, laplace_belief, implicit_mixture, implicit_sample
-export categorical_answer, implicit_classify, implicit_infer_many
+export categorical_answer, code_posterior, calibrate_temperature, implicit_classify, implicit_infer_many
 export CoverageReference, coverage_reference, coverage
 export AbstractImplicitRelation, ProductRelation
 export AbstractProximalPredictor, proximal, ProxNetwork, MixtureProx

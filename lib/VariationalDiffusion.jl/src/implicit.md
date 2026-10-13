@@ -192,5 +192,71 @@ than the data's. A query far from every class ($x = (3, 3)$) is still answered w
 (class 3, the nearest). Classification inherits the extrapolation problem, and `coverage` is the
 flag for it ([[coverage]]).
 
+## 9. Conditional fields: block levels
+
+With a predictor with noise blocks ([[predictor]] §6), `ImplicitDiffusion(pred, nodes; levels)`
+says, per block, whether it is annealed with the nodes (`nothing`) or held at a fixed level.
+`conditional_levels(pred, ρ)` holds every fully clamped block at `tmin`: the network sees the
+clamp clean at every node, and the field on the free coordinates is the smoothed conditional
+score instead of the joint score at a common level. The node input is
+$\alpha_k\odot z + \sigma_k\odot\varepsilon_k$ with $\alpha$, $\sigma$ per coordinate. The weight of coordinate $i$ at a
+node of level $t$ is $\lambda\,(\sigma_t^2/\alpha_t^2)\,\alpha_i/\sigma_i$: RED-Diff's $\lambda\sigma_t/\alpha_t$ on the annealed
+blocks, and chosen so that the field of an energy network stays the gradient of
+
+$$
+U(z) = \sum_k w_k\Bigl[\lambda\tfrac{\sigma_k^2}{\alpha_k^2}\,E(x_k, \tau_k) - \varepsilon_k^\top(\lambda_\cdot\odot z)\Bigr],
+$$
+
+which `implicit_energy` returns. The Jacobian block on the free coordinates gains the factor
+$\lambda_i\alpha_j$; the VJP scales the cotangent by $\lambda$ before the network and by $\alpha$ after.
+Without `levels` every formula reduces to the scalar one, and the tests check that a blocked
+predictor with every block annealed gives the unblocked relation.
+
+**What it changes: the bias against conditioning (T2).** On the unit circle (48 narrow
+components), query $y$ given $x$, 19 values of $x$ in $[-0.9, 0.9]$, the radius of the stable
+answers (exact: 1):
+
+| field levels | joint field (x smoothed too) | x held clean |
+|---|---|---|
+| 0.002–0.05 | 0.978 ± 0.008 (18/19 stable) | 0.993 ± 0.011 (19/19) |
+| 0.05–0.2 | 0.637 ± 0.135 (18/19) | 0.775 ± 0.048 (19/19) |
+
+Smoothing $x$ as well pulls the joint answer inwards; holding the clamp clean leaves only the
+smoothing in $y$. It does not remove the bias, which now comes from the free coordinates alone.
+Tested: field = $\nabla U$, Jacobian against finite differences, adjoint against finite
+differences in the clamp and in a mixture mean, batched against unbatched, many queries
+against single ones, a Lux energy network on JLArrays.
+
+## 10. Single roots, tolerances, continuation
+
+Found on MNIST ([[MNIST in Both Directions]] §6; Open Problems I13):
+
+- **Probabilities from a single root.** When a classification query has one stable root, the
+  Laplace mixture gives the class probabilities 0 and 1. `categorical_answer(mix, classes;
+  temperature = τ, cov_scale = κ)` instead reads each root's Gaussian as evidence about the code:
+  $p(k) = \sum_j w_j\,\mathcal N(c_k;\ \mu_j, \kappa\Sigma_j + \tau^2 I)/\sum_l \mathcal N(c_l;\ \mu_j, \kappa\Sigma_j + \tau^2 I)$. A root
+  between two codes splits its mass between them. `calibrate_temperature(answers, classes,
+  truth)` fits τ and κ by maximum likelihood on held-out answers (alternating golden sections
+  over $\log\tau$ and $\log\kappa$). Tests: for answers drawn as $\mathcal N(c_k, 0.7^2 I)$ it recovers
+  $\tau = 0.7$, and for a covariance twice too wide in standard deviation $\kappa = 1/4$. On MNIST the
+  Laplace covariance is too wide (κ = 0.45), and with both parameters the probabilities have a
+  calibration error of 0.009 ([[MNIST in Both Directions]] §7). `implicit_classify` passes both on.
+- **Unassigned mass as a coverage flag.** `coverage(ref, z; unassigned)` returns the mass and
+  sets `flagged` when $p < \alpha$ or at least half the answer lies between the codes.
+- **Tolerances that follow the arithmetic.** `tol` defaults to `default_tolerance(m, z, ps)`,
+  $\max(10^{-9}, 10\,\epsilon)$ for the type the field is computed in: the parameters' type on a
+  device (Float32 on a GPU gives about $1.2\cdot10^{-6}$), and on the CPU the promotion of parameters
+  and state (Float32 weights against a Float64 state compute in Float64, so $10^{-9}$).
+- **Continuation in the noise level.** `implicit_infer(…; continuation = (8, 3))` solves first
+  with every node's level multiplied by 8 (capped at 1), then by 3, each from the previous
+  answer, then the actual relation. A smoother field has fewer, wider basins. It is not a
+  general cure: on the circle a high level smooths both branches into one blob centred on the
+  origin, and the continuation stops at the symmetric point between them (from $x = 0.6$,
+  $y = 3$ the plain solve finds the branch $y = 0.78$ in 5 iterations; the continuation ends at
+  $y = 0.06$, unstable). It is for starts far from every basin with a single plausible answer,
+  such as a clamped label and a blank image: on MNIST, 3–4 of 10 modes with 784 free pixels
+  converge with it and none without, at five to nine times the cost
+  ([[MNIST in Both Directions]] §7).
+
 Related: [[analytic]], [[reddiff]], [[factor]], [[energy_network]], [[krylov]], [[sampler]], [[Deterministic Relaxation]], [[Inference Signatures]],
 [[The Implicit Diffusion Factor as a Statistical Game]]

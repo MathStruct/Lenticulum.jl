@@ -81,6 +81,19 @@ _f64(ps) = Lux.Functors.fmap(a -> a isa AbstractArray ? Float64.(a) : a, ps)
         @test bk.ps.layer_2.weight ≈ bd.ps.layer_2.weight rtol = 1e-6 atol = 1e-12
     end
 
+    @testset "noise blocks: a time per block, compiled" begin
+        _f(t) = reshape((2π .* reshape(t, size(t, 1), 1, size(t, 2))) .* reshape(FREQ, 1, :), :, size(t, 2))   # traceable kron
+        binput(x, t) = vcat(x, sin.(_f(t)), cos.(_f(t)))
+        bnet = Chain(Dense(14 => 32, swish), Dense(32 => 2))
+        bp = NoisePredictor(bnet, sched; input = binput, blocks = [[1], [2]])
+        br = NoisePredictor(bnet, sched; input = binput, blocks = [[1], [2]], ad = AutoReactant())
+        bs = _f64(first(LuxCore.setup(Xoshiro(3), bp)))
+        X = [0.3 -0.1; -0.4 0.6]
+        for τ in ([0.02, 0.4], [0.02 0.3; 0.4 0.1])
+            @test first(epsilon(br, X, τ, bs, st)) ≈ first(epsilon(bp, X, τ, bs, st)) atol = 1e-12
+        end
+    end
+
     @testset "an energy network, second derivatives compiled (nested Enzyme)" begin
         enet = Chain(Dense(8 => 32, tanh), Dense(32 => 1))
         ep = NoisePredictor(EnergyNetwork(enet), sched; input = _input)            # no ad: the forward energy only

@@ -26,19 +26,24 @@ function grid!(fig, pos, Zs; title = "", labels = nothing)
     return g
 end
 
-function relation(levels; samples = 2)
+function relation(levels; samples = 2, ρ = nothing)
     nodes = query_nodes(levels; samples)
     ps, st = load_model()
-    m = ImplicitDiffusion(predictor(network()), nodes; λ = density_lambda(SCHED, nodes), batched = true)
+    pred = predictor(network())
+    lv = ρ === nothing ? nothing : query_levels(pred, ρ)
+    m = ImplicitDiffusion(pred, nodes; λ = density_lambda(SCHED, nodes), batched = true, levels = lv)
     return m, GDEV(ps), st
 end
+
+# with noise blocks the label is held clean while the image is drawn (GUIDANCE, env, default 0)
+sample_kw() = BLOCKS ? (clamp_level = SCHED.tmin, guidance = parse(Float64, get(ENV, "GUIDANCE", "0"))) : (;)
 
 # the label clamped, the image drawn by the reverse diffusion
 function samples(; n = 8, steps = 200)
     m, ps, st = relation(range(0.002, 0.05; length = 4))
     ρ = [zeros(NX); fill(Inf, NY)]
     t = @elapsed rows = map(0:9) do k
-        Z, _ = implicit_sample(m, [zeros(NX); codes()[:, k + 1]], ρ, ps, st; n, steps, rng = Xoshiro(k))
+        Z, _ = implicit_sample(m, [zeros(NX); codes()[:, k + 1]], ρ, ps, st; n, steps, rng = Xoshiro(k), sample_kw()...)
         [Z[:, j] for j in 1:n]
     end
     @printf("samples: %d per class, %d steps, %.1f s per class\n", n, steps, t / 10)

@@ -71,7 +71,8 @@ function model(levels; samples = 2)
     nodes = query_nodes(levels; samples)
     ps, st = load_model()
     pred = predictor(network())
-    return ImplicitDiffusion(pred, nodes; λ = density_lambda(SCHED, nodes), batched = true), GDEV(ps), st
+    return ImplicitDiffusion(pred, nodes; λ = density_lambda(SCHED, nodes), batched = true,
+                             levels = query_levels(pred, RHO)), GDEV(ps), st
 end
 
 const LEVELSETS = [

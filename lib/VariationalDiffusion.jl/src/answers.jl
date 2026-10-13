@@ -204,15 +204,21 @@ end
 # --- Categorical answers ---------------------------------------------------------------------
 
 """
-    categorical_answer(mix::MixtureBelief, classes::AbstractMatrix; labels = nothing, radius = nothing)
-        -> (belief, unassigned, assignment)
+    categorical_answer(mix::MixtureBelief, classes::AbstractMatrix; labels = nothing, radius = nothing,
+                       temperature = nothing, cov_scale = 1) -> (belief, unassigned, assignment)
 
 A mixture answer on label coordinates read as a class: each component is assigned to the
 nearest column of `classes` (the class codes, e.g. scaled one-hot vectors, one column per
 class), and the weights of the components assigned to a class are summed.
 
 - `belief`: a `CategoricalBelief` over the classes (with `labels`), normalised over the
-  **assigned** mass; `nothing` if no component is assigned.
+  **assigned** mass; `nothing` if no component is assigned. With `temperature = τ` it is
+  instead the posterior of the code given each component's position and covariance,
+  ``p(k) = \\sum_j w_j\\,\\mathcal N(c_k;\\ \\mu_j,\\ \\kappa\\Sigma_j + \\tau^2 I) / \\sum_l \\mathcal N(c_l;\\ \\mu_j,\\ \\kappa\\Sigma_j + \\tau^2 I)``
+  with ``\\kappa`` = `cov_scale`, which gives graded probabilities also when the query has a
+  single root (a root between two codes splits its mass between them). Fit τ and κ on held-out
+  answers with [`calibrate_temperature`](@ref): κ < 1 sharpens a Laplace covariance that is too
+  wide, τ widens one that is too narrow.
 - `unassigned`: the mixture weight of the components at least `radius` from every class
   code, reported rather than dropped. A root between the codes is an answer the relation gives
   but no class describes (a smoothing artefact, or a query outside the data).
@@ -223,7 +229,8 @@ do not overlap. The means are compared, not the Gaussians: a component's own spr
 split its mass between classes.
 """
 function categorical_answer(mix::LenticulumCore.MixtureBelief, classes::AbstractMatrix; labels = nothing,
-                            radius::Union{Nothing,Real} = nothing)
+                            radius::Union{Nothing,Real} = nothing, temperature::Union{Nothing,Real} = nothing,
+                            cov_scale::Real = 1)
     K = size(classes, 2)
     K ≥ 1 || throw(ArgumentError("need at least one class code"))
     r = radius === nothing ? (K == 1 ? Inf :
@@ -241,9 +248,77 @@ function categorical_answer(mix::LenticulumCore.MixtureBelief, classes::Abstract
     for (a, wi) in zip(assignment, w)
         a > 0 && (p[a] += wi)
     end
-    unassigned = one(eltype(w)) - sum(p)
+    unassigned = max(one(eltype(w)) - sum(p), zero(eltype(w)))
+    if temperature !== nothing
+        q = _code_mixture(mix, classes, temperature, cov_scale)
+        return (belief = LenticulumCore.CategoricalBelief(q; labels), unassigned = unassigned, assignment = assignment)
+    end
     belief = sum(p) > 0 ? LenticulumCore.CategoricalBelief(p; labels) : nothing
-    return (belief = belief, unassigned = max(unassigned, zero(unassigned)), assignment = assignment)
+    return (belief = belief, unassigned = unassigned, assignment = assignment)
+end
+
+"""
+    code_posterior(g, classes, τ; cov_scale = 1) -> Vector
+
+The probability of each class code (column of `classes`) given a Gaussian answer `g` on the
+label coordinates, with the codes equally likely a priori: ``\\propto \\mathcal N(c_k;\\ \\mu,\\ \\kappa\\Sigma + \\tau^2 I)``,
+``\\kappa`` = `cov_scale`.
+"""
+function code_posterior(g, classes::AbstractMatrix, τ::Real; cov_scale::Real = 1)
+    μ = LenticulumCore.belief_mean(g)
+    Σ = Symmetric(cov_scale .* Matrix(LenticulumCore.belief_cov(g)) .+ τ^2 .* I(length(μ)))
+    F = LinearAlgebra.cholesky(Σ)
+    ℓ = [-sum(abs2, F.L \ (view(classes, :, k) .- μ)) / 2 for k in axes(classes, 2)]
+    q = exp.(ℓ .- maximum(ℓ))
+    return q ./ sum(q)
+end
+
+_code_mixture(mix, classes, τ, κ) =
+    (q = sum(wi .* code_posterior(c, classes, τ; cov_scale = κ) for (wi, c) in zip(LenticulumCore.mixture_weights(mix), mix.components));
+     q ./ sum(q))
+
+"""
+    calibrate_temperature(answers, classes, truth; bounds = (1e-3, 10), scale_bounds = (1e-4, 10))
+        -> (temperature = τ, cov_scale = κ, nll)
+
+The temperature τ and covariance scale κ of [`categorical_answer`](@ref) that maximise the
+likelihood of the true classes `truth` (indices into the columns of `classes`) on held-out
+answers: `answers` are the mixtures (`MixtureBelief`s on the label coordinates) of held-out
+queries. Alternating golden-section searches over ``\\log\\tau`` and ``\\log\\kappa`` within the bounds
+(τ in the units of the codes). `nll` is the mean negative log-likelihood at the optimum. Pass
+`scale_bounds = (1, 1)` to fit τ alone.
+"""
+function calibrate_temperature(answers::AbstractVector, classes::AbstractMatrix, truth::AbstractVector;
+                               bounds = (1e-3, 10.0), scale_bounds = (1e-4, 10.0), rounds::Integer = 4)
+    length(answers) == length(truth) || throw(DimensionMismatch("one true class per answer"))
+    nll(lτ, lκ) = -sum(log(max(_code_mixture(a, classes, exp(lτ), exp(lκ))[k], 1e-300))
+                       for (a, k) in zip(answers, truth)) / length(truth)
+    lτ, lκ = log(sqrt(prod(float.(bounds)))), 0.0
+    lκ = clamp(lκ, log.(float.(scale_bounds))...)
+    for _ in 1:rounds
+        lτ = _golden(x -> nll(x, lκ), log.(float.(bounds))...)
+        scale_bounds[1] == scale_bounds[2] && break
+        lκ = _golden(x -> nll(lτ, x), log.(float.(scale_bounds))...)
+    end
+    return (temperature = exp(lτ), cov_scale = exp(lκ), nll = nll(lτ, lκ))
+end
+
+# the minimiser of a unimodal f on [a, b]
+function _golden(f, a, b; iters::Integer = 50)
+    a == b && return a
+    φ = (sqrt(5) - 1) / 2
+    c, d = b - φ * (b - a), a + φ * (b - a)
+    fc, fd = f(c), f(d)
+    for _ in 1:iters
+        if fc < fd
+            b, d, fd = d, c, fc
+            c = b - φ * (b - a); fc = f(c)
+        else
+            a, c, fc = c, d, fd
+            d = a + φ * (b - a); fd = f(d)
+        end
+    end
+    return (a + b) / 2
 end
 
 """
@@ -254,7 +329,8 @@ Classification as a query: the coordinates `label` (indices) are free and read a
 the others are clamped or soft as `ρ` says. Runs [`implicit_mixture`](@ref) on the label
 coordinates, by default started from every class code (the columns of `classes` placed in
 the label coordinates, the rest of `z₀` unchanged), and reads the answer with
-[`categorical_answer`](@ref). `kwargs` go to the solver (`maxiters`, `linsolve`, …).
+[`categorical_answer`](@ref) (with `radius`, `temperature` and `cov_scale`). `kwargs` go to the solver
+(`maxiters`, `linsolve`, …).
 
 `answer` holds `belief` (a `CategoricalBelief`, or `nothing`), `unassigned`, `assignment` and
 `mixture`, the Gaussian mixture it was read from. The class probabilities are the Laplace masses
@@ -263,13 +339,14 @@ of the roots, so they are calibrated only when the relation has an energy (an
 an energy every root weighs the same.
 """
 function implicit_classify(m::AbstractImplicitRelation, z₀, ρ, ps, st; label, classes::AbstractMatrix,
-                           labels = nothing, radius = nothing, starts = nothing, kwargs...)
+                           labels = nothing, radius = nothing, temperature = nothing, cov_scale = 1, starts = nothing,
+                           kwargs...)
     idx = _indices(label)
     length(idx) == size(classes, 1) || throw(DimensionMismatch(
         "$(length(idx)) label coordinates, class codes of length $(size(classes, 1))"))
     all(!isinf, ρ[idx]) || throw(ArgumentError("the label coordinates must not be hard-clamped"))
     inits = starts === nothing ? [(z = float.(copy(z₀)); z[idx] .= c; z) for c in eachcol(classes)] : starts
     mix, st = implicit_mixture(m, z₀, ρ, ps, st; coords = idx, starts = inits, kwargs...)
-    a = categorical_answer(mix, classes; labels, radius)
+    a = categorical_answer(mix, classes; labels, radius, temperature, cov_scale)
     return ((a..., mixture = mix), st)
 end

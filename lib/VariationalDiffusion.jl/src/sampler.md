@@ -7,7 +7,7 @@
 
 > Sources: code: `sampler.jl`; Ho, Jain & Abbeel, *Denoising Diffusion Probabilistic Models*, NeurIPS 2020 (the ancestral step); Song et al., *Score-Based Generative Modeling through SDEs*, ICLR 2021 (imputation by replacement); Lugmayr et al., *RePaint*, CVPR 2022 (resampling); Kingma et al., *Variational Diffusion Models*, NeurIPS 2021 (log-SNR)
 >
-> Bibliography: [[Bibliography#^ho2020ddpm|Ho et al. 2020]] · [[Bibliography#^song2021sde|Song et al. 2021]] · [[Bibliography#^lugmayr2022repaint|Lugmayr et al. 2022]] · [[Bibliography#^kingma2021vdm|Kingma et al. 2021]]
+> Bibliography: [[Bibliography#^ho2020ddpm|Ho et al. 2020]] · [[Bibliography#^song2021sde|Song et al. 2021]] · [[Bibliography#^lugmayr2022repaint|Lugmayr et al. 2022]] · [[Bibliography#^kingma2021vdm|Kingma et al. 2021]] · [[Bibliography#^ho2022cfg|Ho & Salimans 2022]]
 >
 > Theory: [[Implicit Diffusion Learners]] · [[Inference Signatures]] · [[Mixture Belief]]
 
@@ -61,5 +61,29 @@ They exist for products of relations, whose summed scores are not the scores of 
 product ([[product]] §5). With `smc` the clamped coordinates follow $\alpha_u z_{0,C}$ without noise;
 on the circle above, clamped at $x = 0.3$, it gives the upper branch 0.75 without RePaint's
 resampling (a test).
+
+## 5. Held clamps and guidance
+
+For a predictor with noise blocks ([[predictor]] §6), `clamp_level = tmin` holds every fully
+clamped block at that level for the whole reverse diffusion, instead of replacing it by its
+forward marginal. The network sees the clamp clean, as in training with independent block
+times, and the free coordinates follow the conditional score. Blocks that are only partly
+clamped (half an image) are still replaced. `guidance = w` mixes in the unconditional
+prediction, $(1 + w)\,\hat\varepsilon(x, z_C) - w\,\hat\varepsilon(x, \varnothing)$, with the held blocks at level 1
+where they are noise (classifier-free guidance, Ho & Salimans 2022).
+
+On two components at $(\pm1, \pm1)$ of width 0.1, $x$ clamped at 1, 2000 draws (exact
+conditional $\mathcal N(1, 0.1^2)$):
+
+| | mean of $y$ | std of $y$ |
+|---|---|---|
+| replacement | 0.981 | 0.142 |
+| held clean | 1.005 | 0.098 |
+| held, guidance 2 | 1.010 | 0.094 |
+
+Replacement lags behind the clamp and comes out too wide; holding it gives the conditional. For
+an exact model guidance only sharpens; it is meant for a learned one whose conditional is too
+weak (MNIST, [[MNIST in Both Directions]] §6). Held clamps do not combine with correctors or
+SMC.
 
 Related: [[implicit]], [[product]], [[proxdm]], [[MNIST in Both Directions]]

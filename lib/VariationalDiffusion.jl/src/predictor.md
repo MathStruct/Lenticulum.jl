@@ -3,7 +3,9 @@
 > `NoisePredictor` wraps a Lux model as $\varepsilon_\theta(x,t)$ and derives from it the two
 > quantities the rest of the package needs: the **score** and the **denoiser**.
 
-> Sources: code: `predictor.jl`
+> Sources: code: `predictor.jl`; noise blocks: Bao et al., *One Transformer Fits All Distributions in Multi-Modal Diffusion at Scale*, ICML 2023 (UniDiffuser)
+>
+> Bibliography: [[Bibliography#^bao2023unidiffuser|Bao et al. 2023]]
 >
 > Theory (CT-ML wiki): [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
@@ -128,6 +130,36 @@ also converts `Float64` to `Float32`; a consumer GPU computes `Float64` at 1/64 
 The tests run every hook on JLArrays, the reference GPU array type that runs on the CPU and
 forbids scalar indexing, so a CPU-only construction fails in CI without a GPU. The measured
 costs on CUDA are in [[energy_network]] §8.
+
+## 6. A noise level per block of coordinates
+
+`NoisePredictor(model, schedule; input, blocks = [1:784, 785:794])` partitions the coordinates
+into blocks that may sit at different noise levels, as UniDiffuser does for image and text
+(Bao et al. 2023). Time is then a number (every block at one level), a vector with one time per
+block, or a $(\#\text{blocks}\times B)$ matrix for a batch; `input` always receives the matrix and
+builds one time embedding per block. $\alpha$ and $\sigma$ act coordinate by coordinate:
+$x_t = \alpha_\tau \odot x_0 + \sigma_\tau \odot \varepsilon$, `score` divides by $\sigma$ per coordinate,
+`denoise` uses Tweedie's formula per coordinate.
+
+Why: with one level for all coordinates a model learns the joint score at that level, and a
+query fixes some coordinates while the network still expects them noised. A block held at a low
+level is a **clean condition**, and the network's output on the other blocks is the conditional
+score $\nabla\log p_t(x_F\mid x_C)$. A block at level 1 is noise, and the output is the marginal score
+of the others. One network then serves the joint, every conditional and every marginal, which a
+relation queried in every direction needs ([[MNIST in Both Directions]] §6–7).
+
+- **Training**: `block_times(rng, pred, B; joint)` draws each block's time independently from
+  $[t_{\min}, 1]$ (a fraction `joint` of the columns shares one time), and
+  `denoising_gradient(pred, x₀, T, ε, ps, st; weights)` noises each coordinate at its block's level.
+  `weights` weights the loss per coordinate; a small block (a label) needs a large weight.
+- **The closed-form mixture** stays exact. With a variance per coordinate,
+  $p_\tau(x) = \sum_j w_j\,\mathcal N(x;\ \alpha\odot\mu_j,\ \operatorname{diag}(\alpha^2 s^2 + \sigma^2))$; its Jacobian is
+  $\operatorname{diag}(\sigma)$ times a symmetric matrix, so the JVP and the VJP are now separate formulas.
+- **An energy network** has $\varepsilon = \sigma\odot\nabla_x E$ and Jacobian $\operatorname{diag}(\sigma)\nabla^2E$:
+  $J^\top w = \nabla^2E\,(\sigma\odot w)$ and $Jv = \sigma\odot\nabla^2E\,v$, one Hessian-vector product each.
+  The mixed derivative takes $\sigma\odot w$ as before.
+- **On a device** the time matrix moves with $x$, and $\sigma$ is spread over the coordinates
+  there; tested on JLArrays.
 
 Related: [[schedule]], [[reddiff]], [[factor]], [[backends]], [[The VP-SDE]],
 [[Lux as a Parametric Lens]], [[Scalar and Multivariate Energy]]

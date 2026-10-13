@@ -96,19 +96,72 @@ the columns of an ``n\\times B`` matrix at a scalar time: one call per level ins
 node, for the field and for every derivative. The predictor must then accept a matrix input
 (a Lux `Chain` of `Dense` layers does, with an `input` function that repeats the time embedding
 across columns). The answers are the same either way (`implicit.md` §6).
+
+**Noise blocks.** For a predictor with `blocks` ([`NoisePredictor`](@ref)), `levels` gives each
+block's noise level at the nodes: `nothing` for a block annealed with the nodes (at each node's
+level), a number for a block held at that level at every node. A clamped block held at the
+schedule's `tmin` is a clean condition, so the field on the free blocks is the smoothed
+*conditional* score, ``\\nabla\\log p_t(z_F \\mid z_C)``, instead of the joint score at a common
+level ([`conditional_levels`](@ref); `implicit.md` §9). The node input is then
+``\\alpha_k \\odot z + \\sigma_k \\odot \\varepsilon_k`` with α and σ per coordinate, and the weight of coordinate
+``i`` is ``\\lambda\\,(\\sigma_t^2/\\alpha_t^2)\\,\\alpha_i/\\sigma_i``, which is RED-Diff's ``\\lambda\\sigma_t/\\alpha_t`` on the
+annealed blocks and keeps the field of an energy network a gradient.
 """
-struct ImplicitDiffusion{P<:NoisePredictor,T<:Real} <: AbstractImplicitRelation
+struct ImplicitDiffusion{P<:NoisePredictor,T<:Real,L} <: AbstractImplicitRelation
     predictor::P
     nodes::FieldNodes{T}
     λ::T
     batched::Bool
+    levels::L
 end
-ImplicitDiffusion(pred::NoisePredictor, nodes::FieldNodes{T}; λ = 1.0, batched::Bool = false) where {T} =
-    ImplicitDiffusion(pred, nodes, T(λ), batched)
+function ImplicitDiffusion(pred::NoisePredictor, nodes::FieldNodes{T}; λ = 1.0, batched::Bool = false,
+                           levels = nothing) where {T}
+    if levels !== nothing
+        pred.blocks === nothing && throw(ArgumentError("levels need a predictor with noise blocks (NoisePredictor(...; blocks))"))
+        length(levels) == nblocks(pred) || throw(DimensionMismatch("one level per noise block: $(length(levels)) for $(nblocks(pred))"))
+        levels = Union{Nothing,T}[l === nothing ? nothing : T(l) for l in levels]
+        all(l -> l === nothing || pred.schedule.tmin ≤ l ≤ 1, levels) ||
+            throw(ArgumentError("block levels must lie in [tmin, 1]"))
+    end
+    return ImplicitDiffusion(pred, nodes, T(λ), batched, levels)
+end
+
+"""
+    conditional_levels(pred::NoisePredictor, ρ; level = tmin) -> Vector
+
+The block levels ([`ImplicitDiffusion`](@ref)'s `levels`) of a query with precisions `ρ`: every
+block whose coordinates are all hard-clamped is held at `level` (by default the schedule's
+`tmin`, a clean condition), the others are annealed (`nothing`).
+"""
+function conditional_levels(pred::NoisePredictor, ρ; level = pred.schedule.tmin)
+    pred.blocks === nothing && throw(ArgumentError("conditional_levels needs a predictor with noise blocks"))
+    return [all(isinf, ρ[b]) ? float(level) : nothing for b in pred.blocks.blocks]
+end
 
 _weight(m::ImplicitDiffusion, t) = m.λ * sigma(m.predictor.schedule, t) / alpha(m.predictor.schedule, t)
-_node_input(m::ImplicitDiffusion, z, k) =
-    perturb(m.predictor.schedule, z, m.nodes.t[k], view(m.nodes.ε, :, k))
+
+# the time of each block at a node of level t: annealed blocks at t, held ones at their level
+_node_times(m::ImplicitDiffusion, t) = m.levels === nothing ? t : [l === nothing ? t : l for l in m.levels]
+
+# the node input's α and σ and the field's weight at level t: numbers, or with block levels one
+# per coordinate (weight λ σ_t²/α_t² · α_i/σ_i, which is λσ_t/α_t on the annealed blocks)
+function _node_coefs(m::ImplicitDiffusion, t)
+    s = m.predictor.schedule
+    m.levels === nothing && return (alpha(s, t), sigma(s, t), _weight(m, t))
+    τ = _node_times(m, t)
+    own = m.predictor.blocks.owner
+    a, σ = alpha.(Ref(s), τ)[own], sigma.(Ref(s), τ)[own]
+    return (a, σ, (m.λ * sigma(s, t)^2 / alpha(s, t)^2) .* a ./ σ)
+end
+
+# the weight ⊗ α factor of the Jacobian block on idx: λ_i α_j
+_rowcol(λc::Number, a::Number, idx) = λc * a
+_rowcol(λc, a, idx) = λc[idx] .* a[idx]'
+
+function _node_input(m::ImplicitDiffusion, z, k)
+    a, σ, _ = _node_coefs(m, m.nodes.t[k])
+    return a .* z .+ σ .* view(m.nodes.ε, :, k)
+end
 
 # The nodes evaluated in one network call: one noise level each when batched, else one node.
 function _groups(m::ImplicitDiffusion)
@@ -117,9 +170,11 @@ function _groups(m::ImplicitDiffusion)
     return [findall(==(u), ts) for u in unique(ts)]
 end
 # a vector for a single node (as the predictor has always been called), an n × B matrix when batched
-_group_input(m::ImplicitDiffusion, z, grp) =
-    m.batched ? perturb(m.predictor.schedule, z, m.nodes.t[first(grp)], m.nodes.ε[:, grp]) :
-                _node_input(m, z, only(grp))
+function _group_input(m::ImplicitDiffusion, z, grp)
+    m.batched || return _node_input(m, z, only(grp))
+    a, σ, _ = _node_coefs(m, m.nodes.t[first(grp)])
+    return a .* z .+ σ .* m.nodes.ε[:, grp]
+end
 
 # coordinates as a sorted index vector: `:` (all), a mask, or indices
 _coords(::Colon, n) = collect(1:n)
@@ -138,8 +193,9 @@ function prior_field(m::ImplicitDiffusion, z, ps, st)
     g = zero(float.(z))
     for grp in _groups(m)
         t = m.nodes.t[first(grp)]
-        ε̂, st = epsilon(m.predictor, _group_input(m, z, grp), t, ps, st)
-        g = g .+ _weight(m, t) .* ((reshape(ε̂, length(z), :) .- view(m.nodes.ε, :, grp)) * view(m.nodes.w, grp))
+        _, _, λc = _node_coefs(m, t)
+        ε̂, st = epsilon(m.predictor, _group_input(m, z, grp), _node_times(m, t), ps, st)
+        g = g .+ λc .* ((reshape(ε̂, length(z), :) .- view(m.nodes.ε, :, grp)) * view(m.nodes.w, grp))
     end
     return (g, st)
 end
@@ -162,8 +218,9 @@ function prior_jacobian(m::ImplicitDiffusion, z, ps, st; coords = Colon())
     isempty(idx) && return J
     for grp in _groups(m)
         t = m.nodes.t[first(grp)]
-        c = _weight(m, t) * alpha(m.predictor.schedule, t)
-        J .+= c .* epsilon_jacobian_block(m.predictor, _group_input(m, z, grp), t, ps, st, idx, m.nodes.w[grp])
+        a, _, λc = _node_coefs(m, t)
+        J .+= _rowcol(λc, a, idx) .*
+              epsilon_jacobian_block(m.predictor, _group_input(m, z, grp), _node_times(m, t), ps, st, idx, m.nodes.w[grp])
     end
     return J
 end
@@ -179,10 +236,10 @@ function prior_vjp(m::ImplicitDiffusion, z, w, ps, st)
     v = zero(float.(z))
     for grp in _groups(m)
         t = m.nodes.t[first(grp)]
-        c = _weight(m, t) * alpha(m.predictor.schedule, t)
-        W = m.batched ? w * transpose(m.nodes.w[grp]) : w .* m.nodes.w[only(grp)]
-        X̄ = epsilon_vjp_input(m.predictor, _group_input(m, z, grp), t, ps, st, W)
-        v .+= c .* vec(sum(reshape(X̄, length(z), :); dims = 2))
+        a, _, λc = _node_coefs(m, t)
+        W = m.batched ? (λc .* w) * transpose(m.nodes.w[grp]) : (λc .* w) .* m.nodes.w[only(grp)]
+        X̄ = epsilon_vjp_input(m.predictor, _group_input(m, z, grp), _node_times(m, t), ps, st, W)
+        v .+= a .* vec(sum(reshape(X̄, length(z), :); dims = 2))
     end
     return v
 end
@@ -202,10 +259,10 @@ function prior_jvp(m::ImplicitDiffusion, z, v, ps, st)
     out = zero(float.(z))
     for grp in _groups(m)
         t = m.nodes.t[first(grp)]
-        c = _weight(m, t) * alpha(m.predictor.schedule, t)
-        V = m.batched ? repeat(v, 1, length(grp)) : v
-        Ẋ = epsilon_jvp_input(m.predictor, _group_input(m, z, grp), t, ps, st, V)
-        out .+= c .* (reshape(Ẋ, length(z), :) * view(m.nodes.w, grp))
+        a, _, λc = _node_coefs(m, t)
+        V = m.batched ? repeat(a .* v, 1, length(grp)) : a .* v
+        Ẋ = epsilon_jvp_input(m.predictor, _group_input(m, z, grp), _node_times(m, t), ps, st, V)
+        out .+= λc .* (reshape(Ẋ, length(z), :) * view(m.nodes.w, grp))
     end
     return out
 end
@@ -252,8 +309,33 @@ function _stable(Jff)
 end
 
 """
-    implicit_infer(m, z₀, ρ, ps, st; z_init = z₀, tol = 1e-9, maxiters = 200, step = 0.05,
-                   linsolve = DenseSolve()) -> (ImplicitSolution, st)
+    default_tolerance(m, z, ps) -> Real
+
+The solvers' default tolerance for the relation `m` with parameters `ps` at states like `z`:
+``\\max(10^{-9},\\ 10\\,\\epsilon)`` with ``\\epsilon`` the machine epsilon of the arithmetic the field is
+computed in. On a device ([`NoisePredictor`](@ref)'s `device`) that is the parameters' type, since
+the inputs are converted to it: a network in Float32 on a GPU has a field accurate to about
+``10^{-6}``, and a tolerance below that is never reached. On the CPU, Julia promotes Float32
+parameters against Float64 states to Float64, so the tolerance stays ``10^{-9}``.
+"""
+function default_tolerance(m, z, ps)
+    Tp = _coarsest_type(ps)
+    T = Tp === nothing ? float(eltype(z)) : _ondevice(m) ? Tp : promote_type(Tp, float(eltype(z)))
+    return max(1e-9, 10 * Float64(eps(T)))
+end
+_coarsest_type(x::AbstractArray{T}) where {T<:AbstractFloat} = T
+_coarsest_type(x::AbstractFloat) = typeof(x)
+function _coarsest_type(x::Union{NamedTuple,Tuple})
+    ts = filter(!isnothing, map(_coarsest_type, collect(values(x))))
+    return isempty(ts) ? nothing : ts[argmax(map(eps, ts))]
+end
+_coarsest_type(x) = nothing
+_ondevice(m::ImplicitDiffusion) = _ondevice(m.predictor)
+_ondevice(m::AbstractImplicitRelation) = false
+
+"""
+    implicit_infer(m, z₀, ρ, ps, st; z_init = z₀, tol = default_tolerance(ps), maxiters = 200, step = 0.05,
+                   linsolve = DenseSolve(), continuation = ()) -> (ImplicitSolution, st)
 
 Find a stable root of the residual on the free coordinates, warm-started from `z_init`.
 
@@ -268,10 +350,30 @@ precision vector, `Inf` for a hard clamp (cf. [`precision_vector`](@ref)).
 `linsolve` chooses the linear algebra: [`DenseSolve`](@ref) forms ``J_{FF}``;
 [`KrylovSolve`](@ref) takes the Newton step by GMRES on Jacobian-vector products and tests
 stability by Lanczos, without forming it (for many free coordinates).
+
+`continuation = (c₁, c₂, …)` solves first with every node's noise level multiplied by `c₁`
+(capped at 1), then by `c₂`, …, each solve started from the previous answer, and last with
+`m` itself: a continuation from a smoother relation to the actual one. A smoother field has
+fewer, wider basins, so a start far from every basin (a blank image, say) is carried into one
+before the sharp field is solved. Each stage takes at most `maxiters` iterations and is used
+whether or not it converged; `iters` counts all of them. For an [`ImplicitDiffusion`](@ref).
+
+`tol` is relative, ``\\lVert r_F\\rVert \\le \\mathrm{tol}\\,(1 + \\lVert z\\rVert)``, and defaults to
+[`default_tolerance`](@ref): ``10^{-9}`` in Float64, about ``10^{-6}`` for a Float32 network on a device.
 """
 function implicit_infer(m::AbstractImplicitRelation, z₀, ρ, ps, st;
-                        z_init = z₀, tol = 1e-9, maxiters::Integer = 200, step = 0.05,
-                        linsolve::AbstractLinearSolve = DenseSolve())
+                        z_init = z₀, tol = nothing, maxiters::Integer = 200, step = 0.05,
+                        linsolve::AbstractLinearSolve = DenseSolve(), continuation = ())
+    tol === nothing && (tol = default_tolerance(m, z₀, ps))
+    if !isempty(continuation)
+        z, its = z_init, 0
+        for c in continuation
+            sc, st = implicit_infer(_rescaled(m, c), z₀, ρ, ps, st; z_init = z, tol, maxiters, step, linsolve)
+            z, its = sc.z, its + sc.iters
+        end
+        sol, st = implicit_infer(m, z₀, ρ, ps, st; z_init = z, tol, maxiters, step, linsolve)
+        return (ImplicitSolution(sol.z, sol.residual, sol.iters + its, sol.converged, sol.stable), st)
+    end
     free = .!isinf.(ρ)
     z = float.(copy(z_init))
     z[.!free] .= z₀[.!free]
@@ -302,6 +404,14 @@ function implicit_infer(m::AbstractImplicitRelation, z₀, ρ, ps, st;
     stable = _newton_system(linsolve, m, z, ρ, ps, st).stable
     return (ImplicitSolution(z, nr, maxiters, nr ≤ tol * (1 + norm(z)), stable), st)
 end
+
+# the relation with every node's level multiplied by c (at most 1): a smoother field
+function _rescaled(m::ImplicitDiffusion, c::Real)
+    c > 0 || throw(ArgumentError("continuation factors must be positive"))
+    nodes = FieldNodes(min.(c .* m.nodes.t, one(eltype(m.nodes.t))), m.nodes.ε, m.nodes.w)
+    return ImplicitDiffusion(m.predictor, nodes, m.λ, m.batched, m.levels)
+end
+_rescaled(m::AbstractImplicitRelation, c) = throw(ArgumentError("continuation is implemented for an ImplicitDiffusion"))
 
 # The linear algebra of one iteration: is sym J_FF positive definite, and d ↦ J_FF⁻¹ d.
 function _newton_system(::DenseSolve, m, z, ρ, ps, st)
@@ -394,12 +504,14 @@ function _params_cotangent(m::ImplicitDiffusion, z, λ, ps, st)
     for grp in _groups(m)
         t = m.nodes.t[first(grp)]
         X = _group_input(m, z, grp)
+        _, _, λc = _node_coefs(m, t)
+        τ = _node_times(m, t)
         if m.batched                    # the node weights go into the cotangent, one per column
-            g = epsilon_vjp_params(m.predictor, X, t, ps, st, λ * transpose(m.nodes.w[grp]))
-            ps̄ = _axpy(_weight(m, t), g, ps̄)
+            g = epsilon_vjp_params(m.predictor, X, τ, ps, st, (λc .* λ) * transpose(m.nodes.w[grp]))
+            ps̄ = _axpy(1, g, ps̄)
         else
-            g = epsilon_vjp_params(m.predictor, X, t, ps, st, λ)
-            ps̄ = _axpy(m.nodes.w[only(grp)] * _weight(m, t), g, ps̄)
+            g = epsilon_vjp_params(m.predictor, X, τ, ps, st, λc .* λ)
+            ps̄ = _axpy(m.nodes.w[only(grp)], g, ps̄)
         end
     end
     return ps̄

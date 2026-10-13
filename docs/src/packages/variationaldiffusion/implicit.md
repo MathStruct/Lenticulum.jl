@@ -47,6 +47,17 @@ roots far from every code is reported as `unassigned`, and the Gaussian mixture 
 read from is kept. Given a matrix of queries, it solves them all at once. On three classes with
 a closed-form model the class probabilities are within 0.04 of the exact posterior.
 
+With a predictor with noise blocks, `ImplicitDiffusion(pred, nodes; levels =
+conditional_levels(pred, ρ))` holds the clamped blocks clean at every node, so the field on the
+free coordinates is the smoothed conditional score. On the unit circle this moves the answers
+from radius 0.978 to 0.993 (field levels up to 0.05). When a query has a single root,
+`categorical_answer(…; temperature, cov_scale)` reads class probabilities from the root's position
+and covariance, with both fitted on held-out answers by `calibrate_temperature` (on MNIST a
+calibration error of 0.009). The solvers' default
+tolerance follows the arithmetic precision (`default_tolerance`), and `continuation = (8, 3)`
+solves at higher noise levels first, which helps a start far from every basin but stops at the
+symmetric point between two branches.
+
 ## Off the data
 
 Inference answers every query, also one the data never covered. `coverage_reference(m, data,
@@ -61,7 +72,10 @@ fresh data points get `p < 0.05`, and the answer to the clamp $x = 1.3$, which c
 The root finders return modes. `implicit_sample(m, z₀, ρ, ps, st; n, steps, resample)` draws
 `n` samples of the free coordinates given the hard-clamped ones (`ρ = Inf`) with the reverse
 diffusion, replacing the clamped coordinates at every step; `resample > 0` adds RePaint's
-harmonisation, which a strongly coupled clamp needs.
+harmonisation, which a strongly coupled clamp needs. With noise blocks, `clamp_level = tmin`
+holds the clamped blocks clean instead, and `guidance = w` adds classifier-free guidance
+([ho2022cfg](@cite)). On MNIST, holding the label clean is what makes label → image samples
+depend on the label (85.5% recognised, against 10.5% with replacement).
 
 Two options make the sampler work on a product of relations, whose summed scores are not the
 scores of the noised product ([du2023reduce](@cite)). `corrector = :langevin` or `:mala`

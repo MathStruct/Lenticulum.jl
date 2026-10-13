@@ -1273,6 +1273,218 @@ end
     end
 end
 
+@testset "noise blocks: a level per block, conditional fields, held clamps" begin
+    # x and y as two blocks; the mixture stays exact with a noise level per coordinate
+    blk = NoisePredictor(GaussianMixtureEps(SCHED, RING_μ; s = 0.05), SCHED; blocks = [[1], [2]])
+    @test_throws ArgumentError NoisePredictor(MLP, SCHED; blocks = [[1], [1, 2]])
+    @test nblocks(blk) == 2 && nblocks(RING) == 1
+    x, h = [0.5, -0.7], 1e-6
+    # every block at one level: the predictor without blocks
+    @test first(epsilon(blk, x, 0.2, RPS, RST)) ≈ first(epsilon(RING, x, 0.2, RPS, RST)) atol = 1e-14
+    @test epsilon_jacobian(blk, x, 0.2, RPS, RST) ≈ epsilon_jacobian(RING, x, 0.2, RPS, RST) atol = 1e-12
+    # two levels: ε = -σ ⊙ ∇ log p_τ, both per coordinate
+    τ = [0.02, 0.3]
+    logp(x) = mixture_logdensity(blk.model, x, τ, RPS)
+    @test first(epsilon(blk, x, τ, RPS, RST)) ≈ -sigma.(Ref(SCHED), τ) .* [_fd(logp, x, i) for i in 1:2] atol = 1e-7
+    ε(x) = first(epsilon(blk, x, τ, RPS, RST))
+    J = epsilon_jacobian(blk, x, τ, RPS, RST)
+    @test J ≈ hcat([_fd(x -> ε(x), x, i) for i in 1:2]...) atol = 1e-6
+    @test norm(J - J') > 1e-3                                            # σ scales the rows
+    X, W, wb = [0.5 0.1 -0.9; -0.7 0.8 0.2], [0.3 -1.0 0.4; 0.6 0.2 -0.5], [0.2, 0.5, 0.3]
+    Js = [epsilon_jacobian(blk, X[:, b], τ, RPS, RST) for b in 1:3]
+    @test epsilon_jacobian_block(blk, X, τ, RPS, RST, [1, 2], wb) ≈ sum(wb .* Js) atol = 1e-12
+    @test epsilon_jacobian_block(blk, X, τ, RPS, RST, [2], wb) ≈ sum(wb .* Js)[[2], [2]] atol = 1e-12
+    @test epsilon_vjp_input(blk, X, τ, RPS, RST, W) ≈ hcat([Js[b]' * W[:, b] for b in 1:3]...) atol = 1e-12
+    @test epsilon_jvp_input(blk, X, τ, RPS, RST, W) ≈ hcat([Js[b] * W[:, b] for b in 1:3]...) atol = 1e-12
+    G = epsilon_vjp_params(blk, x, τ, RPS, RST, W[:, 1]).μ
+    μp(δ) = (μ = (M = copy(RPS.μ); M[2, 7] += δ; M),)
+    @test G[2, 7] ≈ (dot(first(epsilon(blk, x, τ, μp(h), RST)), W[:, 1]) - dot(first(epsilon(blk, x, τ, μp(-h), RST)), W[:, 1])) / 2h atol = 1e-6
+
+    # the relation: annealed blocks are the relation without blocks; a held block conditions
+    nodes = field_nodes(Xoshiro(1), 2; samples = 2)
+    z = [0.6, 0.5]
+    @test first(prior_field(ImplicitDiffusion(blk, nodes; levels = [nothing, nothing]), z, RPS, RST)) ≈
+          first(prior_field(ImplicitDiffusion(RING, nodes), z, RPS, RST)) atol = 1e-12
+    @test conditional_levels(blk, HARDX) == [SCHED.tmin, nothing]
+    @test_throws ArgumentError ImplicitDiffusion(RING, nodes; levels = [nothing, 0.1])
+    @test_throws DimensionMismatch ImplicitDiffusion(blk, nodes; levels = [nothing])
+    m = ImplicitDiffusion(blk, nodes; levels = conditional_levels(blk, HARDX))
+    g(z) = first(prior_field(m, z, RPS, RST))
+    U(z) = first(implicit_energy(m, z, RPS, RST))
+    @test g(z) ≈ [_fd(U, z, i) for i in 1:2] atol = 1e-6                    # still the gradient of an energy
+    Jm = prior_jacobian(m, z, RPS, RST)
+    @test Jm ≈ hcat([_fd(z -> g(z), z, i) for i in 1:2]...) atol = 1e-5
+    @test prior_jacobian(m, z, RPS, RST; coords = [2]) ≈ Jm[[2], [2]] atol = 1e-12
+    @test prior_vjp(m, z, [0.3, -0.8], RPS, RST) ≈ Jm' * [0.3, -0.8] atol = 1e-12
+    @test prior_jvp(m, z, [0.3, -0.8], RPS, RST) ≈ Jm * [0.3, -0.8] atol = 1e-12
+    sol, _ = implicit_infer(m, z, HARDX, RPS, RST)
+    @test sol.converged && sol.stable
+    b = implicit_pullback(m, sol, z, HARDX, [0.0, 1.0], RPS, RST)
+    yof(z₀, p = RPS) = first(implicit_infer(m, z₀, HARDX, p, RST; z_init = sol.z)).z[2]
+    @test b.z₀[1] ≈ (yof([0.6 + h, 0.5]) - yof([0.6 - h, 0.5])) / 2h rtol = 1e-5
+    @test b.ps.μ[2, 7] ≈ (yof(z, μp(h)) - yof(z, μp(-h))) / 2h atol = 1e-6
+    # conditioning: with x held clean only y is smoothed, and the answer on the unit circle moves
+    # towards the exact 0.8 (T2: smoothing x as well pulls the root inwards)
+    joint, _ = implicit_infer(ImplicitDiffusion(RING, nodes), z, HARDX, RPS, RST)
+    @test abs(sol.z[2] - 0.8) < abs(joint.z[2] - 0.8)
+
+    # a Lux energy network over two blocks of one coordinate: ε = σ ⊙ ∇E with σ per block
+    function blk_input(x, t)
+        te = Zygote.@ignore begin
+            f = vcat(sin.((2π .* kron(Array(t), FREQ))), cos.((2π .* kron(Array(t), FREQ))))
+            x isa Array ? f : copyto!(similar(x, eltype(x), size(f)), f)
+        end
+        return vcat(x, te)
+    end
+    net = Chain(Dense(18 => 32, swish), Dense(32 => 32, swish), Dense(32 => 1))
+    ps = _f64(first(Lux.setup(Xoshiro(0), net))); st = last(Lux.setup(Xoshiro(0), net))
+    ad = DifferentiationInterface.SecondOrder(AutoForwardDiff(), AutoZygote())
+    en = NoisePredictor(EnergyNetwork(net), SCHED; input = blk_input, ad, blocks = [[1], [2]])
+    E(x, τ, p = ps) = first(VariationalDiffusion.energy(en, x, τ, p, st))
+    @test first(epsilon(en, x, τ, ps, st)) ≈ sigma.(Ref(SCHED), τ) .* [_fd(x -> E(x, τ), x, i) for i in 1:2] atol = 1e-7
+    T2 = [0.02 0.3 0.1; 0.3 0.05 0.1]
+    EX = first(epsilon(en, X, T2, ps, st))
+    @test all(b -> EX[:, b] ≈ first(epsilon(en, X[:, b], T2[:, b], ps, st)), 1:3)
+    Je = epsilon_jacobian(en, x, τ, ps, st)
+    @test Je ≈ hcat([_fd(x -> first(epsilon(en, x, τ, ps, st)), x, i) for i in 1:2]...) atol = 1e-6
+    Jes = [epsilon_jacobian(en, X[:, b], τ, ps, st) for b in 1:3]
+    @test epsilon_vjp_input(en, X, τ, ps, st, W) ≈ hcat([Jes[b]' * W[:, b] for b in 1:3]...) atol = 1e-10
+    @test epsilon_jvp_input(en, X, τ, ps, st, W) ≈ hcat([Jes[b] * W[:, b] for b in 1:3]...) atol = 1e-10
+    @test epsilon_jacobian_block(en, X, τ, ps, st, [2], wb) ≈ sum(wb .* Jes)[[2], [2]] atol = 1e-10
+    # weighted training on block times
+    @test size(block_times(Xoshiro(1), en, 7)) == (2, 7)
+    Tj = block_times(Xoshiro(1), en, 200; joint = 1.0)
+    @test Tj[1, :] == Tj[2, :] && all(SCHED.tmin .≤ Tj .≤ 1)
+    Tb = block_times(Xoshiro(2), en, 5)
+    x₀, εb, wts = randn(Xoshiro(3), 2, 5), randn(Xoshiro(4), 2, 5), [1.0, 7.0]
+    L, gr, _ = denoising_gradient(en, x₀, Tb, εb, ps, st; weights = wts)
+    Lw(p) = first(denoising_gradient(en, x₀, Tb, εb, p, st; weights = wts))
+    V(δ) = merge(ps, (layer_1 = (weight = (A = copy(ps.layer_1.weight); A[3] += δ; A), bias = ps.layer_1.bias),))
+    @test gr.layer_1.weight[3] ≈ (Lw(V(h)) - Lw(V(-h))) / 2h rtol = 1e-6
+    xt = alpha.(Ref(SCHED), Tb) .* x₀ .+ sigma.(Ref(SCHED), Tb) .* εb             # one coordinate per block
+    @test L ≈ sum(wts .* (first(epsilon(en, xt, Tb, ps, st)) .- εb) .^ 2) / 5 atol = 1e-12
+    # held relation, batched and not, one query and many: the same field, block and answers
+    mh = ImplicitDiffusion(en, nodes; levels = conditional_levels(en, HARDX))
+    mb = ImplicitDiffusion(en, nodes; levels = conditional_levels(en, HARDX), batched = true)
+    @test first(prior_field(mb, z, ps, st)) ≈ first(prior_field(mh, z, ps, st)) atol = 1e-12
+    @test prior_jacobian(mb, z, ps, st; coords = [2]) ≈ prior_jacobian(mh, z, ps, st; coords = [2]) atol = 1e-10
+    Ue(z) = first(implicit_energy(mh, z, ps, st))
+    @test first(prior_field(mh, z, ps, st)) ≈ [_fd(Ue, z, i) for i in 1:2] atol = 1e-7
+    Zq = [0.3 -0.2 0.6; 0.1 0.4 -0.3]
+    sm, _ = implicit_infer_many(mb, Zq, HARDX, ps, st; tol = 1e-10)
+    @test all(q -> sm[q].z ≈ first(implicit_infer(mh, Zq[:, q], HARDX, ps, st; tol = 1e-10)).z, 1:3)
+
+    # the same on a device (JLArrays): blocks' times move with x, σ is spread on the device
+    JLArrays.allowscalar(false)
+    to(a::AbstractArray) = JLArray(Float64.(a)); to(a) = a
+    pd = Lux.fmap(a -> a isa AbstractArray ? JLArray(a) : a, ps)
+    dv = NoisePredictor(EnergyNetwork(net), SCHED; input = blk_input, ad, blocks = [[1], [2]], device = (to = to, back = Array))
+    @test first(epsilon(dv, X, T2, pd, st)) ≈ EX atol = 1e-12
+    @test epsilon_vjp_input(dv, X, τ, pd, st, W) ≈ epsilon_vjp_input(en, X, τ, ps, st, W) atol = 1e-12
+    @test epsilon_jvp_input(dv, X, τ, pd, st, W) ≈ epsilon_jvp_input(en, X, τ, ps, st, W) atol = 1e-12
+    @test epsilon_jacobian_block(dv, X, τ, pd, st, [2], wb) ≈ epsilon_jacobian_block(en, X, τ, ps, st, [2], wb) atol = 1e-12
+    _, gd, _ = denoising_gradient(dv, x₀, Tb, εb, pd, st; weights = wts)
+    @test Array(gd.layer_1.weight) ≈ gr.layer_1.weight atol = 1e-12
+    # in Float32 on the device (as gpu_device() converts): σ per coordinate must not widen to Float64
+    to32(a::AbstractArray) = JLArray(Float32.(a)); to32(a) = a
+    p32 = Lux.fmap(a -> a isa AbstractArray ? JLArray(Float32.(a)) : a, ps)
+    d32 = NoisePredictor(EnergyNetwork(net), SCHED; input = blk_input, ad, blocks = [[1], [2]], device = (to = to32, back = Array))
+    @test eltype(epsilon_vjp_input(d32, X, τ, p32, st, W)) == Float32
+    @test epsilon_vjp_input(d32, X, τ, p32, st, W) ≈ epsilon_vjp_input(en, X, τ, ps, st, W) rtol = 1e-4
+
+    # sampling with the clamp held clean: two narrow components, x clamped at one of them
+    two = NoisePredictor(GaussianMixtureEps(SCHED, [-1.0 1.0; -1.0 1.0]; s = 0.1), SCHED; blocks = [[1], [2]])
+    tps, tst = LuxCore.setup(Xoshiro(0), two)
+    Y, _ = implicit_sample(ImplicitDiffusion(two, nodes), [1.0, 0.0], HARDX, tps, tst; n = 200, steps = 100,
+                           clamp_level = SCHED.tmin, rng = Xoshiro(5))
+    @test all(Y[1, :] .== 1.0)
+    @test abs(mean(Y[2, :]) - 1) < 0.05 && 0.07 < std(Y[2, :]) < 0.13
+    Yg, _ = implicit_sample(ImplicitDiffusion(two, nodes), [1.0, 0.0], HARDX, tps, tst; n = 200, steps = 100,
+                            clamp_level = SCHED.tmin, guidance = 2.0, rng = Xoshiro(5))
+    @test abs(mean(Yg[2, :]) - 1) < 0.05
+    @test_throws ArgumentError implicit_sample(ImplicitDiffusion(RING, nodes), z, HARDX, RPS, RST; clamp_level = 0.001)
+    @test_throws ArgumentError implicit_sample(ImplicitDiffusion(two, nodes), z, HARDX, tps, tst; guidance = 1.0)
+    @test_throws ArgumentError implicit_sample(ImplicitDiffusion(two, nodes), z, HARDX, tps, tst; clamp_level = 0.001,
+                                               corrector = :langevin)
+end
+
+@testset "single-root answers: code posteriors, calibration, flags, tolerances, continuation" begin
+    classes = 2.0 .* Matrix(1.0I, 3, 3)
+    G(μ, s) = LenticulumCore.Gaussian(μ, s^2 .* Matrix(1.0I, 3, 3))
+    one_root(μ; s = 0.1) = LenticulumCore.MixtureBelief([G(μ, s)], [1.0])
+    # a root on a code is that class; a root halfway between two codes splits evenly
+    q = code_posterior(G([2.0, 0, 0], 0.1), classes, 0.2)
+    @test sum(q) ≈ 1 && q[1] > 0.999
+    a = categorical_answer(one_root([1.0, 1.0, 0.0]), classes; temperature = 0.5)
+    p = probabilities(a.belief)
+    @test p[1] ≈ p[2] atol = 1e-12
+    @test p[3] < p[1]
+    @test a.unassigned == 1.0                          # still reported: the root is between the codes
+    # without a temperature the same root is not a class at all
+    @test categorical_answer(one_root([1.0, 1.0, 0.0]), classes).belief === nothing
+    # a wider root (larger Σ) or a higher temperature gives flatter probabilities
+    pa = probabilities(categorical_answer(one_root([1.6, 0.3, 0.1]), classes; temperature = 0.3).belief)
+    pb = probabilities(categorical_answer(one_root([1.6, 0.3, 0.1]; s = 0.8), classes; temperature = 0.3).belief)
+    @test pb[1] < pa[1]
+    # calibration recovers the spread of answers around their codes: for μ ~ N(c_k, s²I), the
+    # exact posterior of k is the code posterior with τ = s
+    rng = Xoshiro(3)
+    truth = rand(rng, 1:3, 2000)
+    answers = [one_root(classes[:, k] .+ 0.7 .* randn(rng, 3); s = 1e-4) for k in truth]
+    cal = calibrate_temperature(answers, classes, truth; scale_bounds = (1, 1))
+    @test abs(cal.temperature - 0.7) < 0.05 && cal.cov_scale == 1
+    @test cal.nll < calibrate_temperature(answers, classes, truth; bounds = (3.0, 10.0), scale_bounds = (1, 1)).nll
+    # a Laplace covariance four times too wide (the answers' spread is 0.7, Σ says 1.4): κ ≈ 1/4
+    wide = [one_root(classes[:, k] .+ 0.7 .* randn(rng, 3); s = 1.4) for k in truth]
+    cw = calibrate_temperature(wide, classes, truth; bounds = (1e-3, 0.1))
+    @test abs(cw.cov_scale - 0.25) < 0.03
+    @test cw.nll < calibrate_temperature(wide, classes, truth; bounds = (1e-3, 0.1), scale_bounds = (1, 1)).nll
+    @test probabilities(categorical_answer(wide[1], classes; temperature = cw.temperature, cov_scale = cw.cov_scale).belief) ≈
+          code_posterior(wide[1].components[1], classes, cw.temperature; cov_scale = cw.cov_scale) atol = 1e-12
+    # classification passes the temperature on
+    ring3 = NoisePredictor(GaussianMixtureEps(SCHED, [1.0 -1.0; 0.0 0.0]; s = 0.3), SCHED)
+    m3 = ImplicitDiffusion(ring3, field_nodes(Xoshiro(1), 2; samples = 2); λ = density_lambda(SCHED, field_nodes(Xoshiro(1), 2; samples = 2)))
+    rps, rst = LuxCore.setup(Xoshiro(0), ring3)
+    ans, _ = implicit_classify(m3, [0.0, 0.0], [0.0, Inf], rps, rst; label = [1], classes = [1.0 -1.0], temperature = 0.5)
+    @test sum(probabilities(ans.belief)) ≈ 1
+
+    # coverage carries the unassigned mass and flags it
+    data = RING_μ[:, rand(Xoshiro(1), 1:RING_J, 300)] .+ 0.05 .* randn(Xoshiro(2), 2, 300)
+    ref = coverage_reference(ImplicitDiffusion(RING, field_nodes(Xoshiro(1), 2)), data, RPS, RST; ncal = 100)
+    c0, c1 = coverage(ref, [1.0, 0.0]), coverage(ref, [1.0, 0.0]; unassigned = 0.8)
+    @test !c0.flagged && c1.flagged && c1.unassigned == 0.8 && c1.p == c0.p
+    @test coverage(ref, [3.0, 3.0]).flagged
+    @test [c.flagged for c in coverage(ref, [1.0 1.0; 0.0 0.0]; unassigned = [0.0, 0.9])] == [false, true]
+
+    # the default tolerance follows the precision the field is computed in
+    mr = ImplicitDiffusion(RING, field_nodes(Xoshiro(1), 2; samples = 2))
+    @test default_tolerance(mr, [0.0, 0.0], RPS) == 1e-9
+    ps32, st32 = Lux.setup(Xoshiro(0), ENERGY_MLP)
+    nod = field_nodes(Xoshiro(1), 2; samples = 2)
+    cpu32 = ImplicitDiffusion(NoisePredictor(EnergyNetwork(ENERGY_MLP), SCHED; input = _batch_input, ad = AutoZygote()), nod)
+    dev32 = ImplicitDiffusion(NoisePredictor(EnergyNetwork(ENERGY_MLP), SCHED; input = _batch_input, ad = AutoZygote(),
+                                             device = (to = a -> JLArray(Float32.(a)), back = Array)), nod)
+    @test default_tolerance(cpu32, [0.0, 0.0], ps32) == 1e-9               # Float32 weights, Float64 arithmetic
+    @test default_tolerance(cpu32, Float32[0, 0], ps32) ≈ 10 * eps(Float32)
+    @test default_tolerance(dev32, [0.0, 0.0], ps32) ≈ 10 * eps(Float32)   # on the device the inputs become Float32
+    @test default_tolerance(ProductRelation(dev32, cpu32), [0.0, 0.0], (ps32, ps32)) ≈ 10 * eps(Float32)
+    @test default_tolerance(cpu32, [0.0, 0.0], (a = ps32, b = _f64(ps32))) == 1e-9
+
+    # continuation: smoother relations first, the iterations counted; from a start in the basin it
+    # returns the same answer. On the circle a high level smooths the two branches into one
+    # blob, and the continuation stops at the symmetric point between them (implicit.md §10).
+    plain, _ = implicit_infer(mr, [0.0, 0.5], HARDX, RPS, RST)
+    cont, _ = implicit_infer(mr, [0.0, 0.5], HARDX, RPS, RST; continuation = (3, 1.5))
+    @test cont.converged && cont.stable
+    @test cont.z ≈ plain.z atol = 1e-8
+    @test cont.iters > plain.iters
+    @test VariationalDiffusion._rescaled(mr, 30).nodes.t == min.(30 .* mr.nodes.t, 1.0)
+    @test_throws ArgumentError implicit_infer(ProductRelation(mr, mr), [0.0, 0.5], HARDX,
+                                              (RPS, RPS), (RST, RST); continuation = (2,))
+    cs, _ = implicit_infer(mr, [0.6, 3.0], HARDX, RPS, RST; continuation = (8, 3), maxiters = 30)
+    @test abs(cs.z[2]) < 0.1                           # the symmetric point, not a branch
+end
+
 @testset "a predictor on a device: every hook through device arrays" begin
     # JLArrays is the reference GPU array, on the CPU and without scalar indexing: what passes
     # here moves to CUDA unchanged. Time features are made on the CPU and placed beside x.

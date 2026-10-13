@@ -59,15 +59,32 @@ Feynman–Kac correctors are this construction in continuous time). It needs log
 targets are the conditionals ``\\pi_u(x_F \\mid x_C = \\alpha_u z_{0,C})``. The moves between reweightings must
 leave each level's density invariant, so `smc` takes `corrector = :none` or `:mala`, and no `resample`.
 
+**Held clamps and guidance.** For a predictor with noise blocks, `clamp_level = tmin` (or another
+level) holds every fully clamped block at that level instead of replacing it: the network sees
+the clamp clean, at every step, as in training with independent block times (UniDiffuser), and
+the reverse diffusion of the free coordinates follows the conditional score
+``\\nabla\\log p_t(x_F \\mid z_C)``. Blocks that are only partly clamped are still replaced. With
+`guidance = w > 0` the noise prediction is
+``(1 + w)\\,\\hat\\varepsilon(x, z_C) - w\\,\\hat\\varepsilon(x, \\varnothing)``, the unconditional prediction taken
+with the held blocks at level 1, where they are noise (classifier-free guidance, Ho & Salimans
+2022): it sharpens the conditional towards the clamp. Not combined with correctors or `smc`.
+
 With `m.batched` all `n` chains go through the network in one call per step; otherwise one call
 per chain.
 """
 function implicit_sample(m::AbstractImplicitRelation, z₀, ρ, ps, st; n::Integer = 1, steps::Integer = 100,
                          resample::Integer = 0, corrector::Symbol = :none, corrector_steps::Integer = 1,
-                         corrector_step::Real = 0.1, smc::Bool = false, T = 1.0,
-                         rng::AbstractRNG = Random.default_rng())
+                         corrector_step::Real = 0.1, smc::Bool = false, T = 1.0, clamp_level = nothing,
+                         guidance::Real = 0.0, rng::AbstractRNG = Random.default_rng())
     all(r -> r == 0 || isinf(r), ρ) || throw(ArgumentError(
         "implicit_sample takes hard clamps (ρ = Inf) and free coordinates (ρ = 0); soft evidence needs guidance"))
+    if clamp_level !== nothing
+        (m isa ImplicitDiffusion && m.predictor.blocks !== nothing) || throw(ArgumentError(
+            "clamp_level needs an ImplicitDiffusion whose predictor has noise blocks"))
+        (corrector === :none && !smc) || throw(ArgumentError("clamp_level does not combine with correctors or smc"))
+        return _sample_held(m, z₀, ρ, ps, st; n, steps, resample, T, level = float(clamp_level), w = float(guidance), rng)
+    end
+    guidance == 0 || throw(ArgumentError("guidance needs clamp_level (and noise blocks)"))
     corrector in (:none, :langevin, :mala) ||
         throw(ArgumentError("corrector must be :none, :langevin or :mala, got :$corrector"))
     (corrector === :mala || smc) && !_has_energy(m) && throw(ArgumentError(
@@ -125,6 +142,49 @@ function implicit_sample(m::AbstractImplicitRelation, z₀, ρ, ps, st; n::Integ
 end
 
 _schedule(m::ImplicitDiffusion) = m.predictor.schedule
+
+# The reverse diffusion with the fully clamped blocks held at `level` (and, for guidance, at 1).
+function _sample_held(m::ImplicitDiffusion, z₀, ρ, ps, st; n, steps, resample, T, level, w, rng)
+    s = _schedule(m)
+    blocks = m.predictor.blocks
+    C = isinf.(ρ)
+    held = [all(C[b]) for b in blocks.blocks]
+    any(held) || throw(ArgumentError("clamp_level: no block is fully clamped"))
+    H = held[blocks.owner]                            # coordinates of held blocks
+    R = C .& .!H                                      # clamped coordinates of annealed blocks: replaced
+    d = length(z₀)
+    τ(t, l) = [h ? l : t for h in held]
+    function hold!(X, l)
+        X[H, :] .= alpha(s, l) .* z₀[H] .+ sigma(s, l) .* randn(rng, count(H), size(X, 2))
+        return X
+    end
+    function guided(X, t)
+        E, st = _eps_columns(m, hold!(X, level), τ(t, level), ps, st)
+        w == 0 && return E
+        Eu, st = _eps_columns(m, hold!(copy(X), 1.0), τ(t, 1.0), ps, st)
+        return (1 + w) .* E .- w .* Eu
+    end
+    ts = _logsnr_grid(s, float(T), s.tmin, steps)
+    X = randn(rng, d, n)
+    _replace!(X, R, z₀, s, ts[1], rng)
+    for k in 1:steps
+        t, u = ts[k], ts[k + 1]
+        for r in 0:resample
+            E = guided(X, t)
+            X̂ = (X .- sigma(s, t) .* E) ./ alpha(s, t)
+            a = alpha(s, t) / alpha(s, u)
+            σt², σu² = sigma(s, t)^2, sigma(s, u)^2
+            σtu² = σt² - a^2 * σu²
+            X = (a * σu² / σt²) .* X .+ (alpha(s, u) * σtu² / σt²) .* X̂ .+ sqrt(σtu² * σu² / σt²) .* randn(rng, d, n)
+            _replace!(X, R, z₀, s, u, rng)
+            r < resample && (X = _renoise(s, X, u, t, rng))
+        end
+    end
+    tl = last(ts)
+    X̂ = (X .- sigma(s, tl) .* guided(X, tl)) ./ alpha(s, tl)
+    X̂[C, :] .= z₀[C]
+    return (X̂, st)
+end
 
 # the effective sample size of log-weights, and systematic resampling by them
 function _ess(logw)

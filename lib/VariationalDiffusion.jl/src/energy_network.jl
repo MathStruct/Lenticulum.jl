@@ -53,6 +53,7 @@ The network's energy ``E_\\theta(x, t)``: a scalar for a single point, the sum o
 a batch. One forward pass; no derivative needed.
 """
 function energy(p::NoisePredictor{<:EnergyNetwork}, x, t, ps, st)
+    t = _times(p, x, t)
     _ondevice(p) && return energy(_local(p), _to(p, x), _to(p, t), ps, st)        # a scalar comes back as it is
     E, st = LuxCore.apply(p.model.model, p.input(x, t), ps, st)
     return (sum(E), st)
@@ -60,40 +61,56 @@ end
 
 _sigmas(s, t) = t isa Number ? sigma(s, t) : sigma.(Ref(s), t)
 
+# σ of the coordinates `idx` (column 1); a block's columns share their times in every caller
+_sigma_rows(p::NoisePredictor, t, X, idx) = p.blocks === nothing ? sigma(p.schedule, t) :
+    Array(sigma.(Ref(p.schedule), Array(t)[p.blocks.owner[idx], 1]))
+
 function epsilon(p::NoisePredictor{<:EnergyNetwork}, x, t, ps, st)
+    t = _times(p, x, t)
     _ondevice(p) && return _epsilon_device(p, x, t, ps, st)
     p.ad === nothing && _need_ad()
-    return (_sigmas(p.schedule, t) .* reshape(_energy_grad(p.ad, p, x, t, ps, st), size(x)), st)
+    return (_sigmas(p, t, x) .* reshape(_energy_grad(p.ad, p, x, t, ps, st), size(x)), st)
 end
 
+# σ ⊙ ∇²E: the Hessian, its rows scaled by σ (symmetric for one noise level)
 function epsilon_jacobian(p::NoisePredictor{<:EnergyNetwork}, x, t, ps, st)
+    t = _times(p, x, t)
     _ondevice(p) && return _back(p, epsilon_jacobian(_local(p), _to(p, x), _to(p, t), ps, st))
     p.ad === nothing && _need_ad()
-    return sigma(p.schedule, t) .* _energy_hessian(p.ad, p, x, t, ps, st)
+    H = _energy_hessian(p.ad, p, x, t, ps, st)
+    return p.blocks === nothing ? sigma(p.schedule, t) .* H : _sigma_rows(p, t, x, eachindex(x)) .* Array(H)
 end
 
-# the free-coordinate block: σ_t times the Hessian of Σ_b w_b E(x_b + P u) in u
+# the free-coordinate block: σ times the Hessian of Σ_b w_b E(x_b + P u) in u
 function epsilon_jacobian_block(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st, idx, w)
+    t = _times(p, X, t)
     _ondevice(p) && return _back(p, epsilon_jacobian_block(_local(p), _to(p, X), _to(p, t), ps, st, idx, _to(p, w)))
     p.ad === nothing && _need_ad()
-    return sigma(p.schedule, t) .* _energy_hessian_block(p.ad, p, X, t, ps, st, idx, w)
+    return _sigma_rows(p, t, X, idx) .* _energy_hessian_block(p.ad, p, X, t, ps, st, idx, w)
 end
 
-# Jᵀw = σ_t ∇²E w, column by column: one Hessian-vector product of the summed energy
+# Jᵀw = ∇²E (σ ⊙ w) and J v = σ ⊙ ∇²E v, column by column: one Hessian-vector product of the
+# summed energy (the same product for one noise level, where σ is a number)
 function epsilon_vjp_input(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st, W)
+    t = _times(p, X, t)
     _ondevice(p) && return _back(p, epsilon_vjp_input(_local(p), _to(p, X), _to(p, t), ps, st, _to(p, W)))
     p.ad === nothing && _need_ad()
-    return sigma(p.schedule, t) .* _energy_hvp(p.ad, p, X, t, ps, st, W)
+    return _energy_hvp(p.ad, p, X, t, ps, st, _sigmas(p, t, X) .* reshape(W, size(X)))
 end
 
-# the Hessian is symmetric: the JVP is the same Hessian-vector product
-epsilon_jvp_input(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st, V) = epsilon_vjp_input(p, X, t, ps, st, V)
+function epsilon_jvp_input(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st, V)
+    t = _times(p, X, t)
+    _ondevice(p) && return _back(p, epsilon_jvp_input(_local(p), _to(p, X), _to(p, t), ps, st, _to(p, V)))
+    p.ad === nothing && _need_ad()
+    return _sigmas(p, t, X) .* _energy_hvp(p.ad, p, X, t, ps, st, V)
+end
 
-# ∂_θ⟨σ_t ∇ₓE, w⟩ = ∂_θ⟨∇ₓE, σ_t w⟩, with σ_t per column for a batch
+# ∂_θ⟨σ ⊙ ∇ₓE, w⟩ = ∂_θ⟨∇ₓE, σ ⊙ w⟩, with σ per column (and per coordinate with noise blocks)
 function epsilon_vjp_params(p::NoisePredictor{<:EnergyNetwork}, x, t, ps, st, w)
+    t = _times(p, x, t)
     _ondevice(p) && return epsilon_vjp_params(_local(p), _to(p, x), _to(p, t), ps, st, _to(p, w))
     p.ad === nothing && _need_ad()
-    return _energy_mixed(p.ad, p, x, t, ps, st, reshape(w, size(x)) .* _sigmas(p.schedule, t))
+    return _energy_mixed(p.ad, p, x, t, ps, st, reshape(w, size(x)) .* _sigmas(p, t, x))
 end
 
 _need_ad() = throw(ArgumentError(
@@ -126,50 +143,82 @@ see `energy_network.md` §3. A closed-form [`GaussianMixtureEps`](@ref) (and so 
 estimate) has one too, with ``E = -\\log p_t`` in closed form.
 """
 function implicit_energy(m::ImplicitDiffusion{<:NoisePredictor{<:EnergyNetwork}}, z, ps, st)
-    s = m.predictor.schedule
     U = zero(float(eltype(z)))
     for k in eachindex(m.nodes.t)
         t = m.nodes.t[k]
-        E, st = energy(m.predictor, _node_input(m, z, k), t, ps, st)
-        U += m.nodes.w[k] * _weight(m, t) * (sigma(s, t) / alpha(s, t) * E - dot(view(m.nodes.ε, :, k), z))
+        E, st = energy(m.predictor, _node_input(m, z, k), _node_times(m, t), ps, st)
+        U += m.nodes.w[k] * _node_energy(m, t, E, view(m.nodes.ε, :, k), z)
     end
     return (U, st)
+end
+
+# one node's term c_t E - εᵀ(λ ⊙ z), c_t = λσ_t²/α_t²: its z-gradient is the node's part of the field
+function _node_energy(m::ImplicitDiffusion, t, E, ε, z)
+    s = m.predictor.schedule
+    _, _, λc = _node_coefs(m, t)
+    return m.λ * sigma(s, t)^2 / alpha(s, t)^2 * E - dot(ε, λc .* z)
 end
 
 # The closed-form mixture is an exact score, ε* = -σ ∇ log p_t, so its energy is E = -log p_t:
 # the same formula, in closed form. This gives kernel and mixture models an energy too.
 function implicit_energy(m::ImplicitDiffusion{<:NoisePredictor{<:GaussianMixtureEps}}, z, ps, st)
-    s = m.predictor.schedule
     U = zero(float(eltype(z)))
     for k in eachindex(m.nodes.t)
         t = m.nodes.t[k]
-        E = -mixture_logdensity(m.predictor.model, _node_input(m, z, k), t, ps)
-        U += m.nodes.w[k] * _weight(m, t) * (sigma(s, t) / alpha(s, t) * E - dot(view(m.nodes.ε, :, k), z))
+        E = -mixture_logdensity(m.predictor.model, _node_input(m, z, k), _mixture_times(m, t), ps)
+        U += m.nodes.w[k] * _node_energy(m, t, E, view(m.nodes.ε, :, k), z)
     end
     return (U, st)
 end
 
-"""
-    denoising_gradient(p::NoisePredictor, x₀, t, ε, ps, st) -> (loss, ps̄, st)
+# a mixture's time per coordinate at a node of level t
+_mixture_times(m::ImplicitDiffusion, t) = m.levels === nothing ? t : _node_times(m, t)[m.predictor.blocks.owner]
 
-The denoising loss ``\\frac1B\\lVert\\varepsilon_\\theta(\\alpha_t x_0 + \\sigma_t\\varepsilon, t) - \\varepsilon\\rVert^2``
-over a batch (columns of `x₀`, `t` a scalar or a `1 × B` row) and its gradient with respect to
-the parameters, through [`epsilon_vjp_params`](@ref). For an [`EnergyNetwork`](@ref) this is the
-training step: the loss already contains a derivative of the network, and this computes the
-loss gradient as one mixed second derivative, with no nested AD in the training loop. Apply
-`ps̄` with any optimiser.
 """
-function denoising_gradient(p::NoisePredictor, x₀, t, ε, ps, st)
-    s = p.schedule
-    xt = (t isa Number ? alpha(s, t) : alpha.(Ref(s), t)) .* x₀ .+ _sigmas(s, t) .* ε
+    denoising_gradient(p::NoisePredictor, x₀, t, ε, ps, st; weights = nothing) -> (loss, ps̄, st)
+
+The denoising loss ``\\frac1B\\sum_i w_i(\\hat\\varepsilon_i - \\varepsilon_i)^2`` over a batch (columns of `x₀`)
+and its gradient with respect to the parameters, through [`epsilon_vjp_params`](@ref). `t` is a
+number, a `1 × B` row, or with noise blocks a `(#blocks × B)` matrix ([`block_times`](@ref)): each
+coordinate is noised at its block's level, ``x_t = \\alpha \\odot x_0 + \\sigma \\odot \\varepsilon``.
+`weights` (one per coordinate, default all 1) weights the loss coordinate by coordinate: a small
+block such as a label needs a large weight to count next to a large one.
+
+For an [`EnergyNetwork`](@ref) this is the training step: the loss already contains a derivative
+of the network, and this computes the loss gradient as one mixed second derivative, with no
+nested AD in the training loop. Apply `ps̄` with any optimiser.
+"""
+function denoising_gradient(p::NoisePredictor, x₀, t, ε, ps, st; weights = nothing)
+    t = _times(p, x₀, t)
+    xt = _alphas(p, t, x₀) .* x₀ .+ _sigmas(p, t, x₀) .* ε
     ε̂, st = epsilon(p, xt, t, ps, st)
-    B = size(x₀, 2)
+    B = _ncols(x₀)
     r = ε̂ .- ε
-    return (sum(abs2, r) / B, epsilon_vjp_params(p, xt, t, ps, st, (2 / B) .* r), st)
+    wr = weights === nothing ? r : weights .* r
+    return (sum(wr .* r) / B, epsilon_vjp_params(p, xt, t, ps, st, (2 / B) .* wr), st)
+end
+
+"""
+    block_times(rng, p::NoisePredictor, B; joint = 0.0) -> Matrix
+
+Training times for a predictor with noise blocks: a `(#blocks × B)` matrix, each entry drawn
+uniformly from `[tmin, 1]` independently (UniDiffuser), so the network learns every block at
+every level: a block at `tmin` is a clean condition, a block at 1 is marginalised away. With
+`joint` the given fraction of the columns has one time shared by all blocks instead, the joint
+model's training distribution.
+"""
+function block_times(rng::AbstractRNG, p::NoisePredictor, B::Integer; joint::Real = 0.0)
+    s = p.schedule
+    nb = nblocks(p)
+    T = s.tmin .+ (1 - s.tmin) .* rand(rng, nb, B)
+    shared = rand(rng, B) .< joint
+    T[:, shared] .= T[1:1, shared]
+    return T
 end
 
 # the energy of every column: one network call (with a device, there), no derivative
 function energy_columns(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st)
+    t = _times(p, X, t)
     if _ondevice(p)
         E, st = energy_columns(_local(p), _to(p, X), _to(p, t), ps, st)
         return (_back(p, E), st)

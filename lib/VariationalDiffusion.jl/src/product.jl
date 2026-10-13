@@ -56,6 +56,8 @@ struct ProductRelation{M<:Tuple,W<:AbstractVector} <: AbstractImplicitRelation
     dim::Int
 end
 
+_ondevice(m::ProductRelation) = any(_ondevice, m.relations)
+
 _split_factor(r::AbstractImplicitRelation) = (r, nothing)
 _split_factor(p::Pair{<:AbstractImplicitRelation}) = (p.first, collect(Int, p.second))
 

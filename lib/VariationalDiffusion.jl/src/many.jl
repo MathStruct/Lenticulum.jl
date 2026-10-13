@@ -15,12 +15,11 @@
 
 # the node inputs of one noise level for every column of Z: n × (B·|grp|), query-major blocks
 function _many_inputs(m::ImplicitDiffusion, Z, grp)
-    s = m.predictor.schedule
-    t = m.nodes.t[first(grp)]
+    α, σ, _ = _node_coefs(m, m.nodes.t[first(grp)])
     n, B = size(Z)
     X = similar(float.(Z), n, B * length(grp))
     for (a, k) in enumerate(grp)
-        X[:, ((a - 1) * B + 1):(a * B)] .= alpha(s, t) .* Z .+ sigma(s, t) .* view(m.nodes.ε, :, k)
+        X[:, ((a - 1) * B + 1):(a * B)] .= α .* Z .+ σ .* view(m.nodes.ε, :, k)
     end
     return X
 end
@@ -33,9 +32,10 @@ function _field_many(m::ImplicitDiffusion, Z, ps, st)
     B = size(Z, 2)
     for grp in _levels(m)
         t = m.nodes.t[first(grp)]
-        E, st = _eps_columns(m, _many_inputs(m, Z, grp), t, ps, st)
+        _, _, λc = _node_coefs(m, t)
+        E, st = _eps_columns(m, _many_inputs(m, Z, grp), _node_times(m, t), ps, st)
         for (a, k) in enumerate(grp)
-            G .+= (m.nodes.w[k] * _weight(m, t)) .* (view(E, :, ((a - 1) * B + 1):(a * B)) .- view(m.nodes.ε, :, k))
+            G .+= (m.nodes.w[k] .* λc) .* (view(E, :, ((a - 1) * B + 1):(a * B)) .- view(m.nodes.ε, :, k))
         end
     end
     return (G, st)
@@ -66,7 +66,9 @@ function _jacobian_many(m::ImplicitDiffusion, Z, free, ps, st)
     rows = m.predictor.ad !== nothing                 # VJPs give rows
     for grp in _levels(m)
         t = m.nodes.t[first(grp)]
-        c = _weight(m, t) * alpha(m.predictor.schedule, t)
+        α, _, λc = _node_coefs(m, t)
+        c = _rowcol(λc, α, idx)                       # λ_i α_j on the free block
+        τ = _node_times(m, t)
         X = _many_inputs(m, Z, grp)
         N = size(X, 2)                                # B·|grp| columns per direction
         if m.batched
@@ -74,27 +76,32 @@ function _jacobian_many(m::ImplicitDiffusion, Z, free, ps, st)
             for (a, j) in enumerate(idx)
                 V[j, ((a - 1) * N + 1):(a * N)] .= 1
             end
-            Dall = _eps_dir_columns(m, repeat(X, 1, nF), t, ps, st, V; transpose = rows)
+            Dall = _eps_dir_columns(m, repeat(X, 1, nF), τ, ps, st, V; transpose = rows)
         end
         for (a, j) in enumerate(idx)
             D = if m.batched
                 view(Dall, :, ((a - 1) * N + 1):(a * N))
             else
                 V = zero(X); V[j, :] .= 1
-                _eps_dir_columns(m, X, t, ps, st, V; transpose = rows)
+                _eps_dir_columns(m, X, τ, ps, st, V; transpose = rows)
             end
             for (g, k) in enumerate(grp), b in 1:B
                 col = view(D, idx, (g - 1) * B + b)
-                rows ? (J[a, :, b] .+= (c * m.nodes.w[k]) .* col) : (J[:, a, b] .+= (c * m.nodes.w[k]) .* col)
+                rows ? (J[a, :, b] .+= m.nodes.w[k] .* _crow(c, a) .* col) : (J[:, a, b] .+= m.nodes.w[k] .* _ccol(c, a) .* col)
             end
         end
     end
     return J
 end
+# the factor λ_i α_j of row a (from a VJP) or of column a (from a JVP) of the block
+_crow(c::Number, a) = c
+_crow(c, a) = view(c, a, :)
+_ccol(c::Number, a) = c
+_ccol(c, a) = view(c, :, a)
 
 """
     implicit_infer_many(m::ImplicitDiffusion, Z₀::AbstractMatrix, ρ, ps, st; Z_init = Z₀,
-                        tol = 1e-9, maxiters = 200, step = 0.05) -> (Vector{ImplicitSolution}, st)
+                        tol = default_tolerance(m, Z₀, ps), maxiters = 200, step = 0.05) -> (Vector{ImplicitSolution}, st)
 
 [`implicit_infer`](@ref) for many queries at once: column `b` of `Z₀` is a query (its clamps
 and soft targets), all with the same precisions `ρ`, warm-started from column `b` of `Z_init`.
@@ -111,7 +118,8 @@ coordinates free); for many free coordinates solve the queries one by one with
 [`KrylovSolve`](@ref).
 """
 function implicit_infer_many(m::ImplicitDiffusion, Z₀::AbstractMatrix, ρ, ps, st; Z_init = Z₀,
-                             tol = 1e-9, maxiters::Integer = 200, step = 0.05)
+                             tol = nothing, maxiters::Integer = 200, step = 0.05)
+    tol === nothing && (tol = default_tolerance(m, Z₀, ps))
     size(Z_init) == size(Z₀) || throw(DimensionMismatch("Z_init is $(size(Z_init)), Z₀ is $(size(Z₀))"))
     length(ρ) == size(Z₀, 1) || throw(DimensionMismatch("ρ has $(length(ρ)) entries for $(size(Z₀, 1)) coordinates"))
     free = .!isinf.(ρ)
@@ -166,19 +174,21 @@ function _energy_many(m::ImplicitDiffusion, Z, ps, st)
     U = zeros(eltype(float(Z)), B)
     for grp in _levels(m)
         t = m.nodes.t[first(grp)]
+        _, _, λc = _node_coefs(m, t)
         E, st = _energy_columns(m, _many_inputs(m, Z, grp), t, ps, st)
         for (a, k) in enumerate(grp)
             Ek = view(E, ((a - 1) * B + 1):(a * B))
-            U .+= (m.nodes.w[k] * _weight(m, t)) .* ((sigma(s, t) / alpha(s, t)) .* Ek .- vec(view(m.nodes.ε, :, k)' * Z))
+            U .+= m.nodes.w[k] .* ((m.λ * sigma(s, t)^2 / alpha(s, t)^2) .* Ek .- vec((λc .* view(m.nodes.ε, :, k))' * Z))
         end
     end
     return (U, st)
 end
 
 _energy_columns(m::ImplicitDiffusion{<:NoisePredictor{<:GaussianMixtureEps}}, X, t, ps, st) =
-    ([-mixture_logdensity(m.predictor.model, x, t, ps) for x in eachcol(X)], st)
+    ([-mixture_logdensity(m.predictor.model, x, _mixture_times(m, t), ps) for x in eachcol(X)], st)
 function _energy_columns(m::ImplicitDiffusion{<:NoisePredictor{<:EnergyNetwork}}, X, t, ps, st)
     p = m.predictor
+    t = _node_times(m, t)
     m.batched && return energy_columns(p, X, t, ps, st)
     E = zeros(eltype(float(X)), size(X, 2))
     for b in axes(X, 2)
@@ -199,7 +209,8 @@ energies of the roots are computed in batches as well. Each answer is what the s
 method returns: the same roots, weights and class probabilities.
 """
 function implicit_classify(m::ImplicitDiffusion, Z₀::AbstractMatrix, ρ, ps, st; label, classes::AbstractMatrix,
-                           labels = nothing, radius = nothing, unique_tol = 1e-3, kwargs...)
+                           labels = nothing, radius = nothing, temperature = nothing, cov_scale = 1, unique_tol = 1e-3,
+                           kwargs...)
     idx = _indices(label)
     length(idx) == size(classes, 1) || throw(DimensionMismatch(
         "$(length(idx)) label coordinates, class codes of length $(size(classes, 1))"))
@@ -234,7 +245,7 @@ function implicit_classify(m::ImplicitDiffusion, Z₀::AbstractMatrix, ρ, ps, s
         end
         logw = [c[2] for c in comps]
         mix = LenticulumCore.MixtureBelief([c[1] for c in comps], exp.(logw .- maximum(logw)))
-        (categorical_answer(mix, classes; labels, radius)..., mixture = mix)
+        (categorical_answer(mix, classes; labels, radius, temperature, cov_scale)..., mixture = mix)
     end
     return (answers, st)
 end

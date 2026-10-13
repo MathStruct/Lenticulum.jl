@@ -25,9 +25,14 @@ end
 softmax_of = judge()
 m, ps, st = relation(range(0.002, 0.05; length = 4))
 ρ = [zeros(NX); fill(Inf, NY)]
-configs = ["plain" => (;), "resample 3" => (resample = 3,),
-           "Langevin ×2" => (corrector = :langevin, corrector_steps = 2, corrector_step = 0.1),
-           "resample 3 + Langevin ×2" => (resample = 3, corrector = :langevin, corrector_steps = 2, corrector_step = 0.1)]
+configs = BLOCKS ?
+    ["label held clean" => (clamp_level = SCHED.tmin,),
+     "held, guidance 1" => (clamp_level = SCHED.tmin, guidance = 1.0),
+     "held, guidance 3" => (clamp_level = SCHED.tmin, guidance = 3.0),
+     "label replaced (joint)" => (;)] :
+    ["plain" => (;), "resample 3" => (resample = 3,),
+     "Langevin ×2" => (corrector = :langevin, corrector_steps = 2, corrector_step = 0.1),
+     "resample 3 + Langevin ×2" => (resample = 3, corrector = :langevin, corrector_steps = 2, corrector_step = 0.1)]
 get(ENV, "SAMPLE_EVAL", "1") == "1" && for (name, kw) in configs
     t = @elapsed begin
         hits, conf = 0, 0.0

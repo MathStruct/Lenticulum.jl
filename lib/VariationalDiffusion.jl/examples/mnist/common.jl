@@ -31,13 +31,18 @@ function joint(split)
 end
 
 # --- the model --------------------------------------------------------------------------------
-# time features: sin and cos of 2π·f·t for 8 frequencies, made on the CPU (16 numbers per column)
-# and placed next to x on its device
+# BLOCKS=1: image and label are two noise blocks with their own levels (UniDiffuser), and the
+# network sees both times; otherwise one level for all coordinates
+const BLOCKS = get(ENV, "BLOCKS", "0") == "1"
+const NBLOCKS = BLOCKS ? 2 : 1
+
+# time features: sin and cos of 2π·f·t for 8 frequencies and each block's time, made on the CPU
+# (16 numbers per block and column) and placed next to x on its device
 const FREQ = 2.0 .^ (-1:6)
 function time_input(x, t)
     te = Zygote.@ignore begin
-        tt = t isa Number ? fill(Float64(t), 1, size(x, 2)) : Array(t)
-        f = vcat(sin.((2π .* tt) .* FREQ), cos.((2π .* tt) .* FREQ))
+        tt = t isa Number ? fill(Float64(t), 1, size(x, 2)) : Array(t)        # 1 × B, or blocks × B
+        f = vcat(sin.((2π .* kron(tt, FREQ))), cos.((2π .* kron(tt, FREQ))))
         x isa Array ? f : copyto!(similar(x, Float32, size(f)), f)
     end
     return vcat(x, te)
@@ -47,11 +52,16 @@ end
 # (no energy, so no Laplace weights, but no second derivatives in training either)
 const KIND = get(ENV, "KIND", "energy")
 const WIDTH = 1024
-network() = Chain(Dense(N + 2length(FREQ) => WIDTH, swish), Dense(WIDTH => WIDTH, swish),
+network() = Chain(Dense(N + 2NBLOCKS * length(FREQ) => WIDTH, swish), Dense(WIDTH => WIDTH, swish),
                   Dense(WIDTH => WIDTH, swish), Dense(WIDTH => KIND == "eps" ? N : 1))
+const BLOCKSPEC = BLOCKS ? [IMAGE, LABEL] : nothing
 predictor(net; device = (to = GDEV, back = CDEV)) = KIND == "eps" ?
-    NoisePredictor(net, SCHED; input = time_input, ad = AutoZygote(), device) :
-    NoisePredictor(EnergyNetwork(net), SCHED; input = time_input, ad = AD, device)
+    NoisePredictor(net, SCHED; input = time_input, ad = AutoZygote(), device, blocks = BLOCKSPEC) :
+    NoisePredictor(EnergyNetwork(net), SCHED; input = time_input, ad = AD, device, blocks = BLOCKSPEC)
+
+# with blocks, the levels of a query: its fully clamped blocks held clean (HELD=1, default), or
+# every block annealed at the nodes' level (HELD=0, the joint field)
+query_levels(pred, ρ) = BLOCKS && get(ENV, "HELD", "1") == "1" ? conditional_levels(pred, ρ) : nothing
 
 # the trained model; MODEL=<name> selects ~/.cache/lenticulum/mnist/<name>.jld2 (default "energy")
 modelfile() = joinpath(OUT, get(ENV, "MODEL", "energy") * ".jld2")

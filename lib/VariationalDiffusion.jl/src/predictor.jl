@@ -46,12 +46,13 @@ device arrays and must build any time embedding on the same device (`predictor.m
     Any Lux model is an `AbstractLuxLayer`, so `Lux` itself is never needed here — see
     `predictor.md` §1.
 """
-struct NoisePredictor{L,S<:AbstractNoiseSchedule,F,A,D} <: LuxCore.AbstractLuxWrapperLayer{:model}
+struct NoisePredictor{L,S<:AbstractNoiseSchedule,F,A,D,B} <: LuxCore.AbstractLuxWrapperLayer{:model}
     model::L
     schedule::S
     input::F
     ad::A
     device::D
+    blocks::B
 end
 
 default_input(x, t) = (x, t)
@@ -70,8 +71,77 @@ _device(::Nothing) = nothing
 _device(d::DeviceTransfer) = d
 _device(d::NamedTuple) = DeviceTransfer(d.to, d.back)
 
-NoisePredictor(model, sched::AbstractNoiseSchedule; input = default_input, ad = nothing, device = nothing) =
-    NoisePredictor(model, sched, input, ad, _device(device))
+NoisePredictor(model, sched::AbstractNoiseSchedule; input = default_input, ad = nothing, device = nothing,
+               blocks = nothing) =
+    NoisePredictor(model, sched, input, ad, _device(device), _noiseblocks(blocks))
+
+# --- a noise level per block of coordinates --------------------------------------------
+# With `blocks`, the coordinates are partitioned into blocks that may sit at different noise
+# levels (UniDiffuser): `t` is then a number (every block at t), a vector with one time per
+# block, or a (#blocks × B) matrix with one column per column of x. The network's `input`
+# always receives the matrix; α and σ act coordinate by coordinate. See `predictor.md` §6.
+
+"""
+    NoiseBlocks(blocks)
+
+A partition of the coordinates `1:n` into blocks that carry their own noise level, built from
+the keyword `blocks` of [`NoisePredictor`](@ref) (a vector of index ranges or vectors).
+"""
+struct NoiseBlocks
+    blocks::Vector{Vector{Int}}
+    owner::Vector{Int}                                # the block of each coordinate
+    function NoiseBlocks(blocks::AbstractVector)
+        bs = [collect(Int, b) for b in blocks]
+        length(bs) ≥ 2 || throw(ArgumentError("blocks: give at least two blocks"))
+        n = sum(length, bs)
+        owner = zeros(Int, n)
+        for (k, b) in enumerate(bs), i in b
+            1 ≤ i ≤ n && owner[i] == 0 || throw(ArgumentError("blocks must partition 1:$n; coordinate $i is out of range or repeated"))
+            owner[i] = k
+        end
+        return new(bs, owner)
+    end
+end
+_noiseblocks(::Nothing) = nothing
+_noiseblocks(b::NoiseBlocks) = b
+_noiseblocks(b) = NoiseBlocks(b)
+
+"""
+    nblocks(p::NoisePredictor) -> Int
+
+The number of noise blocks (1 without `blocks`).
+"""
+nblocks(p::NoisePredictor) = p.blocks === nothing ? 1 : length(p.blocks.blocks)
+
+_ncols(x::AbstractVector) = 1
+_ncols(x::AbstractArray) = prod(size(x)[2:end])
+
+# the times the network sees: unchanged without blocks, a (#blocks × B) matrix with them
+_times(p::NoisePredictor, x, t) = p.blocks === nothing ? t : _block_times(length(p.blocks.blocks), t, _ncols(x))
+_block_times(nb, t::Number, B) = fill(float(t), nb, B)
+function _block_times(nb, t::AbstractVector, B)
+    length(t) == nb || throw(DimensionMismatch("one time per noise block: $(length(t)) for $nb blocks"))
+    return repeat(reshape(float.(t), nb, 1), 1, B)
+end
+function _block_times(nb, t::AbstractMatrix, B)
+    size(t, 1) == nb && size(t, 2) == B && return t
+    size(t, 1) == 1 && return _block_times(nb, nb == 1 ? t : repeat(t, nb, 1), B)    # a shared time per column
+    size(t, 1) == nb && size(t, 2) == 1 && return repeat(t, 1, B)
+    throw(DimensionMismatch("times of size $(size(t)) for $nb blocks and $B columns"))
+end
+
+# f(schedule, t) coordinate by coordinate, shaped like x (a scalar without blocks and a scalar t)
+function _coordwise(p::NoisePredictor, f, t, x)
+    s = p.schedule
+    if p.blocks === nothing
+        return t isa Number ? f(s, t) : f.(Ref(s), t)
+    end
+    T = float(eltype(x))                               # a Float32 batch on a device stays Float32
+    F = T.(f.(Ref(s), _times(p, x, t)))[p.blocks.owner, :]
+    return x isa AbstractVector ? vec(F) : reshape(F, size(x))
+end
+_alphas(p::NoisePredictor, t, x) = _coordwise(p, alpha, t, x)
+_sigmas(p::NoisePredictor, t, x) = _coordwise(p, sigma, t, x)
 
 # --- running on a device -------------------------------------------------------------
 # With `device = (to, back)` every evaluation and derivative of the network takes its array
@@ -79,7 +149,7 @@ NoisePredictor(model, sched::AbstractNoiseSchedule; input = default_input, ad = 
 # are made on the device, never moved), and brings plain arrays back. The solvers' state, the
 # field's noise draws and the small linear algebra stay where they are. Inside, a copy of the
 # predictor without a device does the work, so the hooks see device arrays and nothing else.
-_local(p::NoisePredictor) = NoisePredictor(p.model, p.schedule, p.input, p.ad, nothing)
+_local(p::NoisePredictor) = NoisePredictor(p.model, p.schedule, p.input, p.ad, nothing, p.blocks)
 _ondevice(p::NoisePredictor) = p.device !== nothing
 _to(p::NoisePredictor, x::AbstractArray) = p.device.to(x)
 _to(p::NoisePredictor, x) = x
@@ -110,6 +180,7 @@ backward pass does (a parameter VJP and an input Jacobian), and it goes through 
 `ad` backend, provided by a package extension (`predictor.md` §5).
 """
 function epsilon(p::NoisePredictor, x, t, ps, st)
+    t = _times(p, x, t)
     _ondevice(p) && return _epsilon_device(p, x, t, ps, st)
     return _apply(p.ad, p, x, t, ps, st)
 end
@@ -142,7 +213,7 @@ so a perfect noise predictor is a perfect score. The ``1/\\sigma_t`` is why
 """
 function score(p::NoisePredictor, x, t, ps, st)
     ε̂, st = epsilon(p, x, t, ps, st)
-    return (-ε̂ ./ sigma(p.schedule, t), st)
+    return (-ε̂ ./ _sigmas(p, t, x), st)
 end
 
 """
@@ -159,8 +230,7 @@ posterior mean ``\\mathbb{E}[x_0 \\mid x_t = x]``.
 """
 function denoise(p::NoisePredictor, x, t, ps, st)
     ε̂, st = epsilon(p, x, t, ps, st)
-    s = p.schedule
-    return ((x .- sigma(s, t) .* ε̂) ./ alpha(s, t), st)
+    return ((x .- _sigmas(p, t, x) .* ε̂) ./ _alphas(p, t, x), st)
 end
 
 """
@@ -175,7 +245,7 @@ RED-Diff's regulariser are the same integrand with three different ``\\omega``. 
 `schedule.md` §3.
 """
 function denoising_loss(p::NoisePredictor, x₀, t, ε, ps, st)
-    x_t = perturb(p.schedule, x₀, t, ε)
+    x_t = _alphas(p, t, x₀) .* x₀ .+ _sigmas(p, t, x₀) .* ε
     ε̂, st = epsilon(p, x_t, t, ps, st)
     d = ε̂ .- ε
     return (sum(abs2, d), st)

@@ -51,7 +51,9 @@ function _run(f, pred, args...)
     return g(pred, dargs...)
 end
 
-_args(x, t, ps, st) = (x, Reactant.ConcreteRNumber(float(eltype(x))(t)), ps, st)
+_time(x, t::Number) = Reactant.ConcreteRNumber(float(eltype(x))(t))
+_time(x, t::AbstractArray) = collect(float(eltype(x)).(t))             # noise blocks: a time per block
+_args(x, t, ps, st) = (x, _time(x, t), ps, st)
 
 function VariationalDiffusion._apply(::AutoReactant, pred::NoisePredictor, x, t, ps, st)
     return (Array(_run(_fwd, pred, _args(x, t, ps, st)...)), st)
