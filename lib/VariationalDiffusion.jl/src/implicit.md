@@ -7,7 +7,7 @@
 
 > Sources: code: `implicit.jl`; the trust-region solver (§11): Nocedal & Wright, *Numerical Optimization*, 2nd ed., ch. 4 and 7; Steihaug 1983
 >
-> Bibliography: [[Bibliography#^nocedal2006numopt|Nocedal & Wright 2006]] · [[Bibliography#^steihaug1983cg|Steihaug 1983]]
+> Bibliography: [[Bibliography#^nocedal2006numopt|Nocedal & Wright 2006]] · [[Bibliography#^steihaug1983cg|Steihaug 1983]] · [[Bibliography#^li2023diffclassifier|Li et al. 2023]]
 >
 > Theory (CT-ML wiki): [Least Fixed Point](https://mathstruct.org/CategoryTheory-ML-Wiki/Least-Fixed-Point) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category)
 
@@ -319,6 +319,55 @@ accuracy; the trust region takes 15.7–67.7 ms per query against 13.1–66.4 ms
 (2–20% more, for the energy it evaluates at each trial point). For large batches of easy
 queries `method = :newton` is the faster choice. Getting there needed the tolerance fix of §10:
 the solves first stalled at residuals of $5\cdot10^{-5}$, just above a tolerance of $10\,\epsilon$.
+
+## 12. What a query costs (`cost.jl`)
+
+Root finding and the diffusion classifier (Li et al. 2023) read the same network. Counting the
+network passes each makes per query, and weighting them by their measured cost per column,
+predicts which is cheaper:
+
+$$
+\text{root finding} \approx S\bigl[(I+1)\,N\,(|F|\,c_d + c_\varepsilon) + (I+1)\,N\,c_E\bigr],\qquad
+\text{classifier} \approx K\,M\,c_\varepsilon,
+$$
+
+with $S$ starts, $I$ iterations, $N$ field nodes, $|F|$ free coordinates (one input derivative
+each per node, for the Jacobian block), $K$ classes and $M$ noise draws; the trust region adds
+the energy $c_E$ at each trial point, Newton-or-descent a trial residual instead.
+`pass_costs(pred, X, t, ps, st; directions)` measures $c_\varepsilon$, $c_E$ and $c_d$ at the batch width
+the solvers use; `root_cost`, `classifier_cost` and `break_even_classes` evaluate the formulas.
+
+**Measured on MNIST** (block model, image held clean, levels 0.05–0.2, 16 nodes, 1000 tuning
+images, RTX 3080): per column $c_\varepsilon$ = 2.9 µs, $c_E$ = 1.1 µs, $c_d$ = 15.1 µs (a Hessian-vector product,
+forward over reverse, about five ε evaluations).
+
+| | measured | predicted | accuracy |
+|---|---|---|---|
+| root finding, Newton-or-descent (3.0 iterations) | 15.1 ms | 10.0 ms | 95.0% |
+| root finding, trust region (3.8 iterations) | 18.5 ms | 11.9 ms | 95.0% |
+| diffusion classifier, 10 × 32 draws | 3.1 ms | 2.0 ms | 93.9% |
+| diffusion classifier, 10 × 128 | 10.7 ms | 8.1 ms | 94.2% |
+| diffusion classifier, 10 × 256 | 21.5 ms | 16.2 ms | 93.7% |
+
+The predictions are 1.3 to 1.6 times too low: host-side work (assembling node inputs, transfers,
+narrower calls as queries leave the batch) is not counted. It is similar for both methods, so
+the **ratio** is right within 10% (5.0 predicted against 4.9 measured for Newton, 6.0 against
+6.0 for the trust region, at 32 draws), and the ratio decides which to use.
+
+**What it says.**
+- With one-hot labels, $|F| = K$: root finding's cost grows with the classes as fast as the
+  classifier's, with a larger constant ($N(I+1)\,c_d$ against $M\,c_\varepsilon$ per class). It is never
+  cheaper; here 5–6 times dearer at 32 draws.
+- With a label code of fixed dimension $d$ (an embedding instead of one-hot), root finding's cost
+  is fixed and the classifier's grows with $K$. At these units (the classifier called in wide
+  batches, 2.9 µs per ε; in chunks of 100 as measured above it costs twice that) it is cheaper above
+  $K^\ast \approx 10d + 4$ classes (Newton-or-descent; $12d + 3$ with the trust region): about 45
+  classes for a 4-dimensional code, 110 for a 10-dimensional one.
+- The classifier's accuracy did not grow with more draws (93.7–94.2% from 32 to 256), one point
+  below root finding's. Where accuracy matters, the comparison is not at equal accuracy at all.
+- The derivative passes dominate: $|F|\,c_d$ is about 50 times $c_\varepsilon$ here. Halving the nodes halves the
+  cost; Newton-or-descent is cheaper than the trust region on easy queries; a cheaper Jacobian
+  block (fewer directions by Krylov, or a reverse-mode Hessian) is where root finding gains most.
 
 Related: [[analytic]], [[reddiff]], [[factor]], [[energy_network]], [[krylov]], [[sampler]], [[Deterministic Relaxation]], [[Inference Signatures]],
 [[The Implicit Diffusion Factor as a Statistical Game]]

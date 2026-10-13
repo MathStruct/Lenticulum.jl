@@ -1561,6 +1561,31 @@ end
     @test a.z ≈ b.z atol = 1e-8
 end
 
+@testset "cost model: pass counts, measured units, the break-even" begin
+    nodes = field_nodes(Xoshiro(1), 2; samples = 2)                 # 8 levels × 4 = 32 nodes
+    m = ImplicitDiffusion(RING, nodes)
+    u = (epsilon = 1.0, energy = 0.5, derivative = 3.0)
+    N = length(nodes.t)
+    # (I+1) N (|F| c_d + c_ε) + (I+1) N c_E for the trust region; Newton adds I N b c_ε instead
+    @test root_cost(m, 2, u; iterations = 4) ≈ 5N * (2 * 3.0 + 1.0) + 5N * 0.5
+    @test root_cost(m, 2, u; iterations = 4, method = :newton, backtracks = 2) ≈ 5N * (2 * 3.0 + 1.0) + 4N * 2 * 1.0
+    @test root_cost(m, 2, u; iterations = 4, starts = 10) ≈ 10 * root_cost(m, 2, u; iterations = 4)
+    @test classifier_cost(10, 32, u) == 320
+    K = break_even_classes(m, 2, u; draws = 32, iterations = 4)
+    @test classifier_cost(1, 32, u) * K ≈ root_cost(m, 2, u; iterations = 4)
+    @test_throws ArgumentError root_cost(m, 2, (epsilon = 1.0, energy = nothing, derivative = 1.0); iterations = 3,
+                                         method = :trust_region)
+    # measured units: positive, the energy only for an energy network
+    ps0, stm = Lux.setup(Xoshiro(0), MLP)
+    eps_pred = NoisePredictor(MLP, SCHED; input = _batch_input, ad = AutoZygote())
+    ue = pass_costs(eps_pred, randn(Xoshiro(2), 2, 20), 0.1, _f64(ps0), stm; directions = 2, reps = 1)
+    @test ue.epsilon > 0 && ue.derivative > 0 && ue.energy === nothing
+    pe, ste = Lux.setup(Xoshiro(0), ENERGY_MLP)
+    en = NoisePredictor(EnergyNetwork(ENERGY_MLP), SCHED; input = _batch_input, ad = AutoZygote())
+    uE = pass_costs(en, randn(Xoshiro(2), 2, 20), 0.1, _f64(pe), ste; reps = 1)
+    @test uE.energy > 0
+end
+
 @testset "a predictor on a device: every hook through device arrays" begin
     # JLArrays is the reference GPU array, on the CPU and without scalar indexing: what passes
     # here moves to CUDA unchanged. Time features are made on the CPU and placed beside x.

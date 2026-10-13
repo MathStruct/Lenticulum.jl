@@ -59,7 +59,10 @@ tolerance follows the arithmetic precision (`default_tolerance`). For relations 
 [nocedal2006numopt](@cite), [steihaug1983cg](@cite)): on the
 circle every one of 160 starts converges (against 122 for Newton-or-descent), and on MNIST 19 of
 20 modes with 784 free pixels, in about 6 s each, where Newton-or-descent found none.
-`implicit_infer_many` uses the same method for many queries at once.
+`implicit_infer_many` uses the same method for many queries at once. `pass_costs`, `root_cost` and
+`classifier_cost` predict the time per query of root finding and of the diffusion classifier
+([li2023diffclassifier](@cite)) from measured per-column costs; on MNIST the ratio is right within 10%, and with a compact label
+code `break_even_classes` gives the number of classes above which root finding is cheaper.
 
 ## Off the data
 
@@ -135,6 +138,13 @@ Pages = ["krylov.jl"]
 ```@autodocs
 Modules = [VariationalDiffusion]
 Pages = ["many.jl"]
+```
+
+### What a query costs
+
+```@autodocs
+Modules = [VariationalDiffusion]
+Pages = ["cost.jl"]
 ```
 
 ### Coverage

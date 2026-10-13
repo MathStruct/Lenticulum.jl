@@ -61,6 +61,7 @@ include("answers.jl")
 include("sampler.jl")
 include("coverage.jl")
 include("many.jl")
+include("cost.jl")
 include("product.jl")
 include("proxdm.jl")
 include("factor.jl")
@@ -97,6 +98,7 @@ export ImplicitProx, implicit_solution, implicit_factor_pullback
 export EnergyNetwork, energy, implicit_energy, denoising_gradient, block_times
 export implicit_roots, implicit_laplace, density_lambda, laplace_belief, implicit_mixture, implicit_sample
 export categorical_answer, code_posterior, calibrate_temperature, implicit_classify, implicit_infer_many
+export pass_costs, root_cost, classifier_cost, break_even_classes
 export CoverageReference, coverage_reference, coverage
 export AbstractImplicitRelation, ProductRelation
 export AbstractProximalPredictor, proximal, ProxNetwork, MixtureProx

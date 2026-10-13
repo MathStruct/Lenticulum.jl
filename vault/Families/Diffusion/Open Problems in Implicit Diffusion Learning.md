@@ -261,7 +261,7 @@ Result: on MNIST, 85.5% of label-clamped samples are recognised as their label, 
 for the same network sampled the old way. Guidance lowered it (74%). Remaining: image quality
 (I10), and a cost of one to two points in classification for the block-trained network.
 
-### I13. Answers of a single root — **done, except a cost model**
+### I13. Answers of a single root — **done**
 
 On MNIST every classification query had one stable root, so the Laplace mixture had one
 component and its class probabilities were 0 or 1. Built:
@@ -281,9 +281,11 @@ component and its class probabilities were 0 or 1. Built:
   `implicit_infer_many` has it too, query by query identical to the single-query solver;
   on easy batched queries (MNIST classification) it costs 2–20% more than Newton-or-descent.
 
-Open:
-- **root finding is not cheaper than the diffusion classifier** at equal accuracy (18 ms against
-  3.1 ms per query); a cost model that predicts when it is would help.
+- **a cost model** (`pass_costs`, `root_cost`, `classifier_cost`, `break_even_classes`): network
+  passes weighted by their measured cost per column. On MNIST it predicts the ratio of root
+  finding to the diffusion classifier within 10% (absolute times 1.3–1.6× low). With one-hot
+  labels root finding is never cheaper; with a $d$-dimensional label code it is above about
+  $10d + 4$ classes ([[implicit]] §12).
 
 ## Summary
 
@@ -312,7 +314,7 @@ Open:
 | I10 | real data, higher dimensions | MNIST: image → label 96.1% (= diffusion classifier); label → image conditions with noise blocks (85.5% recognised) but the images are poor |
 | I11 | nonlinear factors | done: `NonlinearFactor` (EKF, UKF, iterated) |
 | I12 | both directions of one relation | done: noise blocks, block times, loss weights, held clamps, guidance (MNIST: 85.5% against 10.5%) |
-| I13 | answers of a single root | done: calibrated code posterior (ECE 0.009), unassigned flag, precision-aware tolerances, trust-region solver (MNIST modes 19/20 against 0/20); open: a cost model |
+| I13 | answers of a single root | done: calibrated code posterior (ECE 0.009), unassigned flag, precision-aware tolerances, trust-region solver (MNIST modes 19/20 against 0/20), cost model (ratio within 10%) |
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]], [[Backpropagation through Implicit Inference]],
 [[The Diffusion Factor]], [[The Implicit Diffusion Factor as a Statistical Game]], [[energy_network]],

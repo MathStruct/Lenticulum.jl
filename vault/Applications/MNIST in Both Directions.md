@@ -290,6 +290,13 @@ cost and still converging in fewer than half the cases. The trust-region solver 
 | blank image | **10/10** | 6/10 | $6\cdot10^{-5}$ | 16 | 6 s |
 | a sample | **9/10** | 9/10 | $6\cdot10^{-5}$ | 37 | 6 s |
 
+**Cost against the diffusion classifier** (`cost.jl`, [[implicit]] §12). On this model one-start
+root finding takes 15.1 ms per query (Newton-or-descent) or 18.5 ms (trust region) at 95.0%, the
+diffusion classifier 3.1 ms at 93.9% with 32 draws, and more draws do not raise its accuracy
+(94.2% at 128, 93.7% at 256). A pass-count model predicts the ratio within 10%. Root finding pays
+mostly for the Jacobian block, ten Hessian-vector products per node and iteration; with
+one-hot labels that grows with the classes, so it is never the cheaper method here.
+
 Every converged mode is a stable minimum of the query's energy. That several are judged as another
 digit (an 8 most often) is the model's mode, not the solver's: the most probable image of an MLP
 energy given a label need not look like a typical sample of it.
