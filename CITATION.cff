@@ -2218,3 +2218,57 @@ references:
     year: 2023
     collection-title: "IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops (CVPRW)"
     url: "https://arxiv.org/abs/2211.07740"
+  - type: article
+    title: "Sequential Monte Carlo Samplers"
+    authors:
+      - family-names: "Del Moral"
+        given-names: "Pierre"
+      - family-names: "Doucet"
+        given-names: "Arnaud"
+      - family-names: "Jasra"
+        given-names: "Ajay"
+    year: 2006
+    journal: "Journal of the Royal Statistical Society: Series B (Statistical Methodology)"
+    volume: "68"
+    issue: "3"
+    start: "411"
+    end: "436"
+    doi: "10.1111/j.1467-9868.2006.00553.x"
+  - type: article
+    title: "Exponential Convergence of Langevin Distributions and Their Discrete Approximations"
+    authors:
+      - family-names: "Roberts"
+        given-names: "Gareth O."
+      - family-names: "Tweedie"
+        given-names: "Richard L."
+    year: 1996
+    journal: "Bernoulli"
+    volume: "2"
+    issue: "4"
+    start: "341"
+    end: "363"
+    doi: "10.2307/3318418"
+  - type: conference-paper
+    title: "Feynman-Kac Correctors in Diffusion: Annealing, Guidance, and Product of Experts"
+    authors:
+      - family-names: "Skreta"
+        given-names: "Marta"
+      - family-names: "Akhound-Sadegh"
+        given-names: "Tara"
+      - family-names: "Ohanesian"
+        given-names: "Viktor"
+      - family-names: "Bondesan"
+        given-names: "Roberto"
+      - family-names: "Aspuru-Guzik"
+        given-names: "Alán"
+      - family-names: "Doucet"
+        given-names: "Arnaud"
+      - family-names: "Brekelmans"
+        given-names: "Rob"
+      - family-names: "Tong"
+        given-names: "Alexander"
+      - family-names: "Neklyudov"
+        given-names: "Kirill"
+    year: 2025
+    collection-title: "International Conference on Machine Learning (ICML)"
+    url: "https://arxiv.org/abs/2503.02819"

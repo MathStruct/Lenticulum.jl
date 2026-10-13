@@ -52,6 +52,14 @@ The root finders return modes. `implicit_sample(m, z₀, ρ, ps, st; n, steps, r
 diffusion, replacing the clamped coordinates at every step; `resample > 0` adds RePaint's
 harmonisation, which a strongly coupled clamp needs.
 
+Two options make the sampler work on a product of relations, whose summed scores are not the
+scores of the noised product ([du2023reduce](@cite)). `corrector = :langevin` or `:mala`
+adds Markov chain steps at every noise level ([roberts1996mala](@cite)); they fix the shape of
+each mode. `smc = true` also weights and resamples the chains, a sequential Monte Carlo sampler
+over the noise levels ([delmoral2006smc](@cite), [skreta2025fkc](@cite)); it fixes how the mass
+is split between modes, which local moves cannot. Both `:mala` and `smc` need log-densities
+(mixtures, kernel estimates, energy networks).
+
 ## Differentiating through inference
 
 With ChainRulesCore loaded (Zygote loads it), `implicit_infer` has an `rrule` whose pullback is
@@ -63,6 +71,13 @@ works without unrolling the solver, and gives gradients for `z₀` and `ρ` too.
 `ProductRelation(m₁, m₂; weights)` pools relations on the same variables: its field is the
 weighted sum, its stable roots are where all relations hold, e.g. the intersections of a
 learned circle and a learned line. Every query function and the adjoint accept it.
+
+Relations on different variables compose with pairs `relation => coordinates`, and a
+**separator** is a relation with weight ``-1`` on the shared coordinates:
+`ProductRelation(mA => [1, 2], mB => [2, 3], mS => [2]; weights = [1, 1, -1])` is
+``p_A(x, y)\,p_B(y, z)/p_S(y)``. Without the separator the shared marginal counts twice: on a
+chain whose two modes carry 0.8 and 0.2, the Laplace mixture weighs them 0.80 / 0.20 with it and
+0.94 / 0.06 without.
 
 ## API
 

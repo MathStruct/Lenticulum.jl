@@ -9,52 +9,177 @@
 # Replacement ignores how the clamp should bend the free coordinates' history; RePaint's
 # resampling (`resample`) re-noises and repeats each step to let them catch up.
 #
-# Uses the predictor only, not the field's nodes. See `sampler.md`.
+# Optional corrector steps (Langevin or MALA) at every noise level move the chains towards the
+# level's own marginal; a product of relations needs them, because the sum of the factors'
+# scores is not the score of the noised product (T9). Uses the predictors only, not the field's
+# nodes. See `sampler.md` and `product.md` §5.
 # ---------------------------------------------------------------------------
 
 """
-    implicit_sample(m::ImplicitDiffusion, z₀, ρ, ps, st; n = 1, steps = 100, resample = 0,
-                    T = 1.0, rng = Random.default_rng()) -> (Z, st)
+    implicit_sample(m, z₀, ρ, ps, st; n = 1, steps = 100, resample = 0, corrector = :none,
+                    corrector_steps = 1, corrector_step = 0.1, T = 1.0,
+                    rng = Random.default_rng()) -> (Z, st)
 
 `n` samples of the free coordinates given the hard-clamped ones, as the columns of `Z`
 (``\\dim z\\times n``): the conditional ``p(z_F \\mid z_C = z_{0,C})`` of the model's data
 distribution, where the root finders return its modes. `ρ` marks the polarity as everywhere
 else: `Inf` is clamped to `z₀`, `0` is free. Soft evidence (finite, positive `ρ`) is not
-supported: it needs likelihood guidance, which is approximate for a diffusion model.
+supported: it needs likelihood guidance, which is approximate for a diffusion model. `m` is an
+[`ImplicitDiffusion`](@ref) or a [`ProductRelation`](@ref) whose relations share one noise schedule.
 
 The sampler is the reverse VP-SDE discretised by DDPM's ancestral step on a grid from `T` to
-the schedule's `tmin`, uniform in log-SNR (`steps` steps), using the predictor of `m` only (not
-its nodes). After every step the clamped coordinates are replaced by ``\\alpha_s z_{0,C} + \\sigma_s\\xi``, the
+the schedule's `tmin`, uniform in log-SNR (`steps` steps), using the predictors of `m` only (not
+their nodes). After every step the clamped coordinates are replaced by ``\\alpha_s z_{0,C} + \\sigma_s\\xi``, the
 clamp's forward marginal at the new time, and the last step returns Tweedie's denoised estimate
 with the clamps set exactly. With `resample = r` each step is repeated `r` more times after
 re-noising back to the previous time (RePaint's harmonisation), which corrects the free
 coordinates' lag behind the clamp at `r + 1` times the cost. On the circle a few resamplings
 are needed: without them the conditional samples are biased towards the centre (`sampler.md` §3).
 
+**Corrector steps.** With `corrector = :langevin` or `:mala`, every step is followed by
+`corrector_steps` Markov chain steps on the free coordinates that target the model's density at
+the new noise level (for a product, ``\\prod_i p_{i,u}^{\\beta_i}``): a Langevin step
+``x \\leftarrow x + \\eta\\,s(x) + \\sqrt{2\\eta}\\,\\xi`` with ``\\eta = `` `corrector_step` ``\\cdot\\,\\sigma_u^2``, and
+with `:mala` a Metropolis–Hastings test that makes the step exact for that density. `:mala`
+needs log-densities: closed-form mixtures and energy networks, or products of them. For a
+single model the corrector refines a sampler that is already consistent; for a product it is
+what makes the samples right, because the summed scores of the factors are not the scores of
+the noised product (Du et al. 2023; `product.md` §5).
+
+**Reweighting.** Corrector steps fix the shape of each mode but cannot move mass between modes
+that a low noise level separates. With `smc = true` the chains are also weighted, as a sequential
+Monte Carlo sampler for the sequence of densities ``\\pi_u \\propto \\prod_i p_{i,u}^{\\beta_i}`` (for a single
+model, ``p_u``): each ancestral step is a proposal, and the chain's weight is multiplied by
+``\\pi_u(x_u)\\,q(x_t \\mid x_u) / (\\pi_t(x_t)\\,r(x_u \\mid x_t))``, with ``q`` the forward noising and ``r`` the ancestral
+step; the chains are resampled (systematically) when the effective sample size falls below
+`n/2`, and once more at the end, so `Z` holds unweighted draws. This is consistent as `n` grows,
+whatever the mismatch between summed scores and the noised product (Skreta et al. 2025's
+Feynman–Kac correctors are this construction in continuous time). It needs log-densities, like
+`:mala`. With clamps, the clamped coordinates follow ``\\alpha_u z_{0,C}`` without noise, so that the
+targets are the conditionals ``\\pi_u(x_F \\mid x_C = \\alpha_u z_{0,C})``. The moves between reweightings must
+leave each level's density invariant, so `smc` takes `corrector = :none` or `:mala`, and no `resample`.
+
 With `m.batched` all `n` chains go through the network in one call per step; otherwise one call
 per chain.
 """
-function implicit_sample(m::ImplicitDiffusion, z₀, ρ, ps, st; n::Integer = 1, steps::Integer = 100,
-                         resample::Integer = 0, T = 1.0, rng::AbstractRNG = Random.default_rng())
+function implicit_sample(m::AbstractImplicitRelation, z₀, ρ, ps, st; n::Integer = 1, steps::Integer = 100,
+                         resample::Integer = 0, corrector::Symbol = :none, corrector_steps::Integer = 1,
+                         corrector_step::Real = 0.1, smc::Bool = false, T = 1.0,
+                         rng::AbstractRNG = Random.default_rng())
     all(r -> r == 0 || isinf(r), ρ) || throw(ArgumentError(
         "implicit_sample takes hard clamps (ρ = Inf) and free coordinates (ρ = 0); soft evidence needs guidance"))
-    s = m.predictor.schedule
+    corrector in (:none, :langevin, :mala) ||
+        throw(ArgumentError("corrector must be :none, :langevin or :mala, got :$corrector"))
+    (corrector === :mala || smc) && !_has_energy(m) && throw(ArgumentError(
+        "corrector = :mala and smc = true need log-densities: a closed-form mixture, an energy network, or a product of them"))
+    smc && resample > 0 && throw(ArgumentError("smc = true does not combine with resample"))
+    smc && corrector === :langevin && throw(ArgumentError(
+        "smc = true needs moves that leave each level's density invariant: corrector = :mala or :none"))
+    s = _schedule(m)
     C = isinf.(ρ)
+    F = .!C
     d = length(z₀)
     ts = _logsnr_grid(s, float(T), s.tmin, steps)
     X = randn(rng, d, n)
-    _replace!(X, C, z₀, s, ts[1], rng)
+    if smc
+        X[C, :] .= alpha(s, ts[1]) .* z₀[C]
+        L, st = _logdensity_columns(m, X, ts[1], ps, st)
+        logw = L .+ vec(sum(abs2, X[F, :]; dims = 1)) ./ 2      # π_T against the start N(0, I)
+    else
+        _replace!(X, C, z₀, s, ts[1], rng)
+    end
     for k in 1:steps
         t, u = ts[k], ts[k + 1]
-        for r in 0:resample
-            X, st = _ancestral(m, X, t, u, ps, st, rng)
-            _replace!(X, C, z₀, s, u, rng)
-            r < resample && (X = _renoise(s, X, u, t, rng))
+        if smc
+            M, sd, st = _ancestral_parts(m, X, t, u, ps, st)
+            Y = copy(X)
+            Y[F, :] .= M[F, :] .+ sd .* randn(rng, count(F), n)
+            Y[C, :] .= alpha(s, u) .* z₀[C]
+            Lu, st = _logdensity_columns(m, Y, u, ps, st)
+            a = alpha(s, t) / alpha(s, u)
+            v = sigma(s, t)^2 - a^2 * sigma(s, u)^2                 # q(x_t | x_u) = N(a x_u, v I)
+            logw .+= Lu .- L .- vec(sum(abs2, X[F, :] .- a .* Y[F, :]; dims = 1)) ./ (2v) .+
+                     vec(sum(abs2, Y[F, :] .- M[F, :]; dims = 1)) ./ (2sd^2)
+            X, L = Y, Lu
+            if _ess(logw) < n / 2
+                idx = _systematic(rng, logw)
+                X, L = X[:, idx], L[idx]
+                logw .= 0
+            end
+        else
+            for r in 0:resample
+                X, st = _ancestral(m, X, t, u, ps, st, rng)
+                _replace!(X, C, z₀, s, u, rng)
+                r < resample && (X = _renoise(s, X, u, t, rng))
+            end
+        end
+        if corrector !== :none
+            X, _, L, st = _correct(m, X, F, u, ps, st, rng; mala = corrector === :mala, steps = corrector_steps,
+                                   η = corrector_step * sigma(s, u)^2, L = smc ? L : nothing)
         end
     end
+    smc && (X = X[:, _systematic(rng, logw)])
     X̂, st = _denoise_columns(m, X, last(ts), ps, st)
     X̂[C, :] .= z₀[C]
     return (X̂, st)
+end
+
+_schedule(m::ImplicitDiffusion) = m.predictor.schedule
+
+# the effective sample size of log-weights, and systematic resampling by them
+function _ess(logw)
+    w = exp.(logw .- maximum(logw))
+    return sum(w)^2 / sum(abs2, w)
+end
+function _systematic(rng, logw)
+    w = exp.(logw .- maximum(logw)); c = cumsum(w ./ sum(w))
+    n = length(w); u0 = rand(rng) / n
+    return [min(searchsortedfirst(c, u0 + (k - 1) / n), n) for k in 1:n]
+end
+
+# `steps` Langevin steps on the free rows F of X at level u, with a Metropolis–Hastings test when
+# `mala`; returns the chains, the acceptance rate, their log-densities (when `L`, the incoming
+# ones, is given or `mala`) and the state
+function _correct(m, X, F, u, ps, st, rng; mala::Bool, steps::Integer, η::Real, L = nothing)
+    σ = sigma(_schedule(m), u)
+    E, st = _eps_columns(m, X, u, ps, st)
+    S = -E ./ σ
+    track = L !== nothing
+    mala && L === nothing && ((L, st) = _logdensity_columns(m, X, u, ps, st))
+    accepted = 0
+    for _ in 1:steps
+        M = X[F, :] .+ η .* S[F, :]
+        Y = copy(X)
+        Y[F, :] .= M .+ sqrt(2η) .* randn(rng, count(F), size(X, 2))
+        Ey, st = _eps_columns(m, Y, u, ps, st)
+        Sy = -Ey ./ σ
+        if !mala
+            X, S = Y, Sy
+            accepted += size(X, 2)
+            continue
+        end
+        Ly, st = _logdensity_columns(m, Y, u, ps, st)
+        fwd = vec(sum(abs2, Y[F, :] .- M; dims = 1))                       # log q(y | x) = -fwd/(4η)
+        bwd = vec(sum(abs2, X[F, :] .- Y[F, :] .- η .* Sy[F, :]; dims = 1))   # log q(x | y) = -bwd/(4η)
+        acc = log.(rand(rng, size(X, 2))) .< Ly .- L .+ (fwd .- bwd) ./ (4η)
+        X[:, acc] .= Y[:, acc]; S[:, acc] .= Sy[:, acc]; L[acc] .= Ly[acc]
+        accepted += count(acc)
+    end
+    track && !mala && ((L, st) = _logdensity_columns(m, X, u, ps, st))
+    return (X, accepted / (steps * size(X, 2)), L, st)
+end
+
+# log p_u of every column, up to a constant per level: closed form for a mixture, -E for an
+# energy network (its energy is -log p_u up to a constant in x)
+_logdensity_columns(m::ImplicitDiffusion{<:NoisePredictor{<:GaussianMixtureEps}}, X, t, ps, st) =
+    ([mixture_logdensity(m.predictor.model, x, t, ps) for x in eachcol(X)], st)
+function _logdensity_columns(m::ImplicitDiffusion{<:NoisePredictor{<:EnergyNetwork}}, X, t, ps, st)
+    L = similar(float.(X), size(X, 2))
+    for b in axes(X, 2)
+        E, st = energy(m.predictor, X[:, b], t, ps, st)
+        L[b] = -E
+    end
+    return (L, st)
 end
 
 # times from T down to tmin, uniform in log-SNR log(α/σ): the steps crowd at low noise, where the
@@ -95,20 +220,26 @@ function _eps_columns(m::ImplicitDiffusion, X, t, ps, st)
 end
 
 function _denoise_columns(m, X, t, ps, st)
-    s = m.predictor.schedule
+    s = _schedule(m)
     E, st = _eps_columns(m, X, t, ps, st)
     return ((X .- sigma(s, t) .* E) ./ alpha(s, t), st)
 end
 
-# DDPM's ancestral step t → u < t: the Gaussian posterior q(x_u | x_t, x̂₀) with Tweedie's x̂₀
-function _ancestral(m, X, t, u, ps, st, rng)
-    s = m.predictor.schedule
+# DDPM's ancestral step t → u < t: the Gaussian posterior q(x_u | x_t, x̂₀) with Tweedie's x̂₀,
+# as its mean and standard deviation, and as a draw
+function _ancestral_parts(m, X, t, u, ps, st)
+    s = _schedule(m)
     X̂, st = _denoise_columns(m, X, t, ps, st)
     a = alpha(s, t) / alpha(s, u)                    # x_t = a x_u + σ_{t|u} ξ
     σt², σu² = sigma(s, t)^2, sigma(s, u)^2
     σtu² = σt² - a^2 * σu²
     mean = (a * σu² / σt²) .* X .+ (alpha(s, u) * σtu² / σt²) .* X̂
-    return (mean .+ sqrt(σtu² * σu² / σt²) .* randn(rng, size(X)...), st)
+    return (mean, sqrt(σtu² * σu² / σt²), st)
+end
+
+function _ancestral(m, X, t, u, ps, st, rng)
+    M, sd, st = _ancestral_parts(m, X, t, u, ps, st)
+    return (M .+ sd .* randn(rng, size(X)...), st)
 end
 
 # forward from u back to t > u: x_t = a x_u + σ_{t|u} ξ

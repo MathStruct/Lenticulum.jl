@@ -108,7 +108,7 @@ repository opened in [Obsidian](https://obsidian.md), starting from `vault/Start
 larger half of the project: the derivations, the papers, the design decisions, and an honest list
 of what does not work yet.
 
-**References.** Every work cited in the tutorials, the notes and the vault (147 papers, books and
+**References.** Every work cited in the tutorials, the notes and the vault (150 papers, books and
 software packages) is in one BibTeX file, [`docs/src/refs.bib`](docs/src/refs.bib). It is rendered
 as the documentation's [References](https://MathStruct.github.io/Lenticulum.jl/dev/references/)
 page and the vault's [Bibliography](https://MathStruct.github.io/Lenticulum.jl/dev/vault/Bibliography),

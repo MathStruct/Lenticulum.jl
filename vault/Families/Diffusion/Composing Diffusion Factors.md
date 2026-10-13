@@ -4,7 +4,8 @@
 > answers of the sum are the configurations that satisfy all of them, e.g. the intersection points
 > of a learned circle and a learned line. This is a product of experts, read as a relation. It is
 > exact at zero noise and slightly biased at the noise levels the learner works at, the same bias a
-> single relation already has. Implemented as `ProductRelation` ([[product]]).
+> single relation already has. Factors may see different variables, with a separator; sampling
+> a product needs corrector steps and reweighting. Implemented as `ProductRelation` ([[product]]).
 
 > Sources: original to this vault (design and analysis); Hinton, *Training Products of Experts by Minimizing Contrastive Divergence*, Neural Computation 2002; Du et al., *Reduce, Reuse, Recycle: Compositional Generation with Energy-Based Diffusion Models and MCMC*, ICML 2023; code: `product.jl`, `answers.jl`
 >
@@ -63,6 +64,12 @@ For **root finding** it is much milder:
 - the bias should shrink with the noise levels, as it does for a single relation (expected,
   not yet measured for products).
 
+For sampling, the remedies are built ([[product]] §5): Langevin or MALA corrector steps at
+each level (Du et al.) fix the shape of the modes but not the mass between them, and
+sequential Monte Carlo reweighting over the noise levels (Skreta et al. 2025) fixes the mass.
+On circle ∩ line the upper intersection gets 0.655 of the samples with summed scores, 0.694
+with Langevin correctors and 0.744 ± 0.019 with reweighting, against 0.751 exact.
+
 The adjoint is exact for the field that is solved, so training through an intersection is
 unaffected (checked against finite differences, [[product]] §3).
 
@@ -74,13 +81,13 @@ covariance then becomes long in that direction, which is the honest answer: the 
 determine the point. This is the composite version of the branch points of a single relation
 (T3).
 
-## 6. What is not covered
+## 6. Scope
 
-- **Different variable sets.** A product here requires every factor to see the whole joint
-  space. Relations on overlapping subsets ($R_A$ on $(x,y)$, $R_B$ on $(y,z)$) compose by
-  sharing $y$; as densities this is $p_Ap_B/p_S$, with a separator term to avoid double
-  counting the shared marginal. That is the factor-graph composition ([[Messages are Inversions]],
-  [[The Diffusion Factor]] §4) and a separate project.
+- **Different variable sets** are covered: `relation => coords` places a factor on a subset
+  of the joint, and a separator ($p_Ap_B/p_S$, weight $-1$ on the shared coordinates) prevents
+  double counting of the shared marginal ([[product]] §4). The separator is trained, not
+  derived. The full factor-graph composition, with messages between factors rather than one
+  pooled field, is [[Messages are Inversions]] and [[The Diffusion Factor]] §4.
 - **Logic beyond "and".** Union is a mixture of the densities, not a sum of fields; negation
   ($p_1/p_2^\beta$) is a difference of fields and has no stable roots where $p_2$ is flat. See
   [[Belief Algebra]] for the corresponding operations on beliefs.

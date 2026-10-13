@@ -79,6 +79,8 @@ over-regularises high-variance directions and under-regularises low-variance one
 - RED-Diff's inversion returns a point, so uncertainty does not propagate; the implicit
   solver's `message = :gaussian` does send a Laplace Gaussian.
 - `implicit_sample` takes hard clamps only; soft evidence would need likelihood guidance.
+- A separator of a product is a relation the user supplies (trained on the shared marginal); it
+  is not derived from the factors.
 - The `KrylovSolve` stability test and log-determinant are estimates once more coordinates are
   free than Lanczos steps and probes.
 

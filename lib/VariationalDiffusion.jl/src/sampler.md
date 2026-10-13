@@ -52,4 +52,14 @@ free coordinate's early history does not know where the clamp is. Three resampli
 four times the cost. Unconditionally (nothing clamped) the samples have radius
 $0.999 \pm 0.047$, against $1.001 \pm 0.050$ for the data.
 
-Related: [[implicit]], [[proxdm]], [[MNIST in Both Directions]]
+## 4. Corrector steps and reweighting
+
+`corrector = :langevin | :mala` adds Markov chain steps at every noise level, and `smc = true`
+weights and resamples the chains as a sequential Monte Carlo sampler over the levels. For a
+single model the reverse process is already consistent, and these options only refine it.
+They exist for products of relations, whose summed scores are not the scores of the noised
+product ([[product]] §5). With `smc` the clamped coordinates follow $\alpha_u z_{0,C}$ without noise;
+on the circle above, clamped at $x = 0.3$, it gives the upper branch 0.75 without RePaint's
+resampling (a test).
+
+Related: [[implicit]], [[product]], [[proxdm]], [[MNIST in Both Directions]]

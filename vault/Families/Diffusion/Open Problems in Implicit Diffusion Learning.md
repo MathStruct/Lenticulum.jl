@@ -88,14 +88,17 @@ what relation is learned and how strongly evidence counts. λ is derivable for G
 interacts with the field's scale: on the trained circle, a precision of 1 already pulled an
 answer most of the way from the relation to the anchor.
 
-### T9. Composing diffusion factors at $t > 0$ — **known obstruction; mild for root finding**
+### T9. Composing diffusion factors at $t > 0$ — **known obstruction; mild for root finding, corrected for sampling where log-densities exist**
 
 Noising does not commute with products, $q_t * (p_1 p_2) \ne (q_t * p_1)(q_t * p_2)$, so adding
 the scores of two diffusion factors is exact only at $t = 0$. Remedies (MCMC corrections at each
 level) exist but are approximate. See [[Language Models]] §7. For root finding (intersections
 of relations, `ProductRelation`) the effect is a smoothing bias of the size a single relation
 already has: circle ∩ ellipse is found within 0.029 of the exact points
-([[Composing Diffusion Factors]] §4).
+([[Composing Diffusion Factors]] §4). For sampling, corrector steps and SMC reweighting are
+built and measured (I8, [[product]] §5): with reweighting the mode masses of a product are right
+within sampling error on the test problems. Reweighting needs log-densities, which a direct
+ε-network does not have.
 
 ### T10. Messages are posteriors, not likelihoods — **open design problem**
 
@@ -184,11 +187,17 @@ little cost up to $\sigma(t_b) \approx 6\sigma(t_f)$ ([[proxdm]] §8). Open: the
 where conditioning matters, with a learned prox and many free coordinates
 ([[Backpropagation through Implicit Inference]] §9).
 
-### I8. Composition — **partly done**
+### I8. Composition — **done**
 
-Products of relations on the same variables are built (`ProductRelation`, [[product]]): all
-query functions and the adjoint work on them. Not built: MCMC correction steps (T9's remedy for
-sampling), and products over different variable sets with a separator term.
+Products of relations are built (`ProductRelation`, [[product]]): on the same variables, and on
+different but overlapping ones (`relation => coords`) with a separator of weight $-1$, so that
+$p_A(x,y)p_B(y,z)/p_S(y)$ does not count the shared marginal twice (Laplace weights 0.80 / 0.20
+with the separator, 0.94 / 0.06 without, for data weights 0.8 / 0.2). All query functions and
+the adjoint work on them. Sampling a product has the corrections T9 asks for: Langevin or MALA
+steps at every noise level fix the shape of the modes, and sequential Monte Carlo reweighting
+fixes the mass between them (circle ∩ line: upper share 0.744 ± 0.019 against 0.751 exact, 0.655
+for summed scores alone; [[product]] §5). Open: deriving the separator from a factor instead
+of training it, and SMC in high dimensions.
 
 ### I9. Coverage diagnostics — **done**
 
@@ -230,7 +239,7 @@ channels, and a SLAM or particle example that uses it.
 | T6 | non-conservative ε-networks | intrinsic; resolved by energy networks at a cost |
 | T7 | training shapes only visited branches | intrinsic to the bilevel objective |
 | T8 | hyperparameters | partly open |
-| T9 | composition at $t > 0$ | known obstruction; mild for root finding |
+| T9 | composition at $t > 0$ | known obstruction; mild for root finding; corrected for sampling by SMC where log-densities exist |
 | T10 | posterior messages | open design problem |
 | T11 | convergence, existence, identifiability | open |
 | I1 | mixture beliefs, conditional sampling | done: `implicit_mixture` with energy-based weights; `implicit_sample` (hard clamps) |
@@ -240,7 +249,7 @@ channels, and a SLAM or particle example that uses it.
 | I5 | batched nodes, Newton–Krylov | done: free-coordinate blocks, batched nodes, `KrylovSolve` |
 | I6 | energy networks on Enzyme and Reactant | Zygote and Mooncake work; Reactant unwired but unblocked; Enzyme on CPU blocked upstream |
 | I7 | ProxDM adjoint, factor, sampler | done: adjoint, factor inversion (`ProxDM`), trapezoidal sampler; higher-noise backprop tried (no benefit on the circle) |
-| I8 | composition | products on shared variables done; corrections and separators missing |
+| I8 | composition | done: products on shared and overlapping variables (separators), MCMC correctors and SMC reweighting for sampling |
 | I9 | coverage diagnostics | done: `coverage` (distance, reconstruction, energy as conformal p-values) |
 | I10 | real data, higher dimensions | missing |
 | I11 | nonlinear factors | done: `NonlinearFactor` (EKF, UKF, iterated) |

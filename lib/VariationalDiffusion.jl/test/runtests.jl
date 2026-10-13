@@ -1027,6 +1027,118 @@ end
     @test b.ps isa Tuple && length(b.ps) == 2
 end
 
+@testset "products over different variables: separators" begin
+    # p(x, y, z) = p_A(x, y) p_B(y, z) / p_S(y): two blobs, weights 0.8 and 0.2
+    w = [0.8, 0.2]
+    n2 = field_nodes(Xoshiro(1), 2; samples = 8); n1 = field_nodes(Xoshiro(2), 1; samples = 8)
+    function model(μ, nodes)
+        p = NoisePredictor(GaussianMixtureEps(SCHED, μ; s = 0.05, weights = w), SCHED)
+        return ImplicitDiffusion(p, nodes; λ = density_lambda(SCHED, nodes)), LuxCore.setup(Xoshiro(0), p)...
+    end
+    mA, pA, sA = model([-1.0 1.0; -1.0 1.0], n2)              # (x, y)
+    mB, pB, sB = model([-1.0 1.0; -2.0 2.0], n2)              # (y, z)
+    mS, pS, sS = model([-1.0 1.0], n1)                        # y
+    sep = ProductRelation(mA => [1, 2], mB => [2, 3], mS => [2]; weights = [1, 1, -1])
+    ps, st = (pA, pB, pS), (sA, sB, sS)
+    # the field: each relation's field on its own coordinates
+    z = [-0.8, -1.1, -1.7]
+    g = zeros(3)
+    g[1:2] .+= first(prior_field(mA, z[1:2], pA, sA))
+    g[2:3] .+= first(prior_field(mB, z[2:3], pB, sB))
+    g[2:2] .-= first(prior_field(mS, z[2:2], pS, sS))
+    @test first(prior_field(sep, z, ps, st)) ≈ g
+    # Jacobian blocks, JVP and VJP agree with central differences of the field
+    h = 1e-6
+    Jfd = reduce(hcat, [(first(prior_field(sep, z .+ h .* e, ps, st)) .- first(prior_field(sep, z .- h .* e, ps, st))) ./ 2h
+                        for e in eachcol(Matrix(1.0I, 3, 3))])
+    J = prior_jacobian(sep, z, ps, st)
+    @test J ≈ Jfd rtol = 1e-6
+    @test prior_jacobian(sep, z, ps, st; coords = [false, true, true]) ≈ J[2:3, 2:3]
+    @test prior_jacobian(sep, z, ps, st; coords = [1, 3]) ≈ J[[1, 3], [1, 3]]
+    v = [0.3, -1.0, 0.5]
+    @test prior_jvp(sep, z, v, ps, st) ≈ J * v
+    @test prior_vjp(sep, z, v, ps, st) ≈ J' * v
+    # with the separator the answers carry the data's weights; without it the shared marginal
+    # counts twice, 0.8² : 0.2²
+    for (rel, p, s, want) in ((sep, ps, st, 0.8), (ProductRelation(mA => [1, 2], mB => [2, 3]), (pA, pB), (sA, sB), 0.64 / 0.68))
+        mix, _ = implicit_mixture(rel, zeros(3), zeros(3), p, s; nstarts = 30, spread = 1.5)
+        ws = exp.(mix.logw) ./ sum(exp.(mix.logw))
+        i = argmax(ws)
+        @test belief_mean(mix.components[i]) ≈ [-1, -1, -2] atol = 0.01
+        @test ws[i] ≈ want atol = 0.005
+    end
+    # the adjoint through a chain of curves, y = x/2 and z = y², with x clamped: d z★/d x and a
+    # parameter of the second relation against central differences
+    v = collect(range(-1.6, 1.6; length = 65))
+    curve(μ, nodes) = (p = NoisePredictor(GaussianMixtureEps(SCHED, μ; s = 0.05), SCHED);
+                       (ImplicitDiffusion(p, nodes), LuxCore.setup(Xoshiro(0), p)...))
+    cA, qA, tA = curve(vcat(v', v' ./ 2), n2)
+    cB, qB, tB = curve(vcat(v', v' .^ 2), n2)
+    cS, qS, tS = curve(v' ./ 2, n1)
+    ch = ProductRelation(cA => [1, 2], cB => [2, 3], cS => [2]; weights = [1, 1, -1])
+    ρ = [Inf, 0.0, 0.0]
+    zstar(x, μB) = first(implicit_infer(ch, [x, 0.3, 0.1], ρ, (qA, (μ = μB,), qS), (tA, tB, tS); tol = 1e-12))
+    sol = zstar(0.6, qB.μ)
+    @test sol.converged && sol.stable
+    @test sol.z[2:3] ≈ [0.3, 0.09] atol = 0.03         # the smoothing bias
+    b = implicit_pullback(ch, sol, [0.6, 0.3, 0.1], ρ, [0.0, 0.0, 1.0], (qA, qB, qS), (tA, tB, tS))
+    @test b.z₀[1] ≈ (zstar(0.6 + h, qB.μ).z[3] - zstar(0.6 - h, qB.μ).z[3]) / 2h rtol = 1e-5
+    k = argmin(abs.(v .- 0.3))
+    μ₊ = copy(qB.μ); μ₊[2, k] += h; μ₋ = copy(qB.μ); μ₋[2, k] -= h
+    @test b.ps[2].μ[2, k] ≈ (zstar(0.6, μ₊).z[3] - zstar(0.6, μ₋).z[3]) / 2h rtol = 1e-5
+    @test abs(b.ps[2].μ[2, k]) > 0.01
+    @test b.ps isa Tuple && length(b.ps) == 3
+    # the energy is the weighted sum of the relations' energies on their coordinates
+    @test first(implicit_energy(sep, z, ps, st)) ≈ first(implicit_energy(mA, z[1:2], pA, sA)) +
+          first(implicit_energy(mB, z[2:3], pB, sB)) - first(implicit_energy(mS, z[2:2], pS, sS))
+    # construction errors
+    @test_throws ArgumentError ProductRelation(mA => [1, 2], mB => [2, 3], mS => [2]; weights = [1, 1, -2])   # separator outweighs
+    @test_throws ArgumentError ProductRelation(mA => [1, 2], mB => [3, 4]; dim = 5)                # coordinate 5 unseen
+    @test_throws DimensionMismatch ProductRelation(mA => [1, 2, 3])                                # dimension 2, three coordinates
+    @test_throws ArgumentError ProductRelation(mA => [1, 1])                                       # repeated coordinate
+    @test_throws DimensionMismatch prior_field(sep, zeros(2), ps, st)
+end
+
+@testset "sampling a product: corrector steps and reweighting" begin
+    # circle (upper half 3× heavier) ∩ line y = x: the exact product puts 0.75 on the upper
+    # intersection, both blobs of width 0.05/√2·√2 = 0.05 along and across the line
+    θ = range(0, 2π; length = 129)[1:128]
+    mk(μ; w = nothing) = (p = NoisePredictor(GaussianMixtureEps(SCHED, μ; s = 0.05, weights = w), SCHED);
+                          (ImplicitDiffusion(p, noisefree_nodes(2, 0.01)), LuxCore.setup(Xoshiro(0), p)...))
+    mC, pC, sC = mk(vcat(cos.(θ)', sin.(θ)'); w = [sin(t) > 0 ? 3.0 : 1.0 for t in θ])
+    u = range(-1.6, 1.6; length = 65)
+    mL, pL, sL = mk(vcat(u', u'))
+    prod = ProductRelation(mC, mL); ps, st = (pC, pL), (sC, sL)
+    stats(Z) = (up = mean(Z[1, :] .+ Z[2, :] .> 0),
+                stray = mean((abs.(vec(sqrt.(sum(abs2, Z; dims = 1))) .- 1) .> 0.15) .| (abs.(Z[1, :] .- Z[2, :]) .> 0.2)),
+                across = std((Z[1, Z[1, :] .+ Z[2, :] .> 0] .- Z[2, Z[1, :] .+ Z[2, :] .> 0]) ./ sqrt(2)))
+    plain = stats(first(implicit_sample(prod, zeros(2), zeros(2), ps, st; n = 2000, rng = Xoshiro(1))))
+    @test plain.stray > 0.05                                        # summed scores alone: T9
+    @test plain.up < 0.7
+    lang = stats(first(implicit_sample(prod, zeros(2), zeros(2), ps, st; n = 2000, rng = Xoshiro(1),
+                                       corrector = :langevin, corrector_steps = 10, corrector_step = 0.5)))
+    @test lang.stray < 0.01
+    @test lang.across ≈ 0.05 atol = 0.004
+    smc = stats(first(implicit_sample(prod, zeros(2), zeros(2), ps, st; n = 2000, rng = Xoshiro(1),
+                                      smc = true, corrector = :mala, corrector_steps = 3, corrector_step = 0.5)))
+    @test smc.up ≈ 0.75 atol = 0.04                                 # the mass split, which MCMC alone misses
+    @test smc.stray < 0.015
+    # a single model with clamps: the conditional's branch weights
+    m1 = ImplicitDiffusion(mC.predictor, noisefree_nodes(2, 0.01))
+    Z, _ = implicit_sample(m1, [0.3, 0.0], [Inf, 0.0], pC, sC; n = 2000, smc = true, rng = Xoshiro(2))
+    @test all(==(0.3), Z[1, :])
+    @test mean(Z[2, :] .> 0) ≈ 0.75 atol = 0.04
+    @test mean(abs.(Z[2, :])) ≈ 0.952 atol = 0.01
+    # misuse
+    @test_throws ArgumentError implicit_sample(prod, zeros(2), zeros(2), ps, st; smc = true, corrector = :langevin)
+    @test_throws ArgumentError implicit_sample(prod, zeros(2), zeros(2), ps, st; smc = true, resample = 1)
+    @test_throws ArgumentError implicit_sample(prod, zeros(2), zeros(2), ps, st; corrector = :hmc)
+    S2 = VPSDE(; βmax = 10.0)
+    p2 = NoisePredictor(GaussianMixtureEps(S2, vcat(u', u'); s = 0.05), S2)
+    @test_throws ArgumentError implicit_sample(ProductRelation(mC, ImplicitDiffusion(p2, noisefree_nodes(2, 0.01))),
+                                               zeros(2), zeros(2), (pC, pL), (sC, sL))
+end
+
 @testset "all answers of a query, and their Laplace uncertainty" begin
     # Gaussian data: the curvature is RED-Diff's κ, so the Laplace covariance has a closed form
     v0 = 0.5
