@@ -210,18 +210,19 @@ held-out points. On the circle it flags about 5% of fresh data at $\alpha = 0.05
 answer to $x = 1.3$ at $p = 0.006$ ([[coverage]]). Open: scores of the free block given the
 clamp, which would separate T4 from T5, and embeddings for high dimensions.
 
-### I10. Real data and higher dimensions
+### I10. Real data and higher dimensions — **run on MNIST; one direction works**
 
-Everything validated is two- to four-dimensional and synthetic or closed-form. A real-data
-benchmark, and a problem with tens of coordinates, are the obvious next tests
-([[MNIST in Both Directions]]). The prerequisites are in place and tested:
-- many queries solved at once (`implicit_infer_many`);
-- classification as a categorical answer (`implicit_classify`), within 0.04 of the exact
-  posterior on a closed-form test;
-- energy networks at MNIST size on a GPU (`device = …`): 6 ms per training step and 1.8 ms
-  per query and iteration ([[energy_network]] §8).
+[[MNIST in Both Directions]] §6. One energy network on (image, label), 794 coordinates, trained on
+a GPU. Image → label by root finding: 96.1% on 9000 test images, equal to a diffusion classifier
+with the same network (95.8%) and below a softmax MLP (97.7%). Every query had a single root, so
+the Laplace class probabilities are degenerate. Ambiguity shows instead as roots between the
+label codes. Label → image fails: the samples are noisy, and the clamped label barely conditions
+them (8–25% recognised; chance 10%). The image's score does not use the label.
 
-The experiment itself is not run yet.
+Open:
+- guidance, or a noise level per block, for the generative direction;
+- a convolutional energy;
+- a class probability from a single root (its position, not Laplace masses).
 
 ### I11. Nonlinear factors around the learner — **done**
 
@@ -235,6 +236,43 @@ Built: `NonlinearFactor(f, nin => nout; method = Linearization() | Unscented())`
 with backward messages linearised at the cavity and `invert` relinearising at the posterior
 (Gauss–Newton, the iterated EKF) ([[nonlinear]]). Missing: parameters inside $f$, several input
 channels, and a SLAM or particle example that uses it.
+
+### I12. Both directions of one relation — **open (found on MNIST)**
+
+Training by denoising with one noise level shared by all coordinates learns a joint score in
+which a small block (the label) can be ignored by a large one (the image):
+$\nabla_x\log p(x, y) = \nabla_x\log p(x) + \nabla_x\log p(y\mid x)$, and the second term is small.
+Then the query "label → image" fails while "image → label" works ([[MNIST in Both Directions]] §6).
+A relation meant to be queried in every direction needs training and sampling that make every
+block matter:
+- **a noise level per block of coordinates** (UniDiffuser): $t$ becomes a vector over channels,
+  in the predictor's input, in training, in the sampler (clamped blocks at a low level, free ones
+  annealed) and in the field's nodes;
+- **block dropout and guidance**: train with a block sometimes fully noised, so the network also
+  knows $p(x)$, and sample with $\nabla_x\log p(x) + w\,(\nabla_x\log p(x,y) - \nabla_x\log p(x))$;
+- **loss weights per block**, which the MNIST run already needed for the label (89% → 96%), as a
+  supported option of the training helpers rather than example code;
+- a test that a trained relation answers in every direction it is meant to, for example by a
+  judge model as in the MNIST sample evaluation.
+
+### I13. Answers of a single root — **open (found on MNIST)**
+
+On MNIST every classification query had one stable root, so the Laplace mixture had one
+component and its class probabilities were 0 or 1. The information was in where the root lay:
+between two codes for ambiguous digits, far from every code for atypical ones. Needed:
+- a class probability from a single root, e.g. the posterior of the code given the root's
+  position and covariance, calibrated on held-out data;
+- the `unassigned` mass of `categorical_answer` passed on to `coverage`, so that a root between
+  the codes is flagged rather than read as a class.
+
+Also from MNIST:
+- **Mode finding in many free coordinates** (784 pixels) was unstable from blank images and from
+  samples. The solver needs a globalisation for non-convex energies, such as trust regions or a
+  continuation in the noise level from high to low.
+- **Root finding is not cheaper than the diffusion classifier** at equal accuracy (18 ms against
+  3.1 ms per query). A cost model that predicts when it is would help.
+- **Float32 on GPUs**: the solvers' default tolerance (1e-9) is below the Float32 floor of the
+  field (about 1e-6). Tolerances should follow the predictor's precision.
 
 ## Summary
 
@@ -260,8 +298,10 @@ channels, and a SLAM or particle example that uses it.
 | I7 | ProxDM adjoint, factor, sampler | done: adjoint, factor inversion (`ProxDM`), trapezoidal sampler; higher-noise backprop tried (no benefit on the circle) |
 | I8 | composition | done: products on shared and overlapping variables (separators), MCMC correctors and SMC reweighting for sampling |
 | I9 | coverage diagnostics | done: `coverage` (distance, reconstruction, energy as conformal p-values) |
-| I10 | real data, higher dimensions | prerequisites done (batched queries, categorical answers, GPU energy networks); experiment not run |
+| I10 | real data, higher dimensions | MNIST run: image → label 96.1% (= diffusion classifier); label → image fails (label ignored by the image score) |
 | I11 | nonlinear factors | done: `NonlinearFactor` (EKF, UKF, iterated) |
+| I12 | both directions of one relation | open: per-block noise levels, guidance, block loss weights (MNIST: label → image fails) |
+| I13 | answers of a single root | open: probabilities from a root's position; globalised solves in many free coordinates; precision-aware tolerances |
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]], [[Backpropagation through Implicit Inference]],
 [[The Diffusion Factor]], [[The Implicit Diffusion Factor as a Statistical Game]], [[energy_network]],

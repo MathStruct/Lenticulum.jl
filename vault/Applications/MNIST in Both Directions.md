@@ -1,12 +1,12 @@
-#application #later
+#application #experiment
 
 > **One implicit diffusion model of (image, label) on MNIST, queried in both directions:**
 > clamp the image and the free label is a classification; clamp the label and the free image is
 > a digit; clamp half an image and both the rest and the label come out at once. The demo of
-> "one relation, polarity chosen at query time" that everyone recognises. Not built yet, but
-> every interface in §4 now exists and is tested: free-coordinate blocks, batched and
-> matrix-free solves, many queries at once, the clamped sampler, the categorical answer, and
-> energy networks on a GPU.
+> "one relation, polarity chosen at query time" that everyone recognises. **Run (§6), with a
+> split result.** Image → label works: 96.1% by root finding, the same as a diffusion
+> classifier with the same network (95.8%). Label → image does not: with this model the clamped
+> label barely affects the generated image (8–25% of samples show the requested digit).
 
 > Sources: original to this vault (experiment design); LeCun, Bottou, Bengio & Haffner, *Gradient-Based Learning Applied to Document Recognition*, Proc. IEEE 1998 (MNIST); Grathwohl et al., *Your Classifier is Secretly an Energy Based Model…*, ICLR 2020 (JEM); Li et al., *Your Diffusion Model is Secretly a Zero-Shot Classifier*, ICCV 2023; Clark & Jaini, *Text-to-Image Diffusion Models are Zero-Shot Classifiers*, NeurIPS 2023; Bao et al., *One Transformer Fits All Distributions in Multi-Modal Diffusion at Scale*, ICML 2023 (UniDiffuser); Lugmayr et al., *RePaint*, CVPR 2022; code: `implicit.jl`, `answers.jl`, `energy_network.jl`
 >
@@ -93,11 +93,113 @@ estimates of a denoising loss. The accuracy will most likely sit below a plain c
 The data loader (MLDatasets.jl) belongs in the tutorial's environment, never in a package's
 dependencies.
 
-## 5. What the tutorial would show
+**Found by the experiment (§6): still needed for the generative direction and for graded
+answers.** These are open problems I12 and I13 in [[Open Problems in Implicit Diffusion Learning]].
+
+7. **A noise level per block of coordinates** (UniDiffuser), in the predictor, training, the
+   sampler and the field's nodes, so that a clean label can condition a noisy image.
+8. **Block dropout and classifier-free guidance**, so that the image score uses the label.
+9. **Loss weights per block** as an option of `denoising_gradient` (the example has its own).
+10. **A class probability from a single root**, and the `unassigned` mass passed on to `coverage`.
+11. **A globalised solver** (trust region, or continuation in the noise level) for modes in
+    hundreds of free coordinates.
+12. **Tolerances that follow the predictor's precision** (Float32 on a GPU stops near 1e-6).
+13. **A convolutional energy network** for image quality.
+
+## 5. What the tutorial was meant to show
 
 Classification accuracy and calibration; the class prototypes (modes) beside samples; an
 ambiguous digit with a two-component answer; inpainting of the lower half of a digit together with
 its label; and the cost per query against a diffusion classifier with ten denoising passes.
+
+## 6. The experiment (October 2026)
+
+Code: `lib/VariationalDiffusion.jl/examples/mnist/` (its own environment; logs and models in
+`~/.cache/lenticulum/mnist/`).
+
+**The model.** An energy network $E(z, t)$ on $z = (x, y)$: the image $x\in[-1,1]^{784}$, the label
+$y$ one-hot, 16 time features. It is an MLP 810 → 1024 → 1024 → 1024 → 1 with swish activations,
+$\varepsilon = \sigma_t\nabla_zE$, `ad = SecondOrder(AutoForwardDiff(), AutoZygote())`, and runs on an RTX
+3080 through `device`. It is trained by denoising score matching with one noise level shared by
+image and label, AdamW with cosine decay, batch 256, 9 s per epoch. The label is 10 of 794
+coordinates, and unweighted it barely enters the loss. Weighting its coordinates in the loss is
+what made the classifier work:
+
+| training | classification accuracy (1000 tuning images) |
+|---|---|
+| label weight 1, 40 epochs | 89.2% |
+| label weight 20, 40 epochs | 93.4% |
+| label weight 100, 100 epochs | 95.9% |
+
+**Image → label.** The query clamps the 784 pixels and frees the 10 label coordinates. The field's
+noise levels were chosen on test images 9001–10000: 0.002–0.05, 0.05–0.2 and 0.1–0.4 gave 95.6%,
+95.9% and 94.8%. Results on test images 1–9000:
+
+| classifier | accuracy | cost per query |
+|---|---|---|
+| root finding, one start, the label read as the argmax of the root | **96.1%** | 18 ms (batches of 1000) |
+| root finding from all ten class codes (`implicit_classify`) | 96.1% | 220 ms |
+| the diffusion classifier of Li et al., same network, 32 shared noise draws × 10 classes | 95.8% | 3.1 ms (320 network passes) |
+| a softmax MLP of the same width, 10 epochs | 97.7% | |
+
+- **One answer per query.** Every one of the 9000 queries has a single stable root: the ten starts
+  all reach it. So `implicit_mixture` has one component, and its Laplace class probabilities are
+  0 or 1. The ten starts buy nothing, and the probabilities expected in §2 do not appear. The
+  graded information is in *where* the root lies. A typical digit's root is near its code (label
+  coordinate about 0.8–1). For an atypical one it is between two codes:
+
+  ![The most ambiguous test digits: the two largest label coordinates of each root](https://raw.githubusercontent.com/MathStruct/Lenticulum.jl/master/docs/src/assets/mnist_ambiguous.png)
+
+  The "2" written like an "a" is at 2: 0.49 / 3: 0.48, the 6 at 6: 0.54 / 5: 0.54. A flat "0" is at
+  7: 0.18 / 6: 0.18: its root is far from every code. That is the `unassigned` case of
+  `categorical_answer` (1.1% of the test set), and an answer coverage should flag.
+- **Equal to the diffusion classifier, not cheaper.** The two classifiers read the same network and
+  agree in accuracy. The claim in §3 that a 10-dimensional solve beats ten Monte-Carlo estimates
+  does not hold here. Each Newton iteration of the solve needs ten Hessian-vector products per
+  noise level. The diffusion classifier's 320 forward passes batch better on a GPU.
+- Both generative classifiers stay below the discriminative baseline (96 against 97.7%), as is
+  usual for generative classifiers with small networks.
+
+**Label → image.** The query clamps the label and frees the image. It fails, for two separate
+reasons.
+
+1. *The samples are poor.* An MLP over 794 joint coordinates gives noisy digits. With the energy
+   parametrisation they are noisier than with an ε-network of the same size; a few are clean.
+
+   ![Samples with the label clamped (rows: 0 to 9), energy network with label weight 100](https://raw.githubusercontent.com/MathStruct/Lenticulum.jl/master/docs/src/assets/mnist_samples.png)
+
+2. *The label hardly conditions the image.* 20 samples per class were scored by a softmax MLP
+   trained on real data (chance 10%):
+
+   | model | plain | RePaint ×3 | Langevin ×2 | both | label held clean at every step |
+   |---|---|---|---|---|---|
+   | ε-network | 11.5% | 10.0% | 12.5% | 12.5% | 13.0% |
+   | energy, label weight 1 | 7.5% | 13.0% | 17.5% | 16.0% | |
+   | energy, label weight 100 | 11.0% | 25.0% | 16.5% | 21.0% | 16.5% |
+
+   Holding the label clean instead of noising it does not help, so this is not the replacement
+   method losing the label to noise. The network's score for the image barely depends on the
+   label. In the joint score, $\nabla_x\log p(x, y) = \nabla_x\log p(x) + \nabla_x\log p(y\mid x)$, the
+   second term is small next to the image's own structure, and nothing in the training makes the
+   network resolve it. The label's score does depend on the image, which is why classification
+   works. The relation is learned well in one direction only.
+
+**Mode finding in the image** (784 free, `KrylovSolve`) did not converge from a blank image or
+from a sample: the solve leaves the sample (1.7 to 6 per pixel, RMS) and ends unstable. The
+smoothed energy of this model has no usable basins in image space at the field's noise levels.
+Inpainting with the label free was therefore not run.
+
+**What this says about the method.** Classification as a query works at the accuracy of the
+established diffusion classifier, with a single generic solver, and its failure cases are
+visible: roots between the codes. Generation from the *same* relation needs what the
+text-to-image literature already found necessary:
+- classifier-free guidance, which needs training with the label dropped;
+- separate noise levels per block, as in UniDiffuser, so that a clean label can condition a
+  noisy image;
+- a convolutional energy for image quality.
+
+The first two are changes to the training and the sampler, not to the query machinery. The
+second needs a noise level per block of coordinates, which the package does not have.
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]], [[Composing Diffusion Factors]],
 [[Open Problems in Implicit Diffusion Learning]], [[Language Models]], [[Motivating Examples]]

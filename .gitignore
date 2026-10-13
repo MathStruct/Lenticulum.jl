@@ -10,3 +10,4 @@
 /outputs/
 __pycache__/
 /meta/
+/lib/*/examples/*/Manifest.toml
