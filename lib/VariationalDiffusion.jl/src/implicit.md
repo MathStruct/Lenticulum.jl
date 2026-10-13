@@ -286,7 +286,11 @@ Near the answer that ratio drowns in the rounding of $Q$, computed in the networ
 there a smaller residual decides instead.
 
 `method = :auto`, the default, uses it for relations with an energy (energy networks, mixtures,
-products of them) and Newton-or-descent otherwise. `implicit_infer_many` keeps Newton-or-descent.
+products of them) and Newton-or-descent otherwise. `implicit_infer_many` has the same method for
+many queries: each query keeps its own radius and acceptance test, and the residuals, Jacobian
+blocks and energies of all unfinished queries, and of their trial points, are evaluated together.
+Each query's answer and iteration count are those of `implicit_infer` (a test, on the circle from
+28 starts including far ones).
 
 **Measured.** On the circle (y given x, 20 values of $x$ and 8 starts each, 50 iterations at
 most):
@@ -307,7 +311,13 @@ On MNIST, modes with the label held and 784 free pixels ([[MNIST in Both Directi
 | a sample | trust region | **9/10** | $6\cdot10^{-5}$ | 37 | 6 s |
 
 Continuation in the noise level with Newton-or-descent reached 3–4 of 10 at 120–220 s per mode;
-the trust region needs neither it nor the time. Getting there needed the tolerance fix of §10:
+the trust region needs neither it nor the time.
+
+On easy queries it costs a little more. MNIST classification (one start per query, batches of
+1000, 1000 tuning images) converges for every query with either method, with the same
+accuracy; the trust region takes 15.7–67.7 ms per query against 13.1–66.4 ms for Newton-or-descent
+(2–20% more, for the energy it evaluates at each trial point). For large batches of easy
+queries `method = :newton` is the faster choice. Getting there needed the tolerance fix of §10:
 the solves first stalled at residuals of $5\cdot10^{-5}$, just above a tolerance of $10\,\epsilon$.
 
 Related: [[analytic]], [[reddiff]], [[factor]], [[energy_network]], [[krylov]], [[sampler]], [[Deterministic Relaxation]], [[Inference Signatures]],

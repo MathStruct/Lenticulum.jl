@@ -101,7 +101,8 @@ _ccol(c, a) = view(c, :, a)
 
 """
     implicit_infer_many(m::ImplicitDiffusion, Z₀::AbstractMatrix, ρ, ps, st; Z_init = Z₀,
-                        tol = default_tolerance(m, Z₀, ps), maxiters = 200, step = 0.05) -> (Vector{ImplicitSolution}, st)
+                        tol = default_tolerance(m, Z₀, ps), maxiters = 200, step = 0.05, method = :auto,
+                        radius = nothing) -> (Vector{ImplicitSolution}, st)
 
 [`implicit_infer`](@ref) for many queries at once: column `b` of `Z₀` is a query (its clamps
 and soft targets), all with the same precisions `ρ`, warm-started from column `b` of `Z_init`.
@@ -116,10 +117,20 @@ own residual, and leaves the batch when it converges. The Jacobian blocks are de
 for queries with few free coordinates, such as classification (the image clamped, ten label
 coordinates free); for many free coordinates solve the queries one by one with
 [`KrylovSolve`](@ref).
+
+`method` is that of [`implicit_infer`](@ref): by default (`:auto`) the trust-region method for a
+relation with an energy, each query with its own radius and acceptance test, and
+Newton-or-descent otherwise. The trial points of all queries are evaluated together as well
+(residual and energy, one call per noise level each).
 """
 function implicit_infer_many(m::ImplicitDiffusion, Z₀::AbstractMatrix, ρ, ps, st; Z_init = Z₀,
-                             tol = nothing, maxiters::Integer = 200, step = 0.05)
+                             tol = nothing, maxiters::Integer = 200, step = 0.05, method::Symbol = :auto,
+                             radius = nothing)
+    method in (:auto, :newton, :trust_region) ||
+        throw(ArgumentError("method must be :auto, :newton or :trust_region, got :$method"))
+    method === :auto && (method = _has_energy(m) ? :trust_region : :newton)
     tol === nothing && (tol = default_tolerance(m, Z₀, ps))
+    method === :trust_region && return _infer_many_trust_region(m, Z₀, ρ, ps, st; Z_init, tol, maxiters, radius)
     size(Z_init) == size(Z₀) || throw(DimensionMismatch("Z_init is $(size(Z_init)), Z₀ is $(size(Z₀))"))
     length(ρ) == size(Z₀, 1) || throw(DimensionMismatch("ρ has $(length(ρ)) entries for $(size(Z₀, 1)) coordinates"))
     free = .!isinf.(ρ)
@@ -162,6 +173,77 @@ function implicit_infer_many(m::ImplicitDiffusion, Z₀::AbstractMatrix, ρ, ps,
         end
         for (b, q) in enumerate(active)
             Z[free, q] .+= η[b] .* D[:, b]
+        end
+    end
+    return (sols, st)
+end
+
+# The trust-region method of `_infer_trust_region` (DenseSolve) for every column at once: the
+# same steps, radii and acceptance per query, with the residuals, Jacobian blocks and merits of
+# all unfinished queries (and of their trial points) evaluated together.
+function _infer_many_trust_region(m::ImplicitDiffusion, Z₀, ρ, ps, st; Z_init, tol, maxiters, radius)
+    size(Z_init) == size(Z₀) || throw(DimensionMismatch("Z_init is $(size(Z_init)), Z₀ is $(size(Z₀))"))
+    length(ρ) == size(Z₀, 1) || throw(DimensionMismatch("ρ has $(length(ρ)) entries for $(size(Z₀, 1)) coordinates"))
+    free = .!isinf.(ρ)
+    nF = count(free)
+    P = Diagonal(ρ[free] .^ 2)
+    Z = float.(copy(Z_init))
+    Z[.!free, :] .= Z₀[.!free, :]
+    T = eltype(Z)
+    B = size(Z, 2)
+    energetic = _has_energy(m)
+    εa = _arith_eps(m, Z₀, ps)
+    resid(Zs, cols) = (G = first(_field_many(m, Zs, ps, st)); G[free, :] .+ ρ[free] .^ 2 .* (Zs[free, :] .- Z₀[free, cols]))
+    function merit(Zs, Rs, cols)
+        energetic || return vec(sum(abs2, Rs; dims = 1)) ./ 2
+        U = first(_energy_many(m, Zs, ps, st))
+        return U .+ vec(sum(abs2, ρ[free] .* (Zs[free, :] .- Z₀[free, cols]); dims = 1)) ./ 2
+    end
+    Δ = fill(T(radius === nothing ? 0.1 * sqrt(max(nF, 1)) : radius), B)
+    R = resid(Z, 1:B)
+    f = merit(Z, R, 1:B)
+    sols = Vector{ImplicitSolution{Vector{T},T}}(undef, B)
+    active = collect(1:B)
+    for it in 0:maxiters
+        isempty(active) && break
+        Za = Z[:, active]
+        Ra = R[:, active]
+        nr = vec(sqrt.(sum(abs2, Ra; dims = 1)))
+        J = _jacobian_many(m, Za, free, ps, st)
+        stable = [_stable(J[:, :, b] .+ P) for b in eachindex(active)]
+        stop = [nr[b] ≤ tol * (1 + norm(Za[:, b])) || it == maxiters || Δ[q] < 10εa * (1 + norm(Za[:, b]))
+                for (b, q) in enumerate(active)]
+        for (b, q) in enumerate(active)
+            stop[b] && (sols[q] = ImplicitSolution(Z[:, q], nr[b], it, nr[b] ≤ tol * (1 + norm(Za[:, b])), stable[b]))
+        end
+        keep = findall(!, stop)
+        isempty(keep) && break
+        active, Za, Ra, nr, J = active[keep], Za[:, keep], Ra[:, keep], nr[keep], J[:, :, keep]
+        # each query's step within its own radius, from its own model
+        Pst = similar(Ra)
+        pred = zeros(T, length(active))
+        for (b, q) in enumerate(active)
+            Jb = J[:, :, b] .+ P
+            g, H = energetic ? (Ra[:, b], Symmetric((Jb .+ Jb') ./ 2)) : (Jb' * Ra[:, b], Symmetric(Jb' * Jb))
+            p = _tr_step(DenseSolve(), g, H, Δ[q])
+            Pst[:, b] .= p
+            pred[b] = -(dot(g, p) + dot(p, H * p) / 2)
+        end
+        Zt = copy(Za); Zt[free, :] .+= Pst
+        Rt = resid(Zt, active)
+        ft = merit(Zt, Rt, active)
+        for (b, q) in enumerate(active)
+            noisy = pred[b] ≤ 100 * εa * max(abs(f[q]), one(T))
+            ratio = noisy ? (norm(view(Rt, :, b)) < nr[b] ? one(T) : zero(T)) : (f[q] - ft[b]) / pred[b]
+            np = norm(view(Pst, :, b))
+            if ratio < 0.25
+                Δ[q] = np / 4
+            elseif ratio > 0.75 && np ≥ 0.99Δ[q]
+                Δ[q] = 2Δ[q]
+            end
+            if ratio > 1e-4
+                Z[:, q] .= view(Zt, :, b); R[:, q] .= view(Rt, :, b); f[q] = ft[b]
+            end
         end
     end
     return (sols, st)

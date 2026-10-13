@@ -59,6 +59,7 @@ tolerance follows the arithmetic precision (`default_tolerance`). For relations 
 [nocedal2006numopt](@cite), [steihaug1983cg](@cite)): on the
 circle every one of 160 starts converges (against 122 for Newton-or-descent), and on MNIST 19 of
 20 modes with 784 free pixels, in about 6 s each, where Newton-or-descent found none.
+`implicit_infer_many` uses the same method for many queries at once.
 
 ## Off the data
 

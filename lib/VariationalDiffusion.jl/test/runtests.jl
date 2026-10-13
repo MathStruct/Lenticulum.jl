@@ -1223,12 +1223,27 @@ end
     m = ImplicitDiffusion(RING, field_nodes(Xoshiro(1), 2; samples = 8))
     xs = range(-0.9, 0.9; length = 7)
     Z₀ = vcat(collect(xs)', fill(0.5, 1, 7))
-    sols, _ = implicit_infer_many(m, Z₀, HARDX, RPS, RST; tol = 1e-12)
+    sols, _ = implicit_infer_many(m, Z₀, HARDX, RPS, RST; tol = 1e-12, method = :newton)
     for (b, x) in enumerate(xs)
         ref, _ = implicit_infer(m, [x, 0.5], HARDX, RPS, RST; tol = 1e-12, method = :newton)   # the same iteration
         @test sols[b].z ≈ ref.z atol = 1e-10
         @test sols[b].converged && sols[b].stable && sols[b].iters == ref.iters
     end
+    # the trust region (the default for this relation, which has an energy), from hard starts too:
+    # each query takes the steps, radii and decisions of the single-query method
+    # (not y = 0 at x = 0: that start is itself a root, the saddle between the branches, and any
+    # solver stops there at once and reports it unstable)
+    Zh = vcat(repeat(collect(xs)', 1, 4), repeat([0.5 0.01 6.0 -0.3], 1, 7)[:, 1:28])
+    sols, _ = implicit_infer_many(m, Zh, HARDX, RPS, RST; maxiters = 50)
+    for b in axes(Zh, 2)
+        ref, _ = implicit_infer(m, Zh[:, b], HARDX, RPS, RST; maxiters = 50, method = :trust_region)
+        @test sols[b].z ≈ ref.z atol = 1e-8
+        @test sols[b].iters == ref.iters && sols[b].converged == ref.converged
+    end
+    @test all(s -> s.converged && s.stable, sols)
+    @test count(s -> s.converged && s.stable,
+                first(implicit_infer_many(m, Zh, HARDX, RPS, RST; maxiters = 50, method = :newton))) < size(Zh, 2)
+    @test_throws ArgumentError implicit_infer_many(m, Z₀, HARDX, RPS, RST; method = :gauss)
     # starts on the other branch, and soft targets
     Zi = copy(Z₀); Zi[2, :] .= -0.5
     sols, _ = implicit_infer_many(m, Z₀, HARDX, RPS, RST; Z_init = Zi, tol = 1e-12)
@@ -1374,8 +1389,10 @@ end
     Ue(z) = first(implicit_energy(mh, z, ps, st))
     @test first(prior_field(mh, z, ps, st)) ≈ [_fd(Ue, z, i) for i in 1:2] atol = 1e-7
     Zq = [0.3 -0.2 0.6; 0.1 0.4 -0.3]
-    sm, _ = implicit_infer_many(mb, Zq, HARDX, ps, st; tol = 1e-10)
-    @test all(q -> sm[q].z ≈ first(implicit_infer(mh, Zq[:, q], HARDX, ps, st; tol = 1e-10, method = :newton)).z, 1:3)
+    for method in (:newton, :trust_region)
+        sm, _ = implicit_infer_many(mb, Zq, HARDX, ps, st; tol = 1e-10, method)
+        @test all(q -> sm[q].z ≈ first(implicit_infer(mh, Zq[:, q], HARDX, ps, st; tol = 1e-10, method)).z, 1:3)
+    end
 
     # the same on a device (JLArrays): blocks' times move with x, σ is spread on the device
     JLArrays.allowscalar(false)

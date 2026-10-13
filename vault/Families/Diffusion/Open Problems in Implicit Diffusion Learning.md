@@ -278,8 +278,10 @@ component and its class probabilities were 0 or 1. Built:
 - **continuation in the noise level** (`implicit_infer(…; continuation)`): with Newton-or-descent
   3–4 of 10 MNIST modes, at five to nine times the cost; superseded by the trust region.
 
+  `implicit_infer_many` has it too, query by query identical to the single-query solver;
+  on easy batched queries (MNIST classification) it costs 2–20% more than Newton-or-descent.
+
 Open:
-- the trust region for many queries at once (`implicit_infer_many` keeps Newton-or-descent);
 - **root finding is not cheaper than the diffusion classifier** at equal accuracy (18 ms against
   3.1 ms per query); a cost model that predicts when it is would help.
 
