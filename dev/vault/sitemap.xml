@@ -27,7 +27,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Bibliography</loc>
-    <lastmod>2026-10-13T22:57:37.000Z</lastmod>
+    <lastmod>2026-10-14T22:28:26.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Comparisons/Geometric-Deep-Learning-and-Physical-Laws</loc>
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
@@ -198,13 +198,13 @@
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/ImplicitREDDiff</loc>
-    <lastmod>2026-10-06T17:29:50.000Z</lastmod>
+    <lastmod>2026-10-14T22:28:26.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/Inference-Signatures</loc>
     <lastmod>2026-10-12T18:34:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/Open-Problems-in-Implicit-Diffusion-Learning</loc>
-    <lastmod>2026-10-14T17:09:22.000Z</lastmod>
+    <lastmod>2026-10-14T22:28:26.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/ProxDM-and-Proximal-Alternatives</loc>
     <lastmod>2026-10-12T23:07:17.000Z</lastmod>
@@ -223,6 +223,9 @@
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/The-VP-SDE</loc>
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/Universal-Approximation-for-Implicit-Diffusion-Learners</loc>
+    <lastmod>2026-10-14T22:28:26.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Equilibrium/DEQ-as-a-Relation</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -249,7 +252,7 @@
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Foundations/Implicit-Learners</loc>
-    <lastmod>2026-10-06T17:29:50.000Z</lastmod>
+    <lastmod>2026-10-14T22:28:26.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Foundations/Inversions-and-Bayesian-Lenses</loc>
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
@@ -264,13 +267,13 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Foundations/The-Table-Revisited</loc>
-    <lastmod>2026-09-30T21:52:28.000Z</lastmod>
+    <lastmod>2026-10-14T22:28:26.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Foundations/Three-Senses-of-Implicit</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Map-of-Content</loc>
-    <lastmod>2026-10-12T21:34:47.000Z</lastmod>
+    <lastmod>2026-10-14T22:28:26.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/README</loc>
     <lastmod>2026-10-13T09:51:57.000Z</lastmod>
@@ -402,7 +405,7 @@
     <lastmod>2026-10-14T12:32:53.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/product</loc>
-    <lastmod>2026-10-13T09:51:57.000Z</lastmod>
+    <lastmod>2026-10-14T22:28:26.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/proxdm</loc>
     <lastmod>2026-10-12T23:28:37.000Z</lastmod>
