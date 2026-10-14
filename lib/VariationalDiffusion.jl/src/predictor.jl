@@ -133,10 +133,10 @@ end
 # f(schedule, t) coordinate by coordinate, shaped like x (a scalar without blocks and a scalar t)
 function _coordwise(p::NoisePredictor, f, t, x)
     s = p.schedule
-    if p.blocks === nothing
-        return t isa Number ? f(s, t) : f.(Ref(s), t)
-    end
     T = float(eltype(x))                               # a Float32 batch on a device stays Float32
+    if p.blocks === nothing
+        return t isa Number ? T(f(s, t)) : T.(f.(Ref(s), t))
+    end
     F = T.(f.(Ref(s), _times(p, x, t)))[p.blocks.owner, :]
     return x isa AbstractVector ? vec(F) : reshape(F, size(x))
 end

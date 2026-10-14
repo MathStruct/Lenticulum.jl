@@ -416,11 +416,19 @@ tolerance): **96.8%**, 94% of the solves converged, 291 ms per query in chunks o
 the MLP energy of §7 (95.0%) and the conv energy of §8 (92.8%): the clean blocks train the
 classifier's condition too, where the image is held clean.
 
+On the 9000 test images (1–9000), the same reading: **96.6%**, 96.5% of the solves converged and
+stable (97.3% correct among those, 77% among the rest), 396 ms per query in chunks of 100 (the
+GPU shared with other jobs for part of the run). That is above the first MLP energy (96.1%) and
+the diffusion classifier with its network (95.8%), and below the softmax MLP (97.7%). Calibration
+from ten starts (§7) is not yet measured for this model: at about 3.5 s per query it is hours of
+GPU time.
+
 **What does not work.** The reference needs the convolutions. On the MLP every sample falls into
 one spurious image, the same for every label (10% recognised), with or without clean blocks; the
 MLP with clean blocks and no reference keeps its speckles (48% from t₀ = 1, 19–29% recognised).
-The reference sits in the example's network (`with_reference` in `common.jl`, its derivatives by
-AD); the package has no such option yet.
+The reference is a package option, `EnergyNetwork(net; reference = GaussianReference(X))`, with its
+derivatives in closed form (`energy_network.md` §9). It gives this model the same denoising errors
+and samples as the first version, which had it inside the network and differentiated it by AD.
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]], [[Composing Diffusion Factors]],
 [[Open Problems in Implicit Diffusion Learning]], [[Language Models]], [[Motivating Examples]]

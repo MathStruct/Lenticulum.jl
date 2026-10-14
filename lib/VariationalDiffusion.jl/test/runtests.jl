@@ -89,6 +89,23 @@ end
 _batch_input(x, t) = vcat(x, vcat(sin.((2π .* t) .* FREQ), cos.((2π .* t) .* FREQ)) .* ones(eltype(x), 1, size(x, 2)))
 const ENERGY_MLP = Chain(Dense(10 => 32, swish), Dense(32 => 32, swish), Dense(32 => 1))
 
+# the reference energy written out in the network, differentiated by AD: the oracle for the
+# closed-form terms of `EnergyNetwork(net; reference)`
+struct RefExplicit{L,F,O} <: LuxCore.AbstractLuxWrapperLayer{:net}
+    net::L
+    input::F
+    μ::Vector{Float64}
+    v::Vector{Float64}
+    owner::O
+end
+function (l::RefExplicit)(inp, ps, st)
+    x, t = inp
+    E, st = l.net(l.input(x, t), ps, st)
+    a, s = Zygote.@ignore (alpha.(Ref(SCHED), t), sigma.(Ref(SCHED), t))
+    A, S = l.owner === nothing ? (a, s) : (a[l.owner, :], s[l.owner, :])
+    return (E .+ sum((x .- A .* l.μ) .^ 2 ./ (2 .* (A .^ 2 .* l.v .+ S .^ 2)); dims = 1), st)
+end
+
 @testset "VariationalDiffusion" begin
 
 @testset "VP-SDE: the perturbation kernel preserves variance" begin
@@ -1430,6 +1447,76 @@ end
     @test_throws ArgumentError implicit_sample(ImplicitDiffusion(two, nodes), z, HARDX, tps, tst; guidance = 1.0)
     @test_throws ArgumentError implicit_sample(ImplicitDiffusion(two, nodes), z, HARDX, tps, tst; clamp_level = 0.001,
                                                corrector = :langevin)
+end
+
+@testset "a Gaussian reference energy: closed-form terms, exact against AD" begin
+    Xd = [0.5 -1.0 0.2 0.9 0.0; 3.0 3.0 3.0 3.0 3.0]
+    r = GaussianReference(Xd)
+    @test r.μ ≈ vec(mean(Xd; dims = 2)) && r.v ≈ [std(Xd[1, :])^2, 1e-4]           # a constant coordinate: the floor
+    @test_throws ArgumentError GaussianReference([0.0], [0.0])
+    μ, v = [0.3, -0.4], [0.5, 0.02]
+    ad = DifferentiationInterface.SecondOrder(AutoForwardDiff(), AutoZygote())
+    function blk_input(x, t)
+        te = Zygote.@ignore begin
+            f = vcat(sin.((2π .* kron(Array(t), FREQ))), cos.((2π .* kron(Array(t), FREQ))))
+            x isa Array ? f : copyto!(similar(x, eltype(x), size(f)), f)
+        end
+        return vcat(x, te)
+    end
+    function dev_input(x, t)
+        te = Zygote.@ignore begin
+            tt = t isa Number ? fill(Float64(t), 1, size(x, 2)) : Array(t)
+            f = vcat(sin.((2π .* tt) .* FREQ), cos.((2π .* tt) .* FREQ))
+            x isa Array ? f : copyto!(similar(x, eltype(x), size(f)), f)
+        end
+        return vcat(x, te)
+    end
+    X, W, wb, h = [0.5 0.1 -0.9; -0.7 0.8 0.2], [0.3 -1.0 0.4; 0.6 0.2 -0.5], [0.2, 0.5, 0.3], 1e-6
+    for (net, input, blocks, τ, Tb) in
+        ((ENERGY_MLP, dev_input, nothing, 0.2, reshape([0.1, 0.5, 0.9], 1, 3)),
+         (Chain(Dense(18 => 32, swish), Dense(32 => 32, swish), Dense(32 => 1)), blk_input, [[1], [2]], [0.02, 0.6],
+          [0.02 0.3 0.9; 0.7 0.05 0.001]))
+        ps = _f64(first(Lux.setup(Xoshiro(0), net))); st = last(Lux.setup(Xoshiro(0), net))
+        cf = NoisePredictor(EnergyNetwork(net; reference = (μ, v)), SCHED; input, ad, blocks)
+        ex = NoisePredictor(EnergyNetwork(RefExplicit(net, input, μ, v, blocks === nothing ? nothing : [1, 2])), SCHED;
+                            input = (x, t) -> (x, t), ad, blocks)
+        x = X[:, 1]
+        @test first(VariationalDiffusion.energy(cf, x, τ, ps, st)) ≈ first(VariationalDiffusion.energy(ex, x, τ, ps, st)) atol = 1e-12
+        @test first(VariationalDiffusion.energy_columns(cf, X, Tb, ps, st)) ≈ first(VariationalDiffusion.energy_columns(ex, X, Tb, ps, st)) atol = 1e-12
+        @test first(epsilon(cf, X, Tb, ps, st)) ≈ first(epsilon(ex, X, Tb, ps, st)) atol = 1e-12
+        @test first(epsilon(cf, x, τ, ps, st)) ≈ first(epsilon(ex, x, τ, ps, st)) atol = 1e-12
+        @test epsilon_jacobian(cf, x, τ, ps, st) ≈ epsilon_jacobian(ex, x, τ, ps, st) atol = 1e-10
+        @test epsilon_jacobian_block(cf, X, τ, ps, st, [2], wb) ≈ epsilon_jacobian_block(ex, X, τ, ps, st, [2], wb) atol = 1e-10
+        @test epsilon_jacobian_block(cf, X, τ, ps, st, [1, 2], wb) ≈ epsilon_jacobian_block(ex, X, τ, ps, st, [1, 2], wb) atol = 1e-10
+        @test epsilon_vjp_input(cf, X, τ, ps, st, W) ≈ epsilon_vjp_input(ex, X, τ, ps, st, W) atol = 1e-10
+        @test epsilon_jvp_input(cf, X, τ, ps, st, W) ≈ epsilon_jvp_input(ex, X, τ, ps, st, W) atol = 1e-10
+        εb = randn(Xoshiro(4), 2, 3)
+        Lc, gc, _ = denoising_gradient(cf, X, Tb, εb, ps, st)
+        Le, ge, _ = denoising_gradient(ex, X, Tb, εb, ps, st)
+        @test Lc ≈ Le atol = 1e-12
+        @test gc.layer_1.weight ≈ ge.layer_1.weight atol = 1e-10
+        # the field of the relation, and its energy
+        nodes = field_nodes(Xoshiro(1), 2; samples = 2)
+        levels = blocks === nothing ? nothing : conditional_levels(cf, HARDX)
+        mc, me = ImplicitDiffusion(cf, nodes; levels), ImplicitDiffusion(ex, nodes; levels)
+        z = [0.6, 0.5]
+        @test first(prior_field(mc, z, ps, st)) ≈ first(prior_field(me, z, ps, st)) atol = 1e-10
+        @test first(implicit_energy(mc, z, ps, st)) ≈ first(implicit_energy(me, z, ps, st)) atol = 1e-10
+        # on a device, in Float64 and in Float32
+        JLArrays.allowscalar(false)
+        to(a::AbstractArray) = JLArray(Float64.(a)); to(a) = a
+        to32(a::AbstractArray) = JLArray(Float32.(a)); to32(a) = a
+        for (dev, P, tol) in ((to, Lux.fmap(a -> a isa AbstractArray ? JLArray(a) : a, ps), 1e-12),
+                              (to32, Lux.fmap(a -> a isa AbstractArray ? JLArray(Float32.(a)) : a, ps), 1e-4))
+            dc = NoisePredictor(EnergyNetwork(net; reference = (μ, v)), SCHED; input,
+                                ad, blocks, device = (to = dev, back = Array))
+            @test first(epsilon(dc, X, Tb, P, st)) ≈ first(epsilon(cf, X, Tb, ps, st)) rtol = tol
+            @test epsilon_vjp_input(dc, X, τ, P, st, W) ≈ epsilon_vjp_input(cf, X, τ, ps, st, W) rtol = tol
+            @test epsilon_jacobian_block(dc, X, τ, P, st, [1, 2], wb) ≈ epsilon_jacobian_block(cf, X, τ, ps, st, [1, 2], wb) rtol = tol
+            @test first(VariationalDiffusion.energy(dc, X, τ, P, st)) ≈ first(VariationalDiffusion.energy(cf, X, τ, ps, st)) rtol = tol
+            dev === to32 && @test eltype(epsilon_vjp_input(dc, X, τ, P, st, W)) == Float32
+        end
+    end
 end
 
 @testset "single-root answers: code posteriors, calibration, flags, tolerances, continuation" begin

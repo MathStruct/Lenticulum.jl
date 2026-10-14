@@ -193,5 +193,34 @@ spends its time on transfers and launches. Without the GPU, Lux's nested AD
 (`StatefulLuxLayer`, Zygote over Zygote) failed on this network, on the CPU and on the GPU. The
 package does not need it, because the mixed derivative is taken forward over reverse (§7).
 
+## 9. A Gaussian reference energy
+
+`EnergyNetwork(net; reference = GaussianReference(X))` adds the exact energy of a diagonal
+Gaussian fitted to the data $X$ (mean $\mu$, variance $v$ floored at $10^{-4}$):
+
+$$
+E(x, t) = E_\theta(x, t) + \sum_i \frac{(x_i - \alpha_i\mu_i)^2}{2D_i}, \qquad D_i = \alpha_i^2 v_i + \sigma_i^2,
+$$
+
+with $\alpha_i, \sigma_i$ of the coordinate's noise block. The network learns the residual. Its
+derivatives are added in closed form, outside the AD backend: $(x - \alpha\mu)/D$ to the gradient,
+$\mathrm{diag}(1/D)$ to the Hessian, $V/D$ to a Hessian-vector product, and
+$\sum_b w_b/D_{\cdot b}$ to the diagonal of a free-coordinate block. It has no parameters, so the
+mixed derivative of training is unchanged.
+
+Why it helps (MNIST, [[MNIST in Both Directions]] §9): at high noise the denoiser
+$\hat x_0 = (x - \sigma\hat\varepsilon)/\alpha$ multiplies the network's ε error by $\sigma/\alpha$, up to 150
+at $t = 1$, and a pixel that is background in every image needs a score that the network learns
+poorly. The reference gives the right score at high noise up to the data's correlations, and
+pulls a never-varying pixel to its mean with curvature $1/\sigma^2$. With it, a convolutional
+energy samples clean digits (border speckles 1.7% from $t = 1$, against 18.6% without).
+
+The test checks every hook against the same reference written into the network and
+differentiated by AD, with and without noise blocks, on the CPU and on a device in Float64 and
+Float32. On the MNIST model the closed-form version reproduces the AD version's denoising
+errors and sampling statistics to the printed digits. With the derivative of the reference no
+longer in the AD graph, the classification queries of the convolutional energy fit in chunks of
+100 on a 10 GB GPU instead of 50.
+
 Related: [[predictor]], [[implicit]], [[backends]], [[analytic]],
 [[Geometric Deep Learning and Physical Laws]], [[The Implicit Diffusion Factor as a Statistical Game]]

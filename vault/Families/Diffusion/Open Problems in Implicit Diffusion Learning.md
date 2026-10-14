@@ -215,7 +215,7 @@ held-out points. On the circle it flags about 5% of fresh data at $\alpha = 0.05
 answer to $x = 1.3$ at $p = 0.006$ ([[coverage]]). Open: scores of the free block given the
 clamp, which would separate T4 from T5, and embeddings for high dimensions.
 
-### I10. Real data and higher dimensions — **done on MNIST: clean digits and 96.8% from one energy network**
+### I10. Real data and higher dimensions — **done on MNIST: clean digits and 96.6% from one energy network**
 
 [[MNIST in Both Directions]] §6–9. One energy network on (image, label), 794 coordinates, trained on
 a GPU. Image → label by root finding: 96.1% on 9000 test images for the first MLP energy, equal to
@@ -231,14 +231,15 @@ down above t ≈ 0.3, where a small ε error is a large image error. Two changes
   a share of the columns (uniform times give a clean label in about 1% of them), and that block
   leaves the loss.
 
-With both, the convolutional energy's samples are clean digits (76.5% recognised with guidance 1),
-and the same network classifies 96.8% of the tuning images (one start, 291 ms per query), above the
-MLP energies (95.0%).
+The reference is a package option, `EnergyNetwork(net; reference = GaussianReference(X))`, its
+derivatives in closed form. With both, the convolutional energy's samples are clean digits (76.5% recognised with guidance 1),
+and the same network classifies 96.6% of the 9000 test images (one start; 96.8% of the tuning
+images), above the first MLP energy (96.1%) and below a softmax MLP (97.7%).
 
 Open:
 - the reference energy with an MLP: its samples collapse to one spurious image;
-- the reference as a package option (it is in the example's network, its derivatives by AD);
-- the full test set, and how far a larger convolutional energy goes.
+- the calibration of this model's class probabilities (ten starts per query), and how far a larger
+  convolutional energy goes.
 
 ### I11. Nonlinear factors around the learner — **done**
 
@@ -325,7 +326,7 @@ component and its class probabilities were 0 or 1. Built:
 | I7 | ProxDM adjoint, factor, sampler | done: adjoint, factor inversion (`ProxDM`), trapezoidal sampler; higher-noise backprop tried (no benefit on the circle) |
 | I8 | composition | done: products on shared and overlapping variables (separators), MCMC correctors and SMC reweighting for sampling |
 | I9 | coverage diagnostics | done: `coverage` (distance, reconstruction, energy as conformal p-values) |
-| I10 | real data, higher dimensions | done on MNIST: a conv energy with a Gaussian reference energy and clean-block training gives clean digits (76.5% recognised) and classifies 96.8% with the same network; open: the reference with an MLP, as a package option |
+| I10 | real data, higher dimensions | done on MNIST: a conv energy with a Gaussian reference energy and clean-block training gives clean digits (76.5% recognised) and classifies 96.6% of the test set with the same network; open: the reference with an MLP, calibration |
 | I11 | nonlinear factors | done: `NonlinearFactor` (EKF, UKF, iterated) |
 | I12 | both directions of one relation | done: noise blocks, block times, loss weights, held clamps, guidance (MNIST: 85.5% against 10.5%) |
 | I13 | answers of a single root | done: calibrated code posterior (ECE 0.009), unassigned flag, precision-aware tolerances, trust-region solver (MNIST modes 19/20 against 0/20), cost model (ratio within 10%) |

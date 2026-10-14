@@ -35,6 +35,13 @@ construction. The implicit learner's field is then the gradient of `implicit_ene
 energy for the learned relation. Train with `denoising_gradient` (the loss gradient as one
 mixed second derivative, no nested AD in the loop) and any optimiser.
 
+`EnergyNetwork(net; reference = GaussianReference(X))` adds the exact energy of a diagonal
+Gaussian fitted to the data, ``\sum_i (x_i - \alpha_i\mu_i)^2 / 2(\alpha_i^2 v_i + \sigma_i^2)``, and the
+network learns the residual. Its derivatives are added in closed form. At high noise, where a
+network's ε errors are amplified most in the denoised image, the reference already has the
+score up to the data's correlations. On MNIST it is what makes the samples of a convolutional
+energy clean.
+
 ## On a GPU
 
 `device = (to = gpu_device(), back = cpu_device())` (MLDataDevices) runs the network and all

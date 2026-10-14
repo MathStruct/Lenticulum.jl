@@ -15,7 +15,7 @@
 # ---------------------------------------------------------------------------
 
 """
-    EnergyNetwork(model)
+    EnergyNetwork(model; reference = nothing)
 
 Marks `model` as a **scalar energy** ``E_\\theta(x, t)`` rather than a noise predictor. Wrapped in
 a [`NoisePredictor`](@ref), it defines
@@ -41,9 +41,81 @@ a Hessian and the parameter VJP a mixed derivative. `AutoZygote()` and
 (load DifferentiationInterface and the backend), as does `SecondOrder(AutoMooncakeForward(), AutoMooncake())`;
 Enzyme's forward-over-reverse on CPU does not yet, but `ad = AutoReactant()` (with Reactant
 loaded) runs it inside the compiled program (`energy_network.md` §4, §7).
+
+With `reference` (a [`GaussianReference`](@ref), a data matrix to fit one to, or a pair
+`(μ, v)`) the energy is the network's plus the exact energy of a diagonal Gaussian,
+``E_\\theta + E_{\\mathrm{ref}}``, and the network learns the residual. Its derivatives are added in
+closed form, without AD (`energy_network.md` §9).
 """
-struct EnergyNetwork{L} <: LuxCore.AbstractLuxWrapperLayer{:model}
+struct EnergyNetwork{L,R} <: LuxCore.AbstractLuxWrapperLayer{:model}
     model::L
+    reference::R
+end
+EnergyNetwork(model; reference = nothing) = EnergyNetwork(model, _reference(reference))
+
+"""
+    GaussianReference(μ, v)
+    GaussianReference(X::AbstractMatrix; floor = 1e-4)
+
+A diagonal Gaussian ``\\mathcal N(\\mu, \\operatorname{diag} v)`` over the data, as the
+`reference` of an [`EnergyNetwork`](@ref); from a data matrix (one sample per column) its mean
+and variance, the variance floored at `floor`. Noised to level ``t`` it is
+``\\mathcal N(\\alpha_t\\mu, \\operatorname{diag}(\\alpha_t^2 v + \\sigma_t^2))``, so its energy is
+
+```math
+E_{\\mathrm{ref}}(x, t) = \\sum_i \\frac{(x_i - \\alpha_i \\mu_i)^2}{2(\\alpha_i^2 v_i + \\sigma_i^2)},
+```
+
+with ``\\alpha_i, \\sigma_i`` of each coordinate's noise block. At high noise this is already the
+score up to the data's correlations, where a network's errors are amplified most when
+denoising; a coordinate that never varies (``v_i`` at the floor) is pulled to its mean at every
+level. The network adds what a diagonal Gaussian misses.
+"""
+struct GaussianReference{M<:AbstractArray,V<:AbstractArray}
+    μ::M
+    v::V
+    function GaussianReference(μ::AbstractArray, v::AbstractArray)
+        size(μ) == size(v) || throw(DimensionMismatch("reference mean of size $(size(μ)), variance of size $(size(v))"))
+        all(>(0), v) || throw(ArgumentError("reference variances must be positive"))
+        return new{typeof(μ),typeof(v)}(μ, v)
+    end
+end
+function GaussianReference(X::AbstractMatrix; floor::Real = 1e-4)
+    n = size(X, 2)
+    μ = vec(sum(X; dims = 2)) ./ n
+    return GaussianReference(μ, max.(vec(sum(abs2, X .- μ; dims = 2)) ./ (n - 1), floor))
+end
+_reference(::Nothing) = nothing
+_reference(r::GaussianReference) = r
+_reference(r::Tuple{AbstractArray,AbstractArray}) = GaussianReference(r...)
+_reference(X::AbstractMatrix) = GaussianReference(X)
+
+# --- the reference's terms, in closed form -------------------------------------------
+# Its mean αμ and variance D = α²v + σ² coordinate by coordinate, shaped like x and in its
+# arithmetic (Float32 on a device stays Float32), on x's device.
+_hasref(p::NoisePredictor) = p.model.reference !== nothing
+function _ref_moments(p::NoisePredictor, x, t)
+    r = p.model.reference
+    T = float(eltype(x))
+    A, S = T.(_alphas(p, t, x)), T.(_sigmas(p, t, x))
+    μ, v = _onlike(x, T, r.μ), _onlike(x, T, r.v)
+    return (reshape(A .* μ .+ zero(x), size(x)), reshape(A .^ 2 .* v .+ S .^ 2 .+ zero(x), size(x)))
+end
+_onlike(x::Array, T, a) = T.(a)
+_onlike(x, T, a) = copyto!(similar(x, T, size(a)), T.(a))
+
+function _ref_energy_columns(p, x, t)
+    m, D = _ref_moments(p, x, t)
+    return vec(sum((x .- m) .^ 2 ./ (2 .* D); dims = 1))
+end
+_ref_grad(p, x, t) = (m_D = _ref_moments(p, x, t); (x .- m_D[1]) ./ m_D[2])
+_ref_hvp(p, x, t, V) = reshape(V, size(x)) ./ last(_ref_moments(p, x, t))
+
+# ∇²E plus the reference's diagonal 1/D (on the host: one point's Hessian)
+function _plus_diagonal(H, d)
+    H = Array(H)
+    H[LinearAlgebra.diagind(H)] .+= Array(d)
+    return H
 end
 
 """
@@ -56,7 +128,7 @@ function energy(p::NoisePredictor{<:EnergyNetwork}, x, t, ps, st)
     t = _times(p, x, t)
     _ondevice(p) && return energy(_local(p), _to(p, x), _to(p, t), ps, st)        # a scalar comes back as it is
     E, st = LuxCore.apply(p.model.model, p.input(x, t), ps, st)
-    return (sum(E), st)
+    return (_hasref(p) ? sum(E) + sum(_ref_energy_columns(p, x, t)) : sum(E), st)
 end
 
 _sigmas(s, t) = t isa Number ? sigma(s, t) : sigma.(Ref(s), t)
@@ -69,7 +141,8 @@ function epsilon(p::NoisePredictor{<:EnergyNetwork}, x, t, ps, st)
     t = _times(p, x, t)
     _ondevice(p) && return _epsilon_device(p, x, t, ps, st)
     p.ad === nothing && _need_ad()
-    return (_sigmas(p, t, x) .* reshape(_energy_grad(p.ad, p, x, t, ps, st), size(x)), st)
+    g = reshape(_energy_grad(p.ad, p, x, t, ps, st), size(x))
+    return (_sigmas(p, t, x) .* (_hasref(p) ? g .+ _ref_grad(p, x, t) : g), st)
 end
 
 # σ ⊙ ∇²E: the Hessian, its rows scaled by σ (symmetric for one noise level)
@@ -78,6 +151,7 @@ function epsilon_jacobian(p::NoisePredictor{<:EnergyNetwork}, x, t, ps, st)
     _ondevice(p) && return _back(p, epsilon_jacobian(_local(p), _to(p, x), _to(p, t), ps, st))
     p.ad === nothing && _need_ad()
     H = _energy_hessian(p.ad, p, x, t, ps, st)
+    _hasref(p) && (H = _plus_diagonal(H, vec(1 ./ last(_ref_moments(p, x, t)))))
     return p.blocks === nothing ? sigma(p.schedule, t) .* H : _sigma_rows(p, t, x, eachindex(x)) .* Array(H)
 end
 
@@ -86,7 +160,12 @@ function epsilon_jacobian_block(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st
     t = _times(p, X, t)
     _ondevice(p) && return _back(p, epsilon_jacobian_block(_local(p), _to(p, X), _to(p, t), ps, st, idx, _to(p, w)))
     p.ad === nothing && _need_ad()
-    return _sigma_rows(p, t, X, idx) .* _energy_hessian_block(p.ad, p, X, t, ps, st, idx, w)
+    H = _energy_hessian_block(p.ad, p, X, t, ps, st, idx, w)
+    if _hasref(p)               # Σ_b w_b / D[idx, b] on the diagonal
+        D = Array(reshape(last(_ref_moments(p, X, t)), size(X, 1), :))[idx, :]
+        H = _plus_diagonal(H, vec(sum((1 ./ D) .* reshape(Array(w), 1, :); dims = 2)))
+    end
+    return _sigma_rows(p, t, X, idx) .* H
 end
 
 # Jᵀw = ∇²E (σ ⊙ w) and J v = σ ⊙ ∇²E v, column by column: one Hessian-vector product of the
@@ -95,17 +174,20 @@ function epsilon_vjp_input(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st, W)
     t = _times(p, X, t)
     _ondevice(p) && return _back(p, epsilon_vjp_input(_local(p), _to(p, X), _to(p, t), ps, st, _to(p, W)))
     p.ad === nothing && _need_ad()
-    return _energy_hvp(p.ad, p, X, t, ps, st, _sigmas(p, t, X) .* reshape(W, size(X)))
+    return _hvp(p, X, t, ps, st, _sigmas(p, t, X) .* reshape(W, size(X)))
 end
 
 function epsilon_jvp_input(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st, V)
     t = _times(p, X, t)
     _ondevice(p) && return _back(p, epsilon_jvp_input(_local(p), _to(p, X), _to(p, t), ps, st, _to(p, V)))
     p.ad === nothing && _need_ad()
-    return _sigmas(p, t, X) .* _energy_hvp(p.ad, p, X, t, ps, st, V)
+    return _sigmas(p, t, X) .* _hvp(p, X, t, ps, st, V)
 end
 
-# ∂_θ⟨σ ⊙ ∇ₓE, w⟩ = ∂_θ⟨∇ₓE, σ ⊙ w⟩, with σ per column (and per coordinate with noise blocks)
+_hvp(p, X, t, ps, st, V) = (H = _energy_hvp(p.ad, p, X, t, ps, st, V); _hasref(p) ? H .+ _ref_hvp(p, X, t, V) : H)
+
+# ∂_θ⟨σ ⊙ ∇ₓE, w⟩ = ∂_θ⟨∇ₓE, σ ⊙ w⟩, with σ per column (and per coordinate with noise blocks);
+# a reference has no parameters and adds nothing
 function epsilon_vjp_params(p::NoisePredictor{<:EnergyNetwork}, x, t, ps, st, w)
     t = _times(p, x, t)
     _ondevice(p) && return epsilon_vjp_params(_local(p), _to(p, x), _to(p, t), ps, st, _to(p, w))
@@ -231,5 +313,5 @@ function energy_columns(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st)
         return (_back(p, E), st)
     end
     E, st = LuxCore.apply(p.model.model, p.input(X, t), ps, st)
-    return (vec(E), st)
+    return (_hasref(p) ? vec(E) .+ _ref_energy_columns(p, X, t) : vec(E), st)
 end
