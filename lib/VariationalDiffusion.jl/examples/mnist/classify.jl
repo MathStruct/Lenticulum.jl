@@ -17,7 +17,7 @@ const RHO = [fill(Inf, NX); zeros(NY)]
 # answer (nothing when the roots are all unassigned), the label coordinates of the heaviest root,
 # the unassigned mass and the number of distinct roots.
 # tol: the field is computed in Float32 on the GPU, so residuals stop near 1e-6 (relative to |z| ≈ 28)
-function classify(m, ps, st, X; chunk = 100, maxiters = 50, tol = 1e-6)
+function classify(m, ps, st, X; chunk = max(CHUNK ÷ 10, 1), maxiters = 50, tol = 1e-6)
     B = size(X, 2)
     pred = fill(-1, B); P = fill(NaN, NY, B); Y = zeros(NY, B); un = zeros(B); nroots = zeros(Int, B)
     for c in Iterators.partition(1:B, chunk)
@@ -35,7 +35,7 @@ function classify(m, ps, st, X; chunk = 100, maxiters = 50, tol = 1e-6)
 end
 
 # one solve per query, from the label 0 (all class codes equally far)
-function classify_single(m, ps, st, X; chunk = 1000, maxiters = 50, tol = 1e-6)
+function classify_single(m, ps, st, X; chunk = CHUNK, maxiters = 50, tol = 1e-6)
     Y = zeros(NY, size(X, 2)); ok = trues(size(X, 2))
     for c in Iterators.partition(axes(X, 2), chunk)
         sols, _ = implicit_infer_many(m, vcat(X[:, c], zeros(NY, length(c))), RHO, ps, st; maxiters, tol)

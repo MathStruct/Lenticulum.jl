@@ -224,8 +224,14 @@ same network also answers label → image: 85.5% of the samples are recognised a
 against 8–25% before. But the samples are mostly noise, and the block-trained network classifies
 one to two points worse than the joint one.
 
+A convolutional energy network (§8 of the note) gives samples with digit-like strokes and dark
+backgrounds, but still noisy, and classifies worse (92.8%) and slower (421 ms per query). The
+noise has one cause in both architectures: an energy's scalar head does not learn the
+low-noise score (ε error near 1 at σ ≤ 0.02, though most pixels' noise is recoverable there).
+
 Open:
-- a convolutional energy, for images that look like digits;
+- an energy parametrisation that learns the low-noise score (two were tried: dividing by σ, and
+  a denoiser energy, which did not train);
 - classification and generation from one network without the accuracy cost.
 
 ### I11. Nonlinear factors around the learner — **done**
@@ -311,7 +317,7 @@ component and its class probabilities were 0 or 1. Built:
 | I7 | ProxDM adjoint, factor, sampler | done: adjoint, factor inversion (`ProxDM`), trapezoidal sampler; higher-noise backprop tried (no benefit on the circle) |
 | I8 | composition | done: products on shared and overlapping variables (separators), MCMC correctors and SMC reweighting for sampling |
 | I9 | coverage diagnostics | done: `coverage` (distance, reconstruction, energy as conformal p-values) |
-| I10 | real data, higher dimensions | MNIST: image → label 96.1% (= diffusion classifier); label → image conditions with noise blocks (85.5% recognised) but the images are poor |
+| I10 | real data, higher dimensions | MNIST: image → label 96.1% (= diffusion classifier); label → image conditions with noise blocks (85.5% recognised); a conv energy gives digit-like but noisy images; open: the low-noise score of an energy |
 | I11 | nonlinear factors | done: `NonlinearFactor` (EKF, UKF, iterated) |
 | I12 | both directions of one relation | done: noise blocks, block times, loss weights, held clamps, guidance (MNIST: 85.5% against 10.5%) |
 | I13 | answers of a single root | done: calibrated code posterior (ECE 0.009), unassigned flag, precision-aware tolerances, trust-region solver (MNIST modes 19/20 against 0/20), cost model (ratio within 10%) |

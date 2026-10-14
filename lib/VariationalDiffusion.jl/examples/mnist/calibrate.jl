@@ -9,7 +9,7 @@
 push!(ARGS, "none")
 include("classify.jl")
 
-function mixtures(m, ps, st, X; chunk = 100)
+function mixtures(m, ps, st, X; chunk = max(CHUNK ÷ 10, 1))
     out = Any[]
     for c in Iterators.partition(axes(X, 2), chunk)
         ans, _ = implicit_classify(m, vcat(X[:, c], zeros(NY, length(c))), RHO, ps, st; label = LABEL, classes = codes(),

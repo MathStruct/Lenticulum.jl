@@ -19,6 +19,10 @@ mkpath(OUT)
 
 const GDEV, CDEV = gpu_device(), cpu_device()
 const SCHED = VPSDE()
+# the floor of the reverse diffusion when sampling (TMIN, env): the sampler stops there and returns
+# Tweedie's denoised estimate. Training and the field keep `SCHED`; only `predictor(...; sampling = true)`
+# uses this schedule, which has the same α and σ.
+const SAMPLE_SCHED = VPSDE(; tmin = parse(Float64, get(ENV, "TMIN", "1e-3")))
 const AD = SecondOrder(AutoForwardDiff(), AutoZygote())
 
 # --- data -------------------------------------------------------------------------------------
@@ -48,24 +52,51 @@ function time_input(x, t)
     return vcat(x, te)
 end
 
-# KIND=energy (default): a scalar energy, ε = σ∇ₓE; KIND=eps: a network that outputs ε directly
+# KIND=energy (default): a scalar energy, ε = σ∇ₓE, from an MLP; KIND=conv: the same from a
+# convolutional network (below); KIND=eps: an MLP that outputs ε directly
 # (no energy, so no Laplace weights, but no second derivatives in training either)
 const KIND = get(ENV, "KIND", "energy")
 const WIDTH = 1024
-network() = Chain(Dense(N + 2NBLOCKS * length(FREQ) => WIDTH, swish), Dense(WIDTH => WIDTH, swish),
-                  Dense(WIDTH => WIDTH, swish), Dense(WIDTH => KIND == "eps" ? N : 1))
+mlp() = Chain(Dense(N + 2NBLOCKS * length(FREQ) => WIDTH, swish), Dense(WIDTH => WIDTH, swish),
+              Dense(WIDTH => WIDTH, swish), Dense(WIDTH => KIND == "eps" ? N : 1))
+network() = KIND == "conv" ? conv_energy() : mlp()
+
+# KIND=conv: a convolutional energy. The image goes through three 3×3 convolutions (28 → 14 → 7
+# pixels, 32 → 64 → 64 channels); the time features and the label are the conditioning vector,
+# added as a per-channel bias after every convolution and passed to the dense head beside the
+# image features. The head returns the scalar energy.
+const NCOND = 2NBLOCKS * length(FREQ) + NY
+function conv_energy(; c1 = 32, c2 = 64, head = 256)
+    return @compact(conv1 = Conv((3, 3), 1 => c1; pad = 1), conv2 = Conv((3, 3), c1 => c2; pad = 1, stride = 2),
+                    conv3 = Conv((3, 3), c2 => c2; pad = 1, stride = 2),
+                    film1 = Dense(NCOND => c1), film2 = Dense(NCOND => c2), film3 = Dense(NCOND => c2),
+                    head1 = Dense(7 * 7 * c2 + NCOND => head, swish), head2 = Dense(head => 1)) do inp
+        B = size(inp, 2)
+        x = reshape(inp[IMAGE, :], 28, 28, 1, B)
+        c = vcat(inp[(N + 1):end, :], inp[LABEL, :])           # time features and label
+        h = swish.(conv1(x) .+ reshape(film1(c), 1, 1, :, B))
+        h = swish.(conv2(h) .+ reshape(film2(c), 1, 1, :, B))
+        h = swish.(conv3(h) .+ reshape(film3(c), 1, 1, :, B))
+        @return head2(head1(vcat(reshape(h, :, B), c)))
+    end
+end
+
 const BLOCKSPEC = BLOCKS ? [IMAGE, LABEL] : nothing
-predictor(net; device = (to = GDEV, back = CDEV)) = KIND == "eps" ?
-    NoisePredictor(net, SCHED; input = time_input, ad = AutoZygote(), device, blocks = BLOCKSPEC) :
-    NoisePredictor(EnergyNetwork(net), SCHED; input = time_input, ad = AD, device, blocks = BLOCKSPEC)
+predictor(net; device = (to = GDEV, back = CDEV), sampling = false) = KIND == "eps" ?
+    NoisePredictor(net, sampling ? SAMPLE_SCHED : SCHED; input = time_input, ad = AutoZygote(), device, blocks = BLOCKSPEC) :
+    NoisePredictor(EnergyNetwork(net), sampling ? SAMPLE_SCHED : SCHED; input = time_input, ad = AD, device, blocks = BLOCKSPEC)
 
 # with blocks, the levels of a query: its fully clamped blocks held clean (HELD=1, default), or
 # every block annealed at the nodes' level (HELD=0, the joint field)
-query_levels(pred, ρ) = BLOCKS && get(ENV, "HELD", "1") == "1" ? conditional_levels(pred, ρ) : nothing
+query_levels(pred, ρ) = BLOCKS && get(ENV, "HELD", "1") == "1" ? conditional_levels(pred, ρ; level = SCHED.tmin) : nothing
 
 # the trained model; MODEL=<name> selects ~/.cache/lenticulum/mnist/<name>.jld2 (default "energy")
 modelfile() = joinpath(OUT, get(ENV, "MODEL", "energy") * ".jld2")
 load_model() = (d = JLD2.load(modelfile()); (d["ps"], d["st"]))
+
+# queries solved together: the batched Jacobian block stacks |F| = 10 copies of every node input,
+# 40000 columns at 1000 queries, which a convolutional network's activations do not fit in 10 GB
+const CHUNK = parse(Int, get(ENV, "CHUNK", KIND == "conv" ? "100" : "1000"))
 
 # the field's nodes for a query: `samples` antithetic draws at each level
 query_nodes(levels; samples = 2, rng = Xoshiro(1)) = field_nodes(rng, N; levels, samples)

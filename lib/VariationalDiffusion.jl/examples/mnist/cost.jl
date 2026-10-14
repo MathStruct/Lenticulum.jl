@@ -19,17 +19,18 @@ pred = m.predictor
 npl = count(==(first(m.nodes.t)), m.nodes.t)    # nodes per noise level
 Zq = vcat(X, zeros(NY, B))
 
-# per-column costs at the widths the solvers use: the field B·npl columns, the Jacobian block
+# per-column costs at the widths the solvers use (queries in chunks of CHUNK): the field CHUNK·npl columns, the Jacobian block
 # |F| times that; the diffusion classifier calls chunks of 100 columns
-u = pass_costs(pred, repeat(Zq, 1, npl), τ, ps, st; directions = NY)
+u = pass_costs(pred, repeat(Zq[:, 1:CHUNK], 1, npl), τ, ps, st; directions = NY)
 ud = pass_costs(pred, Zq[:, 1:100], 0.1, ps, st)
 @printf("per column: ε %.2f µs, energy %.2f µs, derivative %.2f µs (field width %d, derivative width %d); ε at width 100 %.2f µs\n",
-        1e6u.epsilon, 1e6u.energy, 1e6u.derivative, B * npl, B * npl * NY, 1e6ud.epsilon)
+        1e6u.epsilon, 1e6u.energy, 1e6u.derivative, CHUNK * npl, CHUNK * npl * NY, 1e6ud.epsilon)
 flush(stdout)
 
 for method in (:newton, :trust_region)
     implicit_infer_many(m, Zq[:, 1:10], RHO, ps, st; maxiters = 50, method)        # compile
-    t = @elapsed sols, _ = implicit_infer_many(m, Zq, RHO, ps, st; maxiters = 50, method)
+    t = @elapsed sols = reduce(vcat, [first(implicit_infer_many(m, Zq[:, c], RHO, ps, st; maxiters = 50, method))
+                                      for c in Iterators.partition(1:B, CHUNK)])
     its = mean(s.iters for s in sols)
     acc = mean(argmaxclass(reduce(hcat, [s.z[LABEL] for s in sols])) .== lab)
     @printf("root finding, %-12s measured %.1f ms per query, predicted %.1f ms (%.2f iterations, accuracy %.4f)\n",

@@ -26,10 +26,10 @@ function grid!(fig, pos, Zs; title = "", labels = nothing)
     return g
 end
 
-function relation(levels; samples = 2, ρ = nothing)
+function relation(levels; samples = 2, ρ = nothing, sampling = true)
     nodes = query_nodes(levels; samples)
     ps, st = load_model()
-    pred = predictor(network())
+    pred = predictor(network(); sampling)
     lv = ρ === nothing ? nothing : query_levels(pred, ρ)
     m = ImplicitDiffusion(pred, nodes; λ = density_lambda(SCHED, nodes), batched = true, levels = lv)
     return m, GDEV(ps), st

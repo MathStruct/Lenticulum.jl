@@ -111,7 +111,9 @@ answers.** These are open problems I12 and I13 in [[Open Problems in Implicit Di
     found none (§7). Continuation in the noise level, tried first, reached 3–4 of 10.
 12. **Tolerances that follow the arithmetic** — *done*: `default_tolerance` (about 1e-6 for Float32
     on a device).
-13. **A convolutional energy network** for image quality — open; the samples of §7 show why.
+13. **A convolutional energy network** — *tried* (§8): image-like samples with strokes and dark
+    backgrounds, but still noisy, and slower and less accurate as a classifier. The bottleneck is
+    the low-noise score of an energy parametrisation, not the convolutions.
 
 ## 5. What the tutorial was meant to show
 
@@ -300,6 +302,63 @@ one-hot labels that grows with the classes, so it is never the cheaper method he
 Every converged mode is a stable minimum of the query's energy. That several are judged as another
 digit (an 8 most often) is the model's mode, not the solver's: the most probable image of an MLP
 energy given a label need not look like a typical sample of it.
+
+## 8. A convolutional energy (October 2026)
+
+`KIND=conv`: the image through three 3×3 convolutions (28 → 14 → 7 pixels, 32 → 64 → 64 channels),
+the time features of both blocks and the label added as per-channel biases after each
+convolution and given to a dense head, which returns the scalar energy; 877k parameters. Same
+training as §7 (noise blocks, label weight 100, 100 epochs). Its second derivatives run as for
+the MLP, ForwardDiff over Zygote on the GPU: LuxLib passes dual numbers through cuDNN
+convolutions; Zygote over Zygote does not. A training step takes 23 ms (6 s per epoch, faster
+than the MLP); a batched Jacobian block of 1000 queries does not fit in 10 GB, so queries go in
+chunks of 100 (`CHUNK`).
+
+**Label → image** (20 samples per class, the same judge):
+
+| sampler | MLP energy (§7) | conv energy | conv, stopped at t = 0.03 |
+|---|---|---|---|
+| label held clean | 85.5% | 31.0% | 29.0% |
+| held, guidance 1 | 74.0% | **42.5%** | **46.0%** |
+| held, guidance 3 | 71.5% | 27.5% | 29.5% |
+| label replaced | 10.5% | 11.5% | 10.0% |
+
+![Samples of the conv energy, label held clean, guidance 1, stopped at t = 0.03 (rows: 0 to 9)](https://raw.githubusercontent.com/MathStruct/Lenticulum.jl/master/docs/src/assets/mnist_samples_conv.png)
+
+The samples look more like MNIST than the MLP's: dark backgrounds, strokes, some legible 0s, 3s
+and 9s. They are recognised less often, because the MLP's noise carried label-specific structure
+that its judge picked up, and the conv model's conditioning is weaker (guidance now helps, by
+11 points). Both are still covered in pixel noise.
+
+**Why the noise stays.** The image's ε error per pixel, label held clean, on 500 test images:
+
+| t (σ) | 0.001 (0.01) | 0.003 (0.02) | 0.01 (0.045) | 0.03 (0.11) | 0.1 (0.32) | 0.3 (0.78) | 0.7 (1.0) |
+|---|---|---|---|---|---|---|---|
+| MLP energy | 0.997 | 0.992 | 0.948 | 0.744 | 0.284 | 0.100 | 0.046 |
+| conv energy | 0.971 | 0.902 | 0.574 | 0.322 | 0.167 | 0.102 | 0.044 |
+
+At low noise both predict almost nothing (an error of 1 is ε = 0). About 80% of MNIST pixels are
+exactly background, and for them the noise is recoverable, ε = (x + α)/σ: the ideal error at low
+noise is far below 1. An energy has to produce that as a curvature of order 1/σ² per pixel, and a
+scalar head does not learn it. So the low-noise steps of the reverse diffusion leave the noise
+where it is. The convolutions help in the middle range (0.32 against 0.74 at t = 0.03), which is
+where the strokes come from. Stopping the sampler earlier and returning Tweedie's estimate
+there (`TMIN=0.03`) does not remove the noise, which was laid down along the whole low-noise part.
+
+Two parametrisations aimed at the low-noise end were tried and dropped:
+- the energy divided by the image block's σ, $E = E_\text{net}/\sigma_x$: error 0.92 at the lowest level
+  instead of 0.97, recognition 36%; no visible change;
+- a denoiser energy, $E = \tfrac12\sum_i ((z_i - D_i)/\sigma_i)^2$ with $D = z + U$, which has the right
+  curvature by construction. With the last layers at zero it does not train at all (U and its
+  Jacobian vanish together, and with them the loss gradient); with a small random start its loss
+  stayed above 1 after 17 epochs (the scalar conv energy was at 0.15 after 7) and it was stopped.
+
+**Image → label** (one start, tuning images, default tolerance): 92.8% at levels 0.05–0.2 with
+96% of the solves converged, at 421 ms per query, against 95.0% at 17 ms for the MLP. Each Jacobian
+block needs ten Hessian-vector products through the convolutions, in chunks of 100 queries.
+
+So the convolutions improve the images' structure but not their noise, and cost the classifier.
+For image quality the open problem is the low-noise score of an energy parametrisation.
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]], [[Composing Diffusion Factors]],
 [[Open Problems in Implicit Diffusion Learning]], [[Language Models]], [[Motivating Examples]]
