@@ -234,12 +234,12 @@ down above t ≈ 0.3, where a small ε error is a large image error. Two changes
 The reference is a package option, `EnergyNetwork(net; reference = GaussianReference(X))`, its
 derivatives in closed form. With both, the convolutional energy's samples are clean digits (76.5% recognised with guidance 1),
 and the same network classifies 96.6% of the 9000 test images (one start; 96.8% of the tuning
-images), above the first MLP energy (96.1%) and below a softmax MLP (97.7%).
+images), above the first MLP energy (96.1%) and below a softmax MLP (97.7%). Its class probabilities are
+calibrated from the root's position (ECE 0.015, NLL 0.154 on 1000 test images).
 
 Open:
 - the reference energy with an MLP: its samples collapse to one spurious image;
-- the calibration of this model's class probabilities (ten starts per query), and how far a larger
-  convolutional energy goes.
+- how far a larger convolutional energy goes.
 
 ### I11. Nonlinear factors around the learner — **done**
 
@@ -326,7 +326,7 @@ component and its class probabilities were 0 or 1. Built:
 | I7 | ProxDM adjoint, factor, sampler | done: adjoint, factor inversion (`ProxDM`), trapezoidal sampler; higher-noise backprop tried (no benefit on the circle) |
 | I8 | composition | done: products on shared and overlapping variables (separators), MCMC correctors and SMC reweighting for sampling |
 | I9 | coverage diagnostics | done: `coverage` (distance, reconstruction, energy as conformal p-values) |
-| I10 | real data, higher dimensions | done on MNIST: a conv energy with a Gaussian reference energy and clean-block training gives clean digits (76.5% recognised) and classifies 96.6% of the test set with the same network; open: the reference with an MLP, calibration |
+| I10 | real data, higher dimensions | done on MNIST: a conv energy with a Gaussian reference energy and clean-block training gives clean digits (76.5% recognised) and classifies 96.6% of the test set with the same network; calibrated (ECE 0.015); open: the reference with an MLP |
 | I11 | nonlinear factors | done: `NonlinearFactor` (EKF, UKF, iterated) |
 | I12 | both directions of one relation | done: noise blocks, block times, loss weights, held clamps, guidance (MNIST: 85.5% against 10.5%) |
 | I13 | answers of a single root | done: calibrated code posterior (ECE 0.009), unassigned flag, precision-aware tolerances, trust-region solver (MNIST modes 19/20 against 0/20), cost model (ratio within 10%) |

@@ -419,9 +419,21 @@ classifier's condition too, where the image is held clean.
 On the 9000 test images (1–9000), the same reading: **96.6%**, 96.5% of the solves converged and
 stable (97.3% correct among those, 77% among the rest), 396 ms per query in chunks of 100 (the
 GPU shared with other jobs for part of the run). That is above the first MLP energy (96.1%) and
-the diffusion classifier with its network (95.8%), and below the softmax MLP (97.7%). Calibration
-from ten starts (§7) is not yet measured for this model: at about 3.5 s per query it is hours of
-GPU time.
+the diffusion classifier with its network (95.8%), and below the softmax MLP (97.7%).
+
+Its class probabilities, read as in §7 (ten starts, mid levels, τ and κ fitted on the 1000 tuning
+images, scored on test images 1–1000; 2.1 s per query in chunks of 5):
+
+| reading | accuracy | NLL | calibration error (ECE) | mean max-probability |
+|---|---|---|---|---|
+| Laplace weights, hard assignment | 95.8% | 0.909 | 0.036 | 0.990 |
+| code posterior, τ only (τ at its bound 0.001) | 96.1% | 0.279 | 0.145 | 0.821 |
+| code posterior, τ = 0.001 and κ = 0.57 | 96.1% | **0.154** | **0.015** | 0.970 |
+
+The pattern of §7 holds: the Laplace covariance is too wide (κ = 0.57 shrinks it), a temperature
+alone makes the answers underconfident, and with κ they are calibrated (ECE 0.015 against 0.009
+for the MLP of §7, on fewer test images), at higher accuracy and with a lower NLL (0.154 against
+0.244). 98.8% of the tuning queries have one root.
 
 **What does not work.** The reference needs the convolutions. On the MLP every sample falls into
 one spurious image, the same for every label (10% recognised), with or without clean blocks; the
