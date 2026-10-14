@@ -17,6 +17,13 @@
 >
 > Theory (CT-ML wiki): [Frobenius Monoid](https://mathstruct.org/CategoryTheory-ML-Wiki/Frobenius-Monoid) · [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Functor)
 
+> [!note] Developed in its own repository
+> Language models assembled from implicit learners are now built in
+> [LenticulumLM](https://github.com/MathStruct/LenticulumLM), which depends on Lenticulum.jl
+> and has its own [vault](https://mathstruct.org/LenticulumLM/dev/vault/). Its first step is the
+> structured case of §5: an $n$-gram chain of window relations joined by separators, exact in every
+> query direction. Its roadmap takes up the open points of this note.
+
 ## 1. Product, not mixture
 
 The distinction is not pedantry — the two are different distributions with different behaviour.

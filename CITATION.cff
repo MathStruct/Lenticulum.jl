@@ -2305,3 +2305,26 @@ references:
     year: 2025
     collection-title: "International Conference on Machine Learning (ICML)"
     url: "https://arxiv.org/abs/2503.02819"
+  - type: article
+    title: "Approximation Theory of the MLP Model in Neural Networks"
+    authors:
+      - family-names: "Pinkus"
+        given-names: "Allan"
+    year: 1999
+    journal: "Acta Numerica"
+    volume: "8"
+    start: "143"
+    end: "195"
+    doi: "10.1017/S0962492900002919"
+  - type: article
+    title: "Approximation Capabilities of Multilayer Feedforward Networks"
+    authors:
+      - family-names: "Hornik"
+        given-names: "Kurt"
+    year: 1991
+    journal: "Neural Networks"
+    volume: "4"
+    issue: "2"
+    start: "251"
+    end: "257"
+    doi: "10.1016/0893-6080(91)90009-T"
