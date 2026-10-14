@@ -104,6 +104,47 @@ density in the gap is what makes them stable, and it matters for sampling (§5).
 The adjoint through such a chain (curves $y = x/2$ and $z = y^2$ with a separator, $x$
 clamped) matches central differences to $10^{-5}$ for the clamp and for a parameter of $B$.
 
+**Longer chains** (`examples/chain.jl`). $K$ relations $p_k(x_{k-1}, x_k)$ with separators on the
+inner variables,
+
+$$p(x_0, \dots, x_K) = \frac{\prod_{k=1}^K p_k(x_{k-1}, x_k)}{\prod_{k=1}^{K-1} p(x_k)},$$
+
+so for $K \ge 3$ the outer relations share no variable and a clamp on $x_0$ reaches $x_K$ only
+through the inner ones. Two problems with known answers, $K = 3, 4, 5$:
+
+*A telephone chain.* A bit passed along $K$ links, each flipping it with probability 0.2 (from
+$+1$) or 0.3 (from $-1$). Relation $k$ is a mixture of blobs at $(\pm1, \pm1)$ weighted
+$\pi_{k-1}(a)\,T(a, b)$; the separators are the marginals $\pi_k$. With $x_0 = +1$ held,
+`implicit_mixture` (40·2^K starts) returns every path of the bit as an answer:
+
+| $K$ | paths found | $P(x_K = +1)$ with separators | exact $(T^K)_{11}$ | largest path-weight error | without separators | time |
+|---|---|---|---|---|---|---|
+| 3 | 8 of 8 | 0.6500 | 0.6500 | $<10^{-5}$ | 0.6863 (error 0.062) | 8 s |
+| 4 | 16 of 16 | 0.6250 | 0.6250 | $<10^{-5}$ | 0.6785 (error 0.097) | 6 s |
+| 5 | 32 of 32 | 0.6125 | 0.6125 | $<10^{-5}$ | 0.6776 (error 0.123) | 13 s |
+
+Every path's Laplace weight is its probability $\prod_k T(x_{k-1}, x_k)$. Without the separators
+each inner marginal counts twice, and the error grows with the number of inner variables.
+
+*A chain of curves.* Relation $k$ is the curve $x_k = f(x_{k-1})$, $f(u) = 1.3\sin u$, as 65
+points; $x_0 = 0.6$ is held. The answer approximates $f^K(x_0)$, and the adjoint's
+$\mathrm dx_K/\mathrm dx_0$ is compared with central differences of the solve and with the true
+derivative $(f^K)'(x_0) = \prod_k f'(x_{k-1})$:
+
+| $K$ | levels | largest bias $\lvert x_k - f^k(x_0)\rvert$ | adjoint | central differences | $(f^K)'(x_0)$ |
+|---|---|---|---|---|---|
+| 3 | 0.002–0.05 | 0.044 | 0.8174 | 0.8174 | 0.8673 |
+| 4 | 0.002–0.05 | 0.088 | 0.6763 | 0.6763 | 0.6145 |
+| 5 | 0.002–0.05 | 0.134 | 0.6022 | 0.6022 | 0.3696 |
+| 3 | 0.0005–0.005 | 0.006 | 0.8455 | 0.8455 | 0.8673 |
+| 4 | 0.0005–0.005 | 0.017 | 0.5917 | 0.5917 | 0.6145 |
+| 5 | 0.0005–0.005 | 0.032 | 0.3607 | 0.3607 | 0.3696 |
+
+The adjoint is exact for the smoothed relation at every length. The smoothing bias
+([[Implicit Diffusion Learners]] §5) adds up along the chain, about linearly in $K$, and so does
+the error of the derivative. At ten times lower noise levels both shrink, the bias by about a
+factor of 8 at $K = 3$, and the derivative comes within 3% of the true one at $K = 5$.
+
 ## 5. Sampling a product
 
 `implicit_sample` runs the reverse diffusion with the summed noise prediction
@@ -185,7 +226,8 @@ cost in higher dimensions is not measured.
 
 "products over different variables: separators": the field, Jacobian blocks, JVP and VJP of a
 chain against central differences; the Laplace weights with and without the separator; the
-adjoint through a chain of curves; the energy; the constructor's checks.
+adjoint through a chain of curves; the telephone chain of three relations (all 8 paths, their
+weights and $P(x_3 = +1)$ within $10^{-3}$ of the exact ones); the energy; the constructor's checks.
 
 "sampling a product: corrector steps and reweighting": circle ∩ line, plain (strays above 5%),
 Langevin (strays below 1%, spread 0.05), SMC + MALA (upper share within 0.04 of 0.75); SMC on a

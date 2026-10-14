@@ -116,6 +116,12 @@ a given query, or that the relation is identifiable from data (which relations p
 smoothed ridges?). In flat regions far from data, descent stalls and the solver reports it
 ([[Implicit Diffusion Learners]] §6).
 
+Expressiveness is settled: [[Universal Approximation for Implicit Diffusion Learners]] proves
+that a learner with a smooth network reaches the answers of any target whose answers are
+nondegenerate, uniformly over compact query sets, with answers moving by at most $2\delta/\mu$.
+That gives existence of stable answers near a learned target's, not convergence of the solver
+or consistency of training.
+
 ## Part II. Missing implementation
 
 ### I1. All branches: mixture beliefs and conditional sampling — **done**
@@ -316,7 +322,7 @@ component and its class probabilities were 0 or 1. Built:
 | T8 | hyperparameters | partly open |
 | T9 | composition at $t > 0$ | known obstruction; mild for root finding; corrected for sampling by SMC where log-densities exist |
 | T10 | posterior messages | open design problem |
-| T11 | convergence, existence, identifiability | open |
+| T11 | convergence, existence, identifiability | open; expressiveness proved (universal approximation of answers) |
 | I1 | mixture beliefs, conditional sampling | done: `implicit_mixture` with energy-based weights; `implicit_sample` (hard clamps) |
 | I2 | Laplace (Gaussian) answers | done (`laplace_belief`) |
 | I3 | Gaussian messages from `lib/` | done (`message = :gaussian`) |

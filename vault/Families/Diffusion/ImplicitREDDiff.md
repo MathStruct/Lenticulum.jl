@@ -34,7 +34,7 @@ How do we learn a relation?
 | **Approximator** | multivariate polynomials | algebraic varieties |
 | **Inference** | forward evaluation | root finding |
 | **Backpropagation** | reverse-mode automatic differentiation | implicit function theorem / differential algebra |
-| **Universal approximation** | continuous functions on compacta (Weierstraß) | compact smooth manifolds (Nash–Tognoli) |
+| **Universal approximation** | continuous functions on compacta (Weierstraß) | compact smooth manifolds (Nash–Tognoli); for diffusion learners the answers of any regular target ([[Universal Approximation for Implicit Diffusion Learners]]) |
 | **Well-posedness** | always single-valued | may be multi-valued or empty; in general only the closest point to the variety |
 | **Loss** | $\lVert f_\theta(x) - y\rVert^2$ | $\lVert r_\theta(x_1,\ldots,x_n)\rVert^2$ |
 | **Symmetry** | fixed direction from input to output | symmetric: no distinguished input or output |

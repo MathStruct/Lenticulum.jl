@@ -110,6 +110,11 @@ Relations on different variables compose with pairs `relation => coordinates`, a
 chain whose two modes carry 0.8 and 0.2, the Laplace mixture weighs them 0.80 / 0.20 with it and
 0.94 / 0.06 without.
 
+Longer chains need a separator on every inner variable. In `examples/chain.jl`, a bit passed
+along three to five links (the outer relations share no variable) is answered with every path
+of the bit at its exact probability. The adjoint through a chain of three to five curves
+matches finite differences of the solve, and the smoothing bias adds up along the chain.
+
 ## API
 
 ### The relation, the solver and the adjoint

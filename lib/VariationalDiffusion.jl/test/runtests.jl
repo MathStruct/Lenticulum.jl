@@ -1112,6 +1112,30 @@ end
     # the energy is the weighted sum of the relations' energies on their coordinates
     @test first(implicit_energy(sep, z, ps, st)) ≈ first(implicit_energy(mA, z[1:2], pA, sA)) +
           first(implicit_energy(mB, z[2:3], pB, sB)) - first(implicit_energy(mS, z[2:2], pS, sS))
+    # three relations in a chain, the outer two sharing no variable: a bit passed along three
+    # links (blobs at (±1, ±1), weights π(a) T(a, b)), x₀ = +1 held. The answers are the 8 paths of
+    # the bit with their probabilities, and P(x₃ = +1) is the (+1, +1) entry of T³ (examples/chain.jl)
+    T = [0.8 0.2; 0.3 0.7]
+    B4 = [1.0 1.0 -1.0 -1.0; 1.0 -1.0 1.0 -1.0]
+    st₊(v) = v > 0 ? 1 : 2
+    πs = [[0.5, 0.5]' * T^k for k in 0:3]
+    tel = map(1:3) do k
+        p = NoisePredictor(GaussianMixtureEps(SCHED, B4; s = 0.05, weights = [πs[k][st₊(a)] * T[st₊(a), st₊(b)] for (a, b) in eachcol(B4)]), SCHED)
+        (ImplicitDiffusion(p, n2; λ = density_lambda(SCHED, n2)), LuxCore.setup(Xoshiro(0), p)...)
+    end
+    tsep = map(2:3) do k
+        p = NoisePredictor(GaussianMixtureEps(SCHED, [1.0 -1.0]; s = 0.05, weights = vec(πs[k])), SCHED)
+        (ImplicitDiffusion(p, n1; λ = density_lambda(SCHED, n1)), LuxCore.setup(Xoshiro(0), p)...)
+    end
+    three = ProductRelation(tel[1][1] => [1, 2], tel[2][1] => [2, 3], tel[3][1] => [3, 4], tsep[1][1] => [2], tsep[2][1] => [3];
+                            weights = [1, 1, 1, -1, -1])
+    tp, ts = Tuple(r[2] for r in [tel; tsep]), Tuple(r[3] for r in [tel; tsep])
+    mix, _ = implicit_mixture(three, [1.0, 0, 0, 0], [Inf, 0, 0, 0], tp, ts; nstarts = 320, spread = 1.5)
+    @test length(mix.components) == 8
+    ws = exp.(mix.logw) ./ sum(exp.(mix.logw))
+    paths = [sign.(belief_mean(c)) for c in mix.components]
+    @test all(i -> isapprox(ws[i], prod(T[st₊(a), st₊(b)] for (a, b) in zip([1.0; paths[i][1:2]], paths[i])); atol = 1e-3), eachindex(ws))
+    @test sum(ws[i] for i in eachindex(ws) if paths[i][3] > 0) ≈ (T^3)[1, 1] atol = 1e-3
     # construction errors
     @test_throws ArgumentError ProductRelation(mA => [1, 2], mB => [2, 3], mS => [2]; weights = [1, 1, -2])   # separator outweighs
     @test_throws ArgumentError ProductRelation(mA => [1, 2], mB => [3, 4]; dim = 5)                # coordinate 5 unseen

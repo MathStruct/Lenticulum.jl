@@ -188,6 +188,9 @@ neither exact nor a root-find but a **proximal solve**. Entry point:
   [[The Implicit Diffusion Factor as a Statistical Game]]
 - *composition*: [[Composing Diffusion Factors]] — intersections of learned relations by adding
   fields (a product of experts); conditioning as a special case; exactness at $t > 0$
+- *expressiveness*: [[Universal Approximation for Implicit Diffusion Learners]] — the answers of
+  any target with nondegenerate answers are reached, with an explicit constant; training,
+  consistency and branch points stay open
 - *verdict*: [[Open Problems in Implicit Diffusion Learning]] — theoretical problems (open or
   intrinsic) separated from missing implementation, each with its evidence
 - *alternatives*: [[ProxDM and Proximal Alternatives]] — DPS, ΠGDM, ProxDM, plug-and-play, and

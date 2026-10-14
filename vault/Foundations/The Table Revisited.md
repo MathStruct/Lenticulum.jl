@@ -66,6 +66,11 @@ manifold is *diffeomorphic* to a nonsingular real algebraic variety — not appr
 one. [[Universal Approximation by Nash-Tognoli]] spells this out. They rhyme; they are not
 the same shape of result.
 
+For the diffusion family the analogue is a theorem about answers rather than about the
+relation's shape: [[Universal Approximation for Implicit Diffusion Learners]] proves that the
+stable answers of any target with nondegenerate answers are approximated uniformly over a
+compact set of queries, with an explicit Lipschitz constant, in the data's own coordinates.
+
 What the analogy hides is that **degree is the quantity that matters**, and the table has no
 row for it. [[Depth in Implicit Learning]] shows the degree of a composed chain is $d^L$,
 which is simultaneously the cost of flattening and the expressivity gained by not flattening.

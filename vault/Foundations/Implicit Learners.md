@@ -83,7 +83,9 @@ All three plug into the same factor interface, which is why a factor graph can m
 $r_\theta$ is a vector of polynomials and $R_\theta$ their zero set. Fitting is linear algebra (a
 nullspace problem), and universal approximation is the Nash–Tognoli theorem: compact smooth
 manifolds can be approximated by real algebraic varieties, the implicit counterpart of
-Weierstraß. The implicit function theorem fails exactly at branch points, the discriminant.
+Weierstraß. (For the diffusion family the counterpart is a theorem about answers:
+[[Universal Approximation for Implicit Diffusion Learners]].) The implicit function theorem
+fails exactly at branch points, the discriminant.
 Worked out in [[Algebraic Implicit Learners]] and the notes it indexes.
 
 ### Equilibrium
