@@ -1373,6 +1373,10 @@ end
     @test size(block_times(Xoshiro(1), en, 7)) == (2, 7)
     Tj = block_times(Xoshiro(1), en, 200; joint = 1.0)
     @test Tj[1, :] == Tj[2, :] && all(SCHED.tmin .≤ Tj .≤ 1)
+    Tc = block_times(Xoshiro(1), en, 1000; clean = 1.0)               # one block held at tmin, either one
+    @test all(==(1), vec(sum(Tc .== SCHED.tmin; dims = 1)))
+    @test 400 < count(==(SCHED.tmin), Tc[1, :]) < 600
+    @test 200 < count(c -> any(==(SCHED.tmin), c), eachcol(block_times(Xoshiro(2), en, 1000; clean = 0.3))) < 400
     Tb = block_times(Xoshiro(2), en, 5)
     x₀, εb, wts = randn(Xoshiro(3), 2, 5), randn(Xoshiro(4), 2, 5), [1.0, 7.0]
     L, gr, _ = denoising_gradient(en, x₀, Tb, εb, ps, st; weights = wts)

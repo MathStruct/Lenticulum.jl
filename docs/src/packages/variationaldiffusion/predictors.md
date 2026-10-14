@@ -52,8 +52,9 @@ iteration when 1000 queries are solved together. Results agree with the CPU in F
 `NoisePredictor(net, VPSDE(); input, blocks = [1:784, 785:794])` lets blocks of coordinates sit
 at different noise levels ([bao2023unidiffuser](@cite)). Time is then a number, one time per
 block, or a matrix with a column per input column, and `input` receives the matrix. Train with
-`block_times(rng, pred, B)` (independent times per block) and `denoising_gradient(…; weights)`
-(a loss weight per coordinate). A block held at a low level is a clean condition, a block at
+`block_times(rng, pred, B)` (independent times per block; `clean` holds one block at `tmin` in a
+share of the columns, as queries hold it) and `denoising_gradient(…; weights)` (a loss weight per
+coordinate, or per entry). A block held at a low level is a clean condition, a block at
 level 1 is noise: one network gives the joint score, every conditional and every marginal.
 The closed-form mixture and energy networks handle per-coordinate noise exactly, also on a
 device.

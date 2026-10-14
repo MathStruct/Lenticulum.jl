@@ -215,24 +215,30 @@ held-out points. On the circle it flags about 5% of fresh data at $\alpha = 0.05
 answer to $x = 1.3$ at $p = 0.006$ ([[coverage]]). Open: scores of the free block given the
 clamp, which would separate T4 from T5, and embeddings for high dimensions.
 
-### I10. Real data and higher dimensions — **run on MNIST; both directions condition, images poor**
+### I10. Real data and higher dimensions — **done on MNIST: clean digits and 96.8% from one energy network**
 
-[[MNIST in Both Directions]] §6–7. One energy network on (image, label), 794 coordinates, trained on
-a GPU. Image → label by root finding: 96.1% on 9000 test images, equal to a diffusion classifier
-with the same network (95.8%) and below a softmax MLP (97.7%). With noise blocks (I12) the
-same network also answers label → image: 85.5% of the samples are recognised as their label,
-against 8–25% before. But the samples are mostly noise, and the block-trained network classifies
-one to two points worse than the joint one.
+[[MNIST in Both Directions]] §6–9. One energy network on (image, label), 794 coordinates, trained on
+a GPU. Image → label by root finding: 96.1% on 9000 test images for the first MLP energy, equal to
+a diffusion classifier with the same network (95.8%) and below a softmax MLP (97.7%). With noise
+blocks (I12) the same network also answers label → image, but an MLP energy's samples are mostly
+noise, and a convolutional energy alone (§8) gives digit-like but noisy samples.
 
-A convolutional energy network (§8 of the note) gives samples with digit-like strokes and dark
-backgrounds, but still noisy, and classifies worse (92.8%) and slower (421 ms per query). The
-noise has one cause in both architectures: an energy's scalar head does not learn the
-low-noise score (ε error near 1 at σ ≤ 0.02, though most pixels' noise is recoverable there).
+§9 found the cause at high noise, not at low noise as first thought: the samples' speckles are laid
+down above t ≈ 0.3, where a small ε error is a large image error. Two changes remove them:
+- a **reference energy**, the exact energy of a diagonal Gaussian fitted to the data, to which the
+  network adds the rest;
+- **training on the condition queries use**: `block_times(…; clean)` holds one block at $t_{\min}$ in
+  a share of the columns (uniform times give a clean label in about 1% of them), and that block
+  leaves the loss.
+
+With both, the convolutional energy's samples are clean digits (76.5% recognised with guidance 1),
+and the same network classifies 96.8% of the tuning images (one start, 291 ms per query), above the
+MLP energies (95.0%).
 
 Open:
-- an energy parametrisation that learns the low-noise score (two were tried: dividing by σ, and
-  a denoiser energy, which did not train);
-- classification and generation from one network without the accuracy cost.
+- the reference energy with an MLP: its samples collapse to one spurious image;
+- the reference as a package option (it is in the example's network, its derivatives by AD);
+- the full test set, and how far a larger convolutional energy goes.
 
 ### I11. Nonlinear factors around the learner — **done**
 
@@ -256,8 +262,8 @@ Then "label → image" failed while "image → label" worked. Built:
 - **a noise level per block of coordinates** (UniDiffuser): `NoisePredictor(…; blocks)`, time as one
   value per block in the predictor's input, $\alpha$ and $\sigma$ per coordinate, exact for the
   closed-form mixture and energy networks, also on a device ([[predictor]] §6);
-- **training on independent block times** (`block_times`) with **loss weights per coordinate**
-  (`denoising_gradient(…; weights)`);
+- **training on independent block times** (`block_times`, with `clean` for the held condition)
+  with **loss weights per coordinate** (`denoising_gradient(…; weights)`, also per entry);
 - **block levels in the field** (`ImplicitDiffusion(…; levels)`, `conditional_levels`): clamped
   blocks held clean, so the field is the conditional score ([[implicit]] §9);
 - **held clamps and guidance in the sampler** (`clamp_level`, `guidance`, [[sampler]] §5);
@@ -265,7 +271,9 @@ Then "label → image" failed while "image → label" worked. Built:
 
 Result: on MNIST, 85.5% of label-clamped samples are recognised as their label, against 10.5%
 for the same network sampled the old way. Guidance lowered it (74%). Remaining: image quality
-(I10), and a cost of one to two points in classification for the block-trained network.
+(I10), and a cost of one to two points in classification for the block-trained network. Both
+were fixed on a convolutional energy by a reference energy and by training with one block held
+clean in a share of the columns (`block_times(…; clean)`): clean digits, 96.8% (MNIST §9).
 
 ### I13. Answers of a single root — **done**
 
@@ -317,7 +325,7 @@ component and its class probabilities were 0 or 1. Built:
 | I7 | ProxDM adjoint, factor, sampler | done: adjoint, factor inversion (`ProxDM`), trapezoidal sampler; higher-noise backprop tried (no benefit on the circle) |
 | I8 | composition | done: products on shared and overlapping variables (separators), MCMC correctors and SMC reweighting for sampling |
 | I9 | coverage diagnostics | done: `coverage` (distance, reconstruction, energy as conformal p-values) |
-| I10 | real data, higher dimensions | MNIST: image → label 96.1% (= diffusion classifier); label → image conditions with noise blocks (85.5% recognised); a conv energy gives digit-like but noisy images; open: the low-noise score of an energy |
+| I10 | real data, higher dimensions | done on MNIST: a conv energy with a Gaussian reference energy and clean-block training gives clean digits (76.5% recognised) and classifies 96.8% with the same network; open: the reference with an MLP, as a package option |
 | I11 | nonlinear factors | done: `NonlinearFactor` (EKF, UKF, iterated) |
 | I12 | both directions of one relation | done: noise blocks, block times, loss weights, held clamps, guidance (MNIST: 85.5% against 10.5%) |
 | I13 | answers of a single root | done: calibrated code posterior (ECE 0.009), unassigned flag, precision-aware tolerances, trust-region solver (MNIST modes 19/20 against 0/20), cost model (ratio within 10%) |

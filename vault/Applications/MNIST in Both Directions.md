@@ -111,9 +111,10 @@ answers.** These are open problems I12 and I13 in [[Open Problems in Implicit Di
     found none (§7). Continuation in the noise level, tried first, reached 3–4 of 10.
 12. **Tolerances that follow the arithmetic** — *done*: `default_tolerance` (about 1e-6 for Float32
     on a device).
-13. **A convolutional energy network** — *tried* (§8): image-like samples with strokes and dark
-    backgrounds, but still noisy, and slower and less accurate as a classifier. The bottleneck is
-    the low-noise score of an energy parametrisation, not the convolutions.
+13. **A convolutional energy network** — *done* (§8–9): alone, image-like but noisy samples and a
+    weaker classifier. With a Gaussian reference energy and training that holds a block clean as
+    queries do, clean digits (76.5% recognised with guidance 1) and 96.8% classification from the
+    same network.
 
 ## 5. What the tutorial was meant to show
 
@@ -240,7 +241,7 @@ samples are mostly noise; the old model's few clean digits do not reappear:
 ![Samples with the label held clean (rows: 0 to 9), block-trained energy network](https://raw.githubusercontent.com/MathStruct/Lenticulum.jl/master/docs/src/assets/mnist_samples_blocks.png)
 
 The bottleneck is the image score of an MLP energy over 794 coordinates (item 13), not the
-conditioning.
+conditioning; §9 locates it at high noise and in the held condition's training.
 
 **Image → label, held against joint.** One start, argmax of the root, tuning images 9001–10000,
 same network:
@@ -330,22 +331,19 @@ and 9s. They are recognised less often, because the MLP's noise carried label-sp
 that its judge picked up, and the conv model's conditioning is weaker (guidance now helps, by
 11 points). Both are still covered in pixel noise.
 
-**Why the noise stays.** The image's ε error per pixel, label held clean, on 500 test images:
+**The error per noise level.** The image's ε error per pixel, label held clean, on 500 test images:
 
 | t (σ) | 0.001 (0.01) | 0.003 (0.02) | 0.01 (0.045) | 0.03 (0.11) | 0.1 (0.32) | 0.3 (0.78) | 0.7 (1.0) |
 |---|---|---|---|---|---|---|---|
 | MLP energy | 0.997 | 0.992 | 0.948 | 0.744 | 0.284 | 0.100 | 0.046 |
 | conv energy | 0.971 | 0.902 | 0.574 | 0.322 | 0.167 | 0.102 | 0.044 |
 
-At low noise both predict almost nothing (an error of 1 is ε = 0). About 80% of MNIST pixels are
-exactly background, and for them the noise is recoverable, ε = (x + α)/σ: the ideal error at low
-noise is far below 1. An energy has to produce that as a curvature of order 1/σ² per pixel, and a
-scalar head does not learn it. So the low-noise steps of the reverse diffusion leave the noise
-where it is. The convolutions help in the middle range (0.32 against 0.74 at t = 0.03), which is
-where the strokes come from. Stopping the sampler earlier and returning Tweedie's estimate
-there (`TMIN=0.03`) does not remove the noise, which was laid down along the whole low-noise part.
+At low noise both predict almost nothing (an error of 1 is ε = 0), though about 80% of MNIST
+pixels are exactly background and their noise is recoverable. This section first took that for
+the cause of the noisy samples. It is not: an ε error of 1 at σ = 0.02 leaves a pixel error of
+0.02, which is invisible. §9 finds the cause at the other end of the noise range, and a fix.
 
-Two parametrisations aimed at the low-noise end were tried and dropped:
+Two parametrisations aimed at the low-noise end were tried first and dropped:
 - the energy divided by the image block's σ, $E = E_\text{net}/\sigma_x$: error 0.92 at the lowest level
   instead of 0.97, recognition 36%; no visible change;
 - a denoiser energy, $E = \tfrac12\sum_i ((z_i - D_i)/\sigma_i)^2$ with $D = z + U$, which has the right
@@ -358,7 +356,71 @@ Two parametrisations aimed at the low-noise end were tried and dropped:
 block needs ten Hessian-vector products through the convolutions, in chunks of 100 queries.
 
 So the convolutions improve the images' structure but not their noise, and cost the classifier.
-For image quality the open problem is the low-noise score of an energy parametrisation.
+
+## 9. Where the noise came from, and a fix (October 2026)
+
+**Where.** `denoise_eval.jl` noises 50 test images to a level t₀ (label held clean), runs the
+sampler's steps from there down to $t_{\min}$ and counts the pixels of the 3-pixel border,
+background in every digit, that end brighter than −0.5:
+
+| border speckles, started at t₀ (σ) | 0.1 (0.32) | 0.3 (0.78) | 0.5 (0.96) | 1.0 (1.0) |
+|---|---|---|---|---|
+| MLP energy (§7) | 0.7% | 1.3% | 13.6% | 48.7% |
+| conv energy (§8) | 1.0% | 9.0% | 16.3% | 18.6% |
+| conv energy with the reference energy | 0.4% | 0.3% | 0.4% | 1.7% |
+| … and clean blocks in training, held block out of the loss | 0.3% | 0.2% | 0.2% | 0.2% |
+
+From a real image noised to 0.1 both energies come back almost clean; the speckles come from the
+part of the reverse diffusion above t ≈ 0.3. There the denoised estimate is
+$(x - \sigma\hat\varepsilon)/\alpha$ with $\sigma/\alpha$ up to 150, and an ε error that looks small
+(0.044 at t = 0.7) is a large error in the image: the Gaussian below has 0.002 there.
+
+**Two causes.**
+1. *The energy has to build the Gaussian part itself.* At high noise the score is almost that of a
+   Gaussian, an energy $\tfrac12\lVert x\rVert^2$-like over 794 coordinates, and the networks get it
+   wrong. `REF=1` adds the exact energy of a diagonal Gaussian fitted to the data,
+   $E_\text{ref}(x, t) = \sum_i (x_i - \alpha_i\mu_i)^2 / 2(\alpha_i^2 v_i + \sigma_i^2)$, and the network
+   learns the rest. A pixel that is background in every training image ($v_i \approx 0$) gets
+   curvature $1/\sigma^2$ from it at every level.
+2. *Training never sees the condition the sampler uses.* The sampler holds the label clean; block
+   times uniform on $[t_{\min}, 1]$ give a label that clean in about 1% of the columns. On the MLP
+   with the reference, the image's ε error at t = 0.7 is 0.002 with the label noised with the image
+   and 0.073 with it held clean (0.027 against 0.047 for the MLP of §7). `block_times(…; clean)`
+   holds one block, chosen at random, at $t_{\min}$ in the given fraction of the columns, and
+   `HELD_LOSS=0` leaves that block out of the loss: it is a condition there, not a target.
+
+**Result** (conv energy, `REF=1 CLEAN=0.5 HELD_LOSS=0`, otherwise as §8). The ε error per pixel:
+
+| t (σ) | 0.001 (0.01) | 0.003 (0.02) | 0.01 (0.045) | 0.03 (0.11) | 0.1 (0.32) | 0.3 (0.78) | 0.7 (1.0) |
+|---|---|---|---|---|---|---|---|
+| conv energy (§8) | 0.971 | 0.902 | 0.574 | 0.322 | 0.167 | 0.102 | 0.044 |
+| with the reference and clean blocks | 0.836 | 0.754 | 0.519 | 0.227 | 0.096 | 0.050 | 0.002 |
+
+Label → image, 20 samples per class, the same judge:
+
+| sampler | MLP energy (§7) | conv (§8) | conv, reference | … clean blocks | … held block out of the loss |
+|---|---|---|---|---|---|
+| label held clean | 85.5% | 31.0% | 21.0% | 37.0% | 49.0% |
+| held, guidance 1 | 74.0% | 42.5% | 15.0% | 72.0% | **76.5%** |
+| held, guidance 3 | 71.5% | 27.5% | 12.0% | 60.0% | 71.5% |
+| label replaced | 10.5% | 11.5% | 12.5% | 11.0% | 10.5% |
+
+![Samples of the conv energy with the reference energy and clean blocks, label held clean, guidance 1 (rows: 0 to 9)](https://raw.githubusercontent.com/MathStruct/Lenticulum.jl/master/docs/src/assets/mnist_samples_conv_ref.png)
+
+The samples are digits on a clean background, with strokes and no pixel noise; most are legible.
+The MLP of §7 scores higher on the judge with images that are mostly noise: the judge reads
+label-specific structure in the noise, so its rate is not a measure of image quality.
+
+Image → label with the same network (one start, levels 0.05–0.2, the 1000 tuning images, default
+tolerance): **96.8%**, 94% of the solves converged, 291 ms per query in chunks of 50. That is above
+the MLP energy of §7 (95.0%) and the conv energy of §8 (92.8%): the clean blocks train the
+classifier's condition too, where the image is held clean.
+
+**What does not work.** The reference needs the convolutions. On the MLP every sample falls into
+one spurious image, the same for every label (10% recognised), with or without clean blocks; the
+MLP with clean blocks and no reference keeps its speckles (48% from t₀ = 1, 19–29% recognised).
+The reference sits in the example's network (`with_reference` in `common.jl`, its derivatives by
+AD); the package has no such option yet.
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]], [[Composing Diffusion Factors]],
 [[Open Problems in Implicit Diffusion Learning]], [[Language Models]], [[Motivating Examples]]

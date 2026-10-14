@@ -182,7 +182,8 @@ and its gradient with respect to the parameters, through [`epsilon_vjp_params`](
 number, a `1 × B` row, or with noise blocks a `(#blocks × B)` matrix ([`block_times`](@ref)): each
 coordinate is noised at its block's level, ``x_t = \\alpha \\odot x_0 + \\sigma \\odot \\varepsilon``.
 `weights` (one per coordinate, default all 1) weights the loss coordinate by coordinate: a small
-block such as a label needs a large weight to count next to a large one.
+block such as a label needs a large weight to count next to a large one. A matrix the size of
+`x₀` weights every entry, e.g. to leave out a block that a column holds clean.
 
 For an [`EnergyNetwork`](@ref) this is the training step: the loss already contains a derivative
 of the network, and this computes the loss gradient as one mixed second derivative, with no
@@ -199,20 +200,26 @@ function denoising_gradient(p::NoisePredictor, x₀, t, ε, ps, st; weights = no
 end
 
 """
-    block_times(rng, p::NoisePredictor, B; joint = 0.0) -> Matrix
+    block_times(rng, p::NoisePredictor, B; joint = 0.0, clean = 0.0) -> Matrix
 
 Training times for a predictor with noise blocks: a `(#blocks × B)` matrix, each entry drawn
 uniformly from `[tmin, 1]` independently (UniDiffuser), so the network learns every block at
 every level: a block at `tmin` is a clean condition, a block at 1 is marginalised away. With
 `joint` the given fraction of the columns has one time shared by all blocks instead, the joint
-model's training distribution.
+model's training distribution. With `clean` the given fraction of the remaining columns has one
+block, chosen uniformly, at exactly `tmin`: the condition of a query that holds that block clean
+([`conditional_levels`](@ref), `clamp_level`), which uniform times reach in only about a
+fraction `0.01` of the columns.
 """
-function block_times(rng::AbstractRNG, p::NoisePredictor, B::Integer; joint::Real = 0.0)
+function block_times(rng::AbstractRNG, p::NoisePredictor, B::Integer; joint::Real = 0.0, clean::Real = 0.0)
     s = p.schedule
     nb = nblocks(p)
     T = s.tmin .+ (1 - s.tmin) .* rand(rng, nb, B)
     shared = rand(rng, B) .< joint
     T[:, shared] .= T[1:1, shared]
+    for b in findall(.!shared .& (rand(rng, B) .< clean))
+        T[rand(rng, 1:nb), b] = s.tmin
+    end
     return T
 end
 

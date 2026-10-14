@@ -59,7 +59,50 @@ const KIND = get(ENV, "KIND", "energy")
 const WIDTH = 1024
 mlp() = Chain(Dense(N + 2NBLOCKS * length(FREQ) => WIDTH, swish), Dense(WIDTH => WIDTH, swish),
               Dense(WIDTH => WIDTH, swish), Dense(WIDTH => KIND == "eps" ? N : 1))
-network() = KIND == "conv" ? conv_energy() : mlp()
+network() = (net = KIND == "conv" ? conv_energy() : mlp(); REF && KIND != "eps" ? with_reference(net) : net)
+
+# REF=1: the energy is the exact energy of a diagonal Gaussian fitted to the data, plus the network.
+# If x₀ ~ N(μ, diag v), then x_t ~ N(αμ, diag(α²v + σ²)) and
+#
+#     E_ref(x, t) = Σᵢ (xᵢ - αᵢμᵢ)² / 2(αᵢ²vᵢ + σᵢ²),
+#
+# with α and σ of each coordinate's block. The network learns the residual. At high noise E_ref is
+# already the right score up to the data's correlations; a pixel that is background in every
+# training image (vᵢ ≈ 0) gets curvature 1/σ², which pulls it back to the background at every level.
+# The model of `MNIST in Both Directions.md` §9: REF=1 KIND=conv BLOCKS=1 LABEL_WEIGHT=100 CLEAN=0.5
+# HELD_LOSS=0 (train.jl). With the MLP it does not work: the samples collapse to one image.
+const REF = get(ENV, "REF", "0") == "1"
+function reference_moments()
+    f = joinpath(OUT, "reference.jld2")
+    isfile(f) && return JLD2.load(f, "μ"), JLD2.load(f, "v")
+    Z, _ = joint(:train)
+    μ, v = vec(mean(Z; dims = 2)), max.(vec(var(Z; dims = 2)), 1e-4)       # floor: curvature ≤ 1/1e-4
+    JLD2.save(f, Dict("μ" => μ, "v" => v))
+    return μ, v
+end
+const ISIMAGE = [ones(NX); zeros(NY)]                  # with blocks: 1 on the image block's rows
+function with_reference(net)
+    μ, v = reference_moments()
+    nf = NBLOCKS * length(FREQ)
+    return @compact(net = net) do inp
+        μd, vd, img = Zygote.@ignore (inp isa Array ? (μ, v, ISIMAGE) :
+            (copyto!(similar(inp, Float32, N), μ), copyto!(similar(inp, Float32, N), v), copyto!(similar(inp, Float32, N), ISIMAGE)))
+        T = eltype(μd)
+        # each block's time from its lowest-frequency feature, sin and cos of π t
+        t = vcat([atan.(inp[N + (b - 1) * length(FREQ) + 1:N + (b - 1) * length(FREQ) + 1, :],
+                        inp[N + nf + (b - 1) * length(FREQ) + 1:N + nf + (b - 1) * length(FREQ) + 1, :])
+                  for b in 1:NBLOCKS]...) ./ T(π)
+        # in the arithmetic of the input: a Float64 constant would make the GPU gradients Float64,
+        # which cuDNN's convolutions do not take
+        Bt = T(SCHED.βmin) .* t .+ T((SCHED.βmax - SCHED.βmin) / 2) .* t .^ 2
+        α, σ² = exp.(-Bt ./ 2), -expm1.(-Bt)                                  # NBLOCKS × B
+        # each coordinate's α and σ² (by broadcasting: an index vector would gather scalars on a GPU)
+        A, S² = BLOCKS ? (img .* α[1:1, :] .+ (1 .- img) .* α[2:2, :], img .* σ²[1:1, :] .+ (1 .- img) .* σ²[2:2, :]) : (α, σ²)
+        x = inp[1:N, :]
+        Eref = sum((x .- A .* μd) .^ 2 ./ (2 .* (A .^ 2 .* vd .+ S²)); dims = 1)
+        @return net(inp) .+ Eref
+    end
+end
 
 # KIND=conv: a convolutional energy. The image goes through three 3×3 convolutions (28 → 14 → 7
 # pixels, 32 → 64 → 64 channels); the time features and the label are the conditioning vector,
@@ -96,7 +139,8 @@ load_model() = (d = JLD2.load(modelfile()); (d["ps"], d["st"]))
 
 # queries solved together: the batched Jacobian block stacks |F| = 10 copies of every node input,
 # 40000 columns at 1000 queries, which a convolutional network's activations do not fit in 10 GB
-const CHUNK = parse(Int, get(ENV, "CHUNK", KIND == "conv" ? "100" : "1000"))
+# (with the reference energy, not 100 queries either)
+const CHUNK = parse(Int, get(ENV, "CHUNK", KIND == "conv" ? (REF ? "50" : "100") : "1000"))
 
 # the field's nodes for a query: `samples` antithetic draws at each level
 query_nodes(levels; samples = 2, rng = Xoshiro(1)) = field_nodes(rng, N; levels, samples)

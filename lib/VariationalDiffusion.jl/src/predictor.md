@@ -148,10 +148,14 @@ score $\nabla\log p_t(x_F\mid x_C)$. A block at level 1 is noise, and the output
 of the others. One network then serves the joint, every conditional and every marginal, which a
 relation queried in every direction needs ([[MNIST in Both Directions]] §6–7).
 
-- **Training**: `block_times(rng, pred, B; joint)` draws each block's time independently from
-  $[t_{\min}, 1]$ (a fraction `joint` of the columns shares one time), and
+- **Training**: `block_times(rng, pred, B; joint, clean)` draws each block's time independently from
+  $[t_{\min}, 1]$ (a fraction `joint` of the columns shares one time; a fraction `clean` of the
+  rest holds one block at exactly $t_{\min}$, the condition a query that holds a block clean uses,
+  which uniform times reach in about 1% of the columns), and
   `denoising_gradient(pred, x₀, T, ε, ps, st; weights)` noises each coordinate at its block's level.
-  `weights` weights the loss per coordinate; a small block (a label) needs a large weight.
+  `weights` weights the loss per coordinate, or per entry as a matrix; a small block (a label)
+  needs a large weight, and a block held clean can be left out (weight 0): it is a condition there.
+  On MNIST this training is what made label → image samples clean ([[MNIST in Both Directions]] §9).
 - **The closed-form mixture** stays exact. With a variance per coordinate,
   $p_\tau(x) = \sum_j w_j\,\mathcal N(x;\ \alpha\odot\mu_j,\ \operatorname{diag}(\alpha^2 s^2 + \sigma^2))$; its Jacobian is
   $\operatorname{diag}(\sigma)$ times a symmetric matrix, so the JVP and the VJP are now separate formulas.
