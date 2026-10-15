@@ -154,7 +154,8 @@ Two supporting techniques, both standard:
   the first few frames there are no new kinds.
 
 The residual honest cost: the first frame of each new factor type pays a compile, and the
-masked capacity is wasted work proportional to slack.
+masked capacity is wasted work proportional to slack. What adding and deleting mean for the
+beliefs, and when to do them, is [[Dynamic Graphs]].
 
 ## 6. Autodiff: the implicit structure is an asset here, not a liability
 

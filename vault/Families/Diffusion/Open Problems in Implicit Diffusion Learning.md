@@ -308,6 +308,15 @@ component and its class probabilities were 0 or 1. Built:
   labels root finding is never cheaper; with a $d$-dimensional label code it is above about
   $10d + 4$ classes ([[implicit]] §12).
 
+### I14. Diffusion factors in a changing graph — **open**
+
+A graph that gains and loses edges while it runs (SLAM) needs a learned factor to work with
+some of its channels absent. With noise blocks that is a noise level: a block held at $t = 1$
+is marginalised away, so a factor trained on block times for all its channels can drop an edge
+without changing its parameters. Open: the graph operation that sets the levels when an edge is
+added or removed, and a test that the factor's answers with channels marginalised are right
+([[Dynamic Graphs]] §5).
+
 ## Summary
 
 | | problem | kind |
@@ -336,6 +345,7 @@ component and its class probabilities were 0 or 1. Built:
 | I11 | nonlinear factors | done: `NonlinearFactor` (EKF, UKF, iterated) |
 | I12 | both directions of one relation | done: noise blocks, block times, loss weights, held clamps, guidance (MNIST: 85.5% against 10.5%) |
 | I13 | answers of a single root | done: calibrated code posterior (ECE 0.009), unassigned flag, precision-aware tolerances, trust-region solver (MNIST modes 19/20 against 0/20), cost model (ratio within 10%) |
+| I14 | diffusion factors in a changing graph | open: edges absent as blocks held at $t = 1$ ([[Dynamic Graphs]]) |
 
 Related: [[Implicit Diffusion Learners]], [[Inference Signatures]], [[Backpropagation through Implicit Inference]],
 [[The Diffusion Factor]], [[The Implicit Diffusion Factor as a Statistical Game]], [[energy_network]],

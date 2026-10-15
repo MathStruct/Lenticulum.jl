@@ -67,6 +67,9 @@ which is what a robust back end needs in order to reject it.
 - **The competition is excellent.** GTSAM and `IncrementalInference.jl` are mature, and the
   latter already handles non-Gaussian multimodal beliefs with clique recycling for incremental
   updates ([[Related Julia Projects]] §6).
+- **The graph changes while it runs**: poses and measurements arrive, old poses are
+  marginalised, false loop closures are switched off. Lenticulum's graphs are built once and
+  frozen; what changing them would take is [[Dynamic Graphs]].
 
 The honest niche is therefore not "another SLAM back end" but **SLAM with learned components
 and calibrated uncertainty over both halves** — which is the part the existing tools are least

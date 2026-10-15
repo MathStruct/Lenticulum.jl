@@ -2328,3 +2328,107 @@ references:
     start: "251"
     end: "257"
     doi: "10.1016/0893-6080(91)90009-T"
+  - type: article
+    title: "Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms"
+    authors:
+      - family-names: "Yedidia"
+        given-names: "Jonathan S."
+      - family-names: "Freeman"
+        given-names: "William T."
+      - family-names: "Weiss"
+        given-names: "Yair"
+    year: 2005
+    journal: "IEEE Transactions on Information Theory"
+    volume: "51"
+    issue: "7"
+    start: "2282"
+    end: "2312"
+    doi: "10.1109/TIT.2005.850085"
+  - type: conference-paper
+    title: "Switchable Constraints for Robust Pose Graph SLAM"
+    authors:
+      - family-names: "Sünderhauf"
+        given-names: "Niko"
+      - family-names: "Protzel"
+        given-names: "Peter"
+    year: 2012
+    collection-title: "IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)"
+    start: "1879"
+    end: "1884"
+    doi: "10.1109/IROS.2012.6385590"
+  - type: conference-paper
+    title: "Robust Map Optimization Using Dynamic Covariance Scaling"
+    authors:
+      - family-names: "Agarwal"
+        given-names: "Pratik"
+      - family-names: "Tipaldi"
+        given-names: "Gian Diego"
+      - family-names: "Spinello"
+        given-names: "Luciano"
+      - family-names: "Stachniss"
+        given-names: "Cyrill"
+      - family-names: "Burgard"
+        given-names: "Wolfram"
+    year: 2013
+    collection-title: "IEEE International Conference on Robotics and Automation (ICRA)"
+    start: "62"
+    end: "69"
+    doi: "10.1109/ICRA.2013.6630557"
+  - type: conference-paper
+    title: "Inference on Networks of Mixtures for Robust Robot Mapping"
+    authors:
+      - family-names: "Olson"
+        given-names: "Edwin"
+      - family-names: "Agarwal"
+        given-names: "Pratik"
+    year: 2012
+    collection-title: "Robotics: Science and Systems (RSS)"
+    doi: "10.15607/RSS.2012.VIII.040"
+  - type: article
+    title: "Graduated Non-Convexity for Robust Spatial Perception: From Non-Minimal Solvers to Global Outlier Rejection"
+    authors:
+      - family-names: "Yang"
+        given-names: "Heng"
+      - family-names: "Antonante"
+        given-names: "Pasquale"
+      - family-names: "Tzoumas"
+        given-names: "Vasileios"
+      - family-names: "Carlone"
+        given-names: "Luca"
+    year: 2020
+    journal: "IEEE Robotics and Automation Letters"
+    volume: "5"
+    issue: "2"
+    start: "1127"
+    end: "1134"
+    doi: "10.1109/LRA.2020.2965893"
+  - type: conference-paper
+    title: "Net2Net: Accelerating Learning via Knowledge Transfer"
+    authors:
+      - family-names: "Chen"
+        given-names: "Tianqi"
+      - family-names: "Goodfellow"
+        given-names: "Ian"
+      - family-names: "Shlens"
+        given-names: "Jonathon"
+    year: 2016
+    collection-title: "International Conference on Learning Representations (ICLR)"
+    url: "https://arxiv.org/abs/1511.05641"
+  - type: conference-paper
+    title: "Deep Sets"
+    authors:
+      - family-names: "Zaheer"
+        given-names: "Manzil"
+      - family-names: "Kottur"
+        given-names: "Satwik"
+      - family-names: "Ravanbakhsh"
+        given-names: "Siamak"
+      - family-names: "Poczos"
+        given-names: "Barnabas"
+      - family-names: "Salakhutdinov"
+        given-names: "Ruslan"
+      - family-names: "Smola"
+        given-names: "Alexander"
+    year: 2017
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/1703.06114"

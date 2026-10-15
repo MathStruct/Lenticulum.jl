@@ -152,6 +152,8 @@ counterpart in Lux.
 - [[Schedules]] — the schedule zoo; tree exactness; pruning by edge direction
 - [[Bethe Free Energy]] — Theorem 23 generalised to graphs; energies add, entropies get a counting correction
 - [[Loopy Message Passing]] — what breaks off a tree, and the monodromy problem
+- [[Dynamic Graphs]] — adding and deleting factors while the graph runs (SLAM); the Bethe free
+  energy as the criterion; edges of a diffusion factor as noise levels
 - [[The Linear Gaussian Chain]] — **the worked example**: GTSAM's `OdometryExample`, exact
   marginals against the joint information matrix, and what this library is *not*
 
