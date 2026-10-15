@@ -8,10 +8,13 @@ on:
 permissions:
   contents: write      # deploydocs pushes to gh-pages
   statuses: write
-# master and the preview both push to gh-pages; queue them instead of racing
+# One group per branch or tag: a newer push to the same branch replaces an older run, but a
+# release's docs are never displaced by a branch's (one shared group keeps only one waiting run
+# and cancels the rest, which cancelled the docs of 20261015-proto). Deploys to gh-pages from
+# different groups can overlap; they take seconds, and deploy_vault.sh retries a rejected push.
 concurrency:
-  group: docs-deploy-${{ github.event_name == 'pull_request' && github.ref || 'gh-pages' }}
-  cancel-in-progress: false
+  group: docs-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   docs:
     name: API docs + theory vault

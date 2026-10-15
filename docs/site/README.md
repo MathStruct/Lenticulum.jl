@@ -9,7 +9,7 @@ footer points back.
 | branch | vault | API docs |
 |---|---|---|
 | `master` | `<site>/` | `<site>/api/dev/` |
-| `dev-danielb` (preview) | `<site>/preview/` | `<site>/api/preview/` |
+| `dev-danielb` (the maintainer's branch: the preview) | `<site>/preview/` | `<site>/api/preview/` |
 | a release tag | (unchanged) | `<site>/api/<tag>/` |
 
 `docs/make.jl` builds both and deploys the API docs (`deploydocs(dirname = "api")`); the Docs

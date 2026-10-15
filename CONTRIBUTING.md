@@ -17,14 +17,19 @@ and says so; a claim in a note that no test or measurement backs is a claim, not
 you find something wrong, that is a contribution, and a welcome one: open an issue, comment on
 the page, or fix it.
 
-Development happens on the branch `dev-danielb`, by one person, and is merged into `master`,
-which is what the site publishes: the vault at [mathstruct.org/Lenticulum.jl](https://mathstruct.org/Lenticulum.jl/),
-the API documentation under [api/dev](https://mathstruct.org/Lenticulum.jl/api/dev/). Every push
-to `dev-danielb` deploys a preview of both, the vault to
-[mathstruct.org/Lenticulum.jl/preview](https://mathstruct.org/Lenticulum.jl/preview/),
-because Quartz renders some things differently from Obsidian and a page is checked on the real
-site before it is merged. Pull requests go to `master` and are welcome; once there are more
-contributors, `master` will be protected and every change will go through one.
+The branches:
+
+| branch | what it is |
+|---|---|
+| `master` | what the site publishes: the vault at [mathstruct.org/Lenticulum.jl](https://mathstruct.org/Lenticulum.jl/), the API documentation under [api/dev](https://mathstruct.org/Lenticulum.jl/api/dev/) |
+| `dev` | the shared branch for work in between: pull requests go here, and it is merged into `master` once checked |
+| `dev-danielb` | the maintainer's own branch; every push to it deploys a preview of the whole site, the vault to [mathstruct.org/Lenticulum.jl/preview](https://mathstruct.org/Lenticulum.jl/preview/) |
+
+Work on a branch of your own (or a fork) and open a pull request into `dev`. The preview exists
+because Quartz renders some things differently from Obsidian, and a page is checked on the real
+site before it is merged; to check yours before opening a pull request, run
+`docs/site/build.sh --serve` (below). Once there are more contributors, `master` will be
+protected and every change will reach it through `dev`.
 
 ## Ways to contribute
 

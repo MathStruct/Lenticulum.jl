@@ -16,12 +16,13 @@ written quickly, a lot of it with AI agents, and not all of it has been reviewed
 - Do not add claims you have not checked. A result goes into a note with the test or the run
   that produced it; anything else is labelled as a conjecture or an expectation.
 
-Development happens on the branch `dev-danielb`, by one person; `master` is what the
-documentation site publishes, and `dev-danielb` is merged into it once the change has been
-checked. The site is mathstruct.org/Lenticulum.jl: the vault at the root, the API docs under
-`api/dev/`. A push to `dev-danielb` deploys a preview, the vault to `<site>/preview/` and the
-API docs to `<site>/api/preview/` (`docs/make.jl` chooses from the branch; `docs/site/README.md`). Work on `dev-danielb` unless told otherwise,
-and do not commit, push or merge unless you are asked to.
+Branches: `master` is what the site publishes (mathstruct.org/Lenticulum.jl: the vault at the
+root, the API docs under `api/dev/`); `dev` is the shared branch where others' work comes
+together, by pull request; `dev-danielb` is the maintainer's (Daniel Boigk's) own branch, and a
+push to it deploys a preview of the site, the vault to `<site>/preview/` and the API docs to
+`<site>/api/preview/` (`docs/make.jl` chooses from the branch; `docs/site/README.md`).
+Working for the maintainer, use `dev-danielb`; working for anyone else, use a branch of your
+own and target `dev`. Do not commit, push or merge unless you are asked to.
 
 ## The repository
 
