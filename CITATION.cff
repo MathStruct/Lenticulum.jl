@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it using the metadata from this file."
 type: software
 title: "Lenticulum.jl: learning relations on factor graphs"
-version: "20261008-proto"
+version: "20261015-proto"
 doi: 10.5281/zenodo.23314723
 authors:
   - family-names: Boigk
