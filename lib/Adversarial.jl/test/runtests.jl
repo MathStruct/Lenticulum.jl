@@ -47,7 +47,46 @@ end
 const RNG = Random.default_rng()
 _mean(v) = sum(v) / length(v)
 
+struct LinearLogRatio <: LuxCore.AbstractLuxLayer end
+(::LinearLogRatio)(x, ps, st) = (1000 * only(x), st)
+
 @testset "Adversarial" begin
+
+@testset "matrix columns and vector particles agree" begin
+    X = [1.0 3.0 5.0; 2.0 4.0 6.0]
+    weights = [0.2, 0.3, 0.5]
+    matrix = SampleBelief(X, weights)
+    vector = SampleBelief(collect(eachcol(X)), weights)
+    @test weighted_mean(matrix) ≈ [3.6, 4.6]
+    @test weighted_mean(matrix) ≈ weighted_mean(vector)
+    @test weighted_cov(matrix) ≈ weighted_cov(vector)
+    @test weighted_mean(SampleBelief(X)) ≈ [3.0, 4.0]
+    @test effective_sample_size(SampleBelief(X)) == 3
+    @test effective_sample_size(matrix) ≈ effective_sample_size(vector)
+    generator = GeneratorFactor(LinearGen(2.0I(2), zeros(2)), (z = 2, x = 2))
+    ps, st = LuxCore.setup(MersenneTwister(0), generator)
+    out, _ = pushforward(generator, matrix, ps, st)
+    @test out.samples == collect(eachcol(2 .* X))
+    @test out.weights == weights
+    ratio = RatioFactor(AnalyticRatio(0.0, 1.0, 1.0, 1.0), 1)
+    x = reshape([-1.0, 0.0, 1.0], 1, :)
+    a, _ = reweight(ratio, SampleBelief(x, weights), (;), (;))
+    b, _ = reweight(ratio, SampleBelief(collect(eachcol(x)), weights), (;), (;))
+    @test a.samples === x
+    @test a.weights ≈ b.weights
+    @test first(Mycelium.local_free_energy(ratio, (x = SampleBelief(x, weights),), (;), (;))) ≈
+          first(Mycelium.local_free_energy(ratio, (x = SampleBelief(collect(eachcol(x)), weights),), (;), (;)))
+end
+
+@testset "importance reweighting preserves zero prior support" begin
+    f = RatioFactor(LinearLogRatio(), 1)
+    b, _ = reweight(f, SampleBelief([[0.0], [1.0]], [1.0, 0.0]), (;), (;))
+    @test b.weights == [1.0, 0.0]
+    a, _ = reweight(f, SampleBelief([[0.0], [1.0]], [0.0, 1.0]), (;), (;))
+    @test a.weights == [0.0, 1.0]
+    c, _ = reweight(f, SampleBelief([[0.0], [0.001]], [0.5, 0.5]), (;), (;))
+    @test c.weights ≈ [1 / (1 + exp(1)), exp(1) / (1 + exp(1))]
+end
 
 @testset "NoiseSource: the first SampleBelief anything has ever produced" begin
     f = NoiseSource(:z, 3; nsamples = 500, rng = MersenneTwister(1))

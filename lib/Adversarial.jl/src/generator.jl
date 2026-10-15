@@ -185,9 +185,10 @@ is a bijection on particle indices. That is why importance weights survive a gen
 [`RatioFactor`](@ref) can be applied downstream of one.
 """
 function LenticulumCore.pushforward(f::GeneratorFactor, b::LenticulumCore.SampleBelief, ps, st)
-    out = similar(b.samples, Any)
-    for i in eachindex(b.samples)
-        y, st = generate(f, b.samples[i], ps, st)
+    pts = _points(b)
+    out = Vector{Any}(undef, length(pts))
+    for i in eachindex(pts)
+        y, st = generate(f, pts[i], ps, st)
         out[i] = y
     end
     return (LenticulumCore.SampleBelief([out[i] for i in eachindex(out)], b.weights), st)

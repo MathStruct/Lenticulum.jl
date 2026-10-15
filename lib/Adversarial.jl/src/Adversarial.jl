@@ -64,6 +64,7 @@ using Mycelium: Mycelium
 _get(inputs, k) = (inputs isa NamedTuple && haskey(inputs, k)) ? getfield(inputs, k) : nothing
 _vec(v::AbstractVector) = float.(v)
 _vec(v::Real) = [float(v)]
+_points(b::LenticulumCore.SampleBelief) = b.samples isa AbstractMatrix ? eachcol(b.samples) : b.samples
 
 include("generator.jl")
 include("ratio.jl")

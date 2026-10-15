@@ -4,6 +4,10 @@
 > line: **`t₁ < t₀` is allowed**, and that is what inverts a NeuralODE.
 
 > Sources: code: `flow.jl`
+
+Both integrators require a positive step count, for positional and keyword constructors.
+Zero or negative counts are rejected instead of silently returning the initial state for
+a nonzero integration interval. Tests retain one-step forward and reverse counterparts.
 >
 > Theory (CT-ML wiki): [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category)
 

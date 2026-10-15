@@ -77,6 +77,14 @@ requires. That representation is where the natural gradient becomes cheap, so it
 optional in the long run — but designing it before there is one working factor would be
 guessing.
 
+### Weight normalization
+
+Categorical probabilities and mixture weights are normalized in log space after checking
+that the input is finite, nonnegative and has positive mass. This avoids overflow when
+several finite weights are near the floating-point maximum, preserves zero support, and
+keeps log probabilities finite for positive weights across the floating-point range.
+The construction tests cover Float32 and Float64 large and subnormal weights.
+
 ### 5. `logdensity` on an unnormalised measure
 
 [[Open Models and Latent Channels]] notes that cyclic models require unnormalised measures, so
