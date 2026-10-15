@@ -146,16 +146,30 @@ makedocs(;
 # `docs/site/build.sh` stages the vault and builds it into docs/build/vault/, which
 # deploydocs then ships along with everything else, so it lands at <site>/dev/vault/.
 # It needs Node ≥ 22; if `npx` is not on the path the API docs still build on their own.
+# Which site this build is. `master` deploys to <site>/dev/; the development branch deploys a
+# preview to <site>/preview/, so a change can be checked on the real site (Quartz renders some
+# things differently from Obsidian) before it is merged. The vault's base URL follows, and the
+# preview has no comment threads, so it does not open discussions that duplicate the real ones.
+const PREVIEW_BRANCH = "dev-danielb"
+const BRANCH = get(ENV, "GITHUB_REF_NAME", "")
+const DEVURL = BRANCH == PREVIEW_BRANCH ? "preview" : "dev"
+
 let script = joinpath(@__DIR__, "site", "build.sh")
     if Sys.which("npx") === nothing
         @warn "npx not found — skipping the theory vault (docs/site/build.sh). The API docs are unaffected."
     else
         @info "Building the theory vault with Quartz"
-        run(`$script`)
+        withenv("VAULT_BASEURL" => "mathstruct.org/Lenticulum.jl/$(DEVURL)/vault",
+                "VAULT_COMMENTS" => DEVURL == "dev" ? "1" : "0") do
+            run(`$script`)
+        end
     end
 end
 
 deploydocs(;
     repo = "github.com/MathStruct/Lenticulum.jl",
-    devbranch = "master",
+    devbranch = BRANCH == PREVIEW_BRANCH ? PREVIEW_BRANCH : "master",
+    devurl = DEVURL,
+    # both, whichever branch deploys: versions.js at the site's root lists them
+    versions = ["stable" => "v^", "v#.#", "dev" => "dev", "preview" => "preview"],
 )

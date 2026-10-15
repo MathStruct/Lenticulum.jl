@@ -24,6 +24,7 @@ normal Documenter build produces both sites.
 | `tikz.ts` | a Quartz transformer rendering ```` ```tikz ```` blocks to SVG at build time |
 | `.tikz-cache/` | the rendered SVGs, keyed by content hash — **committed** |
 | `build.sh` | clones Quartz, injects the above, stages the vault, lints it, builds |
+| `bib2vault.py`, `bib2cff.py`, `zenodo.py`, `link_sources.py` | the bibliography note, `CITATION.cff`'s references and `.zenodo.json`, all from `docs/src/refs.bib` (and `contributors.toml`), and the Bibliography line under each note |
 
 The vault is the whole repository, so the notes live in three places — `vault/`, the
 `*.md` beside each `lib/*/src/*.jl`, and `src/*.md`. Quartz wants one directory, so the script

@@ -1,13 +1,17 @@
 name: Docs
 on:
   push:
-    branches: [master]
+    branches: [master, dev-danielb]     # dev-danielb deploys a preview to <site>/preview/
     tags: ['*']
   pull_request:
     branches: [master]
 permissions:
   contents: write      # deploydocs pushes to gh-pages
   statuses: write
+# master and the preview both push to gh-pages; queue them instead of racing
+concurrency:
+  group: docs-deploy-${{ github.event_name == 'pull_request' && github.ref || 'gh-pages' }}
+  cancel-in-progress: false
 jobs:
   docs:
     name: API docs + theory vault

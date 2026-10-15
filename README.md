@@ -191,3 +191,10 @@ with the AD backend chosen per model (Zygote, Enzyme, ForwardDiff, Mooncake, or 
 compiled XLA). Point inference returns one branch of a multivalued relation; sampling-based
 *conditional* inference is not implemented (ProxDM's unconditional sampler is). The vault's *Related Julia Projects* says what to use instead when you need only
 one of the things this combines.
+
+## Contributing
+
+Contributions of every kind are welcome: code, notes, derivations, reviews, and discussion on
+the vault's pages. How credit and authorship are handled (community recognition, Zenodo
+contributors and creators, CRediT roles) is in
+[CONTRIBUTING.md](https://github.com/MathStruct/Lenticulum.jl/blob/master/CONTRIBUTING.md).

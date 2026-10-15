@@ -79,3 +79,6 @@ If you implement something, put a markdown file next to the `.jl` file containin
 implementation, with the theory, the implementation, and an extensive description of the
 implementation difficulties. A new general concept goes into the CT-ML wiki first, and the
 Lenticulum note links to it.
+
+How contributions are credited, including reviews and contributions that are not code, is in
+[CONTRIBUTING.md](https://github.com/MathStruct/Lenticulum.jl/blob/master/CONTRIBUTING.md).

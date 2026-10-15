@@ -41,6 +41,10 @@ fi
 # --- 2. our configuration over the stock one ----------------------------------
 cp "$HERE/quartz.config.ts" "$QUARTZ/quartz.config.ts"
 cp "$HERE/quartz.layout.ts" "$QUARTZ/quartz.layout.ts"
+# a preview build (docs/make.jl on the development branch) lives at another URL
+if [[ -n "${VAULT_BASEURL:-}" ]]; then
+  sed -i "s#baseUrl: \"[^\"]*\"#baseUrl: \"$VAULT_BASEURL\"#" "$QUARTZ/quartz.config.ts"
+fi
 
 # --- 2b. the TikZ plugin (renders ```tikz blocks to SVG at build time) -------------
 # Ported from MathStruct/CategoryTheory-ML-Wiki. The stock checkout has neither the plugin
@@ -62,9 +66,10 @@ rm -rf "$CONTENT"
 mkdir -p "$CONTENT"
 
 # the bibliography note is generated from docs/src/refs.bib, so the vault and the docs agree,
-# and so is the reference list of CITATION.cff (GitHub's citation button, the Zenodo archive)
+# and so is the reference list of CITATION.cff (GitHub's citation button) and .zenodo.json (the Zenodo archive)
 python3 "$ROOT/docs/site/bib2vault.py" > /dev/null
 python3 "$ROOT/docs/site/bib2cff.py" > /dev/null
+python3 "$ROOT/docs/site/zenodo.py" > /dev/null          # .zenodo.json, from CITATION.cff and contributors.toml
 
 # the theory notes (meta/ is local working material, ignored by git and never published)
 cp -r "$ROOT/vault/." "$CONTENT/"

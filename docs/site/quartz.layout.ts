@@ -26,7 +26,9 @@ export const sharedPageComponents: SharedLayout = {
           inputPosition: "bottom",
         },
       }),
-      condition: (page) => !(page.fileData.slug ?? "").startsWith("tags/"),
+      // no threads on a preview build (VAULT_COMMENTS=0, set by docs/make.jl off `master`)
+      condition: (page) =>
+        process.env.VAULT_COMMENTS !== "0" && !(page.fileData.slug ?? "").startsWith("tags/"),
     }),
   ],
   footer: Component.Footer({

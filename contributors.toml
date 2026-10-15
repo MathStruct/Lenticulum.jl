@@ -1,0 +1,12 @@
+# Contributors acknowledged in the Zenodo metadata of each release (CONTRIBUTING.md, "Credit and
+# authorship"). The creators, the authors of a release, are the `authors` of CITATION.cff.
+# docs/site/zenodo.py turns both into .zenodo.json. Nobody is added without their consent.
+#
+# [[contributor]]
+# name = "Family, Given"                  # or family-names / given-names
+# orcid = "0000-0000-0000-0000"           # optional
+# affiliation = "University of …"         # optional
+# type = "Researcher"                     # a Zenodo (DataCite) contributor type: Researcher,
+#                                         # ProjectMember, DataCurator, Editor, Supervisor, Other, …
+# credit = ["Validation", "Writing – review & editing"]   # CRediT roles (recorded here, not sent to Zenodo)
+# contribution = "Checked the derivation of …"           # a sentence, for the acknowledgements
