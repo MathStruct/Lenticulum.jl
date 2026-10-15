@@ -84,6 +84,11 @@ fix is the discriminator's own validation loss as a confidence term, which nothi
 
 ## 6. Implementation difficulties
 
+Particle matrices use one column per sample, as in Mycelium's belief algebra. Reweighting,
+moments, ESS and generator pushforward share that convention with vector-of-vectors input;
+the tests compare both representations. Zero prior weights stay zero under importance
+reweighting: their log weights are `-Inf`, not a positive epsilon floor.
+
 ### 6.1 The message is a posterior
 
 A unary factor has no channel other than its target, so the only thing to reweight is the

@@ -125,13 +125,14 @@ exponentiating), because raw ratios overflow for any interesting `p`/`q` pair.
 > it is the diagnostic that says whether the answer means anything.
 """
 function reweight(f::RatioFactor, b::LenticulumCore.SampleBelief, ps, st)
-    n = length(b.samples)
+    pts = _points(b)
+    n = length(pts)
     logw = Vector{Float64}(undef, n)
     for i in 1:n
-        ℓ, st = logratio(f, b.samples[i], ps, st)
+        ℓ, st = logratio(f, pts[i], ps, st)
         logw[i] = ℓ
     end
-    prior = b.weights === nothing ? zeros(n) : log.(max.(float.(b.weights), eps()))
+    prior = b.weights === nothing ? zeros(n) : log.(float.(b.weights))
     return (LenticulumCore.SampleBelief(b.samples, _normalise_logweights(logw .+ prior)), st)
 end
 
@@ -157,7 +158,7 @@ it is the honest reason a ratio-based `combine` is not simply dropped into
 silently degenerates is worse than one that throws.
 """
 function effective_sample_size(b::LenticulumCore.SampleBelief)
-    b.weights === nothing && return float(length(b.samples))
+    b.weights === nothing && return float(length(_points(b)))
     w = float.(b.weights)
     s = sum(w)
     s > 0 || return 0.0
@@ -176,9 +177,10 @@ suite checks reweighting against a Gaussian closed form.
 """
 function weighted_mean(b::LenticulumCore.SampleBelief)
     w = _weights(b)
-    acc = zeros(Float64, length(first(b.samples)))
-    for i in eachindex(b.samples)
-        acc .+= w[i] .* float.(b.samples[i])
+    pts = _points(b)
+    acc = zeros(Float64, length(first(pts)))
+    for i in eachindex(pts)
+        acc .+= w[i] .* float.(pts[i])
     end
     return acc
 end
@@ -188,15 +190,16 @@ function weighted_cov(b::LenticulumCore.SampleBelief)
     m = weighted_mean(b)
     d = length(m)
     acc = zeros(Float64, d, d)
-    for i in eachindex(b.samples)
-        r = float.(b.samples[i]) .- m
+    pts = _points(b)
+    for i in eachindex(pts)
+        r = float.(pts[i]) .- m
         acc .+= w[i] .* (r * r')
     end
     return acc
 end
 
 function _weights(b::LenticulumCore.SampleBelief)
-    n = length(b.samples)
+    n = length(_points(b))
     b.weights === nothing && return fill(1 / n, n)
     w = float.(b.weights)
     return w ./ sum(w)
@@ -280,8 +283,9 @@ function Mycelium.local_free_energy(f::RatioFactor, msgs, ps, st)
     b isa LenticulumCore.SampleBelief || return (0.0, st)
     w = _weights(b)
     acc = 0.0
-    for i in eachindex(b.samples)
-        ℓ, st = logratio(f, b.samples[i], ps, st)
+    pts = _points(b)
+    for i in eachindex(pts)
+        ℓ, st = logratio(f, pts[i], ps, st)
         acc += w[i] * (-ℓ)
     end
     return (acc, st)
