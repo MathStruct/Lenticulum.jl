@@ -105,3 +105,23 @@ end
     @test_throws ArgumentError MixtureBelief(typeof(b)[])
     @test_throws ArgumentError MixtureBelief([b, b], [1.0])
 end
+
+@testset "weight normalization is finite and scale invariant" begin
+    components = [DiracBelief(0), DiracBelief(1)]
+    for T in (Float32, Float64)
+        large = floatmax(T)
+        small = nextfloat(zero(T))
+        for weights in ([large, large], [small, small], T[1, 1])
+            @test probabilities(CategoricalBelief(weights)) ≈ T[0.5, 0.5]
+            @test mixture_weights(MixtureBelief(components, weights)) ≈ T[0.5, 0.5]
+        end
+        @test probabilities(CategoricalBelief(T[0, large])) == T[0, 1]
+        @test mixture_weights(MixtureBelief(components, T[large, 0])) == T[1, 0]
+        @test all(isfinite, CategoricalBelief(T[small, large]).logp)
+        for weights in (T[Inf, 1], T[NaN, 1], T[-1, 1], T[0, 0])
+            @test_throws ArgumentError CategoricalBelief(weights)
+            @test_throws ArgumentError MixtureBelief(components, weights)
+        end
+    end
+    @test_throws ArgumentError CategoricalBelief(Float64[])
+end

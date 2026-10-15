@@ -134,11 +134,20 @@ struct CategoricalBelief{T<:Real,L} <: AbstractBelief
 end
 function CategoricalBelief(p::AbstractVector{<:Real}; labels = nothing)
     any(<(0), p) && throw(ArgumentError("probabilities must be non-negative"))
-    s = sum(p)
-    s > 0 || throw(ArgumentError("probabilities must not all be zero"))
+    logp = _normalised_logweights(p)
     labels === nothing || length(labels) == length(p) ||
         throw(ArgumentError("need one label per state: $(length(labels)) labels for $(length(p)) states"))
-    return CategoricalBelief(Val(:log), log.(float.(p) ./ s), labels === nothing ? nothing : collect(labels))
+    return CategoricalBelief(Val(:log), logp, labels === nothing ? nothing : collect(labels))
+end
+
+function _normalised_logweights(weights::AbstractVector{<:Real})
+    isempty(weights) && throw(ArgumentError("weights must not be empty"))
+    all(isfinite, weights) && all(≥(0), weights) ||
+        throw(ArgumentError("weights must be finite and non-negative"))
+    maximum(weights) > 0 || throw(ArgumentError("weights must not all be zero"))
+    logs = log.(float.(weights))
+    shifted = logs .- maximum(logs)
+    return shifted .- log(sum(exp.(shifted)))
 end
 
 """
@@ -175,9 +184,7 @@ function MixtureBelief(components::AbstractVector{<:AbstractBelief}, weights::Ab
     isempty(components) && throw(ArgumentError("a mixture needs at least one component"))
     length(weights) == length(components) || throw(ArgumentError("need one weight per component"))
     any(<(0), weights) && throw(ArgumentError("weights must be non-negative"))
-    s = sum(weights)
-    s > 0 || throw(ArgumentError("weights must not all be zero"))
-    return MixtureBelief(Val(:log), [c for c in components], log.(float.(weights) ./ s))
+    return MixtureBelief(Val(:log), [c for c in components], _normalised_logweights(weights))
 end
 
 """
