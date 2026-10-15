@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the Obsidian vault into a static site with Quartz, next to the Documenter site.
 #
-#   docs/site/build.sh               # -> docs/build/vault/
+#   docs/site/build.sh               # -> docs/vault-build/
 #   docs/site/build.sh --serve       # local preview on http://localhost:8080
 #
 # Layout:
@@ -9,7 +9,11 @@
 #   docs/site/quartz.layout.ts      our layout    (committed)
 #   docs/quartz/                    Quartz v4 checkout (gitignored; cloned on first run)
 #   docs/quartz/content/            staged copy of the vault (regenerated every run)
-#   docs/build/vault/               output — deployed by Documenter as <site>/dev/vault/
+#   docs/vault-build/               output — deployed as the site's front page by
+#                                   docs/site/deploy_vault.sh (preview builds: <site>/preview/)
+#
+# Environment (set by docs/make.jl): VAULT_BASEURL (default mathstruct.org/Lenticulum.jl),
+# VAULT_API_URL (where the API docs are; default <site>/api/dev/), VAULT_COMMENTS (0: no threads).
 #
 # The vault is the whole repository (see "vault/Start Here.md"), but its notes live in three places:
 # vault/, the *.md files beside each lib/*/src/*.jl, and src/*.md. Quartz wants one content
@@ -20,7 +24,8 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 QUARTZ="$ROOT/docs/quartz"
-OUT="$ROOT/docs/build/vault"
+OUT="${VAULT_OUT:-$ROOT/docs/vault-build}"
+API_URL="${VAULT_API_URL:-https://mathstruct.org/Lenticulum.jl/api/dev/}"
 SERVE=0
 [[ "${1:-}" == "--serve" ]] && SERVE=1
 
@@ -121,7 +126,7 @@ model with any AD backend works.
 4. [[DEQ as a Relation]] — the same idea for equilibrium models
 5. [[backends]] — Zygote, Enzyme or Reactant; a 5k-parameter MLP end to end
 
-Or start with code: the [tutorials](../tutorials/01_circle/) (also Jupyter notebooks).
+Or start with code: the [tutorials](@API@tutorials/01_circle/) (also Jupyter notebooks).
 
 ## Coming from statistics or robotics
 
@@ -159,12 +164,14 @@ The general theory these notes build on is in the
 - **[[Map of Content]]** — every note, in reading order.
 - **[[Start Here]]** — how the vault is organised, its conventions, and how to read it in Obsidian.
 - **[[README]]** — the project pitch.
-- **[API documentation](../)** — the Julia packages themselves, built with Documenter.
+- **[API documentation](@API@)** — the Julia packages themselves, built with Documenter.
 
 The vault is written for [Obsidian](https://obsidian.md) and rendered here with
 [Quartz](https://quartz.jzhao.xyz), including its `tikz` diagrams, which are compiled to SVG
 at build time. The graph view is Quartz's rather than Obsidian's.
 MD
+
+sed -i "s#@API@#$API_URL#g" "$CONTENT/index.md"
 
 # --- 3b. lint: display math that Obsidian accepts but remark-math truncates on -----------
 # A `$$` block opened with content on the fence line and closed with `$$` at the end of a
@@ -200,7 +207,7 @@ if [[ $SERVE -eq 1 ]]; then
   exec npx quartz build --serve -o "$OUT"
 else
   npx quartz build -o "$OUT"
-  echo ">> vault built into docs/build/vault ($(find "$OUT" -name '*.html' | wc -l) pages)"
+  echo ">> vault built into ${OUT#$ROOT/} ($(find "$OUT" -name '*.html' | wc -l) pages)"
   # KaTeX renders with throwOnError:false, so a bad formula becomes red text rather than a
   # failed build. Surface them here (e.g. \tag in a single-line $$...$$, which remark-math
   # parses as *inline* math — put such fences on their own lines).

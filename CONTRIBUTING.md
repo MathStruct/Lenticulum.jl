@@ -18,8 +18,10 @@ you find something wrong, that is a contribution, and a welcome one: open an iss
 the page, or fix it.
 
 Development happens on the branch `dev-danielb`, by one person, and is merged into `master`,
-which is what the documentation site publishes. Every push to `dev-danielb` deploys a preview of
-the whole site to [mathstruct.org/Lenticulum.jl/preview](https://mathstruct.org/Lenticulum.jl/preview/),
+which is what the site publishes: the vault at [mathstruct.org/Lenticulum.jl](https://mathstruct.org/Lenticulum.jl/),
+the API documentation under [api/dev](https://mathstruct.org/Lenticulum.jl/api/dev/). Every push
+to `dev-danielb` deploys a preview of both, the vault to
+[mathstruct.org/Lenticulum.jl/preview](https://mathstruct.org/Lenticulum.jl/preview/),
 because Quartz renders some things differently from Obsidian and a page is checked on the real
 site before it is merged. Pull requests go to `master` and are welcome; once there are more
 contributors, `master` will be protected and every change will go through one.

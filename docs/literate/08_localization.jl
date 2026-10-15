@@ -210,8 +210,8 @@ predict_last()
 #
 # The last two are where Lenticulum aims to differ from GTSAM: factors that are learned relations
 # with non-Gaussian beliefs, scored by the same free energy used above. The vault's notes
-# [SLAM and Sensor Fusion](https://mathstruct.github.io/Lenticulum.jl/dev/vault/Applications/SLAM-and-Sensor-Fusion)
-# and [The Linear Gaussian Chain](https://mathstruct.github.io/Lenticulum.jl/dev/vault/Factor-Graphs/The-Linear-Gaussian-Chain)
+# [SLAM and Sensor Fusion](https://mathstruct.org/Lenticulum.jl/Applications/SLAM-and-Sensor-Fusion)
+# and [The Linear Gaussian Chain](https://mathstruct.org/Lenticulum.jl/Factor-Graphs/The-Linear-Gaussian-Chain)
 # go further.
 #
 # ## References

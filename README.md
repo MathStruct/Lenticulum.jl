@@ -1,7 +1,7 @@
 # Lenticulum.jl
 
 [![CI](https://github.com/MathStruct/Lenticulum.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/MathStruct/Lenticulum.jl/actions/workflows/CI.yml?query=branch%3Amaster)
-[![Docs](https://github.com/MathStruct/Lenticulum.jl/actions/workflows/Docs.yml/badge.svg?branch=master)](https://MathStruct.github.io/Lenticulum.jl/dev/)
+[![Docs](https://github.com/MathStruct/Lenticulum.jl/actions/workflows/Docs.yml/badge.svg?branch=master)](https://mathstruct.org/Lenticulum.jl/api/dev/)
 [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.23314723-blue)](https://doi.org/10.5281/zenodo.23314723)
 
 **Learn relations, not functions.** A neural network learns $f_\theta : X \to Y$ and can only be
@@ -27,7 +27,7 @@ Train once on points of a circle. Then ask:
 *Left:* the field of a diffusion model of points on a circle; it vanishes (dark) on the circle,
 and its stable roots are the relation. *Right:* the three queries of the table, answered by that
 one model. This is the closed-form model of the [example below](#a-minimal-example);
-[tutorial 2](https://mathstruct.org/Lenticulum.jl/dev/tutorials/02_train/) trains a small network
+[tutorial 2](https://mathstruct.org/Lenticulum.jl/api/dev/tutorials/02_train/) trains a small network
 and answers the same queries. ([`docs/readme_figure.jl`](docs/readme_figure.jl) draws it.)
 
 A function cannot do any of these three things. A relation does all of them.
@@ -97,21 +97,21 @@ learned from a circle) is worked through in the vault.
 
 | you are | start with |
 |---|---|
-| **who learns by running code** | the [tutorials](https://MathStruct.github.io/Lenticulum.jl/dev/tutorials/01_circle/) (also as Jupyter notebooks): the circle, a trained MLP, a robot arm, ProxDM, equivariant vs. conservative force fields, an energy-parametrised diffusion model, a force law discovered from particle trajectories, GTSAM-style localisation, a kernel baseline the network has to beat, and intersections of separately trained models |
-| **from machine learning** | [Implicit Diffusion Learners](https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/Implicit-Diffusion-Learners) → [Backpropagation through Implicit Inference](https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/Backpropagation-through-Implicit-Inference) → [DEQ as a Relation](https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Equilibrium/DEQ-as-a-Relation) |
-| **from statistics / robotics** | the [localisation tutorial](https://mathstruct.org/Lenticulum.jl/dev/tutorials/08_localization/) (GTSAM's odometry example: smoothing vs filtering, noise estimated from the marginal likelihood) → [Beliefs](https://mathstruct.org/Lenticulum.jl/dev/vault/Factor-Graphs/Beliefs) → [Bethe Free Energy](https://mathstruct.org/Lenticulum.jl/dev/vault/Factor-Graphs/Bethe-Free-Energy) |
-| **from category theory** | [Factors are Parameterized Statistical Games](https://mathstruct.org/Lenticulum.jl/dev/vault/Foundations/Factors-are-Parameterized-Statistical-Games), with the background in the [CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/) (Track E) |
-| **looking for an API** | the [API documentation](https://MathStruct.github.io/Lenticulum.jl/dev/) |
+| **who learns by running code** | the [tutorials](https://mathstruct.org/Lenticulum.jl/api/dev/tutorials/01_circle/) (also as Jupyter notebooks): the circle, a trained MLP, a robot arm, ProxDM, equivariant vs. conservative force fields, an energy-parametrised diffusion model, a force law discovered from particle trajectories, GTSAM-style localisation, a kernel baseline the network has to beat, and intersections of separately trained models |
+| **from machine learning** | [Implicit Diffusion Learners](https://mathstruct.org/Lenticulum.jl/Families/Diffusion/Implicit-Diffusion-Learners) → [Backpropagation through Implicit Inference](https://mathstruct.org/Lenticulum.jl/Families/Diffusion/Backpropagation-through-Implicit-Inference) → [DEQ as a Relation](https://mathstruct.org/Lenticulum.jl/Families/Equilibrium/DEQ-as-a-Relation) |
+| **from statistics / robotics** | the [localisation tutorial](https://mathstruct.org/Lenticulum.jl/api/dev/tutorials/08_localization/) (GTSAM's odometry example: smoothing vs filtering, noise estimated from the marginal likelihood) → [Beliefs](https://mathstruct.org/Lenticulum.jl/Factor-Graphs/Beliefs) → [Bethe Free Energy](https://mathstruct.org/Lenticulum.jl/Factor-Graphs/Bethe-Free-Energy) |
+| **from category theory** | [Factors are Parameterized Statistical Games](https://mathstruct.org/Lenticulum.jl/Foundations/Factors-are-Parameterized-Statistical-Games), with the background in the [CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/) (Track E) |
+| **looking for an API** | the [API documentation](https://mathstruct.org/Lenticulum.jl/api/dev/) |
 
-The **theory vault** ([website](https://MathStruct.github.io/Lenticulum.jl/dev/vault/); also this
+The **theory vault** ([website](https://mathstruct.org/Lenticulum.jl/); also this
 repository opened in [Obsidian](https://obsidian.md), starting from `vault/Start Here.md`) is the
 larger half of the project: the derivations, the papers, the design decisions, and an honest list
 of what does not work yet.
 
 **References.** Every work cited in the tutorials, the notes and the vault (150 papers, books and
 software packages) is in one BibTeX file, [`docs/src/refs.bib`](docs/src/refs.bib). It is rendered
-as the documentation's [References](https://MathStruct.github.io/Lenticulum.jl/dev/references/)
-page and the vault's [Bibliography](https://MathStruct.github.io/Lenticulum.jl/dev/vault/Bibliography),
+as the documentation's [References](https://mathstruct.org/Lenticulum.jl/api/dev/references/)
+page and the vault's [Bibliography](https://mathstruct.org/Lenticulum.jl/Bibliography),
 and it is the reference list of [`CITATION.cff`](CITATION.cff). To cite Lenticulum itself, use
 the Zenodo DOI [10.5281/zenodo.23314723](https://doi.org/10.5281/zenodo.23314723).
 

@@ -82,7 +82,7 @@ Related: [[Messages are Inversions]], [[Factor Graphs]], [[Channels and Polarity
 
 ````tabs
 tab: Julia
-**Docs:** [Lenticulum API](https://mathstruct.org/Lenticulum.jl/dev/packages/lenticulum/) · [Mycelium API](https://mathstruct.org/Lenticulum.jl/dev/packages/mycelium/)
+**Docs:** [Lenticulum API](https://mathstruct.org/Lenticulum.jl/api/dev/packages/lenticulum/) · [Mycelium API](https://mathstruct.org/Lenticulum.jl/api/dev/packages/mycelium/)
 ```julia
 using Lenticulum, LenticulumCore, Mycelium
 using LenticulumCore: DiracBelief, TrivialBelief, SampleBelief

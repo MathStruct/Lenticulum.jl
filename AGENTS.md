@@ -18,8 +18,9 @@ written quickly, a lot of it with AI agents, and not all of it has been reviewed
 
 Development happens on the branch `dev-danielb`, by one person; `master` is what the
 documentation site publishes, and `dev-danielb` is merged into it once the change has been
-checked. A push to `dev-danielb` deploys a preview of the whole site to `<site>/preview/`
-(`docs/make.jl` chooses the URL from the branch). Work on `dev-danielb` unless told otherwise,
+checked. The site is mathstruct.org/Lenticulum.jl: the vault at the root, the API docs under
+`api/dev/`. A push to `dev-danielb` deploys a preview, the vault to `<site>/preview/` and the
+API docs to `<site>/api/preview/` (`docs/make.jl` chooses from the branch; `docs/site/README.md`). Work on `dev-danielb` unless told otherwise,
 and do not commit, push or merge unless you are asked to.
 
 ## The repository

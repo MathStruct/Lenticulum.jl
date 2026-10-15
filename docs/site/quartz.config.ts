@@ -8,7 +8,7 @@ import * as Plugin from "./quartz/plugins"
  * `docs/site/build.sh`. The vault is staged into `content/` by the same script; see
  * `docs/site/README.md` for the layout.
  *
- * Deployed beside the Documenter site, at `<documenter-root>/vault/`.
+ * Deployed as the front page of the site (docs/site/deploy_vault.sh); the Documenter site is under `api/`.
  */
 const config: QuartzConfig = {
   configuration: {
@@ -18,10 +18,10 @@ const config: QuartzConfig = {
     enablePopovers: true,
     analytics: null,
     locale: "en-GB",
-    // The Documenter site deploys to <root>/dev/ from `master`; the vault lives under it.
-    // The custom domain, not mathstruct.github.io: that redirects here, and giscus loads its
+    // The vault is the front page of the site; the API docs are under api/. A preview build
+    // (docs/make.jl off `master`) replaces this with …/preview. The custom domain, not mathstruct.github.io: that redirects here, and giscus loads its
     // theme stylesheet from this URL, which a redirect (without a CORS header) would block.
-    baseUrl: "mathstruct.org/Lenticulum.jl/dev/vault",
+    baseUrl: "mathstruct.org/Lenticulum.jl",
     // Prompts/ holds the authoring prompts, not vault content.
     ignorePatterns: ["private", "templates", ".obsidian", "Prompts", ".tikz-cache"],
     defaultDateType: "modified",

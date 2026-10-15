@@ -21,7 +21,7 @@
 # the physics has it, a separate term where the physics breaks it, and the law as the
 # parametrisation. The models are linear in their parameters, so each fit is one
 # least-squares solve and the comparison is about model *classes*, not about optimisers. The
-# background is the vault note [Geometric Deep Learning and Physical Laws](https://mathstruct.github.io/Lenticulum.jl/dev/vault/Comparisons/Geometric-Deep-Learning-and-Physical-Laws).
+# background is the vault note [Geometric Deep Learning and Physical Laws](https://mathstruct.org/Lenticulum.jl/Comparisons/Geometric-Deep-Learning-and-Physical-Laws).
 
 using ImplicitLayers, LinearAlgebra, Random, Statistics, Printf
 using CairoMakie

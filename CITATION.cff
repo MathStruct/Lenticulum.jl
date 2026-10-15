@@ -10,7 +10,7 @@ authors:
     orcid: "https://orcid.org/0009-0003-0812-8869"
 license: MIT
 repository-code: "https://github.com/MathStruct/Lenticulum.jl"
-url: "https://mathstruct.github.io/Lenticulum.jl/dev/"
+url: "https://mathstruct.org/Lenticulum.jl/"
 keywords:
   - implicit learning
   - diffusion models

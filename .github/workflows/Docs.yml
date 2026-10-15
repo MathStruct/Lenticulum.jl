@@ -42,3 +42,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           JULIA_DEBUG: Documenter
         run: julia --project=docs docs/make.jl
+      # The vault is the front page of the site (master) or <site>/preview/ (the development
+      # branch); docs/make.jl built it into docs/vault-build/ and deployed the API docs to api/.
+      - name: Deploy the theory vault
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev-danielb')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: docs/site/deploy_vault.sh ${{ github.ref == 'refs/heads/master' && 'root' || 'preview' }}

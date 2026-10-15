@@ -45,7 +45,7 @@ coordinates (the inputs $X$), leaves others free (the outputs $Y$), and may have
 The circle is the smallest example: $Z = \mathbb{R}^2$, one model, and the questions "given
 $x = 0.6$, find $y$" (two answers), "given $y = 0.6$, find $x$" (the same model the other way
 round) and "given $x = 1.05$" (just off the circle). The documentation's
-[tutorials](https://mathstruct.org/Lenticulum.jl/dev/tutorials/01_circle/) build this picture,
+[tutorials](https://mathstruct.org/Lenticulum.jl/api/dev/tutorials/01_circle/) build this picture,
 then a trained network, then a robot arm.
 
 ## 2. Inference and training

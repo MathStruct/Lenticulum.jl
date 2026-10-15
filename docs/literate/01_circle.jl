@@ -179,7 +179,7 @@ fig
 #
 # - [Train a small diffusion model](@ref tutorial-train) replaces the closed form by a
 #   learned network and differentiates through inference.
-# - The theory: [Implicit Diffusion Learners](https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/Implicit-Diffusion-Learners)
+# - The theory: [Implicit Diffusion Learners](https://mathstruct.org/Lenticulum.jl/Families/Diffusion/Implicit-Diffusion-Learners)
 #   in the vault.
 
 #

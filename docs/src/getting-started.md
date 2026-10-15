@@ -42,7 +42,7 @@ Swap the precision vector to `[0.0, Inf]` and the same model answers "``x`` give
 | **machine learning** | [A relation without training](@ref tutorial-circle), then [Train a small diffusion model](@ref tutorial-train), [Robot arm: one model, every direction](@ref tutorial-arm), [the kernel baseline](@ref tutorial-kernel) and [Intersections](@ref tutorial-intersections) |
 | **statistics or robotics** (Kalman filters, GTSAM) | [Localisation as a factor graph](@ref tutorial-localization): odometry and GPS, smoothing versus filtering, and the noise level estimated from the marginal likelihood |
 | **physics** | [Symmetry is not a law](@ref tutorial-forces) and [Discovering a force law](@ref tutorial-particles) |
-| **category theory** | the [theory vault](https://mathstruct.github.io/Lenticulum.jl/dev/vault/), entry point *Factors are Parameterized Statistical Games* |
+| **category theory** | the [theory vault](https://mathstruct.org/Lenticulum.jl/), entry point *Factors are Parameterized Statistical Games* |
 | **looking for an API** | the package pages, starting with [LenticulumCore](@ref lenticulumcore), and the [Vocabulary](@ref vocabulary) |
 
 Every tutorial is also available as a Jupyter notebook, and every work cited is on the

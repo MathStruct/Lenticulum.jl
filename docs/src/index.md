@@ -101,10 +101,11 @@ anything here.
 
 **Not here.** This repository is also an [Obsidian](https://obsidian.md) vault, and the
 mathematics — the categorical foundations, the papers, the derivations, and an honest account
-of what does not work — lives there. It is rendered as a website and deployed beside this one:
+of what does not work — lives there. It is rendered as a website, the front page of this one:
 
-```@raw html
-<blockquote><p><strong><a href="vault/">The theory vault →</a></strong></p></blockquote>
+```@eval
+using Markdown
+Markdown.parse("> **[The theory vault →](" * ENV["LENTICULUM_VAULT_URL"] * ")**")
 ```
 
 See the [Theory vault](@ref theory) page for a map of it.

@@ -91,6 +91,16 @@ using VariationalDiffusion
 using ImplicitLayers
 using Adversarial
 
+# Where this build lives (see the vault section at the end): master's site, or the preview of
+# the development branch. The pages link to the vault through LENTICULUM_VAULT_URL.
+const SITE = "https://mathstruct.org/Lenticulum.jl"
+const PREVIEW_BRANCH = "dev-danielb"
+const BRANCH = get(ENV, "GITHUB_REF_NAME", "")
+const DEVURL = BRANCH == PREVIEW_BRANCH ? "preview" : "dev"
+const VAULT_URL = DEVURL == "dev" ? "$(SITE)/" : "$(SITE)/preview/"
+const API_URL = "$(SITE)/api/$(DEVURL)/"
+ENV["LENTICULUM_VAULT_URL"] = VAULT_URL
+
 # One bibliography for the docs and the vault (docs/site/bib2vault.py renders it there)
 const BIB = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"); style = :authoryear)
 
@@ -107,7 +117,7 @@ makedocs(;
         Adversarial,
     ],
     format = Documenter.HTML(;
-        canonical = "https://MathStruct.github.io/Lenticulum.jl",
+        canonical = "https://mathstruct.org/Lenticulum.jl/api/dev",
         edit_link = "master",
         assets = String[],
         # LenticulumCore and Mycelium have large interfaces, so their reference pages are
@@ -142,24 +152,24 @@ makedocs(;
     warnonly = [:missing_docs, :cross_references],
 )
 
-# --- The Obsidian vault, rendered with Quartz, deployed inside this site ---------------
-# `docs/site/build.sh` stages the vault and builds it into docs/build/vault/, which
-# deploydocs then ships along with everything else, so it lands at <site>/dev/vault/.
-# It needs Node ≥ 22; if `npx` is not on the path the API docs still build on their own.
-# Which site this build is. `master` deploys to <site>/dev/; the development branch deploys a
-# preview to <site>/preview/, so a change can be checked on the real site (Quartz renders some
-# things differently from Obsidian) before it is merged. The vault's base URL follows, and the
-# preview has no comment threads, so it does not open discussions that duplicate the real ones.
-const PREVIEW_BRANCH = "dev-danielb"
-const BRANCH = get(ENV, "GITHUB_REF_NAME", "")
-const DEVURL = BRANCH == PREVIEW_BRANCH ? "preview" : "dev"
-
+# --- The Obsidian vault, rendered with Quartz, at the front of the site -------------------
+# The site is mathstruct.org/Lenticulum.jl: the vault is its front page, and this API
+# documentation lives under api/ (deploydocs' `dirname`), Documenter's versions inside it.
+# `master` deploys the API docs to api/dev/ and the vault to the root; the development branch
+# deploys a preview, api/preview/ and preview/, so a change can be checked on the real site
+# (Quartz renders some things differently from Obsidian) before it is merged. The preview has no
+# comment threads, so it does not open discussions that duplicate the real ones.
+#
+# `docs/site/build.sh` builds the vault into docs/vault-build/, outside docs/build/, so that
+# deploydocs does not ship a second copy of it; the Docs workflow deploys it
+# (docs/site/deploy_vault.sh). It needs Node ≥ 22; without `npx` the API docs build alone.
 let script = joinpath(@__DIR__, "site", "build.sh")
     if Sys.which("npx") === nothing
         @warn "npx not found — skipping the theory vault (docs/site/build.sh). The API docs are unaffected."
     else
         @info "Building the theory vault with Quartz"
-        withenv("VAULT_BASEURL" => "mathstruct.org/Lenticulum.jl/$(DEVURL)/vault",
+        withenv("VAULT_BASEURL" => replace(VAULT_URL, r"^https://" => "", r"/$" => ""),
+                "VAULT_API_URL" => API_URL,
                 "VAULT_COMMENTS" => DEVURL == "dev" ? "1" : "0") do
             run(`$script`)
         end
@@ -168,8 +178,9 @@ end
 
 deploydocs(;
     repo = "github.com/MathStruct/Lenticulum.jl",
+    dirname = "api",
     devbranch = BRANCH == PREVIEW_BRANCH ? PREVIEW_BRANCH : "master",
     devurl = DEVURL,
-    # both, whichever branch deploys: versions.js at the site's root lists them
+    # both, whichever branch deploys: api/versions.js lists them
     versions = ["stable" => "v^", "v#.#", "dev" => "dev", "preview" => "preview"],
 )

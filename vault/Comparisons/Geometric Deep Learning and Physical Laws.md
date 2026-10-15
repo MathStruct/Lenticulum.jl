@@ -187,7 +187,7 @@ on beliefs, is entirely absent and is a real gap.
 
 ## 7½. Measured: the tutorial
 
-The documentation's tutorial [*Symmetry is not a law*](https://mathstruct.github.io/Lenticulum.jl/dev/tutorials/05_symmetry_is_not_a_law/)
+The documentation's tutorial [*Symmetry is not a law*](https://mathstruct.org/Lenticulum.jl/api/dev/tutorials/05_symmetry_is_not_a_law/)
 runs this note's argument on a particle in a rotation-invariant potential plus a uniform
 field, which breaks the symmetry. Fitted to the same 60 noisy force measurements:
 

@@ -149,7 +149,7 @@ fd_w = (ℓ(solve(0.6, bump(h))) - ℓ(solve(0.6, bump(-h)))) / 2h
 #
 # - [Robot arm: one model, every direction](@ref tutorial-arm) applies the same steps to a
 #   four-dimensional problem with a real application.
-# - The derivation of the adjoint: [Backpropagation through Implicit Inference](https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/Backpropagation-through-Implicit-Inference).
+# - The derivation of the adjoint: [Backpropagation through Implicit Inference](https://mathstruct.org/Lenticulum.jl/Families/Diffusion/Backpropagation-through-Implicit-Inference).
 
 #
 # ## References

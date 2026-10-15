@@ -64,7 +64,7 @@ These are the paper's "different semantics functors" — different lax sections 
 
 ````tabs
 tab: Julia
-**Docs:** [LenticulumCore API](https://mathstruct.org/Lenticulum.jl/dev/packages/lenticulumcore/) · [Lenticulum API](https://mathstruct.org/Lenticulum.jl/dev/packages/lenticulum/)
+**Docs:** [LenticulumCore API](https://mathstruct.org/Lenticulum.jl/api/dev/packages/lenticulumcore/) · [Lenticulum API](https://mathstruct.org/Lenticulum.jl/api/dev/packages/lenticulum/)
 ```julia
 using Lenticulum, LenticulumCore, Mycelium, Random
 f = GaussianFactor(1 => 1; noise = 0.25, channels = (:x, :y))   # y = A x + b + ε

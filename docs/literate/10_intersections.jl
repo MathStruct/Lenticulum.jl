@@ -9,7 +9,7 @@
 # [`ProductRelation`](@ref) builds the sum. Every query function works on it: all answers,
 # their uncertainty, and gradients through the intersection into every network.
 # (Background: the vault note
-# [Composing Diffusion Factors](https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/Composing-Diffusion-Factors).)
+# [Composing Diffusion Factors](https://mathstruct.org/Lenticulum.jl/Families/Diffusion/Composing-Diffusion-Factors).)
 
 using VariationalDiffusion, Lux, LuxCore, Random, LinearAlgebra, Optimisers, Printf
 using DifferentiationInterface, Zygote
@@ -183,8 +183,8 @@ foreach(r -> println(round.(r.z; digits = 3)), roots_after)
 # ## What to read next
 #
 # - The construction and its limits: the implementation note
-#   [product](https://mathstruct.github.io/Lenticulum.jl/dev/vault/lib/VariationalDiffusion.jl/product)
-#   and [Composing Diffusion Factors](https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Diffusion/Composing-Diffusion-Factors).
+#   [product](https://mathstruct.org/Lenticulum.jl/lib/VariationalDiffusion.jl/product)
+#   and [Composing Diffusion Factors](https://mathstruct.org/Lenticulum.jl/Families/Diffusion/Composing-Diffusion-Factors).
 # - [What does the network add? A kernel baseline](@ref tutorial-kernel): the same queries with
 #   no network at all.
 

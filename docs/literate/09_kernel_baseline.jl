@@ -9,7 +9,7 @@
 # So the honest question for any learned model: **does it beat the kernel baseline, on the same
 # data?** This tutorial answers it on the robot arm of [tutorial 3](@ref tutorial-arm), for
 # small and larger datasets. (Background: the vault note
-# [Kernel Methods for Implicit Learning](https://mathstruct.github.io/Lenticulum.jl/dev/vault/Comparisons/Kernel-Methods-for-Implicit-Learning).)
+# [Kernel Methods for Implicit Learning](https://mathstruct.org/Lenticulum.jl/Comparisons/Kernel-Methods-for-Implicit-Learning).)
 
 using VariationalDiffusion, Lux, LuxCore, Random, LinearAlgebra, Statistics, Printf, Optimisers
 using DifferentiationInterface, Zygote

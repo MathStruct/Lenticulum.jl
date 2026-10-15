@@ -47,7 +47,7 @@ In a dependently typed model the observed space varies with the unobserved one â
 
 ````tabs
 tab: Julia
-**Docs:** [LenticulumCore: open models, channels](https://mathstruct.org/Lenticulum.jl/dev/packages/lenticulumcore/)
+**Docs:** [LenticulumCore: open models, channels](https://mathstruct.org/Lenticulum.jl/api/dev/packages/lenticulumcore/)
 ```julia
 using Lenticulum, LenticulumCore
 f = GaussianFactor(1 => 1; noise = 0.25, channels = (:x, :y))

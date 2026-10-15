@@ -264,7 +264,7 @@ end
 # - **Name it last.** Symbolic regression recovers ``r^{-4} - r^{-2}`` from the learned curve.
 #
 # Learning *relations* as formulas directly, without a learned curve in between, is an open
-# problem recorded in the vault: [Symbolic Implicit Learning](https://mathstruct.github.io/Lenticulum.jl/dev/vault/Families/Algebraic/Symbolic-Implicit-Learning).
+# problem recorded in the vault: [Symbolic Implicit Learning](https://mathstruct.org/Lenticulum.jl/Families/Algebraic/Symbolic-Implicit-Learning).
 
 #
 # ## References

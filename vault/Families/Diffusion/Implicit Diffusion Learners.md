@@ -192,7 +192,7 @@ Three caveats, all observed:
 
 ````tabs
 tab: Julia
-**Docs:** [VariationalDiffusion API](https://mathstruct.org/Lenticulum.jl/dev/packages/variationaldiffusion/)
+**Docs:** [VariationalDiffusion API](https://mathstruct.org/Lenticulum.jl/api/dev/packages/variationaldiffusion/)
 ```julia
 using VariationalDiffusion, LuxCore, Random, LinearAlgebra
 sched = VPSDE()

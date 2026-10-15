@@ -69,7 +69,9 @@ CT-ML wiki's published pages.
 
 ## Reading it
 
-- **On the web**: the vault is rendered with Quartz and deployed beside the API documentation.
+- **On the web**: the vault is rendered with Quartz as the front page of
+  [mathstruct.org/Lenticulum.jl](https://mathstruct.org/Lenticulum.jl/); the API documentation
+  is under [api/dev](https://mathstruct.org/Lenticulum.jl/api/dev/).
 - **In Obsidian**: open the repository root as a vault. The *Inline TikZ* community plugin
   renders the diagrams.
 
