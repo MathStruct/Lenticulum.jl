@@ -362,6 +362,18 @@ end
 end
 
 @testset "the same cell: 1 polarity wrapped, 2 polarities exposed" begin
+    for Integrator in (EulerIntegrator, RK4Integrator)
+        for steps in (0, -1, typemin(Int))
+            @test_throws ArgumentError Integrator(steps)
+            @test_throws ArgumentError Integrator(; steps)
+        end
+        @test Integrator(1).steps == 1
+        @test Integrator(Int32(2)).steps == 2
+        @test Integrator(2.0).steps == 2
+        @test Integrator(; steps = 2).steps == 2
+        @test integrate((u, t) -> ones(length(u)), [2.0], 0.0, 1.0, Integrator(1)) ≈ [3.0]
+        @test integrate((u, t) -> ones(length(u)), [3.0], 1.0, 0.0, Integrator(1)) ≈ [2.0]
+    end
     # The comparison the package exists to make, on one object.
     wrapped = LuxFactor(CELL, :in => :out; dims = (2, 2))
     exposed = DEQFactor(CELL, (x = 2, z = 2))

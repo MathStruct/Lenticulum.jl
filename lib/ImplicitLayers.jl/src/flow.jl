@@ -33,6 +33,11 @@ against — its error is visible enough to make the order of accuracy testable.
 """
 struct EulerIntegrator <: AbstractIntegrator
     steps::Int
+    function EulerIntegrator(steps)
+        n = Int(steps)
+        n > 0 || throw(ArgumentError("steps must be positive; got $steps"))
+        return new(n)
+    end
 end
 EulerIntegrator(; steps = 50) = EulerIntegrator(steps)
 
@@ -45,6 +50,11 @@ Euler reaches, and it is `Tsit5`'s spiritual ancestor without the adaptivity.
 """
 struct RK4Integrator <: AbstractIntegrator
     steps::Int
+    function RK4Integrator(steps)
+        n = Int(steps)
+        n > 0 || throw(ArgumentError("steps must be positive; got $steps"))
+        return new(n)
+    end
 end
 RK4Integrator(; steps = 50) = RK4Integrator(steps)
 
