@@ -18,7 +18,7 @@ written quickly, a lot of it with AI agents, and not all of it has been reviewed
 
 Branches: `master` is what the site publishes (mathstruct.org/Lenticulum.jl: the vault at the
 root, the API docs under `api/dev/`); `dev` is the shared branch where others' work comes
-together, by pull request; `dev-danielb` is the maintainer's (Daniel Boigk's) own branch, and a
+together, by pull request; `dev-danielb` is the maintainer's own branch, and a
 push to it deploys a preview of the site, the vault to `<site>/preview/` and the API docs to
 `<site>/api/preview/` (`docs/make.jl` chooses from the branch; `docs/site/README.md`).
 Working for the maintainer, use `dev-danielb`; working for anyone else, use a branch of your

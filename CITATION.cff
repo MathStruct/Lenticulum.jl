@@ -2,12 +2,11 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it using the metadata from this file."
 type: software
 title: "Lenticulum.jl: learning relations on factor graphs"
-version: "20261015-proto"
+version: "20261015.1-proto"
 doi: 10.5281/zenodo.23314723
 authors:
-  - family-names: Boigk
-    given-names: Daniel
-    orcid: "https://orcid.org/0009-0003-0812-8869"
+  - name: "MathStruct"
+    website: "https://mathstruct.org"
 license: MIT
 repository-code: "https://github.com/MathStruct/Lenticulum.jl"
 url: "https://mathstruct.org/Lenticulum.jl/"
