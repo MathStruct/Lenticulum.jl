@@ -36,7 +36,10 @@ Adding a pose and an odometry factor then appends to an index array, and deletin
 Capacity grows by doubling, so shapes change $O(\log n)$ times in a run. §7 of that note adds the
 junction (Bayes) tree, whose clique recycling re-solves only the cliques a new measurement
 touches. That is iSAM2's method, and IncrementalInference.jl does it with non-Gaussian beliefs.
-Anything built here should be measured against those two.
+Anything built here should be measured against those two. A new factor *type* arriving mid-run
+still needs compiling; on another thread that stalls the running graph only through the garbage
+collector, about 20 ms per burst, and not at all with the GC held off
+([[Parallelism and Compilation]] §5).
 
 ## 3. What adding and deleting mean for the beliefs
 

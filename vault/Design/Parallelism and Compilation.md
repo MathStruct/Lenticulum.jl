@@ -6,7 +6,8 @@
 >
 > Two assumptions in the question do not hold, one **measured complexity bug** turned up while
 > checking, and the compile-versus-dynamic tension has a clean resolution that nobody has to
-> choose between. Benchmarks in `bench/scaling.jl`.
+> choose between. Compiling while running stalls the running loop only through the garbage
+> collector (§5). Benchmarks in `bench/scaling.jl` and `bench/jit_latency.jl`.
 
 > Sources: Särkkä & García-Fernández, *Temporal Parallelization of Bayesian Smoothers*, IEEE TAC **66**(1):299–306, 2021 — [arXiv:1905.13002](https://arxiv.org/abs/1905.13002); Kaess et al., *iSAM2: Incremental smoothing and mapping using the Bayes tree*, IJRR 2012; [IncrementalInference.jl](https://github.com/JuliaRobotics/IncrementalInference.jl); [Reactant.jl](https://github.com/EnzymeAD/Reactant.jl); code: `schedules.jl`
 >
@@ -157,6 +158,46 @@ The residual honest cost: the first frame of each new factor type pays a compile
 masked capacity is wasted work proportional to slack. What adding and deleting mean for the
 beliefs, and when to do them, is [[Dynamic Graphs]].
 
+### Compiling while running: the compiler is not the problem, the GC is
+
+A new factor type must be compiled while the graph runs. Can that happen on another thread
+without interrupting the loop that runs the graph? `bench/jit_latency.jl` measures it: one
+thread runs a control loop that does not allocate and records the longest gap between its
+iterations; another thread idles, compiles 300 fresh functions, or compiles them with the GC
+switched off. Julia 1.12.6, `-t 2,1 --gcthreads=2,1`, a Ryzen 7 7800X3D, three runs:
+
+| other thread | worst gap in the loop | typical window maximum | GC time |
+|---|---|---|---|
+| idle | 0.07–1.7 ms | 0.008 ms | 0 |
+| compiling (1.7 s) | **23–25 ms** | 0.007–0.05 ms | 0.055 s |
+| compiling, GC disabled meanwhile (1.5 s) | 0.06–0.35 ms | 0.008–0.02 ms | 0.003 s |
+
+Compilation on another thread does not block the loop: Julia's compiler runs in parallel tasks,
+and the loop's typical iteration is unchanged. What stalls it is the **garbage collector**.
+Compilation allocates heavily; an allocation on any thread can start a collection, and Julia's
+collector stops every thread for it. With the GC off during compilation the stall disappears.
+
+The collector is stop-the-world, generational and non-moving. `--gcthreads=N,M` parallelises
+its mark phase over $N$ threads and sweeps concurrently on $M \le 1$ more; neither removes the
+pause. But it only runs when something allocates. So the recipe for a loop with a latency
+budget is:
+
+- **Allocate nothing in the loop**: preallocated buffers, `StaticArrays`, a bump allocator
+  (Bumper.jl) for scratch memory; check it statically with AllocCheck.jl.
+- **Compile before running**: warm up or precompile every factor type at start-up
+  (PrecompileTools, package images; `juliac --trim` for a static binary is experimental in
+  1.12). With the index-array design above, the running graph then only appends to arrays.
+- **Compile novelty in the background with the GC held off** for that window, collecting at a
+  moment of the loop's choosing; or accept one stall of about 20 ms, which is one frame of a
+  10–30 Hz SLAM front end and too long for a kHz control loop.
+- **Mind the thread pools**: since Julia 1.12 the main thread belongs to the `:interactive`
+  pool, and a busy task spawned there can land on it and starve it. The benchmark spawns its
+  tasks on `:default`.
+
+BorrowChecker.jl does not change this: as far as we know it checks ownership at runtime, as a
+debugging aid that can be compiled out, and does not manage memory. Reactant's compiles were
+not measured (§9).
+
 ## 6. Autodiff: the implicit structure is an asset here, not a liability
 
 No package has an AD **dependency** — deliberately. `VariationalDiffusion` avoids one via
@@ -219,6 +260,12 @@ Nothing above (1)–(3) requires a GPU to be worth doing, and (1) and (2) are th
 the current numbers embarrassing rather than merely modest.
 
 ## 9. What was not measured, and why
+
+**Reactant compiles while running.** XLA compiles in C++, outside Julia's heap, but tracing
+allocates in Julia, so the stalls of §5 are expected there too; and a long foreign call that is
+not marked GC-safe could hold up a collection on every other thread. Many small networks of one
+architecture are better compiled once, as one batched kernel over stacked parameters, than once
+each. Not measured yet.
 
 No CUDA benchmark was run, despite a GPU being available. Measuring kernel throughput on
 type-unstable scalar code would say nothing useful: the obstruction is at the representation
