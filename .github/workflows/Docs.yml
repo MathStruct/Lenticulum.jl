@@ -1,10 +1,10 @@
 name: Docs
 on:
   push:
-    branches: [master, dev-danielb]     # dev-danielb deploys a preview to <site>/preview/
-    tags: ['*']
+    branches: [master, dev, dev-danielb]   # master deploys, dev-danielb deploys the preview,
+    tags: ['*']                            # dev only builds (a check before it is merged)
   pull_request:
-    branches: [master]
+    branches: [master, dev]
 permissions:
   contents: write      # deploydocs pushes to gh-pages
   statuses: write
