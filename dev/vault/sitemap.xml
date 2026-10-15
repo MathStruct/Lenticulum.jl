@@ -21,13 +21,13 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Applications/SLAM-and-Sensor-Fusion</loc>
-    <lastmod>2026-09-30T21:52:28.000Z</lastmod>
+    <lastmod>2026-10-15T09:10:38.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Applications/Trading-and-Financial-Markets</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Bibliography</loc>
-    <lastmod>2026-10-14T22:28:26.000Z</lastmod>
+    <lastmod>2026-10-15T09:10:38.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Comparisons/Geometric-Deep-Learning-and-Physical-Laws</loc>
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
@@ -54,7 +54,7 @@
     <lastmod>2026-10-12T18:34:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Design/Parallelism-and-Compilation</loc>
-    <lastmod>2026-10-06T17:29:50.000Z</lastmod>
+    <lastmod>2026-10-15T09:10:38.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Design/RxInfer-as-a-Backend</loc>
     <lastmod>2026-10-12T10:20:20.000Z</lastmod>
@@ -97,6 +97,9 @@
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Factor-Graphs/Dirac-Belief</loc>
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Factor-Graphs/Dynamic-Graphs</loc>
+    <lastmod>2026-10-15T09:10:38.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Factor-Graphs/Everything-is-a-Factor</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -204,7 +207,7 @@
     <lastmod>2026-10-12T18:34:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/Open-Problems-in-Implicit-Diffusion-Learning</loc>
-    <lastmod>2026-10-14T22:28:26.000Z</lastmod>
+    <lastmod>2026-10-15T09:10:38.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Families/Diffusion/ProxDM-and-Proximal-Alternatives</loc>
     <lastmod>2026-10-12T23:07:17.000Z</lastmod>
@@ -273,7 +276,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/Map-of-Content</loc>
-    <lastmod>2026-10-14T22:28:26.000Z</lastmod>
+    <lastmod>2026-10-15T09:10:38.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/dev/vault/README</loc>
     <lastmod>2026-10-13T09:51:57.000Z</lastmod>
