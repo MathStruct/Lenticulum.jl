@@ -20,7 +20,7 @@
 > [!note] Developed in its own repository
 > Language models assembled from implicit learners are now built in
 > [LenticulumLM](https://github.com/MathStruct/LenticulumLM), which depends on Lenticulum.jl
-> and has its own [vault](https://mathstruct.org/LenticulumLM/dev/vault/). Its first step is the
+> and has its own [vault](https://mathstruct.org/LenticulumLM/). Its first step is the
 > structured case of §5: an $n$-gram chain of window relations joined by separators, exact in every
 > query direction. Its roadmap takes up the open points of this note.
 
