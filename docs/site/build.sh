@@ -7,8 +7,10 @@
 # Layout:
 #   docs/site/quartz.config.ts      our config    (committed)
 #   docs/site/quartz.layout.ts      our layout    (committed)
-#   docs/quartz/                    Quartz v4 checkout (gitignored; cloned on first run)
-#   docs/quartz/content/            staged copy of the vault (regenerated every run)
+#   docs/site/.tikz-cache/          rendered TikZ diagrams (committed)
+#   docs/quartz/                    MathStruct's Quartz (gitignored; cloned on first run)
+#   docs/quartz/content/            staged copy of the vault (regenerated every run; inside the
+#                                   checkout because Quartz skips what this repository gitignores)
 #   docs/vault-build/               output — deployed as the site's front page by
 #                                   docs/site/deploy_vault.sh (preview builds: <site>/preview/)
 #
@@ -29,41 +31,28 @@ API_URL="${VAULT_API_URL:-https://mathstruct.org/Lenticulum.jl/api/dev/}"
 SERVE=0
 [[ "${1:-}" == "--serve" ]] && SERVE=1
 
-# --- 1. a Quartz checkout -----------------------------------------------------
-if [[ ! -f "$QUARTZ/package.json" ]]; then
-  echo ">> cloning Quartz v4 into docs/quartz"
-  git clone --depth 1 --branch v4 https://github.com/jackyzha0/quartz.git "$QUARTZ"
+# --- 1. MathStruct's Quartz --------------------------------------------------------
+# Quartz plus the plugins and fixes all MathStruct sites share (TikZ with dark-mode variants,
+# tabs, Typst, ...): https://github.com/MathStruct/quartz. It is cloned into docs/quartz/
+# (gitignored) and moved to QUARTZ_REF on every build. QUARTZ_DIR=<your checkout of it> builds
+# with that checkout as it is, to try out a change to the shared Quartz.
+QUARTZ_REF="${QUARTZ_REF:-main}"
+if [[ -n "${QUARTZ_DIR:-}" ]]; then
+  QUARTZ="$QUARTZ_DIR"
+else
+  # an older checkout of stock Quartz is replaced
+  if [[ -d "$QUARTZ" && ! -f "$QUARTZ/mathstruct/site.sh" ]]; then rm -rf "$QUARTZ"; fi
+  [[ -d "$QUARTZ/.git" ]] || git clone -q --depth 1 https://github.com/MathStruct/quartz.git "$QUARTZ"
+  if git -C "$QUARTZ" fetch -q --depth 1 origin "$QUARTZ_REF"; then
+    git -C "$QUARTZ" checkout -q -f --detach FETCH_HEAD
+  else
+    echo ">> offline: building with docs/quartz as it is ($(git -C "$QUARTZ" rev-parse --short HEAD))"
+  fi
 fi
-if [[ ! -d "$QUARTZ/node_modules" ]]; then
-  echo ">> npm ci"
-  (cd "$QUARTZ" && npm ci --no-audit --no-fund)
-  # npm >= 12 blocks install scripts by default; esbuild and sharp need theirs to fetch
-  # their native binaries, so approve them and rebuild.
-  (cd "$QUARTZ" && npm install-scripts approve esbuild sharp @parcel/watcher >/dev/null 2>&1 \
-     && npm rebuild esbuild sharp @parcel/watcher --no-audit --no-fund) || true
-fi
-
-# --- 2. our configuration over the stock one ----------------------------------
-cp "$HERE/quartz.config.ts" "$QUARTZ/quartz.config.ts"
-cp "$HERE/quartz.layout.ts" "$QUARTZ/quartz.layout.ts"
-# a preview build (docs/make.jl on the development branch) lives at another URL
-if [[ -n "${VAULT_BASEURL:-}" ]]; then
-  sed -i "s#baseUrl: \"[^\"]*\"#baseUrl: \"$VAULT_BASEURL\"#" "$QUARTZ/quartz.config.ts"
-fi
-
-# --- 2b. the TikZ plugin (renders ```tikz blocks to SVG at build time) -------------
-# Ported from MathStruct/CategoryTheory-ML-Wiki. The stock checkout has neither the plugin
-# nor its dependency, so both are added here; the render cache lives in this directory and
-# is committed, so a fresh clone only renders diagrams that are new.
-if [[ ! -d "$QUARTZ/node_modules/node-tikzjax" ]]; then
-  echo ">> npm install node-tikzjax"
-  (cd "$QUARTZ" && npm install --no-save --no-audit --no-fund node-tikzjax@^1.0.5)
-fi
-cp "$HERE/tikz.ts" "$QUARTZ/quartz/plugins/transformers/tikz.ts"
-grep -q 'from "./tikz"' "$QUARTZ/quartz/plugins/transformers/index.ts" || \
-  echo 'export { TikZ } from "./tikz"' >> "$QUARTZ/quartz/plugins/transformers/index.ts"
-mkdir -p "$HERE/.tikz-cache"
-rm -rf "$QUARTZ/.tikz-cache" && ln -s "$HERE/.tikz-cache" "$QUARTZ/.tikz-cache"
+# docs/site/ holds our quartz.config.ts, quartz.layout.ts and .tikz-cache/ (committed: the
+# rendered diagrams, keyed by content hash, so CI only renders new ones); mathstruct/site.sh
+# puts them in place. A preview build (docs/make.jl off master) sets VAULT_BASEURL, which
+# quartz.config.ts reads.
 
 # --- 3. stage the vault ----------------------------------------------------------
 CONTENT="$QUARTZ/content"
@@ -202,11 +191,10 @@ PY
 python3 "$HERE/git_dates.py" "$CONTENT"
 
 # --- 4. build ---------------------------------------------------------------------
-cd "$QUARTZ"
 if [[ $SERVE -eq 1 ]]; then
-  exec npx quartz build --serve -o "$OUT"
+  exec "$QUARTZ/mathstruct/site.sh" "$HERE" "$CONTENT" "$OUT" --serve
 else
-  npx quartz build -o "$OUT"
+  "$QUARTZ/mathstruct/site.sh" "$HERE" "$CONTENT" "$OUT"
   echo ">> vault built into ${OUT#$ROOT/} ($(find "$OUT" -name '*.html' | wc -l) pages)"
   # KaTeX renders with throwOnError:false, so a bad formula becomes red text rather than a
   # failed build. Surface them here (e.g. \tag in a single-line $$...$$, which remark-math

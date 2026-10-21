@@ -1,6 +1,7 @@
 # The vault as a website
 
-The Obsidian vault is rendered to a static site with [Quartz v4](https://quartz.jzhao.xyz)
+The Obsidian vault is rendered to a static site with [MathStruct's Quartz](https://github.com/MathStruct/quartz)
+(Quartz v4 plus the plugins all MathStruct sites share)
 and is the **front page** of the project's site, [mathstruct.org/Lenticulum.jl](https://mathstruct.org/Lenticulum.jl/);
 the Documenter site (the API docs and tutorials) is under `api/`, at `api/dev/` for `master`.
 The two link to each other: Documenter's "Theory vault" page points here, and this site's
@@ -23,19 +24,20 @@ docs/site/build.sh             # builds into docs/vault-build/
 docs/site/build.sh --serve     # live preview at http://localhost:8080
 ```
 
-Needs Node ≥ 22. The first run clones Quartz into `docs/quartz/` (gitignored) and runs
-`npm ci`. `docs/make.jl` calls this script automatically when `npx` is on the path, so a
+Needs git and Node ≥ 22. The first run clones MathStruct's Quartz into `docs/quartz/`
+(gitignored) and installs its dependencies; later runs move it to the latest `main`.
+`QUARTZ_DIR=<your checkout of MathStruct/quartz>` builds with that checkout instead, to try a
+change to the shared Quartz on this vault before pushing it. `docs/make.jl` calls this script automatically when `npx` is on the path, so a
 normal Documenter build produces both sites.
 
 ## How it is put together
 
 | file | is |
 |---|---|
-| `quartz.config.ts` | our Quartz configuration, copied over the stock one |
-| `quartz.layout.ts` | our layout — stock, plus a footer link back to the API docs |
-| `tikz.ts` | a Quartz transformer rendering ```` ```tikz ```` blocks to SVG at build time |
-| `.tikz-cache/` | the rendered SVGs, keyed by content hash — **committed** |
-| `build.sh` | clones Quartz, injects the above, stages the vault, lints it, builds |
+| `quartz.config.ts` | our Quartz configuration: a call to the shared preset (title, address, dates) |
+| `quartz.layout.ts` | our layout: the shared one, plus a footer link back to the API docs |
+| `.tikz-cache/` | the rendered TikZ diagrams, keyed by content hash — **committed** |
+| `build.sh` | fetches MathStruct's Quartz, stages the vault, lints it, builds |
 | `bib2vault.py`, `bib2cff.py`, `zenodo.py`, `link_sources.py` | the bibliography note, `CITATION.cff`'s references and `.zenodo.json`, all from `docs/src/refs.bib` (and `contributors.toml`), and the Bibliography line under each note |
 
 The vault is the whole repository, so the notes live in three places — `vault/`, the
@@ -45,17 +47,13 @@ directory structure only affects breadcrumbs.
 
 ## TikZ
 
-`tikz.ts` is ported from
-[MathStruct/CategoryTheory-ML-Wiki](https://github.com/MathStruct/CategoryTheory-ML-Wiki),
-where it was written for the same Obsidian plugin format (`\usepackage` lines, then
-`\begin{document} … \end{document}`). It renders each block with
-[`node-tikzjax`](https://www.npmjs.com/package/node-tikzjax) and caches the SVG under its
-content hash in `.tikz-cache/`. Because the cache is committed, a fresh clone — and CI — only
-renders diagrams that are new or changed. A block that fails to compile is emitted as its
-source in a `<pre class="tikz-error">` and the failure is printed at build time; it does not
-break the build.
-
-The stock Quartz checkout has neither the plugin nor the dependency; `build.sh` adds both.
+The shared Quartz renders ```` ```tikz ```` blocks (the Obsidian Inline TikZ format:
+`\usepackage` lines, then `\begin{document} … \end{document}`) with
+[`node-tikzjax`](https://www.npmjs.com/package/node-tikzjax), each with a dark-mode variant
+whose colours are remapped, and caches the SVG under its content hash in `.tikz-cache/`.
+Because the cache is committed, a fresh clone — and CI — only renders diagrams that are new or
+changed. A block that fails to compile is emitted as its source in a `<pre class="tikz-error">`
+and the failure is printed at build time; it does not break the build.
 
 ## The one thing to know about `$$`
 

@@ -1,99 +1,26 @@
-import { QuartzConfig } from "./quartz/cfg"
-import * as Plugin from "./quartz/plugins"
+import { siteConfig } from "./mathstruct/config"
 
 /**
- * Quartz configuration for the Lenticulum theory vault.
+ * Quartz configuration for the Lenticulum theory vault. The plugins, theme and fixes shared by all
+ * MathStruct sites are in the preset (https://github.com/MathStruct/quartz,
+ * mathstruct/config.ts); this file only says what is particular to this vault.
  *
- * This file is copied over the stock `quartz.config.ts` of a Quartz v4 checkout by
- * `docs/site/build.sh`. The vault is staged into `content/` by the same script; see
- * `docs/site/README.md` for the layout.
- *
- * Deployed as the front page of the site (docs/site/deploy_vault.sh); the Documenter site is under `api/`.
+ * docs/site/build.sh stages the vault and builds it with this file; see docs/site/README.md.
+ * Deployed as the front page of the site (docs/site/deploy_vault.sh); the Documenter site is
+ * under api/.
  */
-const config: QuartzConfig = {
-  configuration: {
-    pageTitle: "Lenticulum — theory vault",
-    pageTitleSuffix: " · Lenticulum",
-    enableSPA: true,
-    enablePopovers: true,
-    analytics: null,
-    locale: "en-GB",
-    // The vault is the front page of the site; the API docs are under api/. A preview build
-    // (docs/make.jl off `master`) replaces this with …/preview. The custom domain, not mathstruct.github.io: that redirects here, and giscus loads its
-    // theme stylesheet from this URL, which a redirect (without a CORS header) would block.
-    baseUrl: "mathstruct.org/Lenticulum.jl",
-    // Prompts/ holds the authoring prompts, not vault content.
-    ignorePatterns: ["private", "templates", ".obsidian", "Prompts", ".tikz-cache"],
-    defaultDateType: "modified",
-    theme: {
-      fontOrigin: "googleFonts",
-      cdnCaching: true,
-      typography: {
-        header: "Schibsted Grotesk",
-        body: "Source Sans Pro",
-        code: "IBM Plex Mono",
-      },
-      colors: {
-        lightMode: {
-          light: "#faf8f8",
-          lightgray: "#e5e5e5",
-          gray: "#b8b8b8",
-          darkgray: "#4e4e4e",
-          dark: "#2b2b2b",
-          secondary: "#284b63",
-          tertiary: "#84a59d",
-          highlight: "rgba(143, 159, 169, 0.15)",
-          textHighlight: "#fff23688",
-        },
-        darkMode: {
-          light: "#161618",
-          lightgray: "#393639",
-          gray: "#646464",
-          darkgray: "#d4d4d4",
-          dark: "#ebebec",
-          secondary: "#7b97aa",
-          tertiary: "#84a59d",
-          highlight: "rgba(143, 159, 169, 0.15)",
-          textHighlight: "#b3aa0288",
-        },
-      },
-    },
-  },
-  plugins: {
-    transformers: [
-      Plugin.FrontMatter(),
-      Plugin.CreatedModifiedDate({ priority: ["frontmatter", "filesystem"] }),
-      Plugin.SyntaxHighlighting({
-        theme: { light: "github-light", dark: "github-dark" },
-        keepBackground: false,
-      }),
-      // ```tikz blocks → inline SVG at build time (node-tikzjax), cached by content hash in
-      // docs/vault/.tikz-cache/, which is committed so CI only renders new diagrams.
-      Plugin.TikZ({ cacheDir: ".tikz-cache" }),
-      // Obsidian syntax: [[wikilinks]], > [!callouts], etc.
-      Plugin.ObsidianFlavoredMarkdown({ enableInHtmlEmbed: false }),
-      Plugin.GitHubFlavoredMarkdown(),
-      Plugin.TableOfContents(),
-      // "shortest" resolves [[messages]] by basename, exactly as Obsidian does.
-      Plugin.CrawlLinks({ markdownLinkResolution: "shortest" }),
-      Plugin.Description(),
-      Plugin.Latex({ renderEngine: "katex", katexOptions: { throwOnError: false, strict: false } }),
-    ],
-    filters: [Plugin.RemoveDrafts()],
-    emitters: [
-      Plugin.AliasRedirects(),
-      Plugin.ComponentResources(),
-      Plugin.ContentPage(),
-      Plugin.FolderPage(),
-      Plugin.TagPage(),
-      Plugin.ContentIndex({ enableSiteMap: true, enableRSS: false }),
-      Plugin.Assets(),
-      Plugin.Static(),
-      Plugin.Favicon(),
-      Plugin.NotFoundPage(),
-      // CustomOgImages is slow and needs an absolute base; not worth it here.
-    ],
-  },
-}
-
-export default config
+export default siteConfig({
+  pageTitle: "Lenticulum — theory vault",
+  pageTitleSuffix: " · Lenticulum",
+  locale: "en-GB",
+  // A preview build (docs/make.jl off `master`) replaces this with …/preview. The custom
+  // domain, not mathstruct.github.io: that redirects here, and giscus loads its theme
+  // stylesheet from this URL, which a redirect (without a CORS header) would block.
+  baseUrl: process.env.VAULT_BASEURL || "mathstruct.org/Lenticulum.jl",
+  // Prompts/ holds the authoring prompts, not vault content
+  ignorePatterns: ["templates", "Prompts"],
+  // build.sh sets each staged file's date from git (git_dates.py), so the filesystem date is
+  // the source's last change
+  dateSources: ["frontmatter", "filesystem"],
+  rss: false,
+})
