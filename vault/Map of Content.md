@@ -238,7 +238,7 @@ Implementation notes live next to the code, per [[Start Here]]:
 **Mycelium.jl** — [[Mycelium]], [[graph]], [[polarity_resolution]], [[messages]],
 [[schedules]], [[passing]], [[free_energy]], [[factors]]
 
-**Lenticulum.jl** — [[constraint]], [[nonlinear]] (`beliefs.md` and `gaussian.md` are not yet written)
+**Lenticulum.jl** — [[constraint]], [[nonlinear]], [[likelihood]] (`beliefs.md` and `gaussian.md` are not yet written)
 
 **VariationalDiffusion.jl** — [[VariationalDiffusion]], [[schedule]], [[predictor]],
 [[reddiff]], [[factor]], [[analytic]], [[implicit]], [[implicit_factor]], [[energy_network]], [[proxdm]], [[backends]],

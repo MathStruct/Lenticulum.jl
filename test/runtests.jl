@@ -232,6 +232,28 @@ function divider_blocks(pv::Float64)
     return blocks
 end
 
+# a likelihood with only `loglikelihood`: the derivatives fall back to finite differences and
+# the EP moments to quadrature, so it checks both against the closed forms
+struct FDOrdinal <: AbstractLikelihood
+    inner::OrdinalProbitLikelihood
+end
+Lenticulum.npredictors(::FDOrdinal) = 1
+Lenticulum.obsdim(::FDOrdinal) = 1
+Lenticulum.loglikelihood(L::FDOrdinal, y, z) = loglikelihood(L.inner, y, z)
+Lenticulum.outcomes(L::FDOrdinal) = outcomes(L.inner)
+
+# moments and log normaliser of N(z; μ, s²) e^{ℓ(z)} on a fine grid: the reference
+function brute_tilted(ℓ, μ, s²; lo = μ - 12sqrt(s²), hi = μ + 12sqrt(s²), n = 400001)
+    zs = range(lo, hi; length = n)
+    lw = [-(z - μ)^2 / (2s²) - log(2π * s²) / 2 + ℓ(z) for z in zs]
+    mx = maximum(lw)
+    w = exp.(lw .- mx)
+    Z = sum(w)
+    m = sum(w .* zs) / Z
+    return m, sum(w .* (zs .- m) .^ 2) / Z, mx + log(Z * step(zs)), zs[argmax(lw)]
+end
+
+
 @testset "Lenticulum" begin
 
 @testset "GaussianBelief: canonical form makes pooling addition" begin
@@ -883,4 +905,149 @@ end
     @test report.converged
     @test belief_mean(marg.x) ≈ belief_mean(one_step) && belief_cov(marg.x) ≈ belief_cov(one_step)
     @test_throws ArgumentError NonlinearFactor(identity, 1 => 1; method = :ukf)
+end
+
+@testset "LikelihoodFactor: Laplace and EP messages, the predictive over outcomes" begin
+    bwd = LenticulumCore.Polarity(; x = Unobserved(), y = Observed())
+    fwd = LenticulumCore.Polarity(; x = Observed(), y = Unobserved())
+    msg(f, cav, y) = Mycelium.factor_message(f, :x, bwd, (; y = DiracBelief(y)), cav, NamedTuple(), NamedTuple())[1]
+    cav = Gaussian([0.5], fill(0.3, 1, 1))
+
+    # Poisson: EP is the tilted mean and variance, Laplace the mode and curvature
+    ref = brute_tilted(z -> 3z - exp(z) - log(6), 0.5, 0.3)
+    fe = LikelihoodFactor(PoissonLikelihood(), 1; method = ExpectationPropagation())
+    q = Mycelium.combine(cav, msg(fe, cav, [3.0]))
+    @test belief_mean(q)[1] ≈ ref[1] rtol = 1e-8
+    @test belief_cov(q)[1] ≈ ref[2] rtol = 1e-8
+    @test log_evidence(fe, cav, [3.0]) ≈ ref[3] rtol = 1e-8
+    fl = LikelihoodFactor(PoissonLikelihood(), 1; method = Laplace())
+    ql = Mycelium.combine(cav, msg(fl, cav, [3.0]))
+    @test belief_mean(ql)[1] ≈ ref[4] atol = 1e-4
+    @test belief_cov(ql)[1] ≈ inv(1 / 0.3 + exp(belief_mean(ql)[1]))
+    @test msg(fl, cav, [3.0]).Λ[1] > 0                       # log-concave: a positive precision
+    # a large count under a wide cavity: the adaptive grid still gets the moments
+    ref50 = brute_tilted(z -> 50z - exp(z) - Lenticulum._logfact(50), 0.0, 4.0)
+    q50 = Mycelium.combine(Gaussian([0.0], fill(4.0, 1, 1)), msg(fe, Gaussian([0.0], fill(4.0, 1, 1)), [50.0]))
+    @test belief_mean(q50)[1] ≈ ref50[1] rtol = 1e-7
+    @test belief_cov(q50)[1] ≈ ref50[2] rtol = 1e-6
+
+    # ordinal probit: the closed-form EP moments, the quadrature path and the brute force agree
+    op = OrdinalProbitLikelihood([-1.0, 0.5, 2.0]; scale = 0.7)
+    cz = Gaussian([0.2], fill(1.5, 1, 1))
+    for k in 1:4
+        r = brute_tilted(z -> loglikelihood(op, [k], [z]), 0.2, 1.5)
+        qc = Mycelium.combine(cz, msg(LikelihoodFactor(op, 1; method = ExpectationPropagation()), cz, [float(k)]))
+        qq = Mycelium.combine(cz, msg(LikelihoodFactor(FDOrdinal(op), 1; method = ExpectationPropagation(order = 40)), cz, [float(k)]))
+        @test belief_mean(qc)[1] ≈ r[1] rtol = 1e-7
+        @test belief_cov(qc)[1] ≈ r[2] rtol = 1e-6
+        @test belief_mean(qq)[1] ≈ r[1] rtol = 1e-5
+        @test belief_cov(qq)[1] ≈ r[2] rtol = 1e-4
+        @test log_evidence(LikelihoodFactor(op, 1; method = ExpectationPropagation()), cz, [k]) ≈ r[3] rtol = 1e-7
+        ℓ, g, H = loglikelihood_derivatives(op, [k], [0.3])
+        _, gd, Hd = invoke(loglikelihood_derivatives, Tuple{AbstractLikelihood,Any,Any}, op, [k], [0.3])
+        @test g ≈ gd rtol = 1e-6
+        @test H ≈ Hd rtol = 1e-4
+    end
+    # far in a tail the log-probabilities stay finite and the derivatives exact
+    ℓt, gt, _ = loglikelihood_derivatives(op, [1], [40.0])
+    @test isfinite(ℓt)
+    @test gt[1] ≈ -(40.0 + 1.0) / 0.7^2 rtol = 0.01   # the Mills ratio: g ≈ -(z - c₁)/σ²
+
+    # a two-dimensional latent read through one predictor: the message lives on the row of A,
+    # and the posterior is the exact tilted mean and covariance in x
+    A2 = [1.0 -1.0]
+    f2 = LikelihoodFactor(op, 2; A = A2, b = [0.1], method = ExpectationPropagation())
+    c2 = Gaussian([0.3, -0.2], [1.0 0.3; 0.3 0.6])
+    m2 = msg(f2, c2, [3.0])
+    @test rank(m2.Λ; atol = 1e-10) == 1 && m2.Λ ≈ m2.Λ[1, 1] .* [1 -1; -1 1]
+    q2 = Mycelium.combine(c2, m2)
+    S2 = belief_cov(c2); μz = (A2 * belief_mean(c2))[1] + 0.1; sz = (A2 * S2 * A2')[1]
+    r2 = brute_tilted(z -> loglikelihood(op, [3], [z]), μz, sz)
+    K = S2 * A2' / sz                               # x | z is the cavity's conditional
+    @test belief_mean(q2) ≈ belief_mean(c2) .+ vec(K) .* (r2[1] - μz) rtol = 1e-6
+    @test belief_cov(q2) ≈ S2 .- K * K' .* (sz - r2[2]) rtol = 1e-5
+
+    # the predictive: ordinal in closed form, against quadrature over z
+    p, _ = Mycelium.factor_message(f2, :y, fwd, (; x = c2), TrivialBelief(), NamedTuple(), NamedTuple())
+    @test p isa LenticulumCore.CategoricalBelief && p.labels == [[1.0], [2.0], [3.0], [4.0]]
+    @test probabilities(p) ≈ [exp(brute_tilted(z -> loglikelihood(op, [k], [z]), μz, sz)[3]) for k in 1:4] rtol = 1e-7
+    # Poisson predictive with the tail lumped into the top count: sums to one, matches the mixture
+    fp = LikelihoodFactor(PoissonLikelihood(; maxcount = 8), 1; method = ExpectationPropagation(order = 40))
+    pp = probabilities(predictive(fp, cav))
+    @test sum(pp) ≈ 1
+    @test pp[1:8] ≈ [exp(brute_tilted(z -> j * z - exp(z) - Lenticulum._logfact(j), 0.5, 0.3)[3]) for j in 0:7] rtol = 1e-8
+    # at a point: exactly the likelihood's probabilities
+    pd = probabilities(predictive(fp, DiracBelief([log(2.0)])))
+    @test pd[1:8] ≈ [exp(-2.0) * 2.0^j / factorial(j) for j in 0:7]
+    @test pd[9] ≈ 1 - sum(pd[1:8])
+
+    # bivariate Poisson: a proper pmf with Cov(y₁, y₂) = λ₃, exact derivatives
+    bp = BivariatePoissonLikelihood(; maxcount = 40)
+    zb = log.([1.2, 0.7, 0.4])
+    P = [exp(loglikelihood(bp, [i, j], zb)) for i in 0:39, j in 0:39]
+    @test sum(P) ≈ 1 atol = 1e-12
+    E1 = sum(P .* (0:39)); E2 = sum(P .* (0:39)')
+    @test sum(P .* ((0:39) .* (0:39)')) - E1 * E2 ≈ 0.4 rtol = 1e-8
+    @test E1 ≈ 1.6 && E2 ≈ 1.1
+    for y in ([0, 0], [3, 1], [2, 5])
+        _, g, H = loglikelihood_derivatives(bp, y, zb)
+        _, gd, Hd = invoke(loglikelihood_derivatives, Tuple{AbstractLikelihood,Any,Any}, bp, y, zb)
+        @test g ≈ gd rtol = 1e-6
+        @test H ≈ Hd rtol = 1e-4 atol = 1e-6
+    end
+    small = BivariatePoissonLikelihood(; maxcount = 5)
+    pb = predictive(LikelihoodFactor(small, 3), DiracBelief(zb))
+    @test sum(probabilities(pb)) ≈ 1 && length(pb.labels) == 36
+    @test probabilities(pb)[1:5] ≈ P[1:5, 1]                  # y₂ = 0, y₁ = 0 … 4
+    # two latents, three predictors (λ₃ fixed by the offset): on a 2-d grid, EP's posterior mean
+    # is the tilted mean and Laplace's is the mode
+    Ab = [1.0 0.0; 0.0 1.0; 0.0 0.0]
+    cb = Gaussian([0.2, -0.1], [0.4 0.1; 0.1 0.3])
+    fb = LikelihoodFactor(bp, 2; A = Ab, b = [0.0, 0.0, log(0.4)], method = ExpectationPropagation(order = 30))
+    qb = Mycelium.combine(cb, msg(fb, cb, [3.0, 1.0]))
+    xs = range(-3, 3; length = 601)
+    Sb = belief_cov(cb); mb = belief_mean(cb)
+    lw = [-(([u, v] .- mb)' * (Sb \ ([u, v] .- mb))) / 2 + loglikelihood(bp, [3, 1], Ab * [u, v] .+ [0, 0, log(0.4)]) for u in xs, v in xs]
+    w = exp.(lw .- maximum(lw)); w ./= sum(w)
+    @test belief_mean(qb) ≈ [sum(w .* xs), sum(w .* xs')] rtol = 1e-5
+    ql2 = Mycelium.combine(cb, msg(LikelihoodFactor(bp, 2; A = Ab, b = [0.0, 0.0, log(0.4)]), cb, [3.0, 1.0]))
+    imax = argmax(lw)                               # Laplace: the mode, not the mean
+    @test belief_mean(ql2) ≈ [xs[imax[1]], xs[imax[2]]] atol = 0.006
+    @test norm(belief_mean(ql2) .- belief_mean(qb)) > 0.05   # the two differ: the posterior is skewed
+
+    # no cavity: uninformative, or the expansion at x0
+    @test msg(fl, TrivialBelief(), [3.0]) isa TrivialBelief
+    @test msg(fl, uninformative(1), [3.0]) isa TrivialBelief
+    e0 = msg(LikelihoodFactor(PoissonLikelihood(), 1; x0 = [0.0]), TrivialBelief(), [3.0])
+    @test e0.Λ ≈ fill(1.0, 1, 1) && e0.η ≈ [2.0]             # ℓ ≈ 2x - x²/2 at 0
+    @test_throws ArgumentError msg(fl, cav, [2.5])            # not a count
+    @test_throws ArgumentError msg(fl, cav, [-1.0])
+    @test_throws ArgumentError LikelihoodFactor(PoissonLikelihood(2), 3)    # A is needed
+    @test_throws ArgumentError OrdinalProbitLikelihood([1.0, 0.0])
+
+    # in a graph: prior → x ─[Poisson]─ y ← data. The Bethe free energy of the EP posterior is a
+    # variational bound on −log p(y), and close to it
+    for method in (Laplace(), ExpectationPropagation())
+        gb = GraphBuilder()
+        variable!(gb, :x, 1); variable!(gb, :y, 1)
+        factor!(gb, :prior, GaussianPrior(:x, 0.5, 0.3))
+        factor!(gb, :obs, LikelihoodFactor(PoissonLikelihood(), 1; method))
+        factor!(gb, :data, DataFactor(:y, [3.0]))
+        connect!(gb, :prior, :x, :x; direction = Bidirectional())
+        connect!(gb, :obs, :x, :x; direction = Bidirectional())
+        connect!(gb, :obs, :y, :y; direction = Bidirectional())
+        connect!(gb, :data, :y, :y; direction = Emitting())
+        G = validate(build(gb))
+        pz = (prior = NamedTuple(), obs = NamedTuple(), data = NamedTuple())
+        marg, report, st, store = infer!(G, SequentialSchedule(tasks(tree_schedule(G))), pz, pz)
+        @test report.converged
+        qx = method isa Laplace ? ql : q
+        @test belief_mean(marg.x) ≈ belief_mean(qx) && belief_cov(marg.x) ≈ belief_cov(qx)
+        F, _ = LenticulumCore.scalar_free_energy(store, G, pz, st)
+        @test F ≥ -ref[3] - 1e-9
+        @test F + ref[3] < 0.01
+    end
+    # at a point the factor's energy is the negative log-likelihood
+    Fd, _ = Mycelium.local_free_energy(fl, (; x = DiracBelief([log(2.0)]), y = DiracBelief([3.0])), NamedTuple(), NamedTuple())
+    @test LenticulumCore.scalarise(LenticulumCore.scalarisation(fl), Fd) ≈ -log(exp(-2.0) * 8 / 6)
 end

@@ -69,4 +69,4 @@ Learnable parameters in $f$; Gauss–Hermite and cubature rules; CVI; and multi-
 $y = f(x_1, \dots, x_k)$ over several channels (today one input channel, which may be a stacked
 vector).
 
-Related: [[constraint]], [[Belief Algebra]], [[Sharing Types with RxInfer]]
+Related: [[constraint]], [[likelihood]] (non-Gaussian observations), [[Belief Algebra]], [[Sharing Types with RxInfer]]

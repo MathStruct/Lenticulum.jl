@@ -9,12 +9,14 @@ LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LuxCore = "bb33d45b-7691-41d6-9220-0943567d0623"
 Mycelium = "0a724bc2-760c-4b8c-a26e-202a6d9695cb"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [sources]
 LenticulumCore = {path = "lib/LenticulumCore.jl"}
 Mycelium = {path = "lib/Mycelium.jl"}
 
 [compat]
+SpecialFunctions = "2"
 julia = "1.10"
 
 [extras]

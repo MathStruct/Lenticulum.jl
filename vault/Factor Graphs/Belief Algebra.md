@@ -62,14 +62,15 @@ easy in principle; fusion and projection are where the approximations live.
 ## 4. What to build, by what it unlocks
 
 Status: items 1–3 are **built** (categorical and mixture beliefs, densities, sample
-reweighting, mixture products and reduction, `moment_match`); item 4 and the relocation of
-§6 are not. What is still missing from item 1 is an actual EP *factor* (e.g. a probit
-win/draw/loss likelihood) that uses `moment_match`.
+reweighting, mixture products and reduction, `moment_match`, and the first non-Gaussian
+factor with Gaussian messages, [[likelihood|`LikelihoodFactor`]]); item 4 and the relocation of
+§6 are not.
 
 1. **`belief_logdensity` beyond Gaussians, and moment projection (EP).** Pooling of Sample
    beliefs (densities exist for Gaussians only, [[Beliefs]]), and the first
-   non-Gaussian factor whose messages stay Gaussian: a win/draw/loss outcome factor (the
-   planned TrueSkill-through-time project), probit and other one-dimensional likelihoods.
+   non-Gaussian factor whose messages stay Gaussian: *built* as `LikelihoodFactor`, a latent
+   Gaussian observed through a Poisson, bivariate-Poisson or ordinal-probit likelihood, with
+   Laplace and EP messages and a predictive over the discrete outcomes ([[likelihood]]).
 2. **A mixture belief.** The important one for the implicit learners: today point inference
    returns *one* branch of a multivalued relation ([[Inference Signatures]] §3). A mixture
    holds both, e.g. the circle's $y = \pm 0.8$ or the robot arm's elbow up and down. The cost is

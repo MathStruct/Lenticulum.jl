@@ -573,6 +573,20 @@ references:
     start: "68"
     end: "85"
     doi: "10.1007/bfb0092872"
+  - type: article
+    title: "Calculation of Gauss Quadrature Rules"
+    authors:
+      - family-names: "Golub"
+        given-names: "Gene H."
+      - family-names: "Welsch"
+        given-names: "John H."
+    year: 1969
+    journal: "Mathematics of Computation"
+    volume: "23"
+    issue: "106"
+    start: "221"
+    end: "230"
+    doi: "10.1090/S0025-5718-69-99647-1"
   - type: conference-paper
     title: "FFJORD: Free-form Continuous Dynamics for Scalable Reversible Generative Models"
     authors:
@@ -635,6 +649,17 @@ references:
     year: 2022
     collection-title: "NeurIPS 2021 Workshop on Deep Generative Models and Downstream Applications"
     url: "https://arxiv.org/abs/2207.12598"
+  - type: article
+    title: "Estimation for the Bivariate Poisson Distribution"
+    authors:
+      - family-names: "Holgate"
+        given-names: "P."
+    year: 1964
+    journal: "Biometrika"
+    volume: "51"
+    issue: "1/2"
+    start: "241"
+    doi: "10.2307/2334210"
   - type: article
     title: "iSAM2: Incremental smoothing and mapping using the Bayes tree"
     authors:
@@ -704,6 +729,20 @@ references:
     year: 2023
     collection-title: "Annual Meeting of the Association for Computational Linguistics (ACL)"
     url: "https://arxiv.org/abs/2210.15097"
+  - type: article
+    title: "A Note on Gauss–Hermite Quadrature"
+    authors:
+      - family-names: "Liu"
+        given-names: "Qing"
+      - family-names: "Pierce"
+        given-names: "Donald A."
+    year: 1994
+    journal: "Biometrika"
+    volume: "81"
+    issue: "3"
+    start: "624"
+    end: "629"
+    doi: "10.1093/biomet/81.3.624"
   - type: conference-paper
     title: "Compositional Visual Generation with Composable Diffusion Models"
     authors:
@@ -794,6 +833,18 @@ references:
     year: 2024
     collection-title: "International Conference on Learning Representations (ICLR)"
     url: "https://arxiv.org/abs/2305.04391"
+  - type: article
+    title: "Regression Models for Ordinal Data"
+    authors:
+      - family-names: "McCullagh"
+        given-names: "Peter"
+    year: 1980
+    journal: "Journal of the Royal Statistical Society: Series B (Methodological)"
+    volume: "42"
+    issue: "2"
+    start: "109"
+    end: "127"
+    doi: "10.1111/j.2517-6161.1980.tb01109.x"
   - type: conference-paper
     title: "Expectation Propagation for approximate Bayesian inference"
     authors:
@@ -1074,6 +1125,20 @@ references:
         given-names: "Richard"
     year: 2024
     url: "https://arxiv.org/abs/2403.02284"
+  - type: article
+    title: "Accurate Approximations for Posterior Moments and Marginal Densities"
+    authors:
+      - family-names: "Tierney"
+        given-names: "Luke"
+      - family-names: "Kadane"
+        given-names: "Joseph B."
+    year: 1986
+    journal: "Journal of the American Statistical Association"
+    volume: "81"
+    issue: "393"
+    start: "82"
+    end: "86"
+    doi: "10.1080/01621459.1986.10478240"
   - type: article
     title: "An analysis of temporal-difference learning with function approximation"
     authors:

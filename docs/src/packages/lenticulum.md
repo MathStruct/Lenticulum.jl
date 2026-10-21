@@ -37,6 +37,7 @@ pseudo-mean.
 | `GaussianPrior` | ``\mathcal{N}(\mu, \Sigma)`` on one channel | one |
 | `LinearConstraintFactor` | ``0 = \sum_i A_i x_i - c + \varepsilon`` | **any number** |
 | `NonlinearFactor` | ``p(y \mid x) = \mathcal{N}(y; f(x), Q)``, ``f`` given | two, named |
+| `LikelihoodFactor` | ``p(y \mid x) = L(y \mid Ax + b)``, ``L`` non-Gaussian (counts, ordered categories) | two, named |
 
 `GaussianFactor` is *bidirectional*: both `(x observed, y unobserved)` and the reverse, each
 exact. Parameters are `(A, b)`; `noise` is a fixed hyperparameter, not learned.
@@ -60,6 +61,20 @@ in `invert`, which is Gauss–Newton on the MAP:
 
 ```julia
 f = NonlinearFactor(x -> [hypot(x[1], x[2])], 2 => 1; noise = 0.01, method = Unscented())
+```
+
+`LikelihoodFactor` observes a Gaussian latent through a non-Gaussian likelihood of a linear
+predictor ``z = Ax + b``: `PoissonLikelihood` (counts, log link), `BivariatePoissonLikelihood`
+(two counts with a common shock) or `OrdinalProbitLikelihood` (ordered categories; one cutpoint
+is binary probit), or any `AbstractLikelihood` you define. The message to ``x`` is Gaussian, by
+`Laplace()` or `ExpectationPropagation()` (adaptive Gauss–Hermite moments) at the cavity; the
+message to ``y`` is the predictive, a `CategoricalBelief` over the outcomes:
+
+```julia
+f = LikelihoodFactor(OrdinalProbitLikelihood([-1.0, 1.0]), 2; A = [1.0 -1.0],
+                     method = ExpectationPropagation())
+p = predictive(f, Gaussian([0.3, 0.0], [1.0 0.2; 0.2 0.5]))
+probabilities(p)            # P(y = 1), P(y = 2), P(y = 3)
 ```
 
 ## Known gaps

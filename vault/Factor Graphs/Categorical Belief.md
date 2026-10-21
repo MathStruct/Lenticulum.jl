@@ -14,6 +14,9 @@
 - **Discrete variables**: "is this enzyme active?" ([[Metabolomics and Proteomics]]), a
   match outcome (win, draw, loss), a regime switch, a token at one position of a text
   ([[Language Models]] §3).
+- **The predictive of a non-Gaussian likelihood**: a Gaussian belief pushed through a count
+  or ordinal likelihood becomes a categorical belief over the outcomes, labelled by them, with
+  the tail of a count lumped into its top value ([[likelihood]] §3).
 - **The switch of a mixture**: the categorical variable that says which component of a
   [[Mixture Belief]] a value came from.
 - **Logic factors**: implication, AND, OR between Bernoulli variables are factors whose
