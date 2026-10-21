@@ -27,7 +27,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Bibliography</loc>
-    <lastmod>2026-10-15T09:10:38.000Z</lastmod>
+    <lastmod>2026-10-21T08:58:38.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Comparisons/Geometric-Deep-Learning-and-Physical-Laws</loc>
     <lastmod>2026-10-15T11:05:36.000Z</lastmod>
@@ -84,7 +84,7 @@
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Factor-Graphs/Belief-Algebra</loc>
-    <lastmod>2026-10-07T15:33:13.000Z</lastmod>
+    <lastmod>2026-10-21T08:58:38.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Factor-Graphs/Beliefs</loc>
     <lastmod>2026-10-15T11:05:36.000Z</lastmod>
@@ -93,7 +93,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Factor-Graphs/Categorical-Belief</loc>
-    <lastmod>2026-10-06T18:27:41.000Z</lastmod>
+    <lastmod>2026-10-21T08:58:38.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Factor-Graphs/Dirac-Belief</loc>
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
@@ -276,7 +276,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Map-of-Content</loc>
-    <lastmod>2026-10-15T09:10:38.000Z</lastmod>
+    <lastmod>2026-10-21T08:58:38.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/README</loc>
     <lastmod>2026-10-15T11:05:36.000Z</lastmod>
@@ -425,6 +425,9 @@
     <loc>https://mathstruct.org/Lenticulum.jl/preview/src/constraint</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/src/likelihood</loc>
+    <lastmod>2026-10-21T08:58:38.000Z</lastmod>
+  </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/src/nonlinear</loc>
-    <lastmod>2026-10-12T18:34:57.000Z</lastmod>
+    <lastmod>2026-10-21T08:58:38.000Z</lastmod>
   </url></urlset>
