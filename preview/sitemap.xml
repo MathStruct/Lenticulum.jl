@@ -27,7 +27,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Bibliography</loc>
-    <lastmod>2026-10-21T08:58:38.000Z</lastmod>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Comparisons/Geometric-Deep-Learning-and-Physical-Laws</loc>
     <lastmod>2026-10-15T11:05:36.000Z</lastmod>
@@ -267,7 +267,7 @@
     <lastmod>2026-10-15T11:05:36.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Foundations/Scalar-and-Multivariate-Energy</loc>
-    <lastmod>2026-10-22T13:31:13.000Z</lastmod>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Foundations/The-Table-Revisited</loc>
     <lastmod>2026-10-14T22:28:26.000Z</lastmod>
@@ -276,13 +276,67 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Map-of-Content</loc>
-    <lastmod>2026-10-21T08:58:38.000Z</lastmod>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Decisions/Decisions</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Decisions/L-ADR-0001-Julia</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Decisions/L-ADR-0002-Energies-are-vectors,-scalarised-late</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Decisions/L-ADR-0003-Pointwise-energy-and-free-energy-are-separate-levels</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Decisions/L-ADR-0004-The-vault-builds-with-the-shared-MathStruct-Quartz</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Decisions/L-ADR-0005-Branches</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-001-The-vault-build-uses-GNU-only-sed</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-002-The-Jacobian-side-is-not-implemented</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-003-SquaredNorm-does-not-check-its-metric</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-004-link_sources-rewrites-unrelated-notes</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-005-Learning-the-noise-covariance</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-006-Gaussian-entropies-are-relative-to-Lebesgue-measure</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-007-Missing-implementation-notes</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-008-No-conformance-test-for-the-factor-interface</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-009-Game-level-free-energy-is-declared-but-not-implemented</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/Problem-Log</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-001-The-Factor-Interface</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/Specifications</loc>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/README</loc>
     <lastmod>2026-10-15T11:05:36.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Start-Here</loc>
-    <lastmod>2026-10-15T11:05:36.000Z</lastmod>
+    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Types/Probabilistic-Types</loc>
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
