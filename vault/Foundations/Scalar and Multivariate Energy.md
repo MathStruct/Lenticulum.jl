@@ -44,7 +44,8 @@ on a vector residual. Both need the vector.
 $([0,\infty] \subseteq \mathbb{R})$ is the terminal-ish example. $\mathbb{R}^k$ with
 $K = \mathbb{R}^k$ (no order) or $K = \mathbb{R}^k_{\ge 0}$ (componentwise) are the ones we
 use. The cone exists so that "energy is non-negative" still means something and so that
-monotonicity of scalarisations is expressible.
+monotonicity of scalarisations is expressible. A residual does not fit it: it is signed, and
+$K = \mathbb{R}^k$ violates $K \cap -K = \{0\}$. §8 says what changes for such an energy.
 
 > **Definition (scalarisation).** A *scalarisation* of $(E,K)$ is a map
 > $\sigma : E \to \mathbb{R}$ with $\sigma(0) = 0$, $\sigma(K) \subseteq [0,\infty]$, and
@@ -212,13 +213,20 @@ Once you have $J^c_\theta$ rather than only $\nabla_\theta F^c$, you get for fre
 ## 7. Interface consequences
 
 ```julia
-energyspace(f)              # -> AbstractEnergySpace, the E_f of this factor
-energy(f, x, ps, st)        # -> element of K_f          (the vector 𝐥)
-entropy(f, π, y, ps, st)    # -> element of K_f          (the vector 𝐇)
-scalarisation(f)            # -> AbstractScalarisation σ_f
-scalarise(σ, e)             # -> Real
-islinear(σ)                 # -> Bool: strict vs lax composition (Prop. §5)
+energyspace(f[, p])             # -> AbstractEnergySpace, the E_f of the free energy 𝐅
+scalarisation(f[, p])           # -> AbstractScalarisation σ_f on E_f
+pointwise_energyspace(f[, p])   # -> where `energy` lands; default energyspace(f)
+pointwise_scalarisation(f[, p]) # -> its σ; default scalarisation(f)
+energy(f, x, a, y, ps, st)      # -> the pointwise vector 𝐥
+entropy(f, π, y, ps, st)        # -> the vector 𝐇, in E_f
+scalarise(σ, e)                 # -> Real
+islinear(σ)                     # -> Bool: strict vs lax composition (Prop. §5)
+scalar_energy(f, x, a, y, ps, st; polarity, σ)   # σ(𝐥), σ defaulting to the factor's
+scalar_free_energy(f, π, y, ps, st; polarity, σ) # σ(𝐅)
 ```
+
+`p` is an optional polarity; without one, or for a factor that does not distinguish them, the
+answer is the polarity-free one. The two levels and the polarity argument are §8.
 
 `islinear` is not decoration: it is the trait that tells the composition machinery whether
 `scalarise ∘ compose == compose ∘ scalarise` may be assumed, and therefore whether the
@@ -231,6 +239,68 @@ assembled (correct). See [[energy]] for the implementation and its difficulties.
 > does away from the correct answer. Lenticulum has no slot for one, and the consequence —
 > its free energy is LeCun's "energy loss", the collapsing one — is [[Energy-Based Learning]]
 > §3.
+
+## 8. Choices, and where the theory forks
+
+The definitions above leave several choices open. Each is a parameter of the interface rather
+than a decision taken once, and each has consequences, listed here with what checks them.
+
+**One space or two.** AutoBayes has the energy, the entropy and the free energy in one space,
+and §3 keeps that: $\mathbf{F}^c = \mathbb{E}[\mathbf{l}^c] - \mathbf{H}^c \in E_c$. A
+residual factor (`GaussianFactor`, `LinearConstraintFactor`, `NonlinearFactor`) has two levels
+instead:
+
+| level | value | space | scalarisation |
+|---|---|---|---|
+| pointwise, `energy` | the residual $r$ | $\mathbb{R}^k$, signed | $\rho(r) = \tfrac12 r^\top Q^{-1} r$ |
+| free energy | (fit, complexity, negentropy) | graded $\mathbb{R}^3$ | the identity on each summand |
+
+They meet in the fit summand,
+
+$$
+\mathrm{fit} \;=\; \mathop{\mathbb{E}}_{b_c}\bigl[\rho(r)\bigr] \;=\; \rho(\bar r) + \tfrac12\operatorname{tr}\bigl(Q^{-1}\operatorname{Cov}(r)\bigr),
+$$
+
+so $F_c = \mathbb{E}_{b_c}[\rho(r)] + \tfrac12\log\det(2\pi Q) - H(b_c)$: the free energy is
+built from the *scalarised* pointwise energy, not from the vector. The vector stays available
+for what needs it (§6: Jacobians, Gauss–Newton, the implicit function theorem). Tested: at a
+point, `scalar_energy` equals the fit summand for all four of Lenticulum's residual and
+likelihood factors (`test/runtests.jl`, "pointwise energy and free energy: one contract"); the
+identity with a covariance is "the two energies differ by exactly ½·tr(Q⁻¹ Cov r)". The
+interface keeps one space as the default (`pointwise_energyspace(f) = energyspace(f)`), so a
+factor written against the paper needs neither.
+
+**A cone, or a minimum at zero.** A residual has no cone. What replaces monotonicity is a
+gauge: $\sigma \ge 0$ with $\sigma(e) = 0$ exactly at $e = 0$, so minimising the energy means
+bringing it to 0, coordinate signs irrelevant. Proposition §5 needs only that $\sigma$ is linear
+or convex, not the cone, so strictness and the Jensen gap carry over; non-negativity holds for
+$\sigma \circ \mathbf{l}$, not for $\mathbf{l}$.
+
+**Which scalarisation, and its parameters.** A scalarisation is chosen like the $p$ of a norm:
+the factor supplies a default (for a residual factor the metric $Q^{-1}$, derived from the noise
+model), and `scalar_energy(...; σ)` and `scalar_free_energy(...; σ)` take another. The forks:
+
+- *linear or convex* — strict or lax composition, §5;
+- *the metric* $M$ of $\tfrac12\|r\|_M^2$ — every positive definite $M$ has the same zeros, so
+  the exact solutions of a consistent system do not depend on it; when the equations cannot all
+  hold, $M$ decides the compromise (weighted least squares), and only a multiple of $Q^{-1}$ makes it
+  the maximum-likelihood one;
+- *the weights* $\lambda$ of $\langle \lambda, e\rangle$ on a graded energy — annealing and
+  curricula (§6, "Post-hoc reweighting"), changed without recomposing the graph.
+
+**Normalised or not.** $\rho(r) = \tfrac12 r^\top Q^{-1} r$ is zero at a perfect fit; the
+negative log-density $-\log \mathcal{N}(y; Ax+b, Q) = \rho(r) + \tfrac12\log\det(2\pi Q)$
+is not. They differ by a constant while $Q$ is fixed, which it is in every factor today. Once
+$Q$ is learned, the constant is what stops $Q \to 0$, and only the free energy, which keeps it
+as the complexity summand, is a valid objective; the pointwise $\rho$ alone is not.
+
+**Per polarity.** Every function above takes an optional polarity. For the factors that exist
+the energies do not depend on it: a residual is the same whichever channels are unknown. What
+does depend on it is the *shape* condition of the implicit function theorem,
+$\dim E = \dim x_{unobs}$ (§6, "The implicit function theorem"): a `LinearConstraintFactor` with one-dimensional channels and a
+one-dimensional residual supports exactly the polarities with one unknown. That a learned factor
+trained in one direction should carry a different energy, or a different scalarisation, per
+polarity is an expectation, not yet a case in the code.
 
 Related: [[Factors are Parameterized Statistical Games]], [Composition of Statistical Games](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#composition-energies-add-entropies-chain-definition-22), [Composition of Gradients](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients),
 [[Implicit Learners]], [[energy]], [[Energy-Based Learning]]

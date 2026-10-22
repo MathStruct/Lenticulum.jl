@@ -17,6 +17,7 @@ makes AutoBayes' Definition 22 a *corollary* of ours rather than a competitor.
 | $\sigma : E \to \mathbb{R}$ | `IdentityScalarisation`, `WeightedSum`, `SquaredNorm`, `GradedScalarisation` |
 | linear vs convex | `islinear` |
 | the Jensen gap | `jensen_gap` |
+| the pointwise level | `pointwise_energyspace`, `pointwise_scalarisation`, `scalar_energy(...; polarity, σ)` |
 
 `GradedEnergy` carries `+`, `-`, scalar `*` and `zero` because
 [Definition 22](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#composition-energies-add-entropies-chain-definition-22)'s entropy law takes an **expectation** of
@@ -50,6 +51,35 @@ are the defaults on `AbstractLenticulumFactor`. A factor that ignores the vector
 behaves exactly as AutoBayes Definition 20 specifies. **The generalisation is opt-in**,
 which is the only acceptable way to ship it — a reader of the paper must be able to write a
 factor without learning our extension first.
+
+## Two levels: pointwise and free energy
+
+`energy` returns the **pointwise** energy, `free_energy` (and a graph's `local_free_energy`) the
+**free** energy. AutoBayes has them in one space, and so does every factor by default:
+
+```julia
+pointwise_energyspace(f)   = energyspace(f)
+pointwise_scalarisation(f) = scalarisation(f)
+```
+
+A residual factor overrides the pointwise pair: its `energy` is the signed residual in
+`EuclideanEnergySpace(k)`, scalarised by `SquaredNorm(Q⁻¹)`, while its free energy stays graded
+`(fit, complexity, negentropy)` with the identity on each summand. The expectation of the
+scalarised residual is the `fit` summand, which the tests check at a point for
+`GaussianFactor`, `LinearConstraintFactor`, `NonlinearFactor` and `LikelihoodFactor` (the last
+has the negative log-likelihood as a one-element vector, summed by `WeightedSum([1.0])`).
+
+Before this split, `energyspace`/`scalarisation` were used for both levels, and for a residual
+factor they described only the free energy: `scalar_energy` applied a graded scalarisation to a
+residual vector and threw a `MethodError` (issue #8). The graph's scalar free energy was right
+all along, which is why the suite did not notice.
+
+The scalarisation is a parameter: `scalar_energy(f, x, a, y, ps, st; σ = SquaredNorm())` and
+`scalar_free_energy(f, π, y, ps, st; σ)` override the factor's default for one call. All four
+space/scalarisation functions take an optional polarity and fall back to the polarity-free
+method; no factor yet defines a polarity-dependent one. The choices this leaves open (one space
+or two, cone or gauge, which σ and metric, normalised or not, per polarity) are
+[[Scalar and Multivariate Energy]] §8.
 
 ## Implementation difficulties
 
@@ -95,7 +125,8 @@ correctness gap in the file.
 `scalarise(σ::GradedScalarisation{names}, e::GradedEnergy{names})` is constrained to
 identical `names`. A mismatch is a `MethodError` — which is the right failure (loud, at the
 right place), but the message will be unhelpful. A custom error explaining "the
-scalarisation's grading does not match the energy's" is worth adding.
+scalarisation's grading does not match the energy's" is worth adding. Issue #8 was this
+error in another form: a graded scalarisation applied to a plain vector.
 
 ### 6. Not yet implemented: the Jacobian side
 

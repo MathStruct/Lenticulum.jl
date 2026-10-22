@@ -62,7 +62,7 @@ export select, observed_channels, unobserved_channels, latent_channels, channel_
 # --- Energy ----------------------------------------------------------------
 export ScalarEnergySpace, EuclideanEnergySpace, GradedEnergySpace, GradedEnergy
 export IdentityScalarisation, WeightedSum, SquaredNorm, GradedScalarisation
-export energyspace, scalarisation, scalarise, islinear, jensen_gap, oplus, ⊕, dimension
+export energyspace, scalarisation, pointwise_energyspace, pointwise_scalarisation, scalarise, islinear, jensen_gap, oplus, ⊕, dimension
 export energy, entropy, scalar_energy
 
 # --- Models and lenses -----------------------------------------------------

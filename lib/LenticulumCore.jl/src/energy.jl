@@ -198,29 +198,80 @@ end
 
 # --- Factor interface ------------------------------------------------------
 
-"""
-    energyspace(factor) -> AbstractEnergySpace
+# Two levels, which coincide unless a factor says otherwise (`energy.md` §"Two levels"):
+#
+#   energyspace / scalarisation                      the FREE energy 𝐅 = E[𝐥] - 𝐇: what composes
+#                                                    and what the graph sums
+#   pointwise_energyspace / pointwise_scalarisation  the POINTWISE energy 𝐥 = `energy(...)`
+#
+# AutoBayes has one space for both. A residual factor's pointwise energy is the signed residual
+# r ∈ ℝᵏ, scalarised by a norm, while its free energy is graded (fit, complexity, negentropy);
+# the two meet in E_b[σ(r)] = fit. Each of the four takes an optional polarity, defaulting to
+# the polarity-free answer.
 
-The space ``E_c`` of `factor`'s vector energy. Defaults to `ScalarEnergySpace()`.
+"""
+    energyspace(factor[, polarity]) -> AbstractEnergySpace
+
+The space ``E_c`` of `factor`'s vector **free energy** ``\\mathbf{F}^c``, the one that composes
+by direct sum and that a graph's free energy is graded by. Defaults to `ScalarEnergySpace()`,
+and to the polarity-free space when a polarity is given.
+
+The pointwise energy returned by [`energy`](@ref) lives here too unless the factor says
+otherwise with [`pointwise_energyspace`](@ref).
 """
 energyspace(::AbstractLenticulumFactor) = ScalarEnergySpace()
+energyspace(f::AbstractLenticulumFactor, polarity) = energyspace(f)
 
 """
-    scalarisation(factor) -> AbstractScalarisation
+    scalarisation(factor[, polarity]) -> AbstractScalarisation
 
-The ``\\sigma_c`` used to turn `factor`'s vector loss into a number. Defaults to the
-identity, which makes the factor behave exactly as in AutoBayes.
+The ``\\sigma_c`` that turns `factor`'s vector free energy into a number. Defaults to the
+identity, which makes the factor behave exactly as in AutoBayes, and to the polarity-free
+choice when a polarity is given.
+
+A scalarisation can carry parameters (the weights of [`WeightedSum`](@ref), the metric of
+[`SquaredNorm`](@ref)); this is the factor's default, and [`scalar_free_energy`](@ref) and
+[`scalar_energy`](@ref) accept another as the keyword `σ`.
 """
 scalarisation(::AbstractLenticulumFactor) = IdentityScalarisation()
+scalarisation(f::AbstractLenticulumFactor, polarity) = scalarisation(f)
+
+"""
+    pointwise_energyspace(factor[, polarity]) -> AbstractEnergySpace
+
+The space the **pointwise** energy ``\\mathbf{l}^c`` of [`energy`](@ref) lands in. Defaults to
+[`energyspace`](@ref)`(factor)`: one space for both, as in AutoBayes.
+
+A factor overrides it when its pointwise energy is finer than its free energy, e.g. a
+residual ``r \\in \\mathbb{R}^k`` (`EuclideanEnergySpace(k)`): signed coordinate by
+coordinate, with the minimum at ``r = 0`` rather than at the bottom of a cone. The Jacobian
+of that vector is what Gauss–Newton steps, the Fisher metric and the implicit function theorem
+need (`Scalar and Multivariate Energy.md` §6).
+"""
+pointwise_energyspace(f::AbstractLenticulumFactor) = energyspace(f)
+pointwise_energyspace(f::AbstractLenticulumFactor, polarity) = pointwise_energyspace(f)
+
+"""
+    pointwise_scalarisation(factor[, polarity]) -> AbstractScalarisation
+
+The default scalarisation of the pointwise energy, used by [`scalar_energy`](@ref). Defaults to
+[`scalarisation`](@ref)`(factor)`; a residual factor returns a norm such as
+`SquaredNorm(Q⁻¹)`.
+"""
+pointwise_scalarisation(f::AbstractLenticulumFactor) = scalarisation(f)
+pointwise_scalarisation(f::AbstractLenticulumFactor, polarity) = pointwise_scalarisation(f)
 
 """
     energy(factor, x, a, y, ps, st) -> (𝐥, st)
 
-The **vector** energy ``\\mathbf{l}^c(x, a, y)``, an element of the cone of
-[`energyspace`](@ref)`(factor)`.
+The **vector** energy ``\\mathbf{l}^c(x, a, y)``, an element of
+[`pointwise_energyspace`](@ref)`(factor)`.
 
 Pointwise: it is evaluated at samples drawn from the inversion, so it needs no
 normalisation. That is why energies compose by direct sum with no expectation involved.
+
+It need not be non-negative: a residual is signed, and "small" means close to 0 under the
+factor's scalarisation, not low in a cone (`Scalar and Multivariate Energy.md` §8).
 """
 function energy end
 
@@ -239,12 +290,22 @@ returning `h * u` for a fixed direction `u` is the idiomatic way to say so.
 function entropy end
 
 """
-    scalar_energy(factor, x, a, y, ps, st) -> (Real, st)
+    scalar_energy(factor, x, a, y, ps, st; polarity = nothing, σ) -> (Real, st)
 
 AutoBayes' ``l^c``: the scalarisation of [`energy`](@ref). Provided so that a factor written
 against the paper's interface needs no vector machinery.
+
+`σ` defaults to [`pointwise_scalarisation`](@ref)`(factor)`, or to
+`pointwise_scalarisation(factor, polarity)` when a polarity is given; pass another to scalarise
+the same energy differently (a weighted norm, other weights), as `norm(x, p)` takes `p`.
 """
-function scalar_energy(f::AbstractLenticulumFactor, x, a, y, ps, st)
+function scalar_energy(f::AbstractLenticulumFactor, x, a, y, ps, st; polarity = nothing,
+                       σ = _pointwise_scalarisation(f, polarity))
     l, st = energy(f, x, a, y, ps, st)
-    return scalarise(scalarisation(f), l), st
+    return scalarise(σ, l), st
 end
+
+_pointwise_scalarisation(f, ::Nothing) = pointwise_scalarisation(f)
+_pointwise_scalarisation(f, polarity) = pointwise_scalarisation(f, polarity)
+_scalarisation(f, ::Nothing) = scalarisation(f)
+_scalarisation(f, polarity) = scalarisation(f, polarity)

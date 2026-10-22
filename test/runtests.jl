@@ -437,6 +437,52 @@ end
     @test LenticulumCore.islinear(LenticulumCore.scalarisation(f))
 end
 
+@testset "pointwise energy and free energy: one contract (issue #8)" begin
+    # Two levels: `energy` is the pointwise energy (for a residual factor the signed residual,
+    # scalarised by a norm), the free energy is graded (fit, complexity, negentropy); at a point
+    # the scalar pointwise energy is the `fit` summand.
+    NT = NamedTuple()
+    at(f, vals, ps) = first(Mycelium.local_free_energy(f, map(DiracBelief, vals), ps, NT))[:fit]
+
+    gf = GaussianFactor(1 => 1; noise = 0.1)
+    gps = (A = ones(1, 1), b = zeros(1))
+    e, _ = scalar_energy(gf, [1.0], nothing, [2.0], gps, NT)
+    @test e ≈ 0.5 * (2.0 - 1.0)^2 / 0.1
+    @test e ≈ at(gf, (x = [1.0], y = [2.0]), gps)
+    @test LenticulumCore.pointwise_scalarisation(gf) isa SquaredNorm
+    @test LenticulumCore.scalarisation(gf) isa GradedScalarisation      # the free energy's, unchanged
+
+    # the scalarisation is a parameter with a default, like the p of a norm
+    @test first(scalar_energy(gf, [1.0], nothing, [2.0], gps, NT; σ = SquaredNorm())) ≈ 0.5
+    # per polarity: every polarity of this factor has the same residual, so the same answer
+    for p in LenticulumCore.supported_polarities(gf)
+        @test first(scalar_energy(gf, [1.0], nothing, [2.0], gps, NT; polarity = p)) ≈ e
+    end
+
+    cf = LinearConstraintFactor((x = 1, y = 1), 1; noise = 0.5)
+    cps = (A = (x = fill(2.0, 1, 1), y = fill(-1.0, 1, 1)), c = [0.5])
+    ec, _ = scalar_energy(cf, (x = [1.0],), nothing, (y = [3.0],), cps, NT)
+    @test ec ≈ 0.5 * (2.0 - 3.0 - 0.5)^2 / 0.5
+    @test ec ≈ at(cf, (x = [1.0], y = [3.0]), cps)
+
+    nf = NonlinearFactor(x -> x .^ 2, 1 => 1; noise = 0.25)
+    en, _ = scalar_energy(nf, [2.0], nothing, [3.0], NT, NT)
+    @test en ≈ 0.5 * (3.0 - 4.0)^2 / 0.25
+    @test en ≈ at(nf, (x = [2.0], y = [3.0]), NT)
+
+    lf = LikelihoodFactor(PoissonLikelihood(), 1)
+    el, _ = scalar_energy(lf, [log(2.0)], nothing, [3.0], NT, NT)
+    @test el ≈ -log(exp(-2.0) * 8 / 6)
+    @test el ≈ at(lf, (x = [log(2.0)], y = [3.0]), NT)
+
+    # the energy lands in the space the factor declares for it
+    for (f, x, y, ps) in ((gf, [1.0], [2.0], gps), (cf, (x = [1.0],), (y = [3.0],), cps),
+                          (nf, [2.0], [3.0], NT), (lf, [log(2.0)], [3.0], NT))
+        r, _ = LenticulumCore.energy(f, x, nothing, y, ps, NT)
+        @test length(r) == LenticulumCore.dimension(LenticulumCore.pointwise_energyspace(f))
+    end
+end
+
 @testset "the linear-Gaussian chain (GTSAM's OdometryExample)" begin
     g, ps, st = chain_graph(3, U, QK, R, z₀)
 

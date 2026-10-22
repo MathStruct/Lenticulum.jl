@@ -100,6 +100,9 @@ model has, made visible for free by ``E_G = \\bigoplus_f E_f``. Summing it recov
 free energy, so the scalarisation is `IdentityScalarisation` on each summand and is therefore
 **linear** — hence composition is *strict*, per `Scalar and Multivariate Energy.md` §5.
 
+This is the space of the **free energy**. The pointwise `energy`
+is the residual, in its own space: see `pointwise_energyspace` below.
+
 The alternative grading — keep the residual ``r`` as a vector with
 `SquaredNorm(Q⁻¹)` — is **lax**, and by exactly ``\\tfrac12\\operatorname{tr}(Q^{-1}\\operatorname{Cov}(r))``.
 [`residual_statistics`](@ref) exposes both sides of that identity; see `gaussian.md` §2.
@@ -127,6 +130,19 @@ LenticulumCore.scalarisation(::GaussianFactor) = LenticulumCore.GradedScalarisat
 residual(f::GaussianFactor, x, y, ps) = y .- ps.A * x .- ps.b
 
 LenticulumCore.energy(f::GaussianFactor, x, a, y, ps, st) = (residual(f, x, y, ps), st)
+
+"""
+    pointwise_energyspace(f::GaussianFactor), pointwise_scalarisation(f::GaussianFactor)
+
+The pointwise energy is the residual ``r \\in \\mathbb{R}^{n_{out}}``, signed, scalarised by
+`SquaredNorm(Q⁻¹)`: ``\\tfrac12 r^\\top Q^{-1} r``, zero at a perfect fit. Its expectation under
+the factor belief is the `fit` summand of the free energy (the graded
+`energyspace` above); the `complexity`
+``\\tfrac12\\log\\det(2\\pi Q)`` is the normaliser it leaves out, a constant while `Q` is fixed.
+The residual is the same in both polarities, so neither depends on one.
+"""
+LenticulumCore.pointwise_energyspace(f::GaussianFactor) = LenticulumCore.EuclideanEnergySpace(f.nout)
+LenticulumCore.pointwise_scalarisation(f::GaussianFactor) = LenticulumCore.SquaredNorm(inv(Symmetric(f.Q)))
 
 # --- The open model and its exact inversion --------------------------------
 

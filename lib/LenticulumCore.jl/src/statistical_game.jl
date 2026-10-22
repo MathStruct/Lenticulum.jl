@@ -25,13 +25,17 @@ an element of `energyspace(factor)` — *not* a number. Collapse it with
 function free_energy end
 
 """
-    scalar_free_energy(factor, π, y, ps, st) -> (Real, st)
+    scalar_free_energy(factor, π, y, ps, st; polarity = nothing, σ) -> (Real, st)
 
 ``F^c = \\sigma_c \\circ \\mathbf{F}^c``: AutoBayes' Definition 20 loss.
+
+`σ` defaults to [`scalarisation`](@ref)`(factor)`, or to `scalarisation(factor, polarity)` when a
+polarity is given; pass another to weigh the summands differently without rebuilding the factor.
 """
-function scalar_free_energy(f::AbstractLenticulumFactor, π, y, ps, st)
+function scalar_free_energy(f::AbstractLenticulumFactor, π, y, ps, st; polarity = nothing,
+                            σ = _scalarisation(f, polarity))
     F, st = free_energy(f, π, y, ps, st)
-    return scalarise(scalarisation(f), F), st
+    return scalarise(σ, F), st
 end
 
 

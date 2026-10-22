@@ -120,6 +120,10 @@ LenticulumCore.scalarisation(::NonlinearFactor) = LenticulumCore.scalarisation(G
 """
 residual(f::NonlinearFactor, x, y, ps = NamedTuple()) = _vec(y) .- _vec(f.f(_vec(x)))
 LenticulumCore.energy(f::NonlinearFactor, x, a, y, ps, st) = (residual(f, x, y), st)
+# pointwise: the residual with SquaredNorm(Q⁻¹), as for GaussianFactor; the graded spaces above
+# are those of the free energy
+LenticulumCore.pointwise_energyspace(f::NonlinearFactor) = LenticulumCore.EuclideanEnergySpace(f.nout)
+LenticulumCore.pointwise_scalarisation(f::NonlinearFactor) = LenticulumCore.SquaredNorm(inv(Symmetric(f.Q)))
 
 # --- The local linear model --------------------------------------------------------
 

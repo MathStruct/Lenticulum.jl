@@ -157,6 +157,14 @@ end
 LenticulumCore.energy(f::LinearConstraintFactor, x, a, y, ps, st) =
     (residual(f, _channel_values(x, y), ps), st)
 
+# The pointwise energy is the residual, scalarised by SquaredNorm(Q⁻¹), as for GaussianFactor;
+# the graded spaces above are those of the free energy. The equation has no direction, so
+# neither depends on the polarity.
+LenticulumCore.pointwise_energyspace(f::LinearConstraintFactor) =
+    LenticulumCore.EuclideanEnergySpace(size(f.Q, 1))
+LenticulumCore.pointwise_scalarisation(f::LinearConstraintFactor) =
+    LenticulumCore.SquaredNorm(inv(Symmetric(f.Q)))
+
 _channel_values(x::NamedTuple, y::NamedTuple) = merge(x, y)
 _channel_values(x::NamedTuple, ::Nothing) = x
 _channel_values(::Nothing, y::NamedTuple) = y

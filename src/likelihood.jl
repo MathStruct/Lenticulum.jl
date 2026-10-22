@@ -417,6 +417,10 @@ The negative log-likelihood ``-\\log L(y \\mid Ax + b)``, as a one-element vecto
 """
 LenticulumCore.energy(f::LikelihoodFactor, x, a, y, ps, st) =
     ([-loglikelihood(f.lik, _vec(y), _predictor(f, x))], st)
+# pointwise: that one-element vector, summed as it is (the likelihood is normalised in y, so there
+# is no separate complexity); its expectation is the `fit` summand of the free energy
+LenticulumCore.pointwise_energyspace(::LikelihoodFactor) = LenticulumCore.EuclideanEnergySpace(1)
+LenticulumCore.pointwise_scalarisation(::LikelihoodFactor) = LenticulumCore.WeightedSum([1.0])
 
 # --- The tilted distribution in the predictor's coordinates -------------------------------
 #
