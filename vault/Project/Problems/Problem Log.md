@@ -15,3 +15,6 @@ Implementation notes also record what their code does not do; a problem gets an 
 | [[LP-007 Missing implementation notes]] | `gaussian.md` and `beliefs.md` are cited but not written | open |
 | [[LP-008 No conformance test for the factor interface]] | The factor interface is tested factor by factor; issue #8 slipped through | open |
 | [[LP-009 Game-level free energy is declared but not implemented]] | `entropy` and `free_energy` exist only as declarations; graphs use `local_free_energy` | open |
+| [[LP-010 Where the graph of a problem comes from]] | Finding a problem's factor graph: from a model, by structure learning, or by exploring with TDA first | open, theory |
+| [[LP-011 Gradient couplings and isfrozen are declared but unused]] | Per-edge couplings and `isfrozen` are stored but no code reads them | open |
+| [[LP-012 Factor graphs and schemes]] | Links to algebraic geometry: singular models, dual-number points, cellular sheaves | open, theory |

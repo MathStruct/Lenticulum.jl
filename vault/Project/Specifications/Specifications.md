@@ -5,3 +5,4 @@
 | # | Specification | Status |
 |---|---|---|
 | [[L-SPEC-001 The Factor Interface]] | What a factor type implements, alone and in a graph: parameters, channels and polarities, the two energy levels, free energy, messages | draft |
+| [[L-SPEC-002 Stop Gradient]] | Which stop-gradients exist (detach, freeze, coupling, one-way messages), how they are asked for, what the backward pass computes | planned |
