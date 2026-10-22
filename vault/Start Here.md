@@ -12,6 +12,7 @@ The vault is the whole repository. Its notes sit in three places:
 | `vault/` | **concept and design notes**, grouped by topic | `vault/Factor Graphs/Messages are Inversions.md` |
 | `lib/*/src/*.md` | **implementation notes**, one beside each Julia file | `lib/Mycelium.jl/src/messages.md` beside `messages.jl` |
 | `src/*.md` | implementation notes for the top-level package | `src/constraint.md` |
+| `vault/Project/` | **project records**: decisions (`L-ADR-nnnn`), problems (`LP-nnn`), specifications (`L-SPEC-nnn`) | `vault/Project/Decisions/L-ADR-0003 …` |
 | `meta/` | local working material, not part of the repository (ignored by git) | |
 
 The general category theory these notes build on (Para, lenses, Markov categories, Bayesian
@@ -81,6 +82,13 @@ If you implement something, put a markdown file next to the `.jl` file containin
 implementation, with the theory, the implementation, and an extensive description of the
 implementation difficulties. A new general concept goes into the CT-ML wiki first, and the
 Lenticulum note links to it.
+
+A design choice that others will build on gets a decision record in `vault/Project/Decisions/`;
+something that does not work and needs a decision, or waits for someone, gets a problem in
+`vault/Project/Problems/`; an interface contract gets a specification in
+`vault/Project/Specifications/`. Each starts from its template in `vault/templates/` (not
+published) and gets a line in its index: [[Decisions]], [[Problem Log]], [[Specifications]]. A
+decision or specification is `proposed` or `draft` until Daniel accepts it.
 
 How contributions are credited, including reviews and contributions that are not code, is in
 [CONTRIBUTING.md](https://github.com/MathStruct/Lenticulum.jl/blob/master/CONTRIBUTING.md).

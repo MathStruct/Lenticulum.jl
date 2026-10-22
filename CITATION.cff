@@ -695,6 +695,17 @@ references:
     journal: "Proceedings of the Royal Society A"
     doi: "10.1098/rspa.2020.0279"
     url: "https://arxiv.org/abs/2004.02322"
+  - type: generic
+    title: "Compositional Information Geometry of Probabilistic Programs"
+    authors:
+      - family-names: "Karwowski"
+        given-names: "Jacek"
+      - family-names: "Nielsen"
+        given-names: "Frank"
+      - family-names: "Staton"
+        given-names: "Sam"
+    year: 2026
+    url: "https://arxiv.org/abs/2610.17886"
   - type: article
     title: "Parametric effect monads and semantics of effect systems"
     authors:
@@ -921,6 +932,19 @@ references:
     start: "213"
     end: "231"
     doi: "10.1137/0909014"
+  - type: article
+    title: "Markov Categories and Entropy"
+    authors:
+      - family-names: "Perrone"
+        given-names: "Paolo"
+    year: 2024
+    journal: "IEEE Transactions on Information Theory"
+    volume: "70"
+    issue: "3"
+    start: "1671"
+    end: "1692"
+    doi: "10.1109/TIT.2023.3328825"
+    url: "https://arxiv.org/abs/2212.11719"
   - type: article
     title: "Maximum likelihood estimates of linear dynamic systems"
     authors:

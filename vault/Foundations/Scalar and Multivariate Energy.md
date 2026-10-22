@@ -4,9 +4,11 @@
 > $[0,\infty]$-valued energy. We keep two, and adapt the chain rule accordingly.
 > Requested design constraint; here is the construction and its proof obligations.
 
-> Sources: original to this vault (design and analysis; no single paper).
+> Sources: original to this vault (design and analysis; no single paper). §6 and §8 compare with Karwowski, Nielsen & Staton, *Compositional Information Geometry of Probabilistic Programs*, arXiv:2610.17886, 2026 (Definition 19, Theorem 2, Proposition 8, Example 1), and Perrone, *Markov Categories and Entropy*, IEEE Trans. Inf. Theory 70(3), 2024 (Corollary 4.7). Decision: [[L-ADR-0003 Pointwise energy and free energy are separate levels]].
 >
-> Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
+> Bibliography: [[Bibliography#^karwowski2026compositional|Karwowski et al. 2026]] · [[Bibliography#^perrone2024entropy|Perrone 2024]]
+>
+> Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Fisher Information Metric](https://mathstruct.org/CategoryTheory-ML-Wiki/Fisher-Information-Metric) · [Natural Gradient](https://mathstruct.org/CategoryTheory-ML-Wiki/Natural-Gradient) · [Information Geometry of Probabilistic Programs](https://mathstruct.org/CategoryTheory-ML-Wiki/Information-Geometry-of-Probabilistic-Programs) · [Entropy in a Markov Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Entropy-in-a-Markov-Category)
 
 ## 1. What the paper does, and what it costs
 
@@ -201,6 +203,15 @@ Once you have $J^c_\theta$ rather than only $\nabla_\theta F^c$, you get for fre
    $\mathcal{I}(\theta) = \mathbb{E}[s s^\top] = \mathbb{E}[J^\top J]$. The natural gradient
    of the **Bayesian learning rule** is therefore available compositionally, from data the
    multivariate energy already carries. This is the strongest single argument for the design.
+   "Compositionally" needs a caveat, which Karwowski, Nielsen & Staton make precise for
+   probabilistic programs. There the metric of a composite is
+   $g^{G \circ F} = g^F + F^\sharp g^G$ (their Proposition 8): the local Fisher metric plus the
+   downstream metric pulled back, the same shape as the chain rule of §4. The assignment is a
+   *lax* monoidal functor (Theorem 2), and it depends on how a model is presented, not only on
+   the distribution it defines (Example 1: randomness that is drawn and discarded still adds
+   Fisher information). See the CT-ML wiki's
+   [Information Geometry of Probabilistic Programs](https://mathstruct.org/CategoryTheory-ML-Wiki/Information-Geometry-of-Probabilistic-Programs).
+   None of this is implemented here yet ([[LP-002 The Jacobian side is not implemented]]).
 3. **The implicit function theorem.** For a residual factor $r_\theta(x) = 0$ split by
    [[Channels and Polarity|polarity]] into $x = (x_{obs}, x_{unobs})$,
    $$\frac{\partial x_{unobs}}{\partial x_{obs}} = -\Bigl(\frac{\partial r}{\partial x_{unobs}}\Bigr)^{-1}\frac{\partial r}{\partial x_{obs}}$$
@@ -293,6 +304,14 @@ negative log-density $-\log \mathcal{N}(y; Ax+b, Q) = \rho(r) + \tfrac12\log\det
 is not. They differ by a constant while $Q$ is fixed, which it is in every factor today. Once
 $Q$ is learned, the constant is what stops $Q \to 0$, and only the free energy, which keeps it
 as the complexity summand, is a valid objective; the pointwise $\rho$ alone is not.
+
+**Relative to which measure.** The free energies of continuous beliefs contain differential
+entropies, finite only relative to a reference measure (Lebesgue, in each variable's
+coordinates). Intrinsically, the categorical KL entropy of every continuous distribution is
+infinite (Perrone, Corollary 4.7; the CT-ML wiki's
+[Entropy in a Markov Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Entropy-in-a-Markov-Category)).
+So free energies compare between models over the same coordinates, and a change of variables
+must add its log-Jacobian ([[LP-006 Gaussian entropies are relative to Lebesgue measure]]).
 
 **Per polarity.** Every function above takes an optional polarity. For the factors that exist
 the energies do not depend on it: a residual is the same whichever channels are unknown. What

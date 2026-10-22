@@ -249,6 +249,19 @@ Implementation notes live next to the code, per [[Start Here]]:
 
 **Adversarial.jl** — [[Adversarial]], [[generator]], [[ratio]]
 
+## 5. Project records
+
+Decisions, problems and specifications, numbered so that notes, commits and issues can cite
+them; the same layout as Moonkale's and Sophia's vaults.
+
+- [[Decisions]] — `L-ADR-nnnn`: what was chosen, by whom, and what follows. Among them
+  [[L-ADR-0002 Energies are vectors, scalarised late]] and
+  [[L-ADR-0003 Pointwise energy and free energy are separate levels]]
+- [[Problem Log]] — `LP-nnn`: what does not work yet and needs a decision, from GitHub issues
+  to gaps in the theory, e.g. [[LP-002 The Jacobian side is not implemented]]
+- [[Specifications]] — `L-SPEC-nnn`: contracts precise enough to test against, starting with
+  [[L-SPEC-001 The Factor Interface]]
+
 ## Where this would be useful
 
 Six domains with the same shape — a network of relations, sparse asynchronous observations,
