@@ -323,14 +323,26 @@
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-009-Game-level-free-energy-is-declared-but-not-implemented</loc>
     <lastmod>2026-10-22T18:53:57.000Z</lastmod>
   </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-010-Where-the-graph-of-a-problem-comes-from</loc>
+    <lastmod>2026-10-22T19:45:29.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-011-Gradient-couplings-and-isfrozen-are-declared-but-unused</loc>
+    <lastmod>2026-10-22T19:45:29.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-012-Factor-graphs-and-schemes</loc>
+    <lastmod>2026-10-22T19:45:29.000Z</lastmod>
+  </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/Problem-Log</loc>
-    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+    <lastmod>2026-10-22T19:45:29.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-001-The-Factor-Interface</loc>
     <lastmod>2026-10-22T18:53:57.000Z</lastmod>
   </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-002-Stop-Gradient</loc>
+    <lastmod>2026-10-22T19:45:29.000Z</lastmod>
+  </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/Specifications</loc>
-    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+    <lastmod>2026-10-22T19:45:29.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/README</loc>
     <lastmod>2026-10-15T11:05:36.000Z</lastmod>
