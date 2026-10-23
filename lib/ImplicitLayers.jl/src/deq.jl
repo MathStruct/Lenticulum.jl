@@ -115,7 +115,7 @@ function LenticulumCore.supports_polarity(
 end
 
 """
-    LenticulumCore.energyspace(::DEQFactor)
+    LenticulumCore.pointwise_energyspace(::DEQFactor)
 
 ``E_c = \\mathbb{R}^{\\dim z}``: the residual itself, as a **vector**.
 
@@ -125,9 +125,9 @@ This is what [[Scalar and Multivariate Energy]] asks for and what
 Keeping it vector-valued is exactly what the implicit function theorem needs, per that note's
 §6.3.
 """
-LenticulumCore.energyspace(f::DEQFactor) =
+LenticulumCore.pointwise_energyspace(f::DEQFactor) =
     LenticulumCore.EuclideanEnergySpace(statedim(f))
-LenticulumCore.scalarisation(::DEQFactor) = LenticulumCore.SquaredNorm()
+LenticulumCore.pointwise_scalarisation(::DEQFactor) = LenticulumCore.SquaredNorm()
 
 """
     cell_value(f, z, x, ps, st) -> (g, st)

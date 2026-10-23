@@ -62,6 +62,11 @@ function LuxFactor(
 )
     first(io) === last(io) && throw(ArgumentError(
         "input and output channels must differ; got :$(first(io)) for both"))
+    length(dims) == 2 || throw(ArgumentError("dims must be a 2-tuple; got $dims"))
+    for d in dims
+        (d === nothing || (d isa Int && d > 0)) ||
+            throw(ArgumentError("channel dimensions must be positive Ints or nothing; got $dims"))
+    end
     return LuxFactor(layer, first(io), last(io), (dims[1], dims[2]), postprocess)
 end
 

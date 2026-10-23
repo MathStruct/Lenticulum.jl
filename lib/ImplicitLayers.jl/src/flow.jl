@@ -122,14 +122,16 @@ function integrate_with_divergence(vf, u₀, t₀, t₁, itg::AbstractIntegrator
     u = copy(u₀)
     t = t₀
     acc = 0.0
-    for _ in 1:n
+    tr0 = _divergence(vf, u, t)
+    for k in 1:n
         # trapezoidal in the divergence, Euler/RK4 in the state
-        tr0 = _divergence(vf, u, t)
         unew = integrate(vf, u, t, t + dt, _one_step(itg))
-        tr1 = _divergence(vf, unew, t + dt)
+        t_next = t₀ + k * dt
+        tr1 = _divergence(vf, unew, t_next)
         acc += dt * (tr0 + tr1) / 2
         u = unew
-        t += dt
+        t = t_next
+        tr0 = tr1
     end
     return (u, acc)
 end

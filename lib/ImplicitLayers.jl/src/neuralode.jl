@@ -66,6 +66,8 @@ function NeuralODEFactor(
     dim > 0 || throw(ArgumentError("dim must be positive; got $dim"))
     tspan[1] == tspan[2] &&
         throw(ArgumentError("tspan must have distinct endpoints; got $tspan"))
+    channels[1] === channels[2] && throw(ArgumentError(
+        "start and end channels must differ; got :$(channels[1]) for both"))
     names = NamedTuple{channels}((channels[1], channels[2]))
     return NeuralODEFactor(dim, dynamics, integrator, (float(tspan[1]), float(tspan[2])),
                            input, names)
@@ -112,8 +114,9 @@ function LenticulumCore.supports_polarity(
            (a isa LenticulumCore.Unobserved && b isa LenticulumCore.Observed)
 end
 
-LenticulumCore.energyspace(f::NeuralODEFactor) = LenticulumCore.EuclideanEnergySpace(f.dim)
-LenticulumCore.scalarisation(::NeuralODEFactor) = LenticulumCore.SquaredNorm()
+LenticulumCore.pointwise_energyspace(f::NeuralODEFactor) =
+    LenticulumCore.EuclideanEnergySpace(f.dim)
+LenticulumCore.pointwise_scalarisation(::NeuralODEFactor) = LenticulumCore.SquaredNorm()
 
 """
     vectorfield(f, ps, st) -> (vf, stref)

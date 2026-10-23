@@ -147,13 +147,37 @@ end
     @test LenticulumCore.supports_polarity(f, bwd)
     @test !LenticulumCore.supports_polarity(f, Polarity(; x = Observed(), y = Unobserved()))
 
-    # the residual is a genuine VECTOR energy, unlike the diffusion factor's
-    @test LenticulumCore.energyspace(f) isa LenticulumCore.EuclideanEnergySpace
-    @test LenticulumCore.dimension(LenticulumCore.energyspace(f)) == 2
-    @test LenticulumCore.scalarisation(f) isa LenticulumCore.SquaredNorm
+    # the residual is a genuine VECTOR pointwise energy, while the free energy is already scalarised
+    @test LenticulumCore.pointwise_energyspace(f) isa LenticulumCore.EuclideanEnergySpace
+    @test LenticulumCore.dimension(LenticulumCore.pointwise_energyspace(f)) == 2
+    @test LenticulumCore.pointwise_scalarisation(f) isa LenticulumCore.SquaredNorm
+    @test LenticulumCore.energyspace(f) isa LenticulumCore.ScalarEnergySpace
+    @test LenticulumCore.scalarisation(f) isa LenticulumCore.IdentityScalarisation
     r, _ = LenticulumCore.energy(f, [1.0, 0.0], nothing, [0.0, 0.0], ps, st)
     @test r ≈ .-(U₁ * [1.0, 0.0] .+ b₁)
     @test length(r) == 2
+    se, _ = LenticulumCore.scalar_energy(f, [1.0, 0.0], nothing, [0.0, 0.0], ps, st)
+    lfe, _ = Mycelium.local_free_energy(
+        f, (x = DiracBelief([1.0, 0.0]), z = DiracBelief([0.0, 0.0])), ps, st)
+    @test se ≈ sum(abs2, r) / 2
+    @test lfe ≈ se
+
+    # Graph-level scalar_free_energy must equal scalar_energy (not ½(½‖r‖²)² = ⅛‖r‖⁴!)
+    gb = Mycelium.GraphBuilder()
+    Mycelium.variable!(gb, :x)
+    Mycelium.variable!(gb, :z)
+    Mycelium.factor!(gb, :fx, Mycelium.DataFactor(:x, [1.0, 0.0]))
+    Mycelium.factor!(gb, :fz, Mycelium.DataFactor(:z, [0.0, 0.0]))
+    Mycelium.factor!(gb, :deq, f)
+    Mycelium.connect!(gb, :fx, :x, :x; direction = Mycelium.Emitting())
+    Mycelium.connect!(gb, :fz, :z, :z; direction = Mycelium.Emitting())
+    Mycelium.connect!(gb, :deq, :x, :x; direction = Mycelium.Absorbing())
+    Mycelium.connect!(gb, :deq, :z, :z; direction = Mycelium.Absorbing())
+    fg = Mycelium.build(gb)
+    gps, gst = LuxCore.setup(RNG, fg)
+    _, _, gst, store = Mycelium.infer!(fg, Mycelium.flooding_schedule(fg), gps, gst; maxsweeps = 2)
+    gfe, _ = LenticulumCore.scalar_free_energy(store, fg, gps, gst)
+    @test gfe ≈ se
 
     @test_throws ArgumentError DEQFactor(CELL, (x = 2, z = 2, w = 1))
     @test_throws ArgumentError DEQFactor(CELL, (x = 0, z = 2))
@@ -306,6 +330,27 @@ end
     @test F < 1e-18
     Foff, _ = Mycelium.local_free_energy(f, (z0 = DiracBelief(z₀), z1 = DiracBelief(z₁ .+ 1)), ps, st)
     @test Foff > 0.5
+    se_ode, _ = LenticulumCore.scalar_energy(f, z₀, nothing, z₁ .+ 1, ps, st)
+    @test Foff ≈ se_ode
+
+    # Graph-level scalar_free_energy for NeuralODEFactor matches scalar_energy
+    gb_ode = Mycelium.GraphBuilder()
+    Mycelium.variable!(gb_ode, :z0)
+    Mycelium.variable!(gb_ode, :z1)
+    Mycelium.factor!(gb_ode, :f0, Mycelium.DataFactor(:z0, z₀))
+    Mycelium.factor!(gb_ode, :f1, Mycelium.DataFactor(:z1, z₁ .+ 1))
+    Mycelium.factor!(gb_ode, :ode, f)
+    Mycelium.connect!(gb_ode, :f0, :z0, :z0; direction = Mycelium.Emitting())
+    Mycelium.connect!(gb_ode, :f1, :z1, :z1; direction = Mycelium.Emitting())
+    Mycelium.connect!(gb_ode, :ode, :z0, :z0; direction = Mycelium.Absorbing())
+    Mycelium.connect!(gb_ode, :ode, :z1, :z1; direction = Mycelium.Absorbing())
+    fg_ode = Mycelium.build(gb_ode)
+    gps_ode, gst_ode = LuxCore.setup(RNG, fg_ode)
+    _, _, gst_ode, store_ode = Mycelium.infer!(fg_ode, Mycelium.flooding_schedule(fg_ode), gps_ode, gst_ode; maxsweeps = 2)
+    gfe_ode, _ = LenticulumCore.scalar_free_energy(store_ode, fg_ode, gps_ode, gst_ode)
+    @test gfe_ode ≈ se_ode
+
+    @test_throws ArgumentError NeuralODEFactor(dyn, 2; channels = (:z, :z))
 
     # the density correction, for a continuous normalising flow
     _, Δ, _ = flow_logdet(f, z₀, ps, st)
