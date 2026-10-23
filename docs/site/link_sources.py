@@ -50,9 +50,14 @@ def matchers():
         t = norm(raw)
         title = t if len(t.strip()) >= 12 else None
         short = {t.strip()}                                   # names an italic citation may use
+        if "stochastic differential equations" in t:
+            short.add(t.replace("stochastic differential equations", "sdes").strip())
         if ":" in raw and len(raw.split(":")[0].strip()) >= 3:
             short.add(norm(raw.split(":")[0]).strip())
-        out.append((key, f.get("eprint"), title, short, t, label(f)))
+        who = clean(f.get("author") or f.get("editor") or "")
+        lead_last = norm(who.split(" and ")[0].split(",")[0]).strip() if who else ""
+        year = clean(f.get("year", "")).strip()
+        out.append((key, f.get("eprint"), title, short, t, label(f), lead_last, year))
     return out
 
 
@@ -60,7 +65,12 @@ def cited(line, ms):
     found = []
     nline = norm(line)
     italics = [(m.start() / max(len(line), 1), norm(m.group(1)).strip()) for m in re.finditer(r"\*([^*]+)\*", line)]
-    for key, eprint, title, short, t, lab in ms:
+    # count how many entries share (lead_last, year) so only unique Author-Year pairs match
+    ay_counts = {}
+    for _, _, _, _, _, _, lead_last, year in ms:
+        if lead_last and year:
+            ay_counts[(lead_last, year)] = ay_counts.get((lead_last, year), 0) + 1
+    for key, eprint, title, short, t, lab, lead_last, year in ms:
         pos = []
         if eprint and eprint in line:
             pos.append(line.index(eprint) / max(len(line), 1))
@@ -68,6 +78,14 @@ def cited(line, ms):
             pos.append(nline.index(title) / max(len(nline), 1))
         pos += [p for p, it in italics if it in short         # *MACE*, *PyTorch 2*: exact names
                 or (len(it.split()) >= 3 and t.strip().startswith(it))]   # or a title's first words
+        if not pos and lead_last and year and ay_counts.get((lead_last, year)) == 1:
+            m_ay = re.search(
+                rf"(?:^|[;:(]|\band)\s*\b{re.escape(lead_last)}\b[^;]*?\b{re.escape(year)}\b",
+                line,
+                flags=re.IGNORECASE,
+            )
+            if m_ay:
+                pos.append(m_ay.start() / max(len(line), 1))
         if pos:
             found.append((min(pos), key, lab))
     return [(k, l) for _, k, l in sorted(found)]
@@ -81,6 +99,7 @@ def notes():
 
 def main(check=False):
     ms = matchers()
+    valid_labels = {key: lab for key, _, _, _, _, lab, _, _ in ms}
     changed, linked, unmatched = 0, 0, []
     for path in sorted(notes()):
         if path.name == "Bibliography.md":
@@ -89,11 +108,21 @@ def main(check=False):
         i = next((k for k, l in enumerate(lines) if l.startswith("> Sources:")), None)
         if i is None:
             continue
-        # remove a previously generated line (and the blank quote line before it)
+        # remove a previously generated line (and the blank quote line before it), keeping valid existing keys (LP-004)
         j = i + 1
+        existing = []
         if j + 1 < len(lines) and lines[j].strip() == ">" and lines[j + 1].startswith(GENERATED):
+            for m_key in re.finditer(r"\[\[Bibliography#\^([^|\]]+)\|([^\]]+)\]\]", lines[j + 1]):
+                k = m_key.group(1)
+                if k in valid_labels:
+                    existing.append((k, valid_labels[k]))
             del lines[j:j + 2]
         refs = cited(lines[i], ms)
+        seen = {k for k, _ in refs}
+        for k, lab in existing:
+            if k not in seen:
+                refs.append((k, lab))
+                seen.add(k)
         if refs:
             linked += 1
             lines[i + 1:i + 1] = [">", GENERATED + " " + " · ".join(f"[[Bibliography#^{k}|{l}]]" for k, l in refs)]

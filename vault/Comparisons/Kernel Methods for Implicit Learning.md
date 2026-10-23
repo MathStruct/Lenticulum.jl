@@ -8,7 +8,7 @@
 
 > Sources: measurements from `lib/VariationalDiffusion.jl` (`kde_predictor`, `kde_bandwidth`) and the kernel-baseline tutorial; Carr et al., SIGGRAPH 2001; Turk & O'Brien, ACM TOG 2002; Macêdo, Gois & Velho, Computer Graphics Forum 2011; Williams & Fitzgibbon, *Gaussian Process Implicit Surfaces*, 2006; Hoffmann, Pattern Recognition 2007; Schölkopf et al., Neural Computation 2001; Tax & Duin, Machine Learning 2004; Genovese et al., Annals of Statistics 2014; Ozertem & Erdogmus, JMLR 2011; Sriperumbudur et al., JMLR 2017; Livni et al., ICML 2013; full entries in [[Bibliography]]
 >
-> Bibliography: [[Bibliography#^williams2006gpis|Williams & Fitzgibbon 2006]]
+> Bibliography: [[Bibliography#^carr2001rbf|Carr et al. 2001]] · [[Bibliography#^turk2002modelling|Turk & O'Brien 2002]] · [[Bibliography#^williams2006gpis|Williams & Fitzgibbon 2006]] · [[Bibliography#^hoffmann2007kpca|Hoffmann 2007]] · [[Bibliography#^tax2004svdd|Tax & Duin 2004]] · [[Bibliography#^genovese2014ridge|Genovese et al. 2014]] · [[Bibliography#^ozertem2011scms|Ozertem & Erdogmus 2011]] · [[Bibliography#^sriperumbudur2017kef|Sriperumbudur et al. 2017]] · [[Bibliography#^livni2013vca|Livni et al. 2013]]
 >
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
 

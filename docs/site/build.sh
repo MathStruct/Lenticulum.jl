@@ -84,7 +84,8 @@ mkdir -p "$CONTENT/src" && cp "$ROOT"/src/*.md "$CONTENT/src/"
 # and links to other files in the repository go to GitHub.
 sed -e 's#](vault/\([^)]*\)\.md)#](\1)#' \
     -e 's#](docs/src/assets/\([^)]*\))#](https://raw.githubusercontent.com/MathStruct/Lenticulum.jl/master/docs/src/assets/\1)#' \
-    -e 's#](\(docs/[^)]*\|meta/[^)]*\))#](https://github.com/MathStruct/Lenticulum.jl/blob/master/\1)#' \
+    -e 's#](\(docs/[^)]*\))#](https://github.com/MathStruct/Lenticulum.jl/blob/master/\1)#' \
+    -e 's#](\(meta/[^)]*\))#](https://github.com/MathStruct/Lenticulum.jl/blob/master/\1)#' \
     -e '/](https:/!s#%20#-#g' \
     "$ROOT/README.md" > "$CONTENT/README.md"
 
@@ -160,7 +161,7 @@ The vault is written for [Obsidian](https://obsidian.md) and rendered here with
 at build time. The graph view is Quartz's rather than Obsidian's.
 MD
 
-sed -i "s#@API@#$API_URL#g" "$CONTENT/index.md"
+sed "s#@API@#$API_URL#g" "$CONTENT/index.md" > "$CONTENT/index.md.tmp" && mv "$CONTENT/index.md.tmp" "$CONTENT/index.md"
 
 # --- 3b. lint: display math that Obsidian accepts but remark-math truncates on -----------
 # A `$$` block opened with content on the fence line and closed with `$$` at the end of a
