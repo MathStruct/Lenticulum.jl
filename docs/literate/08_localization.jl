@@ -200,8 +200,8 @@ predict_last()
 # This example is linear and Gaussian, which is why every number above is exact. A real robot
 # needs:
 #
-# - **nonlinear factors** on poses in ``SE(2)`` or ``SE(3)``, solved by Gauss–Newton or
-#   Levenberg–Marquardt on the manifold (what GTSAM is built for);
+# - **manifold-valued nonlinear factors** on poses in ``SE(2)`` or ``SE(3)``, solved by Gauss–Newton or
+#   Levenberg–Marquardt on the Lie group (Euclidean nonlinear factors are in Tutorial 09);
 # - **loop closures**, which make the graph loopy, where two sweeps are no longer exact;
 # - **robust or learned noise models**: heavy tails, outliers, and noise whose distribution is
 #   unknown rather than a known Gaussian;

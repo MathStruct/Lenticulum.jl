@@ -47,7 +47,7 @@ function compile_fresh(k, offset)
     end
 end
 
-function run(name, background)
+function run_bench(name, background)
     stop, gaps = Threads.Atomic{Bool}(false), UInt64[]
     loop = Threads.@spawn :default control_loop(stop, gaps)
     sleep(0.5)
@@ -56,16 +56,18 @@ function run(name, background)
     stop[] = true
     fetch(loop)
     sort!(gaps)
+    worst = isempty(gaps) ? 0.0 : last(gaps) / 1e6
+    typical = isempty(gaps) ? 0.0 : gaps[max(1, end ÷ 2)] / 1e6
     @printf("%-40s worst gap %7.2f ms   typical window maximum %.3f ms   background %.1f s   GC %.3f s\n",
-            name, last(gaps) / 1e6, gaps[end ÷ 2] / 1e6, t, (Base.gc_time_ns() - gc0) / 1e9)
+            name, worst, typical, t, (Base.gc_time_ns() - gc0) / 1e9)
     flush(stdout)
 end
 
 @printf("Julia %s, %d default + %d interactive threads, %d GC threads, %d functions\n", VERSION,
         Threads.nthreads(:default), Threads.nthreads(:interactive), Threads.ngcthreads(), NFUNCS)
-run("idle", () -> sleep(3))
-run("compiling on another thread", () -> fetch(Threads.@spawn :default compile_fresh(NFUNCS, 0)))
-run("compiling, GC disabled meanwhile", () -> fetch(Threads.@spawn :default begin
+run_bench("idle", () -> sleep(3))
+run_bench("compiling on another thread", () -> fetch(Threads.@spawn :default compile_fresh(NFUNCS, 0)))
+run_bench("compiling, GC disabled meanwhile", () -> fetch(Threads.@spawn :default begin
     GC.enable(false)
     try
         compile_fresh(NFUNCS, NFUNCS)

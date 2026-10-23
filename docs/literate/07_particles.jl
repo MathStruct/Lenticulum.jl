@@ -228,7 +228,7 @@ end
 # hundred times the noise-free one: the positions themselves are then
 # uncertain, and the right model treats the true positions as **latent variables** in a factor
 # graph, with the dynamics as factors between consecutive times and the measurements as
-# factors on each. That needs nonlinear factors, which Lenticulum does not have yet.
+# factors on each (using [`NonlinearFactor`](@ref) for known nonlinear laws, as in Tutorial 09).
 #
 # ## Naming the law: symbolic regression
 #

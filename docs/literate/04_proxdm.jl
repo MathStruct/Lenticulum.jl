@@ -69,7 +69,7 @@ ring = vcat(cos.(θ)', sin.(θ)')
 Pc = MixtureProx(GaussianMixtureEps(sched, ring; s = 0.05))
 psc = (μ = ring,)
 rng = Xoshiro(3)
-S = reduce(hcat, [first(proxdm_sample(Pc, sched, randn(rng, 2), psc, NamedTuple(); steps = 100, hybrid = true, rng)) for _ in 1:500])
+S = reduce(hcat, [first(proxdm_sample(Pc, sched, randn(rng, 2), psc, NamedTuple(); steps = 100, scheme = :hybrid, rng)) for _ in 1:500])
 r = vec(sqrt.(sum(abs2, S; dims = 1)))
 (radius_mean = mean(r), radius_std = std(r))
 

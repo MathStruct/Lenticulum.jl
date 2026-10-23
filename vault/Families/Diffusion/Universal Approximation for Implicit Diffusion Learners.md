@@ -69,7 +69,7 @@ nondegenerate (a Morse condition on the fibres). It excludes branch points (§5)
 > bijection that moves no zero by more than $2\delta/\mu$ and preserves stability. Moreover
 > $\tilde r$ is regular on $(Q, Y)$ with constant $\mu/2$.
 
-Here $\mu = \min$ over the zeros of $r$ in $Q\times Y$ of $\min\{\sigma_{\min}(J), \lvert\lambda_{\min}(\operatorname{sym}J)\rvert\}$.
+Here $\mu = \min$ over the zeros of $r$ in $Q\times Y$ of $\min\{\sigma_{\min}(J), \lvert\lambda_{\min}(\operatorname{sym}J)\rvert\}$, and $\lVert\cdot\rVert$ denotes the operator 2-norm.
 
 *Proof.* Let $Z = \{(p, y) \in Q\times Y : r(p, y) = 0\}$; it is compact, and $\mu > 0$ because
 $\sigma_{\min}$ and $\lambda_{\min}\circ\operatorname{sym}$ are continuous and positive in absolute value on $Z$
@@ -148,7 +148,18 @@ factor in $t$. Then $U_{E^\ast} = \hat G - \ell^\top z = \Psi$ on $K$. The field
 weights $w_k\lambda_k$ and $\hat G = \chi\cdot(G + \sum_k w_k\lambda_k\varepsilon_k)$. $\square$
 
 With `noisefree_nodes` ($\varepsilon = 0$, one node) this is just $E^\ast = (\Psi + \ell^\top z)/c$. With
-antithetic pairs it is an alternating sum, $H(u) = \gamma^{-1}\sum_{i\ge0}(-1)^i\hat G(u + (2i+1)s)$.
+a single antithetic pair ($q = 2$, $s_{1,2} = \pm s$) it is an alternating sum,
+$H(u) = \gamma^{-1}\sum_{i\ge0}(-1)^i\hat G(u + (2i+1)s)$, whose $C^k$ norm on a compact set grows at most
+linearly in the number of slabs $\operatorname{diam}(K)/\lvert s\rvert$. For $q \ge 3$ equal-weight shifts
+($\gamma_j = \gamma_1$), the slab recurrence has amplification factor $q - 1 \ge 2$ per slab of width
+$d \propto \sigma^\ast$, so $\lVert H\rVert_{C^k}$ on $K$ is finite for any fixed $\sigma^\ast > 0$ (finitely many slabs intersect $K$)
+but its worst-case bound from the slab recurrence grows exponentially as $O((q-1)^{\operatorname{diam}(K)/d})$.
+(**Conjecture / unverified expectation:** whether generic shift configurations with $q \ge 3$ admit
+another smooth inverse $H$ with polynomial $C^k$-norm growth as $\sigma^\ast \to 0$ is not proved here;
+however, when $t^\ast$ is chosen with $\sigma^\ast$ sufficiently small, uniform continuity of $D^2\Psi$ on $K$
+implies that the unshifted rescaling $H(u) = (\sum_{j=1}^q \gamma_j)^{-1}\hat G(u)$ already satisfies
+$\lVert\sum_j \gamma_j H(\cdot + s_j) - \hat G\rVert_{C^2(K)} = O((\sigma^\ast)^2)$, bypassing exact shift deconvolution
+when only $\eta$-approximation is needed.)
 
 ## 4. The theorem
 
@@ -260,6 +271,22 @@ open:
    query, not that the solver finds all of them, or any of them, from a given start.
 6. **Queries outside $Q$ (T4, T5).** Nothing is claimed off the compact query set. The learner may
    have answers there that the target lacks.
+
+## 7. Multi-polarity queries and the codimension paradox (heuristic analysis and conjecture)
+
+> **Status: heuristic analysis and conjecture (not proved).** The three regimes below describe the
+> expected geometry of the fibre Hessian $J_{FF}$ across query polarities of different dimensions;
+> making regime 2 rigorous as a theorem requires nondegeneracy assumptions on the smoothed
+> in-manifold log-density as $\sigma_t \to 0$ that remain open (see §6.1 and §6.4).
+
+For any choice of free coordinates $F \subseteq \{1,\dots,n\}$ with $m = \lvert F\rvert$, the fibre residual
+$r_\theta(p, y) = \nabla_{z_F} U_\theta(z_C, y) + \rho_F^2\odot(y - z_{0,F}) = 0$ is a **square $m \times m$ system** of equations in $m$ unknowns. How can a single scalar potential $U_\theta : \mathbb R^n \to \mathbb R$ yield isolated, regular answers ($\operatorname{sym} J_{FF} \succ 0$) across queries with *different* numbers of free coordinates $m$ (for instance, MNIST classification `image -> label` with $m = 10$ alongside conditional generation `label -> image` with $m = 784$)?
+
+Suppose the data lie on a smooth submanifold $M \subset \mathbb R^n$ of dimension $d_M = n - k$ and codimension $k$. Three distinct geometric regimes govern the fibre Hessian $J_{FF} = (\nabla^2 U_\theta)_{FF} + \operatorname{diag}(\rho_F^2)$:
+
+1. **Transverse manifold slicing ($m = k$, $\rho_F = 0$).** If $U_\theta(z) = \tfrac12\operatorname{dist}(z, M)^2$ is a pure tubular distance potential vanishing on $M$, then at every $z \in M$ the full Hessian $\nabla^2 U_\theta(z)$ has rank $k$ (positive definite on the normal space $N_z M$) and corank $d_M = n - k$ (zero along the tangent space $T_z M$). When $m = k$ and the $m$-dimensional coordinate fibre $\mathbb R^F$ intersects $M$ transversely ($T_z M \oplus \mathbb R^F = \mathbb R^n$), the restriction $J_{FF}$ is strictly positive definite ($\operatorname{rank} J_{FF} = k = m$), so the intersection points are isolated regular answers.
+2. **Conditional mode finding ($m > k$, $\rho_F = 0$).** If $U_\theta$ were constant along $M$ and $m > k$, the intersection $M \cap (\{z_C\}\times \mathbb R^F)$ would be an $(m - k)$-dimensional continuum of roots and $J_{FF}$ would have corank at least $m - k \ge 1$ everywhere on $M$, violating (R1). A diffusion learner's potential $U^\ast(z) \approx -\log p_t(z)$, however, is **not** constant along $M$: it carries the negative log-density of the data distribution on $M$ alongside the normal penalty $\tfrac1{2\sigma_t^2}\operatorname{dist}(z, M)^2$. When $m > k$, the roots of $\nabla_{z_F} U^\ast(z_C, y) = 0$ are the **0-dimensional local modes of the conditional density on the slice $M \cap (\{z_C\}\times\mathbb R^F)$**, where the in-manifold density curvature breaks the tangent degeneracy and makes $J_{FF} \succ 0$.
+3. **Soft-anchored projection ($m > k$, $\rho_F > 0$).** When the free coordinates carry positive anchor precisions $\rho_F > 0$, adding $\operatorname{diag}(\rho_F^2) \succ 0$ makes $J_{FF} = (\nabla^2 U_\theta)_{FF} + \operatorname{diag}(\rho_F^2) \succ 0$ even when $U_\theta$ is flat along $M$, selecting the metric projection of the anchor $z_{0,F}$ onto the slice.
 
 Related: [[Implicit Diffusion Learners]], [[Open Problems in Implicit Diffusion Learning]],
 [[Universal Approximation by Nash-Tognoli]], [[energy_network]], [[product]], [[Implicit Learners]]
