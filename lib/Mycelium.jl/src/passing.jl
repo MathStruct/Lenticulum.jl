@@ -28,20 +28,23 @@ excluded marginal at the target variable — the ``\\pi`` of ``c'_\\pi``.
 """
 function factor_message(factor, target::Symbol, polarity, inputs, prior, ps, st)
     lens, st = LenticulumCore.assemble(factor, polarity, ps, st)
-    return LenticulumCore.invert(lens, prior, inputs, ps, st)
+    return LenticulumCore.likelihood_message(lens, prior, inputs, ps, st)
 end
 
 """
     available_channels(store, g, fid; skip = 0) -> Tuple{Vararg{Symbol}}
 
-Channels of factor `fid` that currently have an incoming (variable → factor) message,
-optionally excluding one edge. These become `Observed()` in the resolved polarity.
+Channels of factor `fid` that currently have an informative incoming (variable → factor)
+message, optionally excluding one edge. Channels holding `nothing` or an uninformative belief
+(`TrivialBelief()` or `uninformative(n)`) are excluded so they resolve to `Latent()`.
 """
 function available_channels(s::MessageStore, g::FactorGraph, fid::Int; skip::Int = 0)
     out = Symbol[]
     for ei in g.edges_of_factor[fid]
         ei == skip && continue
-        has_to_factor(s, ei) && push!(out, g.edges[ei].channel)
+        if has_to_factor(s, ei) && !LenticulumCore.isuninformative(s.to_factor[ei].belief)
+            push!(out, g.edges[ei].channel)
+        end
     end
     return Tuple(out)
 end
@@ -69,6 +72,7 @@ With `commit = false` the message is computed but not stored, which is what
 """
 function step!(s::MessageStore, g::FactorGraph, t::MessageTask, ps, st;
                damping::Real = 0.0, commit::Bool = true)
+    0 <= damping < 1 || throw(ArgumentError("damping must be in [0, 1); got $damping"))
     e = g.edges[t.edge]
     if t.kind === :to_factor
         can_absorb(g, t.edge) || throw(PolarityError(
@@ -92,12 +96,17 @@ function step!(s::MessageStore, g::FactorGraph, t::MessageTask, ps, st;
         # not, the factor would be feeding its own previous claim back to itself.
         chans = available_channels(s, g, e.factor; skip = t.edge)
         pol = resolve_polarity(g, e.factor, e.channel, chans)
-        check_legal(g, e.factor, pol)
-        inputs = _inputs(s, g, e.factor, chans)
-        prior = excluded_marginal(s, g, e.variable, t.edge)
         psf = _subtree(ps, fn.name)
         stf = _subtree(st, fn.name)
-        belief, stf = factor_message(fn.factor, e.channel, pol, inputs, prior, psf, stf)
+        if isempty(chans) && !issink(fn.factor) && !LenticulumCore.supports_polarity(fn.factor, pol)
+            @warn "factor :$(fn.name) has no informative inputs when emitting on :$(e.channel); sending TrivialBelief()" maxlog = 1
+            belief = LenticulumCore.TrivialBelief()
+        else
+            check_legal(g, e.factor, pol)
+            inputs = _inputs(s, g, e.factor, chans)
+            prior = excluded_marginal(s, g, e.variable, t.edge)
+            belief, stf = factor_message(fn.factor, e.channel, pol, inputs, prior, psf, stf)
+        end
         old = s.to_variable[t.edge]
         if old !== nothing && damping > 0
             belief = damp(belief, old.belief, 1 - damping)
@@ -159,6 +168,39 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::FloodingSchedule, ps, st
     return maxres, st
 end
 
+function _task_age(s::MessageStore, t::MessageTask)
+    m = t.kind === :to_factor ? s.to_factor[t.edge] : s.to_variable[t.edge]
+    return m === nothing ? -1 : m.iteration
+end
+
+function sweep!(s::MessageStore, g::FactorGraph, sched::ResidualSchedule, ps, st;
+                damping::Real = 0.0)
+    s.iteration += 1
+    ts = all_tasks(g)
+    isempty(ts) && return 0.0, st
+    nsteps = min(sched.maxtasks, length(ts))
+    maxres = 0.0
+    for _ in 1:nsteps
+        best_idx = 0
+        best_res = -1.0
+        best_age = typemax(Int)
+        for (i, t) in enumerate(ts)
+            _, res, _ = step!(s, g, t, ps, st; damping, commit = false)
+            age = _task_age(s, t)
+            if res > best_res || (res == best_res && age < best_age)
+                best_idx = i
+                best_res = res
+                best_age = age
+            end
+        end
+        best_idx == 0 && break
+        _, res, st = step!(s, g, ts[best_idx], ps, st; damping, commit = true)
+        maxres = max(maxres, res)
+        best_res == 0.0 && break
+    end
+    return maxres, st
+end
+
 """
     ConvergenceReport(converged, sweeps, residual, reason)
 
@@ -191,6 +233,7 @@ in the report's `reason`.
 """
 function propagate!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, ps, st;
                     maxsweeps::Int = 100, tol::Real = 1e-8, damping::Real = 0.0)
+    0 <= damping < 1 || throw(ArgumentError("damping must be in [0, 1); got $damping"))
     if sched isa TreeSchedule
         _, st = sweep!(s, g, sched, ps, st; damping)
         return ConvergenceReport(true, 1, 0.0, "tree schedule: one sweep is exact"), st

@@ -95,6 +95,18 @@ energyspace(f::ComposedFactor) =
 scalarisation(f::ComposedFactor) =
     GradedScalarisation((; first = scalarisation(f.first), second = scalarisation(f.second)))
 
+pointwise_energyspace(f::ComposedFactor) =
+    GradedEnergySpace((;
+        first = pointwise_energyspace(f.first),
+        second = pointwise_energyspace(f.second),
+    ))
+
+pointwise_scalarisation(f::ComposedFactor) =
+    GradedScalarisation((;
+        first = pointwise_scalarisation(f.first),
+        second = pointwise_scalarisation(f.second),
+    ))
+
 """
     TensorFactor(parts::NamedTuple)
 
@@ -111,6 +123,10 @@ energyspace(f::TensorFactor{names}) where {names} =
     GradedEnergySpace(NamedTuple{names}(map(energyspace, values(f.parts))))
 scalarisation(f::TensorFactor{names}) where {names} =
     GradedScalarisation(NamedTuple{names}(map(scalarisation, values(f.parts))))
+pointwise_energyspace(f::TensorFactor{names}) where {names} =
+    GradedEnergySpace(NamedTuple{names}(map(pointwise_energyspace, values(f.parts))))
+pointwise_scalarisation(f::TensorFactor{names}) where {names} =
+    GradedScalarisation(NamedTuple{names}(map(pointwise_scalarisation, values(f.parts))))
 
 # --- The composite chain rule ---------------------------------------------
 
@@ -195,6 +211,11 @@ for op in (:initialparameters, :initialstates)
             return NamedTuple{factors}(map(x -> LuxCore.$(op)(rng, x), getfield.((f,), factors)))
         end
         function LuxCore.$(op)(
+            rng::AbstractRNG, f::TensorFactor{names}
+        ) where {names}
+            return NamedTuple{names}(map(x -> LuxCore.$(op)(rng, x), values(f.parts)))
+        end
+        function LuxCore.$(op)(
             rng::AbstractRNG, f::AbstractLenticulumWrapperFactor{factor}
         ) where {factor}
             return LuxCore.$(op)(rng, getfield(f, factor))
@@ -207,6 +228,12 @@ function LuxCore.parameterlength(f::AbstractLenticulumContainerFactor{factors}) 
 end
 function LuxCore.statelength(f::AbstractLenticulumContainerFactor{factors}) where {factors}
     return sum(LuxCore.statelength, getfield.((f,), factors); init = 0)
+end
+function LuxCore.parameterlength(f::TensorFactor)
+    return sum(LuxCore.parameterlength, values(f.parts); init = 0)
+end
+function LuxCore.statelength(f::TensorFactor)
+    return sum(LuxCore.statelength, values(f.parts); init = 0)
 end
 LuxCore.parameterlength(f::AbstractLenticulumWrapperFactor{factor}) where {factor} =
     LuxCore.parameterlength(getfield(f, factor))

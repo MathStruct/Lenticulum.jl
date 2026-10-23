@@ -36,6 +36,24 @@ next factor upstream will consume, and dropping it breaks the chain rule.
 function invert end
 
 """
+    likelihood_message(lens, π::AbstractBelief, inputs, ps, st) -> (AbstractBelief, st)
+
+The extrinsic **likelihood (or site) message** from `lens` given clamped/incoming `inputs` and
+cavity reference `π` on the unobserved channel(s).
+
+Unlike [`invert`](@ref), which returns the posterior ``q(x) \\propto \\pi(x)\\,\\ell(y\\mid x)``,
+`likelihood_message` returns the likelihood factor ``\\ell(y\\mid x)`` with `π` divided out
+(`π` is used only as a linearisation, tilting, or warm-start point when the inversion is
+approximate). Belief propagation (`Mycelium.factor_message`) calls `likelihood_message` so that
+a variable of degree ``d`` does not count its prior ``d`` times.
+
+Defaults to `invert(lens, π, inputs, ps, st)` for point (`DiracBelief`) and particle
+(`SampleBelief`) lenses whose output is already an extrinsic message.
+"""
+likelihood_message(lens::AbstractBayesianLens, π, inputs, ps, st) =
+    invert(lens, π, inputs, ps, st)
+
+"""
     ExactInversion()
 
 ``c^\\dagger`` of AutoBayes Definition 10: Bayes' law applied to the model's own kernel.
