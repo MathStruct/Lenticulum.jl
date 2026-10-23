@@ -123,7 +123,8 @@ LenticulumCore.energy(f::NonlinearFactor, x, a, y, ps, st) = (residual(f, x, y),
 # pointwise: the residual with SquaredNorm(Q⁻¹), as for GaussianFactor; the graded spaces above
 # are those of the free energy
 LenticulumCore.pointwise_energyspace(f::NonlinearFactor) = LenticulumCore.EuclideanEnergySpace(f.nout)
-LenticulumCore.pointwise_scalarisation(f::NonlinearFactor) = LenticulumCore.SquaredNorm(inv(Symmetric(f.Q)))
+LenticulumCore.pointwise_scalarisation(f::NonlinearFactor) =
+    LenticulumCore.SquaredNorm(inv(Symmetric(f.Q)); check = false)
 
 # --- The local linear model --------------------------------------------------------
 
@@ -159,7 +160,8 @@ function _linearize(u::Unscented, f, m, S)
     n = length(m)
     λ = u.α^2 * (n + u.κ) - n
     E = LinearAlgebra.eigen(Symmetric(Matrix{Float64}(S)))
-    L = E.vectors * Diagonal(sqrt.(max.(E.values, 0.0)))          # S = L Lᵀ, also when singular
+    vals = max.(E.values, 0.0)
+    L = E.vectors * Diagonal(sqrt.(vals))                          # S = L Lᵀ, also when singular
     c = sqrt(n + λ)
     X = hcat(m, m .+ c .* L, m .- c .* L)                          # 2n + 1 sigma points
     wm = vcat(λ / (n + λ), fill(1 / (2(n + λ)), 2n))
@@ -169,10 +171,17 @@ function _linearize(u::Unscented, f, m, S)
     Dx, Dy = X .- m, Y .- ȳ
     Cxy = (Dx .* wc') * Dy'                                        # n × nout
     Syy = (Dy .* wc') * Dy'
-    Sm = Matrix{Float64}(S)                                        # A = Cxyᵀ S⁻¹: least squares on the sigma points
-    A = LinearAlgebra.rank(Sm) < n ? Cxy' * LinearAlgebra.pinv(Sm) : (Sm \ Cxy)'
+    tol = n * eps(Float64) * maximum(vals; init = 0.0)
+    inv_vals = [v > tol ? 1.0 / v : 0.0 for v in vals]
+    Sinv_Cxy = E.vectors * (inv_vals .* (E.vectors' * Cxy))        # reuse E instead of rank + pinv
+    A = Matrix(Sinv_Cxy')
     Ω = Syy .- A * S * A'
-    return (A, ȳ .- A * m, Matrix(Symmetric((Ω .+ Ω') ./ 2)))
+    EΩ = LinearAlgebra.eigen(Symmetric((Ω .+ Ω') ./ 2))
+    if minimum(EΩ.values; init = 0.0) < -1e-10 * (1 + maximum(abs, EΩ.values; init = 0.0))
+        @warn "Unscented linearize: residual covariance Ω = Syy - ASAᵀ has negative eigenvalue $(minimum(EΩ.values)) (due to negative centre weight wc[1] at α = $(u.α)); clamping to positive semidefinite. Consider α = 1.0 (cubature weights) if exact PSD residuals are required." maxlog = 1
+    end
+    Ω_psd = EΩ.vectors * Diagonal(max.(EΩ.values, 0.0)) * EΩ.vectors'
+    return (A, ȳ .- A * m, Matrix(Symmetric(Ω_psd)))
 end
 
 # the expansion belief on x: an incoming belief's moments, or the factor's x0, or nothing
@@ -251,13 +260,22 @@ relinearised at the current posterior mean `method.iterations` times (with the p
 covariance for the unscented transform): Gauss–Newton on the MAP, the iterated EKF / iterated
 posterior linearisation. One iteration is the plain EKF / UKF update.
 """
+function LenticulumCore.likelihood_message(
+    lens::LenticulumCore.BayesianLens{<:NonlinearGaussianModel,<:LenticulumCore.SolverInversion},
+    π, inputs, ps, st,
+)
+    f = lens.model.factor
+    target = only(LenticulumCore.unobserved_channels(lens.model.polarity))
+    return (_nl_message(f, target, inputs, π), st)
+end
+
 function LenticulumCore.invert(
     lens::LenticulumCore.BayesianLens{<:NonlinearGaussianModel,<:LenticulumCore.SolverInversion},
     π, inputs, ps, st,
 )
     f = lens.model.factor
     target = only(LenticulumCore.unobserved_channels(lens.model.polarity))
-    msg = _nl_message(f, target, inputs, π)
+    msg, st = LenticulumCore.likelihood_message(lens, π, inputs, ps, st)
     post = Mycelium.combine(π, msg)
     target === f.in_channel || return (post, st)
     my, Sy = _moments(_get(inputs, f.out_channel), f.nout)
@@ -286,4 +304,13 @@ function Mycelium.local_free_energy(f::NonlinearFactor, msgs, ps, st)
     A, b, Ω = linearize(f, x̄, P)
     g = GaussianFactor(f.nin, f.nout, f.in_channel, f.out_channel, f.Q .+ Ω, nothing, nothing)
     return Mycelium.local_free_energy(g, msgs, (A = A, b = b), st)
+end
+
+function LenticulumCore.free_energy(f::NonlinearFactor, π, y, ps, st)
+    return Mycelium.local_free_energy(f, _game_messages(f, π, y), ps, st)
+end
+
+function LenticulumCore.entropy(f::NonlinearFactor, π, y, ps, st)
+    F, st = LenticulumCore.free_energy(f, π, y, ps, st)
+    return (-F[:negentropy], st)
 end

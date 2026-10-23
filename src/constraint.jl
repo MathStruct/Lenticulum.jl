@@ -163,7 +163,7 @@ LenticulumCore.energy(f::LinearConstraintFactor, x, a, y, ps, st) =
 LenticulumCore.pointwise_energyspace(f::LinearConstraintFactor) =
     LenticulumCore.EuclideanEnergySpace(size(f.Q, 1))
 LenticulumCore.pointwise_scalarisation(f::LinearConstraintFactor) =
-    LenticulumCore.SquaredNorm(inv(Symmetric(f.Q)))
+    LenticulumCore.SquaredNorm(inv(Symmetric(f.Q)); check = false)
 
 _channel_values(x::NamedTuple, y::NamedTuple) = merge(x, y)
 _channel_values(x::NamedTuple, ::Nothing) = x
@@ -191,13 +191,20 @@ LenticulumCore.latentspace(::LinearConstraintModel) = nothing
 LenticulumCore.assemble(f::LinearConstraintFactor, p::LenticulumCore.Polarity, ps, st) =
     (LenticulumCore.BayesianLens(LinearConstraintModel(f, p), LenticulumCore.ExactInversion()), st)
 
-function LenticulumCore.invert(
+function LenticulumCore.likelihood_message(
     lens::LenticulumCore.BayesianLens{<:LinearConstraintModel,LenticulumCore.ExactInversion},
     π, inputs, ps, st,
 )
     f = lens.model.factor
     target = only(LenticulumCore.unobserved_channels(lens.model.polarity))
-    msg, st = _message(f, target, inputs, ps, st)
+    return _message(f, target, inputs, ps, st)
+end
+
+function LenticulumCore.invert(
+    lens::LenticulumCore.BayesianLens{<:LinearConstraintModel,LenticulumCore.ExactInversion},
+    π, inputs, ps, st,
+)
+    msg, st = LenticulumCore.likelihood_message(lens, π, inputs, ps, st)
     return Mycelium.combine(π, msg), st
 end
 
@@ -311,4 +318,15 @@ function Mycelium.local_free_energy(f::LinearConstraintFactor, msgs, ps, st)
     fit = (r̄' * (Qi * r̄) + tr(Qi * Cr)) / 2
     complexity = logdet(_chol(2π .* f.Q, "2πQ")) / 2
     return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -H)), st
+end
+
+function LenticulumCore.free_energy(f::LinearConstraintFactor{names}, π, y::NamedTuple, ps, st) where {names}
+    missing_chans = setdiff(names, keys(y))
+    msgs = length(missing_chans) == 1 ? merge(NamedTuple{(only(missing_chans),)}((π,)), y) : y
+    return Mycelium.local_free_energy(f, msgs, ps, st)
+end
+
+function LenticulumCore.entropy(f::LinearConstraintFactor, π, y::NamedTuple, ps, st)
+    F, st = LenticulumCore.free_energy(f, π, y, ps, st)
+    return (-F[:negentropy], st)
 end

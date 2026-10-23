@@ -1096,4 +1096,47 @@ end
     # at a point the factor's energy is the negative log-likelihood
     Fd, _ = Mycelium.local_free_energy(fl, (; x = DiracBelief([log(2.0)]), y = DiracBelief([3.0])), NamedTuple(), NamedTuple())
     @test LenticulumCore.scalarise(LenticulumCore.scalarisation(fl), Fd) ≈ -log(exp(-2.0) * 8 / 6)
+
+    # unclamped :y (predictive mode) local_free_energy does not throw
+    Fp, _ = Mycelium.local_free_energy(fl, (; x = cav, y = nothing), NamedTuple(), NamedTuple())
+    @test Fp[:fit] == 0.0 && Fp[:negentropy] ≈ -Mycelium.variable_entropy(cav)
+
+    # BivariatePoissonLikelihood handles z = -Inf without 0 * (-Inf) == NaN
+    @test isfinite(loglikelihood(bp, [2, 1], [0.0, 0.0, -Inf]))
+end
+
+@testset "Factor interface conformance (L-SPEC-001 / LP-008) & game-level free_energy (LP-009)" begin
+    rng = Random.default_rng()
+    factors = [
+        GaussianFactor(2 => 2; noise = 0.2),
+        GaussianPrior(:x, [0.0, 0.0], Matrix(1.0I, 2, 2)),
+        LinearConstraintFactor((x = 2, y = 2), 2; noise = 0.2),
+        NonlinearFactor(x -> x .^ 2, 2 => 2; noise = 0.2),
+        LikelihoodFactor(PoissonLikelihood(1), 1),
+    ]
+    for f in factors
+        ps, st = LuxCore.setup(rng, f)
+        chans = LenticulumCore.channels(f)
+        @test !isempty(chans)
+        pols = LenticulumCore.supported_polarities(f)
+        @test !isempty(pols)
+        for p in pols
+            @test LenticulumCore.supports_polarity(f, p)
+            @test LenticulumCore.ispartition(p)
+        end
+        @test LenticulumCore.energyspace(f) isa LenticulumCore.AbstractEnergySpace
+        @test LenticulumCore.scalarisation(f) isa LenticulumCore.AbstractScalarisation
+        @test LenticulumCore.pointwise_energyspace(f) isa LenticulumCore.AbstractEnergySpace
+        @test LenticulumCore.pointwise_scalarisation(f) isa LenticulumCore.AbstractScalarisation
+    end
+
+    # Game-level free_energy and entropy (LP-009)
+    gf = GaussianFactor(1 => 1; noise = Q)
+    gps = (A = A, b = bb)
+    px = Gaussian(μ₀, Σ₀)
+    Fg_game, _ = LenticulumCore.free_energy(gf, px, y₀, gps, NamedTuple())
+    Hg_game, _ = LenticulumCore.entropy(gf, px, y₀, gps, NamedTuple())
+    @test Fg_game[:negentropy] ≈ -Hg_game
+    sfe, _ = LenticulumCore.scalar_free_energy(gf, px, y₀, gps, NamedTuple())
+    @test isfinite(sfe)
 end

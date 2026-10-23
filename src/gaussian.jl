@@ -14,7 +14,7 @@
 # Its purpose is to be a test oracle: everything it computes has a closed form, so the
 # framework's claims can be checked against arithmetic rather than against itself.
 #
-# See `gaussian.md` and `The Gaussian Factor.md`.
+# See `gaussian.md` and `Scalar and Multivariate Energy.md`.
 # ---------------------------------------------------------------------------
 
 """
@@ -142,7 +142,8 @@ the factor belief is the `fit` summand of the free energy (the graded
 The residual is the same in both polarities, so neither depends on one.
 """
 LenticulumCore.pointwise_energyspace(f::GaussianFactor) = LenticulumCore.EuclideanEnergySpace(f.nout)
-LenticulumCore.pointwise_scalarisation(f::GaussianFactor) = LenticulumCore.SquaredNorm(inv(Symmetric(f.Q)))
+LenticulumCore.pointwise_scalarisation(f::GaussianFactor) =
+    LenticulumCore.SquaredNorm(inv(Symmetric(f.Q)); check = false)
 
 # --- The open model and its exact inversion --------------------------------
 
@@ -179,13 +180,20 @@ posterior, *including* the prior.
 > the test suite. On a chain (every variable of degree 2) the distinction is invisible, which is
 > why it does not appear in the paper. See `gaussian.md` §4.
 """
-function LenticulumCore.invert(
+function LenticulumCore.likelihood_message(
     lens::LenticulumCore.BayesianLens{<:LinearGaussianModel,LenticulumCore.ExactInversion},
     π, inputs, ps, st,
 )
     f = lens.model.factor
     target = only(LenticulumCore.unobserved_channels(lens.model.polarity))
-    msg, st = _message(f, target, inputs, ps, st)
+    return _message(f, target, inputs, ps, st)
+end
+
+function LenticulumCore.invert(
+    lens::LenticulumCore.BayesianLens{<:LinearGaussianModel,LenticulumCore.ExactInversion},
+    π, inputs, ps, st,
+)
+    msg, st = LenticulumCore.likelihood_message(lens, π, inputs, ps, st)
     return Mycelium.combine(π, msg), st
 end
 
@@ -347,6 +355,22 @@ function Mycelium.local_free_energy(f::GaussianFactor, msgs, ps, st)
     return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -H)), st
 end
 
+function _game_messages(f, π, y)
+    by = y isa NamedTuple ? _get(y, f.out_channel) :
+         y isa LenticulumCore.AbstractBelief ? y :
+         y === nothing ? nothing : LenticulumCore.DiracBelief(y)
+    return NamedTuple{(f.in_channel, f.out_channel)}((π, by))
+end
+
+function LenticulumCore.free_energy(f::GaussianFactor, π, y, ps, st)
+    return Mycelium.local_free_energy(f, _game_messages(f, π, y), ps, st)
+end
+
+function LenticulumCore.entropy(f::GaussianFactor, π, y, ps, st)
+    F, st = LenticulumCore.free_energy(f, π, y, ps, st)
+    return (-F[:negentropy], st)
+end
+
 # =========================================================================== #
 # A Gaussian prior — AutoBayes Remark 24, exactly
 # =========================================================================== #
@@ -407,4 +431,16 @@ function Mycelium.local_free_energy(f::GaussianPrior, msgs, ps, st)
     fit = (d' * (Λ0 * d) + tr(Λ0 * Σb)) / 2
     H = Mycelium.variable_entropy(bel)
     return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -H)), st
+end
+
+function LenticulumCore.free_energy(f::GaussianPrior, π, y, ps, st)
+    by = y isa NamedTuple ? _get(y, f.channel) :
+         y isa LenticulumCore.AbstractBelief ? y :
+         y === nothing ? π : LenticulumCore.DiracBelief(y)
+    return Mycelium.local_free_energy(f, NamedTuple{(f.channel,)}((by,)), ps, st)
+end
+
+function LenticulumCore.entropy(f::GaussianPrior, π, y, ps, st)
+    F, st = LenticulumCore.free_energy(f, π, y, ps, st)
+    return (-F[:negentropy], st)
 end

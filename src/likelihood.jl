@@ -103,6 +103,7 @@ outcome_logprobs(L::AbstractLikelihood, z) = [loglikelihood(L, o, z) for o in ou
 _logfact(n) = SpecialFunctions.logfactorial(n)
 _count(y) = (isinteger(y) && y ≥ 0) ? Int(y) :
     throw(ArgumentError("a count must be a non-negative integer, got $y"))
+_mul_count(k::Integer, z::Real) = k == 0 ? zero(float(z)) : k * z
 
 # log P(Y = j) for j = 0 … N-1 and log P(Y ≥ N), Y ~ Poisson(e^z)
 function _poisson_lumped(z, N)
@@ -134,11 +135,11 @@ end
 npredictors(L::PoissonLikelihood) = L.k
 obsdim(L::PoissonLikelihood) = L.k
 loglikelihood(L::PoissonLikelihood, y, z) =
-    sum(_count(y[j]) * z[j] - exp(z[j]) - _logfact(_count(y[j])) for j in 1:L.k)
+    sum(_mul_count(_count(y[j]), z[j]) - exp(z[j]) - _logfact(_count(y[j])) for j in 1:L.k)
 function loglikelihood_derivatives(L::PoissonLikelihood, y, z)
     λ = exp.(z)
     n = _count.(y)
-    return sum(n .* z .- λ .- _logfact.(n)), n .- λ, Matrix(Diagonal(-λ))
+    return sum(_mul_count.(n, z) .- λ .- _logfact.(n)), n .- λ, Matrix(Diagonal(-λ))
 end
 outcomes(L::PoissonLikelihood) =
     vec([collect(float.(Tuple(c)) .- 1) for c in CartesianIndices(ntuple(_ -> L.maxcount + 1, L.k))])
@@ -168,7 +169,7 @@ npredictors(::BivariatePoissonLikelihood) = 3
 obsdim(::BivariatePoissonLikelihood) = 2
 
 # log-weights of w₃ = j given y, without the common factor e^{-(λ₁+λ₂+λ₃)}
-_bp_terms(n1, n2, z) = [(n1 - j) * z[1] + (n2 - j) * z[2] + j * z[3] -
+_bp_terms(n1, n2, z) = [_mul_count(n1 - j, z[1]) + _mul_count(n2 - j, z[2]) + _mul_count(j, z[3]) -
                         _logfact(n1 - j) - _logfact(n2 - j) - _logfact(j) for j in 0:min(n1, n2)]
 
 function _logsumexp(v)
@@ -457,17 +458,22 @@ function _tilted_mode(f, t::_Tilted, y, iterations, tol)
     φ, g, H = _tilted_derivatives(f, t, y, ζ)
     for _ in 1:iterations
         C = -Symmetric(H)
+        all(isfinite, C) || break
         δ = 0.0
+        cmax = maximum(abs, C; init = 0.0)
         while !isposdef(C + δ * I)                 # Levenberg damping where the density is not log-concave
-            δ = max(2δ, 1e-8 * (1 + maximum(abs, C)))
+            δ = max(2δ, 1e-8 * (1 + cmax))
+            isfinite(δ) || break
         end
+        isfinite(δ) || break
         Δ = (C + δ * I) \ g
         s = 1.0
         φn, gn, Hn = _tilted_derivatives(f, t, y, ζ .+ Δ)
-        while !(φn ≥ φ - 1e-12 * abs(φ)) && s > 1e-10
+        while !(isfinite(φn) && all(isfinite, gn) && all(isfinite, Hn) && φn ≥ φ - 1e-12 * abs(φ)) && s > 1e-10
             s /= 2
             φn, gn, Hn = _tilted_derivatives(f, t, y, ζ .+ s .* Δ)
         end
+        (isfinite(φn) && all(isfinite, gn) && all(isfinite, Hn)) || break
         ζ = ζ .+ s .* Δ
         φ, g, H = φn, gn, Hn
         maximum(abs, s .* Δ; init = 0.0) < tol && break
@@ -645,13 +651,21 @@ LenticulumCore.assemble(f::LikelihoodFactor, p::LenticulumCore.Polarity, ps, st)
 The approximate posterior ``\\pi \\cdot \\mu_{c\\to\\text{target}}``: backwards, the Laplace or EP
 approximation of ``\\pi(x) L(y \\mid Ax+b)``; forwards, the predictive pooled with ``\\pi``.
 """
-function LenticulumCore.invert(
+function LenticulumCore.likelihood_message(
     lens::LenticulumCore.BayesianLens{<:LikelihoodModel,<:LenticulumCore.SolverInversion},
     π, inputs, ps, st,
 )
     f = lens.model.factor
     target = only(LenticulumCore.unobserved_channels(lens.model.polarity))
-    return (Mycelium.combine(π, _lik_message(f, target, inputs, π)), st)
+    return (_lik_message(f, target, inputs, π), st)
+end
+
+function LenticulumCore.invert(
+    lens::LenticulumCore.BayesianLens{<:LikelihoodModel,<:LenticulumCore.SolverInversion},
+    π, inputs, ps, st,
+)
+    msg, st = LenticulumCore.likelihood_message(lens, π, inputs, ps, st)
+    return (Mycelium.combine(π, msg), st)
 end
 
 """
@@ -664,9 +678,15 @@ site): `fit` is ``\\mathbb E_q[-\\log L(y \\mid Ax+b)]`` by Gauss–Hermite quad
 ``-\\log L(y \\mid Ax+b)`` exactly. Approximate as the messages are.
 """
 function Mycelium.local_free_energy(f::LikelihoodFactor, msgs, ps, st)
-    y = _observation(_get(msgs, f.out_channel), f)
-    y === nothing && throw(ArgumentError("local_free_energy: :$(f.out_channel) must be observed"))
     mx = _get(msgs, f.in_channel)
+    y = _observation(_get(msgs, f.out_channel), f)
+    if y === nothing
+        # Predictive mode (:y unobserved): Σ_y L(y|z) = 1, so expected energy and conditional
+        # entropy over y cancel, leaving the negative entropy of the x marginal.
+        Hx = mx isa LenticulumCore.DiracBelief || mx === nothing || mx isa LenticulumCore.TrivialBelief ?
+             0.0 : Mycelium.variable_entropy(mx)
+        return LenticulumCore.GradedEnergy((fit = 0.0, complexity = 0.0, negentropy = -Hx)), st
+    end
     if mx isa LenticulumCore.DiracBelief
         fit = -loglikelihood(f.lik, y, _predictor(f, mx.value))
         return LenticulumCore.GradedEnergy((fit = fit, complexity = 0.0, negentropy = 0.0)), st
@@ -681,4 +701,13 @@ function Mycelium.local_free_energy(f::LikelihoodFactor, msgs, ps, st)
     fit = -sum(W[i] * loglikelihood(f.lik, y, t.μz .+ t.U * (sqrt.(t.D) .* X[:, i])) for i in eachindex(W))
     H = Mycelium.variable_entropy(q)
     return LenticulumCore.GradedEnergy((fit = fit, complexity = 0.0, negentropy = -H)), st
+end
+
+function LenticulumCore.free_energy(f::LikelihoodFactor, π, y, ps, st)
+    return Mycelium.local_free_energy(f, _game_messages(f, π, y), ps, st)
+end
+
+function LenticulumCore.entropy(f::LikelihoodFactor, π, y, ps, st)
+    F, st = LenticulumCore.free_energy(f, π, y, ps, st)
+    return (-F[:negentropy], st)
 end

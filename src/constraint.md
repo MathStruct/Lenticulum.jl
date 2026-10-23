@@ -200,9 +200,4 @@ improper priors are exactly what completes Gaussian maps into a hypergraph categ
 
 Related: [[ModelingToolkit as an Acausal Relation]],
 [[Acausal Composition is a Hypergraph Category]], [[Loopy Message Passing]],
-[[Channels and Polarity]], [[Implicit Learners]]
-
-> [!note] Two sibling notes are still missing
-> `beliefs.jl` and `gaussian.jl` have no markdown beside them, though their docstrings
-> reference `beliefs.md`, `gaussian.md` and `The Gaussian Factor.md`. That predates this file;
-> `src/` is the only source directory in the repository without parallel markdown.
+[[Channels and Polarity]], [[Implicit Learners]], [[gaussian]], [[beliefs]]
