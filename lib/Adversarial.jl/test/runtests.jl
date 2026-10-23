@@ -264,6 +264,15 @@ end
     # a generator contributes no energy of its own: learning by comparison, not by likelihood
     @test first(Mycelium.local_free_energy(gen, (z = zb,), gps, gst)) == 0.0
     @test first(LenticulumCore.energy(gen, nothing, nothing, nothing, gps, gst)) == 0.0
+
+    # NoiseSource assemble/invert and RatioFactor DiracBelief local_free_energy
+    ns_lens, _ = LenticulumCore.assemble(src, Polarity(; z = Unobserved()), NamedTuple(), NamedTuple())
+    ns_b, _ = LenticulumCore.invert(ns_lens, TrivialBelief(), NamedTuple(), NamedTuple(), NamedTuple())
+    @test ns_b isa SampleBelief
+    @test LenticulumCore.belief_mean(xb) ≈ weighted_mean(xb)
+    @test LenticulumCore.belief_cov(xb) ≈ weighted_cov(xb)
+    Fd_disc, _ = Mycelium.local_free_energy(disc, (x = DiracBelief([0.0, 0.0]),), dps, dst)
+    @test Fd_disc ≈ -first(logratio(disc, [0.0, 0.0], dps, dst))
 end
 
 @testset "the inversion is Amortised, and weights survive a generator" begin

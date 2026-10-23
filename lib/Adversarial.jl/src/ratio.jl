@@ -138,6 +138,9 @@ end
 
 function _normalise_logweights(logw::AbstractVector)
     m = maximum(logw)
+    isfinite(m) || throw(ArgumentError(
+        "all importance weights underflowed to zero; the ratio estimator and the particle \
+         set have disjoint support"))
     w = exp.(logw .- m)
     s = sum(w)
     s > 0 || throw(ArgumentError(
@@ -202,8 +205,13 @@ function _weights(b::LenticulumCore.SampleBelief)
     n = length(_points(b))
     b.weights === nothing && return fill(1 / n, n)
     w = float.(b.weights)
-    return w ./ sum(w)
+    s = sum(w)
+    s > 0 || throw(ArgumentError("all sample weights are zero"))
+    return w ./ s
 end
+
+LenticulumCore.belief_mean(b::LenticulumCore.SampleBelief) = weighted_mean(b)
+LenticulumCore.belief_cov(b::LenticulumCore.SampleBelief) = weighted_cov(b)
 
 # --- The factor interface --------------------------------------------------
 
@@ -280,6 +288,10 @@ express half of a GAN. See `GANs as Two Factors.md` §4.
 """
 function Mycelium.local_free_energy(f::RatioFactor, msgs, ps, st)
     b = _get(msgs, f.channel)
+    if b isa LenticulumCore.DiracBelief
+        ℓ, st = logratio(f, _vec(b.value), ps, st)
+        return (-ℓ, st)
+    end
     b isa LenticulumCore.SampleBelief || return (0.0, st)
     w = _weights(b)
     acc = 0.0

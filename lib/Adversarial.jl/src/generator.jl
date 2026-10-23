@@ -54,6 +54,25 @@ LenticulumCore.supports_polarity(f::NoiseSource, p::LenticulumCore.Polarity) =
 LenticulumCore.islearnable(::NoiseSource) = false
 LuxCore.initialparameters(::AbstractRNG, ::NoiseSource) = NamedTuple()
 LuxCore.initialstates(::AbstractRNG, ::NoiseSource) = NamedTuple()
+LenticulumCore.energyspace(::NoiseSource) = LenticulumCore.ScalarEnergySpace()
+LenticulumCore.energy(::NoiseSource, x, a, y, ps, st) = (0.0, st)
+
+struct NoiseSourceModel{F<:NoiseSource} <: LenticulumCore.AbstractOpenModel
+    factor::F
+end
+LenticulumCore.ispure(::NoiseSourceModel) = true
+LenticulumCore.latentspace(::NoiseSourceModel) = nothing
+
+LenticulumCore.assemble(f::NoiseSource, p::LenticulumCore.Polarity, ps, st) =
+    (LenticulumCore.BayesianLens(NoiseSourceModel(f), LenticulumCore.TrivialInversion()), st)
+
+function LenticulumCore.invert(
+    lens::LenticulumCore.BayesianLens{<:NoiseSourceModel,LenticulumCore.TrivialInversion},
+    π, inputs, ps, st,
+)
+    f = lens.model.factor
+    return (LenticulumCore.SampleBelief(f.dist(f.rng, f.dim, f.nsamples)), st)
+end
 
 Mycelium.factor_message(f::NoiseSource, ::Symbol, _, _, _, ps, st) =
     (LenticulumCore.SampleBelief(f.dist(f.rng, f.dim, f.nsamples)), st)
