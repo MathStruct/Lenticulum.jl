@@ -1981,4 +1981,33 @@ end
     @test gn.ps.prox.layer_1.weight[3, 1] ≈ (ℓw(1e-3) - ℓw(-1e-3)) / 2e-3 rtol = 1e-3
 end
 
+@testset "Phase 2 fixes: 3-channel assemble_state, prior cotangent, mixture message, orthogonal nodes" begin
+    # 1. Orthogonal field_nodes preserves radial norms and orthogonalises columns within each block
+    nodes_orth = field_nodes(Xoshiro(42), 3; levels = [0.01], samples = 3, antithetic = false, orthogonal = true)
+    @test size(nodes_orth.ε) == (3, 3)
+    G = nodes_orth.ε ./ [norm(nodes_orth.ε[:, j]) for j in 1:3]'
+    @test G' * G ≈ I(3) atol = 1e-12
+
+    # 2. 3-channel assemble_state with polarity: π applies only to unobserved target channels
+    f3 = DiffusionFactor((x = 1, y = 1, z = 1), NoisePredictor(GaussianMixtureEps(SCHED, randn(Xoshiro(1), 3, 4); s = 0.2), SCHED))
+    p3 = Polarity((x = Observed(), y = Unobserved(), z = Unobserved()), (x = Inf, y = 0.5, z = 0.0))
+    st_vec = VariationalDiffusion.assemble_state(f3, (x = DiracBelief([1.0]), z = DiracBelief([3.0])), DiracBelief([2.0]), p3)
+    @test st_vec == [1.0, 2.0, 3.0]
+
+    # 3. implicit_factor_pullback returns prior cotangent
+    nodes2 = field_nodes(Xoshiro(1), 2; levels = [0.01], samples = 2)
+    f2 = DiffusionFactor((x = 1, y = 1), RING; prox = ImplicitProx(nodes2))
+    ps2, st2 = LuxCore.setup(Xoshiro(0), f2)
+    psoft = Polarity((x = Observed(), y = Unobserved()), (x = Inf, y = 0.4))
+    g2 = implicit_factor_pullback(f2, psoft, (x = DiracBelief([0.6]),), DiracBelief([0.5]), (y = [1.0],), ps2, st2)
+    @test haskey(g2, :prior) && length(g2.prior) == 1
+
+    # 4. ImplicitProx with message = :mixture returns MixtureBelief on multimodal ring query
+    f_mix = DiffusionFactor((x = 1, y = 1), RING; prox = ImplicitProx(nodes2; message = :mixture))
+    lens_mix, _ = LenticulumCore.assemble(f_mix, Polarity((x = Observed(), y = Unobserved()), (x = Inf, y = 0.0)), ps2, st2)
+    bmix, _ = LenticulumCore.invert(lens_mix, DiracBelief([0.0]), (x = DiracBelief([0.0]),), ps2, st2)
+    @test bmix isa LenticulumCore.MixtureBelief
+    @test length(bmix.components) >= 2
+end
+
 end

@@ -103,7 +103,10 @@ function implicit_laplace(m::AbstractImplicitRelation, sol::ImplicitSolution, ρ
         throw(ArgumentError("the Laplace approximation needs a converged, stable answer (a local minimum)"))
     free = .!isinf.(ρ)
     J = prior_jacobian(m, sol.z, ps, st; coords = free) .+ Diagonal(ρ[free] .^ 2)
-    ΣF = inv(Symmetric((J .+ J') ./ 2))
+    C = LinearAlgebra.cholesky(Symmetric((J .+ J') ./ 2); check = false)
+    LinearAlgebra.issuccess(C) ||
+        throw(ArgumentError("the symmetric part of J_FF is not positive definite at the solution"))
+    ΣF = inv(C)
     n = length(sol.z)
     Σ = zeros(eltype(ΣF), n, n)
     Σ[free, free] .= ΣF
@@ -139,10 +142,18 @@ _check_free(free, idx) = all(free[idx]) ||
 # The Laplace covariance on the coordinates `idx` (all free), and ½ log det Σ_FF of the whole
 # free block (the mixture weights need it).
 function _laplace_marginal(::DenseSolve, m, sol, ρ, ps, st, idx; logdet::Bool)
-    L = implicit_laplace(m, sol, ρ, ps, st)
-    _check_free(L.free, idx)
-    hld = logdet ? LinearAlgebra.logdet(Symmetric(L.cov[L.free, L.free])) / 2 : NaN
-    return (Matrix(Symmetric(L.cov[idx, idx])), hld)
+    (sol.converged && sol.stable) ||
+        throw(ArgumentError("the Laplace approximation needs a converged, stable answer (a local minimum)"))
+    free = .!isinf.(ρ)
+    _check_free(free, idx)
+    J = prior_jacobian(m, sol.z, ps, st; coords = free) .+ Diagonal(ρ[free] .^ 2)
+    C = LinearAlgebra.cholesky(Symmetric((J .+ J') ./ 2); check = false)
+    LinearAlgebra.issuccess(C) ||
+        throw(ArgumentError("the symmetric part of J_FF is not positive definite at the solution"))
+    ΣF = inv(C)
+    pos = cumsum(free)[idx]
+    hld = logdet ? -LinearAlgebra.logdet(C) / 2 : NaN
+    return (Matrix(Symmetric(ΣF[pos, pos])), hld)
 end
 
 # matrix-free: Σ e_i by conjugate gradients on sym J_FF for each i in idx, log det by stochastic

@@ -197,14 +197,21 @@ no message contributes zeros. The prior `π` fills the target block when it carr
 Channels whose precision is zero never read their entry, so the zeros are not a silent
 default — they are multiplied out.
 """
-function assemble_state(f::DiffusionFactor{names}, inputs, π) where {names}
+function assemble_state(f::DiffusionFactor{names}, inputs, π,
+                        polarity::Union{Nothing,LenticulumCore.Polarity} = nothing) where {names}
     x₀ = zeros(Float64, statedim(f))
     rs = blockranges(f)
+    unobs = polarity === nothing ? names : LenticulumCore.unobserved_channels(polarity)
     for nm in names
-        v = _point(_get(inputs, nm))
-        v === nothing && (v = _point(π))
-        v === nothing && continue
         r = getfield(rs, nm)
+        v = _point(_get(inputs, nm))
+        if v === nothing && (nm in unobs)
+            vp = _point(π)
+            if vp !== nothing && (polarity !== nothing || length(vp) == length(r))
+                v = vp
+            end
+        end
+        v === nothing && continue
         length(v) == length(r) || throw(DimensionMismatch(
             "channel :$nm has dimension $(length(r)) but its message carries $(length(v))"))
         x₀[r] .= v
@@ -261,6 +268,16 @@ posterior it computes *is* a point mass. The consequence is recorded in `factor.
 a Dirac message dominates every `combine` it meets, so a diffusion factor in a graph
 overrides its neighbours rather than negotiating with them.
 """
+function LenticulumCore.likelihood_message(
+    lens::LenticulumCore.BayesianLens{<:DiffusionModel,<:LenticulumCore.ProximalInversion},
+    π, inputs, ps, st,
+)
+    f = lens.model.factor
+    p = lens.model.polarity
+    target = first(LenticulumCore.unobserved_channels(p))
+    return _target_belief(f.prox, f, p, inputs, π, ps, st, target; likelihood = true)
+end
+
 function LenticulumCore.invert(
     lens::LenticulumCore.BayesianLens{<:DiffusionModel,<:LenticulumCore.ProximalInversion},
     π, inputs, ps, st,
@@ -281,7 +298,7 @@ function _run_prox(::ImplicitProx, f::DiffusionFactor, p::LenticulumCore.Polarit
 end
 
 function _run_prox(::REDDiff, f::DiffusionFactor, p::LenticulumCore.Polarity, inputs, π, ps, st)
-    x₀ = assemble_state(f, inputs, π)
+    x₀ = assemble_state(f, inputs, π, p)
     ρ, hard = precision_vector(f, p)
     ρ² = ρ .^ 2
     datagrad(x) = ρ² .* (x .- x₀)
@@ -398,6 +415,6 @@ function Mycelium.local_free_energy(f::DiffusionFactor{names}, msgs, ps, st) whe
     end
     p = _default_polarity(f, target, msgs)
     x, st = _run_prox(f, p, msgs, LenticulumCore.TrivialBelief(), ps, st)
-    x₀ = assemble_state(f, msgs, LenticulumCore.TrivialBelief())
+    x₀ = assemble_state(f, msgs, LenticulumCore.TrivialBelief(), p)
     return LenticulumCore.energy(f, x, p, x₀, ps, st)
 end

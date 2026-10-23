@@ -154,15 +154,16 @@ function _sample_held(m::ImplicitDiffusion, z₀, ρ, ps, st; n, steps, resample
     R = C .& .!H                                      # clamped coordinates of annealed blocks: replaced
     d = length(z₀)
     τ(t, l) = [h ? l : t for h in held]
-    function hold!(X, l)
-        X[H, :] .= alpha(s, l) .* z₀[H] .+ sigma(s, l) .* randn(rng, count(H), size(X, 2))
-        return X
+    function hold(X, l)
+        Xh = copy(X)
+        Xh[H, :] .= alpha(s, l) .* z₀[H] .+ sigma(s, l) .* randn(rng, count(H), size(X, 2))
+        return Xh
     end
-    function guided(X, t)
-        E, st = _eps_columns(m, hold!(X, level), τ(t, level), ps, st)
-        w == 0 && return E
-        Eu, st = _eps_columns(m, hold!(copy(X), 1.0), τ(t, 1.0), ps, st)
-        return (1 + w) .* E .- w .* Eu
+    function guided(X, t, st)
+        E, st = _eps_columns(m, hold(X, level), τ(t, level), ps, st)
+        w == 0 && return (E, st)
+        Eu, st = _eps_columns(m, hold(X, 1.0), τ(t, 1.0), ps, st)
+        return ((1 + w) .* E .- w .* Eu, st)
     end
     ts = _logsnr_grid(s, float(T), s.tmin, steps)
     X = randn(rng, d, n)
@@ -170,7 +171,7 @@ function _sample_held(m::ImplicitDiffusion, z₀, ρ, ps, st; n, steps, resample
     for k in 1:steps
         t, u = ts[k], ts[k + 1]
         for r in 0:resample
-            E = guided(X, t)
+            E, st = guided(X, t, st)
             X̂ = (X .- sigma(s, t) .* E) ./ alpha(s, t)
             a = alpha(s, t) / alpha(s, u)
             σt², σu² = sigma(s, t)^2, sigma(s, u)^2
@@ -181,7 +182,8 @@ function _sample_held(m::ImplicitDiffusion, z₀, ρ, ps, st; n, steps, resample
         end
     end
     tl = last(ts)
-    X̂ = (X .- sigma(s, tl) .* guided(X, tl)) ./ alpha(s, tl)
+    El, st = guided(X, tl, st)
+    X̂ = (X .- sigma(s, tl) .* El) ./ alpha(s, tl)
     X̂[C, :] .= z₀[C]
     return (X̂, st)
 end
@@ -234,6 +236,10 @@ end
 _logdensity_columns(m::ImplicitDiffusion{<:NoisePredictor{<:GaussianMixtureEps}}, X, t, ps, st) =
     ([mixture_logdensity(m.predictor.model, x, t, ps) for x in eachcol(X)], st)
 function _logdensity_columns(m::ImplicitDiffusion{<:NoisePredictor{<:EnergyNetwork}}, X, t, ps, st)
+    if m.batched
+        E, st = energy_columns(m.predictor, X, t, ps, st)
+        return (-E, st)
+    end
     L = similar(float.(X), size(X, 2))
     for b in axes(X, 2)
         E, st = energy(m.predictor, X[:, b], t, ps, st)

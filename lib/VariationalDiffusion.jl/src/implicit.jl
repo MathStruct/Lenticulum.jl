@@ -41,12 +41,15 @@ struct FieldNodes{T<:Real}
 end
 
 """
-    field_nodes(rng, n; levels = range(0.002, 0.05; length = 8), samples = 4, antithetic = true)
+    field_nodes(rng, n; levels = range(0.002, 0.05; length = 8), samples = 4, antithetic = true,
+                orthogonal = false)
 
 `samples` noise draws at each noise level in `levels`, equally weighted. With `antithetic`
 each draw ``\\varepsilon`` is paired with ``-\\varepsilon``: the control-variate term
 ``-\\sum w_k\\lambda_k\\varepsilon_k`` of the field then cancels **exactly**, so the field has
-no constant tilt.
+no constant tilt. With `orthogonal = true`, draws within each block of up to `n` samples at a
+given noise level are QR-orthogonalised while preserving their radial ``\\chi_n`` norms, reducing
+quadrature variance across spatial directions.
 
 The levels matter more than anything else here. A relation is only recovered at noise scales
 below its own curvature scale: the default stops at ``t = 0.05`` (``\\sigma_t\\approx0.16``).
@@ -54,12 +57,30 @@ RED-Diff's training-time range ``t\\in[t_{\\min},1]`` smooths a unit circle into
 density peaks at the centre (`Implicit Diffusion Learners.md` §5).
 """
 function field_nodes(rng::AbstractRNG, n::Integer; levels = range(0.002, 0.05; length = 8),
-                     samples::Integer = 4, antithetic::Bool = true)
+                     samples::Integer = 4, antithetic::Bool = true, orthogonal::Bool = false)
     ts = Float64[]; cols = Vector{Float64}[]
-    for t in levels, _ in 1:samples
-        e = randn(rng, n)
-        push!(ts, t); push!(cols, e)
-        antithetic && (push!(ts, t); push!(cols, -e))
+    for t in levels
+        if orthogonal
+            rem = samples
+            while rem > 0
+                b = min(rem, n)
+                G = randn(rng, n, b)
+                radii = [norm(view(G, :, j)) for j in 1:b]
+                Q = Matrix(LinearAlgebra.qr(G).Q)[:, 1:b]
+                for j in 1:b
+                    e = Q[:, j] .* radii[j]
+                    push!(ts, t); push!(cols, e)
+                    antithetic && (push!(ts, t); push!(cols, -e))
+                end
+                rem -= b
+            end
+        else
+            for _ in 1:samples
+                e = randn(rng, n)
+                push!(ts, t); push!(cols, e)
+                antithetic && (push!(ts, t); push!(cols, -e))
+            end
+        end
     end
     return FieldNodes(ts, reduce(hcat, cols), fill(1 / length(ts), length(ts)))
 end
@@ -706,7 +727,8 @@ struct ImplicitProx{T<:Real,L<:AbstractLinearSolve}
     linsolve::L
     function ImplicitProx(nodes::FieldNodes{T}, λ::T, tol::T, maxiters::Int, step::T, message::Symbol,
                           batched::Bool, linsolve::L) where {T<:Real,L<:AbstractLinearSolve}
-        message in (:point, :gaussian) || throw(ArgumentError("message must be :point or :gaussian, got :$message"))
+        message in (:point, :gaussian, :mixture) ||
+            throw(ArgumentError("message must be :point, :gaussian, or :mixture, got :$message"))
         return new{T,L}(nodes, λ, tol, maxiters, step, message, batched, linsolve)
     end
 end

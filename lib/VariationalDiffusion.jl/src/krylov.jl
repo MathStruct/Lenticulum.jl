@@ -111,7 +111,13 @@ function _gmres(A, b; rtol = 1e-8, maxiters = 200, restart = 40)
                 H[i, j], H[i + 1, j] = c[i] * H[i, j] + s[i] * H[i + 1, j], -s[i] * H[i, j] + c[i] * H[i + 1, j]
             end
             d = hypot(H[j, j], H[j + 1, j])
-            d == 0 && return (x, false, total)         # singular on the Krylov space
+            if d == 0                                  # singular on the Krylov space
+                if j > 1
+                    y = LinearAlgebra.UpperTriangular(view(H, 1:(j - 1), 1:(j - 1))) \ g[1:(j - 1)]
+                    x .+= view(V, :, 1:(j - 1)) * y
+                end
+                return (x, false, total)
+            end
             c[j], s[j] = H[j, j] / d, H[j + 1, j] / d
             H[j, j], H[j + 1, j] = d, zero(T)
             g[j + 1] = -s[j] * g[j]
@@ -157,7 +163,9 @@ function _lanczos(S, q, k)
     k = min(k, n)
     Q = zeros(T, n, k)
     α = T[]; β = T[]
-    q = q ./ norm(q)
+    nq = norm(q)
+    nq == 0 && return (α, β)
+    q = q ./ nq
     for j in 1:k
         Q[:, j] .= q
         w = S(q)

@@ -320,8 +320,11 @@ function implicit_classify(m::ImplicitDiffusion, Z₀::AbstractMatrix, ρ, ps, s
         end
         isempty(keep) && throw(ArgumentError("query $b: no stable answer found"))
         comps = map(keep) do c
-            Σ = inv(Symmetric((J[:, :, c] .+ J[:, :, c]') ./ 2 .+ Diagonal(ρ[free] .^ 2)))
-            hld = energetic ? LinearAlgebra.logdet(Symmetric(Σ)) / 2 : 0.0
+            C = LinearAlgebra.cholesky(Symmetric((J[:, :, c] .+ J[:, :, c]') ./ 2 .+ Diagonal(ρ[free] .^ 2)); check = false)
+            LinearAlgebra.issuccess(C) ||
+                throw(ArgumentError("query $b: the symmetric part of J_FF is not positive definite at the solution"))
+            Σ = inv(C)
+            hld = energetic ? -LinearAlgebra.logdet(C) / 2 : 0.0
             E = U[c] + sum(abs2, ρ[soft] .* (Zr[soft, c] .- Z₀[soft, b])) / 2
             (LenticulumCore.Gaussian(Zr[idx, c], Matrix(Symmetric(Σ[pos, pos]))), energetic ? -E + hld : 0.0)
         end

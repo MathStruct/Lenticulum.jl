@@ -17,6 +17,7 @@ using ChainRulesCore: ChainRulesCore, NoTangent, ZeroTangent, AbstractZero, Tang
 
 # the cotangent of `sol.z`, from whatever form the AD package hands back
 _zbar(::Union{Nothing,AbstractZero}, z) = nothing
+_zbar(t::ChainRulesCore.AbstractThunk, z) = _zbar(unthunk(t), z)
 _zbar(s̄::Tangent, z) = _zbar(s̄.z, z)
 _zbar(s̄::NamedTuple, z) = haskey(s̄, :z) ? _zbar(s̄.z, z) : nothing
 _zbar(z̄::AbstractArray, z) = z̄

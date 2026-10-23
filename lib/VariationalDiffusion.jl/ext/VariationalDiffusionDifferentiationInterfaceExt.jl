@@ -23,7 +23,7 @@ _flatlen(x::Number) = 1
 _flatlen(x::Union{NamedTuple,Tuple}) = sum(_flatlen, values(x); init = 0)
 
 _flatfill!(v, i, x::AbstractArray{<:Number}) = (n = length(x); copyto!(v, i, vec(x), 1, n); i + n)
-_flatfill!(v, i, x::Number) = (v[i] = x; i + 1)
+_flatfill!(v, i, x::Number) = (fill!(view(v, i:i), x); i + 1)
 function _flatfill!(v, i, x::Union{NamedTuple,Tuple})
     for y in values(x)
         i = _flatfill!(v, i, y)
@@ -68,8 +68,8 @@ function _offsets(x::Union{NamedTuple,Tuple}, i)
 end
 offset_tree(ps) = first(_offsets(ps, 1))
 
-_rebuild(θ, o::Int, x::AbstractArray{<:Number}) = reshape(θ[o:(o + length(x) - 1)], size(x))
-_rebuild(θ, o::Int, x::Number) = θ[o]
+_rebuild(θ, o::Int, x::AbstractArray{<:Number}) = reshape(view(θ, o:(o + length(x) - 1)), size(x))
+_rebuild(θ, o::Int, x::Number) = only(view(θ, o:o))
 _rebuild(θ, o::NamedTuple, x::NamedTuple) = NamedTuple{keys(x)}(map((oi, xi) -> _rebuild(θ, oi, xi), values(o), values(x)))
 _rebuild(θ, o::Tuple, x::Tuple) = map((oi, xi) -> _rebuild(θ, oi, xi), o, x)
 _unflatten(θ, offs, like) = _rebuild(θ, offs, like)

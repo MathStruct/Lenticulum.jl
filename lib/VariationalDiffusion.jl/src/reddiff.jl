@@ -89,9 +89,10 @@ been dropped. `reddiff.md` §2 is about what that costs.
 function regulariser_gradient(pred::NoisePredictor, x, cfg::REDDiff, ps, st)
     s = pred.schedule
     g = zero(x)
+    ε = similar(x)
     for _ in 1:(cfg.samples)
         t = sample_time(cfg.rng, s)
-        ε = randn(cfg.rng, eltype(x), size(x))
+        Random.randn!(cfg.rng, ε)
         x_t = perturb(s, x, t, ε)
         ε̂, st = epsilon(pred, x_t, t, ps, st)
         g = g .+ reddiff_weight(cfg, s, t) .* (ε̂ .- ε)

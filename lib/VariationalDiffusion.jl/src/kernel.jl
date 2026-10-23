@@ -37,7 +37,7 @@ function kde_bandwidth(data::AbstractMatrix; candidates = nothing, holdout = 0.2
                        rng::AbstractRNG = Random.Xoshiro(0))
     n, d = size(data, 2), size(data, 1)
     perm = Random.randperm(rng, n)
-    m = max(1, round(Int, holdout * n))
+    m = clamp(round(Int, holdout * n), 1, max(1, n - 1))
     test, train = data[:, perm[1:m]], data[:, perm[(m + 1):end]]
     μ = sum(data; dims = 2) ./ n
     scale = sqrt(sum(abs2, data .- μ) / (n * d))
@@ -134,7 +134,7 @@ function _prune!(k::OnlineKDE)
         wi, wj = k.weights[i], k.weights[j]
         k.centres[:, i] .= (wi .* k.centres[:, i] .+ wj .* k.centres[:, j]) ./ (wi + wj)
         k.weights[i] = wi + wj
-        k.centres = k.centres[:, setdiff(1:end, j)]
+        k.centres = k.centres[:, [1:(j - 1); (j + 1):size(k.centres, 2)]]
         deleteat!(k.weights, j)
     end
     return k

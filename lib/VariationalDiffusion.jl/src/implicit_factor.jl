@@ -39,7 +39,7 @@ _require_implicit(f::DiffusionFactor) = f.prox isa Union{ImplicitProx,ProxDM} ||
     "this DiffusionFactor inverts with $(typeof(f.prox)); construct it with prox = ImplicitProx(nodes) or ProxDM(prox)"))
 
 function _implicit_problem(f::DiffusionFactor, p::LenticulumCore.Polarity, inputs, π)
-    z₀ = assemble_state(f, inputs, π)
+    z₀ = assemble_state(f, inputs, π, p)
     ρ, hard = precision_vector(f, p)
     ρ = copy(ρ)
     ρ[hard] .= Inf
@@ -80,7 +80,9 @@ function implicit_factor_pullback(f::DiffusionFactor{names}, p::LenticulumCore.P
     b = _factor_pullback(f.prox, f, sol, z₀, ρ, zbar, ps, st)
     blocks_in = NamedTuple{names}(map(nm -> b.z₀[getfield(rs, nm)], names))
     blocks_ρ = NamedTuple{names}(map(nm -> sum(b.ρ[getfield(rs, nm)]), names))   # one precision per channel
-    return (inputs = blocks_in, ps = b.ps, precisions = blocks_ρ)
+    unobs = LenticulumCore.unobserved_channels(p)
+    prior_cot = isempty(unobs) ? nothing : b.z₀[getfield(rs, first(unobs))]
+    return (inputs = blocks_in, prior = prior_cot, ps = b.ps, precisions = blocks_ρ)
 end
 
 _factor_pullback(prox::ImplicitProx, f::DiffusionFactor, sol, z₀, ρ, z̄, ps, st) =
@@ -98,10 +100,19 @@ function _target_belief(prox::ImplicitProx, f::DiffusionFactor, p, inputs, π, p
                                              prox, f, p, inputs, π, ps, st, target; likelihood)
     z₀, ρ = _implicit_problem(f, p, inputs, π)
     m = _implicit_model(f)
+    r = getfield(blockranges(f), target)
+    if prox.message === :mixture
+        mix, st = implicit_mixture(m, z₀, ρ, ps, st; coords = r, linsolve = prox.linsolve,
+                                   tol = prox.tol, maxiters = prox.maxiters, step = prox.step)
+        likelihood || return (mix, st)
+        D = ρ[r] .^ 2
+        all(iszero, D) && return (mix, st)
+        comps = [LenticulumCore.GaussianBelief(c.η .- D .* z₀[r], Matrix(c.Λ) .- Diagonal(D)) for c in mix.components]
+        return (LenticulumCore.MixtureBelief(Val(:log), comps, mix.logw), st)
+    end
     sol, st = implicit_infer(m, z₀, ρ, ps, st; z_init = z₀, _solver_kwargs(prox)...)
     (sol.converged && sol.stable) || throw(ArgumentError(
         "a Gaussian message needs a converged, stable answer (converged = $(sol.converged), stable = $(sol.stable))"))
-    r = getfield(blockranges(f), target)
     post = laplace_belief(m, sol, ρ, ps, st; coords = r, linsolve = prox.linsolve)
     likelihood || return (post, st)
     D = ρ[r] .^ 2
