@@ -118,9 +118,10 @@ Dynamic: repeatedly send whichever pending message would change the most (Elidan
 Koller's *residual belief propagation*).
 
 Converges on many loopy graphs where flooding oscillates, because it prioritises the parts
-of the graph that have not settled. Requires a usable [`belief_distance`](@ref); with the
-current belief types most pairs return `Inf`, so this degrades to "some order", which is
-recorded honestly rather than hidden.
+of the graph that have not settled. Note that `sweep!` evaluates every legal task's residual
+with `commit = false` before committing the largest step, costing ``O(|\\text{tasks}|^2)``
+message evaluations per sweep rather than maintaining a local priority queue. Requires a
+usable [`belief_distance`](@ref); pairs returning `Inf` are tried first.
 """
 struct ResidualSchedule <: AbstractSchedule
     maxtasks::Int
@@ -167,12 +168,27 @@ Errors unless [`istree`](@ref). The inward sweep is in reverse breadth-first ord
 strictly before parents) and the outward sweep in breadth-first order, which is what makes
 each message computable exactly once from already-final inputs.
 """
+function _resolve_tree_root(g::FactorGraph, root)
+    if root === nothing
+        lvs = leaves(g)
+        isempty(lvs) || return first(lvs)
+        return nvariables(g) > 0 ? (:variable, 1) : (:factor, 1)
+    elseif root isa Tuple{Symbol,Int}
+        return root
+    elseif root isa Symbol
+        haskey(g.variable_index, root) && return (:variable, g.variable_index[root])
+        haskey(g.factor_index, root) && return (:factor, g.factor_index[root])
+        throw(ArgumentError("no variable or factor named :$root in graph"))
+    end
+    throw(ArgumentError("unsupported root specification: $root"))
+end
+
 function tree_schedule(g::FactorGraph; root = nothing)
     istree(g) || throw(ArgumentError(
         "tree_schedule requires a tree (connected, χ = 1); this graph has χ = \
          $(euler_characteristic(g))$(isconnected(g) ? "" : " and is disconnected"). \
          Use flooding_schedule or a ResidualSchedule."))
-    rootnode = root === nothing ? first(leaves(g)) : root
+    rootnode = _resolve_tree_root(g, root)
     # breadth-first from the root, recording for each edge which endpoint is the child
     order = Tuple{Symbol,Int}[rootnode]
     seenv = falses(nvariables(g)); seenf = falses(nfactors(g))
@@ -227,6 +243,15 @@ edge. So in practice this schedule is for the *explicit* subset of graphs, and i
 Lux.jl, and having it nameable makes the boundary between the two libraries explicit.
 """
 function forward_backward_schedule(g::FactorGraph)
+    if !isdag(g)
+        if istree(g)
+            ts = tree_schedule(g)
+            bwd = [t for t in ts.inward if g.edges[t.edge].direction isa Bidirectional]
+            return ForwardBackwardSchedule(ts.outward, bwd)
+        end
+        throw(ArgumentError(
+            "graph is neither a DAG nor a tree; use flooding_schedule or ResidualSchedule."))
+    end
     order = topological_order(g)
     forward = MessageTask[]
     for (kind, id) in order

@@ -420,6 +420,21 @@ A graph of non-learnable factors is an inference graph, not a training graph.
 learnable_factors(g::FactorGraph) =
     [f.id for f in g.factors if LenticulumCore.islearnable(f.factor)]
 
+function LuxCore.initialparameters(rng::AbstractRNG, g::FactorGraph)
+    ks = Tuple(f.name for f in g.factors)
+    vs = Tuple(LuxCore.initialparameters(rng, f.factor) for f in g.factors)
+    return NamedTuple{ks}(vs)
+end
+
+function LuxCore.initialstates(rng::AbstractRNG, g::FactorGraph)
+    ks = Tuple(f.name for f in g.factors)
+    vs = Tuple(LuxCore.initialstates(rng, f.factor) for f in g.factors)
+    return NamedTuple{ks}(vs)
+end
+
+LuxCore.parameterlength(g::FactorGraph) =
+    sum(f -> LuxCore.parameterlength(f.factor), g.factors; init = 0)
+
 function Base.show(io::IO, g::FactorGraph)
     print(io, "FactorGraph(", nvariables(g), " variables, ", nfactors(g), " factors, ",
         nedges(g), " edges; χ=", euler_characteristic(g),

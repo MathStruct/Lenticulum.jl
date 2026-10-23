@@ -43,11 +43,9 @@ Checks:
 function validate(g::FactorGraph)
     for (i, e) in enumerate(g.edges)
         fn = factornode(g, e.factor)
-        decl = try
-            Tuple(LenticulumCore.channelname(c) for c in LenticulumCore.channels(fn.factor))
-        catch
+        decl = hasmethod(LenticulumCore.channels, Tuple{typeof(fn.factor)}) ?
+            Tuple(LenticulumCore.channelname(c) for c in LenticulumCore.channels(fn.factor)) :
             nothing
-        end
         if decl !== nothing && !(e.channel in decl)
             throw(PolarityError(fn.name, e.channel,
                 "not a declared channel of this factor; declared: $(decl)"))
@@ -60,6 +58,11 @@ function validate(g::FactorGraph)
     for v in g.variables
         isempty(g.edges_of_variable[v.id]) &&
             throw(ArgumentError("variable :$(v.name) has no edges"))
+        n_emit = count(ei -> g.edges[ei].direction isa Emitting, g.edges_of_variable[v.id])
+        n_abs = count(ei -> can_absorb(g, ei), g.edges_of_variable[v.id])
+        if n_emit >= 2 && n_abs == 0
+            @warn "variable :$(v.name) is written by $n_emit Emitting edges and read by none (dangling output)"
+        end
     end
     return g
 end

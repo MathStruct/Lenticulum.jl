@@ -123,8 +123,23 @@ LenticulumCore.supports_polarity(f::PriorFactor, p::LenticulumCore.Polarity) =
 LenticulumCore.islearnable(f::PriorFactor) = f.learnable
 
 factor_message(f::PriorFactor, ::Symbol, _, _, _, ps, st) = (f.belief, st)
-local_free_energy(f::PriorFactor, beliefs, ps, st) =
-    (f.nlogp(point(getfield(beliefs, f.channel))), st)
+function local_free_energy(f::PriorFactor, beliefs, ps, st)
+    incoming = haskey(beliefs, f.channel) ? getfield(beliefs, f.channel) : nothing
+    bel = incoming === nothing ? f.belief : combine(f.belief, incoming)
+    if bel isa LenticulumCore.DiracBelief
+        return (f.nlogp(bel.value), st)
+    elseif bel isa LenticulumCore.CategoricalBelief
+        p = LenticulumCore.probabilities(bel)
+        states = bel.labels === nothing ? (1:length(p)) : bel.labels
+        U = sum(p[i] == 0 ? 0.0 : p[i] * f.nlogp(s) for (i, s) in enumerate(states))
+        return (U - variable_entropy(bel), st)
+    elseif bel isa LenticulumCore.GaussianBelief && f.belief isa LenticulumCore.GaussianBelief
+        U = f.nlogp(LenticulumCore.belief_mean(bel)) +
+            LinearAlgebra.tr(f.belief.Λ * LenticulumCore.belief_cov(bel)) / 2
+        return (U - variable_entropy(bel), st)
+    end
+    return (f.nlogp(point(bel)), st)
+end
 
 # =========================================================================== #
 # Loss
@@ -323,8 +338,8 @@ sweep, and conflating the two schedules is a classic source of silent bugs.
 optimiser_step(f::OptimiserFactor, state, p, p̄) = rule_put(f.rule, state, p, p̄)
 
 function factor_message(f::OptimiserFactor, ::Symbol, _, _, _, ps, st)
-    p = haskey(st, :p) ? st.p : nothing
-    s = haskey(st, :state) ? st.state : nothing
-    return (LenticulumCore.DiracBelief(rule_get(f.rule, s, p)), st)
+    (haskey(st, :p) && haskey(st, :state)) || throw(ArgumentError(
+        "OptimiserFactor on channel :$(f.channel) requires state fields `:p` and `:state` in `st`"))
+    return (LenticulumCore.DiracBelief(rule_get(f.rule, st.state, st.p)), st)
 end
 local_free_energy(::OptimiserFactor, _, ps, st) = (0.0, st)

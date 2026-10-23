@@ -43,7 +43,7 @@ using Random: Random, AbstractRNG
 using LuxCore: LuxCore
 using LenticulumCore: LenticulumCore, AbstractGradientCoupling, DiagonalCoupling,
     GaussianBelief, dimension, isproper, logpartition
-using LinearAlgebra: logdet
+using LinearAlgebra: LinearAlgebra, logdet, tr
 
 include("graph.jl")
 include("polarity_resolution.jl")

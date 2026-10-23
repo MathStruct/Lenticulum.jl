@@ -66,6 +66,19 @@ variable_entropy(::LenticulumCore.DiracBelief) = 0.0
 variable_entropy(::LenticulumCore.TrivialBelief) = 0.0
 variable_entropy(b::LenticulumCore.CategoricalBelief) =
     -sum(l == -Inf ? 0.0 : exp(l) * l for l in b.logp)   # Shannon entropy, 0 log 0 = 0
+function variable_entropy(m::LenticulumCore.MixtureBelief{<:LenticulumCore.CategoricalBelief})
+    # Exact Shannon entropy of the marginalized categorical distribution
+    isempty(m.components) && return 0.0
+    c1 = first(m.components)
+    n = length(c1.logp)
+    w = LenticulumCore.mixture_weights(m)
+    p = zeros(Float64, n)
+    for (wk, ck) in zip(w, m.components)
+        _same_support(c1, ck) || throw(ArgumentError("mixture components must share support"))
+        p .+= wk .* LenticulumCore.probabilities(ck)
+    end
+    return -sum(pk <= 0 ? 0.0 : pk * log(pk) for pk in p)
+end
 variable_entropy(b) = throw(ArgumentError(
     "no `variable_entropy` for $(typeof(b)). The Bethe counting correction needs the \
      entropy of each variable marginal; implement it for your belief representation."))
@@ -151,7 +164,7 @@ end
 The graph free energy, graded into `(factors = …, variables = …)`:
 
 ```math
-\\mathbf{F}_{\\text{Bethe}} = \\bigoplus_f \\mathbf{F}^f \\ \\oplus\\ \\bigoplus_v (1-d_v)\\,\\mathbf{H}^v
+\\mathbf{F}_{\\text{Bethe}} = \\bigoplus_f \\mathbf{F}^f \\ \\oplus\\ \\bigoplus_v (1-d_v)\\,(-\\mathbf{H}^v)
 ```
 
 **Exact on a tree.** On a loopy graph it is the Bethe approximation, whose stationary points

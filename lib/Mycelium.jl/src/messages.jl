@@ -232,6 +232,28 @@ function belief_distance(a::LenticulumCore.DiracBelief, b::LenticulumCore.DiracB
 end
 belief_distance(a::LenticulumCore.CategoricalBelief, b::LenticulumCore.CategoricalBelief) =
     _same_support(a, b) ? sum(abs, exp.(a.logp) .- exp.(b.logp)) / 2 : Inf   # total variation
+function belief_distance(a::LenticulumCore.MixtureBelief, b::LenticulumCore.MixtureBelief)
+    length(a.components) == length(b.components) || return Inf
+    wdist = sum(abs, exp.(a.logw) .- exp.(b.logw)) / 2
+    cdist = maximum(k -> belief_distance(a.components[k], b.components[k]), eachindex(a.components); init = 0.0)
+    return max(wdist, cdist)
+end
+function _sample_weights(b::LenticulumCore.SampleBelief)
+    n = length(_points(b))
+    b.weights === nothing && return fill(1 / n, n)
+    w = float.(b.weights)
+    s = sum(w)
+    return s > 0 ? w ./ s : fill(1 / n, n)
+end
+function belief_distance(a::LenticulumCore.SampleBelief, b::LenticulumCore.SampleBelief)
+    pa, pb = _points(a), _points(b)
+    length(pa) == length(pb) || return Inf
+    wa, wb = _sample_weights(a), _sample_weights(b)
+    wdist = sum(abs, wa .- wb) / 2
+    a.samples == b.samples && return wdist
+    pdist = maximum(i -> _numeric_distance(pa[i], pb[i]), eachindex(pa); init = 0.0)
+    return max(wdist, pdist)
+end
 belief_distance(::LenticulumCore.AbstractBelief, ::LenticulumCore.AbstractBelief) = Inf
 
 _numeric_distance(a::Number, b::Number) = abs(float(a - b))
@@ -310,3 +332,11 @@ _damp(a::LenticulumCore.DiracBelief, b::LenticulumCore.DiracBelief, α::Real) =
 can_damp(a::LenticulumCore.CategoricalBelief, b::LenticulumCore.CategoricalBelief) = _same_support(a, b)
 _damp(a::LenticulumCore.CategoricalBelief, b::LenticulumCore.CategoricalBelief, α::Real) =
     LenticulumCore.CategoricalBelief(α .* exp.(a.logp) .+ (1 - α) .* exp.(b.logp); labels = a.labels)
+can_damp(a::LenticulumCore.MixtureBelief, b::LenticulumCore.MixtureBelief) =
+    length(a.components) == length(b.components) &&
+    all(k -> belief_distance(a.components[k], b.components[k]) == 0, eachindex(a.components))
+_damp(a::LenticulumCore.MixtureBelief, b::LenticulumCore.MixtureBelief, α::Real) =
+    LenticulumCore.MixtureBelief(a.components, α .* exp.(a.logw) .+ (1 - α) .* exp.(b.logw))
+can_damp(a::LenticulumCore.SampleBelief, b::LenticulumCore.SampleBelief) = a.samples == b.samples
+_damp(a::LenticulumCore.SampleBelief, b::LenticulumCore.SampleBelief, α::Real) =
+    LenticulumCore.SampleBelief(a.samples, α .* _sample_weights(a) .+ (1 - α) .* _sample_weights(b))

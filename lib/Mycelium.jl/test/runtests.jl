@@ -374,4 +374,56 @@ end
     # a collapse of the effective sample size is reported, not silent
     peaked = CategoricalBelief([1.0; fill(1e-12, 999)])
     @test_logs (:warn, r"degenerated") combine(SampleBelief(collect(1:1000)), peaked)
+
+    # belief_distance, damp, and variable_entropy for MixtureBelief and SampleBelief
+    m2 = MixtureBelief([CategoricalBelief([1, 0, 0]), CategoricalBelief([0, 0.5, 0.5])], [0.2, 0.8])
+    @test isfinite(belief_distance(m, m2)) && belief_distance(m, m2) ≈ 0.3
+    @test can_damp(m, m2)
+    @test mixture_weights(damp(m, m2, 0.5)) ≈ [0.35, 0.65]
+    @test variable_entropy(m) ≈ variable_entropy(CategoricalBelief([0.5, 0.25, 0.25]))
+    @test_throws ArgumentError variable_entropy(s)
+    s_w1 = SampleBelief([1, 2], [0.2, 0.8])
+    s_w2 = SampleBelief([1, 2], [0.6, 0.4])
+    @test belief_distance(s_w1, s_w2) ≈ 0.4
+    @test can_damp(s_w1, s_w2)
+    @test damp(s_w1, s_w2, 0.5).weights ≈ [0.4, 0.6]
+end
+
+@testset "ResidualSchedule, uninformative available_channels, PriorFactor, and Check 4" begin
+    g = chain_graph()
+    @test tree_schedule(g; root = :x) isa TreeSchedule
+    marg, report, _, _ = infer!(g, ResidualSchedule(; maxtasks = 20), NamedTuple(), NamedTuple())
+    @test report.converged
+    @test marg.y === DiracBelief(2.0)
+
+    # available_channels excludes uninformative beliefs so channels resolve to Latent()
+    s = MessageStore(g)
+    fid = g.factor_index[:model]
+    ei_in = first(g.edges_of_factor[fid])
+    s.to_factor[ei_in] = Mycelium.Message(TrivialBelief(), 1)
+    @test isempty(available_channels(s, g, fid))
+    s.to_factor[ei_in] = Mycelium.Message(uninformative(1), 1)
+    @test isempty(available_channels(s, g, fid))
+
+    # PriorFactor local_free_energy works on Emitting edges (incoming === nothing), CategoricalBeliefs, and GaussianBeliefs (exact trace term)
+    pf = PriorFactor(:z, CategoricalBelief([0.25, 0.75]), k -> k == 1 ? -log(0.25) : -log(0.75))
+    F_pf, _ = local_free_energy(pf, (; z = nothing), NamedTuple(), NamedTuple())
+    @test abs(F_pf) < 1e-12
+    g0 = LenticulumCore.Gaussian([1.0], fill(2.0, 1, 1))
+    pf_g = PriorFactor(:z, g0, z -> ((z[1] - 1.0)^2 / 2.0 + log(2π * 2.0)) / 2)
+    F_pfg, _ = local_free_energy(pf_g, (; z = nothing), NamedTuple(), NamedTuple())
+    @test abs(F_pfg) < 1e-12
+
+    # OptimiserFactor requires :p and :state in st
+    of = OptimiserFactor(:θ, GradientDescent(0.1))
+    @test_throws ArgumentError factor_message(of, :θ, nothing, NamedTuple(), TrivialBelief(), NamedTuple(), NamedTuple())
+
+    # Check 4 warns when two Emitting edges write to a variable that no edge absorbs from
+    b4 = GraphBuilder()
+    variable!(b4, :v)
+    factor!(b4, :d1, DataFactor(:v, 1.0))
+    factor!(b4, :d2, DataFactor(:v, 1.0))
+    connect!(b4, :d1, :v, :v; direction = Emitting())
+    connect!(b4, :d2, :v, :v; direction = Emitting())
+    @test_logs (:warn, r"dangling output") validate(build(b4))
 end
