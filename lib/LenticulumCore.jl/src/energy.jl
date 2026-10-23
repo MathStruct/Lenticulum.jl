@@ -51,7 +51,15 @@ end
 Direct sum of energy spaces. Named summands are merged; unnamed ones are wrapped under
 `:left` / `:right`.
 """
-oplus(a::GradedEnergySpace, b::GradedEnergySpace) = GradedEnergySpace(merge(a.parts, b.parts))
+function _check_disjoint_keys(a::NamedTuple, b::NamedTuple)
+    common = intersect(keys(a), keys(b))
+    isempty(common) || throw(ArgumentError(
+        "cannot take direct sum ⊕ of graded objects with overlapping keys $(Tuple(common))"))
+    return nothing
+end
+
+oplus(a::GradedEnergySpace, b::GradedEnergySpace) =
+    (_check_disjoint_keys(a.parts, b.parts); GradedEnergySpace(merge(a.parts, b.parts)))
 oplus(a::AbstractEnergySpace, b::AbstractEnergySpace) =
     GradedEnergySpace((; left = a, right = b))
 const ⊕ = oplus
@@ -75,7 +83,8 @@ struct GradedEnergy{names,T<:Tuple}
     parts::NamedTuple{names,T}
 end
 
-oplus(a::GradedEnergy, b::GradedEnergy) = GradedEnergy(merge(a.parts, b.parts))
+oplus(a::GradedEnergy, b::GradedEnergy) =
+    (_check_disjoint_keys(a.parts, b.parts); GradedEnergy(merge(a.parts, b.parts)))
 oplus(a, b) = GradedEnergy((; left = a, right = b))
 
 Base.getindex(e::GradedEnergy, name::Symbol) = getfield(e.parts, name)
@@ -132,7 +141,7 @@ end
 islinear(::WeightedSum) = true
 
 """
-    SquaredNorm(M = nothing)
+    SquaredNorm(M = nothing; check::Bool = true)
 
 ``\\sigma(e) = \\tfrac12 \\|e\\|_M^2``. **Convex, not linear.**
 
@@ -141,11 +150,36 @@ The natural scalarisation for a residual factor: ``r_\\theta(x) \\approx 0`` iff
 scalar gradient is ``J^\\top M r`` and the Gauss–Newton metric is ``J^\\top M J`` — both of
 which need the Jacobian of the *vector* energy, which is exactly what is lost by
 scalarising early.
+
+When `check = true` (the default), validates that `M` is square, symmetric, and positive
+semidefinite. Pass `check = false` when `M` is derived from an already-validated SPD
+matrix (e.g. `inv(Symmetric(f.Q))`) or inside an AD trace.
 """
 struct SquaredNorm{M} <: AbstractScalarisation
     M::M
+    function SquaredNorm(M::Nothing; check::Bool = true)
+        return new{Nothing}(nothing)
+    end
+    function SquaredNorm(M::AbstractMatrix; check::Bool = true)
+        size(M, 1) == size(M, 2) ||
+            throw(DimensionMismatch("SquaredNorm metric M must be square; got $(size(M))"))
+        if check && M isa StridedMatrix{<:Union{AbstractFloat,Integer}}
+            scale = maximum(abs, M; init = zero(eltype(M)))
+            asym = maximum(abs, M .- M'; init = zero(eltype(M)))
+            asym <= 1e-10 * (1 + scale) ||
+                throw(ArgumentError("SquaredNorm metric M must be symmetric; max |M - Mᵀ| = $asym"))
+            S = Symmetric(Matrix(float.(M)))
+            if !isposdef(cholesky(S; check = false))
+                evs = eigvals(S)
+                minimum(evs; init = 0.0) >= -1e-10 * (1 + scale) ||
+                    throw(ArgumentError(
+                        "SquaredNorm metric M must be positive semidefinite; min eigenvalue = $(minimum(evs))"))
+            end
+        end
+        return new{typeof(M)}(M)
+    end
 end
-SquaredNorm() = SquaredNorm(nothing)
+SquaredNorm(; check::Bool = true) = SquaredNorm(nothing; check = check)
 islinear(::SquaredNorm) = false
 
 """
@@ -159,7 +193,10 @@ struct GradedScalarisation{names,T<:Tuple} <: AbstractScalarisation
 end
 islinear(σ::GradedScalarisation) = all(islinear, values(σ.parts))
 
-oplus(a::GradedScalarisation, b::GradedScalarisation) = GradedScalarisation(merge(a.parts, b.parts))
+oplus(a::GradedScalarisation, b::GradedScalarisation) =
+    (_check_disjoint_keys(a.parts, b.parts); GradedScalarisation(merge(a.parts, b.parts)))
+oplus(a::AbstractScalarisation, b::AbstractScalarisation) =
+    GradedScalarisation((; left = a, right = b))
 
 """
     scalarise(σ::AbstractScalarisation, e) -> Real
@@ -167,6 +204,11 @@ oplus(a::GradedScalarisation, b::GradedScalarisation) = GradedScalarisation(merg
 Apply ``\\sigma`` to a (possibly graded) energy.
 """
 scalarise(::IdentityScalarisation, e::Real) = e
+function scalarise(::IdentityScalarisation, e::AbstractVector{<:Real})
+    length(e) == 1 || throw(ArgumentError(
+        "IdentityScalarisation requires a scalar or 1-element vector; got length $(length(e))"))
+    return only(e)
+end
 scalarise(σ::WeightedSum, e) = sum(σ.λ .* e)
 scalarise(σ::SquaredNorm{Nothing}, e) = sum(abs2, e) / 2
 scalarise(σ::SquaredNorm, e) = dot_quadratic(σ.M, e) / 2
@@ -174,7 +216,7 @@ function scalarise(σ::GradedScalarisation{names}, e::GradedEnergy{names}) where
     return sum(map(scalarise, values(σ.parts), values(e.parts)); init = 0.0)
 end
 
-dot_quadratic(M, e) = sum(e .* (M * e))
+dot_quadratic(M, e) = dot(e, M, e)
 
 """
     jensen_gap(σ, samples) -> Real
@@ -309,3 +351,59 @@ _pointwise_scalarisation(f, ::Nothing) = pointwise_scalarisation(f)
 _pointwise_scalarisation(f, polarity) = pointwise_scalarisation(f, polarity)
 _scalarisation(f, ::Nothing) = scalarisation(f)
 _scalarisation(f, polarity) = scalarisation(f, polarity)
+
+"""
+    energy_jacobian(factor, x, a, y, ps, st; wrt = :x, ε = 1e-6) -> Matrix
+
+The Jacobian ``J = \\partial \\mathbf{l}^c / \\partial u`` of the pointwise vector energy
+[`energy`](@ref) with respect to `wrt` (`:x` or `:y`). This is the reason the pointwise
+energy is kept vector-valued (`L-ADR-0002`, `LP-002`): from `J` and a [`SquaredNorm`](@ref)
+metric ``M``, [`gauss_newton_metric`](@ref) forms ``J^\\top M J`` without second derivatives.
+"""
+function energy_jacobian(
+    f::AbstractLenticulumFactor, x, a, y, ps, st; wrt::Symbol = :x, ε::Real = 1e-6
+)
+    u = wrt === :x ? x : wrt === :y ? y : throw(ArgumentError("wrt must be :x or :y; got :$wrt"))
+    eval_r(v) = wrt === :x ? first(energy(f, v, a, y, ps, st)) : first(energy(f, x, a, v, ps, st))
+    r0 = eval_r(u)
+    m, n = length(r0), length(u)
+    T = float(promote_type(eltype(r0), eltype(u)))
+    J = zeros(T, m, n)
+    up = collect(T, u)
+    um = collect(T, u)
+    for j in 1:n
+        uj = T(u[j])
+        h = T(ε) * (one(T) + abs(uj))
+        up[j] = uj + h
+        um[j] = uj - h
+        J[:, j] .= (eval_r(up) .- eval_r(um)) ./ (2 * h)
+        up[j] = uj
+        um[j] = uj
+    end
+    return J
+end
+
+"""
+    gauss_newton_metric(σ::SquaredNorm, J::AbstractMatrix) -> Symmetric
+    gauss_newton_metric(factor, x, a, y, ps, st; wrt = :x, polarity = nothing, σ, ε = 1e-6) -> Symmetric
+
+The Gauss–Newton / Fisher pull-back metric ``J^\\top M J`` at `(x, a, y)`, where ``J`` is
+[`energy_jacobian`](@ref) and ``M`` is the metric of `factor`'s [`SquaredNorm`](@ref)
+pointwise scalarisation (`I` when `M === nothing`). Always symmetric positive semidefinite
+whenever ``M \\succeq 0``.
+"""
+function gauss_newton_metric(σ::SquaredNorm, J::AbstractMatrix)
+    G = σ.M === nothing ? J' * J : J' * σ.M * J
+    return Symmetric((G .+ G') ./ 2)
+end
+
+function gauss_newton_metric(
+    f::AbstractLenticulumFactor, x, a, y, ps, st;
+    wrt::Symbol = :x, polarity = nothing,
+    σ = _pointwise_scalarisation(f, polarity), ε::Real = 1e-6,
+)
+    σ isa SquaredNorm || throw(ArgumentError(
+        "gauss_newton_metric requires a SquaredNorm pointwise scalarisation; got $(typeof(σ))"))
+    J = energy_jacobian(f, x, a, y, ps, st; wrt = wrt, ε = ε)
+    return gauss_newton_metric(σ, J)
+end

@@ -41,7 +41,7 @@ function LenticulumCore.as_belief(d::_Univariate)
 end
 function LenticulumCore.as_belief(d::_Multivariate)
     ξ, W = weightedmean_precision(d)
-    return GaussianBelief(collect(float.(ξ)), Matrix{Float64}(W))
+    return GaussianBelief(collect(float.(ξ)), Matrix(float.(W)))
 end
 LenticulumCore.as_belief(d::PointMass) = DiracBelief(BayesBase.getpointmass(d))
 LenticulumCore.as_belief(d::Categorical) = CategoricalBelief(Distributions.probs(d))

@@ -56,12 +56,25 @@ Gaussian(μ::Real, σ²::Real) = Gaussian([float(μ)], fill(float(σ²), 1, 1))
 
 """
     uninformative(n)
+    uninformative(::Type{T}, n)
 
 The improper uniform belief on ``\\mathbb{R}^n``: `η = 0`, `Λ = 0`. The identity for
 `Mycelium.combine`, and the canonical-form spelling of
 `LenticulumCore.TrivialBelief`.
 """
-uninformative(n::Int) = GaussianBelief(zeros(n), zeros(n, n))
+uninformative(::Type{T}, n::Int) where {T<:Real} = GaussianBelief(zeros(T, n), zeros(T, n, n))
+uninformative(n::Int) = uninformative(Float64, n)
+
+"""
+    isuninformative(b::AbstractBelief) -> Bool
+
+Whether `b` carries zero precision / information (`TrivialBelief()` or a `GaussianBelief`
+with `Λ == 0` and `η == 0`). Used by polarity resolution to distinguish informative
+incoming messages from identity placeholders.
+"""
+isuninformative(::TrivialBelief) = true
+isuninformative(b::GaussianBelief) = all(iszero, b.Λ) && all(iszero, b.η)
+isuninformative(::AbstractBelief) = false
 
 dimension(b::GaussianBelief) = length(b.η)
 
@@ -124,9 +137,12 @@ function logpartition(b::GaussianBelief)
 end
 
 function Base.show(io::IO, b::GaussianBelief)
-    if isproper(b)
-        print(io, "Gaussian(μ=", round.(belief_mean(b); digits = 4),
-            ", Σ=", round.(belief_cov(b); digits = 4), ")")
+    C = cholesky(Symmetric(Matrix(b.Λ)); check = false)
+    if issuccess(C)
+        μ = C \ b.η
+        Σ = inv(C)
+        print(io, "Gaussian(μ=", round.(μ; digits = 4),
+            ", Σ=", round.(Σ; digits = 4), ")")
     else
         print(io, "GaussianBelief(η=", round.(b.η; digits = 4),
             ", Λ=", round.(b.Λ; digits = 4), "; improper)")

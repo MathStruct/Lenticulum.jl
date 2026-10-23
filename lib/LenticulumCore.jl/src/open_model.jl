@@ -105,6 +105,16 @@ conjugate structure is available, which is most of the time.
 struct SampleBelief{S,W} <: AbstractBelief
     samples::S
     weights::W
+    function SampleBelief(samples::S, weights::W) where {S,W}
+        if weights !== nothing
+            n = samples isa AbstractMatrix ? size(samples, 2) : length(samples)
+            length(weights) == n ||
+                throw(ArgumentError("need one weight per sample: $(length(weights)) weights for $n samples"))
+            all(isfinite, weights) && all(≥(0), weights) ||
+                throw(ArgumentError("weights must be finite and non-negative"))
+        end
+        return new{S,W}(samples, weights)
+    end
 end
 SampleBelief(samples) = SampleBelief(samples, nothing)
 

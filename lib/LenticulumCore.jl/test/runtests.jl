@@ -89,6 +89,42 @@ diag_of(C) = [C[i, i] for i in axes(C, 1)]
         @test H[:first] ≈ 2.0
         @test H[:second] == 10.0
     end
+
+    @testset "SquaredNorm validation, oplus, and Gauss-Newton metric" begin
+        @test_throws ArgumentError SquaredNorm([1.0 2.0; 0.0 1.0])
+        @test_throws ArgumentError SquaredNorm([1.0 0.0; 0.0 -1.0])
+        σ_m = SquaredNorm([2.0 0.0; 0.0 4.0])
+        @test scalarise(σ_m, [1.0, 1.0]) ≈ 0.5 * (2.0 + 4.0)
+        @test scalarise(IdentityScalarisation(), [3.5]) ≈ 3.5
+
+        # Non-graded oplus & disjoint graded oplus
+        s_pair = SquaredNorm() ⊕ IdentityScalarisation()
+        @test s_pair isa GradedScalarisation
+        @test_throws ArgumentError oplus(
+            GradedEnergySpace((; a = ScalarEnergySpace())),
+            GradedEnergySpace((; a = ScalarEnergySpace())),
+        )
+
+        # Gauss-Newton metric G = J^T M J
+        J = [1.0 2.0; 3.0 4.0]
+        G_id = gauss_newton_metric(SquaredNorm(), J)
+        @test G_id ≈ J' * J
+        G_m = gauss_newton_metric(σ_m, J)
+        @test G_m ≈ J' * [2.0 0.0; 0.0 4.0] * J
+    end
+
+    @testset "uninformative, isuninformative, and SampleBelief validation" begin
+        u32 = uninformative(Float32, 2)
+        @test eltype(u32.η) == Float32
+        @test isuninformative(u32)
+        @test isuninformative(TrivialBelief())
+        @test !isuninformative(Gaussian([0.0], fill(1.0, 1, 1)))
+        @test !isuninformative(DiracBelief([1.0]))
+
+        @test_throws ArgumentError SampleBelief([[1.0], [2.0]], [1.0])
+        @test_throws ArgumentError SampleBelief([[1.0], [2.0]], [-0.5, 1.5])
+        @test_throws ArgumentError SampleBelief([[1.0], [2.0]], [NaN, 1.0])
+    end
 end
 
 @testset "categorical and mixture beliefs: construction" begin

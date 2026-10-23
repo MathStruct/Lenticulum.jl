@@ -28,7 +28,7 @@ module LenticulumCore
 using DispatchDoctor: @stable
 using Random: Random, AbstractRNG
 using LuxCore: LuxCore
-using LinearAlgebra: LinearAlgebra, Symmetric, cholesky, isposdef, logdet
+using LinearAlgebra: LinearAlgebra, Symmetric, cholesky, dot, eigvals, isposdef, issymmetric, issuccess, logdet
 
 include("abstract_types.jl")
 include("channels.jl")
@@ -63,16 +63,16 @@ export select, observed_channels, unobserved_channels, latent_channels, channel_
 export ScalarEnergySpace, EuclideanEnergySpace, GradedEnergySpace, GradedEnergy
 export IdentityScalarisation, WeightedSum, SquaredNorm, GradedScalarisation
 export energyspace, scalarisation, pointwise_energyspace, pointwise_scalarisation, scalarise, islinear, jensen_gap, oplus, ⊕, dimension
-export energy, entropy, scalar_energy
+export energy, entropy, scalar_energy, energy_jacobian, gauss_newton_metric
 
 # --- Models and lenses -----------------------------------------------------
 export OpenModelResult, DiracBelief, SampleBelief, TrivialBelief
 export CategoricalBelief, MixtureBelief, probabilities, bernoulli, mixture_weights
-export GaussianBelief, Gaussian, uninformative, belief_mean, belief_cov, isproper, logpartition
+export GaussianBelief, Gaussian, uninformative, isuninformative, belief_mean, belief_cov, isproper, logpartition
 export as_distribution, as_belief
 export forward, logdensity, pushforward, isexact, ispure
 export latentspace, observedspace, unobservedspace
-export BayesianLens, ComposedLens, TensorLens, invert, compose
+export BayesianLens, ComposedLens, TensorLens, invert, likelihood_message, compose
 export ExactInversion, AmortisedInversion, SolverInversion, ProximalInversion, TrivialInversion
 
 # --- Games -----------------------------------------------------------------
