@@ -156,10 +156,13 @@ $d \propto \sigma^\ast$, so $\lVert H\rVert_{C^k}$ on $K$ is finite for any fixe
 but its worst-case bound from the slab recurrence grows exponentially as $O((q-1)^{\operatorname{diam}(K)/d})$.
 (**Conjecture / unverified expectation:** whether generic shift configurations with $q \ge 3$ admit
 another smooth inverse $H$ with polynomial $C^k$-norm growth as $\sigma^\ast \to 0$ is not proved here;
-however, when $t^\ast$ is chosen with $\sigma^\ast$ sufficiently small, uniform continuity of $D^2\Psi$ on $K$
-implies that the unshifted rescaling $H(u) = (\sum_{j=1}^q \gamma_j)^{-1}\hat G(u)$ already satisfies
-$\lVert\sum_j \gamma_j H(\cdot + s_j) - \hat G\rVert_{C^2(K)} = O((\sigma^\ast)^2)$, bypassing exact shift deconvolution
-when only $\eta$-approximation is needed.)
+approximation does not need it. The unshifted rescaling $H(u) = (\sum_{j=1}^q \gamma_j)^{-1}\hat G(u)$ has
+$\sum_j \gamma_j H(u + s_j) - \hat G(u) = (\sum_j \gamma_j)^{-1}\sum_j \gamma_j\,(\hat G(u + s_j) - \hat G(u))$, and with
+$\lvert s_j\rvert \le C\sigma^\ast$ and $\hat G$ $C^2$ on a neighbourhood of $K$, uniform continuity of $D^2\hat G$ makes this
+$o(1)$ in $C^2(K)$ as $\sigma^\ast \to 0$; that suffices for $\eta$-approximation, bypassing exact shift
+deconvolution. A rate needs more: $O(\sigma^\ast)$ if $\hat G \in C^3$, and $O((\sigma^\ast)^2)$ only if also the shifts
+are centred, $\sum_j \gamma_j s_j = 0$, and $\hat G \in C^4$. Without centring the first-order term remains:
+shifts $\sigma, 2\sigma, 3\sigma$ with equal weights and $\hat G(u) = u^2$ give error $4\sigma u + \tfrac{14}{3}\sigma^2$.)
 
 ## 4. The theorem
 

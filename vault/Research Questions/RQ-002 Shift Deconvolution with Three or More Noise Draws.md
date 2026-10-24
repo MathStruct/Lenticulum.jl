@@ -35,8 +35,10 @@ with the equation holding on $K$.
   $\asymp \sigma^\ast$, giving the exponential bound; whether it is attained is **open** (the note marks
   this as a conjecture).
 - If only approximation is needed, the unshifted rescaling $H = (\sum_j \gamma_j)^{-1}\hat G$ has
-  error $O((\sigma^\ast)^2)$ in $C^2(K)$, which suffices for the universal approximation theorem as
-  stated; exact solvability is a separate question.
+  error $o(1)$ in $C^2(K)$ as $\sigma^\ast \to 0$ (uniform continuity of $D^2\hat G$), which suffices for the
+  universal approximation theorem as stated; $O(\sigma^\ast)$ for $\hat G \in C^3$, and $O((\sigma^\ast)^2)$ only for
+  centred shifts ($\sum_j \gamma_j s_j = 0$) and $\hat G \in C^4$ (the note, §3). Exact solvability is a separate
+  question.
 
 ## What would count as an answer
 

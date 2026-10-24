@@ -30,7 +30,7 @@ A factor is a subtype of `AbstractLenticulumFactor`. Like a Lux layer, it is a *
 - `energy_jacobian(f, x, a, y, ps, st; wrt, ε)` and `gauss_newton_metric(f, x, a, y, ps, st; wrt, polarity, σ, ε)` provide the finite-difference Jacobian $J$ of `energy` and the Gauss–Newton pullback metric $J^\top M J$ when `pointwise_scalarisation` is a `SquaredNorm(M)`.
 
 **§4 Entropies and free energy** (`statistical_game.jl`):
-- `entropy(f, π, y, ps, st) -> (𝐇, st)` and `free_energy(f, π, y, ps, st) -> (𝐅, st)` are the game-level functions of AutoBayes Definition 20 (`free_energy` in `energyspace(f)`). Implemented across `GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor`, `NonlinearFactor`, `LikelihoodFactor`, `PriorFactor`, `EqualityFactor`, `DeterministicFactor`, `EquilibriumFactor`, and `NeuralODEFactor` ([[LP-009 Game-level free energy is declared but not implemented]]);
+- `entropy(f, π, y, ps, st) -> (𝐇, st)` and `free_energy(f, π, y, ps, st) -> (𝐅, st)` are the game-level functions of AutoBayes Definition 20 (both in `energyspace(f)`: `entropy` is a vector too, e.g. `(fit = 0, complexity = 0, negentropy = H)` in the graded space, and `free_energy` subtracts it). Implemented for `GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor`, `NonlinearFactor`, `LikelihoodFactor`, and for `PriorFactor` with Dirac or categorical beliefs; not yet for `EqualityFactor`, `DeterministicFactor`, the equilibrium and neural-ODE factors ([[LP-009 Game-level free energy is declared but not implemented]]);
 - `scalar_free_energy(f, π, y, ps, st; polarity, σ)` and `scalar_energy(f, x, a, y, ps, st; polarity, σ)` are provided; `σ` overrides the default scalarisation for one call.
 
 **§5 In a factor graph** (Mycelium):
@@ -42,7 +42,7 @@ A factor is a subtype of `AbstractLenticulumFactor`. Like a Lux layer, it is a *
 
 ## Checked by
 
-- `test/runtests.jl`: `check_factor_conformance` ([[LP-008 No conformance test for the factor interface]], running §1–§5 across `GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor`, `NonlinearFactor`, and `LikelihoodFactor`); "GaussianFactor: the factor interface, nothing stubbed" (§1–§4 for the reference factor); "pointwise energy and free energy: one contract" (§3, for four factors);
+- `test/factor_conformance.jl`: `check_factor_conformance` ([[LP-008 No conformance test for the factor interface]]), run from `test/runtests.jl` over every supported polarity of `GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor`, `NonlinearFactor`, and `LikelihoodFactor`); "GaussianFactor: the factor interface, nothing stubbed" (§1–§4 for the reference factor); "pointwise energy and free energy: one contract" (§3, for four factors);
 - `lib/LenticulumCore.jl/test/runtests.jl` (the energy algebra, `SquaredNorm` validation, `energy_jacobian`, and `gauss_newton_metric` of §3–§4);
 - `lib/Mycelium.jl/test/runtests.jl` (§5 on structural factors, including non-zero `PriorFactor` `local_free_energy`);
 - `lib/ImplicitLayers.jl/test/runtests.jl` (§3–§5 on `EquilibriumFactor` and `NeuralODEFactor`).
