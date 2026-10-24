@@ -379,8 +379,9 @@ end
     GaussianPrior(channel, μ, Σ)
 
 The prior factor ``\\pi : 1 \\multimap X`` of AutoBayes Remark 24: emits
-``\\mathcal{N}(\\mu,\\Sigma)``, charges energy ``-\\log p_\\pi(x)``, and has zero entropy of
-its own.
+``\\mathcal{N}(\\mu,\\Sigma)`` and charges energy ``-\\log p_\\pi(x)``. Its game-level entropy is
+the entropy of the factor belief after pooling with incoming information (zero for a point
+observation).
 
 Without it the composite free energy is an **open** free energy, missing the
 ``-\\log p_\\pi(x)`` term. With it, ``F^{c\\pi}(\\ast, y) = \\mathrm{VFE}(c,c')(\\pi,y)``, and
@@ -411,6 +412,41 @@ LenticulumCore.scalarisation(::GaussianPrior) = LenticulumCore.GradedScalarisati
     complexity = LenticulumCore.IdentityScalarisation(),
     negentropy = LenticulumCore.IdentityScalarisation(),
 ))
+
+LuxCore.parameterlength(::GaussianPrior) = 0
+
+# The source factor's pointwise energy includes its normalizer, in the same grading as F.
+function LenticulumCore.energy(f::GaussianPrior, x, a, y, ps, st)
+    d = _vec(y) .- f.μ
+    C = _chol(f.Σ, "Σ")
+    fit = (d' * (C \ d)) / 2
+    complexity = (length(d) * log(2π) + logdet(C)) / 2
+    return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = 0.0)), st
+end
+
+struct GaussianPriorModel{F<:GaussianPrior} <: LenticulumCore.AbstractOpenModel
+    factor::F
+end
+LenticulumCore.ispure(::GaussianPriorModel) = true
+LenticulumCore.latentspace(::GaussianPriorModel) = nothing
+LenticulumCore.assemble(f::GaussianPrior, p::LenticulumCore.Polarity, ps, st) =
+    (LenticulumCore.BayesianLens(GaussianPriorModel(f), LenticulumCore.ExactInversion()), st)
+
+function LenticulumCore.likelihood_message(
+    lens::LenticulumCore.BayesianLens{<:GaussianPriorModel,LenticulumCore.ExactInversion},
+    π, inputs, ps, st,
+)
+    f = lens.model.factor
+    return (Gaussian(f.μ, f.Σ), st)
+end
+
+function LenticulumCore.invert(
+    lens::LenticulumCore.BayesianLens{<:GaussianPriorModel,LenticulumCore.ExactInversion},
+    π, inputs, ps, st,
+)
+    msg, st = LenticulumCore.likelihood_message(lens, π, inputs, ps, st)
+    return (Mycelium.combine(π, msg), st)
+end
 
 Mycelium.factor_message(f::GaussianPrior, ::Symbol, _, _, _, ps, st) =
     (Gaussian(f.μ, f.Σ), st)

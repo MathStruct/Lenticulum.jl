@@ -7,6 +7,8 @@ using LuxCore
 using Random
 using Test
 
+include("factor_conformance.jl")
+
 # ---------------------------------------------------------------------------
 # The reference model:   x ~ N(μ₀, Σ₀),   y | x ~ N(Ax + b, Q),   y clamped to y₀.
 #
@@ -1105,40 +1107,36 @@ end
     @test isfinite(loglikelihood(bp, [2, 1], [0.0, 0.0, -Inf]))
 end
 
-@testset "Factor interface conformance (L-SPEC-001 / LP-008) & game-level free_energy (LP-009)" begin
-    rng = Random.default_rng()
-    factors = [
-        GaussianFactor(2 => 2; noise = 0.2),
-        GaussianPrior(:x, [0.0, 0.0], Matrix(1.0I, 2, 2)),
-        LinearConstraintFactor((x = 2, y = 2), 2; noise = 0.2),
-        NonlinearFactor(x -> x .^ 2, 2 => 2; noise = 0.2),
-        LikelihoodFactor(PoissonLikelihood(1), 1),
-    ]
-    for f in factors
-        ps, st = LuxCore.setup(rng, f)
-        chans = LenticulumCore.channels(f)
-        @test !isempty(chans)
-        pols = LenticulumCore.supported_polarities(f)
-        @test !isempty(pols)
-        for p in pols
-            @test LenticulumCore.supports_polarity(f, p)
-            @test LenticulumCore.ispartition(p)
+@testset "Factor interface conformance (L-SPEC-001 §1–§5)" begin
+    nt = NamedTuple()
+    px = Gaussian([1.0], fill(1.0, 1, 1))
+    y = DiracBelief([4.0])
+    cases = (
+        (GaussianFactor(1 => 1; noise = 0.1), (A = fill(2.0, 1, 1), b = [0.0])),
+        (LinearConstraintFactor((x = 1, y = 1), 1; noise = 0.1),
+         (A = (x = fill(-2.0, 1, 1), y = fill(1.0, 1, 1)), c = [0.0])),
+        (NonlinearFactor(x -> x .^ 2, 1 => 1; noise = 0.1,
+                         method = Linearization(iterations = 4)), nt),
+        (LikelihoodFactor(OrdinalProbitLikelihood([-1.0, 1.0]), 1), nt),
+    )
+    for (f, ps) in cases
+        yy = f isa LikelihoodFactor ? DiracBelief([2.0]) : y
+        for p in supported_polarities(f)
+            backwards = only(unobserved_channels(p)) === :x
+            cavity = backwards ? px : f isa LikelihoodFactor ?
+                     CategoricalBelief([0.2, 0.5, 0.3]; labels = outcomes(f.lik)) :
+                     Gaussian([0.0], fill(1.0, 1, 1))
+            inputs = backwards ? (y = yy,) : (x = DiracBelief([1.0]),)
+            xy = f isa LinearConstraintFactor ? ((x = [1.0], y = yy.value), nothing, nothing) :
+                                               ([1.0], nothing, yy.value)
+            check_factor_conformance(f, p; π = cavity, inputs, ps, st = nt, pointwise = xy,
+                                     game_prior = px, game_y = (y = yy,), msgs = (x = px, y = yy))
         end
-        @test LenticulumCore.energyspace(f) isa LenticulumCore.AbstractEnergySpace
-        @test LenticulumCore.scalarisation(f) isa LenticulumCore.AbstractScalarisation
-        @test LenticulumCore.pointwise_energyspace(f) isa LenticulumCore.AbstractEnergySpace
-        @test LenticulumCore.pointwise_scalarisation(f) isa LenticulumCore.AbstractScalarisation
     end
-
-    # Game-level free_energy and entropy (LP-009)
-    gf = GaussianFactor(1 => 1; noise = Q)
-    gps = (A = A, b = bb)
-    px = Gaussian(μ₀, Σ₀)
-    Fg_game, _ = LenticulumCore.free_energy(gf, px, y₀, gps, NamedTuple())
-    Hg_game, _ = LenticulumCore.entropy(gf, px, y₀, gps, NamedTuple())
-    @test Fg_game[:negentropy] ≈ -Hg_game[:negentropy]
-    sfe, _ = LenticulumCore.scalar_free_energy(gf, px, y₀, gps, NamedTuple())
-    @test isfinite(sfe)
+    f = GaussianPrior(:x, 0.0, 1.0)
+    check_factor_conformance(f, only(supported_polarities(f)); π = px, inputs = nt, ps = nt, st = nt,
+                             pointwise = (nothing, nothing, [0.3]), game_prior = px,
+                             game_y = nothing, msgs = (x = px,))
 end
 
 @testset "game entropy occupies its free-energy coordinate" begin

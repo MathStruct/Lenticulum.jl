@@ -75,3 +75,7 @@ The lens's `likelihood_message` performs the same posterior relinearisation loop
 inversion and returns the final Gaussian site. `invert` combines that site with the original
 prior once. The iterated nonlinear regression test checks both Taylor and unscented methods,
 including the scalar square-function example with four iterations.
+
+Graph messages use the same iterated-site routine as the lens. The conformance checker tests
+this equality in both polarities, including a backward square-function update with four
+iterations.

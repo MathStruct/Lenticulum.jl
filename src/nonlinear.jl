@@ -21,8 +21,8 @@
 
 Approximate a nonlinear factor's messages by its first-order Taylor expansion at the expansion
 point: the extended Kalman filter's rule. `iterations > 1` relinearises `invert`'s backward
-direction at the posterior mean, which is Gauss–Newton on the MAP (the iterated EKF). `likelihood_message` returns the final
-site used by this update.
+direction at the posterior mean, which is Gauss–Newton on the MAP (the iterated EKF).
+`likelihood_message` returns the final site used by this update.
 """
 Base.@kwdef struct Linearization
     iterations::Int = 1
@@ -207,11 +207,14 @@ of [`linearize`](@ref):
   `x0`: the likelihood ``\\mathcal N^{-1}(A^\\top R^{-1}(m_y - b),\\ A^\\top R^{-1}A)``,
   ``R = Q + \\Omega + S_y``. With no expansion point it is uninformative.
 
-The prior is used only as the point to linearise at, never multiplied in, so nothing is
-counted twice.
+Backwards, `method.iterations > 1` repeats linearisation at the current posterior,
+using the same final site as `likelihood_message` and `invert`.
+
+The prior is used only as the point to linearise at, never multiplied into the returned site,
+so nothing is counted twice.
 """
 Mycelium.factor_message(f::NonlinearFactor, target::Symbol, polarity, inputs, prior, ps, st) =
-    (_nl_message(f, target, inputs, prior), st)
+    (_nl_iterated_message(f, target, inputs, prior), st)
 
 function _nl_message(f::NonlinearFactor, target::Symbol, inputs, prior)
     if target === f.out_channel
@@ -256,8 +259,9 @@ LenticulumCore.assemble(f::NonlinearFactor, p::LenticulumCore.Polarity, ps, st) 
 """
     LenticulumCore.likelihood_message(lens, π, inputs, ps, st) -> (site, st)
 
-The final approximate likelihood site; `invert` combines it with `π`. The approximate posterior ``\\pi \\cdot \\mu_{c\\to\\text{target}}``. Backwards, the likelihood is
-relinearised at the current posterior mean `method.iterations` times (with the posterior's
+The final approximate likelihood site; `invert` combines it with `π` to obtain the approximate
+posterior ``\\pi \\cdot \\mu_{c\\to\\text{target}}``. Backwards, the likelihood is relinearised at the
+current posterior mean `method.iterations` times (with the posterior's
 covariance for the unscented transform): Gauss–Newton on the MAP, the iterated EKF / iterated
 posterior linearisation. One iteration is the plain EKF / UKF update.
 """
@@ -267,17 +271,21 @@ function LenticulumCore.likelihood_message(
 )
     f = lens.model.factor
     target = only(LenticulumCore.unobserved_channels(lens.model.polarity))
+    return (_nl_iterated_message(f, target, inputs, π), st)
+end
+
+function _nl_iterated_message(f, target, inputs, π)
     msg = _nl_message(f, target, inputs, π)
-    target === f.in_channel || return (msg, st)
+    target === f.in_channel || return msg
     my, Sy = _moments(_get(inputs, f.out_channel), f.nout)
-    my === nothing && return (msg, st)
+    my === nothing && return msg
     for _ in 2:f.method.iterations
         post = Mycelium.combine(π, msg)
         x̄, P = _moments(post, f.nin)
         x̄ === nothing && break
         msg = _likelihood(f, my, Sy, x̄, P)
     end
-    return (msg, st)
+    return msg
 end
 
 function LenticulumCore.invert(

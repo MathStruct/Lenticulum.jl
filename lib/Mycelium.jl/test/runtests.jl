@@ -427,3 +427,25 @@ end
     connect!(b4, :d2, :v, :v; direction = Emitting())
     @test_logs (:warn, r"dangling output") validate(build(b4))
 end
+
+@testset "PriorFactor exact game free energy and entropy" begin
+    nt = NamedTuple()
+    prior = CategoricalBelief([0.25, 0.75]; labels = [:a, :b])
+    cavity = CategoricalBelief([0.8, 0.2]; labels = [:a, :b])
+    f = PriorFactor(:z, prior, s -> s === :a ? 0.3 : 1.2)
+    q = [4 / 7, 3 / 7]
+    H = -sum(q .* log.(q))
+    F, _ = LenticulumCore.free_energy(f, cavity, nothing, nt, nt)
+    h, _ = LenticulumCore.entropy(f, cavity, nothing, nt, nt)
+    @test F ≈ q[1] * 0.3 + q[2] * 1.2 - H
+    @test h ≈ H
+    @test scalarise(scalarisation(f), F) ≈ F
+    @test first(local_free_energy(f, (z = cavity,), nt, nt)) ≈ F
+    @test first(LenticulumCore.free_energy(f, cavity, (z = DiracBelief(:a),), nt, nt)) ≈ 0.3
+    @test first(LenticulumCore.entropy(f, cavity, :a, nt, nt)) == 0
+    # Arbitrary Gaussian energy functions have no exact expectation interface.
+    g = LenticulumCore.Gaussian([0.0], fill(1.0, 1, 1))
+    fg = PriorFactor(:z, g, z -> z[1]^4)
+    @test_throws ArgumentError LenticulumCore.free_energy(fg, TrivialBelief(), nothing, nt, nt)
+    @test_throws ArgumentError LenticulumCore.entropy(fg, TrivialBelief(), nothing, nt, nt)
+end

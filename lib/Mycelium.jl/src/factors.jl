@@ -146,6 +146,43 @@ function local_free_energy(f::PriorFactor, beliefs, ps, st)
     return (f.nlogp(point(bel)), st)
 end
 
+"""
+    LenticulumCore.free_energy(f::PriorFactor, π, y, ps, st)
+    LenticulumCore.entropy(f::PriorFactor, π, y, ps, st)
+
+Exact scalar game quantities for a Dirac or categorical factor belief. The incoming belief is
+`y[f.channel]` for a named observation, `y` for a belief, a Dirac for a point, or `π` when
+`y === nothing`; it is combined with the source belief. Free energy is the finite expectation
+of `nlogp` minus entropy. Both values lie in `ScalarEnergySpace()`.
+
+Other beliefs throw: an arbitrary `nlogp` has no exact expectation interface. In particular,
+this does not use the Gaussian approximation documented for `local_free_energy`.
+"""
+function LenticulumCore.free_energy(f::PriorFactor, π, y, ps, st)
+    bel = _exact_prior_game_belief(f, π, y)
+    if bel isa LenticulumCore.DiracBelief
+        return (f.nlogp(bel.value), st)
+    end
+    p = LenticulumCore.probabilities(bel)
+    states = bel.labels === nothing ? (1:length(p)) : bel.labels
+    U = sum(p[i] == 0 ? 0.0 : p[i] * f.nlogp(s) for (i, s) in enumerate(states))
+    return (U - variable_entropy(bel), st)
+end
+
+function LenticulumCore.entropy(f::PriorFactor, π, y, ps, st)
+    return (variable_entropy(_exact_prior_game_belief(f, π, y)), st)
+end
+
+function _exact_prior_game_belief(f::PriorFactor, π, y)
+    incoming = y === nothing ? π :
+               y isa NamedTuple ? get(y, f.channel, nothing) :
+               y isa LenticulumCore.AbstractBelief ? y : LenticulumCore.DiracBelief(y)
+    bel = incoming === nothing ? f.belief : combine(f.belief, incoming)
+    bel isa Union{LenticulumCore.DiracBelief,LenticulumCore.CategoricalBelief} ||
+        throw(ArgumentError("exact PriorFactor game quantities require a Dirac or categorical belief; got $(typeof(bel))"))
+    return bel
+end
+
 # =========================================================================== #
 # Loss
 # =========================================================================== #

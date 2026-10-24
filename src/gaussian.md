@@ -91,3 +91,7 @@ Game-level `entropy` returns a `GradedEnergy((fit = 0, complexity = 0, negentrop
 in the same space as `free_energy`. The latter subtracts that vector, hence its
 `negentropy = -H`. This convention also applies to the constraint, nonlinear and likelihood
 factors; `test/runtests.jl` checks their return types, scalarisations and entropy composition.
+
+The conformance checker also exercises `GaussianPrior` as a source lens: its site is the
+source Gaussian, its inversion combines it with the cavity, and its pointwise energy is the
+graded negative log-density (quadratic fit, Gaussian normalizer, zero point entropy).
