@@ -1,6 +1,6 @@
 #design
 
-> **Status: proposed (2026-10-23, `review-argon`).** Related: [[Messages are Inversions]] §5, [[lens]], [[passing]], [[src/gaussian|gaussian]] §4, [[L-SPEC-001 The Factor Interface]] §2, §5.
+> **Status: accepted (2026-10-24, Daniel: "keep both methods"; proposed 2026-10-23 on `review-argon`).** Related: [[Messages are Inversions]] §5, [[lens]], [[passing]], [[src/gaussian|gaussian]] §4, [[L-SPEC-001 The Factor Interface]] §2, §5.
 
 ## Context
 

@@ -11,4 +11,4 @@ The log starts on 2026-10-22. Decisions taken before then and recorded retrospec
 | [[L-ADR-0003 Pointwise energy and free energy are separate levels]] | Separate spaces and scalarisations for the pointwise and the free energy; σ and polarity as parameters | accepted 2026-10-22 |
 | [[L-ADR-0004 The vault builds with the shared MathStruct Quartz]] | The vault is built with MathStruct/quartz, not a vendored copy | accepted 2026-10-21 |
 | [[L-ADR-0005 Branches]] | `master` publishes, `dev` collects pull requests, `dev-danielb` is the maintainer's preview | accepted (retrospective) |
-| [[L-ADR-0006 Separate likelihood_message from invert]] | `likelihood_message` returns the BP likelihood; `invert` returns the AutoBayes posterior | proposed (`review-argon`, 2026-10-23) |
+| [[L-ADR-0006 Separate likelihood_message from invert]] | `likelihood_message` returns the BP likelihood; `invert` returns the AutoBayes posterior | accepted 2026-10-24 |
