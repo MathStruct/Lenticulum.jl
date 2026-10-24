@@ -668,10 +668,46 @@ function LenticulumCore.invert(
     return (Mycelium.combine(π, msg), st)
 end
 
-# Only likelihoods with an exact conditional entropy may use predictive free energy.
-# The count predictors lump an infinite tail; that grid is not their likelihood's support.
+# The conditional entropy H(Y | z) of a likelihood, for predictive free energy. Not from the
+# predictive grid: the count likelihoods lump their tail into "maxcount or more", which is not
+# their support. Counts are summed over the whole support instead, until the probability left
+# out is below `_ENTROPY_TAIL` (their entropy then agrees with the infinite sum to ~1e-12).
 _conditional_entropy(L::AbstractLikelihood, z) = throw(ArgumentError(
-    "exact conditional entropy is not implemented for $(typeof(L)); predictive outcome grids may lump tails"))
+    "conditional entropy is not implemented for $(typeof(L))"))
+
+const _ENTROPY_TAIL = 1e-14
+
+# H(Poisson(e^z)) by its series; the terms after the mode decay geometrically.
+function _poisson_entropy(z)
+    λ = exp(z)
+    iszero(λ) && return 0.0
+    H, mass, n = 0.0, 0.0, 0
+    while true
+        lp = n * z - λ - _logfact(n)
+        p = exp(lp)
+        H -= p * lp
+        mass += p
+        n > λ && 1 - mass < _ENTROPY_TAIL && return H
+        n += 1
+    end
+end
+_conditional_entropy(L::PoissonLikelihood, z) = sum(_poisson_entropy(z[j]) for j in 1:L.k)
+
+# The joint entropy of the common-shock pair, over a square [0, N)² that leaves out less than
+# _ENTROPY_TAIL of each marginal (y₁ ~ Poisson(λ₁ + λ₃), y₂ ~ Poisson(λ₂ + λ₃)).
+function _conditional_entropy(L::BivariatePoissonLikelihood, z)
+    μ = maximum((exp(z[1]) + exp(z[3]), exp(z[2]) + exp(z[3])))
+    N = 1
+    while true
+        lp = [n * log(μ) - μ - _logfact(n) for n in 0:(N - 1)]
+        N > μ && 1 - sum(exp, lp) < _ENTROPY_TAIL && break
+        N *= 2
+    end
+    return -sum(begin
+        l = loglikelihood(L, (i, j), z)
+        l == -Inf ? 0.0 : exp(l) * l
+    end for i in 0:(N - 1), j in 0:(N - 1))
+end
 function _conditional_entropy(L::OrdinalProbitLikelihood, z)
     lp = outcome_logprobs(L, z)
     return -sum(l == -Inf ? zero(l) : exp(l) * l for l in lp)
@@ -689,8 +725,9 @@ site): `fit` is ``\\mathbb E_q[-\\log L(y \\mid Ax+b)]`` by Gauss–Hermite quad
 With `y` unobserved, `fit = E_x[H(L(⋅|Ax+b))]` and
 `negentropy = -fit - H(x)`. The conditional entropy sums all ordinal categories exactly;
 its expectation over a Gaussian input uses Gauss–Hermite quadrature (an approximation,
-`method.order` for EP, 20 for Laplace). Unsupported conditional entropies, including the
-infinite-support count likelihoods, throw rather than use the tail-lumped predictive grid.
+`method.order` for EP, 20 for Laplace). The count likelihoods sum their whole support (not the
+lumped predictive grid) until less than 1e-14 of the mass is left out. Likelihoods without a
+`_conditional_entropy` method throw.
 """
 function Mycelium.local_free_energy(f::LikelihoodFactor, msgs, ps, st)
     mx = _get(msgs, f.in_channel)

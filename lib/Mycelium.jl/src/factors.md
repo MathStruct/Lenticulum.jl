@@ -39,6 +39,13 @@ functions. The test suite asserts `rule_get(nesterov, s, p) != p` while
 `rule_get(gd, s, p) == p`, because that inequality *is* the content of
 [Learning Components as Parametric Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Gradient-Based-Learning-with-Parametric-Lenses) §3.4.
 
+## Exact game quantities for a prior
+
+`PriorFactor` has game-level `free_energy` and `entropy` for Dirac and categorical beliefs, both
+scalar: the expectation of `nlogp` (a finite sum) minus the entropy, and the entropy. For a Gaussian
+belief with an arbitrary `nlogp` there is no exact expectation, so they throw rather than reuse the
+approximation in `local_free_energy`. Tested in "PriorFactor exact game free energy and entropy".
+
 ## Implementation difficulties
 
 ### 1. `NamedTuple{(f.channel,)}` everywhere is type-unstable
@@ -101,13 +108,3 @@ structural factor ([[AutoBayes Examples as Factor Graphs|Example 1]]'s mixing pr
 new type for it seemed worse. Worth revisiting.
 
 Related: [[Everything is a Factor]], [Learning Components as Parametric Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Gradient-Based-Learning-with-Parametric-Lenses), [[passing]], [[Factors are Parameterized Statistical Games]]
-
-
-### Exact game quantities for a prior
-
-`PriorFactor` implements game-level `free_energy` and `entropy` for Dirac and categorical
-factor beliefs. These are scalar: the finite expectation of `nlogp` minus entropy, and entropy
-itself. A Gaussian source with an arbitrary `nlogp` has no exact expectation interface, so
-the game-level calls throw for it; they do not reuse the documented Gaussian approximation
-in `local_free_energy`. The test "PriorFactor exact game free energy and entropy" checks
-finite sums, point observations and this rejection.

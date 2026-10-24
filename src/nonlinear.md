@@ -69,13 +69,12 @@ Learnable parameters in $f$; Gauss–Hermite and cubature rules; CVI; and multi-
 $y = f(x_1, \dots, x_k)$ over several channels (today one input channel, which may be a stacked
 vector).
 
+## 6. Iterated messages
+
+With `iterations > 1`, `likelihood_message` runs the posterior relinearisation loop and returns the
+final Gaussian site; `invert` is that site combined with $\pi$ once, and the graph message
+(`factor_message`) uses the same routine. So the BP message is the site of the posterior `invert`
+returns (L-ADR-0006). Tested for both methods with $y = x^2$, four iterations, and in the conformance
+checker.
+
 Related: [[constraint]], [[likelihood]] (non-Gaussian observations), [[Belief Algebra]], [[Sharing Types with RxInfer]]
-
-The lens's `likelihood_message` performs the same posterior relinearisation loop as its
-inversion and returns the final Gaussian site. `invert` combines that site with the original
-prior once. The iterated nonlinear regression test checks both Taylor and unscented methods,
-including the scalar square-function example with four iterations.
-
-Graph messages use the same iterated-site routine as the lens. The conformance checker tests
-this equality in both polarities, including a backward square-function update with four
-iterations.

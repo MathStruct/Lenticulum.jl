@@ -85,13 +85,13 @@ inversion $c^\dagger_\pi(y)$ as the **posterior** (including $\pi$). `GaussianFa
   Therefore branches explicitly on the four combinations of `(xd, yd)` so clamped channels are
   substituted into the affine offset rather than added to the joint precision matrix.
 
+## 7. Game-level entropy and the source lens
+
+`entropy` returns an element of the energy space, `GradedEnergy((fit = 0, complexity = 0, negentropy = H))`;
+`free_energy` subtracts it, hence its `negentropy = -H`. The constraint, nonlinear and likelihood
+factors follow the same convention. `GaussianPrior` is also a source lens (`assemble`): its
+`likelihood_message` is the source Gaussian, `invert` combines it with the cavity, and its pointwise
+energy is the graded negative log-density (quadratic fit; the Gaussian normaliser as `complexity`).
+Both are checked by `check_factor_conformance` (`test/factor_conformance.jl`).
+
 Related: [[constraint]], [[nonlinear]], [[likelihood]], [[beliefs]]
-
-Game-level `entropy` returns a `GradedEnergy((fit = 0, complexity = 0, negentropy = H))`,
-in the same space as `free_energy`. The latter subtracts that vector, hence its
-`negentropy = -H`. This convention also applies to the constraint, nonlinear and likelihood
-factors; `test/runtests.jl` checks their return types, scalarisations and entropy composition.
-
-The conformance checker also exercises `GaussianPrior` as a source lens: its site is the
-source Gaussian, its inversion combines it with the cavity, and its pointwise energy is the
-graded negative log-density (quadratic fit, Gaussian normalizer, zero point entropy).

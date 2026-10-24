@@ -94,21 +94,16 @@ What cannot be divided out is the diffusion model's own prior: the message is th
 factor's model evaluates one noise level per network call, and its solve, its backward pass and
 its Gaussian message are matrix-free ([[krylov]]). The defaults are the old behaviour.
 
+## 7. Dividing out the anchor, and the prior's cotangent
+
+For `message = :mixture`, dividing the anchor out of each component also changes its normaliser: the
+message's log-weight is the posterior's plus $A(\text{message}_k) - A(\text{posterior}_k)$, with $A$ the
+Gaussian log-partition, so that multiplying by the anchor gives back the posterior's weights as well
+as its components. A component made improper by the division throws; it has no normalised form.
+
+The pullback's `prior` field follows `assemble_state`: only unobserved blocks without an incoming point
+read $\pi$, their cotangents add, and when inputs override all of them the prior's cotangent is zero.
+Tests: "mixture likelihood removes anchor normalization", "prior cotangent follows assemble_state
+dependencies" (against finite differences).
+
 Related: [[implicit]], [[factor]], [[The Diffusion Factor]], [[Inference Signatures]]
-
-
-For `message = :mixture`, anchor division also changes each component's normalization.
-The message log-weight is the posterior log-weight plus `A(message) - A(posterior)`,
-where `A` is the Gaussian log-partition. Normalizing these weights makes multiplication
-by the anchor recover the posterior weights as well as the canonical parameters.
-An improper component after division throws: it has no finite log-partition and cannot
-be represented as a normalized component of `MixtureBelief`.
-The test "mixture likelihood removes anchor normalization" checks this with two modes
-at `(0, ±2)`, width `0.4`, a hard `x = 0` and anchor `N(0.4, 4)`.
-
-
-The pullback's `prior` field follows `assemble_state`: only unobserved blocks without an
-incoming point read the prior's point. Their cotangents add; when inputs override all such
-blocks the prior cotangent is zero (`nothing` when the prior carries no point).
-The test "prior cotangent follows assemble_state dependencies" compares both a prior-seeded
-solve and an input-overridden solve with finite differences on a correlated Gaussian oracle.

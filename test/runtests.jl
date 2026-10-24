@@ -1099,9 +1099,10 @@ end
     Fd, _ = Mycelium.local_free_energy(fl, (; x = DiracBelief([log(2.0)]), y = DiracBelief([3.0])), NamedTuple(), NamedTuple())
     @test LenticulumCore.scalarise(LenticulumCore.scalarisation(fl), Fd) ≈ -log(exp(-2.0) * 8 / 6)
 
-    # The count predictive grid lumps the tail: it cannot give exact conditional entropy.
-    @test_throws ArgumentError Mycelium.local_free_energy(fl, (; x = cav, y = nothing),
-                                                         NamedTuple(), NamedTuple())
+    # unclamped :y (predictive mode): fit and conditional entropy cancel in the plain sum
+    Fp, _ = Mycelium.local_free_energy(fl, (; x = cav, y = nothing), NamedTuple(), NamedTuple())
+    @test Fp[:fit] > 0
+    @test Fp[:fit] + Fp[:negentropy] ≈ -Mycelium.variable_entropy(cav)
 
     # BivariatePoissonLikelihood handles z = -Inf without 0 * (-Inf) == NaN
     @test isfinite(loglikelihood(bp, [2, 1], [0.0, 0.0, -Inf]))
@@ -1202,10 +1203,25 @@ end
                    DiracBelief([0.2 + sqrt(0.3) * X[1, i]]))) for i in eachindex(W))
     @test Fq[:fit] ≈ expected rtol = 1e-7
     @test Fq[:negentropy] ≈ -expected - Mycelium.variable_entropy(q) rtol = 1e-7
-    for L in (PoissonLikelihood(1), BivariatePoissonLikelihood())
-        fc = LikelihoodFactor(L, npredictors(L))
-        @test_throws ArgumentError Mycelium.local_free_energy(fc,
-            (x = DiracBelief(zeros(npredictors(L))), y = nothing), nt, nt)
+    # Counts: the whole support, not the lumped grid. References by direct sums over 0:199.
+    Hpois(λ) = -sum(exp(n * log(λ) - λ - Lenticulum._logfact(n)) * (n * log(λ) - λ - Lenticulum._logfact(n)) for n in 0:199)
+    for λ in (1e-3, 2.0, 30.0)
+        fc = LikelihoodFactor(PoissonLikelihood(1), 1)
+        Fc, _ = Mycelium.local_free_energy(fc, (x = DiracBelief([log(λ)]), y = nothing), nt, nt)
+        @test Fc[:fit] ≈ Hpois(λ) rtol = 1e-10
+        @test Fc[:negentropy] ≈ -Hpois(λ) rtol = 1e-10
     end
+    fc = LikelihoodFactor(PoissonLikelihood(2), 2)
+    Fc, _ = Mycelium.local_free_energy(fc, (x = DiracBelief(log.([2.0, 5.0])), y = nothing), nt, nt)
+    @test Fc[:fit] ≈ Hpois(2.0) + Hpois(5.0) rtol = 1e-10
+    bp = BivariatePoissonLikelihood()
+    z = log.([1.5, 0.5, 0.7])
+    Fb, _ = Mycelium.local_free_energy(LikelihoodFactor(bp, 3), (x = DiracBelief(z), y = nothing), nt, nt)
+    Hb = -sum(exp(loglikelihood(bp, (i, j), z)) * loglikelihood(bp, (i, j), z) for i in 0:60, j in 0:60)
+    @test Fb[:fit] ≈ Hb rtol = 1e-10
+    # independent counts (λ₃ → 0): the joint entropy is the sum of the marginals'
+    Fi, _ = Mycelium.local_free_energy(LikelihoodFactor(bp, 3),
+                                       (x = DiracBelief([log(1.5), log(0.5), -40.0]), y = nothing), nt, nt)
+    @test Fi[:fit] ≈ Hpois(1.5) + Hpois(0.5) rtol = 1e-8
     @test_throws ArgumentError Mycelium.local_free_energy(f, (x = nothing, y = nothing), nt, nt)
 end

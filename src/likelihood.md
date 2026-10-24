@@ -156,12 +156,14 @@ the single-factor answer and the free-energy bound.
 - **Soft observations**: $y$ must be a point (`DiracBelief`).
 - **Cubature rules** (sparse grids) for $k > 4$.
 
+## 8. Predictive free energy
+
+With $y$ unobserved, `local_free_energy` keeps both coordinates: `fit` $= \mathbb E_x\,H(Y \mid x)$ and
+`negentropy` $= -\mathbb E_x\,H(Y \mid x) - H(x)$. Their sum is $-H(x)$, as before, but a scalarisation
+other than the plain sum now sees the true fit and entropy (earlier both were set to 0 because they
+cancel). The ordinal entropy sums its categories exactly. The count likelihoods sum their whole
+support, not the lumped predictive grid, until less than $10^{-14}$ of the mass is left out. The
+expectation over a Gaussian $x$ is by Gauss–Hermite quadrature, an approximation. A likelihood without
+a `_conditional_entropy` method throws. Tested in "predictive free energy retains conditional entropy".
+
 Related: [[nonlinear]], [[constraint]], [[Belief Algebra]], [[Categorical Belief]]
-
-
-In predictive mode the coordinates retain the conditional entropy: `fit = E_x H(Y|x)`,
-`negentropy = -E_x H(Y|x) - H(x)`. The ordinal category sum is exact; the expectation over
-a Gaussian input uses the existing Gauss–Hermite approximation. Count likelihoods throw:
-their finite predictive grids lump an infinite tail and do not determine the exact count
-entropy. The predictive-free-energy test checks ordinal entropy at a point, a weighted
-scalarisation, and Gaussian-input quadrature against a higher-order reference.
