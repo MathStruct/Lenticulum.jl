@@ -108,7 +108,11 @@ function _target_belief(prox::ImplicitProx, f::DiffusionFactor, p, inputs, π, p
         D = ρ[r] .^ 2
         all(iszero, D) && return (mix, st)
         comps = [LenticulumCore.GaussianBelief(c.η .- D .* z₀[r], Matrix(c.Λ) .- Diagonal(D)) for c in mix.components]
-        return (LenticulumCore.MixtureBelief(Val(:log), comps, mix.logw), st)
+        all(LenticulumCore.isproper, comps) || throw(ArgumentError(
+            "anchor removal produced an improper mixture component; normalized mixture weights are undefined"))
+        logw = [w + LenticulumCore.logpartition(msg) - LenticulumCore.logpartition(post)
+                for (w, msg, post) in zip(mix.logw, comps, mix.components)]
+        return (LenticulumCore.MixtureBelief(Val(:log), comps, logw), st)
     end
     sol, st = implicit_infer(m, z₀, ρ, ps, st; z_init = z₀, _solver_kwargs(prox)...)
     (sol.converged && sol.stable) || throw(ArgumentError(

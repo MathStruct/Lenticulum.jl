@@ -2016,4 +2016,27 @@ end
     @test length(bmix.components) >= 2
 end
 
+@testset "mixture likelihood removes anchor normalization" begin
+    centers = [0.0 0.0; 2.0 -2.0]
+    pred = NoisePredictor(GaussianMixtureEps(SCHED, centers; s = 0.4), SCHED)
+    nodes = field_nodes(Xoshiro(1), 2; samples = 8)
+    λ = density_lambda(SCHED, nodes)
+    f = DiffusionFactor((x = 1, y = 1), pred;
+                        prox = ImplicitProx(nodes; λ, message = :mixture))
+    ps, st = LuxCore.setup(Xoshiro(0), f)
+    p = Polarity((x = Observed(), y = Unobserved()), (x = Inf, y = 0.5))
+    lens, _ = LenticulumCore.assemble(f, p, ps, st)
+    anchor = Gaussian([0.4], fill(4.0, 1, 1))
+    inputs = (x = DiracBelief([0.0]),)
+    post, _ = LenticulumCore.invert(lens, anchor, inputs, ps, st)
+    msg, _ = LenticulumCore.likelihood_message(lens, anchor, inputs, ps, st)
+    pooled = combine(msg, anchor)
+    @test length(post.components) == length(msg.components) == 2
+    @test mixture_weights(pooled) ≈ mixture_weights(post) rtol = 1e-8
+    for (a, b) in zip(pooled.components, post.components)
+        @test belief_mean(a) ≈ belief_mean(b)
+        @test belief_cov(a) ≈ belief_cov(b)
+    end
+end
+
 end

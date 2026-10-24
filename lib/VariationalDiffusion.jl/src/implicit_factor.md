@@ -95,3 +95,13 @@ factor's model evaluates one noise level per network call, and its solve, its ba
 its Gaussian message are matrix-free ([[krylov]]). The defaults are the old behaviour.
 
 Related: [[implicit]], [[factor]], [[The Diffusion Factor]], [[Inference Signatures]]
+
+
+For `message = :mixture`, anchor division also changes each component's normalization.
+The message log-weight is the posterior log-weight plus `A(message) - A(posterior)`,
+where `A` is the Gaussian log-partition. Normalizing these weights makes multiplication
+by the anchor recover the posterior weights as well as the canonical parameters.
+An improper component after division throws: it has no finite log-partition and cannot
+be represented as a normalized component of `MixtureBelief`.
+The test "mixture likelihood removes anchor normalization" checks this with two modes
+at `(0, ±2)`, width `0.4`, a hard `x = 0` and anchor `N(0.4, 4)`.
