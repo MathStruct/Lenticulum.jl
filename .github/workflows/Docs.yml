@@ -23,6 +23,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0    # the whole history: vault pages are dated by their last commit (docs/site/git_dates.py)
+      - name: Check docs tooling portability
+        run: |
+          python3 docs/site/check_portability.py
+          bash -n docs/site/build.sh docs/site/deploy_vault.sh
       - uses: julia-actions/setup-julia@v2
         with:
           version: '1'
