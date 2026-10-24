@@ -56,6 +56,9 @@ tutorials, generated from one `.bib` file that the documentation also uses.
 LeCun's tutorial and the modern EBM literature. Structurally *below* AutoBayes: drop the
 partition function and a statistical game becomes an energy-based factor graph.
 
+**Read [[Energies and Entropies]] first**: the seven things this vault calls "energy" and the
+five it calls "entropy", side by side, with the confusions they invite.
+
 16. [[Energy-Based Learning]] — the framework; why [[README]]'s table is this paper's table;
     **loss functionals**, the concept Lenticulum has no slot for; and the collapse problem,
     which `gaussian.jl` already guards against under the name `complexity`
@@ -261,6 +264,13 @@ them; the same layout as Moonkale's and Sophia's vaults.
   to gaps in the theory, e.g. [[LP-002 The Jacobian side is not implemented]]
 - [[Specifications]] — `L-SPEC-nnn`: contracts precise enough to test against, starting with
   [[L-SPEC-001 The Factor Interface]]
+
+## 6. Research questions
+
+Open mathematical and statistical questions, each stated so that it can be worked on without
+the rest of the vault: [[Research Questions]] (`RQ-nnn`). Among them
+[[RQ-001 One Potential, Every Polarity]] (when one density answers every query direction) and
+[[RQ-003 When Local Gradients Are Exact]] (the gradient terms AutoBayes drops).
 
 ## Where this would be useful
 

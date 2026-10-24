@@ -616,6 +616,20 @@ references:
     collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
     url: "https://arxiv.org/abs/1906.01563"
   - type: article
+    title: "Toward a Spectral Theory of Cellular Sheaves"
+    authors:
+      - family-names: "Hansen"
+        given-names: "Jakob"
+      - family-names: "Ghrist"
+        given-names: "Robert"
+    year: 2019
+    journal: "Journal of Applied and Computational Topology"
+    volume: "3"
+    issue: "4"
+    start: "315"
+    end: "358"
+    doi: "10.1007/s41468-019-00038-7"
+  - type: article
     title: "Training Products of Experts by Minimizing Contrastive Divergence"
     authors:
       - family-names: "Hinton"
@@ -817,6 +831,21 @@ references:
     collection-title: "International Conference on Machine Learning (ICML)"
     url: "https://arxiv.org/abs/2310.16834"
   - type: article
+    title: "Walk-Sums and Belief Propagation in Gaussian Graphical Models"
+    authors:
+      - family-names: "Malioutov"
+        given-names: "Dmitry M."
+      - family-names: "Johnson"
+        given-names: "Jason K."
+      - family-names: "Willsky"
+        given-names: "Alan S."
+    year: 2006
+    journal: "Journal of Machine Learning Research"
+    volume: "7"
+    issue: "73"
+    start: "2031"
+    end: "2064"
+  - type: article
     title: "Inferring biological networks by sparse identification of nonlinear dynamics"
     authors:
       - family-names: "Mangan"
@@ -844,6 +873,18 @@ references:
     year: 2024
     collection-title: "International Conference on Learning Representations (ICLR)"
     url: "https://arxiv.org/abs/2305.04391"
+  - type: article
+    title: "New Insights and Perspectives on the Natural Gradient Method"
+    authors:
+      - family-names: "Martens"
+        given-names: "James"
+    year: 2020
+    journal: "Journal of Machine Learning Research"
+    volume: "21"
+    issue: "146"
+    start: "1"
+    end: "76"
+    url: "https://arxiv.org/abs/1412.1193"
   - type: article
     title: "Regression Models for Ordinal Data"
     authors:
@@ -1201,6 +1242,29 @@ references:
     start: "1661"
     end: "1674"
     doi: "10.1162/neco_a_00142"
+  - type: book
+    title: "Algebraic Geometry and Statistical Learning Theory"
+    authors:
+      - family-names: "Watanabe"
+        given-names: "Sumio"
+    year: 2009
+    publisher:
+      name: "Cambridge University Press"
+    doi: "10.1017/CBO9780511800474"
+  - type: article
+    title: "Linear Response Algorithms for Approximate Inference in Graphical Models"
+    authors:
+      - family-names: "Welling"
+        given-names: "Max"
+      - family-names: "Teh"
+        given-names: "Yee Whye"
+    year: 2004
+    journal: "Neural Computation"
+    volume: "16"
+    issue: "1"
+    start: "197"
+    end: "221"
+    doi: "10.1162/08997660460734056"
   - type: article
     title: "The Behavioral Approach to Open and Interconnected Systems"
     authors:

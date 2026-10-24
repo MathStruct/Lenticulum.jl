@@ -12,6 +12,7 @@ The vault is the whole repository. Its notes sit in three places:
 | `vault/` | **concept and design notes**, grouped by topic | `vault/Factor Graphs/Messages are Inversions.md` |
 | `lib/*/src/*.md` | **implementation notes**, one beside each Julia file | `lib/Mycelium.jl/src/messages.md` beside `messages.jl` |
 | `src/*.md` | implementation notes for the top-level package | `src/constraint.md` |
+| `vault/Research Questions/` | **open research questions**, self-contained (`RQ-nnn`) | `vault/Research Questions/RQ-003 …` |
 | `vault/Project/` | **project records**: decisions (`L-ADR-nnnn`), problems (`LP-nnn`), specifications (`L-SPEC-nnn`) | `vault/Project/Decisions/L-ADR-0003 …` |
 | `meta/` | local working material, not part of the repository (ignored by git) | |
 
@@ -89,6 +90,11 @@ something that does not work and needs a decision, or waits for someone, gets a 
 `vault/Project/Specifications/`. Each starts from its template in `vault/templates/` (not
 published) and gets a line in its index: [[Decisions]], [[Problem Log]], [[Specifications]]. A
 decision or specification is `proposed` or `draft` until Daniel accepts it.
+
+An open question that is mathematics rather than engineering, and that someone could answer
+without knowing the code, goes into `vault/Research Questions/` as an `RQ-nnn` note (template
+`Research Question Template.md`): the setting, the question, what is known, and what would count
+as an answer.
 
 How contributions are credited, including reviews and contributions that are not code, is in
 [CONTRIBUTING.md](https://github.com/MathStruct/Lenticulum.jl/blob/master/CONTRIBUTING.md).
