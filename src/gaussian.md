@@ -86,3 +86,8 @@ inversion $c^\dagger_\pi(y)$ as the **posterior** (including $\pi$). `GaussianFa
   substituted into the affine offset rather than added to the joint precision matrix.
 
 Related: [[constraint]], [[nonlinear]], [[likelihood]], [[beliefs]]
+
+Game-level `entropy` returns a `GradedEnergy((fit = 0, complexity = 0, negentropy = H))`,
+in the same space as `free_energy`. The latter subtracts that vector, hence its
+`negentropy = -H`. This convention also applies to the constraint, nonlinear and likelihood
+factors; `test/runtests.jl` checks their return types, scalarisations and entropy composition.

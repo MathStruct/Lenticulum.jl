@@ -312,5 +312,5 @@ end
 
 function LenticulumCore.entropy(f::NonlinearFactor, π, y, ps, st)
     F, st = LenticulumCore.free_energy(f, π, y, ps, st)
-    return (-F[:negentropy], st)
+    return LenticulumCore.GradedEnergy((fit = 0.0, complexity = 0.0, negentropy = -F[:negentropy])), st
 end

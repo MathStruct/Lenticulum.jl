@@ -332,6 +332,8 @@ inversion, evaluated at the pushforward prior) while energies merely add.
 
 Usually the entropy is scalar but must be told which coordinate of ``E_c`` it regularises;
 returning `h * u` for a fixed direction `u` is the idiomatic way to say so.
+For the graded `(fit, complexity, negentropy)` convention, entropy has coordinates
+`(0, 0, H)`: `free_energy` subtracts this vector, producing `negentropy = -H`.
 """
 function entropy end
 

@@ -1136,7 +1136,32 @@ end
     px = Gaussian(μ₀, Σ₀)
     Fg_game, _ = LenticulumCore.free_energy(gf, px, y₀, gps, NamedTuple())
     Hg_game, _ = LenticulumCore.entropy(gf, px, y₀, gps, NamedTuple())
-    @test Fg_game[:negentropy] ≈ -Hg_game
+    @test Fg_game[:negentropy] ≈ -Hg_game[:negentropy]
     sfe, _ = LenticulumCore.scalar_free_energy(gf, px, y₀, gps, NamedTuple())
     @test isfinite(sfe)
+end
+
+@testset "game entropy occupies its free-energy coordinate" begin
+    nt = NamedTuple()
+    πx = Gaussian([1.0], fill(1.0, 1, 1))
+    cases = (
+        (GaussianFactor(1 => 1; noise = 0.1), (A = fill(2.0, 1, 1), b = [0.0]), [4.0]),
+        (GaussianPrior(:x, 0.0, 1.0), nt, nothing),
+        (LinearConstraintFactor((x = 1, y = 1), 1; noise = 0.1),
+         (A = (x = fill(-2.0, 1, 1), y = fill(1.0, 1, 1)), c = [0.0]), (y = DiracBelief([4.0]),)),
+        (NonlinearFactor(x -> x .^ 2, 1 => 1; noise = 0.1), nt, [4.0]),
+        (LikelihoodFactor(OrdinalProbitLikelihood([-1.0, 1.0]), 1), nt, [2.0]),
+    )
+    for (f, ps, y) in cases
+        F, _ = LenticulumCore.free_energy(f, πx, y, ps, nt)
+        H, _ = LenticulumCore.entropy(f, πx, y, ps, nt)
+        @test H isa GradedEnergy
+        if H isa GradedEnergy
+            @test keys(H) == keys(F)
+            @test H[:fit] == H[:complexity] == 0
+            @test H[:negentropy] ≈ -F[:negentropy]
+            @test scalarise(scalarisation(f), H) ≈ -F[:negentropy]
+            @test compose_entropy([H, H], H)[:first][:negentropy] ≈ H[:negentropy]
+        end
+    end
 end
