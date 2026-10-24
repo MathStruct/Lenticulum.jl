@@ -78,6 +78,15 @@ for pkg in "$ROOT"/lib/*/; do
 done
 mkdir -p "$CONTENT/src" && cp "$ROOT"/src/*.md "$CONTENT/src/"
 
+# A link written with its repository path, [[lib/<package>/src/<note>|…]] (needed where two notes
+# share a name, e.g. the two gaussian.md), points at lib/<package>/<note> on the site, where the
+# implementation notes are staged without src/.
+find "$CONTENT" -name '*.md' | while IFS= read -r note; do
+  if grep -q '\[\[lib/[^]/|#]*/src/' "$note"; then
+    sed 's#\[\[lib/\([^]/|#]*\)/src/#[[lib/\1/#g' "$note" > "$note.tmp" && mv "$note.tmp" "$note"
+  fi
+done
+
 # the root-level note the vault links to as [[README]].
 # It is written for GitHub, so its repo-relative links are rewritten for the site:
 # any vault/<path>.md link becomes a site-relative link (Quartz slugs spaces to hyphens),
@@ -86,6 +95,7 @@ sed -e 's#](vault/\([^)]*\)\.md)#](\1)#' \
     -e 's#](docs/src/assets/\([^)]*\))#](https://raw.githubusercontent.com/MathStruct/Lenticulum.jl/master/docs/src/assets/\1)#' \
     -e 's#](\(docs/[^)]*\))#](https://github.com/MathStruct/Lenticulum.jl/blob/master/\1)#' \
     -e 's#](\(meta/[^)]*\))#](https://github.com/MathStruct/Lenticulum.jl/blob/master/\1)#' \
+    -e 's#](\(CITATION.cff\))#](https://github.com/MathStruct/Lenticulum.jl/blob/master/\1)#' \
     -e '/](https:/!s#%20#-#g' \
     "$ROOT/README.md" > "$CONTENT/README.md"
 

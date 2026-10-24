@@ -52,4 +52,4 @@ needs:
   $w_i < \text{prune} \cdot \max_k w_k$ before greedy merging shifts the mixture moments by at most
   the pruned weight; setting `prune = 0.0` preserves the exact first two moments across all merges.
 
-Related: [[Gaussian Belief]], [[Mixture Belief]], [[Belief Algebra]], [[gaussian]]
+Related: [[Gaussian Belief]], [[Mixture Belief]], [[Belief Algebra]], [[src/gaussian|gaussian]]

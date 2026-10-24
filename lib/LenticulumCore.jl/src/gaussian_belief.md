@@ -41,4 +41,4 @@ Gaussian prior was silently treated as having no point. It now calls
 `LenticulumCore.belief_mean`, and a Gaussian prior's mean is the anchor and warm start, as
 documented. This is tested in VariationalDiffusion's "answers as beliefs" test set.
 
-Related: [[open_model]], [[gaussian]], [[messages]]
+Related: [[open_model]], [[lib/Mycelium.jl/src/gaussian|gaussian]], [[messages]]

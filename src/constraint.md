@@ -200,4 +200,4 @@ improper priors are exactly what completes Gaussian maps into a hypergraph categ
 
 Related: [[ModelingToolkit as an Acausal Relation]],
 [[Acausal Composition is a Hypergraph Category]], [[Loopy Message Passing]],
-[[Channels and Polarity]], [[Implicit Learners]], [[gaussian]], [[beliefs]]
+[[Channels and Polarity]], [[Implicit Learners]], [[src/gaussian|gaussian]], [[beliefs]]

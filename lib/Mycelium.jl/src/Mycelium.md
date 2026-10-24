@@ -22,7 +22,7 @@ Concept notes: [[Factor Graphs]], [[Everything is a Factor]], [[Messages are Inv
 | `passing.jl` | [[passing]] | executing a schedule; convergence reporting |
 | `free_energy.jl` | [[free_energy]] | counting numbers, Bethe, the graded energy |
 | `factors.jl` | [[factors]] | data, priors, losses, optimisers, relays |
-| `gaussian.jl` | [[gaussian]] | the Gaussian rules: pooling by addition, densities, entropy, damping, products |
+| `gaussian.jl` | [[lib/Mycelium.jl/src/gaussian|gaussian]] | the Gaussian rules: pooling by addition, densities, entropy, damping, products |
 
 ## Dependencies
 

@@ -95,12 +95,18 @@ def citations():
     """key -> sorted note names whose generated Bibliography line links to it (link_sources.py)."""
     found = {}
     files = list((ROOT / "vault").rglob("*.md")) + list((ROOT / "lib").glob("*/src/*.md")) + list((ROOT / "src").glob("*.md"))
+    # two notes can share a name (src/gaussian.md and lib/Mycelium.jl/src/gaussian.md): link those
+    # by their repository path, which Obsidian resolves and docs/site/build.sh maps onto the site
+    stems = {}
+    for f in files:
+        stems[f.stem] = stems.get(f.stem, 0) + 1
     for f in files:
         if f.name == "Bibliography.md":
             continue
+        name = f.stem if stems[f.stem] == 1 else f"{f.relative_to(ROOT).with_suffix('').as_posix()}|{f.stem}"
         for key in set(re.findall(r"\[\[Bibliography#\^([-_A-Za-z0-9]+)", f.read_text(encoding="utf-8"))):
-            found.setdefault(key, []).append(f.stem)
-    return {k: sorted(v) for k, v in found.items()}
+            found.setdefault(key, []).append(name)
+    return {k: sorted(v, key=lambda n: n.split("|")[-1].lower()) for k, v in found.items()}
 
 
 def main():
