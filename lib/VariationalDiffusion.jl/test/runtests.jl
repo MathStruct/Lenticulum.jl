@@ -2039,4 +2039,22 @@ end
     end
 end
 
+@testset "prior cotangent follows assemble_state dependencies" begin
+    pred = NoisePredictor(AnalyticEps(SCHED, [1.0 0.3; 0.3 1.0]), SCHED)
+    nodes = field_nodes(Xoshiro(1), 2; samples = 8)
+    f = DiffusionFactor((x = 1, y = 1), pred; prox = ImplicitProx(nodes; tol = 1e-12))
+    ps, st = LuxCore.setup(Xoshiro(0), f)
+    p = Polarity((x = Observed(), y = Unobserved()), (x = Inf, y = 0.5))
+    for override in (false, true)
+        inputs = override ? (x = DiracBelief([0.6]), y = DiracBelief([0.2])) :
+                            (x = DiracBelief([0.6]),)
+        g = implicit_factor_pullback(f, p, inputs, DiracBelief([0.4]), (y = [1.0],), ps, st)
+        loss(v) = first(implicit_solution(f, p, inputs, DiracBelief([v]), ps, st)).z[2]
+        h = 1e-5
+        fd = (loss(0.4 + h) - loss(0.4 - h)) / (2h)
+        @test only(g.prior) ≈ fd atol = 1e-8 rtol = 1e-5
+        override ? (@test only(g.prior) == 0) : (@test abs(fd) > 1e-3)
+    end
+end
+
 end

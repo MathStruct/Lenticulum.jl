@@ -48,7 +48,7 @@ end
 
 """
     implicit_factor_pullback(f, polarity, inputs, π, z̄, ps, st)
-        -> (inputs = NamedTuple, ps = ps̄, precisions = NamedTuple)
+        -> (inputs = NamedTuple, prior = π̄, ps = ps̄, precisions = NamedTuple)
 
 The backward pass of the factor's inversion, by the adjoint of
 [`implicit_pullback`](@ref). `z̄` is the cotangent of a downstream loss with respect to the
@@ -58,6 +58,8 @@ have zero cotangent).
 Returns the cotangents with respect to
 - each channel's incoming point (`inputs`): the clamped value for an observed channel, the
   anchor for a soft one;
+- the prior's point (`prior`): sums the blocks initialized from `π`, zero when incoming
+  points override it, and `nothing` if `π` carries no point;
 - the predictor's parameters (`ps`);
 - each channel's precision (`precisions`; zero for hard-clamped channels, whose precision is
   infinite and not a differentiable quantity).
@@ -81,7 +83,15 @@ function implicit_factor_pullback(f::DiffusionFactor{names}, p::LenticulumCore.P
     blocks_in = NamedTuple{names}(map(nm -> b.z₀[getfield(rs, nm)], names))
     blocks_ρ = NamedTuple{names}(map(nm -> sum(b.ρ[getfield(rs, nm)]), names))   # one precision per channel
     unobs = LenticulumCore.unobserved_channels(p)
-    prior_cot = isempty(unobs) ? nothing : b.z₀[getfield(rs, first(unobs))]
+    prior_point = _point(π)
+    prior_cot = prior_point === nothing ? nothing : zeros(eltype(b.z₀), length(prior_point))
+    if prior_cot !== nothing
+        for nm in unobs
+            # assemble_state reads π only when this channel has no incoming point.
+            _point(_get(inputs, nm)) === nothing || continue
+            prior_cot .+= b.z₀[getfield(rs, nm)]
+        end
+    end
     return (inputs = blocks_in, prior = prior_cot, ps = b.ps, precisions = blocks_ρ)
 end
 

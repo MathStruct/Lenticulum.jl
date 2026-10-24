@@ -105,3 +105,10 @@ An improper component after division throws: it has no finite log-partition and 
 be represented as a normalized component of `MixtureBelief`.
 The test "mixture likelihood removes anchor normalization" checks this with two modes
 at `(0, ±2)`, width `0.4`, a hard `x = 0` and anchor `N(0.4, 4)`.
+
+
+The pullback's `prior` field follows `assemble_state`: only unobserved blocks without an
+incoming point read the prior's point. Their cotangents add; when inputs override all such
+blocks the prior cotangent is zero (`nothing` when the prior carries no point).
+The test "prior cotangent follows assemble_state dependencies" compares both a prior-seeded
+solve and an input-overridden solve with finite differences on a correlated Gaussian oracle.
