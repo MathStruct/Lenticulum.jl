@@ -28,7 +28,7 @@ module LenticulumCore
 using DispatchDoctor: @stable
 using Random: Random, AbstractRNG
 using LuxCore: LuxCore
-using LinearAlgebra: LinearAlgebra, Symmetric, cholesky, dot, eigvals, isposdef, issymmetric, issuccess, logdet
+using LinearAlgebra: LinearAlgebra, Diagonal, Hermitian, Symmetric, cholesky, dot, eigvals, isposdef, issymmetric, issuccess, logdet
 
 include("abstract_types.jl")
 include("channels.jl")

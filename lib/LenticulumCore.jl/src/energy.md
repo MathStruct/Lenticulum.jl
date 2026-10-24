@@ -111,14 +111,15 @@ per-coordinate precisions. But it *is* an extra decision imposed on every factor
 and a `ScalarEntropy` wrapper that broadcasts against a default direction would be worth
 adding once there is evidence about what direction people actually pick.
 
-### 4. `SquaredNorm(M)` has an unconstrained `M`
+### 4. Metric validation
 
-`dot_quadratic(M, e) = sum(e .* (M * e))` assumes `M` is symmetric positive semidefinite;
-nothing checks it. If `M` is indefinite, $\sigma$ is not convex, `islinear` still reports
-`false`, and `jensen_gap` may go **negative** — silently invalidating the "multivariate is a
-lower bound" claim. Either validate `M` at construction or document the precondition
-loudly. Currently: documented here, not enforced. This is the sharpest outstanding
-correctness gap in the file.
+`SquaredNorm(M)` checks symmetry (Hermitian symmetry for complex metrics) and positive
+semidefiniteness, including structured and non-strided matrices. A `Diagonal` metric only
+needs real, nonnegative diagonal entries; other representations use Cholesky with an
+eigenvalue fallback for semidefinite metrics. `check = false` skips numerical validation
+for AD/GPU callers that already know the metric is valid. The strided matrix path keeps
+its existing numeric-type guard and operations, including its treatment of AD element types. The validation test in `test/runtests.jl` covers indefinite and
+semidefinite diagonal, symmetric, Hermitian and indexed-view metrics.
 
 ### 5. `scalarise` on `GradedScalarisation` requires matching names
 

@@ -2,6 +2,7 @@ using LenticulumCore
 using LenticulumCore: Channel
 using Statistics: mean, cov
 using Test
+using LinearAlgebra
 
 diag_of(C) = [C[i, i] for i in axes(C, 1)]
 
@@ -93,6 +94,15 @@ diag_of(C) = [C[i, i] for i in axes(C, 1)]
     @testset "SquaredNorm validation, oplus, and Gauss-Newton metric" begin
         @test_throws ArgumentError SquaredNorm([1.0 2.0; 0.0 1.0])
         @test_throws ArgumentError SquaredNorm([1.0 0.0; 0.0 -1.0])
+        for M in (Diagonal([1.0, -1.0]), Symmetric([1.0 0.0; 0.0 -1.0]),
+                  Hermitian(ComplexF64[1 0; 0 -1]), view([1.0 0.0; 0.0 -1.0], [1, 2], :))
+            @test_throws ArgumentError SquaredNorm(M)
+            @test scalarise(SquaredNorm(M; check = false), [0.0, 1.0]) ≈ -0.5
+        end
+        for M in (Diagonal([1.0, 0.0]), Symmetric([1.0 1.0; 1.0 1.0]),
+                  Hermitian(ComplexF64[1 im; -im 1]), view([1.0 0.0; 0.0 0.0], [1, 2], :))
+            @test SquaredNorm(M).M === M
+        end
         σ_m = SquaredNorm([2.0 0.0; 0.0 4.0])
         @test scalarise(σ_m, [1.0, 1.0]) ≈ 0.5 * (2.0 + 4.0)
         @test scalarise(IdentityScalarisation(), [3.5]) ≈ 3.5

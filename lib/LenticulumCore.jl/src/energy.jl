@@ -163,12 +163,16 @@ struct SquaredNorm{M} <: AbstractScalarisation
     function SquaredNorm(M::AbstractMatrix; check::Bool = true)
         size(M, 1) == size(M, 2) ||
             throw(DimensionMismatch("SquaredNorm metric M must be square; got $(size(M))"))
-        if check && M isa StridedMatrix{<:Union{AbstractFloat,Integer}}
-            scale = maximum(abs, M; init = zero(eltype(M)))
-            asym = maximum(abs, M .- M'; init = zero(eltype(M)))
+        if check && M isa Diagonal
+            all(x -> isreal(x) && real(x) >= 0, M.diag) ||
+                throw(ArgumentError("SquaredNorm diagonal metric must be real and nonnegative"))
+        elseif check && (!(M isa StridedMatrix) ||
+                         M isa StridedMatrix{<:Union{AbstractFloat,Integer}})
+            scale = maximum(abs, M; init = real(zero(eltype(M))))
+            asym = maximum(abs, M .- M'; init = real(zero(eltype(M))))
             asym <= 1e-10 * (1 + scale) ||
                 throw(ArgumentError("SquaredNorm metric M must be symmetric; max |M - Mᵀ| = $asym"))
-            S = Symmetric(Matrix(float.(M)))
+            S = eltype(M) <: Real ? Symmetric(Matrix(float.(M))) : Hermitian(Matrix(float.(M)))
             if !isposdef(cholesky(S; check = false))
                 evs = eigvals(S)
                 minimum(evs; init = 0.0) >= -1e-10 * (1 + scale) ||
