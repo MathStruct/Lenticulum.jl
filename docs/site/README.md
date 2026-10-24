@@ -24,7 +24,7 @@ docs/site/build.sh             # builds into docs/vault-build/
 docs/site/build.sh --serve     # live preview at http://localhost:8080
 ```
 
-Needs git and Node ≥ 22. The first run clones MathStruct's Quartz into `docs/quartz/`
+Needs git, Python ≥ 3.11 (the metadata generator uses `tomllib`), and Node ≥ 22. The first run clones MathStruct's Quartz into `docs/quartz/`
 (gitignored) and installs its dependencies; later runs move it to the latest `main`.
 `QUARTZ_DIR=<your checkout of MathStruct/quartz>` builds with that checkout instead, to try a
 change to the shared Quartz on this vault before pushing it. `docs/make.jl` calls this script automatically when `npx` is on the path, so a
@@ -80,3 +80,11 @@ $$
 
 - **`meta/`** is excluded — local working material, not tracked in git and not vault content.
 - `lib/*/README.md` are excluded to keep `[[README]]` unambiguous (it means the root one).
+
+## Portability check
+
+Run `python3 docs/site/check_portability.py` to check docs/vault tooling and workflow
+steps for known GNU-only commands and Bash 4 features. The Docs workflow runs this
+check before setting up Julia or Node, together with Bash syntax checks. The guard
+includes positive and negative examples to check its patterns. It is a static check,
+not a substitute for running the build on macOS.

@@ -83,7 +83,8 @@ mkdir -p "$CONTENT/src" && cp "$ROOT"/src/*.md "$CONTENT/src/"
 # implementation notes are staged without src/.
 find "$CONTENT" -name '*.md' | while IFS= read -r note; do
   if grep -q '\[\[lib/[^]/|#]*/src/' "$note"; then
-    sed 's#\[\[lib/\([^]/|#]*\)/src/#[[lib/\1/#g' "$note" > "$note.tmp" && mv "$note.tmp" "$note"
+    sed 's#\[\[lib/\([^]/|#]*\)/src/#[[lib/\1/#g' "$note" > "$note.tmp"
+    mv "$note.tmp" "$note"
   fi
 done
 
@@ -171,7 +172,15 @@ The vault is written for [Obsidian](https://obsidian.md) and rendered here with
 at build time. The graph view is Quartz's rather than Obsidian's.
 MD
 
-sed "s#@API@#$API_URL#g" "$CONTENT/index.md" > "$CONTENT/index.md.tmp" && mv "$CONTENT/index.md.tmp" "$CONTENT/index.md"
+# Replace literally: URLs can contain sed replacement characters (&, # and backslashes).
+# Read before writing, so no temporary file can become staged content.
+python3 - "$CONTENT/index.md" "$API_URL" <<'PYTHON'
+import sys
+from pathlib import Path
+page = Path(sys.argv[1])
+text = page.read_text(encoding="utf-8")
+page.write_text(text.replace("@API@", sys.argv[2]), encoding="utf-8")
+PYTHON
 
 # --- 3b. lint: display math that Obsidian accepts but remark-math truncates on -----------
 # A `$$` block opened with content on the fence line and closed with `$$` at the end of a
