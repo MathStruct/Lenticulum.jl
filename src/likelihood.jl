@@ -668,6 +668,15 @@ function LenticulumCore.invert(
     return (Mycelium.combine(π, msg), st)
 end
 
+# Only likelihoods with an exact conditional entropy may use predictive free energy.
+# The count predictors lump an infinite tail; that grid is not their likelihood's support.
+_conditional_entropy(L::AbstractLikelihood, z) = throw(ArgumentError(
+    "exact conditional entropy is not implemented for $(typeof(L)); predictive outcome grids may lump tails"))
+function _conditional_entropy(L::OrdinalProbitLikelihood, z)
+    lp = outcome_logprobs(L, z)
+    return -sum(l == -Inf ? zero(l) : exp(l) * l for l in lp)
+end
+
 """
     Mycelium.local_free_energy(f::LikelihoodFactor, msgs, ps, st)
 
@@ -676,16 +685,31 @@ replaced by its Gaussian approximation ``q`` (cavity = the incoming message on `
 site): `fit` is ``\\mathbb E_q[-\\log L(y \\mid Ax+b)]`` by Gauss–Hermite quadrature, `negentropy` is
 ``-H(q)``, `complexity` is 0 (the likelihood is normalised in ``y``). For a point ``x`` it is
 ``-\\log L(y \\mid Ax+b)`` exactly. Approximate as the messages are.
+
+With `y` unobserved, `fit = E_x[H(L(⋅|Ax+b))]` and
+`negentropy = -fit - H(x)`. The conditional entropy sums all ordinal categories exactly;
+its expectation over a Gaussian input uses Gauss–Hermite quadrature (an approximation,
+`method.order` for EP, 20 for Laplace). Unsupported conditional entropies, including the
+infinite-support count likelihoods, throw rather than use the tail-lumped predictive grid.
 """
 function Mycelium.local_free_energy(f::LikelihoodFactor, msgs, ps, st)
     mx = _get(msgs, f.in_channel)
     y = _observation(_get(msgs, f.out_channel), f)
     if y === nothing
-        # Predictive mode (:y unobserved): Σ_y L(y|z) = 1, so expected energy and conditional
-        # entropy over y cancel, leaving the negative entropy of the x marginal.
-        Hx = mx isa LenticulumCore.DiracBelief || mx === nothing || mx isa LenticulumCore.TrivialBelief ?
-             0.0 : Mycelium.variable_entropy(mx)
-        return LenticulumCore.GradedEnergy((fit = 0.0, complexity = 0.0, negentropy = -Hx)), st
+        m, S = _moments(mx, f.nin)
+        m === nothing && throw(ArgumentError(
+            "predictive local_free_energy needs a proper belief on :$(f.in_channel)"))
+        t = _tilted(f, m, S)
+        if isempty(t.D)
+            fit = _conditional_entropy(f.lik, t.μz)
+        else
+            order = f.method isa ExpectationPropagation ? f.method.order : 20
+            X, W = _gh_grid(order, length(t.D))
+            fit = sum(W[i] * _conditional_entropy(f.lik,
+                      t.μz .+ t.U * (sqrt.(t.D) .* X[:, i])) for i in eachindex(W))
+        end
+        Hx = Mycelium.variable_entropy(mx)
+        return LenticulumCore.GradedEnergy((fit = fit, complexity = 0.0, negentropy = -fit - Hx)), st
     end
     if mx isa LenticulumCore.DiracBelief
         fit = -loglikelihood(f.lik, y, _predictor(f, mx.value))

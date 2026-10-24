@@ -1097,9 +1097,9 @@ end
     Fd, _ = Mycelium.local_free_energy(fl, (; x = DiracBelief([log(2.0)]), y = DiracBelief([3.0])), NamedTuple(), NamedTuple())
     @test LenticulumCore.scalarise(LenticulumCore.scalarisation(fl), Fd) ≈ -log(exp(-2.0) * 8 / 6)
 
-    # unclamped :y (predictive mode) local_free_energy does not throw
-    Fp, _ = Mycelium.local_free_energy(fl, (; x = cav, y = nothing), NamedTuple(), NamedTuple())
-    @test Fp[:fit] == 0.0 && Fp[:negentropy] ≈ -Mycelium.variable_entropy(cav)
+    # The count predictive grid lumps the tail: it cannot give exact conditional entropy.
+    @test_throws ArgumentError Mycelium.local_free_energy(fl, (; x = cav, y = nothing),
+                                                         NamedTuple(), NamedTuple())
 
     # BivariatePoissonLikelihood handles z = -Inf without 0 * (-Inf) == NaN
     @test isfinite(loglikelihood(bp, [2, 1], [0.0, 0.0, -Inf]))
@@ -1181,4 +1181,33 @@ end
         @test belief_cov(pooled) ≈ belief_cov(post)
         method isa Linearization && @test belief_mean(post)[1] ≈ 1.993762 atol = 1e-6
     end
+end
+
+@testset "predictive free energy retains conditional entropy" begin
+    nt = NamedTuple()
+    f = LikelihoodFactor(OrdinalProbitLikelihood([-1.0, 1.0]), 1)
+    x = DiracBelief([0.0])
+    F, _ = Mycelium.local_free_energy(f, (x = x, y = nothing), nt, nt)
+    H = Mycelium.variable_entropy(predictive(f, x))
+    @test H ≈ 0.844768 atol = 1e-6
+    @test F[:fit] ≈ H
+    @test F[:negentropy] ≈ -H
+    σ = GradedScalarisation((fit = WeightedSum(2.0), complexity = IdentityScalarisation(),
+                             negentropy = IdentityScalarisation()))
+    @test scalarise(σ, F) ≈ H
+    @test scalarise(scalarisation(f), F) ≈ 0 atol = 1e-14
+    q = Gaussian([0.2], fill(0.3, 1, 1))
+    Fq, _ = Mycelium.local_free_energy(f, (x = q, y = nothing), nt, nt)
+    # Independent higher-order quadrature of the exact finite conditional entropy.
+    X, W = Lenticulum._gh_grid(80, 1)
+    expected = sum(W[i] * Mycelium.variable_entropy(predictive(f,
+                   DiracBelief([0.2 + sqrt(0.3) * X[1, i]]))) for i in eachindex(W))
+    @test Fq[:fit] ≈ expected rtol = 1e-7
+    @test Fq[:negentropy] ≈ -expected - Mycelium.variable_entropy(q) rtol = 1e-7
+    for L in (PoissonLikelihood(1), BivariatePoissonLikelihood())
+        fc = LikelihoodFactor(L, npredictors(L))
+        @test_throws ArgumentError Mycelium.local_free_energy(fc,
+            (x = DiracBelief(zeros(npredictors(L))), y = nothing), nt, nt)
+    end
+    @test_throws ArgumentError Mycelium.local_free_energy(f, (x = nothing, y = nothing), nt, nt)
 end

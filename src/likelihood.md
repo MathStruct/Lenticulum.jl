@@ -157,3 +157,11 @@ the single-factor answer and the free-energy bound.
 - **Cubature rules** (sparse grids) for $k > 4$.
 
 Related: [[nonlinear]], [[constraint]], [[Belief Algebra]], [[Categorical Belief]]
+
+
+In predictive mode the coordinates retain the conditional entropy: `fit = E_x H(Y|x)`,
+`negentropy = -E_x H(Y|x) - H(x)`. The ordinal category sum is exact; the expectation over
+a Gaussian input uses the existing Gauss–Hermite approximation. Count likelihoods throw:
+their finite predictive grids lump an infinite tail and do not determine the exact count
+entropy. The predictive-free-energy test checks ordinal entropy at a point, a weighted
+scalarisation, and Gaussian-input quadrature against a higher-order reference.
