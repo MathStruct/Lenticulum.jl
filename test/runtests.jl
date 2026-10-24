@@ -1165,3 +1165,20 @@ end
         end
     end
 end
+
+@testset "iterated nonlinear likelihood is the final posterior site" begin
+    nt = NamedTuple()
+    for method in (Linearization(iterations = 4), Unscented(iterations = 4, α = 1.0))
+        f = NonlinearFactor(x -> x .^ 2, 1 => 1; noise = 0.1, method)
+        πx = Gaussian([1.0], fill(1.0, 1, 1))
+        p = Polarity(x = Unobserved(), y = Observed())
+        lens, _ = assemble(f, p, nt, nt)
+        inputs = (y = DiracBelief([4.0]),)
+        msg, _ = likelihood_message(lens, πx, inputs, nt, nt)
+        post, _ = invert(lens, πx, inputs, nt, nt)
+        pooled = combine(πx, msg)
+        @test belief_mean(pooled) ≈ belief_mean(post)
+        @test belief_cov(pooled) ≈ belief_cov(post)
+        method isa Linearization && @test belief_mean(post)[1] ≈ 1.993762 atol = 1e-6
+    end
+end

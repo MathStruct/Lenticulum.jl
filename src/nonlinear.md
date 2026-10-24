@@ -70,3 +70,8 @@ $y = f(x_1, \dots, x_k)$ over several channels (today one input channel, which m
 vector).
 
 Related: [[constraint]], [[likelihood]] (non-Gaussian observations), [[Belief Algebra]], [[Sharing Types with RxInfer]]
+
+The lens's `likelihood_message` performs the same posterior relinearisation loop as its
+inversion and returns the final Gaussian site. `invert` combines that site with the original
+prior once. The iterated nonlinear regression test checks both Taylor and unscented methods,
+including the scalar square-function example with four iterations.
