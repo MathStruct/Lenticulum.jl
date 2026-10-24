@@ -245,9 +245,9 @@ Lux.jl, and having it nameable makes the boundary between the two libraries expl
 function forward_backward_schedule(g::FactorGraph)
     if !isdag(g)
         if istree(g)
+            # on a tree the exact order is the tree schedule's: inward, then outward
             ts = tree_schedule(g)
-            bwd = [t for t in ts.inward if g.edges[t.edge].direction isa Bidirectional]
-            return ForwardBackwardSchedule(ts.outward, bwd)
+            return ForwardBackwardSchedule(ts.inward, ts.outward)
         end
         throw(ArgumentError(
             "graph is neither a DAG nor a tree; use flooding_schedule or ResidualSchedule."))

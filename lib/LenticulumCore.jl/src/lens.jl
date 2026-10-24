@@ -47,8 +47,10 @@ Unlike [`invert`](@ref), which returns the posterior ``q(x) \\propto \\pi(x)\\,\
 approximate). Belief propagation (`Mycelium.factor_message`) calls `likelihood_message` so that
 a variable of degree ``d`` does not count its prior ``d`` times.
 
-Defaults to `invert(lens, π, inputs, ps, st)` for point (`DiracBelief`) and particle
-(`SampleBelief`) lenses whose output is already an extrinsic message.
+Defaults to `invert(lens, π, inputs, ps, st)` for every lens. That is right for lenses whose
+`invert` already returns an extrinsic message (point and particle lenses); a lens whose `invert`
+returns a posterior must override `likelihood_message`, or belief propagation counts `π` twice
+(`L-ADR-0006`).
 """
 likelihood_message(lens::AbstractBayesianLens, π, inputs, ps, st) =
     invert(lens, π, inputs, ps, st)

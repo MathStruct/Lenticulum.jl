@@ -359,6 +359,11 @@ The Jacobian ``J = \\partial \\mathbf{l}^c / \\partial u`` of the pointwise vect
 [`energy`](@ref) with respect to `wrt` (`:x` or `:y`). This is the reason the pointwise
 energy is kept vector-valued (`L-ADR-0002`, `LP-002`): from `J` and a [`SquaredNorm`](@ref)
 metric ``M``, [`gauss_newton_metric`](@ref) forms ``J^\\top M J`` without second derivatives.
+
+This is a **reference implementation by central finite differences** (step `ε (1 + |u_j|)`), so
+that `LenticulumCore` needs no AD dependency: accurate to about `√eps`, one energy evaluation per
+coordinate and side, and not differentiable itself. Jacobians by automatic differentiation, in
+the inputs and in the parameters, belong in package extensions (`LP-002`, still open).
 """
 function energy_jacobian(
     f::AbstractLenticulumFactor, x, a, y, ps, st; wrt::Symbol = :x, ε::Real = 1e-6

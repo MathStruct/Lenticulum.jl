@@ -66,7 +66,9 @@ function field_nodes(rng::AbstractRNG, n::Integer; levels = range(0.002, 0.05; l
                 b = min(rem, n)
                 G = randn(rng, n, b)
                 radii = [norm(view(G, :, j)) for j in 1:b]
-                Q = Matrix(LinearAlgebra.qr(G).Q)[:, 1:b]
+                F = LinearAlgebra.qr(G)
+                # signs of R's diagonal: without them Householder QR biases the directions
+                Q = Matrix(F.Q)[:, 1:b] * LinearAlgebra.Diagonal(sign.(LinearAlgebra.diag(F.R)))
                 for j in 1:b
                     e = Q[:, j] .* radii[j]
                     push!(ts, t); push!(cols, e)

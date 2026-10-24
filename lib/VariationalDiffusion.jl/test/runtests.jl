@@ -1987,6 +1987,12 @@ end
     @test size(nodes_orth.ε) == (3, 3)
     G = nodes_orth.ε ./ [norm(nodes_orth.ε[:, j]) for j in 1:3]'
     @test G' * G ≈ I(3) atol = 1e-12
+    # ... and its directions are unbiased without antithetic pairs (Householder QR fixes the
+    # sign of each column unless R's diagonal signs are taken out; uncorrected, the first
+    # direction's first coordinate averages -1/2)
+    many = field_nodes(Xoshiro(7), 3; levels = [0.01], samples = 3 * 4000, antithetic = false, orthogonal = true)
+    dirs = many.ε ./ [norm(c) for c in eachcol(many.ε)]'
+    @test maximum(abs, sum(dirs[:, 1:3:end]; dims = 2) ./ 4000) < 0.05
 
     # 2. 3-channel assemble_state with polarity: π applies only to unobserved target channels
     f3 = DiffusionFactor((x = 1, y = 1, z = 1), NoisePredictor(GaussianMixtureEps(SCHED, randn(Xoshiro(1), 3, 4); s = 0.2), SCHED))

@@ -105,6 +105,11 @@ an "open free energy", missing the ``-\\log p_\\pi(x)`` term.
 
 Learnable if `nlogp` carries parameters — set `learnable = true` and implement
 `initialparameters`.
+
+`local_free_energy` takes the expectation of `nlogp` under the factor belief `belief ⋅ incoming`
+exactly for Dirac and categorical beliefs. For a Gaussian belief it uses
+`nlogp(mean) + tr(Λ₀ Σ)/2`, which is exact **only if `nlogp` is the negative log-density of
+`belief`** (precision `Λ₀`); for any other `nlogp` it is a second-order approximation.
 """
 struct PriorFactor{B,E} <: LenticulumCore.AbstractLenticulumFactor
     channel::Symbol
