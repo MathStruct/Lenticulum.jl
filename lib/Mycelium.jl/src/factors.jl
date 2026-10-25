@@ -317,7 +317,10 @@ rule_put(r::GradientDescent, state, p, p̄) = (state, p .- r.η .* p̄)
 """
     Momentum(η, γ)
 
-`get`: `p`. `put`: `s' = -γ s + (-η p̄)`, then `p + s'`. Recovers gradient descent at `γ = 0`.
+`get`: `p`. `put`: `s' = γ s - η p̄`, then `p + s'`. Recovers gradient descent at `γ = 0`.
+
+This is Cruttwell et al., Example 3.16 (arXiv:2103.01931v1), whose velocity is `v = -s`:
+`v' = γ v + η p̄` and `p - v'`. Heavy-ball momentum needs `0 ≤ γ < 1`.
 """
 struct Momentum{T} <: AbstractUpdateRule
     η::T
@@ -325,7 +328,7 @@ struct Momentum{T} <: AbstractUpdateRule
 end
 rule_get(::Momentum, state, p) = p
 function rule_put(r::Momentum, state, p, p̄)
-    s′ = (-r.γ) .* state .+ (-r.η) .* p̄
+    s′ = r.γ .* state .- r.η .* p̄
     return (s′, p .+ s′)
 end
 
@@ -340,7 +343,7 @@ struct Nesterov{T} <: AbstractUpdateRule
 end
 rule_get(r::Nesterov, state, p) = p .+ r.γ .* state
 function rule_put(r::Nesterov, state, p, p̄)
-    s′ = (-r.γ) .* state .+ (-r.η) .* p̄
+    s′ = r.γ .* state .- r.η .* p̄
     return (s′, p .+ s′)
 end
 

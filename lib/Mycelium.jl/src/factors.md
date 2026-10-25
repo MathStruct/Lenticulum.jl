@@ -31,7 +31,7 @@ lens $(L,L')\to(1,1)$ that terminates a wire.
 | rule | `get` $U(s,p)$ | `put` $U^*(s,p,\bar p)$ |
 |---|---|---|
 | `GradientDescent(η)` | $p$ | $(s,\ p - \eta\bar p)$ |
-| `Momentum(η,γ)` | $p$ | $s' = -\gamma s - \eta\bar p$; $(s',\ p+s')$ |
+| `Momentum(η,γ)` | $p$ | $s' = \gamma s - \eta\bar p$; $(s',\ p+s')$ |
 | `Nesterov(η,γ)` | $p + \gamma s$ | as momentum |
 
 **Nesterov is the one with a non-trivial `get`** — the reason optimisers must be lenses and not

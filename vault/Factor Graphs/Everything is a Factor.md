@@ -88,7 +88,7 @@ The rules implemented are Cruttwell's table verbatim:
 | rule | `get` $U(s,p)$ | `put` $U^*(s,p,\bar p)$ |
 |---|---|---|
 | `GradientDescent(η)` | $p$ | $(s,\; p - \eta\bar p)$ |
-| `Momentum(η,γ)` | $p$ | $s' = -\gamma s - \eta\bar p$; $(s',\; p + s')$ |
+| `Momentum(η,γ)` | $p$ | $s' = \gamma s - \eta\bar p$; $(s',\; p + s')$ |
 | `Nesterov(η,γ)` | $p + \gamma s$ | as momentum |
 
 Nesterov is the one with a **non-trivial `get`**, and it is the reason optimisers must be

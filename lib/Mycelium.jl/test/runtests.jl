@@ -274,7 +274,8 @@ end
     _, p = rule_put(gd, nothing, 1.0, 2.0)
     @test p ≈ 0.8
 
-    # momentum: s' = -γ s - η ḡ ; p' = p + s'.  γ = 0 recovers gradient descent.
+    # momentum: s' = γ s - η ḡ ; p' = p + s' (Cruttwell et al. Example 3.16 with v = -s).
+    # γ = 0 recovers gradient descent.
     m0 = Momentum(0.1, 0.0)
     s′, p′ = rule_put(m0, 0.0, 1.0, 2.0)
     @test p′ ≈ 0.8
@@ -282,7 +283,7 @@ end
     s1, p1 = rule_put(m, 0.0, 1.0, 2.0)
     @test s1 ≈ -0.2 && p1 ≈ 0.8
     s2, p2 = rule_put(m, s1, p1, 2.0)
-    @test s2 ≈ -0.9 * (-0.2) - 0.2            # = -0.02
+    @test s2 ≈ 0.9 * (-0.2) - 0.2             # = -0.38: the step accelerates
     @test p2 ≈ p1 + s2
 
     # Nesterov is the one with a NON-TRIVIAL get — the whole reason optimisers are lenses
