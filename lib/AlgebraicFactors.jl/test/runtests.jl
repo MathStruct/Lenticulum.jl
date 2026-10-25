@@ -1007,18 +1007,4 @@ end
     @test belief_cov(store.to_variable[edge].belief) ≈ exact.cov
 end
 
-@testset "Klein quadric data rank (not fit_nullspace)" begin
-    # This checks noiseless data and a hand-written monomial table, not §3 fitting.
-    rng = Xoshiro(5106)
-    products = [(i,j) for i in 1:6 for j in i:6]
-    points = [plucker(randn(rng,4),randn(rng,4)) for _ in 1:400]
-    table = reduce(vcat,[permutedims(vcat(1.,p,[p[i]*p[j] for (i,j) in products])) for p in points])
-    @test size(table) == (400,28)
-    decomposition = svd(table)
-    relative = decomposition.S/decomposition.S[1]
-    @test count(x->x<1e-12,relative) == 1
-    klein = vcat(zeros(7),[pair==(1,6) ? 1. : pair==(2,5) ? -1. : pair==(3,4) ? 1. : 0. for pair in products])
-    @test abs(dot(decomposition.V[:,end],klein/norm(klein))) ≈ 1 atol = 2e-14
-    @test norm(table*klein) < 1e-12
-    @info "Klein data singular values (seed 5106, relative threshold 1e-12)" smallest=relative[end] next=relative[end-1] gap=relative[end-1]/relative[end]
-end
+include("polynomial.jl")

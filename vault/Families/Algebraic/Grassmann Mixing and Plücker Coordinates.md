@@ -8,7 +8,7 @@
 > variety to test algebraic fitting on, and $\mathrm{Gr}(k, m)$ as a parameter space
 > ([[L-SPEC-004 Algebraic Factors Toric and Grassmannian]]).
 
-> Sources: Zhang, *Attention Is Not What You Need*, arXiv:2512.19428v1, 2025 (§3.2 for the layer, §6.4 for the limitations); Edelman, Arias & Smith, *The Geometry of Algorithms with Orthogonality Constraints*, SIAM J. Matrix Anal. Appl. 20(2), 1998; the facts about $\Lambda^2$ and the Plücker relations are standard multilinear algebra, derived below; the comparison with attention and the uses in Lenticulum are original to this vault; code: `lib/AlgebraicFactors.jl/src/plucker.jl`, `lib/AlgebraicFactors.jl/test/runtests.jl` (forward map, moments, quadrics and Klein data rank; no fitting API).
+> Sources: Zhang, *Attention Is Not What You Need*, arXiv:2512.19428v1, 2025 (§3.2 for the layer, §6.4 for the limitations); Edelman, Arias & Smith, *The Geometry of Algorithms with Orthogonality Constraints*, SIAM J. Matrix Anal. Appl. 20(2), 1998; the facts about $\Lambda^2$ and the Plücker relations are standard multilinear algebra, derived below; the comparison with attention and the uses in Lenticulum are original to this vault; code: `lib/AlgebraicFactors.jl/src/plucker.jl`, `lib/AlgebraicFactors.jl/src/polyfit.jl`, `veronese.jl`, `lib/AlgebraicFactors.jl/test/runtests.jl`, `test/polynomial.jl` (forward map, moments, quadrics and real Klein nullspace fits).
 >
 > Bibliography: [[Bibliography#^zhang2025attention|Zhang 2025]] · [[Bibliography#^edelman1998geometry|Edelman et al. 1998]]
 >
@@ -84,18 +84,16 @@ Write $p = z \wedge w \in \Lambda^2\mathbb R^r$, with coordinates $p_{ij}$ for $
    to $SL_2$ (a unit-normalised oriented one up to $GL_2^+$, a plane up to $GL_2$), so the inverse
    message is a belief on a fibre, not a point; how to represent it is open, and $p = 0$ needs
    separate treatment.
-2. **A variety to test fitting on.** Points $z\wedge w$ for random $z, w \in \mathbb R^4$ lie on the Klein
-   quadric. The nullspace fit of [[Fitting is a Nullspace Problem]] with all 28 degree-$\le 2$
-   monomials on $\mathbb R^6$ (constant and linear terms included) should find exactly that quadric, a
-   one-dimensional null space, given enough generic noiseless points (at least 27); on exactly
-   unit-normalised points also $\lVert p\rVert^2 - 1$, two dimensions (at least 26 points),
-   an expectation not tested here. `Klein quadric data rank (not fit_nullspace)` checks
-   the unnormalised data: 400 Gaussian pairs (`Xoshiro(5106)`), exactly one singular
-   value below relative tolerance `1e-12`, and alignment with the known quadric's
-   coefficients (see [[plucker]] for the observed gap). This implements §5's data check,
-   not `fit_nullspace`, which belongs to the still-planned §3 of
-   [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]]. The earlier scratch check
-   of unit-normalised data remains unverified by repository tests.
+2. **A variety tested by fitting.** `Klein quadric fit_nullspace` fits all 28 affine
+   degree-two features in ℝ⁶ to 400 Gaussian-pair z∧w points, Xoshiro(5106).
+   Both monomial and Chebyshev tables give exactly one null direction at
+   rtol=1e-12; after basis conversion the fitted coefficients agree up to sign
+   with `plucker_relations(4)` (normalised dot-product tolerance 2e-14).
+   The monomial singular-value gap is 1.91054415134e14, Chebyshev
+   1.21729757389e14; [[polyfit]] records the full run. This settles §3(a)'s
+   fitting expectation in [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]].
+   Unit-normalised points are expected to add ‖p‖²−1 as a second null direction;
+   that case remains unverified by repository tests.
 3. **$\mathrm{Gr}(k, m)$ as a parameter space**, for the algebraic factor
    ([[The Parameter is a Grassmannian]]): a Stiefel representative, the projected gradient
    $G - G\Theta^\top\Theta$, a QR retraction (Edelman, Arias & Smith 1998). L-SPEC-004 §2.

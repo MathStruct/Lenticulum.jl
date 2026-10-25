@@ -4,9 +4,9 @@
 > This is the cleanest concrete instance in the whole vault of
 > [Definition 2.5](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens)'s distinction between parameter points and updates.
 > Grassmannian projection, QR retraction and wrapped GD/momentum are implemented;
-> the polynomial factor and its Sampson scalarisation remain planned.
+> polynomial residuals, their Sampson scalarisation and fitting are implemented too.
 
-> Sources: original to this vault (design and analysis); Edelman, Arias & Smith (1998), *The Geometry of Algorithms with Orthogonality Constraints*; Absil, Mahony & Sepulchre (2008), *Optimization Algorithms on Matrix Manifolds*; code: `lib/AlgebraicFactors.jl/src/grassmann.jl`, `lib/AlgebraicFactors.jl/test/runtests.jl` (geometry and trace-objective descent, not polynomial residual scalarisation).
+> Sources: original to this vault (design and analysis); Edelman, Arias & Smith (1998), *The Geometry of Algorithms with Orthogonality Constraints*; Absil, Mahony & Sepulchre (2008), *Optimization Algorithms on Matrix Manifolds*; code: `lib/AlgebraicFactors.jl/src/grassmann.jl`, `lib/AlgebraicFactors.jl/src/polynomial.jl`, `polyfit.jl`, `lib/AlgebraicFactors.jl/test/runtests.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (real factor gauge invariance and full Sampson gradient checks).
 >
 > Bibliography: [[Bibliography#^edelman1998geometry|Edelman et al. 1998]] · [[Bibliography#^absil2008optimization|Absil et al. 2008]]
 >
@@ -18,8 +18,12 @@ If $A \in GL_k(\mathbb{R})$ then $r_{A\Theta} = A\,r_\Theta$, so
 
 $$V(r_{A\Theta}) = V(r_\Theta) \qquad\text{and}\qquad \langle \text{rows of } A\Theta\rangle = \langle\text{rows of } \Theta\rangle$$
 
-The variety, the ideal, and the relation all depend on $\Theta$ **only through its row
-space**. The parameter is therefore genuinely a point of the **Grassmannian**
+An invertible row change preserves the generated ideal and zero set. Conversely,
+different row spaces can still generate the same ideal or real locus (e.g.
+different generating sets, redundant polynomial multiples or real radicals).
+The fixed-degree residual subspace depends on Θ only through its row space;
+Grassmann parametrisation removes this row gauge, not every equivalence between
+variety descriptions. The parameter is therefore genuinely a point of the **Grassmannian**
 
 $$P \;=\; \mathrm{Gr}(k, m), \qquad \dim P = k(m-k)$$
 
@@ -116,7 +120,8 @@ Forming an $m\times m$ projector is unnecessary in either case.
 Model selection — choosing how many generators and what degree — moves you between
 Grassmannians of different dimensions, and there is no smooth path. The **numerical rank
 decision** of [[Fitting is a Nullspace Problem]] is therefore a discrete jump between
-manifolds, not a continuous shrinkage within a fixed Grassmannian. This implementation
-has no variable-rank relaxation; see [[Open Problems in Algebraic Implicit Learning]] §4.
+manifolds, not a continuous shrinkage within a fixed Grassmannian. [[polyfit]] implements fixed-rank algebraic and Sampson fitting, the latter
+using the canonical metric and the derivative of its varying covariance. It has
+no variable-rank relaxation; see [[Open Problems in Algebraic Implicit Learning]] §4.
 
 Related: [[Grassmann Mixing and Plücker Coordinates]], [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]], [[Fitting is a Nullspace Problem]], [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens), [[Factors are Parameterized Statistical Games]], [[Backpropagation by the Implicit Function Theorem]]

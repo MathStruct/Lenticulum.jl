@@ -7,8 +7,9 @@ CurrentModule = AlgebraicFactors
 Finite toric potentials over named discrete channels, implementing L-SPEC-004 §0 and
 §1.1–§1.7, plus Grassmannian parameters (§2.1–§2.2) and the Plücker map (§5).
 Toric messages, energies and entropies use exact enumeration; fitting uses
-Newton or binary-feature IPF. General polynomial factors and homotopy continuation are not implemented.
-Sampson scalarisation is supplied by LenticulumCore; §2.3 is checked with a test-only residual.
+Newton or binary-feature IPF. Polynomial tables, residuals and complete-data fitting (§3a) are implemented.
+Polynomial messages and homotopy remain planned. Sampson scalarisation comes
+from LenticulumCore and is checked on the real polynomial factor too.
 
 ```julia
 using AlgebraicFactors, LenticulumCore, Mycelium, Random, LinearAlgebra
@@ -135,8 +136,8 @@ Pointwise and graph-local energy are zero, as for `GeneratorFactor`.
 Game-level free energy/entropy and an assembled lens are absent (LP-009), so the
 full conformance checker does not apply. Tests exercise the supported interface
 and a Mycelium DAG with two Gaussian priors, and compare moments to an independent
-second-moment expansion and seeded Monte Carlo. A separate 400-point Klein-quadric
-data rank test is explicitly not `fit_nullspace`, which remains unimplemented.
+second-moment expansion and seeded Monte Carlo. The 400-point Klein-quadric
+test now exercises `fit_nullspace` in monomial and Chebyshev bases.
 
 Enumeration costs grow with the product of alphabet sizes. This implementation uses CPU
 arrays and makes no GPU or automatic differentiation guarantee.
@@ -152,8 +153,34 @@ test. Gauge-compatible damping `Θ*Θ'` retains invariance at a constructed rank
 Jacobian, where zero damping throws. Default identity damping at `λ=0.3` and plain
 `SquaredNorm()` each change energy by more than `1e-3` at some tested point.
 The implementation note `lib/LenticulumCore.jl/src/energy.md` derives the covariance law and documents the numerical SPD threshold,
-localisation and frozen Gauss–Newton metric. No polynomial-factor API, fitting or
-IRLS is supplied by this test; §3 and §4 remain unimplemented.
+localisation and frozen Gauss–Newton metric. That original test remains alongside the §3(a) real polynomial-factor tests.
+Polynomial messages (§3b) and homotopy (§4) remain unimplemented.
+
+
+`ExponentTable`, `veronese`, `veronese_jacobian` and `basis_change` implement
+monomial and Chebyshev tables (see `lib/AlgebraicFactors.jl/src/veronese.md`). Ordering is increasing degree,
+then descending lexicographic exponents. There is no implicit data scaling;
+Chebyshev is intended for [-1,1] without enforcing it. Degree-exact Chebyshev
+products need not be homogeneous; incompatible square basis conversions throw.
+
+`PolynomialFactor(dims,tab,k;Σ=I,λ=0)` initialises seeded Grassmann rows and empty
+state. Raw energies accept named channel values split between x/y. For Sampson
+scalarisation pack all values in dims order into y=z, with x=nothing, wrt=:y.
+The exact Jacobian is ΘDv for **all** data coordinates. No message polarities
+are declared. ΘΘ′ damping preserves row-gauge invariance; undamped energy is
+also invariant under polynomial basis conversion, while coefficient-identity
+damping is basis dependent. See the implementation note `polynomial.md`.
+
+`fit_nullspace(tab,X,k;rtol=1e-12)` takes N×n points in columns and reports Θ,
+all m singular values, numerical_rank, nullity and threshold. No centring,
+normalisation or column scaling is performed. `fit_sampson` minimises the summed
+half squared Sampson cost with the full analytic gradient, horizontal projection,
+QR retraction and Armijo backtracking; method=:fns uses the corrected published
+one-equation FNS update. Both stop at the horizontal Frobenius gradient norm,
+and return Θ,cost,gradient_norm,converged,iterations. Singular covariance throws
+with point index; explicit λ adds λΘΘ′. No global optimality is claimed.
+The implementation note `polyfit.md` derives the gradient and records the
+seeded Klein/conic/two-equation checks and their numerical results.
 
 ```@index
 Modules = [AlgebraicFactors]

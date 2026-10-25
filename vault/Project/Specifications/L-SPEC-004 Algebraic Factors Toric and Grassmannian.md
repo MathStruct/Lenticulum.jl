@@ -1,11 +1,11 @@
 #design
 
-> **Status: partly implemented (2026-10-25): §0, §1.1–§1.7, §2.1–§2.3 and §5; §2.4, §3 and §4 remain planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl`, `fit.jl`, `grassmann.jl` and `plucker.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. §2.3 also uses `lib/LenticulumCore.jl/src/energy.jl` and its core tests. These steps needed no Mycelium changes.
+> **Status: partly implemented (2026-10-25): §0, §1.1–§1.7, §2.1–§2.3, §3(a) and §5; §2.4, §3(b) messages and §4 remain planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl`, `fit.jl`, `grassmann.jl`, `plucker.jl`, `veronese.jl`, `polynomial.jl` and `polyfit.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. §2.3 also uses `lib/LenticulumCore.jl/src/energy.jl` and its core tests. These steps needed no Mycelium changes.
 
 ## Scope
 
 The first code for the algebraic family ([[Algebraic Implicit Learners]]) implements finite
-toric factors, Grassmannian parameter updates and forward Plücker transport; general polynomial factors remain unimplemented. Gemini's review (Proposal 7 of `05_Architectural_Design_Proposals.md` in
+toric factors, Grassmannian parameter updates and forward Plücker transport; polynomial residuals and complete-data fitting are implemented, with polynomial messages still planned. Gemini's review (Proposal 7 of `05_Architectural_Design_Proposals.md` in
 the review folder) sketches a whole package `lib/AlgebraicFactors.jl`; this specification orders
 it so that the cases where everything is exact or cheap come first:
 
@@ -28,8 +28,8 @@ binding when it is implemented with its tests.
 | toric fitting and model checks | `fit_mle`: gauge-reduced Newton or cyclic binary-feature IPF; separate moment convergence and existence statuses; positive `inmodel` and supplied `binomial_residuals`, checked against closed forms and independence minors |
 | parameters on a manifold | `Grassmann`, horizontal projection, positive-diagonal QR retraction and `Retracted` for Mycelium's `GradientDescent` and `Momentum`, including velocity transport and `OptimiserFactor` integration; Nesterov remains planned |
 | Plücker map and quadrics | `plucker`, closed-form Jacobian, lexicographic coordinate pairs and sparse relations; forward-only `PluckerFactor` with exact Dirac/paired-particle transport and independent-Gaussian moments; singular Gaussian messages require explicitly requested regularisation |
-| gauge-invariant residual scalarisation | core `SampsonNorm` localises to a metric; §2.3 checked with a test-only residual and gauge-compatible damping, including a singular Jacobian |
-| a polynomial (Veronese) factor, nullspace fitting | none; the theory is in the notes |
+| gauge-invariant residual scalarisation | core `SampsonNorm` localises to a metric; checked on the real polynomial factor with ΘΘ′ damping, a singular Jacobian and undamped polynomial basis changes |
+| polynomial basis tables, residual and fitting (§3a) | `ExponentTable`, exact monomial/Chebyshev values and Jacobians, affine `basis_change`, `PolynomialFactor` with full-coordinate Sampson scalarisation, `fit_nullspace` rank diagnostics, full-gradient Riemannian `fit_sampson` and k=1 FNS; no messages |
 | multi-branch roots | none; `MixtureBelief` exists to carry them |
 
 ## The proposed contract
@@ -98,11 +98,36 @@ packages under `lib/`.
 - §2.4 With [[L-SPEC-003 Exposed Parameters and Energy Channels]], an exposed Grassmannian
   parameter is a channel whose space is a manifold; that spec's "keep open" list already allows it.
 
-**§3 The polynomial factor** (after §1 and §2), as in Gemini's Proposal 7: an exponent table with
-monomial or Chebyshev basis, the residual $r_\Theta(z) = \Theta v_d(z)$ as the pointwise energy, the
-Sampson scalarisation (after the interface of §2.3), `fit_nullspace` and Sampson IRLS ([[Fitting is a Nullspace Problem]]),
-and single-branch messages by Newton with a Laplace Gaussian
-([[Inference as Root Finding]]).
+**§3 The polynomial factor. Part (a) implemented; part (b) messages planned.**
+
+- `ExponentTable(N,d; basis=:monomial|:chebyshev, homogeneous=false)` stores
+  N×m indices in increasing total degree, descending lexicographic order.
+  `veronese`, `veronese_jacobian` use polynomial arithmetic/three-term recurrences.
+  No data scaling is implicit; Chebyshev is intended for [-1,1] without enforcement.
+  `basis_change(mon,cheb)` is exact for affine tables; degree-exact Chebyshev
+  products generally leave the homogeneous monomial span, which throws.
+- `PolynomialFactor(dims,tab,k;Σ=I,λ=0)` has seeded Grassmann rows and empty state.
+  Raw energy accepts named values split between x/y, concatenated in dims order.
+  Sampson energy/Jacobian uses x=nothing, packed y=z, wrt=:y, all coordinates.
+  `sampson_damping=ΘΘ′`; λ≥0 preserves row-gauge invariance. This coefficient
+  metric does not survive nonorthogonal polynomial basis changes; undamped
+  energy does. No message polarities are declared. See [[polynomial]].
+- `fit_nullspace(tab,X,k;rtol=1e-12)` uses the bottom right singular vectors,
+  returns Θ, the full spectrum (structural zeros included), numerical_rank,
+  nullity and threshold; there is no column scaling or normalisation.
+- `fit_sampson(tab,X,k;Σ=I,Θ0=nothing,method=:riemannian,tol=1e-7,
+  maxiter=10000,λ=0)` starts at the nullspace fit by default. Full analytic
+  gradient, horizontal projection, QR retraction and Armijo backtracking
+  minimise the non-convex summed half squared Sampson objective. The stopping
+  rule is horizontal Frobenius gradient norm ≤tol; results report cost,
+  gradient_norm, converged and completed iterations. Singular current/trial
+  covariances throw with point index; optional λ adds gauge-compatible damping.
+  `method=:fns` is the published corrected iteration for k=1 (throws otherwise),
+  with the same gradient stopping criterion. Naive frozen-weight IRLS is not a
+  substitute for this objective's gradient. See [[polyfit]] for derivation,
+  verified citation, numerical checks and limitations. No global optimum claimed.
+- Part (b): single-branch messages by Newton with a Laplace Gaussian remain
+  planned ([[Inference as Root Finding]]). No inference or homotopy is added here.
 
 **§4 Multi-branch inference** (last): a HomotopyContinuation.jl package extension finding all
 isolated real roots and returning a `MixtureBelief` over branches
@@ -134,8 +159,8 @@ without jitter through `plucker_moments`. No core or Mycelium changes were neede
 Scalar pointwise energy and graph-local free energy are zero, following `GeneratorFactor`.
 Game-level quantities and an assembled lens remain absent (LP-009); the full common
 conformance checker requires game quantities and therefore does not apply.
-The 400-point Klein-quadric rank check below tests data only; `fit_nullspace` belongs
-to §3 and is not implemented by §5.
+The 400-point Klein-quadric check now exercises §3(a)
+`fit_nullspace` using this map and `plucker_relations` as its independent oracle.
 
 ## Checked by
 
@@ -211,23 +236,44 @@ uses 200000 independent pairs, `Xoshiro(5104)`, at $r=4$: normalised mean error
 Singular rejection, rank $r-1$ for fixed nonzero input, and explicitly regularised
 messages are checked; no silent jitter or claim of exact Gaussian law is made.
 
-`Klein quadric data rank (not fit_nullspace)` builds a hand-written 28-monomial
-matrix from 400 unnormalised Gaussian-pair points (`Xoshiro(5106)`), requiring
-exactly one singular value below `1e-12` times the largest, and its null vector
-aligned with the Klein coefficients to `2e-14` in absolute dot product.
-The smallest relative singular value is `4.4408921e-16`, the next `0.0848452043`
-(gap ratio `1.9105442e14`). This checks the data, not a fitting API; see [[plucker]].
-Unit-normalised data are not checked.
+Implemented §3(a): `lib/AlgebraicFactors.jl/test/polynomial.jl`, included from
+`runtests.jl`, checks basis counts/order/invalid inputs, homogeneous indices,
+hand-written monomials, exact rational evaluation, Float32 type preservation,
+Chebyshev cosine references and central Jacobian differences through degree six,
+and exact affine basis changes. The real factor's exact Jacobian agrees with
+core's finite-difference default (atol=2e-9,rtol=2e-10). Seed 3002, 20 points,
+row gauges with singular values 0.8 and 1.6, identity/anisotropic Σ and λ=0,0.3
+check row-gauge invariance (rtol=1e-10); undamped energies also agree between
+monomials and Chebyshev. Singular J throws at λ=0 and is finite and row-gauge
+invariant at λ=0.3. Full Sampson gradients at k=1 and 2, anisotropic Σ and
+λ=0,0.2 agree with central differences along retracted curves
+(h=1e-6,rtol=2e-5,atol=1e-4).
 
-Still planned (channels and later families):
+`Klein quadric fit_nullspace` uses 400 unnormalised Gaussian-pair points,
+Xoshiro(5106), N=6,d=2,m=28. **Both real fitting APIs** (monomial and Chebyshev
+tables) find exactly one singular value below relative rtol=1e-12 and recover
+`plucker_relations(4)` coefficients, up to sign and basis change, within 2e-14
+in absolute normalised dot product. Smallest/next relative values are
+4.4408920985e-16 / 0.0848452042553 (monomial, gap 1.91054415134e14),
+4.4408920985e-16 / 0.0540588717743 (Chebyshev, gap 1.21729757389e14).
+Unit-normalised data remain unverified; see [[polyfit]].
 
-- §2.4: exposed manifold channel spaces remain planned. The §2.3 obligation above
-  is checked independently of the §3 polynomial factor, which remains planned.
-- §3 (using §5 data): on points $z\wedge w$ for random $z, w \in \mathbb R^4$, `fit_nullspace` of degree 2 should
-  recover the Klein quadric, a one-dimensional null space, with at least 27 generic points and
-  a stated rank tolerance. The 400-point data test above checks this null direction,
-  but the fitting API remains an expectation, not an implemented result
-  ([[Grassmann Mixing and Plücker Coordinates]]).
+The conic test uses Xoshiro(3003), 200 points on a random rotated/translated ellipse
+with axes 1.3 and 0.8; noiseless fitting recovers its coefficients up to sign.
+Coordinate noise σ=0.04 gives nullspace Sampson cost 0.16489226427736944;
+Riemannian fitting gives 0.1616779698003989, gradient 1.7759602467593341e-6,
+82 updates at tol=2e-6. FNS gives 0.1616779698003528, gradient
+2.2989028737805305e-7, 5 updates. Costs agree within 1e-11. Twenty-five random
+horizontal unit directions at steps ±1e-4 do not reduce the final cost
+(allowance 1e-11), a finite local check rather than a global certificate.
+The seeded intersection z=x², x²+y²=1 in ℝ³ has exactly two quadratic null
+directions; the fitted projector agrees with the known equations (atol=2e-13)
+and k=2 Sampson fitting starts stationary (cost below 1e-24). Underdetermined
+and zero evaluation matrices, invalid arguments and indexed singular failures
+are checked too. No naive-reweighting counterexample is claimed.
+
+Still planned: §2.4 exposed manifold channels, §3(b) Newton/Laplace messages,
+and §4 homotopy. No LenticulumCore or Mycelium changes or dependencies were needed.
 
 ## Open
 

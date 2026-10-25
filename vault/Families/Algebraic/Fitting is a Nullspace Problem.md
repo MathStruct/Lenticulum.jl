@@ -1,10 +1,12 @@
 #model #derivation
 
-> **Derivation.** The learning problem for an algebraic factor has a closed-form global
-> optimum: the bottom-$k$ eigenspace of the Veronese second-moment matrix. No gradient
-> descent, no local minima, no initialisation.
+> **Derivation and implementation.** Complete-data algebraic-distance fitting has a
+> closed-form global optimum: the bottom-$k$ eigenspace of the Veronese second-moment
+> matrix. Sampson fitting uses a different, non-convex objective and an iterative solver.
 
-> Sources: original to this vault (design and analysis; no single paper).
+> Sources: original analysis; Chojnacki, Brooks, van den Hengel & Gawley (2000), *On the fitting of surfaces to data with covariances*, §4.1–§4.2, Fig. 1; code: `lib/AlgebraicFactors.jl/src/polyfit.jl`, `veronese.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl`.
+>
+> Bibliography: [[Bibliography#^chojnacki2000fitting|Chojnacki et al. 2000]]
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Cospan](https://mathstruct.org/CategoryTheory-ML-Wiki/Cospan)
 
@@ -16,7 +18,7 @@ parametrisation $r_\Theta = \Theta v_d(x)$ of [[The Veronese Parametrisation]], 
 
 $$f(\Theta) \;=\; \tfrac12 \sum_{i=1}^M \bigl\|\Theta\, v_d(x^{(i)})\bigr\|_2^2$$
 
-This is $\tfrac12\sum_i \sigma(\mathbf{l}^c(x^{(i)}))$ with $\mathbf{l}^c = r_\Theta$ the
+This is $\sum_i \sigma(\mathbf{l}^c(x^{(i)}))$ with $\mathbf{l}^c = r_\Theta$ the
 [[Scalar and Multivariate Energy|vector energy]] and $\sigma = \tfrac12\|\cdot\|^2$.
 
 Without a constraint the minimum is $\Theta = 0$, for which $r \equiv 0$ and **every point
@@ -57,10 +59,10 @@ singular values.
 
 $$\boxed{\;\Theta^\star \;=\; \text{bottom-}k\text{ eigenvectors of } S = V^\top V\;}$$
 
-**A global optimum, in closed form.** This is the property no other family in
-[[Implicit Learners]] has, and it is worth being loud about: the nonconvexity that dominates
-all of deep learning is simply absent here. It has been traded for the nonconvexity of
-[[Inference as Root Finding|inference]].
+**A global algebraic-distance optimum, in closed form.** This statement applies
+to this fixed complete-data objective, not all learning in the family. The
+orthonormal-row constraint is itself non-convex; the spectral solution solves it
+globally. Sampson fitting and [[Inference as Root Finding|inference]] remain non-convex.
 
 ## Choosing $k$ is a rank decision
 
@@ -73,9 +75,10 @@ Two things make this harder than a normal PCA rank choice:
 1. **Monomials of different degrees have wildly different scales.** $x^3$ and $x$ differ by
    orders of magnitude on data of magnitude $\ne 1$, so the spectrum of $S$ is dominated by
    scaling artefacts rather than structure. Column-equilibrating $V$, or replacing monomials
-   by an orthogonal polynomial basis (Chebyshev / Hermite w.r.t. the empirical measure), is
-   not optional.
-2. **The spectrum has no gap when $d$ is too large**, because of the spurious polynomials of
+   by a polynomial basis such as Chebyshev after explicit data scaling, is
+   often useful, but changes the coefficient metric. `fit_nullspace` performs no
+   implicit equilibration or normalisation; users choose the data scale and basis.
+2. **Higher degrees can obscure the spectral gap**, because of redundant polynomials of
    [[The Veronese Parametrisation]] §"Choosing $d$": lower-degree relations multiplied by
    variables produce a whole staircase of near-zero eigenvalues carrying no new information.
 
@@ -103,8 +106,8 @@ Two things this buys you:
 - the spurious staircase is removed by construction.
 
 The price is a **tolerance parameter $\tau$**, and the output is discontinuous in it. There
-is no principled way to set $\tau$ from data; it is the algebraic analogue of choosing a
-rank, with the same lack of theory.
+is no principled way to set $\tau$ from data; it is a numerical rank choice; this implementation reports the threshold and spectrum
+instead of hiding that choice.
 
 ## What happens with missing channels — and why it is EM
 
@@ -120,12 +123,12 @@ and the natural algorithm alternates:
 - **E-step**: for fixed $\Theta$, infer $x_u^{(i)}$ by [[Inference as Root Finding|root finding]];
 - **M-step**: for fixed $\{x_u^{(i)}\}$, update $\Theta$ by the eigenproblem above.
 
-This is **exactly [[AutoBayes Examples as Factor Graphs|Example 2 of AutoBayes]]** — expectation
-maximisation, with the E-step an inversion $c'_\pi$ and the M-step a descent on the composite
-loss. The framework predicted the algorithm; the algebra supplies both halves in closed form.
-
-The alternation is, of course, **no longer globally convergent**: each half is exactly
-solvable, the alternation is not. Convexity in $\Theta$ survives; joint convexity does not.
+This suggests a hard-completion alternating procedure related to
+[[AutoBayes Examples as Factor Graphs|Example 2 of AutoBayes]]. Minimising missing
+coordinates is not a posterior expectation and is not generally a closed-form
+E-step. Only the fixed-completion algebraic M-step has the spectral solution.
+Neither this alternation nor missing-data inference is implemented here; no
+convergence claim is made.
 
 ## Cost
 
@@ -135,8 +138,22 @@ solvable, the alternation is not. Convexity in $\Theta$ survives; joint convexit
 | bottom-$k$ eigenspace | $O(m^3)$ dense, or $O(m^2 k)$ per iteration with Lanczos on $S$ |
 | memory | $O(m^2)$ for $S$ |
 
-For $N=20, d=3$ ($m = 1771$): $S$ is 25 MB, the eigenproblem is seconds. For $N=100, d=3$
-($m = 176{,}851$): $S$ is 250 GB dense. **The wall is at $m \approx 10^4$**, i.e. roughly
-$N \le 20$ at $d = 3$.
+The table describes the scatter-matrix approach. The implemented direct SVD
+instead stores V, avoiding squared condition numbers; see [[polyfit]] for
+underdetermined tables and memory use. Earlier unmeasured timing and capacity
+cutoffs have been removed.
+
+## Implemented fits and checks
+
+`fit_nullspace` returns Θ, all m singular values (including structural zeros),
+numerical_rank, nullity and threshold. No column scaling is applied.
+`fit_sampson` uses the full analytic gradient, horizontal projection, QR
+retraction and Armijo line search; `method=:fns` implements the one-equation
+FNS correction, not naive frozen-weight reweighting. It stops on the
+Riemannian gradient norm and reports convergence separately from iteration count.
+See [[polyfit]] for the gradient derivation, checked citation, numerical choices
+and seeded results: the real 400-point Klein fit in both bases, conic recovery
+and noisy cost decrease, retracted-curve gradient differences, finite local
+minimum checks, and a two-quadric intersection. No global Sampson optimum is claimed.
 
 Related: [[The Veronese Parametrisation]], [[The Parameter is a Grassmannian]], [[Algebraic versus Geometric Distance]], [[AutoBayes Examples as Factor Graphs]]

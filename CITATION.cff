@@ -2940,3 +2940,21 @@ references:
         given-names: "Chong"
     year: 2025
     url: "https://arxiv.org/abs/2512.19428"
+  - type: article
+    title: "On the fitting of surfaces to data with covariances"
+    authors:
+      - family-names: "Chojnacki"
+        given-names: "Wojciech"
+      - family-names: "Brooks"
+        given-names: "Michael J."
+      - family-names: "van den Hengel"
+        given-names: "Anton"
+      - family-names: "Gawley"
+        given-names: "Darren"
+    year: 2000
+    journal: "IEEE Transactions on Pattern Analysis and Machine Intelligence"
+    volume: "22"
+    issue: "11"
+    start: "1294"
+    end: "1303"
+    doi: "10.1109/34.888714"

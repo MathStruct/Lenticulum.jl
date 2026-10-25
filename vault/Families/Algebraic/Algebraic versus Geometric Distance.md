@@ -1,11 +1,13 @@
 #model #derivation
 
-> **Derivation.** The convexity of [[Fitting is a Nullspace Problem]] is bought by using the
+> **Derivation.** The spectral solution of [[Fitting is a Nullspace Problem]] uses the
 > algebraic distance. A first-order geometric correction produces a point-dependent
 > [[Scalar and Multivariate Energy|scalarisation]] — and shows what the energy space $E$
 > *is*: the space the noise lives in.
 
-> Sources: original to this vault (design and analysis; no single paper); code: `lib/LenticulumCore.jl/src/energy.jl` (`SampsonNorm`, `localise`, `sampson_damping`), `lib/LenticulumCore.jl/test/runtests.jl` (circle closed form), `lib/AlgebraicFactors.jl/test/runtests.jl` (test-only §2.3 gauge obligation).
+> Sources: original analysis; Chojnacki, Brooks, van den Hengel & Gawley (2000), *On the fitting of surfaces to data with covariances*, §4.1–§4.2, Fig. 1; code: `lib/LenticulumCore.jl/src/energy.jl` (`SampsonNorm`, `localise`, `sampson_damping`), `lib/LenticulumCore.jl/test/runtests.jl` (circle closed form), `lib/AlgebraicFactors.jl/src/polynomial.jl`, `polyfit.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (real factor gauge/basis tests and fitting).
+>
+> Bibliography: [[Bibliography#^chojnacki2000fitting|Chojnacki et al. 2000]]
 >
 > Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
 
@@ -94,8 +96,10 @@ things that made the algebraic distance attractive:
 1. **The objective is no longer quadratic in $\Theta$.**
    $f(\Theta)=\sum_i r_i^\top M(\Theta,x_i)r_i$ does not have the fixed-metric
    nullspace solution of [[Fitting is a Nullspace Problem]]. Freezing the metrics and
-   resolving a quadratic subproblem suggests IRLS, but no IRLS implementation or
-   convergence claim is checked here.
+   resolving a quadratic subproblem omits derivatives of those metrics. Such
+   naive reweighting does not in general minimise the full Sampson objective.
+   [[polyfit]] implements its full gradient with an Armijo Riemannian solver,
+   plus the corrected FNS iteration for k=1.
 2. **There is no single fixed $\sigma$.** A frozen `SquaredNorm(M)` is convex and
    has Jensen gap $\tfrac12\operatorname{tr}(M\operatorname{Cov}(r))$. A field of
    metrics at different points is a different object: the fixed-map Jensen identity
@@ -139,18 +143,24 @@ variables, seed `2307`, 20 random points and a well-conditioned row transformati
 They check gauge and QR-representative agreement (`rtol=1e-10`), including damping
 $\lambda\Theta\Theta^\top$ at a constructed singular point, and demonstrate failures
 of identity damping and algebraic distance (difference above `1e-3` at some point).
-This implements the §2.3 test obligation, not the §3 polynomial factor or fitting.
+Those original §2.3 tests remain. The real `PolynomialFactor` tests now check
+its exact Jacobian, row gauges at λ=0 and 0.3, anisotropic covariance and a
+singular point. Undamped monomial/Chebyshev energies agree. The coefficient
+damping ΘΘᵀ is row-gauge compatible but changes under nonorthogonal polynomial
+basis conversions; [[polynomial]] states that limitation.
 
 ## The honest summary
 
-| distance | convex in $\Theta$? | statistically correct? | cost |
-|---|---|---|---|
-| algebraic $\|r\|^2$ | **yes**, closed form | no — biased by $\|\nabla r\|$ | $O(m^3)$ once |
-| Sampson $r^\top(JJ^\top)^{-1}r$ | no (IRLS) | first order | $O(m^3)$ per IRLS step |
-| geometric $\mathrm{dist}(x,V)^2$ | no | yes (MLE, isotropic noise) | EDD-many roots **per data point** |
+| distance | fit | statistical interpretation |
+|---|---|---|
+| algebraic $\|r\|^2$ | global spectral solution under orthonormal-row constraint | depends on residual/feature scaling |
+| Sampson $r^\top(JJ^\top)^{-1}r$ | non-convex; full-gradient descent or FNS | first-order geometric correction |
+| geometric $\mathrm{dist}(x,V)^2$ | non-convex projection problem | profile errors-in-variables MLE under isotropic Gaussian noise |
 
-Sampson via IRLS, initialised at the algebraic solution, is a proposed workflow; it is
-not implemented or compared empirically here.
+`fit_sampson` initialises at `fit_nullspace` by default. The seeded noisy-conic
+test lowers the full Sampson cost, checks the gradient and random local
+directions, and compares FNS to Riemannian descent; [[polyfit]] records the run
+and its limits. Neither method certifies a global minimum.
 Algebraic and Sampson energies use the same residual, with a fixed metric versus
 a field of metrics. Exact geometric projection additionally needs the variety and a
 projection solver; it is not in general a function of the residual vector alone.

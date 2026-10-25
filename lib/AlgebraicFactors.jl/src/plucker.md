@@ -30,7 +30,7 @@ indices into the coordinate vector) and `coefficients=(1,-1,1)`. It represents
 $p_{ij}p_{kl}-p_{ik}p_{jl}+p_{il}p_{jk}$. There are $\binom r4$ such equations;
 `plucker_residuals(r,p)` evaluates them. For $r=4$ the monomials are
 `((1,6),(2,5),(3,4))`. This table is usable as polynomial test data; it does not
-implement §3's monomial features or `fit_nullspace`.
+itself implement features or fitting; §3(a) now uses it through [[veronese]] and [[polyfit]].
 
 ## Exact moments for independent inputs
 
@@ -134,14 +134,15 @@ $\|\hat C-C\|_F/\|C\|_F<0.025$. The checked run reports mean error `0.0030714051
 Singular rejection, rank $r-1$, explicitly regularised covariance, proper-input
 requirements, and a Mycelium DAG with two Gaussian priors are checked as well.
 
-The `Klein quadric data rank (not fit_nullspace)` test builds its own 28 degree-at-most-two
-monomials on **400** unnormalised Gaussian-pair points (`Xoshiro(5106)`). At relative
-singular-value threshold `1e-12` it checks exactly one null direction and alignment
-with the known Klein coefficients (absolute dot product within `2e-14` of one).
-The checked run reports smallest relative singular value `4.4408921e-16`, next
-`0.0848452043`, and their ratio `1.9105442e14`. The test logs these values.
-This is a test of the data, not §3's unimplemented fitting API. Unit-normalised
-data are not tested here.
+The `Klein quadric fit_nullspace` test now uses the real §3(a) `ExponentTable`
+and `fit_nullspace` APIs in both monomial and Chebyshev bases on 400 unnormalised
+Gaussian-pair points (Xoshiro(5106)). It uses `plucker_relations(4)` to construct
+an independent coefficient oracle. Both fits have exactly one null direction
+at rtol=1e-12, and recover that oracle up to sign/basis conversion (absolute
+normalised dot-product tolerance 2e-14). Monomial relative smallest/next values
+are 4.4408920985e-16 and 0.0848452042553 (gap 1.91054415134e14); Chebyshev next
+is 0.0540588717743 (gap 1.21729757389e14). See [[polyfit]] for the full run.
+Unit-normalised data remain unverified.
 
 The main implementation difficulty is the distinction between singular precision
 and singular covariance. Explicit regularisation and separately exposed exact moments
@@ -150,5 +151,5 @@ marginals: matching particle indices preserves supplied dependence, while the Ga
 path assumes none. Neither convention reconstructs missing cross-channel correlations.
 
 The implementation uses CPU arrays. The mean/map cost is $O(r^2)$; dense covariance
-storage and computation are $O(r^4)$. No inverse fibre beliefs, general polynomial
-factor, Sampson scalarisation, nullspace fitting, GPU or AD support is claimed.
+storage and computation are $O(r^4)$. This file supplies no inverse fibre beliefs, GPU or AD support. Polynomial
+residuals, Sampson scalarisation and fitting now live in [[polynomial]] and [[polyfit]].

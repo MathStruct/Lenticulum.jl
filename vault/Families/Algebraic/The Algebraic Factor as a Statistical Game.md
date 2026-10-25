@@ -2,9 +2,11 @@
 
 > Assembling everything into [AutoBayes Definition 20](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) and
 > [Definition 27](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients). Every abstract slot gets a concrete,
-> computable inhabitant — which is the point of doing the algebraic case first.
+> proposed mathematical inhabitant. The implemented subset is the polynomial
+> residual, Sampson scalarisation and complete-data fitting; messages and the
+> assembled statistical game remain planned.
 
-> Sources: original to this vault (design and analysis; no single paper).
+> Sources: original design and analysis; code: `lib/AlgebraicFactors.jl/src/polynomial.jl`, `polyfit.jl`, `veronese.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (residual and fitting only).
 >
 > Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
@@ -26,14 +28,17 @@ For an algebraic factor of degree $d$ on $N$ channels with $k$ generators:
 | **vector** entropy $\mathbf{H}^c$ | $\mathcal{P}X\times Y\to K_c$ | $-\sum_j w_j\log w_j$ over branches, times a direction $u\in K_c$ |
 | gradient coupling | Def. 29's laxness | `ExactCoupling` — the IFT gives the exact Jacobian |
 
-**Every entry is computable.** That is not true of the other two families in
-[[Implicit Learners]], and it is why this one is worth doing even though it does not scale:
-it is the case where the framework can be *debugged*.
+The table is a design sketch, not an implemented game contract. `PolynomialFactor`
+has empty supported polarities and no messages, branch beliefs, game entropy or
+`ExactCoupling` declaration. Its packed pointwise convention is x=nothing, y=z,
+wrt=:y, differentiating all coordinates; [[polynomial]] explains named channels.
 
 ## The vector energy is forced, not chosen
 
 $\mathbf{l}^c = r_\Theta$ is $\mathbb{R}^k$-valued by construction. There is no scalar
-residual — a variety of codimension $k$ needs $k$ equations. So the algebraic family is the
+residual replacing all components without losing their Jacobian: k denotes the
+chosen number of equations, not necessarily the codimension. A variety need not
+be a complete intersection. So the algebraic family is the
 existence proof for [[Scalar and Multivariate Energy]]: it is a family in which the paper's
 $[0,\infty]$-valued $l^c$ **cannot be used without first throwing away the model**, because
 
@@ -53,15 +58,11 @@ F^c(\pi, x_o) \;=\; \underbrace{\sum_{j=1}^{D} w_j \cdot \tfrac12\bigl\|r_\Theta
 \;-\; \underbrace{\Bigl(-\sum_j w_j\log w_j\Bigr)}_{\text{entropy: a functional of the branch belief}}
 $$
 
-Note the first term **vanishes** when inference succeeds exactly. So for a well-posed
-algebraic factor the free energy reduces to $-H$: **the loss is entirely the branch
-entropy**. That is a striking and correct consequence — an exactly-solvable factor is scored
-only by how ambiguous its answer was.
-
-The energy becomes non-zero exactly when
-[[Inference as Root Finding|the system is overdetermined]] ($k>q$) or the solver fails. So
-the two terms cleanly separate *model misfit* (energy) from *inferential ambiguity*
-(entropy), which is precisely the reading the paper's decomposition is meant to support.
+For the displayed proposed objective the residual term vanishes at exact roots,
+provided the metric is defined. This alone does not establish the correct free
+energy of a branch model: priors, branch Jacobians and normalisation may add terms.
+An overdetermined system can still have an exact root, so k>q alone does not
+imply nonzero energy. No branch free-energy claim is tested or implemented here.
 
 ## Composition: local only
 
@@ -84,7 +85,7 @@ an imposition.
 The expectation in the entropy law is over branches, so it is a **finite sum**, not a Monte
 Carlo estimate. In this family the chain rule is exact.
 
-## Learning: EM, with both halves in closed form
+## Proposed alternating learning
 
 From [[Fitting is a Nullspace Problem]] §"missing channels":
 
@@ -92,13 +93,15 @@ From [[Fitting is a Nullspace Problem]] §"missing channels":
   belief $\{(x_u^{(j)}, w_j)\}$.
 - **M-step** $=$ descent on $F$: with branches fixed, the energy is quadratic in $\Theta$, so
   the update is the bottom-$k$ eigenspace of $S = \sum_{i,j} w_{ij}\, v_i^{(j)}(v_i^{(j)})^\top$ —
-  a *globally optimal* M-step.
+  a *globally optimal algebraic-distance* parameter step.
 
-This instantiates [[AutoBayes Examples as Factor Graphs|Example 2]] exactly, and adds something the paper
-does not claim: **the M-step is not merely a descent step but the exact maximiser.** That is
-generalised EM's ideal case, and it comes free from the linearity in $\Theta$.
+This spectral step holds for fixed branch weights/completions and the algebraic
+objective only. Root solving is not generally closed form, and a hard completion
+is not an expectation under the posterior. The full Sampson fit differentiates
+its varying covariance and uses an iterative non-convex solver ([[polyfit]]).
+This proposed alternating procedure is not implemented or validated as EM.
 
-## `GradientCoupling` is `ExactCoupling`
+## Proposed exact gradient coupling away from singularities
 
 [Definition 29](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients) is lax in general because $\theta$ moves the
 pushforward prior and the sampling distribution. Here:

@@ -3,9 +3,10 @@
 > `AlgebraicFactors` starts the algebraic family with exact finite toric potentials.
 > It supplies discrete messages, energies and entropies, moment fitting and model
 > checks, Grassmannian parameter geometry and retracted updates, and forward Plücker
-> transport. General polynomial factors and later families remain unimplemented.
+> transport. Polynomial basis tables, residuals and complete-data fitting are implemented;
+> polynomial messages and homotopy remain planned.
 
-> Sources: original implementation of [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]] §0, §1.1–§1.7, §2.1–§2.3 and §5; code: `AlgebraicFactors.jl`, `toric.jl`, `fit.jl`, `grassmann.jl`, `plucker.jl`, `../test/runtests.jl`.
+> Sources: original implementation of [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]] §0, §1.1–§1.7, §2.1–§2.3, §3(a) and §5; code: `AlgebraicFactors.jl`, `toric.jl`, `fit.jl`, `grassmann.jl`, `plucker.jl`, `veronese.jl`, `polynomial.jl`, `polyfit.jl`, `../test/runtests.jl`, `../test/polynomial.jl`.
 >
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens)
 
@@ -48,7 +49,7 @@ inputs give exact moments and a Gaussian approximation to the output law.
 explicitly request covariance jitter, since the core belief type needs positive-definite
 covariance. This factor has no game-level quantities or assembled lens, so the full
 conformance checker does not apply (LP-009). Its tests check direct messages and a
-Mycelium DAG. A separate Klein data rank test is not nullspace fitting.
+Mycelium DAG. The Klein test now uses the real nullspace-fitting API in both polynomial bases.
 
 
 The §2.3 `Sampson gauge obligation (§2.3)` test uses a **test-only** two-equation
@@ -61,8 +62,34 @@ test. Gauge-compatible damping `Θ*Θ'` retains invariance at a constructed rank
 Jacobian, where zero damping throws. Default identity damping at `λ=0.3` and plain
 `SquaredNorm()` each change energy by more than `1e-3` at some tested point.
 [[energy]] derives the covariance law and documents the numerical SPD threshold,
-localisation and frozen Gauss–Newton metric. No polynomial-factor API, fitting or
-IRLS is supplied by this test; §3 and §4 remain unimplemented.
+localisation and frozen Gauss–Newton metric. That original test remains alongside the §3(a) real polynomial-factor tests.
+Polynomial messages (§3b) and homotopy (§4) remain unimplemented.
 
 Not implemented: general MLE existence certification, Markov-basis computation,
-general polynomial factors, homotopy continuation or inverse Plücker fibres.
+polynomial messages, homotopy continuation or inverse Plücker fibres.
+
+
+`ExponentTable`, `veronese`, `veronese_jacobian` and `basis_change` implement
+monomial and Chebyshev tables ([[veronese]]). Ordering is increasing degree,
+then descending lexicographic exponents. There is no implicit data scaling;
+Chebyshev is intended for [-1,1] without enforcing it. Degree-exact Chebyshev
+products need not be homogeneous; incompatible square basis conversions throw.
+
+`PolynomialFactor(dims,tab,k;Σ=I,λ=0)` initialises seeded Grassmann rows and empty
+state. Raw energies accept named channel values split between x/y. For Sampson
+scalarisation pack all values in dims order into y=z, with x=nothing, wrt=:y.
+The exact Jacobian is ΘDv for **all** data coordinates. No message polarities
+are declared. ΘΘ′ damping preserves row-gauge invariance; undamped energy is
+also invariant under polynomial basis conversion, while coefficient-identity
+damping is basis dependent. See the implementation note `polynomial.md`.
+
+`fit_nullspace(tab,X,k;rtol=1e-12)` takes N×n points in columns and reports Θ,
+all m singular values, numerical_rank, nullity and threshold. No centring,
+normalisation or column scaling is performed. `fit_sampson` minimises the summed
+half squared Sampson cost with the full analytic gradient, horizontal projection,
+QR retraction and Armijo backtracking; method=:fns uses the corrected published
+one-equation FNS update. Both stop at the horizontal Frobenius gradient norm,
+and return Θ,cost,gradient_norm,converged,iterations. Singular covariance throws
+with point index; explicit λ adds λΘΘ′. No global optimality is claimed.
+The implementation note `polyfit.md` derives the gradient and records the
+seeded Klein/conic/two-equation checks and their numerical results.
