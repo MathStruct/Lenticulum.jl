@@ -150,7 +150,7 @@
     <lastmod>2026-10-25T10:59:46.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Algebraic-versus-Geometric-Distance</loc>
-    <lastmod>2026-09-30T21:52:28.000Z</lastmod>
+    <lastmod>2026-10-25T21:24:22.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Backpropagation-by-the-Implicit-Function-Theorem</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -168,7 +168,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-10-25T20:58:42.075Z</lastmod>
+    <lastmod>2026-10-25T21:24:37.269Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -291,13 +291,13 @@
     <lastmod>2026-10-25T18:10:47.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Decisions/Decisions</loc>
-    <lastmod>2026-10-24T14:57:35.000Z</lastmod>
+    <lastmod>2026-10-25T21:24:22.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Decisions/L-ADR-0001-Julia</loc>
     <lastmod>2026-10-22T18:53:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Decisions/L-ADR-0002-Energies-are-vectors,-scalarised-late</loc>
-    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+    <lastmod>2026-10-25T21:24:22.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Decisions/L-ADR-0003-Pointwise-energy-and-free-energy-are-separate-levels</loc>
     <lastmod>2026-10-22T18:53:57.000Z</lastmod>
@@ -310,6 +310,9 @@
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Decisions/L-ADR-0006-Separate-likelihood_message-from-invert</loc>
     <lastmod>2026-10-24T14:57:35.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Decisions/L-ADR-0007-Point-dependent-scalarisations-are-localised-before-use</loc>
+    <lastmod>2026-10-25T21:24:22.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-001-The-vault-build-uses-GNU-only-sed</loc>
     <lastmod>2026-10-24T23:08:41.000Z</lastmod>
@@ -369,10 +372,10 @@
     <lastmod>2026-10-25T00:27:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-004-Algebraic-Factors-Toric-and-Grassmannian</loc>
-    <lastmod>2026-10-25T20:58:28.000Z</lastmod>
+    <lastmod>2026-10-25T21:24:22.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/Specifications</loc>
-    <lastmod>2026-10-25T20:58:28.000Z</lastmod>
+    <lastmod>2026-10-25T21:24:22.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/README</loc>
     <lastmod>2026-10-25T18:10:47.000Z</lastmod>
@@ -423,7 +426,7 @@
     <lastmod>2026-10-15T14:28:34.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/AlgebraicFactors</loc>
-    <lastmod>2026-10-25T20:58:28.000Z</lastmod>
+    <lastmod>2026-10-25T21:24:22.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/fit</loc>
     <lastmod>2026-10-25T18:28:28.000Z</lastmod>
@@ -465,7 +468,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/energy</loc>
-    <lastmod>2026-10-24T23:03:50.000Z</lastmod>
+    <lastmod>2026-10-25T21:24:22.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/gaussian_belief</loc>
     <lastmod>2026-10-24T14:35:42.000Z</lastmod>
