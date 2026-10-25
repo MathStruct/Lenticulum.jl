@@ -124,7 +124,7 @@ prototype; the vault can already be browsed in it as a graph.
 
 ## What is in the repository
 
-One umbrella package over five smaller ones. All depend on **LuxCore** only — not Lux, Zygote
+One umbrella package alongside six smaller ones. All depend on **LuxCore** only — not Lux, Zygote
 or Optimisers — so any Lux model wraps as a factor without pulling them in. Automatic
 differentiation and Reactant compilation come in through package extensions, for whichever
 backend you load.
@@ -133,10 +133,11 @@ backend you load.
 |---|---|
 | `LenticulumCore` | what a **factor** is: channels, polarities, energies; all **belief** types (Gaussian, categorical, mixture, Dirac, sample), convertible to RxInfer's |
 | `Mycelium` | how factors are **wired and scheduled**: graphs, messages, free energy |
-| `Lenticulum` | **linear-Gaussian** and constraint factors, belief projections (nonlinear factors are planned) |
+| `Lenticulum` | **linear-Gaussian**, nonlinear and likelihood factors, linear constraints and belief projections |
 | `VariationalDiffusion` | **diffusion models** as relations: VP-SDE, RED-Diff, ProxDM, deterministic implicit inference with an adjoint backward pass |
 | `ImplicitLayers` | **deep equilibrium models and neural ODEs** as factors |
 | `Adversarial` | **implicit generative models**: generators and density-ratio factors |
+| `AlgebraicFactors` | **finite toric models**: exact discrete messages and free energy |
 
 ## How it relates to what you know
 
@@ -170,7 +171,7 @@ Tests, per package:
 ```sh
 julia --project=.                              -e 'using Pkg; Pkg.test()'
 julia --project=lib/VariationalDiffusion.jl    -e 'using Pkg; Pkg.test()'
-# ... likewise for lib/LenticulumCore.jl, lib/Mycelium.jl, lib/ImplicitLayers.jl, lib/Adversarial.jl
+# ... likewise for lib/LenticulumCore.jl, lib/Mycelium.jl, lib/ImplicitLayers.jl, lib/Adversarial.jl, lib/AlgebraicFactors.jl
 ```
 
 Documentation, API and vault together:

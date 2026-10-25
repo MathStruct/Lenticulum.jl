@@ -256,6 +256,8 @@ Implementation notes live next to the code, per [[Start Here]]:
 
 **Adversarial.jl** — [[Adversarial]], [[generator]], [[ratio]]
 
+**AlgebraicFactors.jl** — [[AlgebraicFactors]], [[toric]]
+
 ## 5. Project records
 
 Decisions, problems and specifications, numbered so that notes, commits and issues can cite

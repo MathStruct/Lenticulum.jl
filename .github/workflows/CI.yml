@@ -22,6 +22,7 @@ jobs:
           - lib/VariationalDiffusion.jl
           - lib/ImplicitLayers.jl
           - lib/Adversarial.jl
+          - lib/AlgebraicFactors.jl
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2

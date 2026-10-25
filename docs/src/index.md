@@ -48,18 +48,19 @@ inference is **message passing** rather than a forward pass. That is the whole d
 
 ## The packages
 
-The project is one umbrella package over five smaller ones. Most users need the top two rows.
+The project is one umbrella package alongside six smaller ones. Most users need the top two rows.
 
 | package | what it gives you |
 |---|---|
 | [`LenticulumCore`](@ref lenticulumcore) | what a **factor** is: channels, polarities, beliefs, energies |
 | [`Mycelium`](@ref mycelium) | how factors are **wired and scheduled**: graphs, messages, free energy |
-| [`Lenticulum`](@ref lenticulum) | the **linear-Gaussian** factors, and Gaussian beliefs |
+| [`Lenticulum`](@ref lenticulum) | **linear-Gaussian**, nonlinear and likelihood factors, and linear constraints |
 | [`VariationalDiffusion`](@ref variationaldiffusion) | a **diffusion model** as a factor (VP-SDE, RED-Diff) |
 | [`ImplicitLayers`](@ref implicitlayers) | **DEQs and neural ODEs** as factors |
 | [`Adversarial`](@ref adversarial) | **implicit generative models** — generators and density ratios |
+| [`AlgebraicFactors`](@ref algebraicfactors) | **finite toric models** — exact discrete messages and free energy |
 
-`LenticulumCore` and `Mycelium` between them define the framework; the other three are factor
+`LenticulumCore` and `Mycelium` between them define the framework; the remaining packages are factor
 libraries built on it, and each can be ignored if you do not need that model family.
 
 ## Installation

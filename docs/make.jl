@@ -19,7 +19,8 @@ const PKGDIRS = Dict("Lenticulum" => ROOT, "LenticulumCore" => joinpath(ROOT, "l
                      "Mycelium" => joinpath(ROOT, "lib", "Mycelium.jl"),
                      "VariationalDiffusion" => joinpath(ROOT, "lib", "VariationalDiffusion.jl"),
                      "ImplicitLayers" => joinpath(ROOT, "lib", "ImplicitLayers.jl"),
-                     "Adversarial" => joinpath(ROOT, "lib", "Adversarial.jl"))
+                     "Adversarial" => joinpath(ROOT, "lib", "Adversarial.jl"),
+                     "AlgebraicFactors" => joinpath(ROOT, "lib", "AlgebraicFactors.jl"))
 
 function sources(dir)
     files = String[]
@@ -90,6 +91,7 @@ using Mycelium
 using VariationalDiffusion
 using ImplicitLayers
 using Adversarial
+using AlgebraicFactors
 
 # Where this build lives (see the vault section at the end): master's site, or the preview of
 # the development branch. The pages link to the vault through LENTICULUM_VAULT_URL.
@@ -115,6 +117,7 @@ makedocs(;
         VariationalDiffusion,
         ImplicitLayers,
         Adversarial,
+        AlgebraicFactors,
     ],
     format = Documenter.HTML(;
         canonical = "https://mathstruct.org/Lenticulum.jl/api/dev",
@@ -144,6 +147,7 @@ makedocs(;
             ],
             "ImplicitLayers" => "packages/implicitlayers.md",
             "Adversarial" => "packages/adversarial.md",
+            "AlgebraicFactors" => "packages/algebraicfactors.md",
         ],
     ],
     # Docstrings cite the Obsidian vault with [[wiki links]] and reference notes that are not

@@ -29,7 +29,7 @@ own and target `dev`. Do not commit, push or merge unless you are asked to.
 | where | what |
 |---|---|
 | `src/` | the top-level package `Lenticulum` (linear-Gaussian and constraint factors) |
-| `lib/*.jl/` | the other packages: `LenticulumCore`, `Mycelium` (graphs, messages, free energy), `VariationalDiffusion` (diffusion models as implicit learners), `ImplicitLayers`, `Adversarial`; each with its own `Project.toml`, `test/` and, for some, `examples/` and `ext/` |
+| `lib/*.jl/` | the other packages: `LenticulumCore`, `Mycelium` (graphs, messages, free energy), `VariationalDiffusion` (diffusion models as implicit learners), `ImplicitLayers`, `Adversarial`, `AlgebraicFactors` (exact discrete toric factors); each with its own `Project.toml`, `test/` and, for some, `examples/` and `ext/` |
 | `vault/` | the Obsidian vault: concept, design and application notes |
 | `lib/*/src/*.md`, `src/*.md` | implementation notes, one beside each source file |
 | `docs/` | Documenter pages, Literate tutorials (`docs/literate/`), the shared bibliography `docs/src/refs.bib`, and the Quartz build of the vault (`docs/site/`) |

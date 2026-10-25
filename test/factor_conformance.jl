@@ -14,16 +14,25 @@ _conformance_scalarisation(E::GradedEnergySpace) =
     GradedScalarisation(map(_conformance_scalarisation, E.parts))
 
 """
-    check_factor_conformance(f, p; π, inputs, ps, st, pointwise, game_prior, game_y, msgs)
+    check_factor_conformance(f, p; π, inputs, ps, st, pointwise, game_prior, game_y, msgs,
+                             direct_message = false, expected_site, expected_posterior)
 
 Check the testable L-SPEC-001 §1–§5 interface for a factor and polarity. Fixtures explicitly
 supply the cavity, observed inputs, pointwise arguments, and game/graph beliefs: the game
 API's input/output order need not match the inversion polarity. Numerical agreement checks
 the factor's declared algorithm, including its documented approximations; it does not certify
 that an approximate inversion or quadrature is exact.
+
+For a direct-message factor, set `direct_message = true` and supply independently computed
+`expected_site` and `expected_posterior` beliefs. This path checks the extrinsic message,
+the posterior obtained by pooling it with `π`, and exclusion of the target's prior and
+incoming message. It makes no claim that the factor implements a Bayesian lens (whose
+inversion would also need a joint latent posterior). All other checks are shared; the
+default path retains the assemble/invert/likelihood_message checks.
 """
 function check_factor_conformance(f, p; π, inputs, ps, st, pointwise,
-                                  game_prior, game_y, msgs)
+                                  game_prior, game_y, msgs, direct_message = false,
+                                  expected_site = nothing, expected_posterior = nothing)
     @testset "$(nameof(typeof(f))): $(observed_channels(p)) → $(unobserved_channels(p))" begin
         rng = Xoshiro(42)
         @test LuxCore.initialparameters(rng, f) isa NamedTuple
@@ -56,16 +65,35 @@ function check_factor_conformance(f, p; π, inputs, ps, st, pointwise,
         @test sl isa Real && isfinite(sl)
         @test sl ≈ scalarise(pointwise_scalarisation(f, p), l)
 
-        lens, _ = assemble(f, p, ps, st)
-        @test lens isa LenticulumCore.AbstractBayesianLens
-        site, _ = likelihood_message(lens, π, inputs, ps, st)
-        post, _ = invert(lens, π, inputs, ps, st)
-        @test site isa LenticulumCore.AbstractBelief
-        @test post isa LenticulumCore.AbstractBelief
-        @test belief_distance(combine(π, site), post) ≤ 1e-8
         target = only(unobserved_channels(p))
-        graph_site, _ = factor_message(f, target, p, inputs, π, ps, st)
-        @test belief_distance(graph_site, site) ≤ 1e-8
+        if direct_message
+            expected_site isa LenticulumCore.AbstractBelief ||
+                throw(ArgumentError("direct-message conformance requires an independent expected_site"))
+            expected_posterior isa LenticulumCore.AbstractBelief ||
+                throw(ArgumentError("direct-message conformance requires an independent expected_posterior"))
+            site, next = factor_message(f, target, p, inputs, π, ps, st)
+            @test site isa LenticulumCore.AbstractBelief
+            @test next isa NamedTuple
+            @test belief_distance(site, expected_site) ≤ 1e-8
+            post = combine(π, site)
+            @test post isa LenticulumCore.AbstractBelief
+            @test belief_distance(post, expected_posterior) ≤ 1e-8
+            without_prior, _ = factor_message(f, target, p, inputs, TrivialBelief(), ps, st)
+            @test belief_distance(site, without_prior) ≤ 1e-8
+            with_target = merge(inputs, NamedTuple{(target,)}((π,)))
+            excluded, _ = factor_message(f, target, p, with_target, π, ps, st)
+            @test belief_distance(site, excluded) ≤ 1e-8
+        else
+            lens, _ = assemble(f, p, ps, st)
+            @test lens isa LenticulumCore.AbstractBayesianLens
+            site, _ = likelihood_message(lens, π, inputs, ps, st)
+            post, _ = invert(lens, π, inputs, ps, st)
+            @test site isa LenticulumCore.AbstractBelief
+            @test post isa LenticulumCore.AbstractBelief
+            @test belief_distance(combine(π, site), post) ≤ 1e-8
+            graph_site, _ = factor_message(f, target, p, inputs, π, ps, st)
+            @test belief_distance(graph_site, site) ≤ 1e-8
+        end
 
         F, _ = free_energy(f, game_prior, game_y, ps, st)
         H, _ = LenticulumCore.entropy(f, game_prior, game_y, ps, st)

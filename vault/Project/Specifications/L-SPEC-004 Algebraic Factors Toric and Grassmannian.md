@@ -1,11 +1,11 @@
 #design
 
-> **Status: planned (2026-10-25, Daniel: "Could you plan for that?", on Gemini's suggestion to start the algebraic family with the easier and useful cases, toric varieties and the Grassmannian).** Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: none yet; it would touch `lib/Mycelium.jl/src/factors.jl` (update rules), `messages.jl` (categorical beliefs), `free_energy.jl`.
+> **Status: partly implemented (2026-10-25): §0 and §1.1–§1.5; the rest remains planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. This first step needed no Mycelium changes; later manifold update rules remain planned.
 
 ## Scope
 
-The first code for the algebraic family, whose sixteen notes ([[Algebraic Implicit Learners]])
-have no implementation. Gemini's review (Proposal 7 of `05_Architectural_Design_Proposals.md` in
+The first code for the algebraic family ([[Algebraic Implicit Learners]]) implements finite
+toric factors; the general polynomial and manifold constructions remain unimplemented. Gemini's review (Proposal 7 of `05_Architectural_Design_Proposals.md` in
 the review folder) sketches a whole package `lib/AlgebraicFactors.jl`; this specification orders
 it so that the cases where everything is exact or cheap come first:
 
@@ -24,7 +24,7 @@ binding when it is implemented with its tests.
 
 | capability | state |
 |---|---|
-| a factor over several discrete variables | none. Categorical beliefs exist and combine (`messages.jl`), `PriorFactor` takes one, `LikelihoodFactor` predicts one; no factor sums a table over several channels |
+| a factor over several discrete variables | `AlgebraicFactors.ToricFactor`: exact finite sum-product messages and joint factor free energy; tree marginals and Bethe free energy checked against enumeration |
 | parameters on a manifold | none. Mycelium's update rules (`GradientDescent`, `Momentum`, `Nesterov` through `rule_get`/`rule_put`) are Euclidean |
 | a polynomial (Veronese) factor, nullspace fitting | none; the theory is in the notes |
 | multi-branch roots | none; `MixtureBelief` exists to carry them |
@@ -32,7 +32,7 @@ binding when it is implemented with its tests.
 ## The proposed contract
 
 **§0 Package.** `lib/AlgebraicFactors.jl`, depending on LenticulumCore, Mycelium and
-LinearAlgebra only, until §4 adds a package extension. Tests and docs are wired like the other
+LinearAlgebra, plus LuxCore and Random for the parameter/state interface, until §4 adds a package extension. Tests and docs are wired like the other
 packages under `lib/`.
 
 **§1 Toric factors.**
@@ -105,17 +105,22 @@ forward polarity only (the inverse message would be a belief on an $SL_2$-orbit,
 
 ## Checked by
 
-Nothing yet. The first tests:
+Implemented §0 and §1.1–§1.5: `lib/AlgebraicFactors.jl/test/runtests.jl` checks hand-written
+independence columns, state order, energies, messages with labelled/Dirac/categorical/latent
+inputs, local and game quantities, and five-variable trees with three toric factors against
+independent enumeration. The conformance checker
+runs its explicit direct-message path over every supported polarity of the test factors at
+arities one, two and three, using independent site and pooled-posterior fixtures. Existing
+factors retain the lens checks. No assembled lens or joint latent posterior API is supplied. See [[toric]]
+for label rules, game argument conventions and the Bethe entropy accounting.
+
+Still planned (including fitting and geometry):
 
 - §1: the independence model, whose MLE is the outer product of the margins; the chain
-  $A - B - C$ as a decomposable model with positive margins, against $\hat p_{AB}\hat p_{BC}/\hat p_B$; belief propagation on a
-  tree of `ToricFactor`s against enumeration of the joint (marginals and $\log Z$); the gradient
+  $A - B - C$ as a decomposable model with positive margins, against $\hat p_{AB}\hat p_{BC}/\hat p_B$; the gradient
   $Au/n - Ap_\eta$ against finite differences; Newton against IPF; `inmodel` true at a fit and false
   at a generic $p$; for a table with an empty row, a status that is not "converged", and the
-  extended MLE (the outer product of the margins) as the limit; the conformance checker
-  (`test/factor_conformance.jl`) over every supported polarity, which today calls `assemble`,
-  `invert` and `likelihood_message`: either `ToricFactor` implements the lens methods, or the checker
-  is extended to direct-message factors with equivalent checks.
+  extended MLE (the outer product of the margins) as the limit.
 - §2: $\Theta\Theta^\top = I$ after `retract`; `project_tangent(M, Θ, G) * Θ' ≈ 0`; `retract(M, Θ, zero(Θ)) ≈ Θ`;
   for symmetric $S$ with $\lambda_k < \lambda_{k+1}$, generic initialisation and a suitable step rule, Riemannian
   descent on $\operatorname{tr}(\Theta S\Theta^\top)$ reaching the span of the $k$ smallest eigenvectors (the nullspace fit's
