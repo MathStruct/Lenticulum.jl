@@ -86,4 +86,4 @@ factors requires elimination and blows up doubly exponentially — which is prec
 argument for keeping factors separate in a graph and passing messages, i.e. for
 `Mycelium.jl`.
 
-Related: [[Implicit Learners]], [[Channels and Polarity]], [[Scalar and Multivariate Energy]], [[README]]
+Related: [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]] (what to build first), [[Implicit Learners]], [[Channels and Polarity]], [[Scalar and Multivariate Energy]], [[README]]

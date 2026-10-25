@@ -107,4 +107,4 @@ decision** of [[Fitting is a Nullspace Problem]] is therefore a discrete jump be
 manifolds, not a continuous shrinkage. No continuous relaxation of it is known that behaves
 well; see [[Open Problems in Algebraic Implicit Learning]] §4.
 
-Related: [[Fitting is a Nullspace Problem]], [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens), [[Factors are Parameterized Statistical Games]], [[Backpropagation by the Implicit Function Theorem]]
+Related: [[Grassmann Mixing and Plücker Coordinates]], [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]], [[Fitting is a Nullspace Problem]], [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens), [[Factors are Parameterized Statistical Games]], [[Backpropagation by the Implicit Function Theorem]]

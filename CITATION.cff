@@ -2783,3 +2783,160 @@ references:
         given-names: "David Jaz"
     year: 2020
     url: "https://arxiv.org/abs/2005.05956"
+  - type: book
+    title: "Algebraic Statistics"
+    authors:
+      - family-names: "Sullivant"
+        given-names: "Seth"
+    year: 2018
+    volume: "194"
+    publisher:
+      name: "American Mathematical Society"
+    doi: "10.1090/gsm/194"
+  - type: book
+    title: "Lectures on Algebraic Statistics"
+    authors:
+      - family-names: "Drton"
+        given-names: "Mathias"
+      - family-names: "Sturmfels"
+        given-names: "Bernd"
+      - family-names: "Sullivant"
+        given-names: "Seth"
+    year: 2009
+    volume: "39"
+    publisher:
+      name: "Birkhäuser"
+    doi: "10.1007/978-3-7643-8905-5"
+  - type: book
+    title: "Gröbner Bases and Convex Polytopes"
+    authors:
+      - family-names: "Sturmfels"
+        given-names: "Bernd"
+    year: 1996
+    volume: "8"
+    publisher:
+      name: "American Mathematical Society"
+    doi: "10.1090/ulect/008"
+  - type: article
+    title: "Algebraic Algorithms for Sampling from Conditional Distributions"
+    authors:
+      - family-names: "Diaconis"
+        given-names: "Persi"
+      - family-names: "Sturmfels"
+        given-names: "Bernd"
+    year: 1998
+    journal: "The Annals of Statistics"
+    volume: "26"
+    issue: "1"
+    start: "363"
+    end: "397"
+    doi: "10.1214/aos/1030563990"
+  - type: article
+    title: "On the Toric Algebra of Graphical Models"
+    authors:
+      - family-names: "Geiger"
+        given-names: "Dan"
+      - family-names: "Meek"
+        given-names: "Christopher"
+      - family-names: "Sturmfels"
+        given-names: "Bernd"
+    year: 2006
+    journal: "The Annals of Statistics"
+    volume: "34"
+    issue: "3"
+    start: "1463"
+    end: "1492"
+    doi: "10.1214/009053606000000263"
+  - type: book
+    title: "Graphical Models"
+    authors:
+      - family-names: "Lauritzen"
+        given-names: "Steffen L."
+    year: 1996
+    publisher:
+      name: "Oxford University Press"
+    doi: "10.1093/oso/9780198522195.001.0001"
+  - type: article
+    title: "Generalized Iterative Scaling for Log-Linear Models"
+    authors:
+      - family-names: "Darroch"
+        given-names: "J. N."
+      - family-names: "Ratcliff"
+        given-names: "D."
+    year: 1972
+    journal: "The Annals of Mathematical Statistics"
+    volume: "43"
+    issue: "5"
+    start: "1470"
+    end: "1480"
+    doi: "10.1214/aoms/1177692379"
+  - type: article
+    title: "Maximum Likelihood Estimation in Log-Linear Models"
+    authors:
+      - family-names: "Fienberg"
+        given-names: "Stephen E."
+      - family-names: "Rinaldo"
+        given-names: "Alessandro"
+    year: 2012
+    journal: "The Annals of Statistics"
+    volume: "40"
+    issue: "2"
+    start: "996"
+    end: "1023"
+    doi: "10.1214/12-AOS986"
+    url: "https://arxiv.org/abs/1104.3618"
+  - type: article
+    title: "Toric Dynamical Systems"
+    authors:
+      - family-names: "Craciun"
+        given-names: "Gheorghe"
+      - family-names: "Dickenstein"
+        given-names: "Alicia"
+      - family-names: "Shiu"
+        given-names: "Anne"
+      - family-names: "Sturmfels"
+        given-names: "Bernd"
+    year: 2009
+    journal: "Journal of Symbolic Computation"
+    volume: "44"
+    issue: "11"
+    start: "1551"
+    end: "1565"
+    doi: "10.1016/j.jsc.2008.08.006"
+    url: "https://arxiv.org/abs/0708.3431"
+  - type: article
+    title: "The Geometry of Algorithms with Orthogonality Constraints"
+    authors:
+      - family-names: "Edelman"
+        given-names: "Alan"
+      - family-names: "Arias"
+        given-names: "Tomás A."
+      - family-names: "Smith"
+        given-names: "Steven T."
+    year: 1998
+    journal: "SIAM Journal on Matrix Analysis and Applications"
+    volume: "20"
+    issue: "2"
+    start: "303"
+    end: "353"
+    doi: "10.1137/S0895479895290954"
+  - type: book
+    title: "Optimization Algorithms on Matrix Manifolds"
+    authors:
+      - family-names: "Absil"
+        given-names: "P.-A."
+      - family-names: "Mahony"
+        given-names: "R."
+      - family-names: "Sepulchre"
+        given-names: "R."
+    year: 2008
+    publisher:
+      name: "Princeton University Press"
+    doi: "10.1515/9781400830244"
+  - type: generic
+    title: "Attention Is Not What You Need"
+    authors:
+      - family-names: "Zhang"
+        given-names: "Chong"
+    year: 2025
+    url: "https://arxiv.org/abs/2512.19428"

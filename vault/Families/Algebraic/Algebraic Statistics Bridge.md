@@ -119,4 +119,4 @@ and they are directly transferable:
   relation can be made toric, do so**; it is the single most valuable structural property in
   the family.
 
-Related: [[Composition is Elimination]], [Composition of Statistical Games](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#composition-energies-add-entropies-chain-definition-22), [[The Algebraic Factor as a Statistical Game]], [[Factors are Parameterized Statistical Games]]
+Related: [[Toric Models as Factors]], [[Composition is Elimination]], [Composition of Statistical Games](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#composition-energies-add-entropies-chain-definition-22), [[The Algebraic Factor as a Statistical Game]], [[Factors are Parameterized Statistical Games]]

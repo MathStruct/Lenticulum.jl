@@ -74,7 +74,11 @@ def cited(line, ms):
         pos = []
         if eprint and eprint in line:
             pos.append(line.index(eprint) / max(len(line), 1))
-        if title and title in nline:
+        # a short title inside a longer italicised one (*Graphical Models* in *Probabilistic
+        # Graphical Models*) is not a citation of it
+        embedded = sum(it.count(title.strip()) for _, it in italics
+                       if title and title.strip() in it and not it.startswith(title.strip()))
+        if title and nline.count(title) > embedded:
             pos.append(nline.index(title) / max(len(nline), 1))
         pos += [p for p, it in italics if it in short         # *MACE*, *PyTorch 2*: exact names
                 or (len(it.split()) >= 3 and t.strip().startswith(it))]   # or a title's first words

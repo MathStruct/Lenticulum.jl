@@ -133,6 +133,9 @@ Entry point: [[Algebraic Implicit Learners]].
   [[Backpropagation by the Implicit Function Theorem]]
 - *structure*: [[Composition is Elimination]], [[Differential Algebra and DAE Factors]],
   [[Algebraic Statistics Bridge]]
+- *first to build*: [[Toric Models as Factors]] (exact discrete factors with known binomial
+  equations), [[Grassmann Mixing and Plücker Coordinates]] (a Plücker-feature alternative to
+  attention, and what it offers here); the plan is [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]]
 - *verdict*: [[The Algebraic Factor as a Statistical Game]],
   [[Open Problems in Algebraic Implicit Learning]]
 - *kernels*: [[Kernel Methods for Implicit Learning]] — RBF and GP implicit surfaces, kernel PCA, density
