@@ -1,11 +1,11 @@
 #design
 
-> **Status: partly implemented (2026-10-25): §0, §1.1–§1.7, §2.1–§2.3, §3(a) and §5; §2.4, §3(b) messages and §4 remain planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl`, `fit.jl`, `grassmann.jl`, `plucker.jl`, `veronese.jl`, `polynomial.jl` and `polyfit.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. §2.3 also uses `lib/LenticulumCore.jl/src/energy.jl` and its core tests. These steps needed no Mycelium changes.
+> **Status: partly implemented (2026-10-25): §0, §1.1–§1.7, §2.1–§2.3, §3(a,b) and §5; §2.4 and §4 remain planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl`, `fit.jl`, `grassmann.jl`, `plucker.jl`, `veronese.jl`, `polynomial.jl` and `polyfit.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. §2.3 also uses `lib/LenticulumCore.jl/src/energy.jl` and its core tests. These steps needed no Mycelium changes.
 
 ## Scope
 
 The first code for the algebraic family ([[Algebraic Implicit Learners]]) implements finite
-toric factors, Grassmannian parameter updates and forward Plücker transport; polynomial residuals and complete-data fitting are implemented, with polynomial messages still planned. Gemini's review (Proposal 7 of `05_Architectural_Design_Proposals.md` in
+toric factors, Grassmannian parameter updates and forward Plücker transport; polynomial residuals, complete-data fitting and single-branch Gaussian messages are implemented. Gemini's review (Proposal 7 of `05_Architectural_Design_Proposals.md` in
 the review folder) sketches a whole package `lib/AlgebraicFactors.jl`; this specification orders
 it so that the cases where everything is exact or cheap come first:
 
@@ -29,7 +29,8 @@ binding when it is implemented with its tests.
 | parameters on a manifold | `Grassmann`, horizontal projection, positive-diagonal QR retraction and `Retracted` for Mycelium's `GradientDescent` and `Momentum`, including velocity transport and `OptimiserFactor` integration; Nesterov remains planned |
 | Plücker map and quadrics | `plucker`, closed-form Jacobian, lexicographic coordinate pairs and sparse relations; forward-only `PluckerFactor` with exact Dirac/paired-particle transport and independent-Gaussian moments; singular Gaussian messages require explicitly requested regularisation |
 | gauge-invariant residual scalarisation | core `SampsonNorm` localises to a metric; checked on the real polynomial factor with ΘΘ′ damping, a singular Jacobian and undamped polynomial basis changes |
-| polynomial basis tables, residual and fitting (§3a) | `ExponentTable`, exact monomial/Chebyshev values and Jacobians, affine `basis_change`, `PolynomialFactor` with full-coordinate Sampson scalarisation, `fit_nullspace` rank diagnostics, full-gradient Riemannian `fit_sampson` and k=1 FNS; no messages |
+| polynomial basis tables, residual and fitting (§3a) | `ExponentTable`, exact monomial/Chebyshev values and Jacobians, affine `basis_change`, `PolynomialFactor` with full-coordinate Sampson scalarisation, `fit_nullspace` rank diagnostics, full-gradient Riemannian `fit_sampson` and k=1 FNS |
+| polynomial single-branch messages (§3b) | all single-target polarities; exact Jacobian, full-data frozen Sampson covariance, improper information-form sites and iterated posterior linearisation; lens/graph sites agree; no game quantities |
 | multi-branch roots | none; `MixtureBelief` exists to carry them |
 
 ## The proposed contract
@@ -98,7 +99,7 @@ packages under `lib/`.
 - §2.4 With [[L-SPEC-003 Exposed Parameters and Energy Channels]], an exposed Grassmannian
   parameter is a channel whose space is a manifold; that spec's "keep open" list already allows it.
 
-**§3 The polynomial factor. Part (a) implemented; part (b) messages planned.**
+**§3 The polynomial factor. Parts (a) and (b) implemented.**
 
 - `ExponentTable(N,d; basis=:monomial|:chebyshev, homogeneous=false)` stores
   N×m indices in increasing total degree, descending lexicographic order.
@@ -106,12 +107,13 @@ packages under `lib/`.
   No data scaling is implicit; Chebyshev is intended for [-1,1] without enforcement.
   `basis_change(mon,cheb)` is exact for affine tables; degree-exact Chebyshev
   products generally leave the homogeneous monomial span, which throws.
-- `PolynomialFactor(dims,tab,k;Σ=I,λ=0)` has seeded Grassmann rows and empty state.
+- `PolynomialFactor(dims,tab,k;Σ=I,λ=0,iterations=1)` has seeded Grassmann rows and empty state.
   Raw energy accepts named values split between x/y, concatenated in dims order.
   Sampson energy/Jacobian uses x=nothing, packed y=z, wrt=:y, all coordinates.
   `sampson_damping=ΘΘ′`; λ≥0 preserves row-gauge invariance. This coefficient
   metric does not survive nonorthogonal polynomial basis changes; undamped
-  energy does. No message polarities are declared. See [[polynomial]].
+  energy does. One single-target polarity per channel is declared; rank is
+  computed at message time. See [[polynomial]].
 - `fit_nullspace(tab,X,k;rtol=1e-12)` uses the bottom right singular vectors,
   returns Θ, the full spectrum (structural zeros included), numerical_rank,
   nullity and threshold; there is no column scaling or normalisation.
@@ -126,8 +128,22 @@ packages under `lib/`.
   with the same gradient stopping criterion. Naive frozen-weight IRLS is not a
   substitute for this objective's gradient. See [[polyfit]] for derivation,
   verified citation, numerical checks and limitations. No global optimum claimed.
-- Part (b): single-branch messages by Newton with a Laplace Gaussian remain
-  planned ([[Inference as Root Finding]]). No inference or homotopy is added here.
+- Part (b): single-branch Gaussian sites use exact J and
+  A=JΣ_fJᵀ+JₒCᵢₙJₒᵀ+λΘΘᵀ, including **all** factor data coordinates.
+  Λ=JᵤᵀA⁻¹Jᵤ, h=Λx₀−JᵤᵀA⁻¹r₀. Observed beliefs are Dirac/proper Gaussian;
+  others throw. The target starts at the proper Gaussian/Dirac cavity mean,
+  or zero without information. `iterations≥1` repeats posterior linearisation,
+  retaining the original cavity and freezing A per step. No safeguard or general
+  descent guarantee; this is Gauss–Newton curvature, not the full Laplace Hessian
+  away from zero residual, nor a minimiser of the full varying-metric Sampson cost.
+  Numerical rank Jᵤ is computed at every point; deficient precision is retained
+  as an improper site (flat on ker Jᵤ), including rank zero. Without a unique
+  posterior mode further iteration stops. k>q is weighted least squares.
+  Singular A throws; positive λ may rescue it with full-row-rank Θ, never a
+  pseudoinverse. `likelihood_message`/`factor_message` share the site routine;
+  `invert` combines with the prior once. No branch enumeration, homotopy,
+  IFT rules or game/free-energy/entropy implementation ([[LP-009 Game-level free energy is declared but not implemented]]).
+  See [[Inference as Root Finding]] and [[polynomial]].
 
 **§4 Multi-branch inference** (last): a HomotopyContinuation.jl package extension finding all
 isolated real roots and returning a `MixtureBelief` over branches
@@ -272,8 +288,25 @@ and k=2 Sampson fitting starts stationary (cost below 1e-24). Underdetermined
 and zero evaluation matrices, invalid arguments and indexed singular failures
 are checked too. No naive-reweighting counterexample is claimed.
 
-Still planned: §2.4 exposed manifold channels, §3(b) Newton/Laplace messages,
-and §4 homotopy. No LenticulumCore or Mycelium changes or dependencies were needed.
+Still planned: §2.4 exposed manifold channels and §4 homotopy. No LenticulumCore or Mycelium changes or dependencies were needed.
+
+Implemented §3(b): `lib/AlgebraicFactors.jl/test/polynomial.jl` checks 144 seeded
+linear cases against the actual `LinearConstraintFactor`, with Θ=[−c B₁ … Bₙ],
+Q=JΣ_fJᵀ+λΘΘᵀ, all polarities, Dirac/Gaussian inputs and k below/equal/above
+target dimension. Maximum information/precision discrepancies are 3.00e−15 and
+1.55e−15. Circle posterior mode 0.8023817080100973 agrees with independent
+fixed-final-metric Newton within 2e−12 and a dense grid within 2.5e−6; precision
+256.547472991432 equals Jᵤ²/A. Zero-noise upper-root error falls below 1e−8;
+tangency gives zero precision without NaN although the full J remains nonzero.
+A rank-one two-dimensional target checks tangent nullity. Twenty seeded
+constant-metric objectives decrease between one and thirty iterations. A three-channel
+ab+c graph converges in two sweeps, matching independent joint Laplace mean 0.28
+and variance 0.0246 to 2e−12. Nonlinear covariance, row-gauge and undamped basis
+checks, invalid beliefs/dimensions and singular A are tested. The full common
+conformance checker requires absent game quantities; its lens/site/posterior
+subset is checked independently on every degree-one polarity instead. No shared
+code or dependencies changed. §4 remains planned; [[polynomial]] records limits
+and exact run fixtures.
 
 ## Open
 

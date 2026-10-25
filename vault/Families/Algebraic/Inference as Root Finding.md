@@ -4,7 +4,7 @@
 > inference means solving a polynomial system — and everything interesting follows from
 > counting its solutions.
 
-> Sources: original to this vault (design and analysis; no single paper).
+> Sources: original to this vault (design and analysis); code: `lib/AlgebraicFactors.jl/src/polynomial.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (single-branch Gaussian sites, rank cases, circle and graph oracles).
 >
 > Theory (CT-ML wiki): [Compact Closed Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Compact-Closed-Category) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model)
 
@@ -13,7 +13,9 @@
 Split $x = (x_o, x_u)$ with $x_o \in \mathbb{R}^p$ observed (clamped) and
 $x_u \in \mathbb{R}^q$ unobserved (to be inferred), $p+q = N$. Inference is
 
-$$\text{find } x_u \in \mathbb{R}^q \ \text{ such that } \ r_\Theta(x_o, x_u) = 0 \in \mathbb{R}^k$$
+$$
+\text{find } x_u \in \mathbb{R}^q \ \text{ such that } \ r_\Theta(x_o, x_u) = 0 \in \mathbb{R}^k
+$$
 
 a system of $k$ polynomial equations of degree $\le d$ in $q$ unknowns, with coefficients
 depending polynomially on the clamped $x_o$.
@@ -33,28 +35,56 @@ different variables held fixed.
 
 More precisely, the polarity is well-posed at a solution $x^\star$ iff
 
-$$\boxed{\;\operatorname{rank} J_u(x^\star) \;=\; \operatorname{rank}\frac{\partial r_\Theta}{\partial x_u}(x^\star) \;=\; q \;=\; k\;}$$
+$$
+\boxed{\;\operatorname{rank} J_u(x^\star) \;=\; \operatorname{rank}\frac{\partial r_\Theta}{\partial x_u}(x^\star) \;=\; q \;=\; k\;}
+$$
 
 which is exactly the hypothesis of the implicit function theorem. So
-**`supports_polarity` from [[Channels and Polarity]] is, for this family, a computable
-statement about a Jacobian rank** — not a declaration by the factor author. That is worth
-noting because it is the only family where it *is* computable.
+**Pointwise well-posedness is computable from Jᵤ, but it is not the interface's
+`supports_polarity` declaration.** The latter declares an available algorithm
+before parameters, beliefs or a point are supplied. `PolynomialFactor` declares
+all single-target polarities and computes rank at message time: a deficient
+Jᵤ returns an improper site, including a flat site at rank zero ([[polynomial]]).
+The square invertible case above is the classical root IFT; k>q can still have
+an isolated root or a locally unique least-squares minimiser. It is not necessary
+for all forms of local inference.
 
 The overdetermined case is not a failure mode to be avoided; it is the README's
 "output only the closest point to the variety, instead of a point on the variety". It is
 handled by replacing root finding with
 
-$$x_u^\star = \arg\min_{x_u} \ \sigma\bigl(r_\Theta(x_o,x_u)\bigr)$$
+$$
+x_u^\star = \arg\min_{x_u} \ \sigma\bigl(r_\Theta(x_o,x_u)\bigr)
+$$
 
-which is total ($\sigma \ge 0$ always has an infimum) where root finding is partial.
-**Energy minimisation is the total version of root finding** — the same observation the
-vault makes in [[Implicit Learners]], here with an explicit reason.
+Nonnegativity gives an infimum, **not necessarily an attained minimiser**.
+For example r(x,y)=(xy−1,x) has no zero, yet r(1/n,n)=(0,1/n) tends to zero.
+The test file checks that sequence; the two equations directly show why no
+zero exists. Existence or coercivity assumptions are needed before treating
+minimisation as a total solve. A proper target Gaussian prior makes the
+fixed-SPD-metric polynomial objective coercive; the implemented finite
+Gauss–Newton loop still does not certify convergence.
+
+## Implemented local approximation
+
+L-SPEC-004 §3(b) implements one branch via the cavity mean (zero without one),
+exact polynomial Jacobians and Gaussian sites with the Sampson covariance frozen
+per iteration. `iterations` relinearises the current posterior with the original
+prior; `likelihood_message` returns the extrinsic site and `invert` pools once.
+Observed inputs can be Dirac or proper Gaussian. The tests compare all linear
+polarities with the actual linear constraint, a circle with a separately written
+fixed-final-metric scalar objective, and ab+c=0 in a Mycelium graph with a joint
+Laplace calculation. This is Gauss–Newton curvature, not the full Hessian away
+from zero residual. It neither enumerates roots nor implements the IFT backward
+pass or game entropy. Homotopy and multiple branches (§4) remain planned.
 
 ## How many solutions
 
 For a square system of $q$ equations of degree $d$ in $q$ unknowns, over $\mathbb{C}$:
 
-$$\#\{\text{isolated solutions}\} \;\le\; d^q \qquad \textbf{(Bézout)}$$
+$$
+\#\{\text{isolated solutions}\} \;\le\; d^q \qquad \textbf{(Bézout)}
+$$
 
 and more sharply, by **Bernstein–Khovanskii–Kushnirenko (BKK)**, the number of solutions in
 the torus $(\mathbb{C}^*)^q$ is bounded by the **mixed volume** of the Newton polytopes —

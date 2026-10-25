@@ -57,7 +57,7 @@ end
     @test LuxCore.parameterlength(f) == 20
     @test LuxCore.statelength(f) == 0
     @test islearnable(f)
-    @test isempty(supported_polarities(f))
+    @test length(supported_polarities(f)) == length(f.dims)
     @test Tuple(channelname(c) for c in LenticulumCore.channels(f)) == (:a,:b)
     @test Tuple(c.space for c in LenticulumCore.channels(f)) == (1,2)
     @test pointwise_energyspace(f) == EuclideanEnergySpace(2)
@@ -228,4 +228,311 @@ end
     err = try fit_sampson(tab,zeros(2,1),1;Θ0=singular); nothing catch e; e end
     @test err isa ArgumentError && occursin("point 1",sprint(showerror,err))
     @test isfinite(fit_sampson(tab,zeros(2,1),1;Θ0=singular,λ=0.1,maxiter=0).cost)
+end
+
+# Load the actual linear templates, without adding a test/package dependency on
+# Lenticulum (or its unrelated SpecialFunctions dependency). No copied oracle code.
+module PolynomialLinearOracle
+using LinearAlgebra, Random, LuxCore
+using LenticulumCore: LenticulumCore, GaussianBelief, Gaussian, uninformative,
+    belief_mean, belief_cov, isproper, logpartition, dimension, _chol
+using Mycelium: Mycelium
+include(joinpath(@__DIR__, "../../../src/gaussian.jl"))
+include(joinpath(@__DIR__, "../../../src/constraint.jl"))
+end
+
+@testset "Polynomial degree-one messages and lens contract" begin
+    rng = Xoshiro(3004)
+    dims = (a=1,b=2,c=1); names = keys(dims)
+    ranges = (a=1:1,b=2:3,c=4:4)
+    errors_h, errors_Λ = Float64[], Float64[]
+    for k in 1:3, λ in (0.,0.2)
+        # v₁(z) = [1; z]; Θ = [-c B_a B_b B_c].
+        Θ = randn(rng,k,5)
+        J = Θ[:,2:end]
+        S = [0.4 0.1 0 0;0.1 0.3 0 0;0 0 0.2 0;0 0 0 0.5]
+        f = PolynomialFactor(dims,ExponentTable(4,1),k;Σ=S,λ,iterations=4)
+        # Constraint Q is the factor-only residual covariance. Its own input
+        # propagation then adds Σ_o J_o C_o J_o', producing exactly our A.
+        Q = J*S*J'+λ*Θ*Θ'
+        linear = PolynomialLinearOracle.LinearConstraintFactor(dims,k;noise=Q)
+        coeff = NamedTuple{names}(map(n->J[:,ranges[n]],names))
+        linear_ps = (A=coeff,c=-Θ[:,1])
+        @test length(supported_polarities(f)) == 3
+        for (t,p) in zip(names,supported_polarities(f)), mask in 0:7
+            @test supports_polarity(f,p)
+            @test only(unobserved_channels(p)) == t
+            incoming = NamedTuple{names}(map(enumerate(names)) do (i,n)
+                μ = randn(rng,dims[n]); C = Matrix(0.1I,dims[n],dims[n])
+                iszero(mask & (1<<(i-1))) ? DiracBelief(μ) : Gaussian(μ,C)
+            end |> Tuple)
+            π = Gaussian(randn(rng,dims[t]),Matrix(0.7I,dims[t],dims[t]))
+            site,st = factor_message(f,t,p,incoming,π,(;Θ),(;))
+            exact,_ = factor_message(linear,t,p,incoming,π,linear_ps,(;))
+            push!(errors_h,norm(site.η-exact.η,Inf))
+            push!(errors_Λ,norm(site.Λ-exact.Λ,Inf))
+            @test site.η ≈ exact.η atol=3e-13 rtol=3e-13
+            @test site.Λ ≈ exact.Λ atol=3e-13 rtol=3e-13
+            @test st === (;)
+            @test rank(site.Λ;atol=1e-11) == min(k,dims[t])
+            lens,_ = assemble(f,p,(;Θ),(;))
+            @test lens isa BayesianLens{<:PolynomialModel,<:SolverInversion}
+            via_lens,_ = likelihood_message(lens,π,incoming,(;Θ),(;))
+            posterior,_ = invert(lens,π,incoming,(;Θ),(;))
+            @test belief_distance(via_lens,site) < 1e-12
+            @test belief_distance(posterior,combine(π,site)) < 1e-12
+            @test belief_mean(posterior) ≈ belief_mean(combine(π,exact)) atol=2e-12
+            # Target input ignored, including unsupported target belief.
+            replaced = merge(incoming,NamedTuple{(t,)}((SampleBelief([[99.]]),)))
+            @test belief_distance(first(factor_message(f,t,p,replaced,π,(;Θ),(;))),site) < 1e-12
+            @test belief_distance(first(factor_message(f,t,p,incoming,nothing,(;Θ),(;))),site) < 2e-12
+        end
+    end
+    @info "Polynomial degree-one agreement (seed 3004, 144 cases)" max_information_error=maximum(errors_h) max_precision_error=maximum(errors_Λ)
+end
+
+# Scalar circle oracle: derivatives written independently, with a fixed scalar A.
+# This is the frozen-metric objective, NOT the varying-metric Sampson cost.
+circle_objective(y,x,A,μ,P) = (x*x+y*y-1)^2/(2A)+(y-μ)^2/(2P)
+function circle_newton(x,A,μ,P; start=0.8)
+    y = start
+    for _ in 1:100
+        g = 2y*(x*x+y*y-1)/A+(y-μ)/P
+        H = (2(x*x+y*y-1)+4y*y)/A+1/P
+        step = g/H
+        y -= step
+        abs(step)<1e-15 && break
+    end
+    return y
+end
+
+@testset "Polynomial circle single-branch posterior" begin
+    Θ = reshape([-1.,0,0,1,0,1],1,:); tab = ExponentTable(2,2)
+    x,μ,P,δ = 0.6,0.9,0.16,0.0025
+    f = PolynomialFactor((x=1,y=1),tab,1;Σ=δ*I,iterations=60)
+    p = last(supported_polarities(f)); π = Gaussian(μ,P)
+    lens,_ = assemble(f,p,(;Θ),(;))
+    site,_ = likelihood_message(lens,π,(x=DiracBelief(x),),(;Θ),(;))
+    posterior,_ = invert(lens,π,(x=DiracBelief(x),),(;Θ),(;))
+    y = only(belief_mean(posterior))
+    A = 4δ*(x*x+y*y)
+    yref = circle_newton(x,A,μ,P)
+    grid = range(0.5,1.1;length=120001)
+    ygrid = grid[argmin([circle_objective(t,x,A,μ,P) for t in grid])]
+    @test y ≈ yref atol=2e-12
+    @test abs(y-ygrid) <= 2.5e-6
+    @test site.Λ[1] ≈ 4y*y/A rtol=2e-12
+    @test site.η[1] ≈ site.Λ[1]*y-2y*(x*x+y*y-1)/A rtol=2e-12
+    @test belief_cov(posterior)[1] ≈ inv(4y*y/A+1/P) rtol=2e-12
+    @test belief_distance(first(factor_message(f,:y,p,(x=DiracBelief(x),),π,(;Θ),(;))),site) < 1e-12
+    # Same mean, different cavity precision: one-step site excludes the cavity.
+    f1 = PolynomialFactor(f.dims,tab,1;Σ=δ*I)
+    s1 = first(factor_message(f1,:y,p,(x=DiracBelief(x),),π,(;Θ),(;)))
+    s2 = first(factor_message(f1,:y,p,(x=DiracBelief(x),),Gaussian(μ,10P),(;Θ),(;)))
+    @test s1.η ≈ s2.η rtol=2e-15
+    @test s1.Λ ≈ s2.Λ rtol=2e-15
+    @test abs(only(belief_mean(combine(π,s1)))-yref) > 1e-3
+    @info "Circle frozen-metric posterior" y yref ygrid A site_precision=site.Λ[1] posterior_variance=belief_cov(posterior)[1]
+    errors = Float64[]
+    for noise in (1e-2,1e-4,1e-6,1e-8)
+        fn = PolynomialFactor(f.dims,tab,1;Σ=noise*I,iterations=60)
+        sn = first(factor_message(fn,:y,p,(x=DiracBelief(x),),π,(;Θ),(;)))
+        yn = only(belief_mean(combine(π,sn)))
+        @test yn > 0
+        push!(errors,abs(yn-sqrt(1-x*x)))
+    end
+    @test issorted(errors;rev=true)
+    @test last(errors)<1e-8
+    @info "Circle upper-branch zero-noise errors" errors
+    precisions = Float64[]
+    for y0 in (1e-1,1e-3,1e-5,0.)
+        x0 = sqrt(1-y0*y0)
+        s = first(factor_message(f1,:y,p,(x=DiracBelief(x0),),DiracBelief(y0),(;Θ),(;)))
+        @test all(isfinite,s.Λ) && all(isfinite,s.η)
+        @test s.Λ[1] ≈ y0*y0/δ atol=1e-16 rtol=2e-15
+        push!(precisions,s.Λ[1])
+    end
+    @test issorted(precisions;rev=true) && last(precisions)==0
+    # Full J is nonzero at tangency, although J_y is zero. No NaN or inverse of Λ.
+    flat = first(factor_message(f,:y,p,(x=DiracBelief(1.),),nothing,(;Θ),(;)))
+    @test isuninformative(flat)
+    @test !isproper(flat)
+    @test first(invert(lens,Gaussian(0.,P),(x=DiracBelief(1.),),(;Θ),(;))).Λ == Gaussian(0.,P).Λ
+    @info "Circle tangency precisions" precisions
+end
+
+@testset "Polynomial rank cases and seeded posterior descent" begin
+    tab = ExponentTable(3,2)
+    Θ = reshape([sum(α)==0 ? -1. : α==[1,0,0] || α==[0,2,0] || α==[0,0,2] ? 1. : 0. for α in eachcol(tab.exponents)],1,:)
+    f = PolynomialFactor((o=1,u=2),tab,1;Σ=0.02I,iterations=1)
+    p = last(supported_polarities(f)); π = Gaussian([0.3,0.4],Matrix(0.1I,2,2))
+    s = first(factor_message(f,:u,p,(o=DiracBelief(0.2),),π,(;Θ),(;)))
+    Ju = [0.6 0.8]; tangent = [-0.8,0.6]
+    @test rank(s.Λ;atol=1e-12) == 1
+    @test norm(Ju*tangent)<1e-15
+    @test norm(s.Λ*tangent)<1e-13
+    @test abs(dot(s.η,tangent))<1e-13
+    @test isproper(combine(π,s))
+    # With no cavity and an affine rank-one target, iteration stops at the
+    # improper site instead of attempting a pseudoinverse posterior mode.
+    affine = PolynomialFactor((u=2,),ExponentTable(2,1),1;iterations=10)
+    sa = first(factor_message(affine,:u,only(supported_polarities(affine)),(;),nothing,
+                             (Θ=[-1. 1 2],),(;)))
+    @test rank(sa.Λ;atol=1e-12)==1
+    @test sa.η ≈ [0.2,0.4]
+    # A constant metric makes a single objective meaningful across iterations.
+    # This is a finite seeded descent check; unsafeguarded GN is not monotone in general.
+    rng = Xoshiro(3005); θ = reshape([-1.,0,0,1,0,1],1,:)
+    improvements = Float64[]
+    for _ in 1:20
+        x = 0.2+0.5rand(rng); μ = 0.65+0.5rand(rng); P = 0.1+0.2rand(rng)
+        ys = Float64[]
+        for it in (1,30)
+            g = PolynomialFactor((x=1,y=1),ExponentTable(2,2),1;Σ=zeros(2,2),λ=0.01,iterations=it)
+            prior = Gaussian(μ,P)
+            site = first(factor_message(g,:y,last(supported_polarities(g)),(x=DiracBelief(x),),prior,(Θ=θ,),(;)))
+            push!(ys,only(belief_mean(combine(prior,site))))
+        end
+        F(y) = circle_objective(y,x,0.03,μ,P)
+        push!(improvements,F(ys[1])-F(ys[2]))
+        @test F(ys[2])<=F(ys[1])+1e-13
+        @test ys[2] ≈ circle_newton(x,0.03,μ,P;start=ys[2]) atol=1e-10
+    end
+    @info "Polynomial seeded descent (3005, 20 cases)" minimum_improvement=minimum(improvements)
+end
+
+@testset "Polynomial Mycelium graph and independent joint Laplace" begin
+    # A genuinely quadratic relation a*b+c=0. Linearise at E[a],E[b]; the
+    # independent joint objective's MAP has a*b+c exactly zero when c is free.
+    # Joint Laplace marginal variance differs from input propagation by no
+    # second-order product term, so these Gaussian/GN covariances agree here.
+    tab = ExponentTable(3,2)
+    Θ = reshape([α==[1,1,0] || α==[0,0,1] ? 1. : 0. for α in eachcol(tab.exponents)],1,:)
+    μa,μb,Va,Vb,Q = 0.7,-0.4,0.03,0.02,0.01
+    f = PolynomialFactor((a=1,b=1,c=1),tab,1;Σ=zeros(3,3),λ=Q/2,iterations=8)
+    builder = GraphBuilder()
+    for n in (:a,:b,:c); variable!(builder,n,1); end
+    factor!(builder,:pa,PriorFactor(:a,Gaussian(μa,Va),x->0.0))
+    factor!(builder,:pb,PriorFactor(:b,Gaussian(μb,Vb),x->0.0))
+    factor!(builder,:poly,f)
+    connect!(builder,:pa,:a,:a;direction=Emitting())
+    connect!(builder,:pb,:b,:b;direction=Emitting())
+    connect!(builder,:poly,:a,:a;direction=Absorbing())
+    connect!(builder,:poly,:b,:b;direction=Absorbing())
+    connect!(builder,:poly,:c,:c;direction=Emitting())
+    graph = build(builder)
+    ps = (pa=(;),pb=(;),poly=(;Θ)); st = (pa=(;),pb=(;),poly=(;))
+    beliefs,report,_,_ = infer!(graph,SequentialSchedule(tasks(forward_backward_schedule(graph))),ps,st;tol=1e-11)
+    @test report.converged
+    # Independently differentiated joint objective:
+    # (a*b+c)^2/(2Q)+(a-μa)^2/(2Va)+(b-μb)^2/(2Vb).
+    map_joint = [μa,μb,-μa*μb]
+    joint_objective(z) = (z[1]*z[2]+z[3])^2/(2Q)+(z[1]-μa)^2/(2Va)+(z[2]-μb)^2/(2Vb)
+    @test joint_objective(map_joint)==0
+    gradient_r = [map_joint[2],map_joint[1],1.]
+    H = gradient_r*gradient_r'/Q+Diagonal([1/Va,1/Vb,0.])
+    laplace_cov = inv(H)
+    @test only(belief_mean(beliefs.c)) ≈ map_joint[3] atol=2e-12
+    @test only(belief_cov(beliefs.c)) ≈ laplace_cov[3,3] atol=2e-12
+    @info "Polynomial graph joint Laplace" report mean=belief_mean(beliefs.c) variance=belief_cov(beliefs.c)[1] laplace_variance=laplace_cov[3,3]
+end
+
+@testset "Polynomial invalid messages and conformance scope" begin
+    tab = ExponentTable(2,2); Θ = reshape([-1.,0,0,1,0,1],1,:)
+    f = PolynomialFactor((x=1,y=1),tab,1); p = last(supported_polarities(f))
+    site(inputs,prior=Gaussian(0.8,0.1);g=f,pol=p,θ=Θ,t=:y) = first(factor_message(g,t,pol,inputs,prior,(Θ=θ,),(;)))
+    for b in (TrivialBelief(),nothing,uninformative(1),SampleBelief([[0.6]]),CategoricalBelief([0.2,0.8]),DiracBelief(1+im))
+        @test_throws ArgumentError site((x=b,))
+    end
+    @test_throws ArgumentError site((;))
+    @test_throws DimensionMismatch site((x=DiracBelief([0.6,0.7]),))
+    @test_throws DimensionMismatch site((x=Gaussian([0.6,0.7],I(2)),))
+    @test_throws DimensionMismatch site((x=DiracBelief(0.6),),Gaussian([0.8,0.9],I(2)))
+    @test_throws DimensionMismatch site((x=DiracBelief(0.6),);θ=zeros(2,6))
+    @test_throws ArgumentError site((x=DiracBelief(0.6),);θ=fill(NaN,1,6))
+    @test_throws ArgumentError site((x=DiracBelief(NaN),))
+    @test_throws ArgumentError site((x=DiracBelief(0.),),Gaussian(0.,0.1))
+    damped = PolynomialFactor(f.dims,tab,1;λ=0.1)
+    @test isuninformative(site((x=DiracBelief(0.),),Gaussian(0.,0.1);g=damped))
+    @test_throws ArgumentError site((x=DiracBelief(0.),),Gaussian(0.,0.1);g=damped,θ=zeros(1,6))
+    @test_throws ArgumentError site((x=DiracBelief(0.6),);t=:bad)
+    @test_throws ArgumentError site((x=DiracBelief(0.6),);pol=first(supported_polarities(f)))
+    @test_throws ArgumentError assemble(f,Polarity(x=Latent(),y=Unobserved()),(;Θ),(;))
+    @test !supports_polarity(f,Polarity(x=Latent(),y=Unobserved()))
+    @test !supports_polarity(f,Polarity(a=Observed(),y=Unobserved()))
+    @test !supports_polarity(f,Polarity(x=Unobserved(),y=Unobserved()))
+    for it in (0,-1,true)
+        @test_throws ArgumentError PolynomialFactor(f.dims,tab,1;iterations=it)
+    end
+    # The shared checker unconditionally requires game-level free_energy/entropy
+    # and graph-local free energy. Those are intentionally absent (LP-009).
+    # The degree-one test above checks the lens/site/posterior subset on EVERY
+    # polarity with independent fixtures; do not advertise full conformance.
+    @test !applicable(free_energy,f,TrivialBelief(),(;),(;Θ),(;))
+    @test !applicable(LenticulumCore.entropy,f,TrivialBelief(),(;),(;Θ),(;))
+end
+
+@testset "Polynomial nonlinear covariance and row-gauge sites" begin
+    rng = Xoshiro(3006)
+    tab = ExponentTable(3,2); Θ = rand(rng,Grassmann(2,10))
+    Σ = [0.3 0.05 0.01;0.05 0.2 0.02;0.01 0.02 0.4]
+    f = PolynomialFactor((a=1,b=2),tab,2;Σ,λ=0.2)
+    μ = [0.4,-0.2]; π = Gaussian(μ,[0.2 0.03;0.03 0.1])
+    inputs = (a=Gaussian(0.6,0.07),); p = last(supported_polarities(f))
+    z = [0.6;μ]
+    J = Θ*veronese_jacobian(tab,z); Ju = J[:,2:3]; r = Θ*veronese(tab,z)
+    # Include target AND observed blocks of Σ; add observed belief variance once.
+    A = J*Σ*J'+0.07J[:,1]*J[:,1]'+0.2Θ*Θ'
+    Λ = Ju'*(A\Ju); h = Λ*μ-Ju'*(A\r)
+    s = first(factor_message(f,:b,p,inputs,π,(;Θ),(;)))
+    @test s.Λ ≈ Λ rtol=2e-13
+    @test s.η ≈ h rtol=2e-13
+    B = [1.3 0.2;-0.1 0.7]
+    sb = first(factor_message(f,:b,p,inputs,π,(Θ=B*Θ,),(;)))
+    @test sb.Λ ≈ s.Λ rtol=2e-13
+    @test sb.η ≈ s.η rtol=2e-13
+    # A Chebyshev residual follows the same exact-Jacobian message path.
+    tc = ExponentTable(3,2;basis=:chebyshev)
+    Θc = Θ/Float64.(basis_change(tab,tc))
+    for t in (tab,tc)
+        θ = t === tab ? Θ : Θc
+        g = PolynomialFactor(f.dims,t,2;Σ)
+        st = first(factor_message(g,:b,p,inputs,π,(Θ=θ,),(;)))
+        A0 = J*Σ*J'+0.07J[:,1]*J[:,1]'
+        @test st.Λ ≈ Ju'*(A0\Ju) rtol=2e-13
+        @test st.η ≈ st.Λ*μ-Ju'*(A0\r) rtol=2e-13
+    end
+end
+
+@testset "Polynomial note corrections" begin
+    # At circle tangency a scalar condition number is always 1: singular value,
+    # not condition number alone, detects the collapsing target derivative.
+    for ε in (1e-2,1e-4,1e-6,1e-8)
+        x = 1-ε; y = sqrt(1-x*x)
+        @test cond(reshape([2y],1,1)) == 1
+        @test abs((-x/y)*sqrt(ε)+1/sqrt(2)) < 0.006
+    end
+    # Overdetermined fixed-metric IFT includes the mixed residual Hessian.
+    # r = [u²+o*u-1, u-o]; independently solve its scalar stationarity equation.
+    function min_u(o)
+        u = 0.8
+        for _ in 1:30
+            r = u*u+o*u-1
+            u -= ((2u+o)*r+u-o)/((2u+o)^2+2r+1)
+        end
+        u
+    end
+    o = 0.4; u = min_u(o); r = u*u+o*u-1
+    Huu = (2u+o)^2+1+2r
+    Huo = (2u+o)*u-1+r
+    fd = (min_u(o+1e-6)-min_u(o-1e-6))/2e-6
+    @test -Huo/Huu ≈ fd atol=1e-9
+    @test abs(-((2u+o)*u-1)/Huu-fd)>1e-3
+    # Tikhonov regularises J_u' * λ = -cotangent, including its transpose.
+    J = [1. 2;0.3 -0.7]; cotangent = [0.4,-0.8]; ε = 0.1
+    adjoint = -(J*J'+ε*I)\(J*cotangent)
+    @test norm(J*(J'*adjoint+cotangent)+ε*adjoint)<1e-14
+    # Nonnegative polynomial least squares need not attain its infimum.
+    # r(x,y)=[xy-1,x] has no zero, yet at (1/n,n) its squared norm is 1/n².
+    @test [(1/n*n-1)^2+(1/n)^2 for n in (1,10,100)] ≈ [1.,0.01,0.0001]
 end

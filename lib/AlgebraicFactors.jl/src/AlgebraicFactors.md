@@ -4,9 +4,9 @@
 > It supplies discrete messages, energies and entropies, moment fitting and model
 > checks, Grassmannian parameter geometry and retracted updates, and forward Plücker
 > transport. Polynomial basis tables, residuals and complete-data fitting are implemented;
-> polynomial messages and homotopy remain planned.
+> single-branch Gaussian messages are implemented; homotopy remains planned.
 
-> Sources: original implementation of [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]] §0, §1.1–§1.7, §2.1–§2.3, §3(a) and §5; code: `AlgebraicFactors.jl`, `toric.jl`, `fit.jl`, `grassmann.jl`, `plucker.jl`, `veronese.jl`, `polynomial.jl`, `polyfit.jl`, `../test/runtests.jl`, `../test/polynomial.jl`.
+> Sources: original implementation of [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]] §0, §1.1–§1.7, §2.1–§2.3, §3(a,b) and §5; code: `AlgebraicFactors.jl`, `toric.jl`, `fit.jl`, `grassmann.jl`, `plucker.jl`, `veronese.jl`, `polynomial.jl`, `polyfit.jl`, `../test/runtests.jl`, `../test/polynomial.jl`.
 >
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens)
 
@@ -63,10 +63,10 @@ Jacobian, where zero damping throws. Default identity damping at `λ=0.3` and pl
 `SquaredNorm()` each change energy by more than `1e-3` at some tested point.
 [[energy]] derives the covariance law and documents the numerical SPD threshold,
 localisation and frozen Gauss–Newton metric. That original test remains alongside the §3(a) real polynomial-factor tests.
-Polynomial messages (§3b) and homotopy (§4) remain unimplemented.
+Polynomial single-branch messages (§3b) are implemented; homotopy (§4) remains planned.
 
 Not implemented: general MLE existence certification, Markov-basis computation,
-polynomial messages, homotopy continuation or inverse Plücker fibres.
+multiple polynomial branches, homotopy continuation or inverse Plücker fibres.
 
 
 `ExponentTable`, `veronese`, `veronese_jacobian` and `basis_change` implement
@@ -75,11 +75,19 @@ then descending lexicographic exponents. There is no implicit data scaling;
 Chebyshev is intended for [-1,1] without enforcing it. Degree-exact Chebyshev
 products need not be homogeneous; incompatible square basis conversions throw.
 
-`PolynomialFactor(dims,tab,k;Σ=I,λ=0)` initialises seeded Grassmann rows and empty
+`PolynomialFactor(dims,tab,k;Σ=I,λ=0,iterations=1)` initialises seeded Grassmann rows and empty
 state. Raw energies accept named channel values split between x/y. For Sampson
 scalarisation pack all values in dims order into y=z, with x=nothing, wrt=:y.
-The exact Jacobian is ΘDv for **all** data coordinates. No message polarities
-are declared. ΘΘ′ damping preserves row-gauge invariance; undamped energy is
+The exact Jacobian is ΘDv for **all** data coordinates. One polarity per channel produces a single-branch Gaussian site;
+`likelihood_message` and `factor_message` share the routine and `invert` pools
+with the cavity once. Proper Gaussian/Dirac observed inputs are required; the
+target starts at the cavity mean, or zero. Iteration relinearises the posterior
+with A=JΣJᵀ+JₒCᵢₙJₒᵀ+λΘΘᵀ frozen per step. Target-rank deficiency retains an
+improper information-form site; singular A throws. No game free energy or
+entropy is provided (LP-009), so the full conformance checker does not apply.
+The actual linear constraint is the degree-one oracle for every polarity.
+Circle, rank-one fibre and a three-channel graph have independent objective checks.
+ΘΘ′ damping preserves row-gauge invariance; undamped energy is
 also invariant under polynomial basis conversion, while coefficient-identity
 damping is basis dependent. See the implementation note `polynomial.md`.
 

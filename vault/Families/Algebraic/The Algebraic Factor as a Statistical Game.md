@@ -3,10 +3,10 @@
 > Assembling everything into [AutoBayes Definition 20](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) and
 > [Definition 27](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients). Every abstract slot gets a concrete,
 > proposed mathematical inhabitant. The implemented subset is the polynomial
-> residual, Sampson scalarisation and complete-data fitting; messages and the
-> assembled statistical game remain planned.
+> residual, Sampson scalarisation, complete-data fitting and single-branch Gaussian
+> messages. Branch-index inference and the full statistical game remain planned.
 
-> Sources: original design and analysis; code: `lib/AlgebraicFactors.jl/src/polynomial.jl`, `polyfit.jl`, `veronese.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (residual and fitting only).
+> Sources: original design and analysis; code: `lib/AlgebraicFactors.jl/src/polynomial.jl`, `polyfit.jl`, `veronese.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (residual, fitting, local messages, rank and objective checks; no branch game).
 >
 > Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
@@ -29,8 +29,12 @@ For an algebraic factor of degree $d$ on $N$ channels with $k$ generators:
 | gradient coupling | Def. 29's laxness | `ExactCoupling` — the IFT gives the exact Jacobian |
 
 The table is a design sketch, not an implemented game contract. `PolynomialFactor`
-has empty supported polarities and no messages, branch beliefs, game entropy or
-`ExactCoupling` declaration. Its packed pointwise convention is x=nothing, y=z,
+declares every single-target observed polarity and supplies a local pure
+`PolynomialModel` lens with frozen-metric Gaussian/GN messages. It has no branch
+beliefs, game entropy/free energy, IFT derivatives or `ExactCoupling` declaration.
+Its `invert` is the final site pooled with the prior once. The tests check the
+linear oracle, circle, improper fibre and a three-channel graph, not this
+proposed branch game. Its packed pointwise convention is x=nothing, y=z,
 wrt=:y, differentiating all coordinates; [[polynomial]] explains named channels.
 
 ## The vector energy is forced, not chosen
@@ -42,7 +46,7 @@ be a complete intersection. So the algebraic family is the
 existence proof for [[Scalar and Multivariate Energy]]: it is a family in which the paper's
 $[0,\infty]$-valued $l^c$ **cannot be used without first throwing away the model**, because
 
-- the [[Inference as Root Finding|well-posedness condition]] is $\operatorname{rank}J_u = k$,
+- the [[Inference as Root Finding|IFT condition for a square system]] is rank Jᵤ=q=k,
   a statement about the vector residual's Jacobian, unstatable for a scalar;
 - the [[Backpropagation by the Implicit Function Theorem|adjoint]] solves $J_u^\top\lambda = -\bar x_u$,
   requiring the $k\times q$ Jacobian;
@@ -114,7 +118,9 @@ pushforward prior and the sampling distribution. Here:
 The exception is at the discriminant, where the branch *count* changes — a discrete jump that
 no derivative captures. So the honest statement is: **exact away from $\Delta$,
 discontinuous on it.** The `GradientCoupling` annotation should be
-`ExactCoupling` with a conditioning guard on $\kappa(J_u)$.
+`ExactCoupling` with singular-value/rank checks as well as conditioning,
+if that proposed branch solve and its derivatives are implemented. A scalar
+condition number alone misses tangency ([[Branches and the Discriminant]]).
 
 ## What this factor cannot do
 

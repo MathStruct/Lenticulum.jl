@@ -8,7 +8,7 @@ Finite toric potentials over named discrete channels, implementing L-SPEC-004 §
 §1.1–§1.7, plus Grassmannian parameters (§2.1–§2.2) and the Plücker map (§5).
 Toric messages, energies and entropies use exact enumeration; fitting uses
 Newton or binary-feature IPF. Polynomial tables, residuals and complete-data fitting (§3a) are implemented.
-Polynomial messages and homotopy remain planned. Sampson scalarisation comes
+Single-branch Gaussian messages are implemented; homotopy remains planned. Sampson scalarisation comes
 from LenticulumCore and is checked on the real polynomial factor too.
 
 ```julia
@@ -154,7 +154,7 @@ Jacobian, where zero damping throws. Default identity damping at `λ=0.3` and pl
 `SquaredNorm()` each change energy by more than `1e-3` at some tested point.
 The implementation note `lib/LenticulumCore.jl/src/energy.md` derives the covariance law and documents the numerical SPD threshold,
 localisation and frozen Gauss–Newton metric. That original test remains alongside the §3(a) real polynomial-factor tests.
-Polynomial messages (§3b) and homotopy (§4) remain unimplemented.
+Polynomial single-branch messages (§3b) are implemented; homotopy (§4) remains planned.
 
 
 `ExponentTable`, `veronese`, `veronese_jacobian` and `basis_change` implement
@@ -163,11 +163,19 @@ then descending lexicographic exponents. There is no implicit data scaling;
 Chebyshev is intended for [-1,1] without enforcing it. Degree-exact Chebyshev
 products need not be homogeneous; incompatible square basis conversions throw.
 
-`PolynomialFactor(dims,tab,k;Σ=I,λ=0)` initialises seeded Grassmann rows and empty
+`PolynomialFactor(dims,tab,k;Σ=I,λ=0,iterations=1)` initialises seeded Grassmann rows and empty
 state. Raw energies accept named channel values split between x/y. For Sampson
 scalarisation pack all values in dims order into y=z, with x=nothing, wrt=:y.
-The exact Jacobian is ΘDv for **all** data coordinates. No message polarities
-are declared. ΘΘ′ damping preserves row-gauge invariance; undamped energy is
+The exact Jacobian is ΘDv for **all** data coordinates. One polarity per channel produces a single-branch Gaussian site;
+`likelihood_message` and `factor_message` share the routine and `invert` pools
+with the cavity once. Proper Gaussian/Dirac observed inputs are required; the
+target starts at the cavity mean, or zero. Iteration relinearises the posterior
+with A=JΣJᵀ+JₒCᵢₙJₒᵀ+λΘΘᵀ frozen per step. Target-rank deficiency retains an
+improper information-form site; singular A throws. No game free energy or
+entropy is provided (LP-009), so the full conformance checker does not apply.
+The actual linear constraint is the degree-one oracle for every polarity.
+Circle, rank-one fibre and a three-channel graph have independent objective checks.
+ΘΘ′ damping preserves row-gauge invariance; undamped energy is
 also invariant under polynomial basis conversion, while coefficient-identity
 damping is basis dependent. See the implementation note `polynomial.md`.
 

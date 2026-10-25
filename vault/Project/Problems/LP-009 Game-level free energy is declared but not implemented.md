@@ -10,3 +10,13 @@
 3. Drop them from the required list, and document `local_free_energy` as the free energy of a factor.
 
 **Resolution so far.** Option 1 for the five `Lenticulum` factors (`GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor`, `NonlinearFactor`, `LikelihoodFactor`): `free_energy` passes the prior and the observation to `Mycelium.local_free_energy`, and since 4a49ca5c `entropy` returns an element of the energy space, not a bare number. `PriorFactor` has exact game-level methods for Dirac and categorical beliefs (bb3af9e9); for a Gaussian belief with an arbitrary `nlogp` they throw, because the expectation has no closed form. The 2026-10-23 resolution also listed a generic `LenticulumCore` fallback and methods for `EqualityFactor`, `DeterministicFactor`, the equilibrium and neural-ODE factors; none of these exist ([[LP-013 Defects found in the review of master]]). **Open:** those factors. The DEQ and neural-ODE factors solve for a point, so an exact distributional free energy needs a choice (a Dirac belief, or a stated approximation).
+
+
+**Algebraic family (L-SPEC-004).** `ToricFactor` has exact game-level quantities
+when normalised; `PluckerFactor` and `PolynomialFactor` do not. Polynomial
+single-branch messages now supply an assembled local lens and Gaussian/GN sites,
+but freezing a different metric at each target/iteration does not by itself define
+a normalised joint branch model or exact entropy. No game or graph-local free
+energy is claimed for it. The full common conformance checker therefore remains
+inapplicable; all supported degree-one polarities have independent lens/site/posterior
+checks in `lib/AlgebraicFactors.jl/test/polynomial.jl` ([[polynomial]]).

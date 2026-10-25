@@ -2,10 +2,10 @@
 
 > The most satisfying concrete grounding in this note set: for an algebraic factor, the
 > abstract latent space $\llbracket c \rrbracket$ of [Definition 1](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) is
-> **literally the set of solution branches**, and the discriminant is where four different
-> things fail simultaneously.
+> **the set of solution branches** in the proposed multi-branch model. Target-rank
+> loss obstructs the root IFT; it need not make the full Sampson covariance singular.
 
-> Sources: original to this vault (design and analysis; no single paper).
+> Sources: original design and analysis; code: `lib/AlgebraicFactors.jl/src/polynomial.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (circle tangency and scalar conditioning checks; no branch enumeration).
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model)
 
@@ -13,17 +13,26 @@
 
 Fix a polarity. The projection
 
-$$\pi \;:\; V_\mathbb{R}(r_\Theta) \longrightarrow \mathbb{R}^p, \qquad (x_o, x_u) \mapsto x_o$$
+$$
+\pi \;:\; V_\mathbb{R}(r_\Theta) \longrightarrow \mathbb{R}^p, \qquad (x_o, x_u) \mapsto x_o
+$$
 
-is, away from a proper closed subset, a **covering map of degree $D$**: every $x_o$ in a
-connected component of the complement has exactly $D$ preimages, varying smoothly.
+can be read locally as a **covering map of degree D** when the fibres are finite,
+the total locus is smooth, the projection has no critical points and roots do
+not escape to infinity. These assumptions are needed; an arbitrary polynomial
+relation need not be a finite proper cover. Under them the real root count is
+constant on each component away from critical values.
 
-$$\boxed{\;\llbracket c \rrbracket \;=\; \pi^{-1}(x_o) \;=\; \{1,\ldots,D\}\;\text{, the branch index}\;}$$
+$$
+\boxed{\;\llbracket c \rrbracket \;=\; \pi^{-1}(x_o) \;=\; \{1,\ldots,D\}\;\text{, the branch index}\;}
+$$
 
 So an algebraic factor's forward kernel really does have the type of
 [Definition 1](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model),
 
-$$c \;:\; X \rightsquigarrow \llbracket c \rrbracket \times Y$$
+$$
+c \;:\; X \rightsquigarrow \llbracket c \rrbracket \times Y
+$$
 
 and the latent variable has a **meaning**: *which solution you are on*. Elbow up or elbow
 down. Which of the ten essential matrices. This is not a bookkeeping device; it is the
@@ -49,11 +58,14 @@ is the statement $D > 1$; "or have no solution" is $D = 0$.
 
 $D$ is not constant. It changes across the **discriminant locus**
 
-$$\Delta \;=\; \bigl\{x_o \;:\; \exists\, x_u,\ r_\Theta(x_o,x_u) = 0 \ \text{and} \ \operatorname{rank} J_u(x_o,x_u) < q\bigr\}$$
+$$
+\Delta \;=\; \bigl\{x_o \;:\; \exists\, x_u,\ r_\Theta(x_o,x_u) = 0 \ \text{and} \ \operatorname{rank} J_u(x_o,x_u) < q\bigr\}
+$$
 
-— the set of observed values over which two branches collide. For a square system,
-$\Delta = \{x_o : \operatorname{Res}(\cdot) = 0\}$, the vanishing of a resultant, hence
-itself an algebraic hypersurface.
+— the set of observed values over which two branches collide. For suitable finite square systems elimination/discriminant polynomials describe
+critical values (often a hypersurface); this is not a universal assertion that
+one resultant describes every real projection's bifurcations. Roots escaping to
+infinity can change the count without belonging to this finite critical locus.
 
 ```tikz
 \usepackage{tikz}
@@ -82,24 +94,28 @@ itself an algebraic hypersurface.
 \end{document}
 ```
 
-## Four failures, one locus
+## What target-rank loss does and does not imply
 
-At $\Delta$, all of the following happen **at the same points**, and they are the same
-phenomenon seen from four sides:
+The following effects require different assumptions; they do not all coincide:
 
 1. **The implicit function theorem fails.** $J_u$ is singular, so
    $\partial x_u/\partial x_o = -J_u^{-1}J_o$ is undefined and the adjoint solve of
-   [[Backpropagation by the Implicit Function Theorem]] is ill-conditioned. Gradients blow
-   up like $1/\mathrm{dist}(x_o,\Delta)$.
+   [[Backpropagation by the Implicit Function Theorem]] is ill-conditioned. For the circle, |dy/dx|=|x|/√(1−x²) grows like the inverse **square root** of
+   the distance to x=±1, not inverse distance. Other degeneracies have other rates.
 2. **Inference is discontinuous.** Two real roots merge and become a complex-conjugate pair.
-   The map $x_o \mapsto \{\text{real roots}\}$ is continuous *only* on the complement of
-   $\Delta$.
+   Smooth separate branch labellings fail at collision. A root set can nevertheless
+   approach the merged root continuously from the side with real solutions;
+   set-valued continuity needs a specified topology.
 3. **The entropy jumps.** With a uniform belief over branches,
    $\mathbf{H}^c = \log D$, which is a step function of $x_o$. The
    [statistical game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)'s regulariser is genuinely discontinuous here.
-4. **The Sampson precision blows up.** $(JJ^\top)^{-1}$ of
-   [[Algebraic versus Geometric Distance]] is singular exactly on $\Delta$ — the noise model
-   says "infinite uncertainty along the collapsing direction", which is correct and useless.
+4. **The target site can flatten while the full Sampson metric stays finite.**
+   Full J and target Jᵤ are different matrices. On the unit circle, with Σ_f=δI,
+   JΣ_fJᵀ=4δ on the entire circle, including (±1,0). The y site precision is
+   Jᵤ²/A=y²/δ and tends to **zero**, not infinity. It is loss of full residual
+   rank (or covariance support), not target rank alone, that makes the undamped
+   residual covariance singular. The implemented site is finite and flat at
+   tangency; singular A still throws ([[polynomial]]).
 
 > [!warning] This is intrinsic, not a defect
 > Take the circle: $y = \pm\sqrt{1-x^2}$ is genuinely undefined for $|x|>1$ and genuinely
@@ -107,16 +123,24 @@ phenomenon seen from four sides:
 > or regulariser removes this**, because it is a property of the relation, not of the
 > representation. Any implicit learner that permits multi-valued relations inherits it.
 >
-> The honest engineering response is to *detect* it — $\kappa(J_u)$ is a cheap, exact
-> proximity indicator to $\Delta$ — and to report it, rather than to return a confident
-> gradient that is numerically meaningless.
+> Detect target-rank loss and inspect singular values, rather than assume
+> the condition number alone detects proximity. For a nonzero scalar Jᵤ,
+> κ(Jᵤ)=1 even as it tends to zero. The circle tests check that fact and the
+> square-root derivative rate. No IFT gradient is returned by PolynomialFactor.
+
+The branch-index model below remains planned (§4). The implemented
+`PolynomialModel` is a pure **local branch approximation**, with no latent branch
+index or branch probabilities. This does not assert that the full relation has
+only one solution.
 
 ## The branch belief
 
 The natural output of an algebraic inversion is therefore **not a point** but a belief over
 a finite set:
 
-$$c'_\pi(x_o) \;=\; \sum_{j=1}^{D} w_j\, \delta_{x_u^{(j)}}, \qquad w_j \propto \pi\bigl(x_u^{(j)}\bigr)$$
+$$
+c'_\pi(x_o) \;=\; \sum_{j=1}^{D} w_j\, \delta_{x_u^{(j)}}, \qquad w_j \propto \pi\bigl(x_u^{(j)}\bigr)
+$$
 
 a `SampleBelief` supported on the real roots, weighted by the prior. Two readings:
 
