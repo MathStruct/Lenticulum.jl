@@ -27,7 +27,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Bibliography</loc>
-    <lastmod>2026-10-25T10:59:46.000Z</lastmod>
+    <lastmod>2026-10-25T20:16:48.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Comparisons/Geometric-Deep-Learning-and-Physical-Laws</loc>
     <lastmod>2026-10-15T11:05:36.000Z</lastmod>
@@ -102,7 +102,7 @@
     <lastmod>2026-10-15T09:33:42.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Factor-Graphs/Everything-is-a-Factor</loc>
-    <lastmod>2026-10-25T00:27:31.000Z</lastmod>
+    <lastmod>2026-10-25T20:16:48.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Factor-Graphs/Factor-Graphs</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -168,7 +168,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-10-25T18:28:44.588Z</lastmod>
+    <lastmod>2026-10-25T20:17:04.633Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -183,7 +183,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/The-Parameter-is-a-Grassmannian</loc>
-    <lastmod>2026-10-25T10:59:46.000Z</lastmod>
+    <lastmod>2026-10-25T20:16:48.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/The-Veronese-Parametrisation</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -353,8 +353,11 @@
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-014-Emitting-edges-drop-the-cavity-message-from-the-free-energy</loc>
     <lastmod>2026-10-25T18:10:47.000Z</lastmod>
   </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-015-Momentum-had-the-wrong-sign-on-its-decay</loc>
+    <lastmod>2026-10-25T20:16:48.000Z</lastmod>
+  </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/Problem-Log</loc>
-    <lastmod>2026-10-25T18:10:47.000Z</lastmod>
+    <lastmod>2026-10-25T20:16:48.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-001-The-Factor-Interface</loc>
     <lastmod>2026-10-24T23:08:41.000Z</lastmod>
@@ -366,10 +369,10 @@
     <lastmod>2026-10-25T00:27:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-004-Algebraic-Factors-Toric-and-Grassmannian</loc>
-    <lastmod>2026-10-25T18:28:28.000Z</lastmod>
+    <lastmod>2026-10-25T20:16:48.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/Specifications</loc>
-    <lastmod>2026-10-25T18:28:28.000Z</lastmod>
+    <lastmod>2026-10-25T20:16:48.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/README</loc>
     <lastmod>2026-10-25T18:10:47.000Z</lastmod>
@@ -420,10 +423,13 @@
     <lastmod>2026-10-15T14:28:34.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/AlgebraicFactors</loc>
-    <lastmod>2026-10-25T18:28:28.000Z</lastmod>
+    <lastmod>2026-10-25T20:16:48.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/fit</loc>
     <lastmod>2026-10-25T18:28:28.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/grassmann</loc>
+    <lastmod>2026-10-25T20:16:48.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/toric</loc>
     <lastmod>2026-10-25T18:28:28.000Z</lastmod>
@@ -477,7 +483,7 @@
     <lastmod>2026-10-24T14:35:42.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/factors</loc>
-    <lastmod>2026-10-24T23:06:11.000Z</lastmod>
+    <lastmod>2026-10-25T20:16:48.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/free_energy</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
