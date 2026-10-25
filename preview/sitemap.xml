@@ -27,7 +27,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Bibliography</loc>
-    <lastmod>2026-10-24T14:35:42.000Z</lastmod>
+    <lastmod>2026-10-25T00:27:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Comparisons/Geometric-Deep-Learning-and-Physical-Laws</loc>
     <lastmod>2026-10-15T11:05:36.000Z</lastmod>
@@ -90,7 +90,7 @@
     <lastmod>2026-10-15T11:05:36.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Factor-Graphs/Bethe-Free-Energy</loc>
-    <lastmod>2026-09-30T21:52:28.000Z</lastmod>
+    <lastmod>2026-10-25T00:27:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Factor-Graphs/Categorical-Belief</loc>
     <lastmod>2026-10-21T08:58:38.000Z</lastmod>
@@ -102,7 +102,7 @@
     <lastmod>2026-10-15T09:33:42.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Factor-Graphs/Everything-is-a-Factor</loc>
-    <lastmod>2026-09-30T21:52:28.000Z</lastmod>
+    <lastmod>2026-10-25T00:27:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Factor-Graphs/Factor-Graphs</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -133,6 +133,9 @@
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Factor-Graphs/Trivial-Belief</loc>
     <lastmod>2026-10-02T09:55:35.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Factor-Graphs/Unusual-Wirings</loc>
+    <lastmod>2026-10-25T00:27:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Adversarial/GANs-as-Two-Factors</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -270,7 +273,7 @@
     <lastmod>2026-10-24T14:22:50.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Foundations/Scalar-and-Multivariate-Energy</loc>
-    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+    <lastmod>2026-10-25T00:27:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Foundations/The-Table-Revisited</loc>
     <lastmod>2026-10-14T22:28:26.000Z</lastmod>
@@ -279,7 +282,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Map-of-Content</loc>
-    <lastmod>2026-10-24T14:35:42.000Z</lastmod>
+    <lastmod>2026-10-25T00:27:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Decisions/Decisions</loc>
     <lastmod>2026-10-24T14:57:35.000Z</lastmod>
@@ -315,7 +318,7 @@
     <lastmod>2026-10-24T14:35:42.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-005-Learning-the-noise-covariance</loc>
-    <lastmod>2026-10-22T18:53:57.000Z</lastmod>
+    <lastmod>2026-10-25T00:27:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-006-Gaussian-entropies-are-relative-to-Lebesgue-measure</loc>
     <lastmod>2026-10-22T18:53:57.000Z</lastmod>
@@ -350,8 +353,11 @@
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-002-Stop-Gradient</loc>
     <lastmod>2026-10-22T19:45:29.000Z</lastmod>
   </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-003-Exposed-Parameters-and-Energy-Channels</loc>
+    <lastmod>2026-10-25T00:27:31.000Z</lastmod>
+  </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/Specifications</loc>
-    <lastmod>2026-10-22T19:45:29.000Z</lastmod>
+    <lastmod>2026-10-25T00:27:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/README</loc>
     <lastmod>2026-10-15T11:05:36.000Z</lastmod>
@@ -374,8 +380,11 @@
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Research-Questions/RQ-006-Gaussian-Factor-Graphs-as-Cellular-Sheaves</loc>
     <lastmod>2026-10-24T14:35:42.000Z</lastmod>
   </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Research-Questions/RQ-007-Risk-Scalarisations-and-Local-Decomposition</loc>
+    <lastmod>2026-10-25T00:27:31.000Z</lastmod>
+  </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Research-Questions/Research-Questions</loc>
-    <lastmod>2026-10-24T14:35:42.000Z</lastmod>
+    <lastmod>2026-10-25T00:27:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Start-Here</loc>
     <lastmod>2026-10-24T14:35:42.000Z</lastmod>
