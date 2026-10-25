@@ -27,7 +27,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Bibliography</loc>
-    <lastmod>2026-10-25T21:52:12.000Z</lastmod>
+    <lastmod>2026-10-25T22:36:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Comparisons/Geometric-Deep-Learning-and-Physical-Laws</loc>
     <lastmod>2026-10-15T11:05:36.000Z</lastmod>
@@ -156,7 +156,7 @@
     <lastmod>2026-10-25T22:08:00.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Branches-and-the-Discriminant</loc>
-    <lastmod>2026-10-25T22:08:00.000Z</lastmod>
+    <lastmod>2026-10-25T22:36:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Composition-is-Elimination</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -168,10 +168,10 @@
     <lastmod>2026-10-25T21:52:12.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-10-25T22:14:18.887Z</lastmod>
+    <lastmod>2026-10-25T22:45:55.041Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Inference-as-Root-Finding</loc>
-    <lastmod>2026-10-25T22:08:00.000Z</lastmod>
+    <lastmod>2026-10-25T22:36:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Open-Problems-in-Algebraic-Implicit-Learning</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -372,10 +372,10 @@
     <lastmod>2026-10-25T00:27:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-004-Algebraic-Factors-Toric-and-Grassmannian</loc>
-    <lastmod>2026-10-25T22:08:00.000Z</lastmod>
+    <lastmod>2026-10-25T22:36:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/Specifications</loc>
-    <lastmod>2026-10-25T22:08:00.000Z</lastmod>
+    <lastmod>2026-10-25T22:36:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/README</loc>
     <lastmod>2026-10-25T18:10:47.000Z</lastmod>
@@ -426,7 +426,7 @@
     <lastmod>2026-10-15T14:28:34.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/AlgebraicFactors</loc>
-    <lastmod>2026-10-25T22:08:00.000Z</lastmod>
+    <lastmod>2026-10-25T22:36:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/fit</loc>
     <lastmod>2026-10-25T18:28:28.000Z</lastmod>
@@ -434,14 +434,17 @@
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/grassmann</loc>
     <lastmod>2026-10-25T20:16:48.000Z</lastmod>
   </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/homotopy</loc>
+    <lastmod>2026-10-25T22:36:28.000Z</lastmod>
+  </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/plucker</loc>
     <lastmod>2026-10-25T21:52:12.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/polyfit</loc>
-    <lastmod>2026-10-25T22:08:00.000Z</lastmod>
+    <lastmod>2026-10-25T22:36:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/polynomial</loc>
-    <lastmod>2026-10-25T22:08:00.000Z</lastmod>
+    <lastmod>2026-10-25T22:36:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/toric</loc>
     <lastmod>2026-10-25T18:28:28.000Z</lastmod>
