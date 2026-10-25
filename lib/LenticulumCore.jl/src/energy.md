@@ -1,6 +1,9 @@
 #implementation
 
-> Sources: code: `energy.jl`
+> Fixed scalarisations act on energy vectors; point-dependent scalarisations first localise
+> to a metric at a factor and point. The free-energy level retains its fixed scalarisations.
+
+> Sources: code: `energy.jl`, `../test/runtests.jl`, `../../AlgebraicFactors.jl/test/runtests.jl`
 >
 > Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Bicategory](https://mathstruct.org/CategoryTheory-ML-Wiki/Bicategory)
 
@@ -15,7 +18,8 @@ makes AutoBayes' Definition 22 a *corollary* of ours rather than a competitor.
 | $E_{dc} = E_c \oplus E_d$ | `oplus` / `⊕`, `GradedEnergySpace` |
 | an element of $E_G$ | `GradedEnergy` (a `NamedTuple` keyed by factor) |
 | $\sigma : E \to \mathbb{R}$ | `IdentityScalarisation`, `WeightedSum`, `SquaredNorm`, `GradedScalarisation` |
-| linear vs convex | `islinear` |
+| a field of pointwise metrics | `AbstractPointScalarisation`, `SampsonNorm`, `localise`, `sampson_damping` |
+| linear vs nonlinear (fixed scalarisations) | `islinear` |
 | the Jensen gap | `jensen_gap` |
 | the pointwise level | `pointwise_energyspace`, `pointwise_scalarisation`, `scalar_energy(...; polarity, σ)` |
 
@@ -81,6 +85,98 @@ method; no factor yet defines a polarity-dependent one. The choices this leaves 
 or two, cone or gauge, which σ and metric, normalised or not, per polarity) are
 [[Scalar and Multivariate Energy]] §8.
 
+## Localising a field of metrics
+
+Following [[L-ADR-0007 Point-dependent scalarisations are localised before use]]
+(accepted 2026-10-25), a point scalarisation is a field $p \mapsto \sigma_p$, not a single
+map on energy space. `localise(σ, f, x, a, y, ps, st)` returns an ordinary scalarisation.
+Every fixed scalarisation returns itself (`===`). `scalar_energy` localises using the
+incoming state, then evaluates the residual and returns the energy's outgoing state.
+`scalarise` on an unlocalised point scalarisation throws; `islinear` is false.
+
+For `SampsonNorm(wrt=:y, Σ=nothing, λ=0)`, let $u$ be the selected `:x` or `:y` data
+coordinates and $J=D_u r$. Localisation returns `SquaredNorm(M)` with
+
+$$
+A=J\Sigma J^\top+\lambda R,\qquad M=A^{-1},\qquad
+\sigma_p(r)=\tfrac12 r^\top M r.
+$$
+
+`Σ=nothing` means identity in data space; a supplied real covariance is checked for
+finiteness, shape, symmetry and PSD with the `SquaredNorm` checking convention.
+Nonzero damping also checks the factor's `R`. `λ` must be finite and nonnegative.
+The numerical SPD policy is $\lambda_{\min}(A)>n\operatorname{eps}(T)\lambda_{\max}(A)$,
+where $n$ is the residual dimension and $T$ the floating element type. Non-finite,
+empty, singular or numerically deficient covariance throws `ArgumentError`; there
+is no pseudoinverse or automatic damping. The verified covariance is inverted and
+wrapped with `SquaredNorm(...; check=false)`. Dense real CPU arrays are the supported
+Sampson path; it preserves Float32 when the Jacobian and supplied coefficients do.
+
+The default `energy_jacobian` uses central finite differences. Factors can override
+it exactly. `gauss_newton_metric(f, ...; σ=SampsonNorm())` localises first and forms
+$J_{\mathrm{pull}}^\top M J_{\mathrm{pull}}$. This **freezes the metric at the point**:
+it ignores derivatives of $M$ and is not the Hessian of the varying-metric energy.
+The pull-back's `wrt` is independent of `SampsonNorm.wrt`, which selects the noise space.
+Finite-difference localisation does not provide AD through the metric.
+
+A graded scalarisation can contain metrics for different factors. Passing the whole
+composite context to every part is unsound: `TensorFactor` and `ComposedFactor` parts
+need their own factor, arguments, parameters and state. Until that routing is specified,
+`localise` rejects any graded scalarisation containing point-dependent parts, recursively.
+Callers can localise parts in their own contexts and build an ordinary graded scalarisation.
+Fixed graded scalarisations still return themselves.
+
+`jensen_gap` rejects point-dependent scalarisations (also inside gradings, even with
+empty samples). Different points use different maps; the fixed-map Jensen identity
+cannot describe their expectation. One may apply `jensen_gap` to one frozen metric,
+which measures a different quantity. Free-energy scalarisation in `scalar_free_energy`
+and Mycelium's Bethe sum is unchanged: it acts on free energies, not point residuals.
+
+### Gauge-compatible damping
+
+For a residual $r_\Theta(z)=\Theta v(z)$, write $D=D_zv$, so $J=\Theta D$.
+Under $\Theta\mapsto B\Theta$, both $r\mapsto Br$ and $J\mapsto BJ$.
+To retain invariance when damping, a factor overrides `sampson_damping` with a
+PSD matrix satisfying $R\mapsto BRB^\top$. In particular $R=\Theta\Theta^\top$ gives
+
+$$
+J\Sigma J^\top+\lambda\Theta\Theta^\top
+=\Theta(D\Sigma D^\top+\lambda I_m)\Theta^\top.
+$$
+
+Here $m$ is the number of basis functions. This identity holds for **any** data
+covariance $\Sigma$ of the right size, not just $\Sigma=I$; in that case its middle
+factor is $DD^\top+\lambda I_m$. For full-row-rank $\Theta$, PSD $\Sigma$ and
+$\lambda>0$, the result is SPD even if $J$ loses rank. Since $A\mapsto BAB^\top$,
+$(Br)^\top(BAB^\top)^{-1}(Br)=r^\top A^{-1}r$. Identity damping generally fails
+this transformation law. Exact gauge invariance does not imply numerical acceptance
+for arbitrarily ill-conditioned $B$: the SPD threshold depends on the representative.
+
+### Checked examples and limits
+
+Core's `Point-dependent scalarisation localisation` testset uses the test-only circle
+$r(y)=y_1^2+y_2^2-1$. At radius $\rho>0$, its energy is
+$(\rho^2-1)^2/(8\rho^2)$ (relative tolerance `2e-10`). The ratio to geometric
+energy $(\rho-1)^2/2$ tends to one: for both signs of $\rho-1$, with magnitudes
+`1e-2, 1e-3, 1e-4, 1e-5`, the ratio error decreases and is below
+`1.1*abs(ρ-1)`, finally below `1.1e-5`. Covariance $s^2I$ scales energy by $1/s^2$.
+At the centre, zero damping throws and positive damping gives a finite value.
+Tests also check identity localisation of fixed scalarisations, old scalar energies,
+input-state use, validation, Float32 metric types, inversion overflow rejection,
+large finite covariances, and distinct noise/pull-back coordinates in the frozen
+Gauss–Newton formula.
+
+AlgebraicFactors' `Sampson gauge obligation (§2.3)` testset checks a test-only
+six-monomial, two-equation residual. With `Xoshiro(2307)`, 20 random points and
+$B$ with singular values `0.7, 1.8`, energy agrees to `rtol=1e-10` under $B$ and
+QR row orthonormalisation, for damping `0, 0.3`. The $B$ test covers identity and
+non-isotropic covariance. Exact Jacobians agree with the finite-difference default
+(`rtol=2e-10, atol=2e-9`). Identity damping and plain algebraic distance each differ
+by more than `1e-3` at some tested point. Two quadratics at the origin have
+rank-zero $J$: zero damping throws and $\Theta\Theta^\top$ damping remains finite
+and gauge invariant. This is the §2.3 obligation, **not** a §3 polynomial factor,
+fit, IRLS, inference method or a general numerical invariance guarantee.
+
 ## Implementation difficulties
 
 ### 1. Eager accumulation is only valid for linear $\sigma$
@@ -92,8 +188,8 @@ coincide and eager accumulation is free; for convex $\sigma$ they do not, and th
 loss must be assembled first.
 
 There is no way to detect this at runtime after the fact — both are finite numbers, both
-look plausible, and the wrong one is *smaller*, so it will look like your model is doing
-better. Hence the trait.
+look plausible, and for convex scalarisations, eager scalarisation gives the *larger*
+value by Jensen’s inequality. Hence the trait.
 
 ### 2. `oplus` on unnamed operands invents `:left` / `:right`
 
@@ -129,14 +225,11 @@ right place), but the message will be unhelpful. A custom error explaining "the
 scalarisation's grading does not match the energy's" is worth adding. Issue #8 was this
 error in another form: a graded scalarisation applied to a plain vector.
 
-### 6. Not yet implemented: the Jacobian side
+### 6. The reference Jacobian and the remaining AD gap
 
-[[Scalar and Multivariate Energy]] §6 is the *reason* for the vector energy —
-$J^\top J$ for Gauss–Newton, the Fisher metric of Definition 27, and the implicit function
-theorem. None of that is here. `energy.jl` currently gives you the *values* and the
-*algebra*; extracting $D_\theta \mathbf{F}$ needs an AD backend, which `LenticulumCore`
-deliberately does not depend on. It belongs in `Lenticulum.jl` proper, as an extension per
-backend. **Until that exists, the design's main payoff is unrealised** — worth saying
-plainly rather than letting the abstraction stand in for the result.
+`energy_jacobian` already provides central finite differences in `:x` or `:y`, and
+`gauss_newton_metric` forms the pull-back. The earlier statement that no Jacobian
+support existed was stale. Parameter Jacobians and backend AD through localisation
+remain outside this implementation; finite differences are a reference, not an AD rule.
 
 Related: [[Scalar and Multivariate Energy]], [[Factors are Parameterized Statistical Games]], [[statistical_game]]

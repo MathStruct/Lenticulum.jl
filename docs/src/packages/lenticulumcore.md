@@ -97,6 +97,15 @@ Pages = ["lens.jl"]
 
 ### Energies and scalarisations
 
+`AbstractPointScalarisation` represents a field of metrics. `scalar_energy` calls
+`localise(σ, f, x, a, y, ps, st)` before applying it. `SampsonNorm` localises to a
+`SquaredNorm` from the pushed-forward noise covariance; factors with a residual gauge
+supply `sampson_damping` transforming as `B*R*B'`. Singular covariance throws instead
+of using a pseudoinverse. Graded scalarisations containing point-dependent parts must
+have their parts localised in their own contexts first. `jensen_gap` requires a fixed
+scalarisation; the factor form of `gauss_newton_metric` freezes the localised metric.
+
+
 ```@autodocs
 Modules = [LenticulumCore]
 Pages = ["energy.jl"]

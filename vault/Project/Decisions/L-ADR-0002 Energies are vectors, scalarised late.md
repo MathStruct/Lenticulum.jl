@@ -18,5 +18,5 @@ Option 2: energies live in energy spaces, compose by direct sum, and a scalarisa
 ## Consequences
 
 - Linear scalarisations compose strictly; convex ones are lax, by a Jensen gap (§5 there), which `islinear` and `jensen_gap` expose.
-- The payoff, Jacobians of the vector energy, is not implemented yet: [[LP-002 The Jacobian side is not implemented]].
+- Reference input/output Jacobians now exist as `energy_jacobian` (central finite differences), with `gauss_newton_metric` for the pull-back (`lib/LenticulumCore.jl/src/energy.jl`). Backend AD and parameter Jacobians remain open: [[LP-002 The Jacobian side is not implemented]].
 - Which scalarisation to use is a choice with consequences, listed in §8 there.

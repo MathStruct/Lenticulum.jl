@@ -118,6 +118,30 @@ The two differ by [`jensen_gap`](@ref).
 function islinear end
 
 """
+    AbstractPointScalarisation <: AbstractScalarisation
+
+A field of scalarisations depending on a factor, its point and parameters. Call
+[`localise`](@ref) before [`scalarise`](@ref). It is not a fixed map on energy space,
+so [`jensen_gap`](@ref) does not apply.
+"""
+abstract type AbstractPointScalarisation <: AbstractScalarisation end
+islinear(::AbstractPointScalarisation) = false
+
+"""
+    localise(σ, f, x, a, y, ps, st) -> AbstractScalarisation
+
+Return an ordinary scalarisation at this point, using the incoming state `st`.
+Existing fixed scalarisations return themselves (`===`). Point-dependent subtypes
+must implement this method. Graded scalarisations containing point-dependent parts
+are rejected: each part needs its own factor and arguments, which cannot in general
+be recovered from the enclosing factor's context (including tensor/composed factors).
+Localise the parts with their own contexts before constructing a graded scalarisation.
+"""
+localise(σ::AbstractScalarisation, f, x, a, y, ps, st) = σ
+localise(σ::AbstractPointScalarisation, f, x, a, y, ps, st) =
+    throw(ArgumentError("$(typeof(σ)) must implement localise(σ, f, x, a, y, ps, st)"))
+
+"""
     IdentityScalarisation()
 
 ``\\sigma = \\mathrm{id}`` on `ScalarEnergySpace`. Linear. Recovers AutoBayes' Definition 22
@@ -187,6 +211,77 @@ SquaredNorm(; check::Bool = true) = SquaredNorm(nothing; check = check)
 islinear(::SquaredNorm) = false
 
 """
+    SampsonNorm(; wrt = :y, Σ = nothing, λ = 0)
+
+Point-dependent residual scalarisation: localises to `SquaredNorm(inv(A))`, where
+`A = J * Σ * J' + λ * sampson_damping(f, x, a, y, ps, st)` and
+`J = energy_jacobian(f, x, a, y, ps, st; wrt)`. `Σ = nothing` means identity noise
+covariance in data space; otherwise it must be a finite real square PSD matrix.
+`wrt` is `:x` or `:y`; damping `λ` must be finite and nonnegative.
+
+Localisation throws `ArgumentError` unless `A` is numerically positive definite:
+`λmin(A) > size(A,1) * eps(T) * λmax(A)`, where `T` is its floating element type.
+There is no pseudoinverse. Identity damping is the default; gauge-invariant damping
+requires a factor override of [`sampson_damping`](@ref). The reference finite-difference
+Jacobian is not differentiable; factors may supply an exact Jacobian method.
+"""
+struct SampsonNorm{C,L<:Real} <: AbstractPointScalarisation
+    wrt::Symbol
+    Σ::C
+    λ::L
+    function SampsonNorm(; wrt::Symbol = :y, Σ = nothing, λ::Real = 0)
+        wrt in (:x, :y) || throw(ArgumentError("wrt must be :x or :y; got :$wrt"))
+        isfinite(λ) && λ >= 0 || throw(ArgumentError("SampsonNorm λ must be finite and nonnegative"))
+        if Σ !== nothing
+            Σ isa AbstractMatrix{<:Real} || throw(ArgumentError("SampsonNorm Σ must be a real matrix or nothing"))
+            all(isfinite, Σ) || throw(ArgumentError("SampsonNorm Σ must be finite"))
+            SquaredNorm(Σ)  # same symmetry/PSD checks and shape errors as SquaredNorm
+        end
+        return new{typeof(Σ),typeof(λ)}(wrt, Σ, λ)
+    end
+end
+
+"""
+    sampson_damping(f, x, a, y, ps, st) -> AbstractMatrix
+
+Residual-space damping covariance for [`SampsonNorm`](@ref), by default the identity
+of size `size(energy_jacobian(f, x, a, y, ps, st), 1)`. A factor with a residual gauge
+`r → B*r` overrides this with a PSD matrix transforming as `R → B*R*B'`, e.g.
+`ps.Θ * ps.Θ'` for `r = Θ*v(z)`. Identity damping is not invariant under general `B`.
+"""
+function sampson_damping(f, x, a, y, ps, st)
+    r = first(energy(f, x, a, y, ps, st))
+    return Matrix{float(eltype(r))}(LinearAlgebra.I, length(r), length(r))
+end
+
+function localise(σ::SampsonNorm, f, x, a, y, ps, st)
+    J = energy_jacobian(f, x, a, y, ps, st; wrt = σ.wrt)
+    if σ.Σ !== nothing
+        size(σ.Σ, 1) == size(J, 2) || throw(DimensionMismatch(
+            "SampsonNorm Σ must match the differentiated data dimension $(size(J, 2))"))
+    end
+    A = σ.Σ === nothing ? J * J' : J * σ.Σ * J'
+    if !iszero(σ.λ)
+        R = sampson_damping(f, x, a, y, ps, st)
+        size(R) == size(A) || throw(DimensionMismatch("sampson_damping must have size $(size(A))"))
+        all(isfinite, R) || throw(ArgumentError("sampson_damping must be finite"))
+        SquaredNorm(R)  # reject asymmetric/indefinite damping, even if A would be SPD
+        A = A + σ.λ * R
+    end
+    all(isfinite, A) || throw(ArgumentError("Sampson covariance must be finite"))
+    S = Symmetric(A)
+    evs = eigvals(S)
+    T = eltype(evs)
+    threshold = size(S, 1) * eps(T) * maximum(evs; init = zero(T))
+    !isempty(evs) && minimum(evs) > threshold || throw(ArgumentError(
+        "Sampson covariance must be numerically positive definite: λmin must exceed n*eps(T)*λmax = $threshold; use positive gauge-compatible damping"))
+    # Inversion only after the covariance has passed the numerical SPD check.
+    M = inv(S)
+    all(isfinite, M) || throw(ArgumentError("Sampson precision is not finite after inversion"))
+    return SquaredNorm(M; check = false)
+end
+
+"""
     GradedScalarisation(parts::NamedTuple)
 
 ``\\sigma_{dc}(e_c, e_d) = \\sigma_c(e_c) + \\sigma_d(e_d)``, the scalarisation induced on a
@@ -196,6 +291,15 @@ struct GradedScalarisation{names,T<:Tuple} <: AbstractScalarisation
     parts::NamedTuple{names,T}
 end
 islinear(σ::GradedScalarisation) = all(islinear, values(σ.parts))
+
+_haspoint(::AbstractScalarisation) = false
+_haspoint(::AbstractPointScalarisation) = true
+_haspoint(σ::GradedScalarisation) = any(_haspoint, values(σ.parts))
+function localise(σ::GradedScalarisation, f, x, a, y, ps, st)
+    _haspoint(σ) && throw(ArgumentError(
+        "cannot localise a GradedScalarisation containing point-dependent parts: localise each part with its own factor and arguments first"))
+    return σ
+end
 
 oplus(a::GradedScalarisation, b::GradedScalarisation) =
     (_check_disjoint_keys(a.parts, b.parts); GradedScalarisation(merge(a.parts, b.parts)))
@@ -207,6 +311,8 @@ oplus(a::AbstractScalarisation, b::AbstractScalarisation) =
 
 Apply ``\\sigma`` to a (possibly graded) energy.
 """
+scalarise(::AbstractPointScalarisation, e) = throw(ArgumentError(
+    "point-dependent scalarisation requires localise(σ, f, x, a, y, ps, st) before scalarise"))
 scalarise(::IdentityScalarisation, e::Real) = e
 function scalarise(::IdentityScalarisation, e::AbstractVector{<:Real})
     length(e) == 1 || throw(ArgumentError(
@@ -229,12 +335,15 @@ dot_quadratic(M, e) = dot(e, M, e)
 exact discrepancy between the scalar chain rule (AutoBayes Theorem 23) and the multivariate
 one.
 
-Zero for a linear `σ`; for `SquaredNorm` it equals ``\\tfrac12 \\operatorname{tr}
+Only defined for fixed scalarisations; point-dependent parts throw even for empty samples.
+Zero for a linear `σ`; for `SquaredNorm()` it equals ``\\tfrac12 \\operatorname{tr}
 \\operatorname{Cov}(e)``, the posterior variance of the upstream factor's loss. Report it —
 it is the same kind of object as the mutual information that measures the laxness of the
 tensor in AutoBayes' Remark 26.
 """
 function jensen_gap(σ::AbstractScalarisation, samples)
+    _haspoint(σ) && throw(ArgumentError(
+        "jensen_gap requires a fixed scalarisation; localise at one fixed point first (a field of metrics has no such Jensen gap)"))
     islinear(σ) && return 0.0
     isempty(samples) && return 0.0
     mean_e = reduce(+, samples) * (1 / length(samples))
@@ -346,11 +455,13 @@ against the paper's interface needs no vector machinery.
 `σ` defaults to [`pointwise_scalarisation`](@ref)`(factor)`, or to
 `pointwise_scalarisation(factor, polarity)` when a polarity is given; pass another to scalarise
 the same energy differently (a weighted norm, other weights), as `norm(x, p)` takes `p`.
+Calls [`localise`](@ref) with the incoming `st` before evaluating and scalarising the energy.
 """
 function scalar_energy(f::AbstractLenticulumFactor, x, a, y, ps, st; polarity = nothing,
                        σ = _pointwise_scalarisation(f, polarity))
+    fixed = localise(σ, f, x, a, y, ps, st)
     l, st = energy(f, x, a, y, ps, st)
-    return scalarise(σ, l), st
+    return scalarise(fixed, l), st
 end
 
 _pointwise_scalarisation(f, ::Nothing) = pointwise_scalarisation(f)
@@ -401,7 +512,10 @@ end
 The Gauss–Newton / Fisher pull-back metric ``J^\\top M J`` at `(x, a, y)`, where ``J`` is
 [`energy_jacobian`](@ref) and ``M`` is the metric of `factor`'s [`SquaredNorm`](@ref)
 pointwise scalarisation (`I` when `M === nothing`). Always symmetric positive semidefinite
-whenever ``M \\succeq 0``.
+whenever ``M \\succeq 0``. The factor form first localises `σ`, so it accepts
+[`SampsonNorm`](@ref). This freezes the metric at the point: it ignores derivatives
+of the metric and is not the full Hessian of the point-dependent scalar energy.
+The pull-back `wrt` may differ from `SampsonNorm.wrt`, which defines the noise space.
 """
 function gauss_newton_metric(σ::SquaredNorm, J::AbstractMatrix)
     G = σ.M === nothing ? J' * J : J' * σ.M * J
@@ -413,6 +527,7 @@ function gauss_newton_metric(
     wrt::Symbol = :x, polarity = nothing,
     σ = _pointwise_scalarisation(f, polarity), ε::Real = 1e-6,
 )
+    σ = localise(σ, f, x, a, y, ps, st)
     σ isa SquaredNorm || throw(ArgumentError(
         "gauss_newton_metric requires a SquaredNorm pointwise scalarisation; got $(typeof(σ))"))
     J = energy_jacobian(f, x, a, y, ps, st; wrt = wrt, ε = ε)

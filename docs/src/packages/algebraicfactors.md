@@ -7,8 +7,8 @@ CurrentModule = AlgebraicFactors
 Finite toric potentials over named discrete channels, implementing L-SPEC-004 §0 and
 §1.1–§1.7, plus Grassmannian parameters (§2.1–§2.2) and the Plücker map (§5).
 Toric messages, energies and entropies use exact enumeration; fitting uses
-Newton or binary-feature IPF. General polynomial factors, Sampson scalarisation and
-homotopy continuation are not implemented.
+Newton or binary-feature IPF. General polynomial factors and homotopy continuation are not implemented.
+Sampson scalarisation is supplied by LenticulumCore; §2.3 is checked with a test-only residual.
 
 ```julia
 using AlgebraicFactors, LenticulumCore, Mycelium, Random, LinearAlgebra
@@ -140,6 +140,20 @@ data rank test is explicitly not `fit_nullspace`, which remains unimplemented.
 
 Enumeration costs grow with the product of alphabet sizes. This implementation uses CPU
 arrays and makes no GPU or automatic differentiation guarantee.
+
+
+The §2.3 `Sampson gauge obligation (§2.3)` test uses a **test-only** two-equation
+residual `r = Θ*v(z)` with the six degree-at-most-two monomials in two variables.
+It checks an exact Jacobian against the core finite-difference default and Sampson
+energy invariance under a well-conditioned invertible row transformation and QR
+row orthonormalisation (`rtol=1e-10`). Seed `2307`, 20 random points, damping
+`λ=0, 0.3`, and identity/non-isotropic data covariances are used for the row-transform
+test. Gauge-compatible damping `Θ*Θ'` retains invariance at a constructed rank-zero
+Jacobian, where zero damping throws. Default identity damping at `λ=0.3` and plain
+`SquaredNorm()` each change energy by more than `1e-3` at some tested point.
+The implementation note `lib/LenticulumCore.jl/src/energy.md` derives the covariance law and documents the numerical SPD threshold,
+localisation and frozen Gauss–Newton metric. No polynomial-factor API, fitting or
+IRLS is supplied by this test; §3 and §4 remain unimplemented.
 
 ```@index
 Modules = [AlgebraicFactors]

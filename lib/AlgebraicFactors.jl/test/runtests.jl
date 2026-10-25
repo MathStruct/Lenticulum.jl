@@ -6,6 +6,73 @@ using LuxCore
 using Random
 using Test
 
+# §2.3 obligation only: these fixtures are not the §3 polynomial-factor API.
+# Monomial order: (1, z₁, z₂, z₁², z₁z₂, z₂²).
+struct GaugeResidual{Damped} <: AbstractLenticulumFactor end
+monomials2(z) = [one(eltype(z)), z[1], z[2], z[1]^2, z[1]*z[2], z[2]^2]
+monomial_jacobian2(z) = [0 0; 1 0; 0 1; 2z[1] 0; z[2] z[1]; 0 2z[2]]
+LenticulumCore.energy(::GaugeResidual, x, a, y, ps, st) = (ps.Θ * monomials2(y), st)
+LenticulumCore.pointwise_energyspace(::GaugeResidual) = EuclideanEnergySpace(2)
+LenticulumCore.pointwise_scalarisation(::GaugeResidual) = SampsonNorm()
+function LenticulumCore.energy_jacobian(::GaugeResidual, x, a, y, ps, st; wrt = :y, ε = 1e-6)
+    wrt === :y || throw(ArgumentError("test residual only differentiates y"))
+    return ps.Θ * monomial_jacobian2(y)
+end
+LenticulumCore.sampson_damping(::GaugeResidual{true}, x, a, y, ps, st) = ps.Θ * ps.Θ'
+
+@testset "Sampson gauge obligation (§2.3)" begin
+    rng = Xoshiro(2307)
+    f, identity_f, nt = GaugeResidual{true}(), GaugeResidual{false}(), NamedTuple()
+    Θ = randn(rng, 2, 6)
+    # B has singular values 0.7 and 1.8, independent of the random orthogonal bases.
+    Q = Matrix(qr(randn(rng, 2, 2)).Q)
+    U = Matrix(qr(randn(rng, 2, 2)).Q)
+    B = Q * Diagonal([0.7, 1.8]) * U'
+    @test cond(B) ≈ 1.8 / 0.7
+    score(f, Θ, z; σ = SampsonNorm()) = first(scalar_energy(f, nothing, nothing, z, (; Θ), nt; σ))
+    algebraic_differences, identity_differences = Float64[], Float64[]
+    for _ in 1:20
+        z = randn(rng, 2)
+        J = energy_jacobian(f, nothing, nothing, z, (; Θ), nt; wrt = :y)
+        Jfd = invoke(energy_jacobian,
+            Tuple{AbstractLenticulumFactor,Any,Any,Any,Any,Any},
+            f, nothing, nothing, z, (; Θ), nt; wrt = :y)
+        @test J ≈ Jfd rtol = 2e-10 atol = 2e-9
+        for λ in (0.0, 0.3), Σ in (nothing, [2.0 0.2; 0.2 0.7])
+            σ = SampsonNorm(; λ, Σ)
+            @test score(f, Θ, z; σ) ≈ score(f, B*Θ, z; σ) rtol = 1e-10
+        end
+        push!(identity_differences, abs(score(identity_f, Θ, z; σ = SampsonNorm(λ = 0.3)) -
+                                       score(identity_f, B*Θ, z; σ = SampsonNorm(λ = 0.3))))
+        push!(algebraic_differences, abs(score(f, Θ, z; σ = SquaredNorm()) -
+                                        score(f, B*Θ, z; σ = SquaredNorm())))
+        # Retraction at zero orthonormalises a full-row-rank representative.
+        Θorth = retract(Grassmann(2, 6), Θ, zero(Θ))
+        R = Θorth * Θ'  # Θ' = Θorth' * R, positive-diagonal QR convention
+        Bqr = inv(R')
+        @test Θorth ≈ Bqr * Θ rtol = 2e-14
+        for λ in (0.0, 0.3)
+            @test score(f, Θ, z; σ = SampsonNorm(; λ)) ≈
+                  score(f, Θorth, z; σ = SampsonNorm(; λ)) rtol = 1e-10
+        end
+    end
+    # For seed 2307 and these 20 points, each contrast must exceed 1e-3 somewhere.
+    @test maximum(identity_differences) > 1e-3
+    @test maximum(algebraic_differences) > 1e-3
+    # Two separable quadratics at z=0, full row rank Θ but rank-zero J.
+    singular = [-1.0 0 0 1 0 0; -2.0 0 0 0 0 1]
+    z = zeros(2)
+    @test iszero(energy_jacobian(f, nothing, nothing, z, (Θ = singular,), nt))
+    @test_throws ArgumentError score(f, singular, z)
+    @test_throws ArgumentError score(f, B*singular, z)
+    for Σ in (nothing, [2.0 0.2; 0.2 0.7])
+        σ = SampsonNorm(λ = 0.3, Σ = Σ)
+        value = score(f, singular, z; σ)
+        @test isfinite(value)
+        @test value ≈ score(f, B*singular, z; σ) rtol = 1e-10
+    end
+end
+
 struct UnsupportedGrassmannRule <: AbstractUpdateRule end
 
 # Use the common checker with independent direct-message site/posterior fixtures.

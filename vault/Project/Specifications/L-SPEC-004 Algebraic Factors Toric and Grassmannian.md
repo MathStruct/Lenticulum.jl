@@ -1,6 +1,6 @@
 #design
 
-> **Status: partly implemented (2026-10-25): §0, §1.1–§1.7, §2.1–§2.2 and §5; §2.3–§2.4, §3 and §4 remain planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl`, `fit.jl`, `grassmann.jl` and `plucker.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. These steps needed no Mycelium changes.
+> **Status: partly implemented (2026-10-25): §0, §1.1–§1.7, §2.1–§2.3 and §5; §2.4, §3 and §4 remain planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl`, `fit.jl`, `grassmann.jl` and `plucker.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. §2.3 also uses `lib/LenticulumCore.jl/src/energy.jl` and its core tests. These steps needed no Mycelium changes.
 
 ## Scope
 
@@ -26,8 +26,9 @@ binding when it is implemented with its tests.
 |---|---|
 | a factor over several discrete variables | `AlgebraicFactors.ToricFactor`: exact finite sum-product messages and joint factor free energy; tree marginals and Bethe free energy checked against enumeration |
 | toric fitting and model checks | `fit_mle`: gauge-reduced Newton or cyclic binary-feature IPF; separate moment convergence and existence statuses; positive `inmodel` and supplied `binomial_residuals`, checked against closed forms and independence minors |
-| parameters on a manifold | `Grassmann`, horizontal projection, positive-diagonal QR retraction and `Retracted` for Mycelium's `GradientDescent` and `Momentum`, including velocity transport and `OptimiserFactor` integration; Nesterov and §2.3's Sampson scalarisation remain planned |
+| parameters on a manifold | `Grassmann`, horizontal projection, positive-diagonal QR retraction and `Retracted` for Mycelium's `GradientDescent` and `Momentum`, including velocity transport and `OptimiserFactor` integration; Nesterov remains planned |
 | Plücker map and quadrics | `plucker`, closed-form Jacobian, lexicographic coordinate pairs and sparse relations; forward-only `PluckerFactor` with exact Dirac/paired-particle transport and independent-Gaussian moments; singular Gaussian messages require explicitly requested regularisation |
+| gauge-invariant residual scalarisation | core `SampsonNorm` localises to a metric; §2.3 checked with a test-only residual and gauge-compatible damping, including a singular Jacobian |
 | a polynomial (Veronese) factor, nullspace fitting | none; the theory is in the notes |
 | multi-branch roots | none; `MixtureBelief` exists to carry them |
 
@@ -81,13 +82,19 @@ packages under `lib/`.
   2008). Mycelium has no rule-state initializer: callers supply `nothing` for gradient descent or a plain `zero(Θ)` velocity matrix for momentum. Its recurrence is $s'=\gamma s-\eta g$ (corrected in [[LP-015 Momentum had the wrong sign on its decay]]), which the wrapper preserves. Nesterov waits: its look-ahead $p + \gamma s$ leaves the manifold, and a retracted look-ahead
   with a consistent transport of the gradient has to be specified first. This is the lens $G^*(\Theta, \Delta) = \mathrm{qf}(\Theta + \Pi_\Theta\Delta)$ of
   [[The Parameter is a Grassmannian]].
-- §2.3 Gauge invariance as a test obligation: a factor whose relation depends on $\Theta$ only
-  through its row space must give the same scalarised energy for $\Theta$ and $B\Theta$ ($B$ invertible)
-  under its default scalarisation. The Sampson energy $\tfrac12 r^\top(JJ^\top)^{-1}r$ with $J = D_z r_\Theta$ of full row
-  rank has this property ([[Algebraic versus Geometric Distance]]), but today's scalarisations see
-  only the residual, not $J$; a point- and parameter-dependent scalarisation has to be specified
-  first, with its behaviour at singular points (damping or a pseudoinverse does not keep the
-  invariance by itself). Checked once §3 exists.
+- §2.3 Gauge invariance as a test obligation (implemented with a test-only residual,
+  not the §3 factor): a row-space relation uses the same Sampson scalar energy for
+  $\Theta$ and $B\Theta$ when the covariance is numerically invertible.
+  Following [[L-ADR-0007 Point-dependent scalarisations are localised before use]]
+  (accepted 2026-10-25), core `SampsonNorm` is localised at the factor and point
+  to `SquaredNorm((JΣJᵀ + λR)⁻¹)`. Unlocalised application and `jensen_gap` throw.
+  Default damping is identity; a factor with a gauge overrides `sampson_damping`
+  with $R\mapsto BRB^\top$, here $R=\Theta\Theta^\top$. This keeps damped energy
+  invariant even at rank-deficient $J$, provided the covariance passes the SPD check.
+  Numerically singular covariance throws; there is no silent pseudoinverse.
+  Graded scalarisations with point-dependent parts are rejected until per-part
+  factor/argument routing is specified. [[energy]] gives the numerical threshold,
+  reference Jacobian and frozen-metric Gauss–Newton convention.
 - §2.4 With [[L-SPEC-003 Exposed Parameters and Energy Channels]], an exposed Grassmannian
   parameter is a channel whose space is a manifold; that spec's "keep open" list already allows it.
 
@@ -173,6 +180,22 @@ and momentum is horizontal after every step. Nesterov and another unsupported ru
 are rejected at construction. This demonstrates those fixed runs, not a general
 momentum convergence theorem. See [[grassmann]] for state layout and numerical choices.
 
+Implemented §2.3: core's `Point-dependent scalarisation localisation` testset checks
+fixed scalarisations, validation, state handling and Float32 metric types. A circle
+residual agrees with $(ρ^2-1)^2/(8ρ^2)$ (`rtol=2e-10`); its ratio to geometric energy
+$(ρ-1)^2/2$ approaches one from both sides at distances `1e-2` through `1e-5`, with
+error below `1.1*abs(ρ-1)` and finally `1.1e-5`. It also checks covariance scaling,
+singular rejection, damping and the localised Gauss–Newton pull-back.
+AlgebraicFactors' `Sampson gauge obligation (§2.3)` uses a test-only two-equation,
+six-monomial residual: exact Jacobians agree with the finite-difference default
+(`rtol=2e-10, atol=2e-9`). Seed `2307`, 20 points, a row transformation with singular
+values `0.7, 1.8`, damping `0, 0.3` and identity/non-isotropic data covariance check
+invariance (`rtol=1e-10`). QR-orthonormalised representatives agree at both damping
+values. Identity damping and algebraic distance each differ by more than `1e-3` at
+some tested point. Constructed quadratics at the origin have rank-zero $J$:
+zero damping throws, and $ΘΘ^\top$ damping is finite and gauge invariant. These are
+finite numerical checks, not arbitrary-condition-number guarantees or §3 implementation.
+
 Implemented §5: `Plücker coordinates and relations`, `PluckerFactor forward beliefs`
 and `Plücker exact moments and Gaussian messages` in the same test file check hand cases
 at $r=2,3,4$, antisymmetry, determinant scaling, Lagrange's identity, rectangular
@@ -196,11 +219,10 @@ The smallest relative singular value is `4.4408921e-16`, the next `0.0848452043`
 (gap ratio `1.9105442e14`). This checks the data, not a fitting API; see [[plucker]].
 Unit-normalised data are not checked.
 
-Still planned (scalarisation and later families):
+Still planned (channels and later families):
 
-- §2.3: gauge-invariant Sampson scalarisation for polynomial residuals; the trace
-  objective tests above do not implement or test this scalarisation. §2.4's exposed
-  manifold channel spaces also remain planned.
+- §2.4: exposed manifold channel spaces remain planned. The §2.3 obligation above
+  is checked independently of the §3 polynomial factor, which remains planned.
 - §3 (using §5 data): on points $z\wedge w$ for random $z, w \in \mathbb R^4$, `fit_nullspace` of degree 2 should
   recover the Klein quadric, a one-dimensional null space, with at least 27 generic points and
   a stated rank tolerance. The 400-point data test above checks this null direction,

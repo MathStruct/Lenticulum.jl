@@ -1,11 +1,11 @@
 #model #derivation
 
 > **Derivation.** The convexity of [[Fitting is a Nullspace Problem]] is bought by using the
-> wrong distance. Correcting it produces, exactly, a
+> algebraic distance. A first-order geometric correction produces a point-dependent
 > [[Scalar and Multivariate Energy|scalarisation]] — and shows what the energy space $E$
 > *is*: the space the noise lives in.
 
-> Sources: original to this vault (design and analysis; no single paper).
+> Sources: original to this vault (design and analysis; no single paper); code: `lib/LenticulumCore.jl/src/energy.jl` (`SampsonNorm`, `localise`, `sampson_damping`), `lib/LenticulumCore.jl/test/runtests.jl` (circle closed form), `lib/AlgebraicFactors.jl/test/runtests.jl` (test-only §2.3 gauge obligation).
 >
 > Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
 
@@ -13,8 +13,9 @@
 
 **Algebraic distance.** $\ \sigma_{\mathrm{alg}}(x) = \tfrac12\|r_\Theta(x)\|^2$. Cheap,
 quadratic in $\Theta$, hence the closed-form fit. But it is not a distance: it depends on how
-the variety is written. Scaling $\Theta$ scales it; a point far from the variety in a region
-where $\|\nabla r\|$ is large scores better than a near point where $\|\nabla r\|$ is small.
+the variety is written. Scaling $\Theta$ scales its squared residual. Locally,
+$|r|\approx \|\nabla r\|\,\mathrm{dist}(x,V)$ for a hypersurface near a regular point,
+so a large residual gradient inflates algebraic distance even at the same geometric distance.
 
 **Geometric distance.** $\ \mathrm{dist}(x, V)^2 = \min_{y \in V}\|x-y\|^2$. The thing you
 actually mean. Independent of the equations. Also **very** expensive: the number of complex
@@ -25,19 +26,18 @@ $\mathbb{C}^n$,
 $$\mathrm{EDD} \;=\; d\sum_{i=0}^{n-1}(d-1)^i$$
 
 *Sanity check:* a plane conic, $n=2$, $d=2$: $\ 2(1 + 1) = 4$ — the classical fact that the
-foot of the perpendicular to a conic solves a quartic. For a general hypersurface the EDD is
-exponential in $n$, so **evaluating the exact geometric distance is itself an algebraic
-inference problem of the same difficulty as the one we are trying to solve.**
-
-This is the fundamental tension of the family, and it is not resolvable: exact fitting
-requires exact projection, which is as hard as inference.
+foot of the perpendicular to a generic conic solves a quartic. For fixed degree $d>2$,
+this formula grows exponentially in $n$. It counts complex critical points, not real
+minima or a runtime bound. Exact geometric fitting can therefore require an expensive
+projection subproblem; this is not a universal hardness claim (affine models, for example,
+have closed-form projection).
 
 ## The first-order correction: Sampson distance
 
 Linearise. Near $x$, the variety is approximately the affine subspace
 $\{y : r(x) + J(x)(y-x) = 0\}$ with $J = J_r(x)\in\mathbb{R}^{k\times N}$. The minimum-norm
-displacement to that subspace solves
-$\min\|\delta\|^2$ subject to $J\delta = -r$, whose solution is the pseudoinverse
+displacement to that subspace, assuming $J$ has full row rank, solves
+$\min\|\delta\|^2$ subject to $J\delta = -r$, whose solution is
 $\delta = -J^\top(JJ^\top)^{-1}r$, giving
 
 $$\boxed{\;\mathrm{dist}(x,V)^2 \;\approx\; r(x)^\top \bigl(J(x)J(x)^\top\bigr)^{-1} r(x)\;}$$
@@ -59,12 +59,19 @@ r(x) = r(x^\star + \epsilon) \approx \underbrace{r(x^\star)}_{=\,0} + J\epsilon 
 r \;\sim\; \mathcal{N}\bigl(0,\; J\Sigma J^\top\bigr)
 $$
 
-So the negative log-likelihood of the observation, expressed in residual coordinates, is
+For a Gaussian approximation in residual coordinates with invertible $A=J\Sigma J^\top$,
+the negative log-density includes a normalisation term:
 
-$$-\log p \;=\; \tfrac12\, r^\top \bigl(J\Sigma J^\top\bigr)^{-1} r \;+\; \text{const}$$
+$$
+-\log p_r \;\approx\; \tfrac12 r^\top A^{-1}r
++\tfrac12\log\det A+\tfrac{k}{2}\log(2\pi).
+$$
 
-which for $\Sigma = I$ is **exactly the Sampson distance**. Two conclusions, and they are the
-payoff of this note:
+The quadratic term at $\Sigma=I$ is **half** the squared Sampson distance defined
+above. `SampsonNorm` implements this energy, not a normalised likelihood. The earlier
+formula omitted $\tfrac12\log\det A$ as a “constant”, although $A$ varies with point
+and parameters. A density in residual coordinates also changes with the residual gauge;
+it is not by itself a likelihood for the observed data. Two consequences:
 
 > [!note] What the energy space is
 > The residual space $E = \mathbb{R}^k$ of [[Scalar and Multivariate Energy]] is **the space
@@ -81,24 +88,58 @@ payoff of this note:
 
 ## The cost: three properties lost
 
-$M = (J\Sigma J^\top)^{-1}$ depends on $x$, and therefore on $\Theta$. That breaks three
+$M = (J\Sigma J^\top)^{-1}$ generally depends on both $x$ and $\Theta$. That breaks three
 things that made the algebraic distance attractive:
 
-1. **Convexity in $\Theta$ is gone.** $f(\Theta) = \sum_i r_i^\top M(\Theta,x_i) r_i$ is no
-   longer quadratic, so [[Fitting is a Nullspace Problem]]'s global optimum does not apply.
-   The standard workaround is **iteratively reweighted least squares**: freeze $M$, solve the
-   eigenproblem, recompute $M$, repeat. Each step is globally optimal; the alternation is
-   not. (This is Taubin's algorithm, and in the conic-fitting literature it is known to work
-   well and to have no convergence proof.)
-2. **$\sigma$ is not linear**, so by [[Scalar and Multivariate Energy]] §5 the composition of
-   games is **lax**: the scalar chain rule and the multivariate one differ by the Jensen gap
-   $\tfrac12\operatorname{tr}\operatorname{Cov}$. The algebraic family is therefore a
-   *lax* member of the framework, by construction, and the laxness is quantified.
-3. **$M$ blows up on the discriminant**, where $J$ loses rank
-   ([[Branches and the Discriminant]]). Correctly — the noise really is unconstrained along
-   the collapsing direction — but uselessly. The `SquaredNorm(M)` caveat recorded in
-   `energy.md` §4 (that $M$ must be PSD and is not validated) is exactly this failure, met
-   in the wild.
+1. **The objective is no longer quadratic in $\Theta$.**
+   $f(\Theta)=\sum_i r_i^\top M(\Theta,x_i)r_i$ does not have the fixed-metric
+   nullspace solution of [[Fitting is a Nullspace Problem]]. Freezing the metrics and
+   resolving a quadratic subproblem suggests IRLS, but no IRLS implementation or
+   convergence claim is checked here.
+2. **There is no single fixed $\sigma$.** A frozen `SquaredNorm(M)` is convex and
+   has Jensen gap $\tfrac12\operatorname{tr}(M\operatorname{Cov}(r))$. A field of
+   metrics at different points is a different object: the fixed-map Jensen identity
+   does not apply. `jensen_gap(SampsonNorm(), ...)` throws, including for empty samples.
+   The earlier claim that the varying metric's gap was
+   $\tfrac12\operatorname{tr}\operatorname{Cov}$ was wrong.
+3. **The inverse fails where the pushed-forward covariance loses rank.**
+   In particular this happens when $J$ loses row rank. Vanishing variance in a
+   residual direction does not mean unconstrained noise there; the nonsingular
+   Gaussian approximation has failed. `SquaredNorm` does validate PSD metrics;
+   the earlier claim that it did not was stale. `SampsonNorm` rejects singular or
+   numerically deficient covariance rather than silently taking a pseudoinverse.
+
+## Localisation and gauge-compatible damping (implemented)
+
+[[L-ADR-0007 Point-dependent scalarisations are localised before use]] was accepted on 2026-10-25.
+Its implementation in [[energy]] adds `AbstractPointScalarisation`, `localise` and
+`SampsonNorm`. The pointwise path localises before scalarising; free-energy scalarisation
+is unchanged. Graded scalarisations containing point-dependent parts are rejected until
+their parts can be given their own factor and arguments.
+
+For $r_\Theta=\Theta v$ and $D=D_zv$, a factor can override `sampson_damping` with
+$R=\Theta\Theta^\top$. For any data covariance $\Sigma$ of the right dimension,
+
+$$
+J\Sigma J^\top+\lambda\Theta\Theta^\top
+=\Theta(D\Sigma D^\top+\lambda I_m)\Theta^\top.
+$$
+
+Under $\Theta\mapsto B\Theta$, residual and covariance transform by $r\mapsto Br$
+and $A\mapsto BAB^\top$, so $\tfrac12 r^\top A^{-1}r$ is invariant when defined.
+For full-row-rank $\Theta$, PSD $\Sigma$ and $\lambda>0$, this covariance is SPD
+at rank-deficient $J$ too. Default identity damping lacks this law. The implementation
+requires $\lambda_{\min}>k\operatorname{eps}(T)\lambda_{\max}$: badly conditioned gauges
+can fail the numerical check even when exact-arithmetic energies agree.
+
+Core tests check the circle closed form $(\rho^2-1)^2/(8\rho^2)$, its ratio tending
+to geometric energy $(\rho-1)^2/2$, covariance scaling and singular rejection/damping.
+AlgebraicFactors tests use a test-only degree-two residual with two equations in two
+variables, seed `2307`, 20 random points and a well-conditioned row transformation.
+They check gauge and QR-representative agreement (`rtol=1e-10`), including damping
+$\lambda\Theta\Theta^\top$ at a constructed singular point, and demonstrate failures
+of identity damping and algebraic distance (difference above `1e-3` at some point).
+This implements the §2.3 test obligation, not the §3 polynomial factor or fitting.
 
 ## The honest summary
 
@@ -108,10 +149,11 @@ things that made the algebraic distance attractive:
 | Sampson $r^\top(JJ^\top)^{-1}r$ | no (IRLS) | first order | $O(m^3)$ per IRLS step |
 | geometric $\mathrm{dist}(x,V)^2$ | no | yes (MLE, isotropic noise) | EDD-many roots **per data point** |
 
-The practical recommendation is Sampson via IRLS, initialised at the algebraic solution.
-The theoretically interesting statement is that the three rows are three
-*scalarisations of the same multivariate energy*, and moving between them is a change of
-$\sigma$, not a change of model. That is precisely the reweighting flexibility
-[[Scalar and Multivariate Energy]] §6.4 claims the vector energy buys.
+Sampson via IRLS, initialised at the algebraic solution, is a proposed workflow; it is
+not implemented or compared empirically here.
+Algebraic and Sampson energies use the same residual, with a fixed metric versus
+a field of metrics. Exact geometric projection additionally needs the variety and a
+projection solver; it is not in general a function of the residual vector alone.
+This refines the reweighting discussion in [[Scalar and Multivariate Energy]] §6.4.
 
 Related: [[Fitting is a Nullspace Problem]], [[Scalar and Multivariate Energy]], [[Branches and the Discriminant]], [[The Algebraic Factor as a Statistical Game]]

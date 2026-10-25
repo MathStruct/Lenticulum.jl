@@ -63,7 +63,7 @@ function check_factor_conformance(f, p; π, inputs, ps, st, pointwise,
         @test _in_energyspace(l, pointwise_energyspace(f, p))
         sl, _ = scalar_energy(f, pointwise..., ps, st; polarity = p)
         @test sl isa Real && isfinite(sl)
-        @test sl ≈ scalarise(pointwise_scalarisation(f, p), l)
+        @test sl ≈ scalarise(localise(pointwise_scalarisation(f, p), f, pointwise..., ps, st), l)
 
         target = only(unobserved_channels(p))
         if direct_message

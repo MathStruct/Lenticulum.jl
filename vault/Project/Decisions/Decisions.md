@@ -12,3 +12,4 @@ The log starts on 2026-10-22. Decisions taken before then and recorded retrospec
 | [[L-ADR-0004 The vault builds with the shared MathStruct Quartz]] | The vault is built with MathStruct/quartz, not a vendored copy | accepted 2026-10-21 |
 | [[L-ADR-0005 Branches]] | `master` publishes, `dev` collects pull requests, `dev-danielb` is the maintainer's preview | accepted (retrospective) |
 | [[L-ADR-0006 Separate likelihood_message from invert]] | `likelihood_message` returns the BP likelihood; `invert` returns the AutoBayes posterior | accepted 2026-10-24 |
+| [[L-ADR-0007 Point-dependent scalarisations are localised before use]] | `localise(σ, f, x, a, y, ps, st)` turns a point-dependent scalarisation (Sampson) into an ordinary one before `scalarise` | accepted 2026-10-25 |
