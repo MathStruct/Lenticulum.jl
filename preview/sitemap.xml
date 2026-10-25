@@ -168,7 +168,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-10-25T11:08:19.294Z</lastmod>
+    <lastmod>2026-10-25T18:11:02.522Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -189,7 +189,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Toric-Models-as-Factors</loc>
-    <lastmod>2026-10-25T10:59:46.000Z</lastmod>
+    <lastmod>2026-10-25T18:10:47.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Universal-Approximation-by-Nash-Tognoli</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -288,7 +288,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Map-of-Content</loc>
-    <lastmod>2026-10-25T10:59:46.000Z</lastmod>
+    <lastmod>2026-10-25T18:10:47.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Decisions/Decisions</loc>
     <lastmod>2026-10-24T14:57:35.000Z</lastmod>
@@ -333,7 +333,7 @@
     <lastmod>2026-10-24T14:25:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-008-No-conformance-test-for-the-factor-interface</loc>
-    <lastmod>2026-10-24T23:08:41.000Z</lastmod>
+    <lastmod>2026-10-25T18:10:47.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-009-Game-level-free-energy-is-declared-but-not-implemented</loc>
     <lastmod>2026-10-24T23:08:41.000Z</lastmod>
@@ -350,8 +350,11 @@
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-013-Defects-found-in-the-review-of-master</loc>
     <lastmod>2026-10-24T23:08:41.000Z</lastmod>
   </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-014-Emitting-edges-drop-the-cavity-message-from-the-free-energy</loc>
+    <lastmod>2026-10-25T18:10:47.000Z</lastmod>
+  </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/Problem-Log</loc>
-    <lastmod>2026-10-24T23:08:41.000Z</lastmod>
+    <lastmod>2026-10-25T18:10:47.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-001-The-Factor-Interface</loc>
     <lastmod>2026-10-24T23:08:41.000Z</lastmod>
@@ -363,13 +366,13 @@
     <lastmod>2026-10-25T00:27:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-004-Algebraic-Factors-Toric-and-Grassmannian</loc>
-    <lastmod>2026-10-25T10:59:46.000Z</lastmod>
+    <lastmod>2026-10-25T18:10:47.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/Specifications</loc>
-    <lastmod>2026-10-25T10:59:46.000Z</lastmod>
+    <lastmod>2026-10-25T18:10:47.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/README</loc>
-    <lastmod>2026-10-15T11:05:36.000Z</lastmod>
+    <lastmod>2026-10-25T18:10:47.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Research-Questions/RQ-001-One-Potential,-Every-Polarity</loc>
     <lastmod>2026-10-24T14:35:42.000Z</lastmod>
@@ -415,6 +418,12 @@
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Adversarial.jl/ratio</loc>
     <lastmod>2026-10-15T14:28:34.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/AlgebraicFactors</loc>
+    <lastmod>2026-10-25T18:10:47.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/toric</loc>
+    <lastmod>2026-10-25T18:10:47.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/ImplicitLayers.jl/ImplicitLayers</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
