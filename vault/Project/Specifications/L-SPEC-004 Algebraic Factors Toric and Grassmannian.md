@@ -1,6 +1,6 @@
 #design
 
-> **Status: partly implemented (2026-10-25): §0 and §1.1–§1.5; the rest remains planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. This first step needed no Mycelium changes; later manifold update rules remain planned.
+> **Status: partly implemented (2026-10-25): §0 and §1.1–§1.7; §2 and later remain planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl` and `fit.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. These toric steps needed no Mycelium changes; later manifold update rules remain planned.
 
 ## Scope
 
@@ -25,6 +25,7 @@ binding when it is implemented with its tests.
 | capability | state |
 |---|---|
 | a factor over several discrete variables | `AlgebraicFactors.ToricFactor`: exact finite sum-product messages and joint factor free energy; tree marginals and Bethe free energy checked against enumeration |
+| toric fitting and model checks | `fit_mle`: gauge-reduced Newton or cyclic binary-feature IPF; separate moment convergence and existence statuses; positive `inmodel` and supplied `binomial_residuals`, checked against closed forms and independence minors |
 | parameters on a manifold | none. Mycelium's update rules (`GradientDescent`, `Momentum`, `Nesterov` through `rule_get`/`rule_put`) are Euclidean |
 | a polynomial (Veronese) factor, nullspace fitting | none; the theory is in the notes |
 | multi-branch roots | none; `MixtureBelief` exists to carry them |
@@ -114,13 +115,24 @@ arities one, two and three, using independent site and pooled-posterior fixtures
 factors retain the lens checks. No assembled lens or joint latent posterior API is supplied. See [[toric]]
 for label rules, game argument conventions and the Bethe entropy accounting.
 
-Still planned (including fitting and geometry):
+Implemented §1.6–§1.7: the `Toric fitting and membership` testset checks positive
+2×3 and 3×4 independence against the outer product of margins (cell tolerance `3e-10`),
+and a positive 2×3×2 chain against $\hat p_{AB}\hat p_{BC}/\hat p_B$ (`5e-10`), by both
+Newton and IPF. A seeded random integer design checks moment matching (`1e-10`) and
+$Au/n-Ap_\eta$ against central likelihood differences. Redundant rows and an added
+intercept give the same probabilities; an independent pseudoinverse checks the minimum-norm
+gauge, and normalised energies reproduce the returned probabilities. An empty-row table
+and its reversed table approach the extended MLE within `3e-10`, with finite parameters,
+moment convergence and `existence == :suspected_boundary`. Zero cells with positive margins
+can instead give `:unknown`: only all-positive counts are currently certified `:exists`.
+Positive membership agrees with all independence minors on seeded random points in and
+out of the model. Invalid inputs, exact augmented-kernel checks and degenerate uniform
+models are tested too. See [[fit]] for all numerical choices and the heuristic thresholds.
+The earlier planned requirement that an empty-row fit must not be "converged" was wrong:
+§1.6 distinguishes moment convergence at an extended MLE from finite-MLE existence.
 
-- §1: the independence model, whose MLE is the outer product of the margins; the chain
-  $A - B - C$ as a decomposable model with positive margins, against $\hat p_{AB}\hat p_{BC}/\hat p_B$; the gradient
-  $Au/n - Ap_\eta$ against finite differences; Newton against IPF; `inmodel` true at a fit and false
-  at a generic $p$; for a table with an empty row, a status that is not "converged", and the
-  extended MLE (the outer product of the margins) as the limit.
+Still planned (geometry and later families):
+
 - §2: $\Theta\Theta^\top = I$ after `retract`; `project_tangent(M, Θ, G) * Θ' ≈ 0`; `retract(M, Θ, zero(Θ)) ≈ Θ`;
   for symmetric $S$ with $\lambda_k < \lambda_{k+1}$, generic initialisation and a suitable step rule, Riemannian
   descent on $\operatorname{tr}(\Theta S\Theta^\top)$ reaching the span of the $k$ smallest eigenvectors (the nullspace fit's
@@ -132,8 +144,10 @@ Still planned (including fitting and geometry):
 
 ## Open
 
-- MLE existence: deciding whether $Au/n$ lies in the relative interior of the convex hull of the
-  columns of $\bar A$ (Fienberg & Rinaldo 2012) needs a linear program; whether to depend on an LP solver.
+- General MLE existence certification: the implemented sufficient certificate is all-positive
+  counts. Deciding relative-interior membership of $(1,Au/n)$ in the convex hull of the
+  columns of $\bar A$ (Fienberg & Rinaldo 2012) can be formulated as a linear program;
+  whether to depend on an LP solver. The boundary diagnostic is only a heuristic.
 - Markov bases need external software (4ti2 and similar); whether to depend on it.
 - Large tables: messages are exponential in arity. Whether `hierarchical` should split into one
   factor per generator automatically is a junction-tree question

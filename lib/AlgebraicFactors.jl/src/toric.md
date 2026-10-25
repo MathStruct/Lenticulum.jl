@@ -100,11 +100,12 @@ unspecified channels are latent. Overlapping or unknown channel names throw rath
 silently overwrite evidence. `free_energy` uses the same joint factor belief as above;
 `entropy` returns its positive Shannon entropy. With no evidence, free energy is zero.
 
-The seven testsets in `../test/runtests.jl` check constructor failures, hand-written design
+The original factor testsets in `../test/runtests.jl` check constructor failures, hand-written design
 columns, pointwise energies, all evidence kinds for every target at arities two and three,
 local/game quantities, tree inference and the common interface. The references compute
 ordinary products and finite sums independently of the log-domain implementation.
 
-No fitting, model-membership check, LP solver, Markov basis, manifold or polynomial
-inference is implemented. Label matching and finite summation are exact; large tables
-remain expensive.
+`fit_mle`, positive `inmodel` and supplied `binomial_residuals` are implemented in
+`fit.jl`; [[fit]] records the gauge, convergence/existence distinction and numerical
+limitations. No LP solver, Markov basis, manifold or polynomial inference is implemented.
+Label matching and finite summation are exact; large tables remain expensive.

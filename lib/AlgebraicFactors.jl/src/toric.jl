@@ -17,7 +17,8 @@ categoricals use the factor's label order (`labels = nothing` for default states
 Every polarity with one unobserved channel and all others observed or latent is supported.
 Missing, `nothing`, `missing`, `TrivialBelief()` and `Latent()` inputs have unit weight.
 Messages exclude both the target input and its prior. Enumeration visits all
-`prod(alphabets)` states; scoring also costs `size(A, 1)` per state. No fitting is provided.
+`prod(alphabets)` states; scoring also costs `size(A, 1)` per state. See [`fit_mle`](@ref)
+for fitting and [`inmodel`](@ref) for positive model membership.
 """
 struct ToricFactor{N,S,M,L} <: LenticulumCore.AbstractLenticulumFactor
     names::N

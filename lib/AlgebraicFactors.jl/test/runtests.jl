@@ -353,3 +353,227 @@ end
     end
 end
 end
+
+# References below use empirical margins, direct probability-domain likelihoods,
+# and independently enumerated minors; none calls the fitting helpers.
+@testset "Toric fitting and membership" begin
+    @testset "independence closed forms and Newton/IPF agreement" begin
+        for counts in ([2.0 7 3; 5 1 9], [2.0 7 3 11; 5 1 9 4; 8 6 2 5])
+            sizes = size(counts)
+            A = independence((:a, :b), sizes)
+            f = ToricFactor((:a, :b), sizes, A; normalised = true)
+            expected = vec(sum(counts; dims = 2) * sum(counts; dims = 1)) / sum(counts)^2
+            fits = [fit_mle(f, method == :newton ? counts : vec(counts); method)
+                    for method in (:newton, :ipf)]
+            for fit in fits
+                @test fit.converged
+                @test fit.existence == :exists
+                @test fit.residual <= 1e-10
+                @test fit.p ≈ expected atol = 3e-10 rtol = 0
+                @test sum(fit.p) ≈ 1
+                @test inmodel(f, reshape(fit.p, sizes))
+                @test fit.iterations > 0
+                reproduced = [exp(-first(energy(f, Tuple(x), (; η = fit.η), NamedTuple())))
+                              for x in CartesianIndices(sizes)]
+                @test vec(reproduced) ≈ fit.p atol = 1e-14
+            end
+            @test fits[1].p ≈ fits[2].p atol = 3e-10
+        end
+    end
+
+    @testset "decomposable chain closed form" begin
+        names, sizes = (:a, :b, :c), (2, 3, 2)
+        counts = reshape([3.0, 7, 2, 8, 5, 1, 9, 4, 6, 2, 3, 11], sizes)
+        A = hierarchical(names, sizes, ((:a, :b), (:b, :c)))
+        f = ToricFactor(names, sizes, A)
+        q = counts / sum(counts)
+        ab = dropdims(sum(q; dims = 3); dims = 3)
+        bc = dropdims(sum(q; dims = 1); dims = 1)
+        b = vec(sum(q; dims = (1, 3)))
+        expected = [ab[i,j] * bc[j,k] / b[j] for i in 1:2, j in 1:3, k in 1:2]
+        fits = [fit_mle(f, counts; method) for method in (:newton, :ipf)]
+        for fit in fits
+            @test fit.converged
+            @test fit.existence == :exists
+            @test fit.p ≈ vec(expected) atol = 5e-10 rtol = 0
+        end
+        @test fits[1].p ≈ fits[2].p atol = 5e-10
+    end
+
+    @testset "binary features without an intercept" begin
+        A = [0 1 1 0 1 0; 0 0 1 1 0 1]
+        @test rank(vcat(ones(Int,1,6), A)) == rank(A) + 1
+        f = ToricFactor((:x,), (6,), A)
+        counts = [7, 1, 3, 9, 2, 8]
+        newton = fit_mle(f, counts)
+        ipf = fit_mle(f, counts; method = :ipf)
+        @test newton.converged && ipf.converged
+        @test newton.p ≈ ipf.p atol = 3e-10
+        @test ipf.existence == :exists
+        @test inmodel(f, ipf.p)
+        for method in (:newton, :ipf)
+            stopped = fit_mle(f, counts; method, maxiter = 1)
+            @test !stopped.converged
+            @test stopped.iterations == 1
+            @test stopped.residual > 1e-10
+        end
+    end
+
+    @testset "integer design, gradient and complete gauge" begin
+        rng = Xoshiro(403)
+        A = rand(rng, -3:4, 4, 12) # No constant in the row space, independently checked.
+        @test rank(vcat(ones(Int, 1, 12), A)) == rank(A) + 1
+        counts = rand(rng, 1:15, 12)
+        q = counts / sum(counts)
+        f = ToricFactor((:x,), (12,), A; normalised = true)
+        fit = fit_mle(f, counts)
+        @test fit.converged
+        @test fit.existence == :exists
+        @test norm(A * fit.p - A * q, Inf) <= 1e-10
+        @test norm(A * q - A * fit.p, Inf) <= 1e-10 # normalised log L gradient
+        @test inmodel(f, fit.p)
+        # Independent likelihood/gradient in probability space at moderate parameters.
+        η = 0.2 * randn(rng, 4)
+        likelihood(v) = dot(q, transpose(A) * v) - log(sum(exp.(transpose(A) * v)))
+        p = exp.(transpose(A) * η); p /= sum(p)
+        gradient = A * q - A * p
+        h = 1e-5
+        differences = [(likelihood(η + h * I(4)[:,r]) -
+                        likelihood(η - h * I(4)[:,r])) / (2h) for r in 1:4]
+        @test gradient ≈ differences atol = 2e-9 rtol = 0
+        for augmented in (vcat(A, A[1:1,:]), vcat(ones(Int, 1, 12), A),
+                          vcat(ones(Int, 1, 12), A, A[1:1,:]))
+            g = ToricFactor((:x,), (12,), augmented; normalised = true)
+            fitted = fit_mle(g, counts)
+            @test fitted.converged
+            @test fitted.p ≈ fit.p atol = 2e-10
+            # Independent gauge projector checks the minimum-norm representative.
+            B = transpose(Float64.(augmented))
+            B = B .- sum(B; dims = 1) / 12
+            @test pinv(B) * (B * fitted.η) ≈ fitted.η atol = 1e-12
+            @test [exp(-first(energy(g, (i,), (; η = fitted.η), NamedTuple())))
+                   for i in 1:12] ≈ fitted.p atol = 1e-14
+        end
+        @test_throws ArgumentError fit_mle(f, counts; method = :ipf)
+        # Normalisation really must be augmented: kernel(A) alone is insufficient.
+        g = ToricFactor((:x,), (2,), reshape([1, 2], 1, 2))
+        @test inmodel(g, [0.2, 0.8])
+        @test_throws ArgumentError binomial_residuals(g, [0.2, 0.8], [[2, -1]])
+    end
+
+    @testset "extended MLE and truthful statuses" begin
+        counts = [0.0 0 0; 3 7 2]
+        A = independence((:a, :b), (2, 3))
+        f = ToricFactor((:a, :b), (2, 3), A; normalised = true)
+        expected = vec(sum(counts; dims = 2) * sum(counts; dims = 1)) / sum(counts)^2
+        for method in (:newton, :ipf)
+            fit = fit_mle(f, counts; method, tol = 1e-10, maxiter = 2000)
+            @test fit.converged
+            @test fit.existence == :suspected_boundary
+            @test fit.p ≈ expected atol = 3e-10 rtol = 0
+            @test all(isfinite, fit.p)
+            @test all(isfinite, fit.η)
+            @test fit.residual <= 1e-10
+            @test [exp(-first(energy(f, Tuple(x), (; η = fit.η), NamedTuple())))
+                   for x in states((2,3))] ≈ fit.p atol = 1e-14
+            # Reversing the rows also exercises target moment one in IPF.
+            reversefit = fit_mle(f, reverse(counts; dims = 1); method)
+            @test reversefit.converged
+            @test reversefit.existence == :suspected_boundary
+            @test reversefit.p ≈ vec(reverse(reshape(expected, 2, 3); dims = 1)) atol = 3e-10
+            stopped = fit_mle(f, counts; method, maxiter = 0)
+            @test !stopped.converged
+            @test stopped.iterations == 0
+            @test stopped.existence == :unknown
+        end
+        # Zero cells do not themselves prove boundary MLE: these margins are positive.
+        sparsecounts = [0.0 2 3; 4 5 0]
+        for method in (:newton, :ipf)
+            fit = fit_mle(f, sparsecounts; method)
+            @test fit.converged
+            @test fit.existence == :unknown
+            @test minimum(fit.p) > 0.01
+            stopped = fit_mle(f, ones(2,3) .+ sparsecounts; method, maxiter = 0)
+            @test !stopped.converged
+            @test stopped.existence == :exists # Certificate is independent of optimisation.
+        end
+    end
+
+    @testset "input validation and degenerate models" begin
+        f = ToricFactor((:a, :b), (2, 3), independence((:a, :b), (2, 3)))
+        for counts in ([-1, 2, 3, 4, 5, 6], zeros(2,3), ones(5), ones(3,2),
+                       ones(2,3,1), [Inf, 1, 1, 1, 1, 1], fill(NaN, 6),
+                       fill(1+im, 6), (1,2,3,4,5,6), 1)
+            @test_throws ArgumentError fit_mle(f, counts)
+        end
+        for kwargs in ((method = :other,), (tol = 0,), (tol = NaN,),
+                       (maxiter = -1,), (maxiter = 1.5,), (maxiter = true,))
+            @test_throws ArgumentError fit_mle(f, ones(6); kwargs...)
+        end
+        @test fit_mle(f, fill(floatmax(Float64), 6)).converged
+        for A in (zeros(Int, 0, 6), ones(Int, 2, 6)), method in (:newton, :ipf)
+            g = ToricFactor((:a, :b), (2, 3), A)
+            fit = fit_mle(g, collect(1:6); method)
+            @test fit.converged
+            @test fit.iterations == 0
+            @test fit.p ≈ fill(1/6, 6)
+            @test fit.η == zeros(size(A, 1))
+            @test inmodel(g, fit.p)
+            @test !inmodel(g, collect(1:6) / 21)
+        end
+        g = ToricFactor((:x,), (1,), zeros(Int, 0, 1))
+        @test fit_mle(g, [2]).p == [1.0]
+        @test inmodel(g, [1.0])
+    end
+
+    @testset "membership and supplied independence minors" begin
+        rng = Xoshiro(704)
+        sizes = (3,4)
+        f = ToricFactor((:a, :b), sizes, independence((:a, :b), sizes))
+        moves = Vector{Int}[]
+        for i in 1:2, k in (i+1):3, j in 1:3, l in (j+1):4
+            u = zeros(Int, sizes)
+            u[i,j] += 1; u[k,l] += 1; u[i,l] -= 1; u[k,j] -= 1
+            push!(moves, vec(u))
+        end
+        for _ in 1:12
+            a = rand(rng, 3) .+ 0.2; b = rand(rng, 4) .+ 0.2
+            inside = a * transpose(b); inside /= sum(inside)
+            outside = rand(rng, sizes...) .+ 0.2; outside /= sum(outside)
+            for (p, expected) in ((inside, true), (outside, false))
+                residuals = binomial_residuals(f, p, moves)
+                direct = [p[i,j]*p[k,l] - p[i,l]*p[k,j]
+                          for i in 1:2 for k in (i+1):3 for j in 1:3 for l in (j+1):4]
+                @test maximum(abs, residuals - direct) <= 2e-17
+                @test inmodel(f, p) == expected
+                @test all(abs.(residuals) .<= 1e-12) == inmodel(f, p)
+            end
+        end
+        p = fill(1/12, 12)
+        @test isempty(binomial_residuals(f, p, []))
+        @test binomial_residuals(f, p, [zeros(Int, 12)]) == [0.0]
+        boundary = zeros(sizes); boundary[1,:] .= 1/4
+        @test all(iszero, binomial_residuals(f, boundary, moves))
+        @test_throws ArgumentError inmodel(f, boundary)
+        @test_throws ArgumentError binomial_residuals(f, p, [ones(Int, 12)])
+        bad = zeros(Int, 12); bad[1] = 1; bad[2] = -1
+        @test_throws ArgumentError binomial_residuals(f, p, [bad])
+        @test_throws ArgumentError binomial_residuals(f, p, [zeros(Int, 11)])
+        @test_throws ArgumentError binomial_residuals(f, p, [zeros(12)])
+        # Exact integer checks must not wrap a nonzero statistic to zero.
+        g = ToricFactor((:x,), (2,), reshape([typemin(Int), 0], 1, 2))
+        @test_throws ArgumentError binomial_residuals(g, [0.5,0.5], [[2,-2]])
+        for badp in (fill(-1/12, 12), ones(12), fill(NaN,12), ones(11), ones(4,3))
+            @test_throws ArgumentError inmodel(f, badp)
+            @test_throws ArgumentError binomial_residuals(f, badp, moves)
+        end
+        @test_throws ArgumentError inmodel(f, p; atol = -1)
+        @test_throws ArgumentError inmodel(f, p; atol = Inf)
+        # Check the documented 2-norm tolerance using an independent LS projection.
+        q = collect(1.0:12); q /= sum(q)
+        B = transpose(Float64.(vcat(ones(Int,1,12), f.A)))
+        residual = norm(log.(q) - B * (pinv(B) * log.(q)))
+        @test inmodel(f, q; atol = 1.01residual)
+        @test !inmodel(f, q; atol = 0.99residual)
+    end
+end
