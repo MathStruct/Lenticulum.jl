@@ -71,10 +71,10 @@ is the cheapest possible check that the graph and the accounting have not drifte
   **fixed points of loopy belief propagation are stationary points of the Bethe free energy**
   (Yedidia, Freeman & Weiss).
 
-That last result is worth internalising, because it collapses two things that look separate:
-*running BP* and *minimising the Bethe free energy* are the same activity. If your inference
-loop and your reported objective ever seem to disagree, they are not two facts — one of them is
-computed wrong.
+That last result is worth internalising, because it ties two things that look separate:
+*running BP* searches for **stationary points** of the Bethe free energy, not necessarily minima,
+and BP need not converge (it is not a descent method). At a converged fixed point the beliefs
+and the reported Bethe free energy must agree; if they do not, one of them is computed wrong.
 
 ## Two decompositions, one number
 

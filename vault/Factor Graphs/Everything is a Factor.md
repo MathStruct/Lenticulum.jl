@@ -114,4 +114,4 @@ which `DataFactor`s are attached to the graph this step.
 > the base graph's **messages**, does not exist, and `LenticulumCore.AmortisedInversion` is its
 > per-factor case. See [[The Inferencer and the Optimizer]].
 
-Related: [[The Inferencer and the Optimizer]], [[Factor Graphs]], [Learning Components as Parametric Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Gradient-Based-Learning-with-Parametric-Lenses), [[AutoBayes Examples as Factor Graphs]], [[factors]]
+Related: [[The Inferencer and the Optimizer]], [[Unusual Wirings]] (outputs into weights, energies into inputs), [[Factor Graphs]], [Learning Components as Parametric Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Gradient-Based-Learning-with-Parametric-Lenses), [[AutoBayes Examples as Factor Graphs]], [[factors]]

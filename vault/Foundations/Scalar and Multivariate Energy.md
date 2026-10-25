@@ -298,12 +298,18 @@ model), and `scalar_energy(...; σ)` and `scalar_free_energy(...; σ)` take anot
   the maximum-likelihood one;
 - *the weights* $\lambda$ of $\langle \lambda, e\rangle$ on a graded energy — annealing and
   curricula (§6, "Post-hoc reweighting"), changed without recomposing the graph.
+- *the risk measure*, once the energy is uncertain — every scalarisation above takes an
+  energy value; a belief over energies adds the expectation (today's implicit choice), the
+  entropic risk and CVaR, which differ most for heavy-tailed energies ([[Unusual Wirings]] §4,
+  planned in [[L-SPEC-003 Exposed Parameters and Energy Channels]] §3).
 
 **Normalised or not.** $\rho(r) = \tfrac12 r^\top Q^{-1} r$ is zero at a perfect fit; the
 negative log-density $-\log \mathcal{N}(y; Ax+b, Q) = \rho(r) + \tfrac12\log\det(2\pi Q)$
 is not. They differ by a constant while $Q$ is fixed, which it is in every factor today. Once
-$Q$ is learned, the constant is what stops $Q \to 0$, and only the free energy, which keeps it
-as the complexity summand, is a valid objective; the pointwise $\rho$ alone is not.
+$Q$ is learned, the constant matters: $\rho$ alone decreases as $Q$ grows and drives $Q \to \infty$,
+and the normaliser, which the free energy keeps as the complexity summand, is what penalises
+that; so only the free energy is a valid objective. (At an exact fit it does not stop $Q \to 0$;
+that needs a prior on $Q$, [[LP-005 Learning the noise covariance]].)
 
 **Relative to which measure.** The free energies of continuous beliefs contain differential
 entropies, finite only relative to a reference measure (Lebesgue, in each variable's

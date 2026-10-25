@@ -9,4 +9,4 @@
 2. A precision parametrisation, $Q^{-1} = L L^\top$, which is what the scalarisation uses.
 3. Diagonal $Q$ only, through log-variances.
 
-**Leaning.** Not chosen. Whichever it is, training must use the free energy, and a test should show that the pointwise energy alone drives $Q \to 0$.
+**Leaning.** Not chosen. Whichever it is, training must use the free energy, and a test should show what goes wrong without it: the pointwise energy $\tfrac12 r^\top Q^{-1} r$ alone *decreases* as $Q$ grows, so it drives $Q \to \infty$ (variance inflation); the normaliser $\tfrac12 \log\det(2\pi Q)$ in the free energy penalises that. At an exact fit ($r = 0$) the likelihood is unbounded as $Q \to 0$, so even the free energy needs a prior on $Q$ or a floor. (Direction corrected 2026-10-25; it said $Q \to 0$.)

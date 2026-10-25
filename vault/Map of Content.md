@@ -150,6 +150,7 @@ counterpart in Lux.
   factor whose messages are the operation; what exists, what is missing, what to build first
 - [[Factor Graphs]] — bipartite structure; the **two** acyclicity notions (`istree` vs `isdag`)
 - [[Everything is a Factor]] — data, priors, losses and optimisers as graph nodes, forced by Remark 24
+- [[Unusual Wirings]] — an output into a weight, an energy into an input, beliefs on weights and energies; risk measures as scalarisations
 - [[Messages are Inversions]] — a factor → variable message **is** $c'_\pi$; both exclusion principles
 - [[Polarity Resolution]] — target + available messages → a `Polarity`; the two legality checks
 - [[Schedules]] — the schedule zoo; tree exactness; pruning by edge direction

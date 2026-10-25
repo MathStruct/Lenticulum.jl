@@ -2584,3 +2584,202 @@ references:
     year: 2017
     collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
     url: "https://arxiv.org/abs/1703.06114"
+  - type: article
+    title: "Learning to Control Fast-Weight Memories: An Alternative to Dynamic Recurrent Networks"
+    authors:
+      - family-names: "Schmidhuber"
+        given-names: "Jürgen"
+    year: 1992
+    journal: "Neural Computation"
+    volume: "4"
+    issue: "1"
+    start: "131"
+    end: "139"
+    doi: "10.1162/neco.1992.4.1.131"
+  - type: conference-paper
+    title: "HyperNetworks"
+    authors:
+      - family-names: "Ha"
+        given-names: "David"
+      - family-names: "Dai"
+        given-names: "Andrew M."
+      - family-names: "Le"
+        given-names: "Quoc V."
+    year: 2017
+    collection-title: "International Conference on Learning Representations (ICLR)"
+    url: "https://arxiv.org/abs/1609.09106"
+  - type: conference-paper
+    title: "Linear Transformers Are Secretly Fast Weight Programmers"
+    authors:
+      - family-names: "Schlag"
+        given-names: "Imanol"
+      - family-names: "Irie"
+        given-names: "Kazuki"
+      - family-names: "Schmidhuber"
+        given-names: "Jürgen"
+    year: 2021
+    collection-title: "International Conference on Machine Learning (ICML)"
+    url: "https://arxiv.org/abs/2102.11174"
+  - type: conference-paper
+    title: "FiLM: Visual Reasoning with a General Conditioning Layer"
+    authors:
+      - family-names: "Perez"
+        given-names: "Ethan"
+      - family-names: "Strub"
+        given-names: "Florian"
+      - family-names: "de Vries"
+        given-names: "Harm"
+      - family-names: "Dumoulin"
+        given-names: "Vincent"
+      - family-names: "Courville"
+        given-names: "Aaron"
+    year: 2018
+    collection-title: "AAAI Conference on Artificial Intelligence"
+    url: "https://arxiv.org/abs/1709.07871"
+  - type: conference-paper
+    title: "Model-Agnostic Meta-Learning for Fast Adaptation of Deep Networks"
+    authors:
+      - family-names: "Finn"
+        given-names: "Chelsea"
+      - family-names: "Abbeel"
+        given-names: "Pieter"
+      - family-names: "Levine"
+        given-names: "Sergey"
+    year: 2017
+    collection-title: "International Conference on Machine Learning (ICML)"
+    url: "https://arxiv.org/abs/1703.03400"
+  - type: conference-paper
+    title: "Weight Uncertainty in Neural Networks"
+    authors:
+      - family-names: "Blundell"
+        given-names: "Charles"
+      - family-names: "Cornebise"
+        given-names: "Julien"
+      - family-names: "Kavukcuoglu"
+        given-names: "Koray"
+      - family-names: "Wierstra"
+        given-names: "Daan"
+    year: 2015
+    collection-title: "International Conference on Machine Learning (ICML)"
+    url: "https://arxiv.org/abs/1505.05424"
+  - type: generic
+    title: "Reinforcement Learning Upside Down: Don't Predict Rewards – Just Map Them to Actions"
+    authors:
+      - family-names: "Schmidhuber"
+        given-names: "Jürgen"
+    year: 2019
+    url: "https://arxiv.org/abs/1912.02875"
+  - type: conference-paper
+    title: "Decision Transformer: Reinforcement Learning via Sequence Modeling"
+    authors:
+      - family-names: "Chen"
+        given-names: "Lili"
+      - family-names: "Lu"
+        given-names: "Kevin"
+      - family-names: "Rajeswaran"
+        given-names: "Aravind"
+      - family-names: "Lee"
+        given-names: "Kimin"
+      - family-names: "Grover"
+        given-names: "Aditya"
+      - family-names: "Laskin"
+        given-names: "Michael"
+      - family-names: "Abbeel"
+        given-names: "Pieter"
+      - family-names: "Srinivas"
+        given-names: "Aravind"
+      - family-names: "Mordatch"
+        given-names: "Igor"
+    year: 2021
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/2106.01345"
+  - type: conference-paper
+    title: "A Distributional Perspective on Reinforcement Learning"
+    authors:
+      - family-names: "Bellemare"
+        given-names: "Marc G."
+      - family-names: "Dabney"
+        given-names: "Will"
+      - family-names: "Munos"
+        given-names: "Rémi"
+    year: 2017
+    collection-title: "International Conference on Machine Learning (ICML)"
+    url: "https://arxiv.org/abs/1707.06887"
+  - type: article
+    title: "Asymptotic evaluation of certain Markov process expectations for large time, I"
+    authors:
+      - family-names: "Donsker"
+        given-names: "Monroe D."
+      - family-names: "Varadhan"
+        given-names: "S. R. Srinivasa"
+    year: 1975
+    journal: "Communications on Pure and Applied Mathematics"
+    volume: "28"
+    issue: "1"
+    start: "1"
+    end: "47"
+    doi: "10.1002/cpa.3160280102"
+  - type: article
+    title: "Coherent Measures of Risk"
+    authors:
+      - family-names: "Artzner"
+        given-names: "Philippe"
+      - family-names: "Delbaen"
+        given-names: "Freddy"
+      - family-names: "Eber"
+        given-names: "Jean-Marc"
+      - family-names: "Heath"
+        given-names: "David"
+    year: 1999
+    journal: "Mathematical Finance"
+    volume: "9"
+    issue: "3"
+    start: "203"
+    end: "228"
+    doi: "10.1111/1467-9965.00068"
+  - type: article
+    title: "Optimization of conditional value-at-risk"
+    authors:
+      - family-names: "Rockafellar"
+        given-names: "R. Tyrrell"
+      - family-names: "Uryasev"
+        given-names: "Stanislav"
+    year: 2000
+    journal: "The Journal of Risk"
+    volume: "2"
+    issue: "3"
+    start: "21"
+    end: "41"
+    doi: "10.21314/JOR.2000.038"
+  - type: book
+    title: "Stochastic Finance: An Introduction in Discrete Time"
+    authors:
+      - family-names: "Föllmer"
+        given-names: "Hans"
+      - family-names: "Schied"
+        given-names: "Alexander"
+    year: 2016
+    publisher:
+      name: "De Gruyter"
+    doi: "10.1515/9783110463453"
+  - type: article
+    title: "Conditional value-at-risk for general loss distributions"
+    authors:
+      - family-names: "Rockafellar"
+        given-names: "R. Tyrrell"
+      - family-names: "Uryasev"
+        given-names: "Stanislav"
+    year: 2002
+    journal: "Journal of Banking & Finance"
+    volume: "26"
+    issue: "7"
+    start: "1443"
+    end: "1471"
+    doi: "10.1016/S0378-4266(02)00271-6"
+  - type: generic
+    title: "Double Categories of Open Dynamical Systems (Extended Abstract)"
+    authors:
+      - family-names: "Myers"
+        given-names: "David Jaz"
+    year: 2020
+    url: "https://arxiv.org/abs/2005.05956"
