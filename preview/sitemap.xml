@@ -168,7 +168,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-10-25T20:17:04.633Z</lastmod>
+    <lastmod>2026-10-25T20:58:42.075Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -369,10 +369,10 @@
     <lastmod>2026-10-25T00:27:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-004-Algebraic-Factors-Toric-and-Grassmannian</loc>
-    <lastmod>2026-10-25T20:16:48.000Z</lastmod>
+    <lastmod>2026-10-25T20:58:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/Specifications</loc>
-    <lastmod>2026-10-25T20:16:48.000Z</lastmod>
+    <lastmod>2026-10-25T20:58:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/README</loc>
     <lastmod>2026-10-25T18:10:47.000Z</lastmod>
@@ -423,13 +423,16 @@
     <lastmod>2026-10-15T14:28:34.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/AlgebraicFactors</loc>
-    <lastmod>2026-10-25T20:16:48.000Z</lastmod>
+    <lastmod>2026-10-25T20:58:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/fit</loc>
     <lastmod>2026-10-25T18:28:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/grassmann</loc>
     <lastmod>2026-10-25T20:16:48.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/plucker</loc>
+    <lastmod>2026-10-25T20:58:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/toric</loc>
     <lastmod>2026-10-25T18:28:28.000Z</lastmod>
