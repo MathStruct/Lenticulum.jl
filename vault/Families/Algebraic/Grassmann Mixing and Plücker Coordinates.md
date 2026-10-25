@@ -8,7 +8,7 @@
 > variety to test algebraic fitting on, and $\mathrm{Gr}(k, m)$ as a parameter space
 > ([[L-SPEC-004 Algebraic Factors Toric and Grassmannian]]).
 
-> Sources: Zhang, *Attention Is Not What You Need*, arXiv:2512.19428v1, 2025 (§3.2 for the layer, §6.4 for the limitations); Edelman, Arias & Smith, *The Geometry of Algorithms with Orthogonality Constraints*, SIAM J. Matrix Anal. Appl. 20(2), 1998; the facts about $\Lambda^2$ and the Plücker relations are standard multilinear algebra, derived below; the comparison with attention and the uses in Lenticulum are original to this vault; code: none yet.
+> Sources: Zhang, *Attention Is Not What You Need*, arXiv:2512.19428v1, 2025 (§3.2 for the layer, §6.4 for the limitations); Edelman, Arias & Smith, *The Geometry of Algorithms with Orthogonality Constraints*, SIAM J. Matrix Anal. Appl. 20(2), 1998; the facts about $\Lambda^2$ and the Plücker relations are standard multilinear algebra, derived below; the comparison with attention and the uses in Lenticulum are original to this vault; code: `lib/AlgebraicFactors.jl/src/plucker.jl`, `lib/AlgebraicFactors.jl/test/runtests.jl` (forward map, moments, quadrics and Klein data rank; no fitting API).
 >
 > Bibliography: [[Bibliography#^zhang2025attention|Zhang 2025]] · [[Bibliography#^edelman1998geometry|Edelman et al. 1998]]
 >
@@ -74,8 +74,13 @@ Write $p = z \wedge w \in \Lambda^2\mathbb R^r$, with coordinates $p_{ij}$ for $
 ## What Lenticulum can take
 
 1. **A Plücker factor.** $(z, w) \mapsto z\wedge w$ is a deterministic polynomial map of degree 2,
-   bilinear, with a closed-form Jacobian. Forwards it is an ordinary deterministic factor. The
-   inverse polarity is the interesting one: a nonzero bivector $z\wedge w$ determines the pair only up
+   bilinear, with a closed-form Jacobian. Implemented in `AlgebraicFactors` as `plucker`,
+   `plucker_jacobian` (columns `vcat(z,w)`), and forward-only `PluckerFactor(r)`.
+   `plucker_pairs` specifies lexicographic coordinate order; `plucker_relations` and
+   `plucker_residuals` supply the quadrics. Diracs and paired particles transport exactly;
+   independent Gaussian inputs give exact moments and a moment-matched Gaussian message,
+   subject to the explicit singular-covariance handling in [[plucker]]. The
+   inverse polarity remains open: a nonzero bivector $z\wedge w$ determines the pair only up
    to $SL_2$ (a unit-normalised oriented one up to $GL_2^+$, a plane up to $GL_2$), so the inverse
    message is a belief on a fibre, not a point; how to represent it is open, and $p = 0$ needs
    separate treatment.
@@ -83,10 +88,14 @@ Write $p = z \wedge w \in \Lambda^2\mathbb R^r$, with coordinates $p_{ij}$ for $
    quadric. The nullspace fit of [[Fitting is a Nullspace Problem]] with all 28 degree-$\le 2$
    monomials on $\mathbb R^6$ (constant and linear terms included) should find exactly that quadric, a
    one-dimensional null space, given enough generic noiseless points (at least 27); on exactly
-   unit-normalised points also $\lVert p\rVert^2 - 1$, two dimensions (at least 26 points). A scratch
-   check with 400 Gaussian pairs agrees (one and two zero singular values); it becomes a result
-   with the test of [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]] §5, which must state
-   its rank tolerance.
+   unit-normalised points also $\lVert p\rVert^2 - 1$, two dimensions (at least 26 points),
+   an expectation not tested here. `Klein quadric data rank (not fit_nullspace)` checks
+   the unnormalised data: 400 Gaussian pairs (`Xoshiro(5106)`), exactly one singular
+   value below relative tolerance `1e-12`, and alignment with the known quadric's
+   coefficients (see [[plucker]] for the observed gap). This implements §5's data check,
+   not `fit_nullspace`, which belongs to the still-planned §3 of
+   [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]]. The earlier scratch check
+   of unit-normalised data remains unverified by repository tests.
 3. **$\mathrm{Gr}(k, m)$ as a parameter space**, for the algebraic factor
    ([[The Parameter is a Grassmannian]]): a Stiefel representative, the projected gradient
    $G - G\Theta^\top\Theta$, a QR retraction (Edelman, Arias & Smith 1998). L-SPEC-004 §2.

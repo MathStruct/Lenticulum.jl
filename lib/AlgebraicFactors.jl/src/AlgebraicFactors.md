@@ -2,10 +2,10 @@
 
 > `AlgebraicFactors` starts the algebraic family with exact finite toric potentials.
 > It supplies discrete messages, energies and entropies, moment fitting and model
-> checks, plus Grassmannian parameter geometry and retracted updates. Polynomial
-> and later algebraic factors remain outside this implementation.
+> checks, Grassmannian parameter geometry and retracted updates, and forward Plücker
+> transport. General polynomial factors and later families remain unimplemented.
 
-> Sources: original implementation of [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]] §0, §1.1–§1.7 and §2.1–§2.2; code: `AlgebraicFactors.jl`, `toric.jl`, `fit.jl`, `grassmann.jl`, `../test/runtests.jl`.
+> Sources: original implementation of [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]] §0, §1.1–§1.7, §2.1–§2.2 and §5; code: `AlgebraicFactors.jl`, `toric.jl`, `fit.jl`, `grassmann.jl`, `plucker.jl`, `../test/runtests.jl`.
 >
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens)
 
@@ -14,7 +14,7 @@ The module depends on `LenticulumCore`, `Mycelium`, `LinearAlgebra`, `LuxCore` a
 no inference algorithm. Newton and binary-feature IPF use only LinearAlgebra; there
 is no external optimiser, LP solver, AD backend or manifold package.
 
-`ToricFactor` is the factor. `independence` and `hierarchical` return integer design
+`ToricFactor` supplies the finite potentials. `independence` and `hierarchical` return integer design
 matrices so callers can inspect the statistics before constructing a factor. [[toric]]
 records the state ordering, label rules and free-energy accounting. [[fit]] describes
 `fit_mle`, `inmodel` and `binomial_residuals`, their independent closed-form checks,
@@ -41,5 +41,14 @@ LinearAlgebra; sampling uses Random. The geometry tests compare descent on a
 trace objective with a known eigenplane and drive the same iterates through
 `OptimiserFactor`. No Mycelium changes or new dependencies are required.
 
+[[plucker]] records the coordinate order, sparse relation tables and forward-only
+`PluckerFactor`. Dirac and paired-particle transport are exact. Independent Gaussian
+inputs give exact moments and a Gaussian approximation to the output law.
+`plucker_moments` exposes singular covariances; messages reject those unless callers
+explicitly request covariance jitter, since the core belief type needs positive-definite
+covariance. This factor has no game-level quantities or assembled lens, so the full
+conformance checker does not apply (LP-009). Its tests check direct messages and a
+Mycelium DAG. A separate Klein data rank test is not nullspace fitting.
+
 Not implemented: general MLE existence certification, Markov-basis computation,
-Sampson scalarisation, polynomial factors, homotopy continuation or Plücker factors.
+Sampson scalarisation, general polynomial factors, homotopy continuation or inverse Plücker fibres.

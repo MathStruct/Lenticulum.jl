@@ -5,9 +5,10 @@ CurrentModule = AlgebraicFactors
 ```
 
 Finite toric potentials over named discrete channels, implementing L-SPEC-004 §0 and
-§1.1–§1.7, plus Grassmannian parameters (§2.1–§2.2). Messages, energies and entropies use exact enumeration; fitting uses
-Newton or binary-feature IPF. Sampson scalarisation and later algebraic factors
-are not implemented.
+§1.1–§1.7, plus Grassmannian parameters (§2.1–§2.2) and the Plücker map (§5).
+Toric messages, energies and entropies use exact enumeration; fitting uses
+Newton or binary-feature IPF. General polynomial factors, Sampson scalarisation and
+homotopy continuation are not implemented.
 
 ```julia
 using AlgebraicFactors, LenticulumCore, Mycelium, Random, LinearAlgebra
@@ -86,7 +87,7 @@ S = Diagonal([-2.0, -1.0, 1.0, 2.0, 3.0, 5.0]) # using LinearAlgebra
 state, Θ = optimiser_step(of, state, Θ, 2Θ * S)
 ```
 
-`Retracted` preserves Mycelium's momentum recurrence `s′ = -γ*s - η*grad`
+`Retracted` preserves Mycelium's momentum recurrence `s′ = γ*s - η*grad`
 and transports the velocity by projection onto the new horizontal space.
 Mycelium has no rule-state initializer; initialise it as above. Factor message
 emission reads `(p=Θ, state=state)`. Nesterov and other rules are rejected:
@@ -96,6 +97,46 @@ descent and both optimisers against a known eigenplane, using `η=0.04` for
 at every step. The implementation note `lib/AlgebraicFactors.jl/src/grassmann.md`
 records the exact problem, tolerances and limitations. This uses the canonical
 Grassmann metric; it does not implement a statistical model's Fisher metric.
+
+`plucker(z,w)` returns the bivector in lexicographic `(i,j)` order (`i<j`),
+listed by `plucker_pairs(r)`. `plucker_jacobian` differentiates with respect to
+`vcat(z,w)`. `plucker_relations(r)` returns sparse quadric records with increasing
+quadruples, monomial coordinate-index pairs and coefficients `(1,-1,1)`;
+`plucker_residuals(r,p)` evaluates them.
+
+```julia
+f = PluckerFactor(4)  # names default to (:z, :w, :p)
+pol = only(supported_polarities(f))
+site, st = factor_message(f, :p, pol,
+    (z = DiracBelief([1.,2,3,4]), w = DiracBelief([5.,6,7,8])),
+    nothing, NamedTuple(), NamedTuple())
+# site.value == [-4,-8,-12,-4,-8,-4]
+```
+
+The only polarity observes both inputs and emits on `p`; inverse fibres are not
+represented. Parameters and state are empty. Diracs transport exactly; sample
+beliefs pair particles by index, requiring equal positive counts and matching
+normalised weights (`rtol=1e-12, atol=0`). The first cloud's weights survive.
+A Dirac may accompany a cloud. Samples are column matrices or vectors of vectors.
+
+Separate proper Gaussian inputs are independent. Their exact output mean and
+covariance are returned in a moment-matched `GaussianBelief`; the bilinear law
+is generally non-Gaussian. `plucker_moments(μ,S,ν,T)` exposes the exact moments,
+including singular covariance (zero input covariance represents a Dirac).
+For example, Dirac/Gaussian output has rank `r-1` for nonzero fixed input.
+Core Gaussian beliefs cannot represent singular covariance. By default the factor
+rejects it, using `λmin <= n*eps(T)*λmax` as the numerical rank threshold;
+it never adds jitter automatically. Explicit `covariance_jitter=δ > 0` adds
+absolute variance `δ*I`, giving an approximate covariance. The implementation
+note `lib/AlgebraicFactors.jl/src/plucker.md` derives the formula and explains
+this distinction from singular precision.
+
+Pointwise and graph-local energy are zero, as for `GeneratorFactor`.
+Game-level free energy/entropy and an assembled lens are absent (LP-009), so the
+full conformance checker does not apply. Tests exercise the supported interface
+and a Mycelium DAG with two Gaussian priors, and compare moments to an independent
+second-moment expansion and seeded Monte Carlo. A separate 400-point Klein-quadric
+data rank test is explicitly not `fit_nullspace`, which remains unimplemented.
 
 Enumeration costs grow with the product of alphabet sizes. This implementation uses CPU
 arrays and makes no GPU or automatic differentiation guarantee.

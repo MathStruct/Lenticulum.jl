@@ -1,11 +1,11 @@
 #design
 
-> **Status: partly implemented (2026-10-25): §0, §1.1–§1.7 and §2.1–§2.2; §2.3 and later remain planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl`, `fit.jl` and `grassmann.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. These steps needed no Mycelium changes.
+> **Status: partly implemented (2026-10-25): §0, §1.1–§1.7, §2.1–§2.2 and §5; §2.3–§2.4, §3 and §4 remain planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl`, `fit.jl`, `grassmann.jl` and `plucker.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. These steps needed no Mycelium changes.
 
 ## Scope
 
 The first code for the algebraic family ([[Algebraic Implicit Learners]]) implements finite
-toric factors and Grassmannian parameter updates; general polynomial factors remain unimplemented. Gemini's review (Proposal 7 of `05_Architectural_Design_Proposals.md` in
+toric factors, Grassmannian parameter updates and forward Plücker transport; general polynomial factors remain unimplemented. Gemini's review (Proposal 7 of `05_Architectural_Design_Proposals.md` in
 the review folder) sketches a whole package `lib/AlgebraicFactors.jl`; this specification orders
 it so that the cases where everything is exact or cheap come first:
 
@@ -27,6 +27,7 @@ binding when it is implemented with its tests.
 | a factor over several discrete variables | `AlgebraicFactors.ToricFactor`: exact finite sum-product messages and joint factor free energy; tree marginals and Bethe free energy checked against enumeration |
 | toric fitting and model checks | `fit_mle`: gauge-reduced Newton or cyclic binary-feature IPF; separate moment convergence and existence statuses; positive `inmodel` and supplied `binomial_residuals`, checked against closed forms and independence minors |
 | parameters on a manifold | `Grassmann`, horizontal projection, positive-diagonal QR retraction and `Retracted` for Mycelium's `GradientDescent` and `Momentum`, including velocity transport and `OptimiserFactor` integration; Nesterov and §2.3's Sampson scalarisation remain planned |
+| Plücker map and quadrics | `plucker`, closed-form Jacobian, lexicographic coordinate pairs and sparse relations; forward-only `PluckerFactor` with exact Dirac/paired-particle transport and independent-Gaussian moments; singular Gaussian messages require explicitly requested regularisation |
 | a polynomial (Veronese) factor, nullspace fitting | none; the theory is in the notes |
 | multi-branch roots | none; `MixtureBelief` exists to carry them |
 
@@ -100,9 +101,34 @@ and single-branch messages by Newton with a Laplace Gaussian
 isolated real roots and returning a `MixtureBelief` over branches
 ([[Branches and the Discriminant]]).
 
-**§5 Plücker.** `plucker(z, w)` and its Jacobian; a deterministic `PluckerFactor(r)` with the
-forward polarity only (the inverse message would be a belief on an $SL_2$-orbit, not built); and
-`plucker_relations(r)`, the quadrics $p_{ij}p_{kl} - p_{ik}p_{jl} + p_{il}p_{jk}$, as test data.
+**§5 Plücker (implemented).** `plucker_pairs(r)` lists increasing pairs in lexicographic
+order. `plucker(z,w)` evaluates $p_{ij}=z_iw_j-z_jw_i$; `plucker_jacobian(z,w)` has
+columns in `vcat(z,w)` order. `plucker_relations(r)` returns $\binom r4$ records in
+lexicographic quadruple order, each with `indices=(i,j,k,l)`, three `monomials`
+(pairs of indices into `p`) and `coefficients=(1,-1,1)`, representing
+$p_{ij}p_{kl}-p_{ik}p_{jl}+p_{il}p_{jk}$. `plucker_residuals(r,p)` evaluates them.
+
+`PluckerFactor(r; names=(:z,:w,:p), covariance_jitter=0)` has empty parameters/state,
+and exactly the forward polarity (observed `z,w`, unobserved `p`). The inverse of a
+nonzero decomposable bivector is an $SL_2$-orbit of pairs, not a built belief;
+$p=0$ is degenerate. Dirac pairs give a Dirac; two sample clouds are paired by index,
+with equal positive counts and matching normalised weights (`rtol=1e-12, atol=0`).
+The first cloud's weights survive; a Dirac may accompany either cloud.
+Separate proper Gaussian inputs are assumed independent; the output `GaussianBelief`
+matches the exact first two moments, not the generally non-Gaussian law.
+`plucker_moments(μ,S,ν,T)` exposes those moments with zero covariance for a Dirac.
+[[plucker]] derives the full bilinear covariance, including the term absent from
+Jacobian-only propagation. Core Gaussian beliefs cannot represent singular covariance:
+by default a covariance with $\lambda_{\min}\le n\operatorname{eps}(T)\lambda_{\max}$
+is rejected; explicit positive `covariance_jitter` adds that absolute variance to
+each output coordinate, an approximation. Exact singular moments remain available
+without jitter through `plucker_moments`. No core or Mycelium changes were needed.
+
+Scalar pointwise energy and graph-local free energy are zero, following `GeneratorFactor`.
+Game-level quantities and an assembled lens remain absent (LP-009); the full common
+conformance checker requires game quantities and therefore does not apply.
+The 400-point Klein-quadric rank check below tests data only; `fit_nullspace` belongs
+to §3 and is not implemented by §5.
 
 ## Checked by
 
@@ -147,15 +173,39 @@ and momentum is horizontal after every step. Nesterov and another unsupported ru
 are rejected at construction. This demonstrates those fixed runs, not a general
 momentum convergence theorem. See [[grassmann]] for state layout and numerical choices.
 
+Implemented §5: `Plücker coordinates and relations`, `PluckerFactor forward beliefs`
+and `Plücker exact moments and Gaussian messages` in the same test file check hand cases
+at $r=2,3,4$, antisymmetry, determinant scaling, Lagrange's identity, rectangular
+exterior-power equivariance against independent minors, central Jacobian differences
+(`h=1e-5`, absolute tolerance `2e-10`), relation counts/order and vanishing at $r=4,5,6$
+(`3e-14` absolute), and nondecomposable violations. Polarity tests enumerate all 27
+observed/latent/unobserved assignments. Dirac and paired/weighted sample messages,
+custom names, target exclusion, independent proper Gaussian messages and a Mycelium
+DAG with two Gaussian priors are checked. Exact moments at $r=2,3,4,5$ agree with
+an independent expansion of second moments, including Dirac limits. Monte Carlo
+uses 200000 independent pairs, `Xoshiro(5104)`, at $r=4$: normalised mean error
+`0.00307141 < 0.015`, covariance Frobenius relative error `0.00487539 < 0.025`.
+Singular rejection, rank $r-1$ for fixed nonzero input, and explicitly regularised
+messages are checked; no silent jitter or claim of exact Gaussian law is made.
+
+`Klein quadric data rank (not fit_nullspace)` builds a hand-written 28-monomial
+matrix from 400 unnormalised Gaussian-pair points (`Xoshiro(5106)`), requiring
+exactly one singular value below `1e-12` times the largest, and its null vector
+aligned with the Klein coefficients to `2e-14` in absolute dot product.
+The smallest relative singular value is `4.4408921e-16`, the next `0.0848452043`
+(gap ratio `1.9105442e14`). This checks the data, not a fitting API; see [[plucker]].
+Unit-normalised data are not checked.
+
 Still planned (scalarisation and later families):
 
 - §2.3: gauge-invariant Sampson scalarisation for polynomial residuals; the trace
   objective tests above do not implement or test this scalarisation. §2.4's exposed
   manifold channel spaces also remain planned.
-- §3 with §5: on points $z\wedge w$ for random $z, w \in \mathbb R^4$, `fit_nullspace` of degree 2 should
+- §3 (using §5 data): on points $z\wedge w$ for random $z, w \in \mathbb R^4$, `fit_nullspace` of degree 2 should
   recover the Klein quadric, a one-dimensional null space, with at least 27 generic points and
-  a stated rank tolerance (an expectation, agreeing with a scratch check;
-  [[Grassmann Mixing and Plücker Coordinates]]).
+  a stated rank tolerance. The 400-point data test above checks this null direction,
+  but the fitting API remains an expectation, not an implemented result
+  ([[Grassmann Mixing and Plücker Coordinates]]).
 
 ## Open
 

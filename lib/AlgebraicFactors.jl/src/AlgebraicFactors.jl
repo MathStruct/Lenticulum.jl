@@ -5,6 +5,7 @@ Exact finite log-linear factors for Lenticulum and Mycelium. See [`ToricFactor`]
 [`independence`](@ref), and [`hierarchical`](@ref). [`fit_mle`](@ref) fits moments;
 [`inmodel`](@ref) and [`binomial_residuals`](@ref) check supplied probabilities.
 [`Grassmann`](@ref) and [`Retracted`](@ref) provide Grassmannian parameter updates.
+[`PluckerFactor`](@ref) transports beliefs through the bivector map [`plucker`](@ref).
 """
 module AlgebraicFactors
 
@@ -18,6 +19,10 @@ export ToricFactor, independence, hierarchical
 export fit_mle, inmodel, binomial_residuals
 export Grassmann, project_tangent, retract, ispoint, Retracted
 
+export plucker_pairs, plucker, plucker_jacobian, plucker_relations, plucker_residuals
+export plucker_moments, PluckerFactor
+
+include("plucker.jl")
 include("toric.jl")
 include("fit.jl")
 include("grassmann.jl")

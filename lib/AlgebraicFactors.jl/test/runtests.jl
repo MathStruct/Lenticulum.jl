@@ -710,3 +710,248 @@ end
         @test !inmodel(f, q; atol = 0.99residual)
     end
 end
+
+@testset "Plücker coordinates and relations" begin
+    @test plucker_pairs(4) == [(1,2),(1,3),(1,4),(2,3),(2,4),(3,4)]
+    @test plucker([1,2], [3,5]) == [-1]
+    @test plucker([1,2,3], [4,5,6]) == [-3,-6,-3]
+    @test plucker([1,2,3,4], [5,6,7,8]) == [-4,-8,-12,-4,-8,-4]
+    @test eltype(plucker([1,2], [3,5])) == Int
+    @test plucker([1//2,2//3], [3//4,5//6]) == [-1//12]
+    @test plucker(ComplexF64[1,im], ComplexF64[im,1]) == [2]
+    @test eltype(plucker(Float32[1,2], Float32[3,5])) == Float32
+    @test_throws ArgumentError plucker_pairs(1)
+    @test_throws ArgumentError plucker([1], [2])
+    @test_throws DimensionMismatch plucker([1,2], [3,4,5])
+    @test_throws DimensionMismatch plucker_jacobian([1,2], [3,4,5])
+    @test_throws ArgumentError plucker_relations(1)
+    @test_throws DimensionMismatch plucker_residuals(4, zeros(5))
+    @test isempty(plucker_relations(2)) && isempty(plucker_relations(3))
+    @test isempty(plucker_residuals(3, zeros(3)))
+    rng = Xoshiro(5101)
+    for r in 2:6
+        z, w = randn(rng,r), randn(rng,r)
+        p = plucker(z,w)
+        @test plucker(w,z) == -p
+        a,b,c,d = randn(rng,4)
+        @test plucker(a*z+b*w, c*z+d*w) ≈ (a*d-b*c)*p atol = 1e-13
+        @test sum(abs2,p) ≈ sum(abs2,z)*sum(abs2,w)-dot(z,w)^2 atol = 1e-13
+        # Rectangular A also checks distinct input/output exterior-power dimensions.
+        A = randn(rng,r+1,r)
+        # Independent minors: do not use plucker or its Jacobian to build Λ²A.
+        exterior = [det(A[[i,j],[k,l]]) for (i,j) in plucker_pairs(r+1), (k,l) in plucker_pairs(r)]
+        @test plucker(A*z,A*w) ≈ exterior*p atol = 2e-13
+        v, h = vcat(z,w), 1e-5
+        fd = hcat([(plucker((v+h*I(2r)[:,a])[1:r], (v+h*I(2r)[:,a])[r+1:2r]) -
+                    plucker((v-h*I(2r)[:,a])[1:r], (v-h*I(2r)[:,a])[r+1:2r]))/(2h) for a in 1:2r]...)
+        @test size(plucker_jacobian(z,w)) == (binomial(r,2),2r)
+        @test plucker_jacobian(z,w) ≈ fd atol = 2e-10 rtol = 0
+        relations = plucker_relations(r)
+        @test length(relations) == binomial(r,4)
+        @test [q.indices for q in relations] == [(i,j,k,l) for i in 1:r for j in i+1:r for k in j+1:r for l in k+1:r]
+        if r >= 4
+            for _ in 1:10
+                @test maximum(abs, plucker_residuals(r,plucker(randn(rng,r),randn(rng,r)))) < 3e-14
+            end
+            @test norm(plucker_residuals(r,randn(rng,binomial(r,2)))) > 1e-5
+        end
+    end
+    klein = only(plucker_relations(4))
+    @test klein.indices == (1,2,3,4)
+    @test klein.monomials == ((1,6),(2,5),(3,4))
+    @test klein.coefficients == (1,-1,1)
+    p = [2,3,5,7,11,13]
+    @test plucker_residuals(4,p) == [p[1]*p[6]-p[2]*p[5]+p[3]*p[4]]
+    @test plucker_residuals(4,[1,0,0,0,0,1]) == [1] # e₁∧e₂ + e₃∧e₄
+end
+
+# Independent moment oracle: expand E[p_a p_b] as four signed products of
+# E[z_i z_k] E[w_j w_l], then subtract E[p_a]E[p_b]. No Jacobian is used.
+function plucker_moment_oracle(μ,S,ν,T)
+    pairs = [(i,j) for i in 1:length(μ) for j in i+1:length(μ)]
+    means = [μ[i]*ν[j]-μ[j]*ν[i] for (i,j) in pairs]
+    second_z, second_w = S+μ*μ', T+ν*ν'
+    C = [sum(s*t*second_z[u,x]*second_w[v,y]
+             for (s,u,v) in ((1,i,j),(-1,j,i)), (t,x,y) in ((1,k,l),(-1,l,k)))
+         for (i,j) in pairs, (k,l) in pairs] - means*means'
+    return means,C
+end
+
+@testset "PluckerFactor forward beliefs" begin
+    f = PluckerFactor(4)
+    ps, st = LuxCore.setup(Xoshiro(5102),f)
+    @test ps == st == NamedTuple()
+    @test LuxCore.parameterlength(f) == LuxCore.statelength(f) == 0
+    @test !islearnable(f)
+    @test isunidirectional(f)
+    @test Tuple(channelname(c) for c in LenticulumCore.channels(f)) == (:z,:w,:p)
+    @test Tuple(c.space for c in LenticulumCore.channels(f)) == (4,4,6)
+    forward = only(supported_polarities(f))
+    @test forward == Polarity(z=Observed(),w=Observed(),p=Unobserved())
+    for zpol in (Observed(),Latent(),Unobserved()), wpol in (Observed(),Latent(),Unobserved()),
+        ppol in (Observed(),Latent(),Unobserved())
+        pol = Polarity(z=zpol,w=wpol,p=ppol)
+        @test supports_polarity(f,pol) == (pol == forward)
+    end
+    @test !supports_polarity(f,Polarity(a=Observed(),b=Observed(),c=Unobserved()))
+    z,w = [1.,2,3,4],[5.,6,7,8]
+    d, next = factor_message(f,:p,forward,(z=DiracBelief(z),w=DiracBelief(w)),nothing,ps,st)
+    @test d isa DiracBelief && d.value == [-4,-8,-12,-4,-8,-4]
+    @test next === st
+    @test first(pushforward(f,(DiracBelief(z),DiracBelief(w)),ps,st)).value == d.value
+    # Both target prior and target input are excluded from an extrinsic forward message.
+    @test first(factor_message(f,:p,forward,(z=DiracBelief(z),w=DiracBelief(w),p=DiracBelief(zeros(6))),
+                              Gaussian(zeros(6),I(6)),ps,st)).value == d.value
+    custom = PluckerFactor(4;names=(:a,:b,:c))
+    @test first(factor_message(custom,:c,only(supported_polarities(custom)),
+                              (a=DiracBelief(z),b=DiracBelief(w)),nothing,ps,st)).value == d.value
+    @test first(energy(f,nothing,nothing,nothing,ps,st)) == 0
+    @test first(local_free_energy(f,NamedTuple(),ps,st)) == 0
+    # The common conformance checker requires game-level free_energy/entropy. Like
+    # GeneratorFactor these are absent (LP-009); do not claim full conformance.
+    @test !applicable(free_energy,f,TrivialBelief(),NamedTuple(),ps,st)
+    @test !applicable(LenticulumCore.entropy,f,TrivialBelief(),NamedTuple(),ps,st)
+
+    zs, ws = [z,2z,-z], hcat(w,-w,3w)
+    weights = [1.,2,3]
+    for (a,b) in ((SampleBelief(zs,weights),SampleBelief(ws,2weights)),
+                  (SampleBelief(zs),SampleBelief(ws)),
+                  (SampleBelief(zs),SampleBelief(ws,ones(3))),
+                  (SampleBelief(zs,weights),DiracBelief(w)),
+                  (DiracBelief(z),SampleBelief(ws,weights)))
+        out,next = factor_message(f,:p,forward,(z=a,w=b),nothing,ps,st)
+        @test out isa SampleBelief && length(out.samples) == 3
+        @test next === st
+        @test out.weights === (a isa SampleBelief ? a.weights : b.weights)
+        for i in 1:3
+            @test out.samples[i] == plucker(a isa SampleBelief ? zs[i] : z,
+                                            b isa SampleBelief ? ws[:,i] : w)
+        end
+    end
+    for (a,b) in ((SampleBelief(zs),SampleBelief(ws[:,1:2])),
+                  (SampleBelief(zs,weights),SampleBelief(ws,[3.,2,1])),
+                  (SampleBelief(zs,zeros(3)),DiracBelief(w)),
+                  (SampleBelief(Vector{Float64}[]),DiracBelief(w)),
+                  (TrivialBelief(),DiracBelief(w)),
+                  (nothing,DiracBelief(w)),
+                  (SampleBelief(zs),Gaussian(w,I(4))),
+                  (DiracBelief(complex.(z)),DiracBelief(w)))
+        @test_throws ArgumentError factor_message(f,:p,forward,(z=a,w=b),nothing,ps,st)
+    end
+    @test_throws DimensionMismatch factor_message(f,:p,forward,(z=DiracBelief(z[1:3]),w=DiracBelief(w)),nothing,ps,st)
+    @test_throws ArgumentError factor_message(f,:z,nothing,NamedTuple(),nothing,ps,st)
+    @test_throws ArgumentError factor_message(f,:bad,nothing,NamedTuple(),nothing,ps,st)
+    @test_throws ArgumentError factor_message(f,:p,Polarity(z=Latent(),w=Observed(),p=Unobserved()),
+                                            (z=DiracBelief(z),w=DiracBelief(w)),nothing,ps,st)
+    @test_throws ArgumentError factor_message(f,:p,forward,(z=DiracBelief(z),),nothing,ps,st)
+    for kwargs in ((names=(:a,:a,:p),),(names=(:a,:b),),(names=(1,2,3),),
+                   (covariance_jitter=-1,),(covariance_jitter=Inf,),(covariance_jitter=NaN,))
+        @test_throws ArgumentError PluckerFactor(4;kwargs...)
+    end
+    @test_throws ArgumentError PluckerFactor(1)
+end
+
+@testset "Plücker exact moments and Gaussian messages" begin
+    rng = Xoshiro(5103)
+    for r in 2:5
+        μ,ν = randn(rng,r),randn(rng,r)
+        A,B = randn(rng,r,r),randn(rng,r,r)
+        S,T = A*A'+I, B*B'+I
+        for (Sz,Tw) in ((S,T),(zero(S),T),(S,zero(T)),(zero(S),zero(T)))
+            m = plucker_moments(μ,Sz,ν,Tw)
+            expected_mean, expected_cov = plucker_moment_oracle(μ,Sz,ν,Tw)
+            @test m.mean ≈ expected_mean
+            @test m.cov ≈ expected_cov atol = 3e-13 rtol = 2e-14
+            @test m.cov ≈ m.cov'
+        end
+        f = PluckerFactor(r)
+        out,_ = factor_message(f,:p,only(supported_polarities(f)),
+                               (z=Gaussian(μ,S),w=Gaussian(ν,T)),nothing,NamedTuple(),NamedTuple())
+        expected_mean, expected_cov = plucker_moment_oracle(μ,S,ν,T)
+        @test out isa GaussianBelief
+        @test belief_mean(out) ≈ expected_mean
+        @test belief_cov(out) ≈ expected_cov atol = 5e-12
+    end
+    μ,ν = [0.4,-0.7,0.2,1.1],[-0.3,0.8,1.2,-0.5]
+    A = [1.0 0 0 0; 0.3 0.8 0 0; -0.2 0.1 0.7 0; 0.1 -0.2 0.3 0.9]
+    B = [0.7 0 0 0; -0.1 0.9 0 0; 0.2 0.4 0.8 0; -0.3 0.1 -0.2 0.6]
+    S,T = A*A',B*B'
+    exact = plucker_moments(μ,S,ν,T)
+    # Monte Carlo seed 5104, 200000 independent pairs. Normalised mean error
+    # < 0.015; covariance Frobenius relative error < 0.025 (no elementwise ratios).
+    rng = Xoshiro(5104); n = 200_000
+    Z,W = μ .+ A*randn(rng,4,n), ν .+ B*randn(rng,4,n)
+    P = reduce(vcat,[permutedims(Z[i,:].*W[j,:]-Z[j,:].*W[i,:]) for (i,j) in plucker_pairs(4)])
+    empirical_mean = vec(sum(P;dims=2))/n
+    centered = P .- empirical_mean
+    empirical_cov = centered*centered'/(n-1)
+    mean_error = norm(empirical_mean-exact.mean)/sqrt(tr(exact.cov))
+    cov_error = norm(empirical_cov-exact.cov)/norm(exact.cov)
+    @test mean_error < 0.015
+    @test cov_error < 0.025
+    @info "Plücker Monte Carlo (seed 5104, n=200000)" mean_error cov_error
+    # Centred isotropic inputs: output has 2I covariance even though it lies on
+    # the nonlinear Plücker variety. A nonlinear constraint need not lower covariance rank.
+    @test plucker_moments(zeros(4),I(4),zeros(4),I(4)).cov == 2I(6)
+
+    # Dirac × Gaussian is an exact Gaussian law, but has rank r-1 for nonzero z.
+    f = PluckerFactor(4); pol = only(supported_polarities(f)); empty = NamedTuple()
+    for inputs in ((z=DiracBelief(μ),w=Gaussian(ν,T)), (z=Gaussian(μ,S),w=DiracBelief(ν)),
+                   (z=DiracBelief(zeros(4)),w=Gaussian(ν,T)))
+        @test_throws ArgumentError factor_message(f,:p,pol,inputs,nothing,empty,empty)
+        reg = PluckerFactor(4;covariance_jitter=0.01)
+        out,_ = factor_message(reg,:p,pol,inputs,nothing,empty,empty)
+        Sz = inputs.z isa DiracBelief ? zero(S) : S
+        Tw = inputs.w isa DiracBelief ? zero(T) : T
+        mz = inputs.z isa DiracBelief ? inputs.z.value : μ
+        m = plucker_moments(mz,Sz,ν,Tw)
+        @test belief_mean(out) ≈ m.mean atol = 2e-13
+        @test belief_cov(out) ≈ m.cov+0.01I atol = 3e-12
+    end
+    @test rank(plucker_moments(μ,zero(S),ν,T).cov;atol=1e-12) == 3
+    for inputs in ((z=DiracBelief([1.,2]),w=Gaussian([3.,4],I(2))),
+                   (z=Gaussian([3.,4],I(2)),w=DiracBelief([1.,2])))
+        out,_ = factor_message(PluckerFactor(2),:p,nothing,inputs,nothing,empty,empty)
+        @test belief_cov(out) ≈ fill(5.,1,1)
+        @test belief_mean(out) ≈ (inputs.z isa DiracBelief ? [-2.] : [2.])
+    end
+    @test_throws ArgumentError factor_message(f,:p,pol,(z=uninformative(4),w=Gaussian(ν,T)),nothing,empty,empty)
+    @test_throws DimensionMismatch plucker_moments(μ,ones(3,3),ν,T)
+
+    # Mycelium DAG: independent Gaussian priors, absorbing input edges, emitting output.
+    builder = GraphBuilder()
+    for name in (:z,:w,:p); variable!(builder,name); end
+    factor!(builder,:pz,PriorFactor(:z,Gaussian(μ,S),x->0.0))
+    factor!(builder,:pw,PriorFactor(:w,Gaussian(ν,T),x->0.0))
+    factor!(builder,:wedge,f)
+    connect!(builder,:pz,:z,:z;direction=Emitting())
+    connect!(builder,:pw,:w,:w;direction=Emitting())
+    connect!(builder,:wedge,:z,:z;direction=Absorbing())
+    connect!(builder,:wedge,:w,:w;direction=Absorbing())
+    connect!(builder,:wedge,:p,:p;direction=Emitting())
+    graph = build(builder)
+    ps,st = LuxCore.setup(Xoshiro(5105),graph)
+    marginals,_,_,store = infer!(graph,forward_backward_schedule(graph),ps,st)
+    @test marginals[:p] isa GaussianBelief
+    @test belief_mean(marginals[:p]) ≈ exact.mean
+    @test belief_cov(marginals[:p]) ≈ exact.cov
+    # Verify the stored outgoing site itself, independently of marginal pooling.
+    edge = only(findall(e->e.channel == :p,graph.edges))
+    @test belief_cov(store.to_variable[edge].belief) ≈ exact.cov
+end
+
+@testset "Klein quadric data rank (not fit_nullspace)" begin
+    # This checks noiseless data and a hand-written monomial table, not §3 fitting.
+    rng = Xoshiro(5106)
+    products = [(i,j) for i in 1:6 for j in i:6]
+    points = [plucker(randn(rng,4),randn(rng,4)) for _ in 1:400]
+    table = reduce(vcat,[permutedims(vcat(1.,p,[p[i]*p[j] for (i,j) in products])) for p in points])
+    @test size(table) == (400,28)
+    decomposition = svd(table)
+    relative = decomposition.S/decomposition.S[1]
+    @test count(x->x<1e-12,relative) == 1
+    klein = vcat(zeros(7),[pair==(1,6) ? 1. : pair==(2,5) ? -1. : pair==(3,4) ? 1. : 0. for pair in products])
+    @test abs(dot(decomposition.V[:,end],klein/norm(klein))) ≈ 1 atol = 2e-14
+    @test norm(table*klein) < 1e-12
+    @info "Klein data singular values (seed 5106, relative threshold 1e-12)" smallest=relative[end] next=relative[end-1] gap=relative[end-1]/relative[end]
+end
