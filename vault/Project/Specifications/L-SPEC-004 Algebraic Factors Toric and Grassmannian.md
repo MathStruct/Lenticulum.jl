@@ -1,11 +1,11 @@
 #design
 
-> **Status: partly implemented (2026-10-25): §0 and §1.1–§1.7; §2 and later remain planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl` and `fit.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. These toric steps needed no Mycelium changes; later manifold update rules remain planned.
+> **Status: partly implemented (2026-10-25): §0, §1.1–§1.7 and §2.1–§2.2; §2.3 and later remain planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl`, `fit.jl` and `grassmann.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. These steps needed no Mycelium changes.
 
 ## Scope
 
 The first code for the algebraic family ([[Algebraic Implicit Learners]]) implements finite
-toric factors; the general polynomial and manifold constructions remain unimplemented. Gemini's review (Proposal 7 of `05_Architectural_Design_Proposals.md` in
+toric factors and Grassmannian parameter updates; general polynomial factors remain unimplemented. Gemini's review (Proposal 7 of `05_Architectural_Design_Proposals.md` in
 the review folder) sketches a whole package `lib/AlgebraicFactors.jl`; this specification orders
 it so that the cases where everything is exact or cheap come first:
 
@@ -26,7 +26,7 @@ binding when it is implemented with its tests.
 |---|---|
 | a factor over several discrete variables | `AlgebraicFactors.ToricFactor`: exact finite sum-product messages and joint factor free energy; tree marginals and Bethe free energy checked against enumeration |
 | toric fitting and model checks | `fit_mle`: gauge-reduced Newton or cyclic binary-feature IPF; separate moment convergence and existence statuses; positive `inmodel` and supplied `binomial_residuals`, checked against closed forms and independence minors |
-| parameters on a manifold | none. Mycelium's update rules (`GradientDescent`, `Momentum`, `Nesterov` through `rule_get`/`rule_put`) are Euclidean |
+| parameters on a manifold | `Grassmann`, horizontal projection, positive-diagonal QR retraction and `Retracted` for Mycelium's `GradientDescent` and `Momentum`, including velocity transport and `OptimiserFactor` integration; Nesterov and §2.3's Sampson scalarisation remain planned |
 | a polynomial (Veronese) factor, nullspace fitting | none; the theory is in the notes |
 | multi-branch roots | none; `MixtureBelief` exists to carry them |
 
@@ -71,13 +71,13 @@ packages under `lib/`.
 - §2.1 `Grassmann(k, m)`, represented by $\Theta \in \mathbb R^{k\times m}$ with $\Theta\Theta^\top = I_k$:
   `project_tangent(M, Θ, G)` $= G - G\Theta^\top\Theta$; `retract(M, Θ, Δ)` orthonormalises the rows of
   $\Theta + \Delta$ by a thin QR of the transpose, with signs chosen so that $\operatorname{diag}(R) > 0$, so that
-  $R_\Theta(0) = \Theta$ (in exact arithmetic; tested with `≈`); `rand(rng, M)`. (Edelman, Arias & Smith 1998; Absil, Mahony & Sepulchre 2008.)
+  $R_\Theta(0) = \Theta$ (in exact arithmetic; tested with `≈`); `rand(rng, M)` and `ispoint(M, Θ; atol)`. The projection is the horizontal lift for Gr, not the full Stiefel tangent projection. Non-finite and numerically rank-deficient QR inputs throw (threshold documented in [[grassmann]]). (Edelman, Arias & Smith 1998; Absil, Mahony & Sepulchre 2008.)
 - §2.2 `Retracted(rule, M) <: AbstractUpdateRule` for Mycelium's optimiser lens, at first for
   `GradientDescent` and `Momentum` only, with `rule_get(...) = Θ`. `rule_put` projects the gradient,
   applies `rule`, converts the candidate point it returns into a displacement $p' - \Theta$, projects
   that onto the tangent space and retracts. A rule's state (momentum) is projected onto the new
   tangent space, which is a vector transport for an embedded manifold (Absil, Mahony & Sepulchre
-  2008). Nesterov waits: its look-ahead $p + \gamma s$ leaves the manifold, and a retracted look-ahead
+  2008). Mycelium has no rule-state initializer: callers supply `nothing` for gradient descent or a plain `zero(Θ)` velocity matrix for momentum. Its recurrence is $s'=\gamma s-\eta g$ (corrected in [[LP-015 Momentum had the wrong sign on its decay]]), which the wrapper preserves. Nesterov waits: its look-ahead $p + \gamma s$ leaves the manifold, and a retracted look-ahead
   with a consistent transport of the gradient has to be specified first. This is the lens $G^*(\Theta, \Delta) = \mathrm{qf}(\Theta + \Pi_\Theta\Delta)$ of
   [[The Parameter is a Grassmannian]].
 - §2.3 Gauge invariance as a test obligation: a factor whose relation depends on $\Theta$ only
@@ -131,12 +131,27 @@ models are tested too. See [[fit]] for all numerical choices and the heuristic t
 The earlier planned requirement that an empty-row fit must not be "converged" was wrong:
 §1.6 distinguishes moment convergence at an extended MLE from finite-MLE existence.
 
-Still planned (geometry and later families):
+Implemented §2.1–§2.2: `Grassmann geometry` and `Retracted rules and eigenplane descent`
+in the same test file check orthonormality, zero-step identity, positive QR diagonal,
+horizontal projection and idempotence, invalid dimensions, shape/rank/non-finite failures,
+and Float32 retraction. For the row-space-invariant trace objective, the projected
+gradient is horizontal and its step of `1e-6` decreases the objective by
+$\eta\|\operatorname{grad}F\|_F^2$ within relative tolerance `2e-5`.
+Both wrapped rules use a seeded symmetric 6×6 matrix with spectrum `(-2,-1,1,2,3,5)`,
+`k=2`, step size `η=0.04 < 1/(2*opnorm(S))=0.1` and **400 iterations** (momentum
+`γ=0.6`, heavy-ball). From the seeded random start, the
+largest principal angle to the two smallest eigenvectors is below `1e-6` radians;
+the objective matches their eigenvalue sum to absolute tolerance `2e-12`.
+`OptimiserFactor` / `optimiser_step` gives identical iterates to direct `rule_put`,
+and momentum is horizontal after every step. Nesterov and another unsupported rule
+are rejected at construction. This demonstrates those fixed runs, not a general
+momentum convergence theorem. See [[grassmann]] for state layout and numerical choices.
 
-- §2: $\Theta\Theta^\top = I$ after `retract`; `project_tangent(M, Θ, G) * Θ' ≈ 0`; `retract(M, Θ, zero(Θ)) ≈ Θ`;
-  for symmetric $S$ with $\lambda_k < \lambda_{k+1}$, generic initialisation and a suitable step rule, Riemannian
-  descent on $\operatorname{tr}(\Theta S\Theta^\top)$ reaching the span of the $k$ smallest eigenvectors (the nullspace fit's
-  answer), compared by principal angles and by the objective against $\sum_{i\le k}\lambda_i$.
+Still planned (scalarisation and later families):
+
+- §2.3: gauge-invariant Sampson scalarisation for polynomial residuals; the trace
+  objective tests above do not implement or test this scalarisation. §2.4's exposed
+  manifold channel spaces also remain planned.
 - §3 with §5: on points $z\wedge w$ for random $z, w \in \mathbb R^4$, `fit_nullspace` of degree 2 should
   recover the Klein quadric, a one-dimensional null space, with at least 27 generic points and
   a stated rank tolerance (an expectation, agreeing with a scratch check;

@@ -6,6 +6,8 @@ using LuxCore
 using Random
 using Test
 
+struct UnsupportedGrassmannRule <: AbstractUpdateRule end
+
 # Use the common checker with independent direct-message site/posterior fixtures.
 include(joinpath(@__DIR__, "../../../test/factor_conformance.jl"))
 
@@ -39,6 +41,137 @@ polarity(names, t, observed) = Polarity(NamedTuple{names}(map(eachindex(names)) 
 end |> Tuple))
 
 @testset "AlgebraicFactors" begin
+@testset "Grassmann geometry" begin
+    rng = Xoshiro(2401)
+    for (k, m) in ((1, 1), (1, 5), (2, 6), (4, 4))
+        M = Grassmann(k, m)
+        Θ = rand(rng, M)
+        G, Δ = randn(rng, k, m), randn(rng, k, m)
+        @test ispoint(M, Θ; atol = 2e-14)
+        @test Θ * Θ' ≈ I atol = 2e-14
+        H = project_tangent(M, Θ, G)
+        @test norm(H * Θ') < 2e-14
+        @test project_tangent(M, Θ, H) ≈ H atol = 2e-14
+        @test retract(M, Θ, Δ) * retract(M, Θ, Δ)' ≈ I atol = 2e-14
+        @test retract(M, Θ, zero(Θ)) ≈ Θ atol = 2e-14
+        # Reconstruct R independently: A = Q*R, Q = result'. This also tests
+        # the positive diagonal on a generic step, beyond zero-step identity.
+        R = retract(M, Θ, Δ) * (Θ + Δ)'
+        @test all(diag(R) .> 0)
+        @test norm(tril(R, -1)) < 2e-14
+    end
+    # The sampler uses a Gaussian m × k matrix and the same positive-R convention.
+    M = Grassmann(2, 6)
+    A = randn(Xoshiro(2402), 6, 2)
+    Θ = rand(Xoshiro(2402), M)
+    R = Θ * A
+    @test all(diag(R) .> 0)
+    @test norm(tril(R, -1)) < 2e-14
+    @test Θ' * R ≈ A
+    @test rand(Xoshiro(2402), M) == Θ
+    @test ispoint(M, rand(M))
+    @test !ispoint(M, zeros(2, 6))
+    @test !ispoint(M, zeros(3, 6))
+    @test !ispoint(M, fill(NaN, 2, 6))
+    @test_throws ArgumentError ispoint(M, Θ; atol = -1)
+    @test_throws ArgumentError ispoint(M, Θ; atol = Inf)
+    @test_throws ArgumentError retract(M, Θ, -Θ)
+    deficient = copy(Θ); deficient[2, :] .= deficient[1, :]
+    @test_throws ArgumentError retract(M, deficient, zero(deficient))
+    @test_throws ArgumentError retract(M, Θ, fill(Inf, 2, 6))
+    @test_throws DimensionMismatch retract(M, Θ, zeros(6, 2))
+    @test_throws DimensionMismatch project_tangent(M, Θ, zeros(6, 2))
+    @test_throws DimensionMismatch project_tangent(M, Θ', Θ)
+    for (k, m) in ((0, 3), (-1, 3), (4, 3), (1, 0), (1, -1))
+        @test_throws ArgumentError Grassmann(k, m)
+    end
+    Θ32 = Float32.(Θ)
+    @test eltype(retract(M, Θ32, zero(Θ32))) == Float32
+    @test ispoint(M, retract(M, Θ32, zero(Θ32)); atol = 1e-6)
+end
+
+@testset "Retracted rules and eigenplane descent" begin
+    rng = Xoshiro(2403)
+    M = Grassmann(2, 6)
+    # A fixed seeded symmetric S with known spectrum and gap λ₃ - λ₂ = 2.
+    U = Matrix(qr(randn(rng, 6, 6)).Q)
+    λ = [-2.0, -1.0, 1.0, 2.0, 3.0, 5.0]
+    S = Symmetric(U * Diagonal(λ) * U')
+    target = U[:, 1:2]'
+    F(Θ) = tr(Θ * S * Θ')
+    Θ0 = rand(rng, M)
+    G = 2Θ0 * S
+    grad = project_tangent(M, Θ0, G)
+    @test norm(grad * Θ0') < 2e-14
+    O = Matrix(qr(randn(rng, 2, 2)).Q)
+    @test F(O * Θ0) ≈ F(Θ0)
+    @test project_tangent(M, O * Θ0, O * G) ≈ O * grad
+    # dF[-grad] = -‖grad‖² for the horizontal Frobenius metric.
+    # At η=1e-6 the first-order decrease agrees within relative tolerance 2e-5.
+    ηsmall = 1e-6
+    decrease = F(Θ0) - F(retract(M, Θ0, -ηsmall * grad))
+    @test decrease > 0
+    @test decrease ≈ ηsmall * sum(abs2, grad) rtol = 2e-5
+
+    @test_throws ArgumentError Retracted(Nesterov(0.04, 0.6), M)
+    @test_throws ArgumentError Retracted(UnsupportedGrassmannRule(), M)
+    # η=0.04 < 1/(2‖S‖₂)=0.1. Both rules are checked for 400 steps;
+    # momentum uses Mycelium's s′=γ*s-η*grad with γ=0.6.
+    η = 0.04
+    @test η < 1 / (2opnorm(S))
+    for inner in (GradientDescent(η), Momentum(η, 0.6))
+        r = Retracted(inner, M)
+        Θ, factor_Θ = copy(Θ0), copy(Θ0)
+        state = inner isa Momentum ? zero(Θ) : nothing
+        factor_state = deepcopy(state)
+        of = OptimiserFactor(:θ, r)
+        @test r isa AbstractUpdateRule
+        @test rule_get(r, state, Θ) === Θ
+        @test !islearnable(of)
+        for _ in 1:400
+            # OptimiserFactor's state layout and emission contract, exactly as
+            # factors.jl uses them; optimiser_step is a separate training action.
+            st = (p = factor_Θ, state = factor_state)
+            bel, st′ = factor_message(of, :θ, nothing, (;), nothing, (;), st)
+            @test bel isa DiracBelief
+            @test bel.value === factor_Θ
+            @test st′ === st
+            G = 2Θ * S
+            # Independent candidate/state oracle also checks the inner recurrence
+            # and transport. A nonzero vertical component in G must be removed.
+            P = I - Θ' * Θ
+            velocity = inner isa Momentum ? inner.γ * state - η * (G * P) : -η * (G * P)
+            expected_Θ = retract(M, Θ, velocity * P)
+            state, Θ = rule_put(r, state, Θ, G)
+            @test Θ ≈ expected_Θ atol = 2e-14
+            factor_state, factor_Θ = optimiser_step(of, factor_state, factor_Θ, 2factor_Θ * S)
+            @test Θ == factor_Θ
+            @test ispoint(M, Θ; atol = 2e-14)
+            if inner isa Momentum
+                @test size(state) == size(Θ)
+                @test norm(state * Θ') < 2e-14
+                @test state ≈ velocity * (I - Θ' * Θ) atol = 2e-14
+                @test state == factor_state
+            else
+                @test state === nothing
+                @test factor_state === nothing
+            end
+        end
+        # Principal angles are an independent row-space comparison (basis-free).
+        largest_angle = acos(clamp(minimum(svdvals(Θ * target')), 0, 1))
+        @test largest_angle < 1e-6
+        @test F(Θ) ≈ sum(λ[1:2]) atol = 2e-12 rtol = 0
+    end
+    # Stateless GD passes even a caller-owned sentinel through unchanged.
+    sentinel = Ref(:unchanged)
+    state, _ = rule_put(Retracted(GradientDescent(η), M), sentinel, Θ0, G)
+    @test state === sentinel
+    # γ=0 recovers the same Grassmann step as gradient descent.
+    _, gdΘ = rule_put(Retracted(GradientDescent(η), M), nothing, Θ0, G)
+    _, mΘ = rule_put(Retracted(Momentum(η, 0.0), M), zero(Θ0), Θ0, G)
+    @test gdΘ == mΘ
+end
+
 @testset "construction and design matrices" begin
     names, sizes = (:x, :y), (2, 3)
     expected = [1 0 1 0 1 0;

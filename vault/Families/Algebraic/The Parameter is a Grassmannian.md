@@ -2,9 +2,13 @@
 
 > **Derivation.** The parameter of an algebraic factor is not a matrix; it is a $k$-plane.
 > This is the cleanest concrete instance in the whole vault of
-> [Definition 2.5](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens)'s insistence that $P' \ne P$.
+> [Definition 2.5](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens)'s distinction between parameter points and updates.
+> Grassmannian projection, QR retraction and wrapped GD/momentum are implemented;
+> the polynomial factor and its Sampson scalarisation remain planned.
 
-> Sources: original to this vault (design and analysis; no single paper).
+> Sources: original to this vault (design and analysis); Edelman, Arias & Smith (1998), *The Geometry of Algorithms with Orthogonality Constraints*; Absil, Mahony & Sepulchre (2008), *Optimization Algorithms on Matrix Manifolds*; code: `lib/AlgebraicFactors.jl/src/grassmann.jl`, `lib/AlgebraicFactors.jl/test/runtests.jl` (geometry and trace-objective descent, not polynomial residual scalarisation).
+>
+> Bibliography: [[Bibliography#^edelman1998geometry|Edelman et al. 1998]] · [[Bibliography#^absil2008optimization|Absil et al. 2008]]
 >
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Gradient Based Learning with Parametric Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Gradient-Based-Learning-with-Parametric-Lenses)
 
@@ -23,17 +27,21 @@ not of $\mathbb{R}^{k\times m}$ (dimension $km$). The $k^2$ missing dimensions a
 
 This is not pedantry. Three things go wrong if you ignore it:
 
-1. **Gradient descent on $\Theta \in \mathbb{R}^{k\times m}$ drifts along the gauge
-   directions**, changing the parameter without changing the model. Step sizes become
-   meaningless; two runs that learned the same relation look maximally different.
-2. **$\Theta \to 0$ is a global minimiser** of any residual objective, and it is reachable
+1. **A residual loss can change along the gauge directions**: changing the row
+   scales or basis changes the residual while preserving its zero set. Euclidean
+   distances between matrices therefore need not measure differences between
+   relations. A truly gauge-invariant objective has no first-order derivative
+   along gauge directions; drift is not inevitable for every objective.
+2. **$\Theta = 0$ is a global minimiser** of an unnormalised squared-residual objective, and it is reachable
    by descent. The normalisation $\Theta\Theta^\top = I_k$ of
    [[Fitting is a Nullspace Problem]] is not a regulariser bolted on to prevent collapse —
-   it is a *chart* on $\mathrm{Gr}(k,m)$, and collapse is the symptom of using the wrong
-   space.
-3. **The "spurious polynomial" pathology** is the same phenomenon: a polynomial with tiny
-   coefficients that "almost vanishes" everywhere is a point of $\mathbb{R}^{k\times m}$ near
-   the origin, which is not a point of the Grassmannian at all.
+   it chooses a Stiefel representative of a point of $\mathrm{Gr}(k,m)$, still
+   modulo orthogonal row-basis changes. It is not a coordinate chart; collapse
+   leaves the fixed-rank parameter space.
+3. **Small raw residuals can come from small coefficients** rather than a better
+   geometric fit. Scaling a full-rank matrix towards zero preserves its
+   Grassmann point at every nonzero scale; only the rank-deficient limit
+   leaves the fixed-rank space. Orthonormal representatives remove that scale freedom.
 
 ## The Riemannian gradient, derived
 
@@ -76,15 +84,17 @@ which is still a perfectly good lens $(P,P)\to(P,P')$ — the framework accommod
 without modification. **The categorical setup was right and the naive implementation was
 wrong**, which is a satisfying vindication of taking the $(P,P')$ distinction seriously.
 
-## And it is the natural gradient Definition 27 asks for
+## The metric choice is not a Fisher-metric identification
 
-[Definition 27](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients) says the default semantics is gradient
-descent with respect to the **Fisher information metric** — the Bayesian learning rule. On
-$\mathrm{Gr}(k,m)$ the canonical (Riemannian) metric is
-$\langle \Delta_1,\Delta_2\rangle = \operatorname{tr}(\Delta_1\Delta_2^\top)$ restricted to
-the horizontal space, and $\Pi_\Theta$ above *is* the metric-correct gradient. So in this
-family the natural gradient is not an expensive approximation of an intractable Fisher
-matrix — it is a projection costing one $k\times m$ matrix product.
+[Definition 27](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients) uses the Fisher information metric of a statistical model.
+Here the canonical Grassmann metric on horizontal lifts is
+$\langle\Delta_1,\Delta_2\rangle=\operatorname{tr}(\Delta_1\Delta_2^\top)$,
+and $\Pi_\Theta(G)$ is the Riemannian gradient for **that metric**.
+No statistical model or Fisher information calculation in this note identifies
+the two metrics. The earlier claim that the projection automatically computes
+the Fisher natural gradient was unsupported. The implementation makes only the
+canonical-metric claim, checked by the first-order trace-objective descent test.
+The dense projection costs $O(k^2m)$ when evaluated as $(G\Theta^\top)\Theta$.
 
 ## Interaction with the rank-one structure
 
@@ -95,16 +105,18 @@ minibatch of size $B$ gives $G$ of rank $\le B$, and
 $$\Pi_\Theta(G) = G - G\Theta^\top\Theta$$
 
 is also rank $\le B$. **The Riemannian update is a rank-$B$ perturbation of a $k$-plane.**
-That is a well-studied object (subspace tracking; incremental SVD), and it means the update
-costs $O(Bkm)$ rather than $O(km^2)$ — which is the difference between feasible and not at
-$m \sim 10^4$.
+If $G=LV^\top$ is retained in factored form, its projection can be formed by
+projecting $V$ before multiplying by $L$, at cost $O(Bkm)$. This does not make
+the complete QR update cost $O(Bkm)$: the implemented dense retraction costs
+$O(k^2m)$ and does not exploit a supplied low-rank gradient representation.
+Forming an $m\times m$ projector is unnecessary in either case.
 
 ## Caveat: the Grassmannian is the right space only for a fixed $k$ and $d$
 
 Model selection — choosing how many generators and what degree — moves you between
 Grassmannians of different dimensions, and there is no smooth path. The **numerical rank
 decision** of [[Fitting is a Nullspace Problem]] is therefore a discrete jump between
-manifolds, not a continuous shrinkage. No continuous relaxation of it is known that behaves
-well; see [[Open Problems in Algebraic Implicit Learning]] §4.
+manifolds, not a continuous shrinkage within a fixed Grassmannian. This implementation
+has no variable-rank relaxation; see [[Open Problems in Algebraic Implicit Learning]] §4.
 
 Related: [[Grassmann Mixing and Plücker Coordinates]], [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]], [[Fitting is a Nullspace Problem]], [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens), [[Factors are Parameterized Statistical Games]], [[Backpropagation by the Implicit Function Theorem]]

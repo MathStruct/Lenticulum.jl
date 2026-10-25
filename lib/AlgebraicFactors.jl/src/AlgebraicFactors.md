@@ -2,9 +2,10 @@
 
 > `AlgebraicFactors` starts the algebraic family with exact finite toric potentials.
 > It supplies discrete messages, energies and entropies, moment fitting and model
-> checks. Other algebraic families remain outside this implementation.
+> checks, plus Grassmannian parameter geometry and retracted updates. Polynomial
+> and later algebraic factors remain outside this implementation.
 
-> Sources: original implementation of [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]] §0 and §1.1–§1.7; code: `AlgebraicFactors.jl`, `toric.jl`, `fit.jl`, `../test/runtests.jl`.
+> Sources: original implementation of [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]] §0, §1.1–§1.7 and §2.1–§2.2; code: `AlgebraicFactors.jl`, `toric.jl`, `fit.jl`, `grassmann.jl`, `../test/runtests.jl`.
 >
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens)
 
@@ -33,5 +34,12 @@ retaining its existing lens checks by default. Another was entropy counting: Myc
 supplies the variable correction.
 Neither operation belongs in the outgoing site itself.
 
+[[grassmann]] describes `Grassmann`, `project_tangent`, `retract`, `ispoint` and
+`Retracted`. The latter wraps Mycelium's gradient descent and momentum without
+changing its state layout or recurrence. Projection and QR use only
+LinearAlgebra; sampling uses Random. The geometry tests compare descent on a
+trace objective with a known eigenplane and drive the same iterates through
+`OptimiserFactor`. No Mycelium changes or new dependencies are required.
+
 Not implemented: general MLE existence certification, Markov-basis computation,
-Grassmannian parameters, polynomial factors, homotopy continuation or Plücker factors.
+Sampson scalarisation, polynomial factors, homotopy continuation or Plücker factors.

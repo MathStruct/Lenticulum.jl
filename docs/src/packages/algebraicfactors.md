@@ -5,11 +5,12 @@ CurrentModule = AlgebraicFactors
 ```
 
 Finite toric potentials over named discrete channels, implementing L-SPEC-004 §0 and
-§1.1–§1.7. Messages, energies and entropies use exact enumeration; fitting uses
-Newton or binary-feature IPF. Later algebraic families are not implemented.
+§1.1–§1.7, plus Grassmannian parameters (§2.1–§2.2). Messages, energies and entropies use exact enumeration; fitting uses
+Newton or binary-feature IPF. Sampson scalarisation and later algebraic factors
+are not implemented.
 
 ```julia
-using AlgebraicFactors, LenticulumCore, Mycelium, Random
+using AlgebraicFactors, LenticulumCore, Mycelium, Random, LinearAlgebra
 
 names, alphabets = (:a, :b), (2, 3)
 A = independence(names, alphabets)   # a design matrix, not a factor
@@ -68,6 +69,33 @@ closed forms by both methods; the tests also cover an arbitrary integer design,
 likelihood finite differences, the gauge, empty-row extended MLEs and independence
 minors. The implementation note `lib/AlgebraicFactors.jl/src/fit.md` gives the
 numerical thresholds and limitations.
+
+`Grassmann(k, m)` represents a row space by a real `k × m` matrix `Θ` with
+`Θ * Θ' ≈ I`. `project_tangent(M, Θ, G)` returns its horizontal gradient,
+`retract(M, Θ, Δ)` orthonormalises the rows with positive-diagonal thin QR,
+and `ispoint(M, Θ; atol=1e-8)` checks the representation. Retraction rejects
+non-finite or numerically rank-deficient input (see its docstring).
+
+```julia
+M = Grassmann(2, 6)
+Θ = rand(Random.Xoshiro(2403), M)
+r = Retracted(Momentum(0.04, 0.6), M)  # also accepts GradientDescent
+state = zero(Θ)                       # use nothing for GradientDescent
+of = OptimiserFactor(:θ, r)
+S = Diagonal([-2.0, -1.0, 1.0, 2.0, 3.0, 5.0]) # using LinearAlgebra
+state, Θ = optimiser_step(of, state, Θ, 2Θ * S)
+```
+
+`Retracted` preserves Mycelium's momentum recurrence `s′ = -γ*s - η*grad`
+and transports the velocity by projection onto the new horizontal space.
+Mycelium has no rule-state initializer; initialise it as above. Factor message
+emission reads `(p=Θ, state=state)`. Nesterov and other rules are rejected:
+Nesterov's look-ahead leaves the manifold. The geometry tests check first-order
+descent and both optimisers against a known eigenplane, using `η=0.04` for
+400 iterations; they check factor-driven updates against direct `rule_put`
+at every step. The implementation note `lib/AlgebraicFactors.jl/src/grassmann.md`
+records the exact problem, tolerances and limitations. This uses the canonical
+Grassmann metric; it does not implement a statistical model's Fisher metric.
 
 Enumeration costs grow with the product of alphabet sizes. This implementation uses CPU
 arrays and makes no GPU or automatic differentiation guarantee.
