@@ -168,7 +168,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-10-25T18:11:02.522Z</lastmod>
+    <lastmod>2026-10-25T18:28:44.588Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -189,7 +189,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Toric-Models-as-Factors</loc>
-    <lastmod>2026-10-25T18:10:47.000Z</lastmod>
+    <lastmod>2026-10-25T18:28:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Universal-Approximation-by-Nash-Tognoli</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -366,10 +366,10 @@
     <lastmod>2026-10-25T00:27:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-004-Algebraic-Factors-Toric-and-Grassmannian</loc>
-    <lastmod>2026-10-25T18:10:47.000Z</lastmod>
+    <lastmod>2026-10-25T18:28:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/Specifications</loc>
-    <lastmod>2026-10-25T18:10:47.000Z</lastmod>
+    <lastmod>2026-10-25T18:28:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/README</loc>
     <lastmod>2026-10-25T18:10:47.000Z</lastmod>
@@ -420,10 +420,13 @@
     <lastmod>2026-10-15T14:28:34.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/AlgebraicFactors</loc>
-    <lastmod>2026-10-25T18:10:47.000Z</lastmod>
+    <lastmod>2026-10-25T18:28:28.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/fit</loc>
+    <lastmod>2026-10-25T18:28:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/AlgebraicFactors.jl/toric</loc>
-    <lastmod>2026-10-25T18:10:47.000Z</lastmod>
+    <lastmod>2026-10-25T18:28:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/ImplicitLayers.jl/ImplicitLayers</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
