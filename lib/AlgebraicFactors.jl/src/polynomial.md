@@ -2,7 +2,8 @@
 
 > `PolynomialFactor` is a learnable named-channel polynomial residual with exact
 > data Jacobian, Sampson scalarisation and single-branch Gaussian messages.
-> Iteration uses frozen-metric Gauss–Newton; branches and game quantities are absent.
+> Iteration uses frozen-metric Gauss–Newton; optional branches are in [[homotopy]].
+> Game quantities remain absent.
 
 > Sources: original implementation of [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]] §3(a,b), following [[L-ADR-0007 Point-dependent scalarisations are localised before use]]; code: `polynomial.jl`, `veronese.jl`, `../test/polynomial.jl` (residual invariance, degree-one messages, circle, rank, descent and graph oracles).
 >
@@ -41,8 +42,8 @@ of dimension k and the energy is the signed vector Θv. Learnability is true;
 channel observed. Latent inputs are unsupported. `assemble` returns a
 `BayesianLens(PolynomialModel(...), SolverInversion(...))`; likelihood and graph
 messages share one routine and `invert` pools the site with the prior exactly
-once ([[L-ADR-0006 Separate likelihood_message from invert]]). No branch
-enumeration, IFT derivative rule or game/graph free energy is supplied.
+once ([[L-ADR-0006 Separate likelihood_message from invert]]). The default does not enumerate branches; [[homotopy]] describes the optional
+root mixture. No IFT derivative rule or game/graph free energy is supplied.
 The pointwise Sampson energy is not a normalised likelihood.
 
 Writing D=Dv and J=ΘD, scalarisation uses
@@ -202,7 +203,6 @@ Lenticulum code changes are needed.
 
 ## Still absent
 
-Multiple branches, homotopy (§4), branch weights, normalised branch likelihoods,
-exact entropies, game/free-energy contributions (LP-009), IFT jvp/vjp rules and
+Exact mixture entropies, game/free-energy contributions (LP-009), IFT jvp/vjp rules and
 missing-data EM. `PolynomialModel` is pure for this local branch approximation;
-it does not implement the branch-index latent model proposed in the vault.
+the optional mixture mode still exposes no joint latent branch-index API.

@@ -123,7 +123,8 @@ directions. The fitted projector matches the two known quadrics to atol=2e-13;
 Sampson fitting from that solution is already stationary (cost below 1e-24).
 A twisted cubic would have **three**, not two, independent quadratic generators;
 the complete two-quadric intersection avoids that ambiguity. No higher-degree
-ideal quotient, missing-data EM or homotopy is implemented. Single-branch
+ideal quotient or missing-data EM is implemented. Optional square-system
+homotopy inference is described in [[homotopy]]. Single-branch
 frozen-metric Gaussian messages are implemented separately in [[polynomial]];
 they do not use the full varying-metric gradient derived here.
 

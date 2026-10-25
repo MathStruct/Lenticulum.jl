@@ -2958,3 +2958,35 @@ references:
     start: "1294"
     end: "1303"
     doi: "10.1109/34.888714"
+  - type: conference-paper
+    title: "HomotopyContinuation.jl: A Package for Homotopy Continuation in Julia"
+    authors:
+      - family-names: "Breiding"
+        given-names: "Paul"
+      - family-names: "Timme"
+        given-names: "Sascha"
+    year: 2018
+    collection-title: "Mathematical Software – ICMS 2018"
+    volume: "10931"
+    start: "458"
+    end: "465"
+    publisher:
+      name: "Springer"
+    doi: "10.1007/978-3-319-96418-8_54"
+  - type: article
+    title: "Certifying Zeros of Polynomial Systems Using Interval Arithmetic"
+    authors:
+      - family-names: "Breiding"
+        given-names: "Paul"
+      - family-names: "Rose"
+        given-names: "Kemal"
+      - family-names: "Timme"
+        given-names: "Sascha"
+    year: 2023
+    journal: "ACM Transactions on Mathematical Software"
+    volume: "49"
+    issue: "1"
+    start: "1"
+    end: "14"
+    doi: "10.1145/3580277"
+    url: "https://arxiv.org/abs/2011.05000"

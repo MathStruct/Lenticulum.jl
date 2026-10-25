@@ -7,7 +7,8 @@ Exact finite log-linear factors for Lenticulum and Mycelium. See [`ToricFactor`]
 [`Grassmann`](@ref) and [`Retracted`](@ref) provide Grassmannian parameter updates.
 [`PluckerFactor`](@ref) transports beliefs through the bivector map [`plucker`](@ref).
 [`ExponentTable`](@ref) and [`PolynomialFactor`](@ref) provide polynomial residuals
-and single-branch Gaussian messages via [`PolynomialModel`](@ref);
+and Gaussian messages via [`PolynomialModel`](@ref), with optional multi-branch
+inference through [`HomotopyBranches`](@ref);
 [`fit_nullspace`](@ref) and [`fit_sampson`](@ref) fit complete data.
 """
 module AlgebraicFactors
@@ -25,6 +26,7 @@ export Grassmann, project_tangent, retract, ispoint, Retracted
 export plucker_pairs, plucker, plucker_jacobian, plucker_relations, plucker_residuals
 export plucker_moments, PluckerFactor
 export ExponentTable, veronese, veronese_jacobian, basis_change
+export HomotopyBranches, polynomial_branches, branch_entropy_bounds
 export PolynomialFactor, PolynomialModel, fit_nullspace, fit_sampson
 
 include("plucker.jl")
@@ -32,6 +34,7 @@ include("toric.jl")
 include("fit.jl")
 include("grassmann.jl")
 include("veronese.jl")
+include("homotopy.jl")
 include("polynomial.jl")
 include("polyfit.jl")
 

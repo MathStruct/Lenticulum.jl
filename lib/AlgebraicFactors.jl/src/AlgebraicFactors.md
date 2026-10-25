@@ -4,9 +4,9 @@
 > It supplies discrete messages, energies and entropies, moment fitting and model
 > checks, Grassmannian parameter geometry and retracted updates, and forward Plücker
 > transport. Polynomial basis tables, residuals and complete-data fitting are implemented;
-> single-branch Gaussian messages are implemented; homotopy remains planned.
+> single-branch Gaussian messages and optional square-system homotopy mixtures are implemented.
 
-> Sources: original implementation of [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]] §0, §1.1–§1.7, §2.1–§2.3, §3(a,b) and §5; code: `AlgebraicFactors.jl`, `toric.jl`, `fit.jl`, `grassmann.jl`, `plucker.jl`, `veronese.jl`, `polynomial.jl`, `polyfit.jl`, `../test/runtests.jl`, `../test/polynomial.jl`.
+> Sources: original implementation of [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]] §0, §1.1–§1.7, §2.1–§2.3, §3(a,b), §4 and §5; code: `AlgebraicFactors.jl`, `toric.jl`, `fit.jl`, `grassmann.jl`, `plucker.jl`, `veronese.jl`, `polynomial.jl`, `polyfit.jl`, `../test/runtests.jl`, `../test/polynomial.jl`, `homotopy.jl`, `../ext/AlgebraicFactorsHomotopyContinuationExt.jl`, `../test/homotopy.jl`.
 >
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens)
 
@@ -63,10 +63,10 @@ Jacobian, where zero damping throws. Default identity damping at `λ=0.3` and pl
 `SquaredNorm()` each change energy by more than `1e-3` at some tested point.
 [[energy]] derives the covariance law and documents the numerical SPD threshold,
 localisation and frozen Gauss–Newton metric. That original test remains alongside the §3(a) real polynomial-factor tests.
-Polynomial single-branch messages (§3b) are implemented; homotopy (§4) remains planned.
+Polynomial single-branch messages (§3b) and optional homotopy mixtures (§4) are implemented; see [[homotopy]].
 
 Not implemented: general MLE existence certification, Markov-basis computation,
-multiple polynomial branches, homotopy continuation or inverse Plücker fibres.
+parameter homotopy, positive-dimensional polynomial solves or inverse Plücker fibres.
 
 
 `ExponentTable`, `veronese`, `veronese_jacobian` and `basis_change` implement

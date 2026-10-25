@@ -1008,3 +1008,5 @@ end
 end
 
 include("polynomial.jl")
+
+include("homotopy.jl")

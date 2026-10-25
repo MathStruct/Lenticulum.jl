@@ -1,6 +1,6 @@
 #design
 
-> **Status: partly implemented (2026-10-25): §0, §1.1–§1.7, §2.1–§2.3, §3(a,b) and §5; §2.4 and §4 remain planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl`, `fit.jl`, `grassmann.jl`, `plucker.jl`, `veronese.jl`, `polynomial.jl` and `polyfit.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. §2.3 also uses `lib/LenticulumCore.jl/src/energy.jl` and its core tests. These steps needed no Mycelium changes.
+> **Status: partly implemented (2026-10-25): §0, §1.1–§1.7, §2.1–§2.3, §3(a,b), §4 and §5; §2.4 remains planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl`, `fit.jl`, `grassmann.jl`, `plucker.jl`, `veronese.jl`, `polynomial.jl` and `polyfit.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. §2.3 also uses `lib/LenticulumCore.jl/src/energy.jl` and its core tests. These steps needed no Mycelium changes.
 
 ## Scope
 
@@ -31,7 +31,7 @@ binding when it is implemented with its tests.
 | gauge-invariant residual scalarisation | core `SampsonNorm` localises to a metric; checked on the real polynomial factor with ΘΘ′ damping, a singular Jacobian and undamped polynomial basis changes |
 | polynomial basis tables, residual and fitting (§3a) | `ExponentTable`, exact monomial/Chebyshev values and Jacobians, affine `basis_change`, `PolynomialFactor` with full-coordinate Sampson scalarisation, `fit_nullspace` rank diagnostics, full-gradient Riemannian `fit_sampson` and k=1 FNS |
 | polynomial single-branch messages (§3b) | all single-target polarities; exact Jacobian, full-data frozen Sampson covariance, improper information-form sites and iterated posterior linearisation; lens/graph sites agree; no game quantities |
-| multi-branch roots | none; `MixtureBelief` exists to carry them |
+| multi-branch roots (§4) | optional `HomotopyBranches()` / HomotopyContinuation extension; isolated square systems, root/path diagnostics, Gaussian branch mixtures, log masses and entropy bounds; see [[homotopy]] |
 
 ## The proposed contract
 
@@ -141,13 +141,42 @@ packages under `lib/`.
   posterior mode further iteration stops. k>q is weighted least squares.
   Singular A throws; positive λ may rescue it with full-row-rank Θ, never a
   pseudoinverse. `likelihood_message`/`factor_message` share the site routine;
-  `invert` combines with the prior once. No branch enumeration, homotopy,
+  `invert` combines with the prior once. The default does not enumerate branches; §4 adds the optional mixture. No
   IFT rules or game/free-energy/entropy implementation ([[LP-009 Game-level free energy is declared but not implemented]]).
   See [[Inference as Root Finding]] and [[polynomial]].
 
-**§4 Multi-branch inference** (last): a HomotopyContinuation.jl package extension finding all
-isolated real roots and returning a `MixtureBelief` over branches
-([[Branches and the Discriminant]]).
+**§4 Multi-branch inference** (implemented, optional): a HomotopyContinuation.jl package extension
+(`AlgebraicFactorsHomotopyContinuationExt`, a weak dependency) for `PolynomialFactor`, returning a
+`MixtureBelief` over branches ([[Branches and the Discriminant]]). Gemini's Proposal 7 item 5 sketches
+it with weights $w_j \propto \pi(x_j)/\lvert\det J_u(x_j)\rvert$ and an "exact" entropy
+$-\sum_j w_j\log w_j$; both need the qualifications below, which are part of the contract.
+- §4.1 Square systems only ($k = q$ for the target). Nonempty regular fibres for $k < q$ are positive-dimensional
+  sets (witness sets, and weights with $\sqrt{\det J_uJ_u^\top}$ on the fibre); for $k > q$ there are
+  generically no roots. Both throw, naming the alternative (§3's single-branch site). Even square systems
+  can have positive-dimensional zero sets; this API requires isolated roots.
+- §4.2 Homotopy continuation returns complex isolated solutions: keep the real ones by a stated
+  imaginary-part tolerance, and report each root's certification status (HC's `certify`, interval arithmetic/Krawczyk certification) without claiming more. Singular roots ($\det J_u = 0$, on the discriminant), solutions
+  at infinity and failed paths are reported, not silently dropped or weighted.
+- §4.3 Weights: for the linearised branch $j$ with residual covariance $A_j$ (as in §3(b)) and a
+  Gaussian prior $\mathcal N(\mu, P)$, $\int \mathcal N(J_j(x-x_j); 0, A_j)\,\mathcal N(x;\mu,P)\,dx =
+  \mathcal N(x_j;\mu, P + J_j^{-1}A_jJ_j^{-\top})/\lvert\det J_j\rvert$, which tends to Gemini's
+  $\pi(x_j)/\lvert\det J_j\rvert$ as $A_j \to 0$. Use the former, test both. Components are the branch
+  posteriors (prior times branch site); the returned message excludes the prior, as everywhere else,
+  so the likelihood message is a mixture of normalised branch sites with masses
+  proportional to $1/|\det J_j|$; combining with the prior supplies the Gaussian
+  overlap and reproduces posterior `invert`. Using posterior masses in the message
+  would apply that overlap twice. A trivial prior means constant density in target
+  Lebesgue measure and gives masses proportional to $1/|\det J_j|$.
+  The exact soft posterior $\exp(-r^2/(2A(x)))\pi(x)$ has this small-noise limit
+  only for branch-independent A (otherwise it needs the residual-density normaliser);
+  circle/cubic quadrature tests use constant A.
+- §4.4 Entropy: $-\sum_j w_j\log w_j$ is only the entropy of the branch label. For a Gaussian mixture
+  $\sum_j w_jH_j \le H \le \sum_j w_jH_j + H(w)$; report these bounds and $H(w)$, not an exact $H$.
+- §4.5 No regular real root: inference throws and directs callers to inspection,
+  which returns diagnostics and `nothing` mixtures, never an empty mixture.
+  Singular roots are unweighted, including when they are the only real roots.
+- Later: parameter homotopy across calls (tracking last step's roots as $\Theta$ or $x_o$ moves), which
+  is the cheap path in training loops. Not in this step.
 
 **§5 Plücker (implemented).** `plucker_pairs(r)` lists increasing pairs in lexicographic
 order. `plucker(z,w)` evaluates $p_{ij}=z_iw_j-z_jw_i$; `plucker_jacobian(z,w)` has
@@ -288,7 +317,8 @@ and k=2 Sampson fitting starts stationary (cost below 1e-24). Underdetermined
 and zero evaluation matrices, invalid arguments and indexed singular failures
 are checked too. No naive-reweighting counterexample is claimed.
 
-Still planned: §2.4 exposed manifold channels and §4 homotopy. No LenticulumCore or Mycelium changes or dependencies were needed.
+Still planned: §2.4 exposed manifold channels. §4 below adds an optional weak dependency;
+these earlier steps needed no LenticulumCore or Mycelium changes or dependencies.
 
 Implemented §3(b): `lib/AlgebraicFactors.jl/test/polynomial.jl` checks 144 seeded
 linear cases against the actual `LinearConstraintFactor`, with Θ=[−c B₁ … Bₙ],
@@ -305,8 +335,31 @@ and variance 0.0246 to 2e−12. Nonlinear covariance, row-gauge and undamped bas
 checks, invalid beliefs/dimensions and singular A are tested. The full common
 conformance checker requires absent game quantities; its lens/site/posterior
 subset is checked independently on every degree-one polarity instead. No shared
-code or dependencies changed. §4 remains planned; [[polynomial]] records limits
+code or dependencies changed for §3(b); [[polynomial]] records limits
 and exact run fixtures.
+
+Implemented §4:
+
+`lib/AlgebraicFactors.jl/test/homotopy.jl`, included from `runtests.jl`, checks
+optional-dependency absence before loading HC, circle roots and posterior/site
+separation, the singular circle double root, cubic real counts on both sides of
+the discriminant, product conics, row gauges and Chebyshev conversion. It checks
+per-root certification on the simple regular cases, homogeneous Chebyshev terms
+and actual at-infinity paths. Full package run: 14099 passes and one existing
+LP-014 broken check on Julia 1.13.1 / HC 2.22.4 (95 added passes).
+Constant-A circle/cubic
+quadrature uses 300001 points on [-3,3], A=1e-3,1e-4,1e-5: posterior-mean,
+branch-mass and Gemini-limit errors must each decrease, ending below 5e-5.
+Seed Xoshiro(4404), 100000 mixture samples per case check entropy bounds for
+branch variances 1 and 0.01 with five-standard-error allowance. [[homotopy]]
+records measured results and the covariance/measure assumptions. Game quantities,
+positive-dimensional solves, IFT derivatives and parameter homotopy remain absent.
+
+Corrections to the draft §4: HC certification is interval/Krawczyk rather than
+α-theory; likelihood masses exclude the prior overlap; the unnormalised varying-A
+soft energy needs a residual-density normaliser to have the stated small-noise
+weights. Square alone does not imply isolated roots. These qualifications do not
+alter the §3(b) default.
 
 ## Open
 

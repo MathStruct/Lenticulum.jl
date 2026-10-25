@@ -5,7 +5,9 @@
 > **the set of solution branches** in the proposed multi-branch model. Target-rank
 > loss obstructs the root IFT; it need not make the full Sampson covariance singular.
 
-> Sources: original design and analysis; code: `lib/AlgebraicFactors.jl/src/polynomial.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (circle tangency and scalar conditioning checks; no branch enumeration).
+> Sources: original design and analysis; code: `lib/AlgebraicFactors.jl/src/polynomial.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (circle tangency and scalar conditioning checks), `lib/AlgebraicFactors.jl/ext/AlgebraicFactorsHomotopyContinuationExt.jl`, `lib/AlgebraicFactors.jl/test/homotopy.jl` (square isolated roots, mixtures and entropy bounds); Breiding & Timme, *HomotopyContinuation.jl: A Package for Homotopy Continuation in Julia* (2018); Breiding, Rose & Timme, *Certifying Zeros of Polynomial Systems Using Interval Arithmetic* (2023), Theorem 3.6 and Lemma 7.1.
+>
+> Bibliography: [[Bibliography#^breiding2018homotopycontinuation|Breiding & Timme 2018]] · [[Bibliography#^breiding2023certifying|Breiding et al. 2023]]
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model)
 
@@ -128,30 +130,41 @@ The following effects require different assumptions; they do not all coincide:
 > κ(Jᵤ)=1 even as it tends to zero. The circle tests check that fact and the
 > square-root derivative rate. No IFT gradient is returned by PolynomialFactor.
 
-The branch-index model below remains planned (§4). The implemented
-`PolynomialModel` is a pure **local branch approximation**, with no latent branch
-index or branch probabilities. This does not assert that the full relation has
-only one solution.
+The optional §4 solver now returns Gaussian mixtures over regular real isolated
+roots of square systems ([[homotopy]]). The default `PolynomialModel` remains a
+pure **local branch approximation**. Neither exposes a joint latent branch-index
+API; mixture components and weights can be inspected explicitly.
 
 ## The branch belief
 
-The natural output of an algebraic inversion is therefore **not a point** but a belief over
-a finite set:
+For a square system with regular isolated real roots aⱼ, the residual-density
+convention of L-SPEC-004 §4 yields a **Gaussian mixture** of local branch
+posteriors. With π=N(μ,P), Sⱼ=Jᵤⱼ⁻¹AⱼJᵤⱼ⁻ᵀ,
 
 $$
-c'_\pi(x_o) \;=\; \sum_{j=1}^{D} w_j\, \delta_{x_u^{(j)}}, \qquad w_j \propto \pi\bigl(x_u^{(j)}\bigr)
+w_j\propto\frac{\mathcal N(a_j;\mu,P+S_j)}{|\det J_{u,j}|}
+\quad\longrightarrow\quad
+\frac{\pi(a_j)}{|\det J_{u,j}|}\quad(A_j\to0).
 $$
 
-a `SampleBelief` supported on the real roots, weighted by the prior. Two readings:
+For a trivial prior the density is flat in target Lebesgue measure and masses
+are proportional to 1/|det Jᵤⱼ|. Prior-only root weighting would specify a
+different discrete selection measure. In particular, maximising the branch
+mass generally includes a Jacobian term and is not merely projection onto the
+root set by maximising π. One may separately define that constrained prox,
+but it is not the implemented branch weighting rule.
 
-- **Selection as a prox.** Taking $\arg\max_j w_j$ is
-  $\arg\min_{x_u : r=0} -\log\pi(x_u)$ — a proximal step onto the variety. That is exactly
-  the structure of the diffusion family in [[ImplicitREDDiff]], with the hard constraint
-  $r = 0$ in place of a soft energy. **The algebraic and diffusion families differ in how
-  they enforce the constraint, not in what they compute.**
-- **Entropy from branch count.** $\mathbf{H}^c(\pi, x_o) = -\sum_j w_j\log w_j \le \log D$.
-  The abstract "entropy or regularizer" of [Definition 20](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) is here a
-  perfectly ordinary discrete entropy over a set you can enumerate.
+`invert` returns `MixtureBelief` of the branch posteriors. Likelihood messages
+exclude the prior: their normalised branch-site masses are proportional to
+1/|det Jᵤⱼ|; pooling supplies the Gaussian overlap. Singular roots, infinity
+and failed paths are diagnostic, never weighted as regular roots. No regular
+real root makes inference throw; `polynomial_branches` remains inspectable.
+
+The label entropy H(w)=−Σwⱼlog wⱼ is discrete. For the returned Gaussian mixture,
+ΣwⱼHⱼ ≤ H ≤ ΣwⱼHⱼ+H(w); H(w) alone is not its differential entropy or an
+implemented game regulariser. [[homotopy]] records the quadrature and Monte Carlo
+checks and the distinction between normalised residual density and varying-A
+unnormalised soft energy.
 
 ## Monodromy — the branches are not independently labelled
 

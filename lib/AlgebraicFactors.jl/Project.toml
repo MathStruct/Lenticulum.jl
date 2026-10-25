@@ -16,3 +16,12 @@ Mycelium = {path = "../Mycelium.jl"}
 
 [workspace]
 projects = ["test"]
+
+[weakdeps]
+HomotopyContinuation = "f213a82b-91d6-5c5d-acf7-10f1c761b327"
+
+[extensions]
+AlgebraicFactorsHomotopyContinuationExt = "HomotopyContinuation"
+
+[compat]
+HomotopyContinuation = "2.22.4"

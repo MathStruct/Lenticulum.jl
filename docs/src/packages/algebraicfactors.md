@@ -8,7 +8,7 @@ Finite toric potentials over named discrete channels, implementing L-SPEC-004 §
 §1.1–§1.7, plus Grassmannian parameters (§2.1–§2.2) and the Plücker map (§5).
 Toric messages, energies and entropies use exact enumeration; fitting uses
 Newton or binary-feature IPF. Polynomial tables, residuals and complete-data fitting (§3a) are implemented.
-Single-branch Gaussian messages are implemented; homotopy remains planned. Sampson scalarisation comes
+Single-branch Gaussian messages and optional square-system homotopy mixtures are implemented. Sampson scalarisation comes
 from LenticulumCore and is checked on the real polynomial factor too.
 
 ```julia
@@ -154,7 +154,7 @@ Jacobian, where zero damping throws. Default identity damping at `λ=0.3` and pl
 `SquaredNorm()` each change energy by more than `1e-3` at some tested point.
 The implementation note `lib/LenticulumCore.jl/src/energy.md` derives the covariance law and documents the numerical SPD threshold,
 localisation and frozen Gauss–Newton metric. That original test remains alongside the §3(a) real polynomial-factor tests.
-Polynomial single-branch messages (§3b) are implemented; homotopy (§4) remains planned.
+Polynomial single-branch messages (§3b) and optional homotopy mixtures (§4) are implemented.
 
 
 `ExponentTable`, `veronese`, `veronese_jacobian` and `basis_change` implement
@@ -189,6 +189,49 @@ and return Θ,cost,gradient_norm,converged,iterations. Singular covariance throw
 with point index; explicit λ adds λΘΘ′. No global optimality is claimed.
 The implementation note `polyfit.md` derives the gradient and records the
 seeded Klein/conic/two-equation checks and their numerical results.
+
+## Multi-branch polynomial inference
+
+Load `HomotopyContinuation` (tested with 2.22.4 on Julia 1.13.1), then pass
+`branches=HomotopyBranches()` to `PolynomialFactor`; `branches=:single` remains
+the default. The solver requires a square target system k=q; other shapes use
+§3's single-branch site. Observations are Dirac/proper Gaussian beliefs at their
+means; target priors are proper Gaussian or trivial (flat in Lebesgue measure).
+
+```julia
+using AlgebraicFactors, HomotopyContinuation, LenticulumCore, Mycelium, LinearAlgebra
+f = PolynomialFactor((x=1,y=1), ExponentTable(2,2), 1;
+                     Σ=0.0025I, branches=HomotopyBranches())
+ps = (Θ=reshape([-1.,0,0,1,0,1],1,:),) # x²+y²−1
+info = polynomial_branches(f, :y, (x=DiracBelief(0.6),), Gaussian(0.3,0.4), ps)
+info.posterior # MixtureBelief of two branch posteriors
+branch_entropy_bounds(info.posterior) # label entropy and differential-entropy bounds
+```
+
+`polynomial_branches` returns finite root records, path diagnostics (including
+failed and at-infinity flags), per-root certification, determinants, residual
+covariances, sites, components and weights. Reality uses an absolute imaginary
+coordinate tolerance; singular roots are reported and never weighted. If no
+regular real root remains, `factor_message`/`invert` throw; inspection still
+returns diagnostics and `nothing` mixtures. Path results and certificates are
+not a proof of completeness. HC's certification uses interval arithmetic and
+Krawczyk's method [breiding2018homotopycontinuation, breiding2023certifying](@cite).
+
+For Sⱼ=Jⱼ⁻¹AⱼJⱼ⁻ᵀ, posterior masses are proportional to
+N(rootⱼ;μ,P+Sⱼ)/|det Jⱼ|. Likelihood messages contain normalised Gaussian sites
+N(rootⱼ,Sⱼ) with masses proportional to 1/|det Jⱼ|; Mycelium's overlap rule
+produces the posterior weights when pooled with the prior. Using posterior
+masses in the message would apply the prior overlap twice. This approximates
+the nonlinear residual likelihood locally at each regular real root.
+
+The entropy helper reports H(w) and ΣwHⱼ ≤ H ≤ ΣwHⱼ+H(w), not an exact mixture
+entropy. `test/homotopy.jl` checks closed-form circle/cubic/product-conic roots,
+basis and row-gauge agreement, constant-residual-noise quadrature convergence,
+and seeded Monte Carlo entropy bounds. The implementation note `homotopy.md`
+gives the measure convention, limitations and measured test results. No game
+free energy, IFT derivative, parameter homotopy or positive-dimensional solve
+is supplied. The CI package test activates the extension through its test
+dependency; this docs environment loads it too.
 
 ```@index
 Modules = [AlgebraicFactors]

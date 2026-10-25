@@ -1,5 +1,5 @@
 """
-    PolynomialFactor(dims::NamedTuple, tab::ExponentTable, k; Σ=I, λ=0, iterations=1)
+    PolynomialFactor(dims::NamedTuple, tab::ExponentTable, k; Σ=I, λ=0, iterations=1, branches=:single)
 
 Soft relation `Θ*veronese(tab,z) ≈ 0` over named channels, concatenated in
 `keys(dims)` order. Parameters `(Θ=...,)` are seeded Haar Grassmann(k,m) rows;
@@ -17,22 +17,25 @@ its proper Gaussian/Dirac cavity mean, or zero without a cavity. `iterations ≥
 relinearises at the current posterior mode (frozen-metric Gauss–Newton). The
 returned site excludes the prior; `invert` pools it with the prior once.
 Singular target precision is retained; singular residual covariance throws.
-No multiple branches, normalised likelihood or game-level free energy is supplied.
+Set `branches=HomotopyBranches()` and load HomotopyContinuation for all isolated
+roots of square systems; see [`polynomial_branches`](@ref). No game-level free
+energy is supplied. `iterations` applies only to `branches=:single`.
 
 Damping is λΘΘ′, invariant under invertible row gauges. Nonorthogonal basis
 changes preserve undamped energy, but do not preserve this coefficient metric.
 """
-struct PolynomialFactor{D,C,L} <: LenticulumCore.AbstractLenticulumFactor
+struct PolynomialFactor{D,C,L,M} <: LenticulumCore.AbstractLenticulumFactor
     dims::D
     table::ExponentTable
     k::Int
     Σ::C
     λ::L
     iterations::Int
+    branches::M
 end
 
 function PolynomialFactor(dims::NamedTuple, tab::ExponentTable, k::Integer;
-                          Σ=LinearAlgebra.I, λ::Real=0, iterations::Integer=1)
+                          Σ=LinearAlgebra.I, λ::Real=0, iterations::Integer=1, branches=:single)
     !isempty(dims) && all(d->d isa Integer && !(d isa Bool) && d>0, values(dims)) ||
         throw(ArgumentError("channel dimensions must be positive integers"))
     sum(values(dims)) == size(tab.exponents,1) || throw(DimensionMismatch("dims must sum to table dimension"))
@@ -41,7 +44,8 @@ function PolynomialFactor(dims::NamedTuple, tab::ExponentTable, k::Integer;
     cov = _polynomial_covariance(Σ, size(tab.exponents,1))
     LenticulumCore.SampsonNorm(;wrt=:y,Σ=cov,λ) # validation shared with core
     iterations >= 1 && !(iterations isa Bool) || throw(ArgumentError("iterations must be a positive integer"))
-    return PolynomialFactor(dims,tab,Int(k),cov,λ,Int(iterations))
+    branches === :single || branches isa HomotopyBranches || throw(ArgumentError("branches must be :single or HomotopyBranches()"))
+    return PolynomialFactor(dims,tab,Int(k),cov,λ,Int(iterations),branches)
 end
 
 function _polynomial_covariance(Σ, N)
@@ -113,10 +117,11 @@ end
 """
     PolynomialModel(factor, polarity)
 
-Single-target local Gaussian model of a polynomial relation. Its solver uses
+Single-target Gaussian model of a polynomial relation. By default it is local;
+`HomotopyBranches()` supplies a mixture over regular real isolated roots. Its solver uses
 exact polynomial Jacobians and frozen residual covariances, with Gauss–Newton
-curvature (not the full Laplace Hessian away from a zero residual). It does not
-enumerate roots or differentiate the solve by the implicit function theorem.
+curvature (not the full Laplace Hessian away from a zero residual). The single-branch default does not enumerate roots. Neither inference mode
+differentiates the solve by the implicit function theorem.
 """
 struct PolynomialModel{F<:PolynomialFactor,P} <: LenticulumCore.AbstractOpenModel
     factor::F
@@ -150,7 +155,7 @@ function _polynomial_moments(b, n)
 end
 
 # The site is defined even when it cannot itself be normalised. Never invert Λ.
-function _polynomial_site(f, target, inputs, x0, ps)
+function _polynomial_linearisation(f, target, inputs, x0, ps)
     size(ps.Θ) == (f.k,size(f.table.exponents,2)) || throw(DimensionMismatch("wrong Θ shape"))
     ps.Θ isa AbstractMatrix{<:Real} && all(isfinite,ps.Θ) ||
         throw(ArgumentError("Θ must be a finite real matrix"))
@@ -179,12 +184,16 @@ function _polynomial_site(f, target, inputs, x0, ps)
     A += f.λ*(ps.Θ*ps.Θ')
     all(isfinite,A) && all(isfinite,r) && all(isfinite,J) ||
         throw(ArgumentError("polynomial linearisation must be finite"))
+    return r, J[:,blocks[target]], A
+end
+
+function _polynomial_site(f, target, inputs, x0, ps)
+    r, Ju, A = _polynomial_linearisation(f,target,inputs,x0,ps)
     ev = LinearAlgebra.eigvals(LinearAlgebra.Symmetric(A))
     threshold = f.k*eps(eltype(ev))*maximum(ev)
     minimum(ev)>threshold || throw(ArgumentError(
         "residual covariance A is numerically singular: cannot form a Gaussian residual likelihood; use positive λ with full-row-rank Θ (no pseudoinverse)"))
     chol = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(A))
-    Ju = J[:,blocks[target]]
     numerical_rank = LinearAlgebra.rank(Ju)
     Λ = Matrix(LinearAlgebra.Symmetric(Ju'*(chol\Ju)))
     h = Λ*x0-Ju'*(chol\r)
@@ -196,6 +205,7 @@ function _polynomial_message(f, target, polarity, inputs, prior, ps, st)
     polarity isa LenticulumCore.Polarity && LenticulumCore.supports_polarity(f,polarity) &&
         only(LenticulumCore.unobserved_channels(polarity)) === target ||
         throw(ArgumentError("polarity must observe all channels except :$target"))
+    f.branches === :single || return _homotopy_message(f.branches,f,target,inputs,prior,ps,st)
     q = f.dims[target]
     π = prior === nothing ? LenticulumCore.TrivialBelief() : prior
     if π isa LenticulumCore.GaussianBelief

@@ -1,4 +1,5 @@
 [deps]
+HomotopyContinuation = "f213a82b-91d6-5c5d-acf7-10f1c761b327"
 AlgebraicFactors = "5937a757-1681-44a0-82a2-3722a0d5745f"
 LenticulumCore = "1ac3b398-e9e9-400d-83fd-862c57ff485d"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"

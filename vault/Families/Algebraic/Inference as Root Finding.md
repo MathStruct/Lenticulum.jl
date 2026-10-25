@@ -4,7 +4,9 @@
 > inference means solving a polynomial system — and everything interesting follows from
 > counting its solutions.
 
-> Sources: original to this vault (design and analysis); code: `lib/AlgebraicFactors.jl/src/polynomial.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (single-branch Gaussian sites, rank cases, circle and graph oracles).
+> Sources: original to this vault (design and analysis); code: `lib/AlgebraicFactors.jl/src/polynomial.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (single-branch Gaussian sites, rank cases, circle and graph oracles), `lib/AlgebraicFactors.jl/ext/AlgebraicFactorsHomotopyContinuationExt.jl`, `lib/AlgebraicFactors.jl/test/homotopy.jl` (isolated square-system roots and branch mixtures); Breiding & Timme, *HomotopyContinuation.jl: A Package for Homotopy Continuation in Julia* (2018); Breiding, Rose & Timme, *Certifying Zeros of Polynomial Systems Using Interval Arithmetic* (2023), Theorem 3.6 and Lemma 7.1.
+>
+> Bibliography: [[Bibliography#^breiding2018homotopycontinuation|Breiding & Timme 2018]] · [[Bibliography#^breiding2023certifying|Breiding et al. 2023]]
 >
 > Theory (CT-ML wiki): [Compact Closed Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Compact-Closed-Category) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model)
 
@@ -76,7 +78,9 @@ polarities with the actual linear constraint, a circle with a separately written
 fixed-final-metric scalar objective, and ab+c=0 in a Mycelium graph with a joint
 Laplace calculation. This is Gauss–Newton curvature, not the full Hessian away
 from zero residual. It neither enumerates roots nor implements the IFT backward
-pass or game entropy. Homotopy and multiple branches (§4) remain planned.
+pass or game entropy. Optional `HomotopyBranches()` now enumerates isolated
+roots of square targets and returns a mixture of regular real branch posteriors
+(§4, [[homotopy]]); no IFT backward pass or game quantities are added.
 
 ## How many solutions
 
@@ -112,10 +116,12 @@ architecture within this family.
 the target and track the paths. Total-degree homotopy tracks $d^q$ paths; **polyhedral
 homotopy** tracks only mixed-volume-many. It is:
 
-- **complete** — finds all isolated complex solutions, so you know you have them all;
+- **enumerative** — tracks paths toward isolated complex roots; numerical failed
+  paths and infinity diagnostics must be inspected before asserting completeness;
 - **embarrassingly parallel** — one path per core;
-- **certifiable** — Smale's $\alpha$-theory gives a rigorous "this path converged to a true
-  solution" certificate.
+- **certifiable** — HC's interval/Krawczyk certification can prove an isolated
+  nonsingular zero near a candidate. This is not α-theory, nor by itself proof
+  that all roots were found.
 
 In Julia this is `HomotopyContinuation.jl` (Breiding–Timme); the classical alternative is
 Bertini. For positive-dimensional solution sets, **witness sets** and numerical irreducible
@@ -149,7 +155,9 @@ consequences:
    observed input.
 3. $V_\mathbb{R}$ may be empty even when $V_\mathbb{C}$ is large
    ([[Varieties Ideals and Real Nullstellensatz]] §"Problem 1"). Inference then has no answer
-   at all and must fall back to minimising $\|r\|$.
+   as a hard root problem. A soft model may instead minimise $\|r\|$, or
+   report failure: the implemented §4 inference throws and keeps path/root
+   diagnostics available through `polynomial_branches`.
 
 ## Where this genuinely works
 

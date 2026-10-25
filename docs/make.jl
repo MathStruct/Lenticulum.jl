@@ -92,6 +92,7 @@ using VariationalDiffusion
 using ImplicitLayers
 using Adversarial
 using AlgebraicFactors
+using HomotopyContinuation # activate AlgebraicFactors' optional branch solver
 
 # Where this build lives (see the vault section at the end): master's site, or the preview of
 # the development branch. The pages link to the vault through LENTICULUM_VAULT_URL.
