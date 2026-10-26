@@ -1,5 +1,7 @@
 #implementation
 
+> Structural validation and message polarity resolution, including rejection of unsupported frozen factors.
+
 > Sources: code: `polarity_resolution.jl`
 >
 > Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Functor)
@@ -34,22 +36,22 @@ is a DAG; a Mycelium graph is well-formed iff every scheduled message passes bot
 
 ## `validate`
 
-Pre-flight checks: every edge's channel is declared by its factor, no isolated factors, no
-isolated variables. Cheap, and it converts a class of wiring mistakes from confusing runtime
-`PolarityError`s into one clear message at build time.
+Pre-flight checks: declared channels, no isolated factors or variables, and a warning for
+multiple emitting edges with no reader. Structural validation is optional and separate from
+`build`. Both `validate` and `build` reject `isfrozen == true` with an `ArgumentError` naming
+the factor, even if it is non-learnable (LP-011 option 2, 2026-10-26). No frozen backward
+semantics exist; excluding a node from `learnable_factors` does not supply them. The
+`LP-011 graph construction guards` testset checks both learnability values and both entry
+points independently. The check is outside message passing.
 
 ## Implementation difficulties
 
-### 1. The `channels` call is wrapped in a bare `try`
+### 1. Missing `channels` methods are skipped
 
-`validate` does `try … catch; nothing; end` around `LenticulumCore.channels(fn.factor)`, so a
-factor that has not implemented `channels` is silently skipped rather than rejected. That
-swallows real errors too — a `channels` method that throws for a genuine reason looks identical
-to one that does not exist.
-
-The right fix is `hasmethod(LenticulumCore.channels, (typeof(f),))` and an explicit error
-otherwise. Not done, because `channels` has no default and requiring it would break the
-`AbstractLuxWrapperFactor` pattern where channels might be derived. Recorded as a real wart.
+`validate` uses `hasmethod` before consulting `LenticulumCore.channels(fn.factor)`.
+If no method exists, the declared-channel check is skipped; exceptions from an existing
+method propagate. The earlier note claiming a bare `try` swallowed these errors was stale.
+Requiring a channel declaration for every factor remains a separate interface decision.
 
 ### 2. Exactly one `Unobserved()` per message
 

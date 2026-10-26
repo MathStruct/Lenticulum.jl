@@ -16,7 +16,7 @@ Implementation notes also record what their code does not do; a problem gets an 
 | [[LP-008 No conformance test for the factor interface]] | `check_factor_conformance` covers the five `Lenticulum` factors and `ToricFactor` (direct-message path); the other packages' factors not yet | open, partly addressed |
 | [[LP-009 Game-level free energy is declared but not implemented]] | Game-level `free_energy`/`entropy` exist for the `Lenticulum` factors and `PriorFactor`; not for Equality, Deterministic, DEQ, neural-ODE | open, partly addressed |
 | [[LP-010 Where the graph of a problem comes from]] | Finding a problem's factor graph: from a model, by structure learning, or by exploring with TDA first | open, theory |
-| [[LP-011 Gradient couplings and isfrozen are declared but unused]] | Per-edge couplings and `isfrozen` are stored but no code reads them | open |
+| [[LP-011 Gradient couplings and isfrozen are declared but unused]] | Unsupported couplings and frozen factors now throw; gradient semantics remain planned | open, option 2 done |
 | [[LP-012 Factor graphs and schemes]] | Links to algebraic geometry: singular models, dual-number points, cellular sheaves | open, theory |
 | [[LP-013 Defects found in the review of master]] | Codex's review of master: entropy type, iterated nonlinear site, predictive fit, mixture weights, prior cotangent, a rate claim | closed (2026-10-25) |
 | [[LP-014 Emitting edges drop the cavity message from the free energy]] | Cavity-reading factors now reject `Emitting()` edges during graph free-energy evaluation (`uses_cavity`, option 2); marginals unchanged | closed (2026-10-26) |

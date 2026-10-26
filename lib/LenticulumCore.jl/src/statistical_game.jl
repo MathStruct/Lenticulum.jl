@@ -49,7 +49,9 @@ Whether `factor` contributes trainable parameters.
 Defaults to `LuxCore.parameterlength(factor) > 0`, but is a *trait*, not a computation:
 a factor with parameters that are deliberately held fixed (a pretrained encoder, a physical
 constant, a data clamp) should override it to `false`. A graph uses this to decide which
-nodes need an optimiser attached and which parameter cotangents may be discarded unread.
+nodes are candidates for an optimiser (`Mycelium.learnable_factors`). This trait does not
+implement parameter freezing or control input cotangents; graph backward semantics remain
+planned with L-SPEC-002.
 
 See also [`isfrozen`](@ref).
 """
@@ -60,10 +62,11 @@ islearnable(f::AbstractLenticulumFactor) = LuxCore.parameterlength(f) > 0
 
 Whether `factor`'s parameters exist but are pinned for this run.
 
-The distinction from [`islearnable`](@ref) matters for the backward pass: a *frozen* factor
-still propagates cotangents through to its inputs (so upstream factors learn), whereas a
-factor that is simply not learnable has no parameter wire at all. Confusing the two silently
-detaches a subgraph.
+Defaults to `false`. The planned distinction from [`islearnable`](@ref) is that freezing
+pins parameter updates while preserving input cotangents. This backward behavior is not
+implemented (LP-011, L-SPEC-002). Mycelium's `build` and `validate` throw `ArgumentError`
+naming any factor with `isfrozen(f) == true`, even when `islearnable(f) == false`:
+excluding a factor from the optimiser list does not implement frozen cotangent semantics.
 """
 isfrozen(::AbstractLenticulumFactor) = false
 
@@ -76,13 +79,25 @@ The composite's parameter space is the product ``\\Phi \\times \\Theta``, realis
 `NamedTuple` `(first = ..., second = ...)` — literally the same data structure Lux uses for
 `Chain`.
 
-`coupling` records which of the gradient terms dropped by Definition 29 this edge restores.
+`coupling` reserves the choice of gradient terms to restore from Definition 29.
+Only `DiagonalCoupling()` is accepted, preserving existing behavior. All other couplings
+throw `ArgumentError` at construction (including positional and explicitly parameterized
+construction), since gradient couplings are not implemented yet (LP-011, L-SPEC-002)
+and would otherwise be silently ignored. The default annotation does not insert AD stops.
 """
 struct ComposedFactor{A,B,C<:AbstractGradientCoupling} <:
        AbstractLenticulumContainerFactor{(:first, :second)}
     first::A   # c : X ⊸ Y
     second::B  # d : Y ⊸ Z
     coupling::C
+    function ComposedFactor{A,B,C}(a, b, coupling) where {A,B,C<:AbstractGradientCoupling}
+        _check_gradient_coupling(coupling)
+        return new{A,B,C}(a, b, coupling)
+    end
+end
+function ComposedFactor(a, b, coupling)
+    _check_gradient_coupling(coupling)
+    return ComposedFactor{typeof(a),typeof(b),typeof(coupling)}(a, b, coupling)
 end
 ComposedFactor(a, b; coupling = DiagonalCoupling()) = ComposedFactor(a, b, coupling)
 

@@ -1,6 +1,10 @@
 #implementation
 
+> Belief-message schedules and their graph constraints; the planned cotangent pass remains unimplemented.
+
 > Sources: code: `schedules.jl`
+>
+> Theory (CT-ML wiki): [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens)
 
 Implements: the schedule types and their generation from graph structure. Pure combinatorics —
 this file computes *which* messages in *what* order, and nothing else.
@@ -22,6 +26,13 @@ emits). `islegal(g, task)` is the predicate; every generator filters on it.
 `tree_schedule` roots at a leaf, BFS to record which endpoint of each edge is the *child*, then
 emits child→parent messages in reverse BFS order and parent→child in BFS order. That ordering is
 what makes each message computable exactly once from already-final inputs.
+
+## Gradient limitation (LP-011)
+
+The schedule docstrings describe a planned cotangent pass, not an implemented one. Only
+`DiagonalCoupling()` is accepted at graph construction; other annotations raise
+`ArgumentError` (the Mycelium `LP-011 graph construction guards` testset). Scheduling and
+message execution are unchanged by these guards; see [[graph]] and [[statistical_game]].
 
 ## Implementation difficulties
 

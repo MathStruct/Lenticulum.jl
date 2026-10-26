@@ -3,6 +3,58 @@ using LenticulumCore
 using LenticulumCore: DiracBelief, TrivialBelief, Observed, Unobserved, Latent, Polarity
 using Test
 
+struct UnsupportedGraphCoupling <: AbstractGradientCoupling end
+struct FreezeTraitFactor{Frozen,Learnable} <: AbstractLenticulumFactor end
+LenticulumCore.isfrozen(::FreezeTraitFactor{F,L}) where {F,L} = F
+LenticulumCore.islearnable(::FreezeTraitFactor{F,L}) where {F,L} = L
+LenticulumCore.channels(::FreezeTraitFactor) = (LenticulumCore.Channel(:x, nothing),)
+
+@testset "LP-011 graph construction guards" begin
+    b = GraphBuilder()
+    variable!(b, :x)
+    factor!(b, :data, DataFactor(:x, 1.0))
+    # Explicit list of every non-default built-in family: PathwiseCoupling,
+    # ScoreFunctionCoupling{B} (with and without baseline), ExactCoupling.
+    for coupling in (PathwiseCoupling(), ScoreFunctionCoupling(),
+                     ScoreFunctionCoupling(0.5), ExactCoupling(), UnsupportedGraphCoupling())
+        @test_throws ArgumentError connect!(b, :data, :x, :x; coupling)
+        @test isempty(b.edges)  # rejection leaves the builder reusable
+        @test_throws ArgumentError Edge(1, :x, 1, Bidirectional(), coupling)
+        @test_throws ArgumentError Edge{Bidirectional,typeof(coupling)}(1, :x, 1, Bidirectional(), coupling)
+    end
+    @test_throws ArgumentError connect!(b, :data, :x, :x; coupling = nothing)
+    @test connect!(b, :data, :x, :x; coupling = DiagonalCoupling()) == 1
+    g = build(b)
+    @test validate(g) === g
+    @test only(g.edges).coupling === DiagonalCoupling()
+    @test Edge(1, :x, 1, Bidirectional(), DiagonalCoupling()).coupling === DiagonalCoupling()
+    @test Edge{Bidirectional,DiagonalCoupling}(1, :x, 1, Bidirectional(), DiagonalCoupling()).coupling === DiagonalCoupling()
+
+    for learnable in (false, true)
+        b = GraphBuilder()
+        variable!(b, :x)
+        factor!(b, :pinned, FreezeTraitFactor{false,learnable}())
+        connect!(b, :pinned, :x, :x)  # implicit default still works
+        g = build(b)
+        @test validate(g) === g
+        @test learnable_factors(g) == (learnable ? [1] : Int[])
+
+        frozen = Mycelium.FactorNode(1, :pinned, FreezeTraitFactor{true,learnable}())
+        b.factors[1] = frozen
+        @test_throws ArgumentError build(b)  # validate is optional
+        # Graph storage is public and mutable; validate must check independently of build.
+        g.factors[1] = frozen
+        @test_throws ArgumentError validate(g)
+        err = try
+            validate(g)
+        catch e
+            e
+        end
+        @test occursin("factor :pinned", sprint(showerror, err))
+        @test occursin("L-SPEC-002", sprint(showerror, err))
+    end
+end
+
 # ---------------------------------------------------------------------------
 # A small supervised-learning graph, built the Lenticulum way: data, model and loss are
 # ALL factors.  x --[relay/"model"]-- y --[loss]  , with y also observed via a target.

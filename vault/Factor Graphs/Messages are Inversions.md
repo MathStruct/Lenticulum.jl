@@ -82,11 +82,12 @@ Every message in `Mycelium` is an `AbstractBelief`. The **two directions of beli
 
 Both are beliefs; that is what makes AutoBayes' framework a message-passing framework at all.
 
-**Cotangents are not messages.** The gradient of the free energy with respect to a factor's
-parameters is accumulated per factor, governed by that edge's
-[`AbstractGradientCoupling`](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients), on a *different schedule* — once per
-training step, not once per inference sweep. Conflating the two is a classic source of silent
-bugs, which is why `optimiser_step` is a separate function from `step!`.
+**Cotangents are not messages.** A graph gradient pass governed by each edge's
+[`AbstractGradientCoupling`](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients)
+would run once per training step, separately from belief sweeps. That pass is not
+implemented; non-default coupling annotations fail at construction (LP-011 option 2).
+`optimiser_step` is separate from `step!`, but this separation does not implement the
+planned gradient pass of [[L-SPEC-002 Stop Gradient]].
 
 This also explains a result that looks wrong at first: on a strictly unidirectional DAG the
 **backward belief sweep is empty** ([[Schedules]]). Correct — a Lux graph has no backward

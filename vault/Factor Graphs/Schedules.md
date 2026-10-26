@@ -47,8 +47,10 @@ loss edges — exactly **4 of the 12** messages are pruned.
 > [!warning] Pruning weakens exactness, deliberately
 > A `LossFactor` on absorbing edges never tells its input variable anything, because in
 > *belief* terms a sink is genuinely uninformative about what it consumes. What a loss tells
-> its input is a **cotangent**, and cotangents travel by the
-> [`AbstractGradientCoupling`](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients) machinery, not by this scheduler.
+> its input is a **cotangent**. The separate
+> [`AbstractGradientCoupling`](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients)
+> backward machinery is planned, not implemented. Non-default couplings fail at construction
+> (LP-011 option 2; [[L-SPEC-002 Stop Gradient]]).
 >
 > So `pruned > 0` does not mean the schedule is broken; it means part of the graph is
 > explicit rather than implicit. It is surfaced as a field rather than swallowed so that a

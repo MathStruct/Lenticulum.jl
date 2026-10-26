@@ -152,14 +152,18 @@ An **effect system** annotates a computation with what it does beyond returning 
 `AbstractGradientCoupling` is the striking one. Its docstring says Definition 29 composes
 gradients block-diagonally while the true Jacobian has two extra blocks, that the paper calls
 the assignment "lax" and says it "can be accounted for mechanistically by an implementation" —
-and that this type *is* that mechanism, with each edge declaring which correction it applies.
+and the types reserve names for those planned corrections. There is no per-edge gradient
+implementation yet. As of 2026-10-26, only `DiagonalCoupling()` is accepted by `connect!`,
+`Edge` and `ComposedFactor`; other annotations throw `ArgumentError` (LP-011 option 2,
+checked by the core and Mycelium `LP-011` testsets). The default does not insert AD stops.
 
 > [!important] That is an effect annotation, per edge
 > A per-edge declaration of what a computation drops, intended to compose along the graph, with
 > a numeric measure of the discrepancy. The framework has an effect system; it is spelled as a
 > collection of traits and there is nothing that composes them.
 >
-> Today the grades are read *after* the fact. A graded discipline would make "this composite is
+> The coupling annotation is currently checked only to refuse unsupported settings, not to
+> compute or grade gradients. A graded discipline would make "this composite is
 > exact" a **type**, and would refuse to combine an exact edge with a lax one without recording
 > the result as lax. That is precisely the bookkeeping [Composition of Gradients](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients) says an
 > implementation must do.

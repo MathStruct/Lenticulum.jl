@@ -1,5 +1,7 @@
 #implementation
 
+> Statistical-game combinators and parameter containers; gradient annotations are guarded pending L-SPEC-002.
+
 > Sources: code: `statistical_game.jl`
 >
 > Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Para Construction](https://mathstruct.org/CategoryTheory-ML-Wiki/Para-Construction) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
@@ -48,17 +50,15 @@ subtyping `AbstractLuxLayer` — see [[abstract_types]] §"Why factors are not a
 
 ## Implementation difficulties
 
-### 1. Almost everything here is a stub, and that is the honest state
+### 1. Generic interfaces do not implement composite evaluation
 
-`free_energy`, `energy`, `entropy`, `assemble`, `invert`, `forward`, `pushforward` are
-`function f end` declarations. The composition **combinators** are real and tested; the
-things they combine are not implemented, because there is no concrete factor yet.
-
-This is the right place to stop, but it means the design is currently unfalsified by
-contact with a real model. The next step should be **one worked example end to end** — a
-Gaussian factor with an exact inversion, composed with a prior, reproducing
-[[AutoBayes Examples as Factor Graphs|Example 1]]'s claim that $F^{c\pi}(\ast,y) = -\log p_{c_*\pi}(y)$ —
-rather than more abstraction.
+The generic `free_energy`, `energy`, `entropy`, `assemble`, `invert`, `forward` and
+`pushforward` interfaces are extension points implemented by concrete factor families
+elsewhere in the monorepo. The composition **combinators** here are tested, but
+`ComposedFactor` itself only supplies the parameter/state container structure, energy space
+and scalarisation; it has no composed lens or free-energy walker. Concrete graph inference
+and Bethe free energy live in Mycelium. The presence of concrete factors does not make the
+planned composite gradient machinery work.
 
 ### 2. `compose_entropy` and `compose_free_energy` take a plain collection of samples
 
@@ -91,12 +91,21 @@ end. Currently there is no walker, so this is a note for whoever writes it.
 needing `using LuxCore` to set up a factor. The cost is a name that shadows nothing but
 duplicates something. Reconsider if `Lenticulum.jl` ends up re-exporting LuxCore anyway.
 
-### 6. `AbstractGradientCoupling` is declared but unused
+### 6. Gradient annotations are guarded, not implemented (LP-011)
 
-The type exists and `ComposedFactor` stores one, but nothing dispatches on it — the gradient
-machinery is not written. It is here so that the edge annotation is part of the data model
-from the start rather than retrofitted, since retrofitting a per-edge choice into a global
-one is much harder than the reverse. But it is currently inert, and should not be mistaken
-for a working feature.
+`ComposedFactor` retains its `coupling` field for the planned design, but only accepts
+`DiagonalCoupling()`. Keyword, positional and explicitly parameterized constructors throw
+`ArgumentError` for other values. The inner constructor closes the direct-construction
+bypass; the inferred outer constructor also checks before selecting a type parameter, so an
+invalid value such as `nothing` produces the same error. Checks happen at construction only.
+The `LP-011 composition coupling guard` testset in `../test/runtests.jl` covers these paths,
+all three non-default built-in coupling families, baselines, a custom subtype and defaults.
+This implements option 2 of [[LP-011 Gradient couplings and isfrozen are declared but unused]];
+option 1, gradient semantics, remains with [[L-SPEC-002 Stop Gradient]].
+
+`isfrozen` still defaults to false. Mycelium rejects true in both `build` and `validate`,
+including for non-learnable factors: `islearnable == false` only excludes a node from an
+optimiser list and does not guarantee frozen input-cotangent semantics. No backward behavior
+is added here, and the default coupling annotation does not insert AD stops.
 
 Related: [[Factors are Parameterized Statistical Games]], [Composition of Statistical Games](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#composition-energies-add-entropies-chain-definition-22), [Composition of Gradients](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients), [[energy]], [[LenticulumCore]]

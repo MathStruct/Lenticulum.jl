@@ -60,8 +60,9 @@ is just another absorbed channel, and the graph does the bookkeeping. Same state
 machinery.
 
 > A loss factor never tells its input variable anything **in belief terms**. What a loss
-> "tells" its input is a *cotangent*, and cotangents travel by the
-> `AbstractGradientCoupling` on each edge, not by the message scheduler. This is why the tree
+> "tells" its input is a *cotangent*. A separate `AbstractGradientCoupling` backward pass
+> is planned, not implemented; non-default couplings now fail at construction (LP-011
+> option 2; [[L-SPEC-002 Stop Gradient]]). This is why the tree
 > schedule prunes messages at loss nodes — see [[Schedules]] §"Pruning".
 
 ### Optimisers are reparametrisations, and a wire is a variable

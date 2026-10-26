@@ -97,9 +97,11 @@ end
 
 Attaches channel `channel` of factor node `factor` to variable node `variable`.
 
-`coupling` is the `AbstractGradientCoupling` for this edge: which of the terms AutoBayes'
-Definition 29 drops are restored here. Per-edge rather than global, because a conjugate edge
-and a discrete-latent edge genuinely want different answers.
+`coupling` reserves the per-edge gradient semantics of AutoBayes' Definition 29.
+Only `DiagonalCoupling()` is accepted: per-edge gradient couplings are not implemented
+yet (LP-011, L-SPEC-002), so other values would be silently ignored. They throw
+`ArgumentError`, including in direct and explicitly parameterized construction.
+The default annotation preserves existing behavior; it does not insert AD stops.
 """
 struct Edge{D<:EdgeDirection,C<:AbstractGradientCoupling}
     factor::Int
@@ -107,6 +109,15 @@ struct Edge{D<:EdgeDirection,C<:AbstractGradientCoupling}
     variable::Int
     direction::D
     coupling::C
+    function Edge{D,C}(factor, channel, variable, direction, coupling) where
+            {D<:EdgeDirection,C<:AbstractGradientCoupling}
+        LenticulumCore._check_gradient_coupling(coupling)
+        return new{D,C}(factor, channel, variable, direction, coupling)
+    end
+end
+function Edge(factor, channel, variable, direction::D, coupling::C) where
+        {D<:EdgeDirection,C<:AbstractGradientCoupling}
+    return Edge{D,C}(factor, channel, variable, direction, coupling)
 end
 
 """
@@ -183,12 +194,17 @@ Attach one channel of a factor to a variable.
 Each (factor, channel) pair may be connected at most once: a channel is a single port, not a
 bus. Fanning a variable out to several factors is done by connecting *those factors*, which
 is the graph-level form of the copier of `Copiers Cups and Caps.md`.
+
+Only `coupling = DiagonalCoupling()` is accepted. Other values throw `ArgumentError`:
+per-edge gradient couplings are not implemented yet (LP-011, L-SPEC-002) and the setting
+would otherwise be silently ignored. This is a construction-time check only.
 """
 function connect!(
     b::GraphBuilder, factor::Symbol, channel::Symbol, variable::Symbol;
     direction::EdgeDirection = Bidirectional(),
-    coupling::AbstractGradientCoupling = DiagonalCoupling(),
+    coupling = DiagonalCoupling(),
 )
+    LenticulumCore._check_gradient_coupling(coupling)
     haskey(b.factor_index, factor) || throw(ArgumentError("no factor :$factor"))
     haskey(b.variable_index, variable) || throw(ArgumentError("no variable :$variable"))
     fid = b.factor_index[factor]
@@ -206,8 +222,13 @@ end
     build(b::GraphBuilder) -> FactorGraph
 
 Freeze the builder into an immutable graph with adjacency indices.
+
+Throws `ArgumentError` naming any factor declaring `isfrozen(f) == true`, regardless of
+`islearnable`: frozen backward semantics are not implemented (LP-011, L-SPEC-002).
+Structural [`validate`](@ref) checks remain a separate, optional step.
 """
 function build(b::GraphBuilder)
+    _check_frozen_factors(b.factors)
     eof = [Int[] for _ in b.factors]
     eov = [Int[] for _ in b.variables]
     for (i, e) in enumerate(b.edges)
@@ -219,6 +240,17 @@ function build(b::GraphBuilder)
         copy(b.variable_index), copy(b.factor_index),
         Tuple(v.name for v in b.variables), Tuple(f.name for f in b.factors),
     )
+end
+
+function _check_frozen_factors(factors)
+    for f in factors
+        LenticulumCore.isfrozen(f.factor) && throw(ArgumentError(
+            "factor :$(f.name) ($(typeof(f.factor))) declares isfrozen == true, but frozen " *
+            "factor semantics are not implemented yet (LP-011, L-SPEC-002); " *
+            "this setting would be silently ignored, even if islearnable == false."
+        ))
+    end
+    return nothing
 end
 
 # --- Queries ---------------------------------------------------------------

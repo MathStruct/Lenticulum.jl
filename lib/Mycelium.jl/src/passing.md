@@ -93,15 +93,16 @@ avoid inventing a type before knowing what else belongs in it.
 
 ### 6. Cotangents are not here, deliberately
 
-Gradients with respect to parameters are **not** messages. They are accumulated per factor,
-governed by each edge's `AbstractGradientCoupling`, on a **different schedule** — once per
-training step, not once per inference sweep.
+Gradients with respect to parameters are **not** messages. The planned gradient pass would
+accumulate them per factor under each edge's `AbstractGradientCoupling`, once per training
+step rather than once per inference sweep. This pass is not implemented.
 
 `optimiser_step` is a separate function from `step!` for exactly this reason. Conflating the two
 schedules (updating parameters inside a belief sweep) is a classic source of silent bugs, and
 the separation is the main structural decision in this file.
 
 The gradient machinery itself does not exist yet: no AD backend is a dependency, and
-`AbstractGradientCoupling` is still inert ([[statistical_game]] §6).
+`AbstractGradientCoupling` has no gradient implementation ([[statistical_game]] §6).
+Non-default annotations now fail at construction (LP-011 option 2).
 
 Related: [[Messages are Inversions]], [[schedules]], [[free_energy]], [[Loopy Message Passing]]

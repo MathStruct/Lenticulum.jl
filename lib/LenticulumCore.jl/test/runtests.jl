@@ -4,6 +4,31 @@ using Statistics: mean, cov
 using Test
 using LinearAlgebra
 
+struct UnsupportedCoreCoupling <: AbstractGradientCoupling end
+struct CouplingGuardFactor <: AbstractLenticulumFactor
+    name::Symbol
+end
+
+@testset "LP-011 composition coupling guard" begin
+    a, b = CouplingGuardFactor(:a), CouplingGuardFactor(:b)
+    for f in (ComposedFactor(a, b), ComposedFactor(a, b; coupling = DiagonalCoupling()),
+              ComposedFactor(a, b, DiagonalCoupling()),
+              ComposedFactor{typeof(a),typeof(b),DiagonalCoupling}(a, b, DiagonalCoupling()))
+        @test f.first === a
+        @test f.second === b
+        @test f.coupling === DiagonalCoupling()
+    end
+    # All three non-default built-in families, including both score-function baselines,
+    # plus a user-defined subtype: the guard is a whitelist, not a blacklist.
+    for coupling in (PathwiseCoupling(), ScoreFunctionCoupling(),
+                     ScoreFunctionCoupling(0.5), ExactCoupling(), UnsupportedCoreCoupling())
+        @test_throws ArgumentError ComposedFactor(a, b; coupling)
+        @test_throws ArgumentError ComposedFactor(a, b, coupling)
+        @test_throws ArgumentError ComposedFactor{typeof(a),typeof(b),typeof(coupling)}(a, b, coupling)
+    end
+    @test_throws ArgumentError ComposedFactor(a, b; coupling = nothing)
+end
+
 # Test-only residuals; the circle uses the reference finite-difference Jacobian.
 struct CircleResidual <: AbstractLenticulumFactor end
 LenticulumCore.energy(::CircleResidual, x, a, y, ps, st) = ([sum(abs2, y) - one(eltype(y))], st)

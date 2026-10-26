@@ -141,9 +141,13 @@ How an edge of the graph handles the terms AutoBayes' Definition 29 drops.
 Definition 29 composes gradients block-diagonally; the true Jacobian has two extra blocks,
 because the parameter of one factor moves the *sampling distribution* and the *pushforward
 prior* seen by the other. The paper calls the resulting assignment "lax" and says it "can be
-accounted for mechanistically by an implementation". This type is that mechanism: each edge
-declares which correction it applies, and the choice is exactly the paper's "different
-semantics functors".
+accounted for mechanistically by an implementation". These types describe the planned
+per-edge corrections, corresponding to the paper's "different semantics functors".
+
+The gradient machinery is not implemented (LP-011, L-SPEC-002). `ComposedFactor` and
+Mycelium's `connect!` / `Edge` accept only `DiagonalCoupling()`, preserving existing
+behavior; any other coupling throws `ArgumentError` rather than being silently ignored.
+The annotation does not itself insert stop-gradients into AD.
 
 See [`DiagonalCoupling`](@ref), [`PathwiseCoupling`](@ref),
 [`ScoreFunctionCoupling`](@ref), [`ExactCoupling`](@ref).
@@ -153,24 +157,27 @@ abstract type AbstractGradientCoupling end
 """
     DiagonalCoupling()
 
-Keep only the block-diagonal terms of Definition 29; i.e. stop-gradient through the
-sampling path and through the pushforward prior. Cheapest, biased.
+The default annotation for the planned block-diagonal semantics of Definition 29
+(stop-gradient through the sampling path and pushforward prior).
+Currently accepted for compatibility; it does not itself insert stop-gradients into AD.
 """
 struct DiagonalCoupling <: AbstractGradientCoupling end
 
 """
     PathwiseCoupling()
 
-Differentiate through the sampler (the reparametrisation trick). Requires the inversion to
-be reparametrisable. Unbiased, low variance.
+Planned differentiation through the sampler (the reparametrisation trick), requiring a
+reparametrisable inversion. Not implemented: `ComposedFactor` and Mycelium's `connect!` /
+`Edge` throw `ArgumentError` for this annotation (LP-011, L-SPEC-002).
 """
 struct PathwiseCoupling <: AbstractGradientCoupling end
 
 """
     ScoreFunctionCoupling(baseline=nothing)
 
-REINFORCE: recover the dropped term as `E[F ∇ log q]`, optionally with a control variate.
-Unbiased, high variance, works for discrete inversions.
+Planned REINFORCE correction `E[F ∇ log q]`, optionally with a control variate, including
+for discrete inversions. Not implemented: `ComposedFactor` and Mycelium's `connect!` /
+`Edge` throw `ArgumentError` for this annotation, with any baseline (LP-011, L-SPEC-002).
 """
 struct ScoreFunctionCoupling{B} <: AbstractGradientCoupling
     baseline::B
@@ -180,7 +187,17 @@ ScoreFunctionCoupling() = ScoreFunctionCoupling(nothing)
 """
     ExactCoupling()
 
-The conjugate/analytic case: the full Jacobian is available in closed form and no term is
-dropped. Composition of gradients is then strictly functorial across this edge.
+Planned conjugate/analytic semantics, keeping the full Jacobian without dropping terms.
+Not implemented: `ComposedFactor` and Mycelium's `connect!` / `Edge` throw `ArgumentError`
+for this annotation (LP-011, L-SPEC-002).
 """
 struct ExactCoupling <: AbstractGradientCoupling end
+
+# Shared construction-time guard; no coupling dispatch is added to message passing.
+function _check_gradient_coupling(coupling)
+    coupling isa DiagonalCoupling || throw(ArgumentError(
+        "per-edge gradient couplings are not implemented yet (LP-011, L-SPEC-002); " *
+        "coupling=$(repr(coupling)) would be silently ignored. Only DiagonalCoupling() is supported."
+    ))
+    return nothing
+end

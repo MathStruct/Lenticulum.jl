@@ -55,6 +55,12 @@ what records the cost.
 
 ## Known gaps
 
+- Per-edge gradient semantics are planned (LP-011, L-SPEC-002). `ComposedFactor` accepts
+  only `DiagonalCoupling()`; other couplings raise `ArgumentError`, including positional
+  and explicitly parameterized construction. The default preserves existing behavior and
+  does not itself insert AD stops. `isfrozen` defaults to false; Mycelium rejects true even
+  for non-learnable factors because frozen backward behavior is not implemented.
+
 - `SampleBelief` has no `belief_logdensity`, so two of them cannot be pooled. See
   `Adversarial` for a route around this.
 - `GaussianBelief` lives here too (canonical form, `gaussian_belief.jl`); its message rules

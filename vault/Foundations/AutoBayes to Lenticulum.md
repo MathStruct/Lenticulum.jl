@@ -34,8 +34,11 @@
 | optimiser (Cruttwell §3.4) | `OptimiserFactor` on an exposed parameter variable | Mycelium `factors.jl` |
 | loss + learning-rate cap (§3.2–3.3) | `LossFactor` (a **sink**) | Mycelium `factors.jl` |
 | $X$ unobserved / $Y$ observed / $\llbracket c\rrbracket$ latent | `Unobserved()` / `Observed()` / `Latent()` | `channels.jl` |
-| Definition 29 gradient composition | `GradientCoupling` per edge | `statistical_game.jl` |
-| "different semantics functors" | the `GradientCoupling` variants | `statistical_game.jl` |
+| Definition 29 gradient composition | planned `AbstractGradientCoupling` per edge; only `DiagonalCoupling()` accepted | `abstract_types.jl`, `statistical_game.jl`, Mycelium `graph.jl` |
+| "different semantics functors" | planned coupling variants; non-default values throw `ArgumentError` (LP-011 option 2) | `abstract_types.jl`, `statistical_game.jl`, Mycelium `graph.jl` |
+
+The default coupling preserves existing behavior; it does not itself insert AD stops.
+Per-edge gradient semantics remain planned with [[L-SPEC-002 Stop Gradient]].
 
 ## The three-layer stack
 

@@ -1,5 +1,7 @@
 #implementation
 
+> Graph construction and topology; unsupported gradient and frozen-factor declarations fail before message passing.
+
 > Sources: code: `graph.jl`
 >
 > Theory (CT-ML wiki): [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model)
@@ -83,11 +85,24 @@ special case, but a graph with variables in one component and factors in another
 by the final `all(seen_v) && all(seen_f)`. Correct, but the special-casing is inelegant enough
 to be worth flagging.
 
-### 5. `learnable_factors` is the only place the traits are used so far
+### 5. Construction refuses unsupported gradient settings (LP-011)
 
-`LenticulumCore.islearnable` is consulted to list which factors need an optimiser. `isfrozen` is
-declared but not yet consulted anywhere — the distinction (frozen factors still propagate
-cotangents; non-learnable ones have no parameter wire) matters only once the gradient machinery
-exists.
+`connect!` and the `Edge` inner constructor accept only `DiagonalCoupling()`. Other coupling
+values throw `ArgumentError` explaining that per-edge gradient couplings are not implemented
+(LP-011, L-SPEC-002), so their settings would be silently ignored. The inner constructor
+also guards direct and explicitly parameterized construction. Fields and types are retained.
+
+`build` does not call `validate`; structural validation remains optional. Both call a shared
+frozen-factor check, throwing `ArgumentError` naming every graph factor whose `isfrozen` is
+true. This includes non-learnable factors: `islearnable` only filters `learnable_factors`,
+and neither that filter nor parameter/state setup establishes frozen backward semantics.
+Allowing that combination would imply support for behavior the graph does not implement.
+
+The `LP-011 graph construction guards` testset in `../test/runtests.jl` covers both
+learnability values, independent build/validate rejection, the named error, default graphs,
+all three non-default built-in coupling families, score-function baselines, a custom subtype
+and direct/parameterized `Edge` rejection. Failed `connect!` leaves the builder reusable.
+These are construction/validation checks only: message passing is unchanged, and accepting
+the default coupling does not itself insert stop-gradients into AD.
 
 Related: [[Factor Graphs]], [[polarity_resolution]], [[free_energy]]

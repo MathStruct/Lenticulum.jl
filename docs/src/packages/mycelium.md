@@ -21,7 +21,15 @@ g = validate(build(b))
 ```
 
 `validate` checks the structure: every edge names a channel its factor actually declares,
-nothing is isolated, and dangling outputs are reported.
+nothing is isolated, and dangling outputs are reported. It is a separate, optional step.
+
+Per-edge gradient couplings are not implemented (LP-011, L-SPEC-002). `connect!` and `Edge`
+accept only `DiagonalCoupling()`; other couplings throw `ArgumentError` at construction,
+including direct and explicitly parameterized `Edge` construction. The default preserves
+existing behavior and does not itself insert AD stops. Both `build` and `validate` throw
+`ArgumentError` naming any factor declaring `isfrozen == true`, even when non-learnable:
+`islearnable == false` only filters the optimiser list, not a frozen backward pass.
+Message passing is unchanged.
 
 Edges are **directed**, and the direction restricts which messages are legal:
 

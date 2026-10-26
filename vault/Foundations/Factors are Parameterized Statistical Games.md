@@ -45,7 +45,7 @@ A pure game's loss lacks the prior term of the free energy; AutoBayes fixes this
 
 Any of the four pieces may depend on $\theta$ (Definition 27): a decoder, an amortised encoder, a learned loss or critic, a learned regulariser. The parameter tree is Lux's — `initialparameters` returns a nested `NamedTuple`, which is the $\mathbf{Para}$ composite $\Phi \times \Theta$ of Definition 28 with labels. The paper's default semantics is descent **with respect to the Fisher metric** (the Bayesian learning rule); the multivariate energy is what makes a Gauss–Newton approximation of that metric available ([[Scalar and Multivariate Energy]] §6).
 
-Definition 29 composes gradients block-diagonally and is therefore **lax**: it drops the terms where an upstream parameter moves the downstream pushforward prior and where a downstream parameter moves the sampling distribution of the upstream inversion — the reparametrisation/score-function terms. Lenticulum makes the choice explicit per edge, as an `AbstractGradientCoupling`:
+Definition 29 composes gradients block-diagonally and is therefore **lax**: it drops the terms where an upstream parameter moves the downstream pushforward prior and where a downstream parameter moves the sampling distribution of the upstream inversion — the reparametrisation/score-function terms. Lenticulum reserves this choice per edge as an `AbstractGradientCoupling`. The following table describes planned semantics:
 
 | coupling | keeps | cost |
 |---|---|---|
@@ -54,7 +54,14 @@ Definition 29 composes gradients block-diagonally and is therefore **lax**: it d
 | `ScoreFunctionCoupling(baseline)` | REINFORCE estimate of the dropped term | unbiased, high variance |
 | `ExactCoupling()` | everything | conjugate / analytic factors only |
 
-These are the paper's "different semantics functors" — different lax sections of the gradient fibration (Remark 30) — and [[The Type Discipline of a Factor Graph]] §4 observes that together they form an effect system with no composition rule yet.
+Only `DiagonalCoupling()` is currently accepted by `compose` / `ComposedFactor` and
+Mycelium's `connect!` / `Edge`. Other annotations throw `ArgumentError` at construction
+(LP-011 option 2, 2026-10-26; the core and Mycelium `LP-011` testsets cover these cases).
+The default does not itself insert AD stops. `isfrozen == true` is likewise rejected by
+Mycelium's `build` and `validate`, including for non-learnable factors; the frozen backward
+pass remains planned with [[L-SPEC-002 Stop Gradient]].
+
+These name the paper's "different semantics functors" — different lax sections of the gradient fibration (Remark 30) — and [[The Type Discipline of a Factor Graph]] §4 observes that together they form an effect system with no composition rule yet.
 
 ## The engineering agenda the paper leaves
 

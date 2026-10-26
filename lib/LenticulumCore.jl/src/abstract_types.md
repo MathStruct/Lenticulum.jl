@@ -1,5 +1,7 @@
 #implementation
 
+> The factor and gradient-annotation type hierarchy; non-default gradient annotations fail at construction (LP-011).
+
 > Sources: code: `abstract_types.jl`
 >
 > Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Functor)
@@ -53,12 +55,17 @@ mechanistically by an implementation". Its closing paragraph then predicts that 
 method, the delta rule, and sampling schemes of various kinds — will correspond to different
 **semantics functors**".
 
-`DiagonalCoupling` / `PathwiseCoupling` / `ScoreFunctionCoupling` / `ExactCoupling` are
-those functors, chosen per edge. Making this a type rather than a global flag matters
-because in a real graph different edges genuinely want different answers: a conjugate
-Gaussian edge is `ExactCoupling`, a reparametrisable Gaussian encoder is `PathwiseCoupling`,
-a discrete latent is `ScoreFunctionCoupling`, and an edge you have deliberately detached is
-`DiagonalCoupling`.
+`DiagonalCoupling` / `PathwiseCoupling` / `ScoreFunctionCoupling` / `ExactCoupling` name
+planned semantics, rather than implemented gradient rules. Different edges may eventually
+need conjugate, reparametrisation or score-function corrections.
+
+As of 2026-10-26, LP-011 option 2 is implemented: a shared construction-time guard accepts
+only `DiagonalCoupling()` in `ComposedFactor`, `connect!` and `Edge`; all other values raise
+`ArgumentError` identifying LP-011 and L-SPEC-002. The types and fields remain for the future
+gradient implementation. Accepting the default preserves existing behavior; it does not
+insert AD stop-gradients. The LenticulumCore and Mycelium `LP-011` testsets check the three
+non-default built-in families (including score-function baselines), a custom subtype,
+constructor bypasses, and default construction. No message-passing dispatch changes.
 
 ## Implementation difficulties
 

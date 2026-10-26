@@ -107,6 +107,11 @@ supervised implicit learning, the way a DEQ is trained.
 | learns | every branch of the relation | the branches inference visits (§7 of the backpropagation note: the old upper arc of the circle survived) |
 | coupling in [[Factors are Parameterized Statistical Games]] | `DiagonalCoupling` | `ExactCoupling` on the inversion |
 
+The coupling row is a mathematical comparison, not a selectable graph feature:
+`ExactCoupling` is refused by `connect!`, `Edge` and `ComposedFactor` (LP-011 option 2).
+The factor-specific adjoint is distinct from the planned per-edge gradient machinery of
+[[L-SPEC-002 Stop Gradient]].
+
 They are complementary. (A) shapes the density; (B) shapes the answer the inference procedure
 actually returns, including its smoothing bias, which (A) ignores. A practical scheme is (A)
 to pretrain the relation and (B) to fine-tune for a task.

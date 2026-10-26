@@ -51,6 +51,9 @@ So it is a *preconditioner* approximation, not a bias-free estimator. In the vau
 vocabulary ([[abstract_types]]) the sampling path is `PathwiseCoupling` and the network
 Jacobian is stopped — which is not exactly any one of the four `AbstractGradientCoupling`
 constructors, and is worth noting as a fifth case rather than forced into an existing one.
+This is a mathematical comparison, not a coupling argument used by the implementation:
+non-default graph annotations are refused at construction (LP-011 option 2). RED-Diff's
+closed-form regulariser is separate from the planned per-edge gradient machinery.
 
 > [!important] This is why the package has no AD dependency
 > The regulariser needs one **forward** pass per Monte-Carlo draw. The clamp's gradient is

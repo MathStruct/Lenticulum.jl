@@ -32,6 +32,9 @@ The table is a design sketch, not an implemented game contract. `PolynomialFacto
 declares every single-target observed polarity and supplies a local pure
 `PolynomialModel` lens with frozen-metric Gaussian/GN messages. It has no branch
 beliefs, game entropy/free energy, IFT derivatives or `ExactCoupling` declaration.
+Non-default couplings, including `ExactCoupling`, are refused at construction by
+`connect!`, `Edge` and `ComposedFactor` (LP-011 option 2); per-edge gradient semantics remain
+planned with [[L-SPEC-002 Stop Gradient]].
 Its `invert` is the final site pooled with the prior once. The tests check the
 linear oracle, circle, improper fibre and a three-channel graph, not this
 proposed branch game. Its packed pointwise convention is x=nothing, y=z,

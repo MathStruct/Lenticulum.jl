@@ -83,7 +83,10 @@ So RED-Diff is not an unbiased estimator of the regulariser's gradient; it is a
 *preconditioned* one. In the vocabulary of [[abstract_types]]'s `AbstractGradientCoupling`,
 the sampling path is `PathwiseCoupling` and the network Jacobian is stopped — which is **not
 any of the four constructors**, and is worth recording as a fifth case rather than forced into
-`DiagonalCoupling`.
+`DiagonalCoupling`. This is a comparison with planned semantics, not a graph annotation
+used by RED-Diff: `PathwiseCoupling` and the other non-default annotations now fail at
+`connect!`, `Edge` and `ComposedFactor` construction (LP-011 option 2). RED-Diff's own
+closed-form regulariser is separate from [[L-SPEC-002 Stop Gradient]].
 
 > [!important] This is why the implementation needs no AD
 > One forward pass of $\varepsilon_\theta$ per Monte-Carlo draw; the clamp's gradient is

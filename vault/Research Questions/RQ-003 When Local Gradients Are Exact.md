@@ -20,7 +20,9 @@ Two games $c : X \multimap Y$ with parameter $\theta$ and $d : Y \multimap Z$ wi
 a prior $\pi$ on $X$ (as a prior game, Remark 24), an observation $z$, and the composite free energy
 $F(\theta, \varphi) = F^{dc}(\pi, z)$ of Theorem 23. The **local gradient** is
 $\bigl(\mathbb E_{d'}[\nabla_\theta F^c],\ \nabla_\varphi F^d\bigr)$ with the inversions held fixed. In
-Lenticulum this is `DiagonalCoupling()`, the default on every edge.
+Lenticulum this is the intended meaning of `DiagonalCoupling()`, the default annotation on
+every edge. The annotation does not implement AD stops or a graph backward pass;
+non-default annotations are refused at construction (LP-011 option 2).
 
 ## What is known
 

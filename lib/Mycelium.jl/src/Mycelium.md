@@ -33,13 +33,15 @@ using. No solver, no AD, no distributions — same discipline as `LenticulumCore
 
 ## Status
 
-Working and tested (107 assertions): the graph structure and its two acyclicity notions,
+Working and tested (`test/runtests.jl`): the graph structure and its two acyclicity notions,
 polarity resolution and legality, both exclusion principles, all schedule generators, the
 message loop with damping and convergence reporting, the counting-number arithmetic, the
 graded/Bethe free energy, and the five structural factors including the three optimiser rules.
 
-Stubbed: `belief_logdensity` (and therefore a general `combine`), `ResidualSchedule`'s
-execution path, joint messages over several channels.
+Still partial: general `belief_logdensity` / `combine` support and joint messages over
+several channels. `ResidualSchedule` execution is implemented in `passing.jl`; the
+`ResidualSchedule, uninformative available_channels, PriorFactor, and Check 4` testset
+checks convergence on a relay chain.
 
 ## Three amendments made to `LenticulumCore` for this
 
@@ -51,9 +53,9 @@ These belong in the interface package, not downstream, so they were added there:
 - `islearnable(factor)` / `isfrozen(factor)` — the user's "non-learnable factors" made a trait.
   `islearnable` defaults to `parameterlength > 0` but is overridable, because a factor with
   pinned parameters (a pretrained encoder, a physical constant) is not learnable even though it
-  has parameters. `isfrozen` is the *other* case, and confusing the two silently detaches a
-  subgraph: a frozen factor still propagates cotangents to its inputs, a non-learnable one has
-  no parameter wire at all.
+  has parameters. `isfrozen` describes planned freezing with preserved input cotangents;
+  that backward behavior is not implemented. `build` and `validate` reject `isfrozen == true`,
+  including for non-learnable factors (LP-011, L-SPEC-002).
 
 `Mycelium` adds a fourth, locally: `issink(factor)` — **zero** supported polarities. Losses and
 monitors are sinks, and this is a third case beyond unidirectional and bidirectional.
@@ -126,11 +128,11 @@ it silently. A validation pass for this is missing.
   factor coupling several unobserved channels discards the correlation between them — the
   mean-field laxness of [Remark 16](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens#parallel-composition-is-lax) at the message level. Not
   an oversight; fixing it means deciding where to pay for joint representations.
-- **`ResidualSchedule` execution.** The type and its documentation exist; the priority loop does
-  not, because it is useless without a working `belief_distance`.
-- **Cotangent flow.** Deliberately *not* messages. Gradients are accumulated per factor under
-  each edge's `AbstractGradientCoupling`, on a different schedule (once per training step, not
-  once per inference sweep). `optimiser_step` is a separate function from `step!` for exactly
-  this reason. Conflating the two schedules is a classic source of silent bugs.
+- **General residual diagnostics.** `ResidualSchedule` executes, but its convergence report
+  measures message changes, not correctness of a loopy posterior.
+- **Cotangent flow.** Planned separately from belief messages, once per training step.
+  No per-edge `AbstractGradientCoupling` gradient machinery exists yet. `connect!` / `Edge`
+  accept only `DiagonalCoupling()` and reject other annotations (LP-011 option 2).
+  `optimiser_step` is separate from `step!`; this separation is not a graph backward pass.
 
 Related: [[LenticulumCore]], [[AutoBayes to Lenticulum]], [[Factor Graphs]]
