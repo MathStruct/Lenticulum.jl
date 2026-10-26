@@ -27,7 +27,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Bibliography</loc>
-    <lastmod>2026-10-26T01:19:10.000Z</lastmod>
+    <lastmod>2026-10-26T16:32:13.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Comparisons/Geometric-Deep-Learning-and-Physical-Laws</loc>
     <lastmod>2026-10-15T11:05:36.000Z</lastmod>
@@ -42,7 +42,7 @@
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Comparisons/Related-Julia-Projects</loc>
-    <lastmod>2026-10-06T21:11:04.000Z</lastmod>
+    <lastmod>2026-10-26T16:32:13.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Control/The-Inferencer-and-the-Optimizer</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -168,7 +168,7 @@
     <lastmod>2026-10-26T01:19:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-10-26T15:34:23.784Z</lastmod>
+    <lastmod>2026-10-26T16:32:30.474Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-10-25T22:36:28.000Z</lastmod>
@@ -243,10 +243,10 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Equilibrium/NeuralODE-as-an-Invertible-Factor</loc>
-    <lastmod>2026-10-06T17:29:50.000Z</lastmod>
+    <lastmod>2026-10-26T16:32:13.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Equilibrium/The-Equilibrium-Family</loc>
-    <lastmod>2026-10-07T15:05:08.000Z</lastmod>
+    <lastmod>2026-10-26T16:32:13.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Foundations/AutoBayes-Examples-as-Factor-Graphs</loc>
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
@@ -288,7 +288,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Map-of-Content</loc>
-    <lastmod>2026-10-25T18:10:47.000Z</lastmod>
+    <lastmod>2026-10-26T16:32:13.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Decisions/Decisions</loc>
     <lastmod>2026-10-25T21:24:22.000Z</lastmod>
@@ -459,22 +459,22 @@
     <lastmod>2026-10-25T21:52:12.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/ImplicitLayers.jl/ImplicitLayers</loc>
-    <lastmod>2026-09-30T21:52:28.000Z</lastmod>
+    <lastmod>2026-10-26T16:32:13.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/ImplicitLayers.jl/deq</loc>
     <lastmod>2026-10-26T15:34:04.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/ImplicitLayers.jl/flow</loc>
-    <lastmod>2026-10-15T14:28:44.000Z</lastmod>
+    <lastmod>2026-10-26T16:32:13.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/ImplicitLayers.jl/luxfactor</loc>
     <lastmod>2026-10-26T09:17:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/ImplicitLayers.jl/neuralode</loc>
-    <lastmod>2026-10-26T15:34:04.000Z</lastmod>
+    <lastmod>2026-10-26T16:32:13.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/ImplicitLayers.jl/point_game</loc>
-    <lastmod>2026-10-26T15:34:04.000Z</lastmod>
+    <lastmod>2026-10-26T16:32:13.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/ImplicitLayers.jl/solve</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
