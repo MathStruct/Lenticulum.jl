@@ -274,6 +274,7 @@ function LenticulumCore.free_energy_gradient(s::MessageStore, g::FactorGraph, ps
             θ = LenticulumCore._flatten(p)
             return LenticulumCore._unflatten(zero(θ), p)
         end
+        LenticulumCore._check_factor_ad(ad, f.factor)
         return LenticulumCore._parameter_gradient(ad, _local_scalar, p,
             f.factor, messages_into(s, g, f.id), _subtree(st, f.name); ε)
     end

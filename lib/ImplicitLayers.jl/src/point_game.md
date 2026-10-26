@@ -68,3 +68,9 @@ NeuralODE lens dispatch accepts both `SolverInversion` and `ExactInversion`. Exp
 adaptive endpoint integration retains the actual reverse round-trip residual in the game;
 only symmetric fixed-step configurations on matching grids can declare discrete exactness.
 See [[neuralode]] §2 and §4.3 and `test/sciml.jl` for conformance in both cases.
+
+`_incoming_point_messages` is inlined so Enzyme can eliminate the temporary
+NamedTuple of fixed beliefs before activity analysis. An out-of-line return of this
+constant aggregate raised an activity error in the parameter-only free-energy
+gradient. `test/parameter_ad.jl` compares DEQ endpoint free-energy gradients with
+the closed-form residual gradient for all four AD backends.

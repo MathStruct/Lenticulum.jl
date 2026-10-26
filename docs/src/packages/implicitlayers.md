@@ -37,8 +37,9 @@ The reverse solve needs ``\dim x = \dim z``; otherwise the residual is not squar
 ## Optional automatic differentiation
 
 Load `DifferentiationInterface`, `ADTypes` and your backend package. For a DEQ solve,
-pass `ad=AutoForwardDiff()` or `ad=AutoZygote()` to `solve_state`. The ForwardDiff and
-ChainRulesCore weak extensions implement the IFT, without differentiating root-finder
+pass `ad=AutoForwardDiff()`, `AutoZygote()`, `AutoEnzyme()` or `AutoMooncake()` to
+`solve_state`. Load ForwardDiff as well for the EnzymeCore/Mooncake extensions.
+The weak extensions implement the IFT, without differentiating root-finder
 iterations. Both input and parameter derivatives are tested against the linear-cell
 closed form and finite differences. Root convergence is required; singular residual
 Jacobians throw. Only first-order solved-state derivatives are covered; the reverse
@@ -48,12 +49,25 @@ advances once at the final root. Solve reports, initial guesses and state have n
 `deq_sensitivity(...; wrt=:ps, ad)` gives the dense parameter sensitivity directly.
 The reverse solve rule uses a dense state linear solve followed by a backend VJP;
 ForwardDiff uses backend JVPs for its dual directions. Matrix-free solves remain future
-work. Enzyme, Mooncake and GPU rules have not been tested here.
+work. Enzyme supplies batched forward and reverse rules; Mooncake uses a native
+reverse `rrule!!`. Both use DI with ForwardDiff for residual derivatives, including
+`deq_sensitivity`; no inner call enters the solve primitive. ForwardDiff residual
+VJPs form a dense Jacobian. GPU and higher-order rules remain untested. Enzyme
+outer closures capturing arrays need DI constant contexts (used in the tests) or
+`AutoEnzyme(function_annotation=Enzyme.Const)`; the default closure annotation can
+raise an upstream mutability error. The implementation note `solve.md` has a reproducer.
 
 Core's `energy_jacobian(...; wrt=:ps, ad)`, `energy_gradient` and
 `free_energy_gradient` apply to DEQ, NeuralODE and scored Lux factors. Built-in
 Euler/RK4 endpoint flows use functional Lux state threading and differentiate the
-discrete map with ForwardDiff/Zygote. Tests derive both scalar discrete derivatives,
+discrete map with ForwardDiff, Zygote, Mooncake and Enzyme. For Enzyme, pass
+`AutoEnzyme(; mode = Enzyme.set_runtime_activity(Enzyme.Reverse))` (or Forward):
+constant model/stage memory flows through an active fold, requiring runtime activity.
+The factor derivative and graph training entry points check the mode before AD and
+raise an `ArgumentError` with that configuration when it is missing. Arbitrary outer
+DI calls must select it themselves. Plain `AutoEnzyme()` works for DEQ and scored
+LuxFactor paths. The ODE activity check does not require ForwardDiff; DEQ IFT does.
+`neuralode.md` describes the activity requirement. Tests derive both scalar discrete derivatives,
 check nonempty Lux state and fit a known ODE parameter using Mycelium's graph
 `parameter_step`. `LuxFactor(...; dims=(nin,nout), residual=true)` opts into squared
 endpoint-residual scoring; the default wrapper still delegates energy to downstream losses.
@@ -182,7 +196,9 @@ at endpoints `1,3` in both directions. A nonlinear quadratic DEQ checks cubic ab
 energy error for the first-order Gauss–Newton approximation. The common factor checker
 now covers the complete point game for both factors without LP-009 exemptions.
 
-Solved-state IFT AD currently accepts `AutoForwardDiff()` and `AutoZygote()`. Other
-solve backends are rejected explicitly, so they cannot silently differentiate the
-root iterations. Pass the backend to `solve_state` as well as the outer loss
-derivative. Core pointwise parameter derivatives have wider backend support.
+Solved-state IFT AD accepts `AutoForwardDiff()`, `AutoZygote()`, `AutoEnzyme()` and
+`AutoMooncake()`. Load DI, the backend and (for Enzyme/Mooncake) ForwardDiff; missing
+extensions and other solve backends are rejected before solving. Pass the backend to
+`solve_state` and the outer derivative. Enzyme outer closures that capture arrays
+need DI constant contexts or `function_annotation=Enzyme.Const`; see the implementation note `solve.md` for
+the limitation and reproducer. GPU and higher-order IFT derivatives remain untested.

@@ -2,6 +2,8 @@ module ImplicitLayersForwardDiffExt
 using ImplicitLayers: ImplicitLayers as IL
 using DifferentiationInterface: DifferentiationInterface as DI
 using ForwardDiff: ForwardDiff as FD
+IL._solve_metadata(x::AbstractVector{<:FD.Dual}) = FD.value.(x)
+
 function IL._implicit_state(ad, f, u::AbstractVector{FD.Dual{Tag,V,N}}, like, offs, st, z0) where {Tag,V,N}
     primal = FD.value.(u)
     z, rep, stnew = IL._implicit_state(ad, f, primal, like, offs, st, FD.value.(z0))

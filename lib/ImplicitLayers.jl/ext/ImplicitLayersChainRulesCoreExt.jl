@@ -3,6 +3,15 @@ using ImplicitLayers: ImplicitLayers as IL
 using DifferentiationInterface: DifferentiationInterface as DI
 using ChainRulesCore: ChainRulesCore as CRC
 using LinearAlgebra: lu
+function CRC.rrule(::typeof(IL._joint_vector), x, θ)
+    u = IL._joint_vector(x, θ)
+    function back(du)
+        du = CRC.unthunk(du)
+        du isa CRC.AbstractZero && return (CRC.NoTangent(), du, du)
+        return CRC.NoTangent(), du[1:length(x)], du[(length(x)+1):end]
+    end
+    return u, back
+end
 function CRC.rrule(::typeof(IL._implicit_state), ad, f, u, like, offs, st, z0)
     out = IL._implicit_state(ad, f, u, like, offs, st, z0)
     z = out[1]

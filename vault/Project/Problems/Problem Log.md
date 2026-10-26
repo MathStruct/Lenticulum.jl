@@ -7,7 +7,7 @@ Implementation notes also record what their code does not do; a problem gets an 
 | # | Problem | Status |
 |---|---|---|
 | [[LP-001 The vault build uses GNU-only sed]] | `sed -i` in `docs/site/build.sh` fails on macOS (issue #9) | closed (2026-10-23; CI guard 2026-10-25) |
-| [[LP-002 The Jacobian side is not implemented]] | Optional DI parameter Jacobians/gradients, graph parameter steps, DEQ IFT rules and Euler/RK4 AD implemented; SciML adjoints and matrix-free solves remain | implemented for first-order CPU paths (2026-10-26); follow-ups open |
+| [[LP-002 The Jacobian side is not implemented]] | Optional DI parameter Jacobians/gradients, graph parameter steps, DEQ IFT rules cover ForwardDiff/Zygote/Enzyme/Mooncake; Euler/RK4 covers the same backends with runtime activity for Enzyme; SciML adjoints and matrix-free solves remain | implemented for first-order CPU paths (2026-10-26); follow-ups open |
 | [[LP-003 SquaredNorm does not check its metric]] | An indefinite `M` makes the Jensen gap negative, silently | closed (2026-10-25, reopened once) |
 | [[LP-004 link_sources rewrites unrelated notes]] | The bibliography linker drops links in three unrelated notes | closed (`review-argon`, 2026-10-23) |
 | [[LP-005 Learning the noise covariance]] | `Q` and `Σ` are fixed; learning them needs a positive-definite parametrisation and the full free energy | open, later |

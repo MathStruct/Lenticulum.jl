@@ -7,7 +7,7 @@ function _game_point(b, dim, who)
     return v
 end
 
-function _incoming_point_messages(f, π, y)
+@inline function _incoming_point_messages(f, π, y)
     cs = LenticulumCore.channels(f)
     _game_point(π, LenticulumCore.channelspace(cs[1]), "factor game prior")
     _game_point(y, LenticulumCore.channelspace(cs[2]), "factor game observation")

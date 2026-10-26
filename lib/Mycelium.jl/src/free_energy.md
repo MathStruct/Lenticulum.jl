@@ -142,7 +142,9 @@ Related: [[Bethe Free Energy]], [[Scalar and Multivariate Energy]], [[energy]], 
 energy and assembles a tree matching `ps`. Nonlearnable factors get zero subtrees.
 Messages are snapshotted outside AD. Bethe variable corrections are constant under
 this partial derivative, so the result is the parameter gradient of their sum plus
-those corrections. The same cavity edge validation as reporting applies.
+those corrections. The same cavity edge validation as reporting applies. Each learnable factor's
+`_check_factor_ad` backend validation runs before its local derivative, so Enzyme
+Euler/RK4 reports a missing runtime-activity setting before entering AD (see [[neuralode]]).
 
 `parameter_step(store, g, ps, st; ad, rule, optimiser_state)` evaluates the rule's
 look-ahead parameters, obtains that gradient, and applies `rule_put` to each learnable
@@ -157,4 +159,5 @@ appropriate for the model. It neither differentiates through inference schedules
 implements per-edge couplings, parameter sharing, stochastic gradient estimators or
 frozen cotangent semantics. `ImplicitLayers/test/parameter_ad.jl` learns the coefficient
 of a discrete scalar ODE to its known generating value and checks the Nesterov
-look-ahead formula, with ForwardDiff and Zygote.
+look-ahead formula, with ForwardDiff, Zygote, Mooncake and runtime-activity Enzyme
+in Reverse and Forward modes.

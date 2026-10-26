@@ -1,4 +1,7 @@
 [deps]
+Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
+Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
 Lenticulum = "80a378fd-9e01-49e8-9939-ada6559002ad"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"

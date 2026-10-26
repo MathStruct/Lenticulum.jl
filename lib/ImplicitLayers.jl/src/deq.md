@@ -115,8 +115,9 @@ first factor in the project with genuinely two parametrised halves. Not done.
 
 `deq_sensitivity(f, x, zstar, ps, st; wrt=:x, ad=nothing)` defaults to central
 differences; `wrt=:ps` selects flattened parameters. Supplying an ADTypes backend
-uses DI residual derivatives. `solve_state(...; ad)` also has optional ChainRulesCore
-and ForwardDiff extensions implementing the IFT through the solved state; see [[solve]].
+uses DI residual derivatives. `solve_state(...; ad)` also has optional ChainRulesCore,
+ForwardDiff, EnzymeCore and Mooncake extensions implementing the IFT through the
+solved state; see [[solve]].
 Its incoming state is fixed throughout iterations and advanced once at the root.
 
 For $z^*=(I-W)^{-1}(Ux+b)$, a perturbation obeys
@@ -125,8 +126,8 @@ $$
 \delta z^*=(I-W)^{-1}(\delta W z^*+\delta Ux+\delta b).
 $$
 
-`test/parameter_ad.jl` checks this parameter Jacobian against ForwardDiff, Zygote and
-central differences, and checks a scalar loss on the solved state. `energy_gradient`
+`test/parameter_ad.jl` checks this parameter Jacobian against ForwardDiff, Zygote,
+Enzyme, Mooncake and central differences, and checks a scalar loss on the solved state. `energy_gradient`
 and `free_energy_gradient` instead score fixed incoming endpoints, so their DEQ
 parameter derivatives need no root solve. Graph `parameter_step` uses this latter
 objective with fixed messages; it does not backpropagate through message schedules.
@@ -176,7 +177,11 @@ Scoring an arbitrary point uses `energy`/`scalar_energy`, the pointwise level of
 [[L-ADR-0003 Pointwise energy and free energy are separate levels]], not a keyword on
 `free_energy`. Shared implementation and limitations: [[point_game]].
 
-Solved-state IFT AD currently accepts `AutoForwardDiff()` and `AutoZygote()`. Other
-solve backends are rejected explicitly, so they cannot silently differentiate the
-root iterations. Pass the backend to `solve_state` as well as the outer loss
-derivative. Core pointwise parameter derivatives have wider backend support.
+Solved-state IFT AD accepts `AutoForwardDiff()`, `AutoZygote()`, `AutoEnzyme()` and
+`AutoMooncake()`. Plain `AutoEnzyme()` works for these DEQ rules without runtime
+activity; the built-in ODE stage fold requires an explicit runtime-activity mode
+(see [[neuralode]]). Load DI, the backend and (for Enzyme/Mooncake) ForwardDiff; missing
+extensions and other solve backends are rejected before solving. Pass the backend to
+`solve_state` and the outer derivative. Enzyme outer closures that capture arrays
+need DI constant contexts or `function_annotation=Enzyme.Const`; see [[solve]] for
+the limitation and reproducer. GPU and higher-order IFT derivatives remain untested.

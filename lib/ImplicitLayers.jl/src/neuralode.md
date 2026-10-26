@@ -3,7 +3,7 @@
 > `NeuralODEFactor` exposes both endpoints of a numerical flow. Reverse integration
 > approximates the continuous inverse; discrete exactness depends on the integrator.
 
-> Sources: Hairer, Lubich, Wanner, *Geometric Numerical Integration*, 2nd ed., II.3 (adjoint and symmetric methods); code: `neuralode.jl`, `flow.jl`, `../examples/flow_roundtrip.jl`, `../test/roundtrip.jl`, `../test/sciml.jl`
+> Sources: Hairer, Lubich, Wanner, *Geometric Numerical Integration*, 2nd ed., II.3 (adjoint and symmetric methods); code: `neuralode.jl`, `flow.jl`, `../examples/flow_roundtrip.jl`, `../test/roundtrip.jl`, `../test/sciml.jl`, `../test/parameter_ad.jl`, `../ext/ImplicitLayersEnzymeCoreActivityExt.jl`
 >
 > Bibliography: [[Bibliography#^hairer2006geometric|Hairer et al. 2006]]
 >
@@ -222,7 +222,8 @@ Scoring arbitrary endpoints uses `energy`/`scalar_energy` (the pointwise level o
 The optional core DI extension differentiates built-in Euler/RK4 endpoint energies
 with user-selected backends. This is discretise-then-differentiate, including functional
 Lux state updates, not a continuous adjoint. `test/parameter_ad.jl` checks ForwardDiff,
-Zygote and FD against scalar linear dynamics: with $h=T/N$ and multiplier $P(ah)$,
+Zygote, Mooncake, runtime-activity Enzyme (Reverse and Forward) and FD against scalar
+linear dynamics: with $h=T/N$ and multiplier $P(ah)$,
 
 $$
 z_1=P(ah)^N z_0,\qquad D_a z_1=N h P(ah)^{N-1}P'(ah)z_0.
@@ -230,9 +231,45 @@ $$
 
 Euler has $P(q)=1+q$; RK4 has $P(q)=1+q+q^2/2+q^3/6+q^4/24$.
 Tests also compare AD and FD for state-dependent stage dynamics, and fit a known
-Euler parameter through the graph's summed local free energy using both backends.
+Euler parameter through the graph's summed local free energy using each AD backend.
 
 SciMLSensitivity for `SciMLIntegrator` remains a next step; no adjoint extension is
 claimed here. It needs explicit parameters in the ODE problem and a state policy for
 adaptive/rejected stages. `flow_logdet` still uses FD divergence and has no tested AD
-path. Enzyme, Mooncake, GPU and higher-order derivatives are untested in this package.
+path. GPU and higher-order derivatives remain untested. Mooncake coverage here is CPU
+endpoint differentiation for the built-in Euler/RK4 maps, including nonempty stage
+state and graph parameter steps. No SciML adjoint or divergence support is established
+by these tests.
+
+Enzyme needs **runtime activity** for these endpoint flows:
+
+```julia
+using Enzyme, ADTypes, DifferentiationInterface
+ad = AutoEnzyme(; mode = Enzyme.set_runtime_activity(Enzyme.Reverse))
+# Alternatively: AutoEnzyme(; mode = Enzyme.set_runtime_activity(Enzyme.Forward))
+J = energy_jacobian(f, z0, nothing, y, ps, st; wrt = :ps, ad)
+g = energy_gradient(f, z0, nothing, y, ps, st; ad)
+```
+
+The functional stage fold carries constant model/stage memory through an active
+computation. Static activity analysis cannot always distinguish that memory from
+active storage; without runtime activity the flow can raise
+`EnzymeRuntimeActivityError`. This is an activity configuration requirement, not an
+unsupported flow derivative. Enzyme's [runtime-activity documentation](https://enzyme.mit.edu/julia/stable/faq/#faq-runtime-activity)
+explains the memory checks enabled by this mode.
+
+The optional EnzymeCore activity extension checks `ad.mode` with
+`EnzymeCore.runtime_activity` (verified with EnzymeCore 0.8.26). Core's factor derivative
+entry points and Mycelium's graph gradient call `_check_factor_ad` before entering AD.
+For built-in Euler/RK4, a default or explicitly non-runtime mode raises an
+`ArgumentError` containing both configurations above. The check does not need
+ForwardDiff; the separate DEQ IFT extension still does. There are no custom `_flow`
+Enzyme rules: normal differentiation handles the stages. An arbitrary outer DI
+function bypasses these factor entry checks and must select runtime activity itself.
+
+`test/parameter_ad.jl` checks both Enzyme modes against the discrete closed forms for
+Euler/RK4 Jacobians, scalar energy and free-energy gradients, against finite differences
+for `ADCountingDynamics` with stage-dependent state, and in graph `parameter_step`
+learning with Nesterov look-ahead. It also verifies the configuration error. DEQ IFT
+and scored LuxFactor paths retain their passing plain `AutoEnzyme()` checks; they
+do not require this runtime-activity setting.

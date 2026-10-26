@@ -4,7 +4,7 @@
 > residual* solved for a different variable. That is the entire reason a DEQ is worth
 > expressing as a factor.
 
-> Sources: code: `solve.jl`
+> Sources: code: `solve.jl`, `deq.jl`, `../ext/ImplicitLayersEnzymeCoreExt.jl`, `../ext/ImplicitLayersMooncakeExt.jl`, `../test/parameter_ad.jl`
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
@@ -74,7 +74,7 @@ deserves emphasis:
 ### 4.1 Optional AD uses the implicit function theorem
 
 `fd_jacobian` remains a forward-difference reference. `deq_sensitivity(...; wrt=:ps,
-ad)` and the differentiable `solve_state(...; ad)` use the chosen DI backend instead.
+ad)` and the differentiable `solve_state(...; ad)` use optional DI derivatives instead.
 For a residual $r(z,u)=0$ they solve
 
 $$
@@ -91,14 +91,38 @@ solve report and returned Lux state are nondifferentiated bookkeeping.
 
 AD requires a converged root and a nonsingular residual Jacobian. A singular Jacobian
 means the IFT gives no local inverse; it does **not** prove nonuniqueness (for example
-$r(z)=z^3$ has a unique root and zero derivative there). The solve is dense: AD products
-remove parameter-Jacobian storage in the reverse rule, but the state Jacobian and its
-factorisation still cost quadratic storage and cubic factorisation work. A matrix-free
+$r(z)=z^3$ has a unique root and zero derivative there). The solve is dense: a reverse
+backend VJP in the ChainRules rule can avoid parameter-Jacobian storage, but the
+Enzyme/Mooncake rules use a dense ForwardDiff VJP. The state Jacobian and its
+factorisation cost quadratic storage and cubic factorisation work. A matrix-free
 Krylov version remains future work. These are first-order rules; higher derivatives
 through the primitive, the reverse `solve_input`, GPU and additional backends are untested.
 
-`test/parameter_ad.jl` checks ForwardDiff and Zygote against the linear-cell closed
-form and central differences, including a nonzero downstream scalar loss.
+The EnzymeCore extension provides native `EnzymeRules.forward`, `augmented_primal`
+and `reverse` rules on `_implicit_state`. DI's default `AutoEnzyme()` Jacobian uses
+batched forward mode; its scalar gradient uses reverse mode. The Mooncake extension
+registers a native reverse `rrule!!` with `@is_primitive`; it accumulates the joint
+vector cotangent in Mooncake's mutable forward data. Neither uses `@from_rrule`.
+Both extensions also require ForwardDiff to be loaded. They use `AutoForwardDiff()`
+through DI for the residual state Jacobian, JVPs and VJPs: these evaluate only
+`_joint_residual`, never the solve primitive. `deq_sensitivity` uses this same inner
+backend for Enzyme/Mooncake. ForwardDiff VJPs here form a dense residual Jacobian;
+this is a small-system reference, not a matrix-free implementation. The reverse
+rules factor the transposed state Jacobian once per primal solve.
+
+Only the joint vector is active. `_solve_metadata` makes the backend, model,
+parameter template, state and initial guess constant to Enzyme. The template supplies
+shapes, not parameter values. `_joint_vector` copies inputs and flattened parameters
+separately: tracing `vcat(constant_input, active_parameters)` merges their activities
+in Julia's copy loop and fails Enzyme's static activity analysis. ChainRules supplies
+the corresponding slicing pullback for this packing helper. Array parameter leaves
+are materialised before packing to avoid array/view union types. ForwardDiff strips
+duals from initial guesses even when only the initial guess is active.
+
+`test/parameter_ad.jl` checks all four backends against the linear-cell closed form
+and central differences, including active warm starts, a zero warm-start-only
+Jacobian and a nonzero downstream scalar loss. Nonlinear scalar parameters,
+nonempty Lux state, endpoint gradients and graph parameter steps have separate checks.
 
 ### 4.2 Broyden stores a dense inverse Jacobian
 
@@ -129,7 +153,52 @@ threading and has no AD rule.
 Related: [[deq]], [[flow]], [[neuralode]], [[The Equilibrium Family]],
 [[Backpropagation by the Implicit Function Theorem]], [[Branches and the Discriminant]]
 
-Solved-state IFT AD currently accepts `AutoForwardDiff()` and `AutoZygote()`. Other
-solve backends are rejected explicitly, so they cannot silently differentiate the
-root iterations. Pass the backend to `solve_state` as well as the outer loss
-derivative. Core pointwise parameter derivatives have wider backend support.
+Solved-state IFT AD accepts `AutoForwardDiff()`, `AutoZygote()`, `AutoEnzyme()` and
+`AutoMooncake()`. Plain `AutoEnzyme()` works for these DEQ rules without runtime
+activity; the built-in ODE stage fold requires an explicit runtime-activity mode
+(see [[neuralode]]). Other solve backends are rejected explicitly. Missing Enzyme/Mooncake
+extensions also raise an error before the solve; load DI, the backend and ForwardDiff.
+Pass the backend to `solve_state` as well as the outer derivative.
+
+For Enzyme outer functions that capture arrays, use DI constant contexts (as the tests
+do), or explicitly set `AutoEnzyme(function_annotation=Enzyme.Const)`. Automatic
+closure activity can raise `EnzymeMutabilityException` on this stack; it is outside
+the solve rule. This reproduces with the linear-cell fixture from `test/runtests.jl`:
+
+```julia
+using Enzyme, ADTypes, DifferentiationInterface, ForwardDiff
+function closure_probe(f, x, ps, st)
+    θ, off = LenticulumCore._flatten(ps), LenticulumCore.offset_tree(ps)
+    ad = AutoEnzyme()
+    loss = θ -> first(solve_state(f, x,
+        LenticulumCore._unflatten(θ, off, ps), st; ad))
+    DifferentiationInterface.jacobian(loss, ad, θ) # EnzymeMutabilityException
+end
+# f = DEQFactor(CELL, (x=2,z=2)); ps, st = LuxCore.setup(Xoshiro(3), f)
+# closure_probe(f, [0.7, -0.3], ps, st)
+```
+
+Validation including the runtime-activity flow follow-up (2026-10-26, Julia 1.13.1, CPU):
+`julia --project=<package> -e 'using Pkg; @time Pkg.test()'` passed with the following
+counts (sum of top-level test summaries) and `Pkg.test()` wall times:
+
+| Package | Passed | Time |
+|---|---:|---:|
+| ImplicitLayers | 995 | 255.1 s |
+| LenticulumCore | 316 | 46.8 s |
+| Mycelium | 494 | 11.2 s |
+
+The implicit environment resolved DI 0.7.21, Enzyme 0.13.216, EnzymeCore 0.8.26,
+Mooncake 0.5.65 and ForwardDiff 1.4.6. The solve tests also exercise explicitly
+selected Enzyme forward gradients and reverse Jacobians, besides DI's default modes.
+DEQ graph learning holds messages fixed; it differentiates endpoint residuals, not
+message schedules. Its final `solve_state` check is a primal validation of the learned
+parameter, separate from the solved-state derivative oracles.
+
+Both runtime-activity Enzyme modes pass the Euler/RK4 and ODE graph learning checks;
+plain `AutoEnzyme()` still passes DEQ and scored LuxFactor checks. The separate
+activity extension requires only DI and EnzymeCore. The vault build passes with
+246 HTML pages and no KaTeX errors; `julia --project=docs docs/make.jl` passes in
+435.9 s (including tutorial execution and the vault). It reports size warnings for
+the core API page and search index. Both builds use a disposable `QUARTZ_DIR` copy
+with its checkout/clean EXIT hook removed.

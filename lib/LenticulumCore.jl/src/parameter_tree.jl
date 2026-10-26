@@ -59,7 +59,8 @@ _unflatten(θ, offs, like) = _rebuild(θ, offs, like)
 _unflatten(θ, like) = _rebuild(θ, offset_tree(like), like)
 
 
-_flatten_active(x::AbstractArray{<:Number}) = vec(x)
+# Materialise views so concatenation does not merge array/view union activities.
+_flatten_active(x::AbstractArray{<:Number}) = vec(copy(x))
 _flatten_active(x::Number) = [x]
 function _flatten_active(x::Union{NamedTuple,Tuple})
     parts = map(_flatten_active, values(x))

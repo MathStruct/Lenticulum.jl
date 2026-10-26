@@ -17,6 +17,8 @@ be numeric scalars or arrays, with tuple/NamedTuple containers. Mixed numeric ty
 promote to one vector element type; empty containers are neutral, so they cannot
 widen Float32 parameters to Float64. The core tests check this case. `_flatten` allocates alongside the first array leaf,
 preserving VariationalDiffusion's device behaviour. `_flatten_active` uses functional
-concatenation when a DEQ solve is nested inside an outer reverse-mode tape; mutating
+concatenation when a DEQ solve is nested inside an outer reverse-mode tape. Array
+leaves are copied before concatenation so rebuilt views do not introduce array/view
+unions into Enzyme's type analysis; see `ImplicitLayers.jl/test/parameter_ad.jl`. Mutating
 `copyto!` during that flatten would break Zygote. GPU support for this nested solve path
 has not been tested. Core tree gradients and VD regression tests exercise the shared code.

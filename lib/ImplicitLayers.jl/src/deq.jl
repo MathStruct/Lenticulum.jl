@@ -164,7 +164,8 @@ initial guess can improve convergence and is not implemented (`deq.md` §4.4).
 
 The incoming Lux state is fixed throughout the iterations, then advanced once at the
 returned root. Supply an ADTypes backend to use the optional IFT solve rules (tested
-with ForwardDiff and Zygote). In this AD path a nonconverged solve throws; reports and
+with ForwardDiff, Zygote, Enzyme and Mooncake; the latter two also need ForwardDiff
+loaded). In this AD path a nonconverged solve throws; reports and
 returned state are bookkeeping without tangents. No AD rule is provided for `solve_input`.
 """
 function solve_state(f::DEQFactor, x, ps, st; z₀ = zeros(Float64, statedim(f)), ad = nothing)
@@ -179,6 +180,15 @@ function _solve_state(::Nothing, f, x, ps, st, z₀)
     return (z, rep, stnew)
 end
 _solve_state(ad, f, x, ps, st, z₀) = LenticulumCore._ad_error(ad)
+
+Base.@noinline _solve_metadata(x) = x
+function _joint_vector(x, θ)
+    u = similar(θ, promote_type(eltype(x), eltype(θ)), length(x) + length(θ))
+    copyto!(u, 1, x, 1, length(x))
+    copyto!(u, length(x) + 1, θ, 1, length(θ))
+    return u
+end
+_implicit_backend(ad) = ad
 
 # Primitive shared by the DI, ChainRules and ForwardDiff extensions. Its joint
 # variable contains input followed by flattened parameters; only the root is active.
@@ -235,10 +245,11 @@ selects inputs; `wrt=:ps` selects flattened parameters in the core tree order.
 With `ad=nothing`, use central differences; an ADTypes object uses the optional DI extension.
 The incoming state is fixed, and the root must have a nonsingular residual Jacobian.
 For differentiating a scalar loss through the root itself use `solve_state(...; ad)`;
-its weak ChainRulesCore/ForwardDiff rules avoid differentiating solver iterations.
+its weak AD rules avoid differentiating solver iterations.
 """
 function deq_sensitivity(f::DEQFactor, x, z★, ps, st; wrt = :x, ad = nothing)
     wrt in (:x, :ps) || throw(ArgumentError("deq_sensitivity wrt must be :x or :ps"))
+    ad = _implicit_backend(ad)
     Jz = LenticulumCore.energy_jacobian(f, x, nothing, z★, ps, st; wrt = :y, ad)
     Ju = LenticulumCore.energy_jacobian(f, x, nothing, z★, ps, st; wrt, ad)
     return -(Jz \ Ju)

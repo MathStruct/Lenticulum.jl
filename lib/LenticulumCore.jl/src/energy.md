@@ -243,7 +243,10 @@ provide an appropriate differentiable expectation/estimator; these APIs do not i
 Load `DifferentiationInterface` and the backend package, then pass an ADTypes object,
 for example `ad=AutoForwardDiff()` or `ad=AutoZygote()`. DI is a weak dependency;
 passing a backend without its extension gives a loading hint. Backend compatibility
-still depends on the model's operations. Core's `test/parameter_ad.jl` checks both
+still depends on the model's operations. `_check_factor_ad(ad, f)` is an optional
+compatibility hook called before tracing factor Jacobians and energy/free-energy
+gradients. ImplicitLayers uses it to require runtime activity for Enzyme Euler/RK4;
+see [[neuralode]] and its parameter AD tests. Core's `test/parameter_ad.jl` checks both
 backends, Enzyme and finite differences against linear residual Jacobians and quadratic gradients.
 The top-level `test/runtests.jl` also checks GaussianFactor's parameter Jacobian,
 precision-weighted gradient and Gauss–Newton metric against their closed forms.

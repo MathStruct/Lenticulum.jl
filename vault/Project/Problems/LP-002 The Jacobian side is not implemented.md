@@ -1,6 +1,6 @@
 #open-problem
 
-> **Status: implemented for first-order core derivatives, DEQ state solves and built-in ODE flows (2026-10-26); remaining scope below.** Related: [[energy]] §"Implementation difficulties" 6, [[Scalar and Multivariate Energy]] §6, [[L-ADR-0002 Energies are vectors, scalarised late]], [Fisher information metric (CT-ML wiki)](https://mathstruct.org/CategoryTheory-ML-Wiki/Fisher-Information-Metric).
+> **Status: first-order CPU DEQ IFT rules cover ForwardDiff, Zygote, Enzyme and Mooncake (2026-10-26); built-in Euler/RK4 AD covers those backends with runtime activity enabled for Enzyme; remaining scope below.** Related: [[energy]] §"Implementation difficulties" 6, [[Scalar and Multivariate Energy]] §6, [[L-ADR-0002 Energies are vectors, scalarised late]], [Fisher information metric (CT-ML wiki)](https://mathstruct.org/CategoryTheory-ML-Wiki/Fisher-Information-Metric).
 
 > Sources: original implementation; code: `lib/LenticulumCore.jl/src/energy.jl`, `lib/LenticulumCore.jl/test/parameter_ad.jl`, `lib/ImplicitLayers.jl/test/parameter_ad.jl`, `lib/Mycelium.jl/src/free_energy.jl`
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
@@ -48,17 +48,52 @@ opts into endpoint scoring while preserving the default zero-energy wrapper.
   derivatives against $(I-W)^{-1}(\delta Wz^*+\delta Ux+\delta b)$ and FD; a nonzero
   downstream solve loss; discrete linear Euler/RK4 derivatives; stateful stages; Lux
   scoring; graph convergence to a generating ODE coefficient; Nesterov look-ahead.
-  ForwardDiff and Zygote cover the implicit paths. Core also tests Enzyme; Mooncake is untested.
-  Solved-state IFT currently rejects Enzyme/Mooncake explicitly, avoiding iteration AD.
+  Native Enzyme forward/reverse rules and a Mooncake `rrule!!` now cover DEQ solves,
+  nonlinear IFT, active warm starts, fixed Lux state and DEQ graph parameter steps.
+  Both use DI with ForwardDiff for residual derivatives; no root iterations are traced.
+  Mooncake also covers Euler/RK4 and scored LuxFactor paths. Enzyme Euler/RK4 uses
+  runtime-activity Reverse or Forward mode: both pass the discrete Jacobian/gradient,
+  stateful-stage FD and graph learning checks. Factor derivative and graph training
+  entry points reject a mode without runtime activity and give the correct configuration;
+  no custom Enzyme flow rule intercepts differentiation. DEQ and scored LuxFactor
+  checks still use plain `AutoEnzyme()`. See [[neuralode]].
+  Outer Enzyme closures capturing arrays need constant contexts or
+  an explicit constant function annotation; see [[solve]].
 
-Remaining: matrix-free state solves/limited-memory Broyden; first-class SciMLSensitivity
+Remaining: automatic outer-closure annotations;
+matrix-free state solves/limited-memory Broyden; first-class SciMLSensitivity
 adjoints for `SciMLIntegrator`; AD through divergence and finite-difference metric
 localisation; higher-order IFT rules; reverse-input solve rules; GPU coverage for new
 implicit rules; differentiating graph inference schedules, per-edge couplings and
 stochastic inversion estimators. These limits do not prevent the tested endpoint
 objectives or custom scalar losses on `solve_state` from training.
 
-## Validation run (2026-10-26)
+## Runtime-activity flow follow-up validation (2026-10-26)
+
+Julia 1.13.1, CPU. The final runs use
+`julia --project=<package> -e 'using Pkg; @time Pkg.test()'`; counts sum the top-level
+test summaries. The existing DEQ/Mooncake rules are retained.
+
+| Package | Passed | Pkg.test wall time |
+|---|---:|---:|
+| ImplicitLayers | 995 | 255.1 s |
+| LenticulumCore | 316 | 46.8 s |
+| Mycelium | 494 | 11.2 s |
+
+Total: **1,805 passed**, no failures or errors. The implicit environment uses DI
+0.7.21, ADTypes 1.24.0, Enzyme 0.13.216, EnzymeCore 0.8.26, Mooncake 0.5.65 and
+ForwardDiff 1.4.6. Both runtime-activity Enzyme modes pass the Euler/RK4 closed-form
+Jacobians, energy/free-energy gradients, stateful-stage FD comparisons and ODE graph
+learning test. Non-runtime modes get the configuration hint; plain `AutoEnzyme()`
+continues to pass DEQ and scored LuxFactor checks.
+
+`docs/site/build.sh` passes with 246 HTML pages and no KaTeX errors.
+`julia --project=docs docs/make.jl` passes in 435.9 s, including executed tutorials
+and the vault, with size warnings for the core API page and search index. Both
+builds set `QUARTZ_DIR` to a disposable copy with its checkout/clean EXIT hook removed;
+the source checkout is untouched. `git diff --check` passes.
+
+## Initial validation run (2026-10-26, before the native Enzyme/Mooncake rules)
 
 Julia 1.13.1 on CPU. Each suite was run with
 `julia --project=<package> -e 'using Pkg; @time Pkg.test()'` (top level:

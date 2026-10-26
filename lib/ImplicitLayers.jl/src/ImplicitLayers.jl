@@ -51,8 +51,11 @@ such as `OrdinaryDiffEqTsit5` and `OrdinaryDiffEqSDIRK`. Explicit time reversal 
 approximates the inverse of the numerical forward map; symmetric fixed-step methods on
 matching grids can invert it up to nonlinear-solve tolerance. See [`inversion_kind`](@ref).
 Optional DI derivatives accept a user-selected ADTypes backend. DEQ solves have IFT
-rules in weak ChainRulesCore/ForwardDiff extensions; Euler/RK4 endpoint flows use
-functional state threading. ForwardDiff and Zygote are tested. SciMLSensitivity
+rules in weak ChainRulesCore, ForwardDiff, EnzymeCore and Mooncake extensions.
+Euler/RK4 endpoint flows use functional state threading with ForwardDiff, Zygote and
+Mooncake, plus Enzyme with runtime activity enabled, for example
+`AutoEnzyme(; mode = Enzyme.set_runtime_activity(Enzyme.Reverse))` (or Forward).
+Plain `AutoEnzyme()` remains supported for DEQ and scored LuxFactor paths. SciMLSensitivity
 gradients remain a next step. Base derivative tools use
 finite differences and remain small-system tools; see `solve.md` §4.
 
