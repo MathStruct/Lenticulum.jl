@@ -570,3 +570,47 @@ end
 include("overlap.jl")
 
 include("conformance.jl")
+
+@testset "log-potential pooling (LP-016)" begin
+    # Two unary ratio sites, log r1 = 1/2-x and log r2 = 2-2x.
+    a = LogPotentialBelief(x -> 0.5 - x[1])
+    b = LogPotentialBelief(x -> 2 - 2x[1])
+    particles = SampleBelief([[0.0], [1.0]], [0.5, 0.5])
+    ab = combine(a, b)
+    @test ab isa AbstractPotentialBelief
+    @test belief_logdensity(ab, [0.0]) ≈ 2.5
+    @test belief_logdensity(ab, [1.0]) ≈ -0.5
+    @test belief_logdensity(combine(b, a), [0.2]) ≈ belief_logdensity(ab, [0.2])
+    @test combine(particles, a).weights ≈ [exp(1)/(1+exp(1)), 1/(1+exp(1))]
+    @test combine(a, particles).weights ≈ combine(particles, a).weights
+    expected = [exp(3)/(1+exp(3)), 1/(1+exp(3))]
+    @test combine(particles, ab).weights ≈ expected
+    @test combine(combine(particles, a), b).weights ≈ expected
+    @test combine(combine(b, particles), a).weights ≈ expected
+    @test combine(SampleBelief(reshape([0.0, 1.0], 1, 2)), ab).weights ≈ expected
+    @test combine(SampleBelief([[0.0], [1.0]], [0.0, 1.0]), a).weights == [0.0, 1.0]
+    @test_throws ArgumentError combine(particles, LogPotentialBelief(x -> -Inf))
+    d, t = DiracBelief([1.0]), TrivialBelief()
+    for p in (a, ab)
+        @test combine(d, p) === d
+        @test combine(p, d) === d
+        @test combine(t, p) === p
+        @test combine(p, t) === p
+    end
+    g = Gaussian([0.0], ones(1, 1))
+    c = CategoricalBelief([0.5, 0.5])
+    labeled = CategoricalBelief([0.5, 0.5]; labels=[[0.0], [1.0]])
+    mix = MixtureBelief([g])
+    for unsupported in (g, c, labeled, mix)
+        @test_throws ArgumentError combine(unsupported, a)
+        @test_throws ArgumentError combine(a, unsupported)
+    end
+    @test belief_distance(nothing, nothing) == Inf
+    @test belief_distance(a, a) == 0
+    @test belief_distance(a, LogPotentialBelief(a.logφ)) == 0
+    @test belief_distance(a, b) == Inf
+    @test !can_damp(a, b)
+    @test damp(a, b, 0.3) === a
+    # Catch crossed-dispatch ambiguities with downstream belief methods loaded.
+    @test isempty(Test.detect_ambiguities(Mycelium, LenticulumCore; recursive=true))
+end

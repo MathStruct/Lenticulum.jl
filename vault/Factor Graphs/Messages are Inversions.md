@@ -106,10 +106,11 @@ honestly with the belief types that currently exist:
 | `DiracBelief` with anything | the Dirac ($\rho_{in} = \infty$ dominates) |
 | two `SampleBelief`s | **throws**, informatively |
 
-The last row is the gap. Pooling particle sets needs importance reweighting, which needs a
-`belief_logdensity` that no belief type implements yet. This is the same open question
-[[open_model]] §4 records: the belief representation is the one abstraction that cannot be
-designed before there is a working factor to design it against.
+Two clouds alone still have no product rule. A particle belief can be pooled with a density
+or a likelihood potential by importance weighting through `belief_logdensity`.
+`RatioFactor` emits a `LogPotentialBelief`; two such messages add log-potentials, and a
+particle prior is reweighted by their product once. Gaussian, categorical, and mixture
+products with an arbitrary potential are refused. See [[messages]] and [[ratio]].
 
 > [!note] The polarity-in-the-type observation is a typing result
 > [[The Type Discipline of a Factor Graph]] §2 takes the callout above as this vault's own

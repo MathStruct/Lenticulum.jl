@@ -7,7 +7,7 @@
 > density ratio or difference.
 >
 > Its relevance here is not GANs. It is that a density ratio is exactly what
-> [[messages]] §1 has been blocked on since the beginning.
+> [[messages]] now accepts for pooling with explicit particles (LP-016).
 
 > Sources: Mohamed & Lakshminarayanan, *Learning in Implicit Generative Models* ([arXiv:1610.03483](https://arxiv.org/pdf/1610.03483))
 >
@@ -89,35 +89,24 @@ a stub — it is the statement of the problem.
 
 Here is the connection that makes the paper worth a note in this vault rather than a citation.
 
-`messages.md` §1 has recorded the same blocker since the package began:
+The original sample-pooling gap in [[messages]] has a solution when one operand is a
+likelihood potential. Importance reweighting needs a **ratio**:
 
-> *Two `SampleBelief`s cannot be pooled without importance reweighting, which needs
-> `belief_logdensity`, which no belief type implements. **Every downstream feature — particle
-> messages, conjugate messages, moment matching — is blocked on this.***
+$$
+w_i^{\text{new}} \propto w_i^{\text{old}} r(x_i).
+$$
 
-And importance reweighting does not need densities. It needs a **ratio**:
+`RatioFactor` emits `LogPotentialBelief` for $\log r(x)$, independent of the cavity.
+`Mycelium.combine` applies it to particles; `Adversarial.reweight` and lens `invert`
+provide explicit posterior reweighting. The Gaussian oracle in `test/runtests.jl` checks
+reweighted moments, and `test/conformance.jl` checks a particle prior with two ratio factors
+on one variable against weights proportional to $w_i r_1(x_i)r_2(x_i)$.
 
-$$w_i \;\propto\; \frac{p(x_i)}{q(x_i)} \;=\; r(x_i)$$
-
-which is precisely what §3 estimates from samples alone. So:
-
-> [!important] The GAN discriminator is a candidate answer to this project's oldest gap
-> `Adversarial.reweight` performs the pooling. The test suite draws 20 000 samples from
-> $q=\mathcal{N}(0,4)$, reweights by the exact ratio against $p=\mathcal{N}(0.5,1)$, and
-> recovers $p$'s mean and variance. The operation works.
-
-It is still not `Mycelium.combine`, for two reasons recorded in [[ratio]] §4:
-
-1. **Quality is unreported.** `effective_sample_size` can collapse to a handful of particles
-   with no error raised, and a `combine` that silently degenerates is worse than one that
-   throws.
-2. **Reweighting is not idempotent.** Applying the same ratio twice squares the weights, and
-   the test suite asserts this moves the answer *away* from $p$. [[messages]] §2 requires
-   `combine` to be associative and commutative; a ratio-based one is neither unless the caller
-   tracks which ratios have already been applied — bookkeeping the belief type cannot do.
-
-Both are surmountable and neither is surmounted. But the direction is now clear, and it did
-not come from the message-passing literature.
+Mycelium warns on severe ESS collapse; explicit `reweight` callers can inspect
+`effective_sample_size`. Applying the same ratio twice squares it, which is the product of
+repeated evidence. The older version of this note incorrectly inferred failure of
+associativity and commutativity from lack of idempotence. Two particle clouds still cannot
+be pooled without a density or potential supplied by one side.
 
 ## 6. What it costs
 

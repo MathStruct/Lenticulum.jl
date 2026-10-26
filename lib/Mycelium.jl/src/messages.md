@@ -2,6 +2,7 @@
 
 > The message store keeps both directions on every edge. Pooling and public
 > overlap rules support categorical and mixture beliefs, with explicit exclusions.
+> Likelihood potentials add log-densities and reweight explicit particles.
 
 > Sources: code: `messages.jl`, `gaussian.jl`, `../test/overlap.jl`
 >
@@ -33,7 +34,7 @@ The second was **not** in the design; the test suite found it. See [[Mycelium]] 
 
 ## Implementation difficulties
 
-### 1. `combine` is deliberately partial (the main gap, now mostly closed)
+### 1. `combine` is deliberately partial (sample–potential pooling is resolved)
 
 | case | result |
 |---|---|
@@ -43,7 +44,10 @@ The second was **not** in the design; the test suite found it. See [[Mycelium]] 
 | `DiracBelief` with anything | the Dirac |
 | `CategoricalBelief` with `CategoricalBelief` | elementwise product, renormalised; disjoint supports throw |
 | `SampleBelief` with a belief that has `belief_logdensity` | the samples, reweighted (warns if the effective sample size collapses) |
-| `MixtureBelief` with anything | componentwise products, weights scaled by each overlap (`combine_with_overlap` rules: categorical here, Gaussian in Mycelium’s `gaussian.jl`) |
+| potential with potential | `LogPotentialBelief` whose log-density is the sum |
+| `SampleBelief` with a potential | importance reweighting via `belief_logdensity`, without resampling |
+| Gaussian, categorical (with or without labels), or mixture with a potential | throws: no exact arbitrary-callable product rule; supply particles or a richer potential type |
+| `MixtureBelief` with another supported belief | componentwise products, weights scaled by each overlap (`combine_with_overlap` rules: categorical here, Gaussian in Mycelium’s `gaussian.jl`) |
 | two `SampleBelief`s | throws: neither has a density |
 | anything else | throws informatively |
 
@@ -113,37 +117,29 @@ methods stay, for payloads that are not `AbstractBelief`s at all.
 > *pooled* is.
 
 Caught by [[The Linear Gaussian Chain]] and by the two-factor model in `Lenticulum`'s test
-suite, not by this package's own tests: `Mycelium`'s tests use `DiracBelief` and
-`TrivialBelief` only, and every one of those pairs has an explicit method. **A package whose
+suite, not by this package's own tests at the time: those tests used `DiracBelief` and
+`TrivialBelief` only, and every one of those pairs had an explicit method. The current
+suite also checks structured beliefs, particle weighting, and callable potentials. **A package whose
 central operation is "combine two beliefs" cannot test that operation with one belief type.**
 
 ### 1c. A density RATIO is enough, and a classifier estimates one
 
-The blocker above is stated as needing `belief_logdensity`. It does not — importance
-reweighting needs only a **ratio** $p(x)/q(x)$, and Mohamed & Lakshminarayanan's identity says
-the logit of an optimal classifier separating $p$ from $q$ *is* $\log p - \log q$, estimated
-from samples alone with neither density.
+The oldest sample-pooling blocker is resolved when one operand supplies a potential.
+`Adversarial.RatioFactor` emits `LogPotentialBelief(x -> log r(x))`; the existing
+`belief_logdensity` reweighting path applies it to a particle cavity. Two such messages
+add their log-potentials. No density of the particle cloud is required, and no density
+estimator is invented for two clouds.
 
-`Adversarial.RatioFactor` implements it and `Adversarial.reweight` performs the pooling; the
-test suite recovers a Gaussian's moments by reweighting samples of a wider one. So the
-operation exists. It is still not wired into `combine`, for two reasons:
+Mycelium reports severe ESS collapse. Reapplying the same evidence multiplies it twice;
+products are not idempotent, and this does not violate associativity or commutativity.
+`test/runtests.jl` checks both orders and parenthesisations for two ratio potentials on
+one particle variable, including matrix and vector-of-vectors particles. Adversarial's
+`test/conformance.jl` checks the same algebra through a graph with two RatioFactors.
 
-1. its **quality is unreported** — `effective_sample_size` can collapse to a handful of
-   particles with nothing raised, and a silently degenerating `combine` is worse than one that
-   throws;
-2. it is **not idempotent** — reweighting twice by the same ratio squares the weights, so the
-   operation violates §2 below unless the caller tracks which ratios have been applied.
-
-And there is a stronger version. In a GAN the comparison distribution $q$ is the generator and
-unknown, so a ratio is all you get. In **noise-contrastive estimation** $q$ is *chosen*, so
-
-$$\log p(x) = \operatorname{logit} D^\ast(x) + \log q(x)$$
-
-and you recover the normalised log-density — which is `belief_logdensity` itself, not a
-special-cased substitute for it. See [[Training Energy-Based Models]] §2.2.
-
-Recorded here because this file has named the gap since the beginning and these are the first
-concrete routes around it. See [[Implicit Generative Models]] §5 and [[ratio]] §4.
+An arbitrary callable does not specify an exact Gaussian or mixture posterior. This
+implementation also refuses categorical products, including labeled ones, rather than
+assuming how labels map to evaluation points. Richer likelihood subtypes can supply
+those rules later.
 
 ### 1d. Stated as a typing problem
 
@@ -175,8 +171,9 @@ dominance rule is only associative because Dirac-vs-Dirac throws on disagreement
 belief type whose combination is order-sensitive (a moment-matched Gaussian projection, say)
 and `marginal` silently becomes order-dependent.
 
-There is no test for associativity because there is nothing yet to test it on. When a second
-non-trivial belief type lands, that test must land with it.
+The LP-016 tests check particle/potential associativity and commutativity against explicit
+normalised weights; these are algebraic checks on the finite support, not guarantees about
+importance-sampling accuracy.
 
 ### 3. `belief_distance` returns `Inf`, not `0`, for unknown pairs
 
@@ -184,16 +181,19 @@ Deliberate. An unverifiable residual makes [[passing|`propagate!`]] run to `maxs
 report that convergence could not be checked. Returning `0` would be more convenient and would
 produce silent false "converged" reports. A wasted sweep is much cheaper than a wrong answer.
 
-### 4. Damping is often a silent no-op
+`LogPotentialBelief` returns distance zero only when the two wrapped callables are identical
+(`===`), and `Inf` otherwise. Other potential subtypes retain the conservative fallback.
+This does not attempt to recognise functions equal up to a constant, and assumes captured
+mutable data is not changed while a message is in use.
 
-`damp` falls back to returning the new message unchanged when `can_damp` is false, which is the
-case for everything except numeric-payload Diracs. A caller passing `damping = 0.3` to
-[[passing|`propagate!`]] on a graph of particle beliefs gets no damping at all.
+### 4. Damping is often a no-op
 
-`can_damp` exists so this is *inspectable*, and `ConvergenceReport.reason` mentions it — but it
-is not currently checked automatically, so the report can say "hit maxsweeps" without saying
-"and your damping did nothing". A pre-flight check in `propagate!` would be a genuine
-improvement.
+`damp` returns the new message unchanged when `can_damp` is false. This includes potentials:
+normalisation is unknown, so a convex mixture has no chosen interpretation. Schedules can
+inspect `can_damp`, but currently do not report unsupported damping automatically. Earlier
+notes overstated that reporting. Numeric Diracs, categorical
+beliefs on the same support, samples on identical particles, Gaussians, and mixtures with
+matching components have their existing damping rules.
 
 ### 5. `Vector{Any}` for the store
 

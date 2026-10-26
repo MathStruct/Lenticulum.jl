@@ -10,12 +10,8 @@
 # GANs work, and it is why this file matters to Lenticulum for a reason that has nothing to do
 # with generating images:
 #
-#     `messages.md` §1 records that the package's main gap is `combine` for particle beliefs,
-#     which needs densities, which no sample-based belief has. A log-density-RATIO is exactly
-#     what importance reweighting needs, and a classifier estimates one without either density.
-#
-# So the GAN's discriminator is a candidate answer to this project's oldest recorded blocker.
-# See `ratio.md` §4 and `Implicit Generative Models.md` §5.
+# A log ratio is also a likelihood potential. RatioFactor emits that potential; Mycelium
+# applies it once when pooling with particles. `invert` and `reweight` return the posterior.
 # ---------------------------------------------------------------------------
 
 """
@@ -112,9 +108,9 @@ Importance-reweight a particle set by the estimated ratio:
 ``w_i \\propto w_i^{\\text{old}}\\, r(x_i)``.
 
 If `b`'s particles are drawn from ``q`` and ``r = p/q``, the result is a weighted particle
-approximation of ``p``. **This is the operation `messages.md` §1 says is missing** — pooling
-a sample-based belief with another distribution — performed by the one object in the graph
-that knows the ratio.
+approximation of ``p``. This explicit posterior operation consumes the cavity; it is
+not the outgoing likelihood message. `Mycelium.combine(b, potential)` performs the same
+weight update for a potential emitted by this factor, with an ESS warning if it degenerates.
 
 Weights are normalised and computed in log space (a shift by the maximum before
 exponentiating), because raw ratios overflow for any interesting `p`/`q` pair.
@@ -156,9 +152,8 @@ end
 
 Ranges from 1 (one particle carries everything — the answer is a point estimate wearing a
 distribution's clothes) to `n` (uniform). **Report it or the reweighting means nothing**, and
-it is the honest reason a ratio-based `combine` is not simply dropped into
-`Mycelium.combine`: the operation is defined but its quality is not, and a `combine` that
-silently degenerates is worse than one that throws.
+`Mycelium.combine` reports a warning on severe weight concentration; explicit `reweight`
+callers can inspect this diagnostic themselves.
 """
 function effective_sample_size(b::LenticulumCore.SampleBelief)
     b.weights === nothing && return float(length(_points(b)))
@@ -240,17 +235,14 @@ parameters, which `lens.md` says is the structural reason a factor cannot be a L
 `RatioFactor` is the first factor in the project where that description is literally true —
 the discriminator is trained separately from whatever produced the samples.
 
-> [!warning] The prior is consumed, so this is a posterior
-> A unary factor has no other channel to read, so the only thing to reweight is the incoming
-> belief — which makes the message a posterior rather than a likelihood, and double-counts on
-> a variable of degree > 1. The same wall the diffusion and DEQ factors hit, for the same
-> reason: there is nothing to divide out of a neural network. See `ratio.md` §6.
+The prior is consumed, so this operation returns a posterior. `likelihood_message` instead
+returns the ratio potential without consuming the prior or a target-channel input.
 """
 function LenticulumCore.invert(
     lens::LenticulumCore.BayesianLens{<:RatioModel,<:LenticulumCore.AmortisedInversion},
     π, inputs, ps, st,
 )
-    return _score(lens.model.factor, something(_get(inputs, lens.model.factor.channel), π), ps, st)
+    return _score(lens.model.factor, π, ps, st)
 end
 
 _score(f::RatioFactor, b::LenticulumCore.SampleBelief, ps, st) = reweight(f, b, ps, st)
@@ -265,15 +257,28 @@ _score(f::RatioFactor, b, ps, st) = throw(ArgumentError(
 """
     Mycelium.factor_message(f::RatioFactor, target, polarity, inputs, prior, ps, st)
 
-The reweighted belief on `f`'s single channel. Falls back to the `prior` when no message has
-arrived — which for a unary factor is the normal case, since its only neighbour is its target.
+The likelihood potential `x ↦ r(x)`, represented by `LogPotentialBelief`.
+Neither `prior` nor `inputs` is read. Network parameters and state are captured for
+independent log-density evaluations; returned evaluation states are discarded, so message
+construction does not run the network or update its state. Use inference-mode network state
+when evaluation must be deterministic.
 """
 function Mycelium.factor_message(
     f::RatioFactor, target::Symbol, polarity, inputs, prior, ps, st
 )
     target === f.channel || throw(ArgumentError(
         "channel :$target is not the channel of this RatioFactor (has :$(f.channel))"))
-    return _score(f, something(_get(inputs, f.channel), prior), ps, st)
+    return (_ratio_potential(f, ps, st), st)
+end
+
+_ratio_potential(f::RatioFactor, ps, st) =
+    LenticulumCore.LogPotentialBelief(x -> first(logratio(f, _vec(x), ps, st)))
+
+function LenticulumCore.likelihood_message(
+    lens::LenticulumCore.BayesianLens{<:RatioModel,<:LenticulumCore.AmortisedInversion},
+    π, inputs, ps, st,
+)
+    return (_ratio_potential(lens.model.factor, ps, st), st)
 end
 
 Mycelium.uses_cavity(::RatioFactor) = true
@@ -281,12 +286,15 @@ Mycelium.uses_cavity(::RatioFactor) = true
 """
     Mycelium.local_free_energy(f::RatioFactor, msgs, ps, st)
 
-``\\mathbb{E}_{b}[-\\log r(x)]`` under the incoming particle set — a Monte-Carlo estimate of
-``\\mathrm{KL}(q\\,\\|\\,p)`` when `r` is well fitted.
+The energy contribution ``\\mathbb{E}_{b_f}[-\\log r(x)]``, where
+``b_f \\propto r\\,\\mu`` and `msgs` contains incoming variable → factor cavity messages `μ`.
+For particles this is a self-normalised importance estimate under the reweighted cavity,
+not an expectation under the original proposal `q` and hence not generally `KL(q || p)`.
 
-This is the number a GAN's generator descends, and the sign is worth dwelling on: the
-*discriminator* ascends the same quantity. A Bethe free energy has one sign, so the graph can
-express half of a GAN. See `GANs as Two Factors.md` §4.
+No particle entropy is subtracted: a finite cloud has no Lebesgue density (LP-006).
+This is the Bethe energy contribution only, not a complete continuous Bethe free energy
+or the Definition 20 particle game free energy. Point priors retain the zero-entropy
+convention. An absent or trivial cavity contributes zero; other representations are refused.
 """
 function Mycelium.local_free_energy(f::RatioFactor, msgs, ps, st)
     b = _get(msgs, f.channel)
@@ -294,24 +302,28 @@ function Mycelium.local_free_energy(f::RatioFactor, msgs, ps, st)
         ℓ, st = logratio(f, _vec(b.value), ps, st)
         return (-ℓ, st)
     end
-    b isa LenticulumCore.SampleBelief || return (0.0, st)
-    w = _weights(b)
-    acc = 0.0
+    (b === nothing || b isa LenticulumCore.TrivialBelief) && return (0.0, st)
+    b isa LenticulumCore.SampleBelief || throw(ArgumentError(
+        "RatioFactor local energy requires a DiracBelief or SampleBelief cavity; got $(typeof(b))"))
     pts = _points(b)
+    # Reuse the same logits for normalisation and energy; do not score a second time
+    # with a changed network state. Zero posterior mass contributes zero, even at log r=-Inf.
+    logits = Vector{Float64}(undef, length(pts))
     for i in eachindex(pts)
-        ℓ, st = logratio(f, pts[i], ps, st)
-        acc += w[i] * (-ℓ)
+        logits[i], st = logratio(f, pts[i], ps, st)
     end
+    w = _normalise_logweights(log.(_weights(b)) .+ logits)
+    acc = sum(w[i] == 0 ? 0.0 : -w[i] * logits[i] for i in eachindex(pts))
     return (acc, st)
 end
 
-# For a point prior reweighting leaves the point fixed. The finite incoming-particle
-# average used by local_free_energy is not the posterior expectation of Definition 20.
+# Point priors retain the zero-entropy convention. For particles the local energy
+# expectation exists, but a Definition 20 entropy needs an explicit reference measure.
 function LenticulumCore.free_energy(f::RatioFactor, π::LenticulumCore.DiracBelief, y, ps, st)
     return Mycelium.local_free_energy(f, NamedTuple{(f.channel,)}((π,)), ps, st)
 end
 LenticulumCore.entropy(::RatioFactor, π::LenticulumCore.DiracBelief, y, ps, st) = (0.0, st)
 for op in (:free_energy, :entropy)
     @eval LenticulumCore.$op(::RatioFactor, π, y, ps, st) = throw(ArgumentError(
-        "RatioFactor game quantities require a Dirac prior; incoming-particle averages are not posterior free energies"))
+        "RatioFactor game quantities require a Dirac prior; particle entropy needs an explicit reference measure (LP-006)"))
 end

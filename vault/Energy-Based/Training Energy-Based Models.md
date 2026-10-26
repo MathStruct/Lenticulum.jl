@@ -72,17 +72,15 @@ and you have the *normalised* log-density, partition function included. That is 
 trick, and it changes what `RatioFactor` is worth:
 
 > [!important] `RatioFactor` with a known noise distribution is `belief_logdensity`
-> [[messages]] §1 has recorded since the beginning that the package's main gap is `combine`
-> for particle beliefs, which needs `belief_logdensity`, which nothing implements.
+> `RatioFactor` now emits a `LogPotentialBelief` for $\log r(x)$, and Mycelium can
+> pool it with explicit particles by importance weighting ([[ratio]], LP-016).
+> With known $\log q(x)$, adding it to the log ratio gives a density potential for
+> $p$ rather than the ratio potential $p/q$. These are different messages: their
+> products with a cavity have different meanings.
 >
-> [[Implicit Generative Models]] §5 got as far as: a *ratio* is enough for importance
-> reweighting. NCE goes one step further — with $q$ known you get the *density*, which is what
-> `messages.md` actually asked for, and it unlocks the generic path rather than a special-cased
-> reweighting.
->
-> The code change is small: `RatioFactor` already computes the logit; it needs a field
-> holding $\log q$ and a method adding the two. What it does **not** have is any way to train
-> the classifier, which is the real work.
+> Two particle clouds still have no product rule without a density or potential.
+> RatioFactor supplies scoring and explicit posterior reweighting; it does not train
+> the classifier. The identity above requires the optimal equal-prior discriminator.
 
 ## 3. Du & Mordatch: composition is the factor graph
 

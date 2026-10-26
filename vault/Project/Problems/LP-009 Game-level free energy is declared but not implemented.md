@@ -40,8 +40,9 @@ checks in `lib/AlgebraicFactors.jl/test/polynomial.jl` ([[polynomial]]).
   conditioned on a fixed Dirac draw `π` with `nsamples=1` with `nsamples=1`, without resampling. Particle entropy is not supplied;
   unsupported game domains throw `ArgumentError`.
 - RatioFactor: with a Dirac prior, reweighting preserves the point, so energy is `-logratio`
-  and entropy zero. Particle game priors throw: the local incoming-cloud expectation is
-  different from the posterior expectation, demonstrated independently in LP-016.
+  and entropy zero. Particle game priors still throw because no entropy reference measure
+  has been chosen (LP-006). LP-016 now supplies an extrinsic likelihood potential and
+  averages the graph energy contribution under the reweighted factor belief.
 - PluckerFactor: trivially extendable forward point game, zero energy/entropy for named Dirac
   input observations. Its existing direct message path passes the common checker without a
   lens. Nonpoint game observations throw. No inverse fibre law is supplied.

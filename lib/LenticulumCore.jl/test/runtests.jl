@@ -360,3 +360,14 @@ LenticulumCore.isunidirectional(::LazyPolarityFactor{N}) where {N} = N == 1
     @test hasnopolarity(CouplingGuardFactor(:x))  # existing list-based defaults
     @test !isunidirectional(CouplingGuardFactor(:x))
 end
+
+@testset "likelihood potential representation" begin
+    logφ = x -> 0.5 - x
+    b = LogPotentialBelief(logφ)
+    @test b isa AbstractPotentialBelief
+    @test b isa AbstractBelief
+    @test !isproper(b)
+    @test b.logφ === logφ
+    @test !applicable(belief_mean, b)
+    @test !applicable(belief_cov, b)
+end

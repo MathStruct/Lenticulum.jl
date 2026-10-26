@@ -92,9 +92,13 @@ AlgebraicFactors homotopy extension use this public rule.
 
 ## Known gaps
 
-- `combine` is partial: sample reweighting needs the other belief's density, and two sample
-  beliefs cannot be pooled directly. Gaussian, categorical and supported mixture products
-  have explicit rules.
+- `combine` is partial: particles can be reweighted by a density or an
+  `AbstractPotentialBelief`. `LogPotentialBelief` wraps a callable log-density; two
+  potentials combine by adding log-densities. Two particle clouds still cannot be pooled
+  directly. Gaussian, categorical, and mixture products with an arbitrary potential throw
+  rather than resample; structured belief pairs retain their explicit rules.
+- Potential distances compare callable identity (otherwise `Inf`); damping potentials is
+  an inspectable no-op through `can_damp`.
 - No parameter sharing between factor nodes, so weight tying is not expressible.
 - Loopy message passing has no convergence guarantees, and `report.converged` means the
   *messages* stopped moving, not that the answer is right.

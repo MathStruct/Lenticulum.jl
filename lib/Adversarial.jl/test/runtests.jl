@@ -248,11 +248,10 @@ end
                        input = x -> [x[1]])            # score the first coordinate only
     dps, dst = LuxCore.setup(RNG, disc)
     scored, _ = Mycelium.factor_message(disc, :x, nothing, (x = xb,), TrivialBelief(), dps, dst)
-    @test scored isa SampleBelief
-    @test effective_sample_size(scored) < length(xb.samples)
+    @test scored isa AbstractPotentialBelief
+    @test effective_sample_size(combine(xb, scored)) < length(xb.samples)
 
-    # and the factor's free energy is an estimate of KL(q‖p) — the number G descends and D
-    # ascends. The graph can hold the number; it cannot hold the two signs.
+    # The graph energy is averaged under the ratio-reweighted factor belief.
     F, _ = Mycelium.local_free_energy(disc, (x = xb,), dps, dst)
     @test F isa Real && isfinite(F)
 

@@ -1,5 +1,8 @@
 #implementation
 
+> Open-model results retain latent values; belief types include probability representations
+> and improper callable likelihood potentials.
+
 > Sources: code: `open_model.jl`
 >
 > Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
@@ -40,7 +43,7 @@ unit space).
 
 The paper's own closing discussion says it: computing $c_*\pi$ is marginalisation, "similarly
 expensive to computing exact inversions", and the recommended remedy is belief propagation
-or variational message passing. That is `Mycelium.jl`, and it does not exist yet.
+or variational message passing. Mycelium supplies the graph and message-passing machinery.
 
 The consequence for this file is that `pushforward` must be allowed to lie. It returns an
 `AbstractBelief` with no promise of exactness, and `isexact` (defaulting to `false`) is how
@@ -69,13 +72,11 @@ would be wrong, which is why it is called out here.
 
 ### 4. Belief representations are the real open question
 
-`DiracBelief` / `SampleBelief` / `TrivialBelief` are placeholders that name the important
-degenerate cases. What is missing is the exponential-family / natural-parameter
-representation that [Definition 27](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients) gestures at when it
-mentions the Fisher information metric, and that Khan & Rue's Bayesian learning rule
-requires. That representation is where the natural gradient becomes cheap, so it is not
-optional in the long run — but designing it before there is one working factor would be
-guessing.
+`GaussianBelief` now supplies canonical parameters, categorical beliefs store normalised
+log-probabilities, and samples provide a finite approximation. `AbstractPotentialBelief`
+separates likelihoods known only through a log-density from normalised probability
+representations. There is no shared exponential-family or natural-gradient interface for
+all these types; adding one still needs a declared family and projection contract.
 
 ### Weight normalization
 
@@ -94,3 +95,16 @@ for anything that compares densities across models it is not. Currently unmarked
 `isnormalised(m)` trait will be needed before any model-comparison feature.
 
 Related: [[Open Models and Latent Channels]], [Composition of Open Models](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model#composition-without-integration-definition-4), [[lens]], [[Inversions and Bayesian Lenses]]
+
+## Likelihood potentials (LP-016)
+
+`AbstractPotentialBelief <: AbstractBelief` represents an improper, unnormalised likelihood
+known through `Mycelium.belief_logdensity(b, x)`, up to an additive constant independent of
+$x$. `LogPotentialBelief(logφ)` wraps the callable `logφ(x)`. It is intended as a
+factor→variable message, with no sampling, mean, covariance, or entropy contract.
+
+The abstract type leaves room for likelihoods with gradients, a parametric form, or batched
+evaluation. Those types provide their own log-density and can add exact product rules.
+Mycelium sums log-potentials and reweights explicit particles; it refuses arbitrary
+parametric products. Core construction tests check the representation; Mycelium and
+Adversarial tests check pooling and target exclusion against closed forms.

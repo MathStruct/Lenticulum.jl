@@ -228,8 +228,8 @@ and says so. For loopy graphs there is no guarantee: see `Loopy Message Passing.
 
 `damping ∈ [0,1)` mixes each new message with the previous one
 (`0` = none, higher = more inertia), the standard remedy for oscillation. Damping only
-applies where [`can_damp`](@ref) is true; elsewhere it is silently a no-op, which is recorded
-in the report's `reason`.
+applies where [`can_damp`](@ref) is true; elsewhere it is a no-op. Callers can inspect
+`can_damp`; the convergence report does not automatically record unsupported damping.
 """
 function propagate!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, ps, st;
                     maxsweeps::Int = 100, tol::Real = 1e-8, damping::Real = 0.0)

@@ -21,5 +21,5 @@ Implementation notes also record what their code does not do; a problem gets an 
 | [[LP-013 Defects found in the review of master]] | Codex's review of master: entropy type, iterated nonlinear site, predictive fit, mixture weights, prior cotangent, a rate claim | closed (2026-10-25) |
 | [[LP-014 Emitting edges drop the cavity message from the free energy]] | Cavity-reading factors now reject `Emitting()` edges during graph free-energy evaluation (`uses_cavity`, option 2); marginals unchanged | closed (2026-10-26) |
 | [[LP-015 Momentum had the wrong sign on its decay]] | `Momentum` and `Nesterov` used $s' = -\gamma s - \eta\bar p$ instead of $\gamma s - \eta\bar p$ (Cruttwell et al. Example 3.16) | closed (2026-10-25) |
-| [[LP-016 RatioFactor emits a particle posterior as a likelihood]] | Particle message includes its prior and accepts target inputs; incoming and posterior energy expectations differ; three broken tests | open (2026-10-26) |
+| [[LP-016 RatioFactor emits a particle posterior as a likelihood]] | Extrinsic log-potential messages, particle pooling once, target exclusion and posterior energy contribution checked | resolved (2026-10-26) |
 | [[LP-017 DiffusionFactor omits supported polarities]] | Complete capped support, lazy traversal and joint unobserved-block inversion | resolved (2026-10-26) |

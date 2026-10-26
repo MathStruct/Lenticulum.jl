@@ -68,6 +68,7 @@ export energy, entropy, scalar_energy, energy_jacobian, gauss_newton_metric
 
 # --- Models and lenses -----------------------------------------------------
 export OpenModelResult, DiracBelief, SampleBelief, TrivialBelief
+export AbstractPotentialBelief, LogPotentialBelief
 export CategoricalBelief, MixtureBelief, probabilities, bernoulli, mixture_weights
 export GaussianBelief, Gaussian, uninformative, isuninformative, belief_mean, belief_cov, isproper, logpartition
 export as_distribution, as_belief

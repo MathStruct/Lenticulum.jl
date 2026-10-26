@@ -52,10 +52,12 @@ collapse onto a handful of samples with no error raised.
 **Train adversarially.** The generator descends the same quantity the discriminator ascends,
 and the graph's free energy has one sign. You can express a GAN's *wiring* here — and it is a
 DAG, since every factor is unidirectional — but not its objective. `local_free_energy` on a
-`RatioFactor` computes the number both players care about; nothing acts on it.
+`RatioFactor` reports a factor-belief energy contribution, which generally differs from
+the generator's expectation under its original sample distribution.
 
-Also: no training of either network, and `reweight` is not idempotent (applying the same ratio
-twice squares the weights), so it is not wired into `Mycelium.combine`.
+There is no training of either network. Mycelium pools RatioFactor's likelihood potential
+with particles; explicit `reweight` applies the same weight update. Applying the same
+ratio twice squares it, as expected when evidence is multiplied twice.
 
 ## API
 
@@ -70,13 +72,16 @@ Modules = [Adversarial]
 ## Point games and conformance
 
 Generator has zero game free energy/entropy for a Dirac latent observation `y`.
-NoiseSource has the same pair for a fixed Dirac draw `π` with `nsamples=1` with `nsamples=1`, without sampling again.
+NoiseSource has the same pair for a fixed Dirac draw `π` with `nsamples=1`, without sampling again.
 Ratio has game energy `-logratio` and zero entropy for a Dirac prior. Other belief domains
-throw `ArgumentError`; particle entropy is unavailable and Ratio's graph average uses the
-incoming cloud rather than the reweighted posterior.
+throw `ArgumentError`; particle game entropy still needs an explicit reference measure (LP-006).
 
-`test/conformance.jl` uses the shared default lens checker at each unary/forward polarity,
-with a fixed noise draw, affine generator and analytic Gaussian log ratio. All supported
-point games check option-1 graph agreement. Ratio's particle message still includes its
-prior and accepts target inputs: three broken assertions record these failures (LP-016).
-No particle BP conformance is claimed.
+Ratio emits a `LogPotentialBelief` for `logratio(x)` without reading the cavity or target
+input. `invert` and explicit `reweight` return the posterior. Mycelium pools the potential
+with particles by importance weighting. The graph energy contribution averages `-logratio`
+under that reweighted cavity; it does not include a continuous particle entropy or generally
+equal `KL(q || p)`.
+
+`test/conformance.jl` checks the point games, the two-particle Gaussian ratio closed form,
+target exclusion, and a particle prior with two RatioFactors on one variable. Both insertion
+orders give weights proportional to the prior times each ratio once (LP-016).

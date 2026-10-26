@@ -10,7 +10,8 @@
 ## Graph free-energy edge directions
 
 `RatioFactor` declares `Mycelium.uses_cavity == true`: its local free energy reads the
-incoming point or weighted particles to average the negative log ratio.
+incoming point or particles, forms the factor belief $b_f \propto r\mu$, and averages
+the negative log ratio under that belief.
 Graph free-energy evaluation rejects an attached `Emitting()` edge with `ArgumentError`;
 use `Bidirectional()` if that channel must also send messages. Missing messages on permitted
 edges retain their existing local behaviour. See [[free_energy]] and
@@ -51,31 +52,27 @@ model.
 
 ## 4. The payoff: a route around the `combine` gap
 
-`messages.md` §1 records the package's oldest blocker:
+`RatioFactor` emits a `LogPotentialBelief` with log-potential $\log r(x)$.
+`Mycelium.combine` pools it with a particle cavity by
 
-> *Two `SampleBelief`s cannot be pooled without importance reweighting, which needs
-> `belief_logdensity`, which no belief type implements. **Every downstream feature — particle
-> messages, conjugate messages, moment matching — is blocked on this.***
+$$
+w_i \propto w_i^{\text{cavity}} r(x_i).
+$$
 
-A log-density **ratio** is exactly what importance reweighting needs, and a classifier
-estimates one **without either density**. `reweight` is the operation:
+`reweight` is the explicit posterior operation, also used by `invert`. The likelihood
+message consumes neither the cavity nor target-channel inputs. Two ratio messages pool by
+adding log-potentials; pooling their product with a particle prior applies each ratio once.
+`test/conformance.jl` checks both factor insertion orders on a one-variable graph.
 
-$$w_i \;\propto\; w_i^{\text{old}}\, r(x_i)$$
+Weights are normalised in log space with a max-shift. Mycelium warns on severe ESS collapse;
+callers of `reweight` can inspect `effective_sample_size` themselves. Applying the same
+ratio twice squares it, as multiplying the same evidence twice should. This does not
+violate associativity or commutativity of products. The previous note confused those laws
+with idempotence and incorrectly used that as a reason to keep ratios out of `combine`.
 
-computed in log space with a max-shift, because raw ratios overflow for any interesting pair.
-The test suite draws 20 000 samples from $q = \mathcal{N}(0,4)$, reweights by the exact ratio
-against $p = \mathcal{N}(0.5,1)$, and recovers $p$'s mean and variance.
-
-> [!important] So why is this not `Mycelium.combine`?
-> Because the operation is defined but its **quality is not**. `effective_sample_size` can
-> collapse to a handful of particles without any error being raised, and a `combine` that
-> silently degenerates is worse than one that throws.
->
-> There is a second reason, and it is sharper: **reweighting is not idempotent.** Applying the
-> same ratio twice squares the weights, and the test suite asserts that doing so moves the
-> answer *away* from $p$. `combine` is expected to be associative and commutative
-> (`messages.md` §2); a ratio-based one is neither, unless the caller tracks which ratios have
-> already been applied. That is bookkeeping the belief type cannot do on its own.
+The Gaussian oracle in `test/runtests.jl` draws 20 000 samples from
+$q = \mathcal{N}(0,4)$, reweights by the exact ratio against
+$p = \mathcal{N}(0.5,1)$, and checks the resulting mean and variance.
 
 ## 5. The energy is estimated, and nothing accounts for that
 
@@ -98,21 +95,28 @@ moments, ESS and generator pushforward share that convention with vector-of-vect
 the tests compare both representations. Zero prior weights stay zero under importance
 reweighting: their log weights are `-Inf`, not a positive epsilon floor.
 
-### 6.1 The message is a posterior
+### 6.1 Likelihood messages and posterior inversion
 
-A unary factor has no channel other than its target, so the only thing to reweight is the
-incoming belief — making the message a posterior rather than a likelihood, double-counting on
-a variable of degree > 1. The same wall [[deq]] §4.2 and `VariationalDiffusion`'s `factor.md`
-§5.1 hit, for the same reason: nothing can be divided out of a neural network.
+The former particle message included its cavity (LP-016). The outgoing message now carries
+only a log-potential; `likelihood_message` and `factor_message` do not read the cavity or
+any target-channel input. `invert` reweights its prior and preserves Dirac clamps.
 
-### 6.2 Only `SampleBelief` can be reweighted
+The callable captures the supplied parameters and network state. Message construction does
+not evaluate the network. Each density evaluation starts with that captured state and drops
+the returned state; use inference-mode state for deterministic scoring. Captured mutable
+parameters and state must not be mutated while a message is in use. Callable identity is
+only a conservative convergence check, not a numerical comparison of potentials.
 
-`_score` throws on a parametric belief, because reweighting needs particles. A `GaussianBelief`
-would have to be sampled first. (`GaussianBelief` is in `LenticulumCore` now, so this package
-can see one; sampling it is the missing step.)
+### 6.2 Parametric products need more structure
 
-A `DiracBelief` passes through unchanged, matching `combine`'s rule that a hard clamp
-dominates.
+`invert` supports `SampleBelief`, Dirac clamps, and absent/trivial priors (the latter retain
+an uninformative posterior placeholder). Parametric beliefs throw. Mycelium likewise refuses
+Gaussian, categorical, and mixture products with an arbitrary log-potential rather than
+silently sampling or projecting. Even categorical labels need an explicit interpretation as
+points; this implementation does not assume one.
+
+`AbstractPotentialBelief` leaves room for richer likelihood types carrying gradients,
+parametric structure, or batched evaluation and their own exact product rules.
 
 ### 6.3 No training, so `logratio` is only as good as what you hand it
 
@@ -124,19 +128,22 @@ output can be checked.
 Related: [[generator]], [[Adversarial]], [[Implicit Generative Models]],
 [[GANs as Two Factors]], [[messages]]
 
-## Point game and remaining particle defect (2026-10-26)
+## Graph energy and game quantities (LP-016)
 
-For a Dirac prior, reweighting leaves the point fixed, so the game has energy `-logratio`
-and zero point-belief entropy in `ScalarEnergySpace`. These methods agree with
-`local_free_energy` using that prior on the unary channel (option 1). Other priors throw
-`ArgumentError`: the incoming-particle average used by the graph is not the expectation
-under the reweighted posterior, and no posterior entropy is supplied.
+`messages_into` in Mycelium supplies incoming variable→factor messages $\mu$, not variable
+marginals. For the unary ratio factor the factor belief is $b_f \propto r\mu$, so
+`local_free_energy` returns $\mathbb{E}_{b_f}[-\log r]$. It reweights the incoming particles
+before taking that expectation. This is the Bethe **energy contribution** only: particle
+clouds have no Lebesgue density, and no differential entropy is subtracted (LP-006).
+It is not a complete continuous Bethe free energy or generally $\mathrm{KL}(q\|p)$.
+An absent/trivial cavity retains the zero contribution; unsupported cavity types throw.
 
-`test/conformance.jl` runs the shared default lens checker at the unary polarity with a
-point prior. Its independent oracle is `log(p/q) = 1/2 - x` for unit-variance Gaussians
-centred at zero and one. This is point-prior conformance only. A two-particle example also
-checks exact reweighted probabilities and retains three `@test_broken` assertions: pooling
-the emitted posterior with the prior throws, target inputs override the supposedly
-extrinsic message, and incoming/posterior energy expectations differ. See
-[[LP-016 RatioFactor emits a particle posterior as a likelihood]]. No particle likelihood
-representation was invented to hide this defect.
+For a Dirac prior the point remains fixed. The game methods retain energy `-logratio` and
+the zero point-entropy convention. Particle game methods still throw `ArgumentError`:
+no reference measure for their entropy has been chosen.
+
+`test/conformance.jl` checks $p=N(0,1)$, $q=N(1,1)$, hence $\log r=1/2-x$.
+On equally weighted particles $\{0,1\}$ the posterior weights are
+$\{e/(1+e),1/(1+e)\}$ and the energy contribution is $1/(1+e)-1/2$.
+The outgoing potential, target exclusion, posterior inversion, and graph marginal with two
+ratio factors are tested separately. The three former LP-016 broken assertions now pass.

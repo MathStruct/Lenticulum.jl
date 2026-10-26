@@ -36,8 +36,9 @@ Two slots `LenticulumCore` declared and nobody had ever occupied:
   throws on them — `messages.md` §1's oldest recorded blocker, no longer hypothetical.
 - **And a discriminator is a route around it.** A log-density *ratio* is what importance
   reweighting needs, and a classifier estimates one without either density. `reweight` does
-  it; [[ratio]] §4 says why it is still not `combine` (not idempotent, and quality
-  unreported).
+  explicit posterior reweighting. RatioFactor emits a likelihood potential that
+  `Mycelium.combine` applies to particles, with an ESS warning on severe concentration.
+  Two ratio messages add log-potentials; [[ratio]] §4 records the closed-form tests.
 - **An estimated energy is a new kind of inexactness.** `Bayesian Lens.md` licenses inexact
   *inversions*; this factor has an inexact *energy*, and the free energy has no term for it
   because the free energy is the thing being estimated. [[ratio]] §5.

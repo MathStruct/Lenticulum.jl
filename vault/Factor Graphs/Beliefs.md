@@ -2,11 +2,10 @@
 
 > A **belief** is what travels along an edge of a factor graph and what sits on a variable:
 > a representation of a probability distribution, or of a likelihood, over that variable's
-> space. Four concrete types exist, each with its own note: [[Trivial Belief]], [[Dirac Belief]],
-> [[Gaussian Belief]] and [[Sample Belief]]. Their algebra is one operation, `combine`, the product
-> of densities.
+> space. Concrete representations include points, particles, Gaussians, finite distributions,
+> mixtures, and callable likelihood potentials. Their pooling operation is `combine`.
 
-> Sources: original to this vault (design); code: `open_model.jl` (`AbstractBelief`, `DiracBelief`, `SampleBelief`, `TrivialBelief`), `beliefs.jl` (`GaussianBelief`), `messages.jl` (`combine`, `belief_distance`, `belief_logdensity`)
+> Sources: original to this vault (design); code: `open_model.jl` (`AbstractBelief`, `DiracBelief`, `SampleBelief`, `TrivialBelief`), `gaussian_belief.jl` (`GaussianBelief`), `messages.jl` (`combine`, `belief_distance`, `belief_logdensity`)
 >
 > Theory (CT-ML wiki): [Giry Monad](https://mathstruct.org/CategoryTheory-ML-Wiki/Giry-Monad) · [Markov Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Markov-Category) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Distribution Monad](https://mathstruct.org/CategoryTheory-ML-Wiki/Distribution-Monad)
 
@@ -24,16 +23,21 @@ every factor package can emit one); their message rules are in `Mycelium`. The d
 factors now return Laplace Gaussians on request; the equilibrium factors still return points
 ([[DEQ as a Relation]] §5).
 
-## The six types
+## The belief representations
 
 | type | represents | where | `isexact` | typical source |
 |---|---|---|---|---|
 | [[Trivial Belief]] | no information (the unit) | `LenticulumCore` | true | an unset message, the prior of a prior |
 | [[Dirac Belief]] | a point mass, $\delta_x$ | `LenticulumCore` | true | an observation (a hard clamp), a point inference |
-| [[Gaussian Belief]] | $\mathcal N$ in canonical form $(\eta, \Lambda)$, possibly improper | `Lenticulum` | false (the default) | Gaussian factors, Laplace approximations |
+| [[Gaussian Belief]] | $\mathcal N$ in canonical form $(\eta, \Lambda)$, possibly improper | `LenticulumCore` | false (the default) | Gaussian factors, Laplace approximations |
 | [[Sample Belief]] | a weighted particle set | `LenticulumCore` | false | samplers, the fallback |
 | [[Categorical Belief]] | a distribution over finitely many states | `LenticulumCore` | false | discrete variables, switches, Bernoulli events |
 | [[Mixture Belief]] | a weighted sum of beliefs of one type | `LenticulumCore` | false | several answers at once (branches), Gaussian-sum filters |
+
+`AbstractPotentialBelief` names improper likelihoods known through a log-density up to an
+additive constant. `LogPotentialBelief(logφ)` wraps the callable; it has no sampling, mean,
+or entropy contract. Richer subtypes can expose gradients, a parametric form, or batched
+evaluation. RatioFactor emits this type; see [[ratio]] and [[open_model]].
 
 `isexact` says whether a computed belief is exact rather than approximate. It defaults to
 `false` so that silence never implies exactness; only the Trivial and Dirac beliefs override it.
@@ -53,8 +57,10 @@ implements exactly the cases it can do honestly:
 | two equal Diracs | that Dirac | idempotent |
 | two different Diracs | **error** | contradictory hard clamps are a modelling error |
 | Categorical with Categorical | elementwise product, renormalised | exact and total; **error** only for disjoint supports |
-| Sample with anything that has a density | the samples, **reweighted** by that density | importance reweighting |
-| Mixture with anything | each component pooled, weights scaled by its overlap | exact for Gaussian and categorical components |
+| Sample with a density or potential | the samples, **reweighted** by that density | importance reweighting |
+| Potential with potential | sum log-potentials | product, without normalisation |
+| Gaussian, categorical, or mixture with an arbitrary potential | **error** | an exact product needs more structure |
+| Mixture with supported beliefs | each component pooled, weights scaled by its overlap | exact for Gaussian and categorical components |
 | two Sample beliefs | **error** | neither has a density; project one first (`moment_match`) |
 | anything else | **error** | no rule for the pair |
 
@@ -69,7 +75,7 @@ the catalogue (addition, logic, projection, tempering) is in [[Belief Algebra]].
 - `belief_distance(a, b)` — how much a message changed, the convergence test of
   `propagate!`. It returns `Inf` whenever it cannot tell, so that a schedule never declares
   convergence it cannot verify.
-- `belief_logdensity(b, x)` — $\log p_b(x)$; for Gaussians, categoricals (``x`` a state or label) and mixtures.
+- `belief_logdensity(b, x)` — $\log p_b(x)$; for Gaussians, categoricals (`x` a state or label), mixtures, and callable log-potentials.
 - `moment_match(b)` — the Gaussian with the same mean and covariance (samples, Gaussian mixtures); the projection step of expectation propagation.
 - `reduce_mixture(m; max_components)` — merge Gaussian mixture components, preserving mean and covariance.
 - `variable_entropy(b)` — the entropy in the [[Bethe Free Energy]]; for Gaussians it can be negative.

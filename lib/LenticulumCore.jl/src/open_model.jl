@@ -84,6 +84,30 @@ ispure(::AbstractOpenModel) = false
 # --- Minimal concrete beliefs ---------------------------------------------
 
 """
+    AbstractPotentialBelief <: AbstractBelief
+
+An improper, unnormalised likelihood potential known through its log-density.
+`Mycelium.belief_logdensity(b, x)` is defined up to an additive constant independent of `x`.
+Intended for factor → variable messages: a potential has no sampling, mean, or entropy
+contract. Richer likelihood types may subtype this abstraction to provide gradients,
+parametric structure, or batched evaluation.
+"""
+abstract type AbstractPotentialBelief <: AbstractBelief end
+isproper(::AbstractPotentialBelief) = false
+
+"""
+    LogPotentialBelief(logφ)
+
+A likelihood potential wrapping a callable `logφ(x)`. Evaluation through
+`Mycelium.belief_logdensity` returns this log-potential, up to an additive constant.
+This is an improper message, with no sampling, mean, or entropy; see
+[`AbstractPotentialBelief`](@ref) for the extension contract.
+"""
+struct LogPotentialBelief{F} <: AbstractPotentialBelief
+    logφ::F
+end
+
+"""
     DiracBelief(value)
 
 A point mass. What a clamped (observed) channel carries, and what a

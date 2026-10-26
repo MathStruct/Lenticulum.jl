@@ -33,13 +33,13 @@ the default lens path.
 | NeuralODEFactor | default lens; both directions | same game gap, independently tested with a constant flow |
 | NoiseSource | default lens; unary | injected fixed one-particle draw; game conditioned on a Dirac draw, no cloud entropy |
 | GeneratorFactor | default lens; forward | Dirac latent fixture, no distributional entropy |
-| RatioFactor | default lens; unary | Dirac prior only; particle contract fails, [[LP-016 RatioFactor emits a particle posterior as a likelihood]] |
+| RatioFactor | default lens; unary | Dirac game; particle likelihood, posterior energy contribution, and two-ratio graph checked (LP-016 resolved) |
 | DiffusionFactor | default lens; all five accepted binary role assignments and unary | fixed-node Gaussian/point fixtures and joint messages; game gap remains; LP-017 enumeration/joint inversion resolved; other backends not certified |
 | PluckerFactor | direct; sole forward polarity at r=2,4 | trivially extended Dirac-input game; no assembled lens/inverse fibre/distributional entropy |
 | PolynomialFactor | unchanged independent per-polarity tests | no local/game free energy or normalised joint branch model; full checker inapplicable |
 | ComposedFactor, TensorFactor | checker inapplicable; Core tests verify scope | parameter/energy-space containers without channels, inversion or evaluated game laws |
 
-**Remaining:** full particle conformance for Ratio (LP-016); DEQ/ODE and diffusion game
+**Remaining:** particle game entropy for Ratio (LP-006/009); DEQ/ODE and diffusion game
 contracts (LP-009); normalized branch/game laws for Polynomial; wired container semantics.
 The rollout tests do not establish conformance for arbitrary belief families or diffusion
 backends. No placeholders or new approximation have been introduced for these gaps.
@@ -105,3 +105,8 @@ Companion notes: Mycelium `factors.md`; ImplicitLayers `luxfactor.md`, `deq.md`,
 `algebraicfactors.md`, `lenticulumcore.md`, `variationaldiffusion/factors.md`.
 Project records: LP-008, LP-009, new LP-016 and LP-017, Problem Log, and L-SPEC-001.
 The existing LP-011 implementation is preserved.
+
+LP-016 subsequently replaced its three broken assertions with passing checks: RatioFactor
+now emits a log-potential, excludes target inputs, and averages its graph energy under the
+reweighted cavity. The two-ratio graph test checks multiplication once per factor. Particle
+game entropy remains unsupported; the earlier counts above record the pre-LP-016 run.

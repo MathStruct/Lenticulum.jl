@@ -93,7 +93,7 @@ Here is what the graph cannot hold.
 
 The Bethe free energy ([[Bethe Free Energy]]) is a **single scalar**:
 
-$$F \;=\; \sum_c F_c \;+\; \sum_v (1-d_v)H_v$$
+$$F \;=\; \sum_c F_c \;+\; \sum_v (d_v-1)H_v$$
 
 and every learnable factor descends $\partial F/\partial\theta_c$. A GAN is a **minimax**:
 
@@ -103,10 +103,15 @@ $\theta$ descends, $\varphi$ **ascends**, on the same quantity. There is no assi
 per-factor free energies whose common descent reproduces that, because descent has one
 direction and the game has two.
 
-`lib/Adversarial.jl` therefore computes the number and cannot act on it:
-`local_free_energy(::RatioFactor, …)` returns $\mathbb{E}_b[-\log r]$, an estimate of
-$\mathrm{KL}(q\|p)$ — the quantity $G$ descends and $D$ ascends. **The graph holds the number;
-it cannot hold the two signs.**
+`RatioFactor` emits the likelihood potential $r(x)$, with `logratio(x)` as its
+log-density. Pooling with a particle prior applies the ratio once; inversion and explicit
+`reweight` return that posterior. See [[ratio]] and the LP-016 conformance tests.
+
+The graph's `local_free_energy(::RatioFactor, …)` returns
+$\mathbb{E}_{b_f}[-\log r]$ under $b_f \propto r\mu$, with $\mu$ the incoming cavity.
+This is the factor's energy contribution, with no continuous particle entropy. It generally
+differs from $\mathbb{E}_q[-\log r]=\mathrm{KL}(q\|p)$ and does not implement a GAN
+training objective. The graph also has no minimax training update.
 
 ### The minimal patch, and why it is not enough
 

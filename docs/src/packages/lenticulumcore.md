@@ -16,10 +16,16 @@ writing a new factor, this is the interface you implement.
 |---|---|
 | the factor interface | `AbstractLenticulumFactor`, `channels`, `supports_polarity`, `assemble` |
 | channels and roles | `Channel`, `Polarity`, `Observed`, `Unobserved`, `Latent` |
-| beliefs | `AbstractBelief`, `DiracBelief`, `SampleBelief`, `TrivialBelief` |
+| beliefs | `AbstractBelief`, `DiracBelief`, `SampleBelief`, `TrivialBelief`, `AbstractPotentialBelief`, `LogPotentialBelief` |
 | the forward half | `AbstractOpenModel`, `forward`, `pushforward`, `logdensity` |
 | the backward half | `BayesianLens`, `invert`, and the inversion kinds below |
 | energies | `AbstractEnergySpace`, `GradedEnergy`, scalarisations |
+
+`LogPotentialBelief(logφ)` is an improper likelihood message with log-density `logφ(x)`
+up to an additive constant. It has no sampling, mean, or entropy contract. Mycelium pools
+it with particles by importance weighting, and with another potential by adding log-densities.
+Richer likelihoods can subtype `AbstractPotentialBelief` to expose gradients, parametric
+structure, or batched evaluation.
 
 ## Writing a factor
 

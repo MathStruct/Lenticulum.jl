@@ -69,11 +69,17 @@ provides:
 | two agreeing `DiracBelief`s | that Dirac | idempotent |
 | two disagreeing `DiracBelief`s | **throws** | two hard clamps in contradiction is a modelling error, not a numerical one |
 | `DiracBelief` with anything | the Dirac | a hard clamp dominates (`ρ_in = Inf`, per `Channels and Polarity.md`) |
+| two Gaussians | Gaussian | add canonical parameters |
+| two categoricals on the same support | categorical | normalised pointwise product |
+| `SampleBelief` with a density or potential | reweighted samples | importance weighting, no resampling |
+| potential with potential | `LogPotentialBelief` | sum the log-potentials |
+| Gaussian, categorical, or mixture with a potential | **throws** | arbitrary callables have no exact parametric product rule |
+| mixture with other supported beliefs | mixture | component products weighted by overlaps |
+| two `SampleBelief`s | **throws** | neither supplies a density |
 
-Everything else throws an informative error. In particular **two `SampleBelief`s cannot be
-combined without densities** — that needs importance reweighting, which needs
-[`belief_logdensity`](@ref), which no belief type currently implements. See `messages.md`
-§"Implementation difficulties".
+Everything else throws an informative error. Potential products with categorical beliefs
+are also refused: converting labels or state indices into points needs an explicit model.
+See `messages.md` §"Implementation difficulties".
 """
 function combine end
 
@@ -119,6 +125,9 @@ _same_support(a, b) = length(a.logp) == length(b.logp) && a.labels == b.labels
 #     overlap (needs a `combine_with_overlap` rule for the component types);
 # and otherwise refused, informatively.
 function combine(a::LenticulumCore.AbstractBelief, b::LenticulumCore.AbstractBelief)
+    if a isa LenticulumCore.AbstractPotentialBelief && b isa LenticulumCore.AbstractPotentialBelief
+        return LenticulumCore.LogPotentialBelief(x -> belief_logdensity(a, x) + belief_logdensity(b, x))
+    end
     if a isa LenticulumCore.SampleBelief && b isa LenticulumCore.SampleBelief
         throw(ArgumentError(
             "cannot pool two sample beliefs: neither has a density to reweight the other by. \
@@ -126,6 +135,12 @@ function combine(a::LenticulumCore.AbstractBelief, b::LenticulumCore.AbstractBel
     end
     a isa LenticulumCore.SampleBelief && return _reweight(a, b)
     b isa LenticulumCore.SampleBelief && return _reweight(b, a)
+    if a isa LenticulumCore.AbstractPotentialBelief || b isa LenticulumCore.AbstractPotentialBelief
+        throw(ArgumentError(
+            "cannot pool $(typeof(a)) with $(typeof(b)) exactly: an arbitrary log-potential " *
+            "has no parametric product rule. Supply explicit particles (SampleBelief) to " *
+            "reweight, or implement an exact combine rule for a richer potential type; no resampling is performed."))
+    end
     (a isa LenticulumCore.MixtureBelief || b isa LenticulumCore.MixtureBelief) && return _mixture_product(a, b)
     throw(ArgumentError(
         "no `combine` method for $(typeof(a)) and $(typeof(b)). Implement `Mycelium.combine` for \
@@ -196,10 +211,14 @@ end
     belief_logdensity(b::AbstractBelief, x) -> Real
 
 ``\\log p_b(x)``. Implemented for categorical beliefs (``x`` a state index or label), mixtures
-(the log of the weighted sum of the components' densities) and, in `Lenticulum`, Gaussians.
+(the log of the weighted sum of the components' densities), Gaussians, and callable potentials.
 Any belief with a density can reweight a `SampleBelief` in [`combine`](@ref).
+For `AbstractPotentialBelief` this is a log-potential defined up to an additive constant,
+not a normalised probability density. Subtypes provide their own evaluation method.
 """
 function belief_logdensity end
+
+belief_logdensity(b::LenticulumCore.LogPotentialBelief, x) = b.logφ(x)
 
 function belief_logdensity(b::LenticulumCore.CategoricalBelief, x)
     if b.labels === nothing
@@ -226,10 +245,20 @@ Implemented for the cases that can be answered without densities; otherwise retu
 which makes the scheduler run to `maxiters` rather than silently declaring convergence it
 cannot verify. **Erring towards `Inf` is deliberate**: a false "converged" is much worse
 than a wasted sweep.
+
+`LogPotentialBelief` pairs have distance zero only when their wrapped callables are
+identical (`===`), and `Inf` otherwise. This assumes captured mutable data is unchanged;
+no numerical comparison up to additive constants is attempted. Other potential subtypes
+retain the conservative `Inf` fallback.
 """
 belief_distance(::Nothing, ::Any) = Inf
 belief_distance(::Any, ::Nothing) = Inf
+belief_distance(::Nothing, ::Nothing) = Inf
 belief_distance(::LenticulumCore.TrivialBelief, ::LenticulumCore.TrivialBelief) = 0.0
+# Callable identity certifies only an unchanged evaluator, not equivalence up to a constant.
+# Other potential pairs keep the conservative AbstractBelief fallback (Inf).
+belief_distance(a::LenticulumCore.LogPotentialBelief, b::LenticulumCore.LogPotentialBelief) =
+    a.logφ === b.logφ ? 0.0 : Inf
 function belief_distance(a::LenticulumCore.DiracBelief, b::LenticulumCore.DiracBelief)
     return a.value == b.value ? 0.0 : _numeric_distance(a.value, b.value)
 end
@@ -316,8 +345,9 @@ oscillating loopy BP.
 
 Defined only where a convex combination of beliefs makes sense. For `DiracBelief` with
 numeric payloads this is interpolation of the values; for anything else, damping is a no-op
-returning `new`, **and that is reported** rather than silently ignored — see
-[`can_damp`](@ref).
+returning `new`, inspectable through [`can_damp`](@ref). Potentials use this fallback:
+without a normalisation contract there is no chosen convex-mixture interpretation.
+Schedules do not automatically report unsupported damping.
 """
 damp(new, old, α::Real) = can_damp(new, old) ? _damp(new, old, α) : new
 
@@ -325,7 +355,7 @@ damp(new, old, α::Real) = can_damp(new, old) ? _damp(new, old, α) : new
     can_damp(new, old) -> Bool
 
 Whether a convex combination of these two beliefs is defined. `false` by default, so
-[`damp`](@ref) is a **reported** no-op rather than a silent one.
+callers can inspect whether [`damp`](@ref) will be a no-op.
 """
 can_damp(::Any, ::Any) = false
 can_damp(a::LenticulumCore.DiracBelief{<:Union{Number,AbstractArray}},

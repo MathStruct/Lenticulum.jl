@@ -56,7 +56,7 @@ A factor is a subtype of `AbstractLenticulumFactor`. Like a Lux layer, it is a *
 - `lib/Mycelium.jl/test/conformance.jl`: common direct-message path on Data, Prior, Optimiser
   unary and Relay both directions; Loss sink path, with explicit unsupported-section reasons.
 - `lib/Adversarial.jl/test/conformance.jl`: common default lens path on NoiseSource unary,
-  Generator forward, Ratio unary; conditional point games, fixed draw and LP-016 broken tests.
+  Generator forward, Ratio unary; conditional point games, fixed draw and LP-016 likelihood/particle graph checks.
 - `lib/VariationalDiffusion.jl/test/conformance.jl`: common default lens path on all five binary
   assignments and unary, with fixed-node Gaussian/point fixtures and an explicit game gap.
   "Diffusion polarity enumeration and cap (LP-017)" and "Joint diffusion messages (LP-017)"

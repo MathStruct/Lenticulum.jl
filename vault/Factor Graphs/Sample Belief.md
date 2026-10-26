@@ -21,13 +21,17 @@ approximation of a continuous distribution. It is an **approximation by construc
 - **Pooling.** `combine` of two sample beliefs needs the density of at least one of them
   (importance reweighting), and `belief_logdensity` is not defined for particles, so
   `combine` throws. A Dirac or the trivial belief still combines with it.
-- **Convergence checks.** `belief_distance` returns `Inf`, so a schedule involving sample
-  messages runs to its iteration limit rather than claiming convergence it cannot verify.
+- **Pooling with evidence.** A density or `AbstractPotentialBelief` can reweight particles
+  via `belief_logdensity`; two clouds alone still have no product rule. RatioFactor emits
+  such a potential, and Mycelium warns on severe ESS collapse ([[ratio]], LP-016).
+- **Convergence checks.** `belief_distance` compares weights and corresponding particles;
+  different particle counts give `Inf`. It does not compare distributions independently
+  of the particle ordering.
 - **A point.** The diffusion factor's `assemble_state` ignores sample beliefs, because a particle
   set has no single value to clamp to.
 
 It is the representation a **sampling** inference would return (DPS, Langevin;
-[[Inference Signatures]] #6), the only one that can carry several branches of a multivalued
-relation at once.
+[[Inference Signatures]] #6). Weighted particles can represent several branches of a
+multivalued relation; mixtures provide another representation.
 
 Related: [[Beliefs]], [[Dirac Belief]], [[Gaussian Belief]], [[Inference Signatures]]
