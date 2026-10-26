@@ -17,7 +17,7 @@ there are two ways to wrap them:
 |---|---|---|---|
 | [[luxfactor\|`LuxFactor`]] | the assembled `DeepEquilibriumNetwork` / `NeuralODE` | **1** | graph membership; a Lux layer with extra steps |
 | [[deq\|`DEQFactor`]] | the *cell* $g_\theta(z,x)$ | **2** (if square) | the relation, solvable either way |
-| [[neuralode\|`NeuralODEFactor`]] | the *dynamics* $f_\theta(z,t)$ | **2**, always | the flow, invertible by construction |
+| [[neuralode\|`NeuralODEFactor`]] | the *dynamics* $f_\theta(z,t)$ | **2**, always | both endpoint integrations; numerical inverse depends on method |
 
 The test suite makes the comparison on one object: the same cell wrapped as a `LuxFactor` has
 one polarity and as a `DEQFactor` has two, with identical parameters.
@@ -37,9 +37,15 @@ Concept notes: [[The Equilibrium Family]], [[DEQ as a Relation]],
 
 ## Dependencies, and the AD line
 
-`LuxCore`, `Random`, `LinearAlgebra` — no SciML, no `Lux`, no AD. The same choice
-`VariationalDiffusion.jl` makes, but for a *weaker* reason, and the difference is worth
-stating:
+There is **no hard SciML dependency**. The package depends on `LenticulumCore`, `Mycelium`,
+`LuxCore`, `Random`, `LinearAlgebra` and `DispatchDoctor`. Built-in root solvers and Euler/RK4
+remain available without SciML. Optional `SciMLIntegrator` loads through package extensions;
+`OrdinaryDiffEqTsit5` supplies Tsit5, `OrdinaryDiffEqSDIRK` supplies midpoint/trapezoid, and
+both bring `OrdinaryDiffEqCore` and `SciMLBase` without the umbrella's unrelated solvers.
+See [[flow]] for loading, reversibility conditions, CNF augmentation and tests.
+
+There is no SciMLSensitivity gradient implementation here; that remains LP-002. The base
+package still uses finite differences for derivative information:
 
 > RED-Diff's stop-gradient means the diffusion family needs **no derivative of the network at
 > all**, so avoiding AD costs it nothing. The equilibrium family's backward pass **is** a
@@ -47,16 +53,15 @@ stating:
 > Avoiding AD here costs scalability: `fd_jacobian` is $O(n)$ forward passes and is honestly
 > labelled a test-scale tool.
 
-So this package can do inference at any scale (the solvers are derivative-free, as
-`DeepEquilibriumNetworks.jl`'s are) and sensitivity analysis only at small scale.
+The built-in derivative tools are suitable for small systems; the optional integrators add
+solver choices without establishing sensitivity-analysis or device support for this wrapper.
 
 ## What it exposed
 
-- **`GaussianBelief` is in the wrong package.** Every inversion here returns a `DiracBelief`,
-  because a root-find and an ODE solve produce points and the belief type that could carry
-  uncertainty lives in the top-level `Lenticulum`. `flow_logdet` computes exactly the
-  correction a density transport needs and has nowhere to put it. Third factor package in a
-  row; see [[The Equilibrium Family]] §5.
+- **Inversions still return points.** `GaussianBelief` now lives in `LenticulumCore`, but
+  these factors still return `DiracBelief`. A general non-Gaussian pushforward belief is
+  not implemented; `flow_logdet` computes the continuous density correction without
+  transporting a belief. See [[The Equilibrium Family]] §5.
 - **Dirac-valued inversions do not have Bethe free energies.** Both factors here contribute
   energy and no entropy, so the counting correction of [[Bethe Free Energy]] has nothing to
   correct and a mixed graph's total is not $-\log p(y)$. Same conclusion `VariationalDiffusion`

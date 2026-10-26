@@ -67,20 +67,28 @@ square at all, and convergence is an open question on every call. `supports_pola
 it when the shapes disagree — so a DEQ whose input is an embedding of a different width is
 *correctly* reported as unidirectional and gains nothing here.
 
-**A NeuralODE's reverse direction is free.** A flow is a diffeomorphism, so integrating from
-$t_1$ back to $t_0$ inverts it — same integrator, endpoints swapped, no solver, no dimension
-condition, no convergence question. Ranking the project's bidirectional factors by the cost of
-their second direction:
+**A NeuralODE's reverse direction is another integration.** The continuous flow is invertible
+where solutions exist uniquely in both directions. Numerically, the same integrator runs
+with the endpoints swapped. Built-in Euler/RK4 use equal stage counts, but do not invert the
+discrete forward map exactly, even in exact arithmetic. They now use
+`SolverInversion(integrator)`. Adaptive methods may need different work in each direction.
 
-| factor | second direction |
-|---|---|
-| `NeuralODEFactor` | identical to the first |
-| `LinearConstraintFactor` | identical (acausal by construction) |
-| `GaussianFactor` | different arithmetic, both closed-form |
-| `DEQFactor` | a root-find that may fail |
+The optional SciML extension adds Tsit5 and fixed-step symmetric methods such as midpoint
+and trapezoid. Only a symmetric method on matching time grids, with converged stages,
+restricted solver options and empty Lux state can receive `ExactInversion`, up to nonlinear
+solve tolerance and roundoff. [[flow]] documents these conditions and tests.
 
-> A NeuralODE is the cheapest genuinely bidirectional factor in the project, and the reason is
-> a theorem about ODEs rather than anything about neural networks.
+Euler's round trip is $O(h)$; RK4 has fourth-order forward error and a fourth-order
+round-trip bound, with a sharper fifth-order round trip on the scalar linear oracle.
+`examples/flow_roundtrip.jl` and `test/roundtrip.jl` in `ImplicitLayers` measure and test these:
+Euler doubling ratios tend to 2; linear RK4 round-trip ratios to 32; RK4 forward-error ratios
+to 16. [[neuralode]] §4.3 gives the table and derivation. At $a=-5,N=50,T=1$, Euler's endpoint
+residual is 0.394994 and its inferred start is 20.9% off; these are not harmless roundoff.
+
+What contracts forwards expands backwards. The inverse of $z'=az$, $a<0$, amplifies absolute
+endpoint perturbations by $e^{|a|T}$, independently of discretisation. No solver removes that
+conditioning, and an accurate inverse of the numerical map need not recover the continuous
+initial point accurately. See [[NeuralODE as an Invertible Factor]].
 
 ## 4. Where the derivatives come back
 

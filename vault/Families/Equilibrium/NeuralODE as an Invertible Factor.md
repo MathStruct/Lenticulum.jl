@@ -1,15 +1,14 @@
 #model
 
-> The cleanest bidirectional factor in the project, and the reason is a theorem about ODEs
-> rather than anything about neural networks: **a flow is a diffeomorphism, so integrating
-> backwards inverts it.**
+> A continuous ODE flow is invertible wherever its solution is unique in both directions.
+> `NeuralODEFactor` exposes both endpoint integrations, but explicit numerical time reversal
+> does not invert the discrete forward map. Exactness depends on the integrator and grid.
 >
-> Implemented as `NeuralODEFactor` in `lib/ImplicitLayers.jl/src/neuralode.jl`; see
-> [[neuralode]] and [[flow]].
+> Implemented in `lib/ImplicitLayers.jl/src/neuralode.jl`; see [[neuralode]] and [[flow]].
 
-> Sources: Chen, Rubanova, Bettencourt, Duvenaud, *Neural Ordinary Differential Equations*, NeurIPS 2018; Grathwohl, Chen, Bettencourt, Sutskever, Duvenaud, *FFJORD*, ICLR 2019; [DiffEqFlux.jl NeuralDELayers](https://docs.sciml.ai/DiffEqFlux/stable/layers/NeuralDELayers/)
+> Sources: Hairer, Lubich, Wanner, *Geometric Numerical Integration*, 2nd ed., II.3 (adjoint and symmetric methods); Chen, Rubanova, Bettencourt, Duvenaud, *Neural Ordinary Differential Equations*, NeurIPS 2018; Grathwohl, Chen, Bettencourt, Sutskever, Duvenaud, *FFJORD*, ICLR 2019; [DiffEqFlux.jl NeuralDELayers](https://docs.sciml.ai/DiffEqFlux/stable/layers/NeuralDELayers/)
 >
-> Bibliography: [[Bibliography#^chen2018neuralode|Chen et al. 2018]] · [[Bibliography#^grathwohl2019ffjord|Grathwohl et al. 2019]]
+> Bibliography: [[Bibliography#^hairer2006geometric|Hairer et al. 2006]] · [[Bibliography#^chen2018neuralode|Chen et al. 2018]] · [[Bibliography#^grathwohl2019ffjord|Grathwohl et al. 2019]]
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
@@ -25,49 +24,51 @@ $$
 `ODEProblem`, calls `solve`, and returns `(ODESolution, st)`. Direction fixed at construction,
 output a solution object. Wrapping *that* gives [[luxfactor|`LuxFactor`]] and one polarity.
 
-Keeping the dynamics instead gives two, and the second costs nothing:
+Keeping the dynamics instead gives two endpoint integrations:
 
 ```julia
 flow_forward(f, z₀, ps, st)   # integrate t₀ → t₁
 flow_reverse(f, z₁, ps, st)   # integrate t₁ → t₀   — the same call, endpoints swapped
 ```
 
-## 2. Why this is different from every other bidirectional factor
+## 2. Two supported endpoint directions
 
-Ranking the project's factors by what their *second* direction costs:
+Both polarities integrate the same dynamics, with endpoints swapped. Built-in Euler/RK4 use
+the same fixed number of stages either way; adaptive or implicit methods can require different
+work in reverse. Supporting a polarity does not guarantee accuracy or convergence.
 
 | factor | second direction | conditions |
 |---|---|---|
-| **`NeuralODEFactor`** | **identical to the first** | **none** |
-| `LinearConstraintFactor` | identical — acausal by construction | none |
-| `GaussianFactor` | different arithmetic; both closed-form | none |
-| `DEQFactor` | a root-find that may not converge | needs $\dim x = \dim z$ |
-| `LuxFactor` | does not exist | — |
+| `NeuralODEFactor` | endpoint integration | numerical accuracy and inverse conditioning |
+| `LinearConstraintFactor` | identical acausal solve | solvable selected block |
+| `GaussianFactor` | closed-form likelihood | the declared Gaussian model |
+| `DEQFactor` | root-find | square residual; convergence not guaranteed |
+| `LuxFactor` | unavailable | one direction only |
 
-`supported_polarities` returns two elements **unconditionally**: no dimension test, no solver,
-no convergence question, no invertible-architecture constraint. Normalising flows spend their
-entire architectural budget on invertibility — coupling layers, RealNVP, autoregressive masks,
-all so the inverse is computable. A NeuralODE gets it for free by being a flow, and the
-network inside can be anything.
+## 3. Inversion of the discrete residual map
 
-> [!important] This is the strongest case in the project for factors over layers
-> The forward and reverse passes of a NeuralODE are the *same code*. A framework that insists
-> on a fixed direction is throwing away a symmetry the model already has, for nothing.
+The factor scores $r=z_1-\Phi_h(z_0)$ using its numerical forward map. Reverse Euler/RK4
+only approximate its inverse, even in exact arithmetic; `assemble` now labels them
+`SolverInversion(integrator)`. Tsit5 is also nonexact, with tolerance-controlled integration
+error. No shared inversion types changed.
 
-## 3. `ExactInversion`, and defending the label
+The optional `SciMLIntegrator` can use `ImplicitMidpoint` or `Trapezoid`. Their fixed-step
+maps are symmetric (Hairer–Lubich–Wanner II.3): $\Phi_{-h}=\Phi_h^{-1}$, up to nonlinear
+solve tolerance and roundoff. The trait permits `ExactInversion` only for these methods with
+`adaptive=false`, matching grids (`dt` divides the interval), default step limiters and a
+conservative whitelist of solver options. `assemble` also requires empty Lux state.
+This is discrete inverse accuracy, not exactness against the continuous flow. See [[flow]].
 
-`assemble` produces a lens with `LenticulumCore.ExactInversion`, not `SolverInversion`. The
-claim is precise:
+Euler's round-trip residual is $O(h)$, with leading term $a^2Th$ for $z'=az$.
+RK4 has $O(h^4)$ forward error and a corresponding round-trip bound, but this scalar linear
+round trip is actually $O(h^5)$: its step polynomial satisfies
+$R(x)R(-x)=1+x^6/72+x^8/576$. The measured doubling ratios are therefore 2 and 32; 16 belongs
+to RK4's forward error. [[neuralode]] §4.3 gives the derivation, tested convergence tolerances
+and the table from `lib/ImplicitLayers.jl/examples/flow_roundtrip.jl`.
 
-- $\Phi_{t_1\to t_0}$ **is** the inverse of $\Phi_{t_0\to t_1}$, exactly, as a fact about
-  flows;
-- what is inexact is the *discretisation*, which is a property of the integrator, not of the
-  inversion. Refine the step and the error vanishes like $h^4$ with no bias left over.
-
-Contrast `DEQFactor`, whose `SolverInversion` may converge to a **different root** or to none
-at all. Those are qualitatively different failures, and [[Inversions and Bayesian Lenses]] cares about the
-difference — *"nothing constrains an inversion to be exact… the quality of the choice is what
-the free energy measures."* Collapsing both under `SolverInversion` would lose it.
+At $a=-5,T=1,N=50$, the script measures Euler's residual as 0.394994 (start point 20.9%
+off), RK4's as $6.953127\times10^{-7}$; RK4 at $N=1$ gives 895.18. These are truncation
+errors, not merely floating-point effects.
 
 ## 4. Densities, not just points
 
@@ -83,13 +84,10 @@ $$
 `flow_logdet` computes it, and the test suite checks it against a linear field where
 $\operatorname{tr}\partial_z f = \operatorname{tr}A$ is constant.
 
-> [!warning] And it is dead code
-> The inversion still returns a `DiracBelief`, because the belief type that could hold a
-> transported density is not reachable from a `lib/` package. `flow_logdet` is the exact
-> quantity a density transport needs, it is correct, it is tested, and nothing can use it.
->
-> That is the sharpest single illustration of why `GaussianBelief` is in the wrong package —
-> see [[The Equilibrium Family]] §5.
+> [!warning] Density transport is not implemented
+> `flow_logdet` computes the continuous divergence correction; it is not generally the exact
+> determinant of the discrete integrator map. `GaussianBelief` is now in `LenticulumCore`,
+> but a general non-Gaussian pushforward belief is still missing. Inversions return points.
 
 ## 5. What it cannot do
 
@@ -101,23 +99,20 @@ at all — a change of variables needs a bijection between spaces of equal dimen
 
 `DEQFactor`'s two channels are independent spaces; this one's are the same space at two times.
 
-### 5.2 Survive stiffness, or strong dissipation in reverse
+### 5.2 Remove inverse conditioning
 
-`lib/ImplicitLayers.jl` uses fixed-step explicit RK4, deliberately: an *adaptive* solver picks
-different steps forwards and backwards, which destroys the round-trip property this whole note
-is about. The cost is that explicit RK4 on a stiff system diverges quietly, and nothing
-detects it.
+Built-in explicit methods have no error estimator and can fail on coarse/stiff problems.
+Optional OrdinaryDiffEq solvers add adaptive and implicit choices and check completion, but
+no integrator fixes the conditioning of reversing a contracting flow. For $z'=az$, $a<0$,
+the inverse derivative amplifies absolute endpoint perturbations by $e^{|a|T}$ (about 148.4
+for $a=-5,T=1$). This is absolute amplification, not that scalar map's relative condition
+number. Even a symmetric method may invert its own map accurately while giving the wrong
+continuous initial point.
 
-Worse, and more specific: **what contracts forwards expands backwards.** For strongly
-dissipative dynamics the reverse integration is unstable — the well-known reverse-mode
-NeuralODE problem, and why real implementations checkpoint rather than re-integrate. The test
-suite uses mildly negative eigenvalues, which is the easy case.
-
-So §2's "the second direction costs nothing" is true of the *mathematics* and true of the
-*implementation* on non-stiff problems, and false in general. The honest form of the claim:
-
-> A flow is invertible exactly. Its numerical inverse is as good as your integrator, and the
-> integrator is doing something harder in reverse than it was doing forwards.
+SciMLSensitivity gradients remain LP-002. Its
+[`BacksolveAdjoint` docs](https://docs.sciml.ai/SciMLSensitivity/stable/manual/differential_equation_sensitivities/#SciMLSensitivity.BacksolveAdjoint)
+describe backward re-integration, the instability of reverse solutions and checkpointing.
+The extension here does not implement adjoints.
 
 ### 5.3 Let you touch the trajectory in between
 
@@ -140,8 +135,10 @@ relation** — if $z_1$ came from $\Phi(z_0)$ then the residual vanishes by cons
 invariant, useless diagnostic: it cannot distinguish a well-integrated flow from a badly
 integrated one, because both satisfy their own residual.
 
-The informative quantity is the discretisation error against a finer solve. Nothing computes
-it, and `integrate` — unlike `solve_root` — returns no report at all.
+Reverse-solved endpoints can expose round-trip residuals, which the lens game retains.
+Accuracy against the continuous flow needs a closed form or refinement comparison; the
+example script performs the former for linear dynamics. `integrate` returns only the final
+state, not an error report. The SciML extension checks solve completion internally.
 
 ## Sources
 

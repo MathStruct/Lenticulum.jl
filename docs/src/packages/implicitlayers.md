@@ -6,7 +6,7 @@ CurrentModule = ImplicitLayers
 
 SciML's implicit layers — **deep equilibrium networks** and **neural ODEs** — as factors.
 
-Dependencies are `LuxCore`, `Random` and `LinearAlgebra`: neither
+There is no hard SciML dependency: neither
 `DeepEquilibriumNetworks.jl` nor `DiffEqFlux.jl` is required, because what these wrappers
 need is the inner Lux network, not the assembled layer.
 
@@ -34,20 +34,62 @@ solve_input(f, z, ps, st)     # solve for x  — what it cannot be asked
 The reverse solve needs ``\dim x = \dim z``; otherwise the residual is not square and
 `supports_polarity` refuses that direction rather than solving it badly.
 
-## Neural ODEs are bidirectional for free
+## Neural ODE endpoint integration
 
-A flow is a diffeomorphism, so integrating backwards inverts it — same integrator, endpoints
-swapped. No solver, no dimension condition, no convergence question:
+The continuous flow has an inverse wherever solutions exist uniquely in both directions.
+Numerical reverse integration approximates that inverse; Euler/RK4 do not invert their
+discrete forward map, even in exact arithmetic. Both endpoint polarities are supported:
 
 ```julia
-f = NeuralODEFactor(my_net, 4; tspan = (0.0, 1.0), integrator = RK4Integrator())
-flow_forward(f, z₀, ps, st)   # t₀ → t₁
-flow_reverse(f, z₁, ps, st)   # t₁ → t₀
-flow_logdet(f, z₀, ps, st)    # plus the change-of-variables correction
+f = NeuralODEFactor(my_net, 4; tspan=(0.0,1.0), integrator=RK4Integrator())
+flow_forward(f, z₀, ps, st)
+flow_reverse(f, z₁, ps, st)
+flow_logdet(f, z₀, ps, st)
 ```
 
-Integrators are fixed-step and explicit (`RK4Integrator`, `EulerIntegrator`) deliberately: an
-adaptive solver takes different steps forwards and backwards, which breaks the round trip.
+`RK4Integrator(steps=50)` remains the default. Euler's round-trip error is ``O(h)``.
+RK4 has fourth-order forward error and an ``O(h^4)`` round-trip bound for smooth dynamics;
+the scalar linear round trip is sharper, ``O(h^5)``. Its doubling ratio is 32, while the
+forward-error ratio is 16. `lib/ImplicitLayers.jl/examples/flow_roundtrip.jl` reproduces the
+table in the implementation note: at ``a=-5,T=1,N=50``, Euler's residual is 0.394994 with a
+20.9% start-point error, RK4's is ``6.953127\times10^{-7}``. At ``N=1`` RK4's is 895.18.
+Inverting a contracting flow separately amplifies absolute endpoint perturbations by
+``e^{|a|T}``; a better integrator cannot remove this conditioning.
+
+## Optional OrdinaryDiffEq extension
+
+Install the solver subpackages, then load them with `ImplicitLayers`:
+
+```julia
+using ImplicitLayers, OrdinaryDiffEqCore, OrdinaryDiffEqTsit5, OrdinaryDiffEqSDIRK
+adaptive = SciMLIntegrator(Tsit5(); reltol=1e-9, abstol=1e-12)
+fixed = SciMLIntegrator(ImplicitMidpoint(); adaptive=false, dt=0.02,
+                       reltol=1e-12, abstol=1e-12)
+f = NeuralODEFactor(my_net, 4; integrator=fixed)
+```
+
+Core/SciMLBase supply the solve interface; Tsit5 and SDIRK supply the selected algorithms.
+These are weak dependencies, so the full OrdinaryDiffEq umbrella and its other solvers
+are unnecessary. The test environment resolves Core 4.19.0, Tsit5 2.1.5 and SDIRK 2.9.8.
+
+The extension solves an out-of-place `ODEProblem` over either time direction and returns
+only the final state. It signs positive `dt` automatically, disables intermediate storage,
+and rejects failed/incomplete solves. CNF divergence is a finite-difference trace integrated
+as an augmented state; the built-in quadrature is unchanged. Lux state is threaded through
+every RHS evaluation, including rejected stages and divergence probes.
+
+`inversion_kind` gives Euler/RK4 and adaptive Tsit5 `SolverInversion(integrator)`.
+Midpoint and Trapezoid are symmetric methods ([Hairer–Lubich–Wanner II.3](https://doi.org/10.1007/3-540-30666-8));
+with `adaptive=false`, matching grids (`dt` divides the interval), a default step limiter,
+and only `dt`, `adaptive`, `abstol`, `reltol`, `maxiters` options, the trait permits
+`ExactInversion` up to nonlinear-solve tolerance and roundoff. `assemble` also requires empty
+Lux state. This describes the discrete inverse, not exactness against the continuous ODE.
+Tests use `abstol=reltol=1e-12` and check relative round-trip residual below ``10^{-10}``.
+
+SciMLSensitivity gradients remain LP-002 and are not implemented by this extension.
+Its [`BacksolveAdjoint` docs](https://docs.sciml.ai/SciMLSensitivity/stable/manual/differential_equation_sensitivities/#SciMLSensitivity.BacksolveAdjoint)
+describe backward re-integration, unstable reverse solutions and checkpointing; the same
+reverse-conditioning concern applies.
 
 ## Solvers
 
@@ -68,8 +110,8 @@ unrolling.
 - `fd_jacobian` is finite differences: ``O(n)`` forward passes, fine for tests, not for scale.
   The real answer is a VJP from automatic differentiation.
 - Broyden stores a dense inverse Jacobian; real DEQs use limited-memory Broyden.
-- Explicit RK4 diverges quietly on stiff systems, and reverse integration is unstable for
-  strongly dissipative dynamics.
+- Built-in explicit methods have no error estimate and may diverge on coarse or stiff
+  problems. The optional solvers do not remove inverse conditioning or establish GPU support.
 - Every inversion returns a `DiracBelief`.
 
 ## API

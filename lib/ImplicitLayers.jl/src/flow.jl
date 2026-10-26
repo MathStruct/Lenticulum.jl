@@ -1,17 +1,6 @@
 # ---------------------------------------------------------------------------
-# Fixed-step explicit integrators, forwards and backwards.
-#
-# The one fact that makes a NeuralODE a good Lenticulum factor:
-#
-#     a flow is a DIFFEOMORPHISM, so integrating with dt < 0 inverts it.
-#
-# No root-finding, no learned inverse, no architectural constraint — the reverse direction is
-# the same code with the endpoints swapped. That makes `NeuralODEFactor` the cheapest genuinely
-# bidirectional factor in the project, and the contrast with `DEQFactor` (whose reverse
-# direction is a hard root-find) is the most useful thing in this package.
-#
-# It is exact in exact arithmetic and NOT exact in floating point; §"round trip" in `flow.md`
-# is about the difference, which is the well-known reverse-mode instability of NeuralODEs.
+# Numerical flows, forwards and backwards. Reversing an explicit scheme approximates the
+# continuous inverse; it does not invert the discrete forward map, even in exact arithmetic.
 #
 # See `flow.md`.
 # ---------------------------------------------------------------------------
@@ -19,9 +8,8 @@
 """
     abstract type AbstractIntegrator
 
-A fixed-step explicit scheme. Deliberately not adaptive: an adaptive solver chooses different
-steps forwards and backwards, which destroys the round-trip property this package leans on
-(`flow.md` §3).
+A numerical ODE scheme. Built-in Euler/RK4 are fixed-step explicit methods; optional
+[`SciMLIntegrator`](@ref) supports adaptive and implicit solvers.
 """
 abstract type AbstractIntegrator end
 
@@ -59,6 +47,77 @@ end
 RK4Integrator(; steps = 50) = RK4Integrator(steps)
 
 nsteps(i::AbstractIntegrator) = i.steps
+
+"""
+    SciMLIntegrator(alg; kwargs...)
+
+Optional OrdinaryDiffEq solver, loaded by `using OrdinaryDiffEqCore` and a solver package
+(e.g. `OrdinaryDiffEqTsit5` or `OrdinaryDiffEqSDIRK`). Keywords go to `solve`; only the final
+state is retained. `dt` is a positive magnitude, signed automatically for reverse solves.
+
+Fixed-step `ImplicitMidpoint`/`Trapezoid` can invert their discrete map up to nonlinear-solve
+tolerance; adaptive solvers such as `Tsit5` only control integration error. See
+[`inversion_kind`](@ref) for the conservative exactness conditions. This wrapper does not
+provide SciMLSensitivity gradients (LP-002).
+"""
+struct SciMLIntegrator{A,K<:NamedTuple} <: AbstractIntegrator
+    alg::A
+    kwargs::K
+end
+function SciMLIntegrator(alg; kwargs...)
+    opts = (; kwargs...)
+    if haskey(opts, :dt)
+        dt = opts.dt
+        (dt isa Real && isfinite(dt) && dt > 0) ||
+            throw(ArgumentError("dt must be a finite positive magnitude"))
+    end
+    return SciMLIntegrator(alg, opts)
+end
+
+"""
+    isreversible(integrator) -> Bool
+
+Whether the configured numerical method is symmetric under time reversal, assuming a
+deterministic vector field and converged implicit stages. Euler/RK4 and adaptive solvers
+return false. Symmetry alone does not ensure the two solves use matching time grids.
+"""
+isreversible(::AbstractIntegrator) = false
+_symmetric_algorithm(alg) = false
+function isreversible(itg::SciMLIntegrator)
+    opts = itg.kwargs
+    # Callbacks, tstops, limiters and other step-changing options need their own proof.
+    allowed = (:dt, :adaptive, :abstol, :reltol, :maxiters)
+    return _symmetric_algorithm(itg.alg) && get(opts, :adaptive, true) === false &&
+           haskey(opts, :dt) && all(k -> k in allowed, keys(opts))
+end
+
+"""
+    inversion_kind(integrator, t₀, t₁)
+
+`SolverInversion(integrator)` by default. `ExactInversion()` is reserved for a symmetric
+fixed-step method whose positive `dt` divides the interval (within floating-point roundoff).
+This is exactness of the discrete map, up to roundoff and nonlinear-solve tolerance, not
+accuracy against the continuous solution. It assumes dynamics do not change with Lux state.
+"""
+inversion_kind(itg::AbstractIntegrator, t₀, t₁) = LenticulumCore.SolverInversion(itg)
+function inversion_kind(itg::SciMLIntegrator, t₀, t₁)
+    if isreversible(itg)
+        n = abs(t₁ - t₀) / itg.kwargs.dt
+        if isfinite(n) && n >= 1 && isapprox(n, round(n); rtol = 8eps(one(float(n))), atol = 0)
+            return LenticulumCore.ExactInversion()
+        end
+    end
+    return LenticulumCore.SolverInversion(itg)
+end
+
+_sciml_integrate(args...) = throw(ArgumentError(
+    "SciMLIntegrator requires the OrdinaryDiffEq extension: load OrdinaryDiffEqCore " *
+    "and a solver package, e.g. `using OrdinaryDiffEqTsit5` or `using OrdinaryDiffEqSDIRK`"))
+integrate(vf, u₀, t₀, t₁, itg::SciMLIntegrator) =
+    _sciml_integrate(vf, u₀, t₀, t₁, itg)
+_sciml_divergence(args...) = _sciml_integrate(args...)
+integrate_with_divergence(vf, u₀, t₀, t₁, itg::SciMLIntegrator) =
+    _sciml_divergence(vf, u₀, t₀, t₁, itg)
 
 """
     integrate(vf, u₀, t₀, t₁, integrator) -> u₁
@@ -112,8 +171,9 @@ NeuralODE from a map on *points* into a map on *densities* — i.e. what would l
 push a real belief rather than a Dirac.
 
 > [!warning] The trace is computed by a dense finite-difference Jacobian
-> ``O(n)`` evaluations of `vf` per step, so ``O(n \\cdot \\mathrm{steps})`` in total. FFJORD's
-> whole contribution is the Hutchinson estimator that avoids this; see `flow.md` §4.2. What is
+> ``O(n)`` extra evaluations of `vf` per divergence evaluation. Built-in methods use
+> trapezoidal quadrature; SciML integrates an augmented state. FFJORD's Hutchinson estimator
+> avoids the dense trace; see `flow.md` §4.1. What is
 > here is correct, checkable against a linear system, and unusable above small `n`.
 """
 function integrate_with_divergence(vf, u₀, t₀, t₁, itg::AbstractIntegrator)

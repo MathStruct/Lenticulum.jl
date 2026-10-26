@@ -1,9 +1,11 @@
 #implementation
 
-> `NeuralODEFactor`: the cleanest bidirectional factor in the project, and the reason is a
-> theorem about ODEs rather than anything about neural networks.
+> `NeuralODEFactor` exposes both endpoints of a numerical flow. Reverse integration
+> approximates the continuous inverse; discrete exactness depends on the integrator.
 
-> Sources: code: `neuralode.jl`
+> Sources: Hairer, Lubich, Wanner, *Geometric Numerical Integration*, 2nd ed., II.3 (adjoint and symmetric methods); code: `neuralode.jl`, `flow.jl`, `../examples/flow_roundtrip.jl`, `../test/roundtrip.jl`, `../test/sciml.jl`
+>
+> Bibliography: [[Bibliography#^hairer2006geometric|Hairer et al. 2006]]
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
@@ -32,29 +34,32 @@ bidirectional factors in the project:
 | `GaussianFactor` | pushforward | likelihood | different arithmetic, both closed-form |
 | `LinearConstraintFactor` | solve for $x_t$ | solve for $x_s$ | identical; acausal by construction |
 | `DEQFactor` | root-find for $z$ | root-find for $x$ | may not converge; needs a square residual |
-| **`NeuralODEFactor`** | integrate | **integrate** | **identical, and unconditional** |
+| **`NeuralODEFactor`** | integrate | integrate | same scheme; work and accuracy depend on direction |
 
-No dimension condition, no solver, no convergence question. `supported_polarities` returns two
-elements always.
+`supported_polarities` always returns two elements, with no dimension condition. This is
+an interface capability, not an accuracy or convergence guarantee.
 
-## 2. `ExactInversion`, and the defence of that label
+## 2. The inversion label describes the discrete map
 
-`assemble` produces a lens with `LenticulumCore.ExactInversion` — not `SolverInversion`.
+The residual uses the numerical forward map, $r = z_1 - \Phi_h(z_0)$.
+The exact continuous flow is invertible wherever the ODE has a unique solution over the
+interval in both directions; this does not make a discretisation reversible.
 
-The claim is that $\Phi_{t_1\to t_0}$ *is* the inverse of $\Phi_{t_0\to t_1}$, exactly, as a
-mathematical fact about flows. What is inexact is the **discretisation**, and that is a
-property of the integrator, not of the inversion: refine `steps` and the error goes to zero
-like $h^4$, with no bias term left over.
+`assemble` uses `inversion_kind(integrator, t₀, t₁)`. Euler, RK4 and adaptive SciML solves
+receive `SolverInversion(integrator)`, the existing nonexact solver label. No shared core
+types change. Both inversion labels use the same endpoint integration and point lens game.
 
-Contrast `DEQFactor`, whose `SolverInversion` may converge to a *different root*, or to none.
-That is a qualitatively different kind of inexactness, and collapsing the two under one label
-would lose the distinction the vault cares about
-([[Inversions and Bayesian Lenses]]: *"nothing constrains an inversion to be exact… the quality of the choice
-is what the free energy measures"*).
+Fixed-step `ImplicitMidpoint` and `Trapezoid` are symmetric: reversing a step inverts it
+(Hairer–Lubich–Wanner, II.3). `ExactInversion` is used only with `adaptive=false`, a positive
+`dt` dividing the interval, no custom step limiter, and only the whitelisted solve options
+`dt`, `adaptive`, `abstol`, `reltol`, `maxiters`. The matching grid matters for time-dependent
+fields: a shortened final step would occur at the other end on reversal. Exactness here is
+up to nonlinear-solve tolerance and roundoff, **not** continuous-flow accuracy, and presumes
+converged stages and deterministic dynamics. Nonempty Lux state conservatively forces
+`SolverInversion`, since state updates may change the field. See [[flow]] for the extension.
 
-The lens game evaluates the actual endpoint residual. Forward integration followed by
-the same forward residual gives zero; reverse integration followed by a forward residual
-can expose round-trip error. This does not estimate error against the true continuous flow.
+The lens game scores the actual endpoint residual. Forward-produced endpoints satisfy their
+own residual even with a poor integrator; reverse-produced endpoints need not.
 
 ## 3. A flow cannot change dimension
 
@@ -72,12 +77,15 @@ bijection between spaces of equal dimension.
 
 `integrate` wants a pure `(u,t) -> du`. `LuxCore` wants `st` threaded in and out of every
 call. `vectorfield` bridges them with a `Ref` that the closure writes on each evaluation, so
-**the state after an integration is whatever the last stage of the last step wrote**.
+**the state after an integration is whatever the last RHS evaluation wrote**.
 
 For a stateless dynamics layer that is correct. For one with running statistics it is
 arbitrary — and worse here than in [[deq]] §4.1, because RK4 evaluates the field four times
 per step at *intermediate* points that are not on the trajectory. A `BatchNorm` inside a
-NeuralODE would accumulate statistics from points the solution never visits.
+NeuralODE would accumulate statistics from points the solution never visits. Adaptive solves
+also thread state through rejected trials; implicit solves and divergence probes add more
+evaluations. This preserves existing threading, but state-dependent dynamics need not define
+a deterministic ODE or a reversible map.
 
 ### 4.2 `flow_logdet` exists and nothing can use it
 
@@ -86,16 +94,77 @@ returns a `DiracBelief`. `GaussianBelief` is available in `LenticulumCore`; a ge
 non-Gaussian pushforward belief is not implemented, so the correction does not yet transport
 beliefs through this factor.
 
-### 4.3 The round trip is not bit-exact, and dissipative dynamics make it worse
+### 4.3 Truncation error and inverse conditioning are separate
 
-Asserted in the tests: `flow_reverse(flow_forward(z₀)) ≈ z₀` to `rtol = 1e-9` and
-`!= z₀` exactly. The gap is $O(h^4)$ and harmless here.
+Reversing Euler or RK4 does not invert their forward step even in exact arithmetic. For
+$z'=az$, $h=T/N$, Euler's forward multiplier is $1+ah$, its reverse multiplier is $1-ah$,
+whereas the discrete inverse is $(1+ah)^{-1}$. Thus the relative endpoint round-trip residual is
 
-It is not harmless in general. What contracts forwards expands backwards, so for strongly
-dissipative dynamics the reverse integration is unstable — the well-known reverse-mode
-NeuralODE problem, and the reason real implementations checkpoint rather than re-integrate.
-The test uses $A$ with mildly negative eigenvalues, which is the easy case, and nothing warns
-about the hard one.
+$$
+\left|1-(1-a^2h^2)^N\right| = a^2Th + O(h^2).
+$$
+
+Euler has an $O(h)$ round trip. RK4 has $O(h^4)$ forward global error and an $O(h^4)$
+round-trip bound for smooth dynamics on a fixed interval with bounded error amplification.
+For this **scalar linear round trip the sharp order is fifth**, not fourth. Its polynomial
+$R(x)=1+x+x^2/2+x^3/6+x^4/24$ satisfies
+
+$$
+R(x)R(-x)=1+\frac{x^6}{72}+\frac{x^8}{576},
+\qquad
+\left|[R(ah)R(-ah)]^N-1\right| = \frac{a^6T}{72}h^5 + O(h^7).
+$$
+
+Consequently doubling $N$ gives ratios approaching 2 (Euler round trip), 32 (linear RK4
+round trip), and 16 (RK4 forward error against $e^{aT}$). `test/roundtrip.jl` asserts all
+three: Euler at $N=400,800,1600$ within 4%, RK4 at $N=100,200,400$ within 2% for the round
+trip and 4% for the forward error. These grids keep $|a|h$ small; the margins allow
+finite-step corrections. BigFloat at 256 bits avoids the Float64 cancellation floor.
+
+Reproduce this table with:
+
+```sh
+julia --project=lib/ImplicitLayers.jl lib/ImplicitLayers.jl/examples/flow_roundtrip.jl
+```
+
+The script starts from endpoint 3 on $[0,1]$, reverses, then measures
+$|3-\Phi_h(z_0)|/3$ and $|z_0-3e^{-a}|/|3e^{-a}|$. Values below are its 256-bit results,
+rounded to six digits; tests also check their exact discrete polynomial formulas.
+
+| scheme | a | N | relative residual | relative start error |
+|---|---:|---:|---:|---:|
+| Euler | 0.5 | 1 | 2.500000e-01 | 1.756394e-01 |
+| Euler | 0.5 | 25 | 9.952147e-03 | 5.054864e-03 |
+| Euler | 0.5 | 50 | 4.987770e-03 | 2.513628e-03 |
+| Euler | 0.5 | 100 | 2.496909e-03 | 1.253396e-03 |
+| Euler | 0.5 | 200 | 1.249223e-03 | 6.258477e-04 |
+| Euler | -5.0 | 1 | 2.500000e+01 | 9.595723e-01 |
+| Euler | -5.0 | 25 | 6.396033e-01 | 3.572253e-01 |
+| Euler | -5.0 | 50 | 3.949939e-01 | 2.090267e-01 |
+| Euler | -5.0 | 100 | 2.214430e-01 | 1.139515e-01 |
+| Euler | -5.0 | 200 | 1.175376e-01 | 5.962588e-02 |
+| RK4 | 0.5 | 1 | 2.237956e-04 | 3.959794e-04 |
+| RK4 | 0.5 | 25 | 2.222333e-11 | 6.778736e-10 |
+| RK4 | 0.5 | 50 | 6.944531e-13 | 4.201538e-11 |
+| RK4 | 0.5 | 100 | 2.170146e-14 | 2.615041e-12 |
+| RK4 | 0.5 | 200 | 6.781689e-16 | 1.630999e-13 |
+| RK4 | -5.0 | 1 | 8.951823e+02 | 5.595067e-01 |
+| RK4 | -5.0 | 25 | 2.233357e-05 | 5.645323e-05 |
+| RK4 | -5.0 | 50 | 6.953127e-07 | 3.833894e-06 |
+| RK4 | -5.0 | 100 | 2.170817e-08 | 2.497951e-07 |
+| RK4 | -5.0 | 200 | 6.782214e-10 | 1.594056e-08 |
+
+At the default $N=50$, Euler with $a=-5$ has residual 0.395 and start error 20.9%.
+RK4 gives $6.953127\times10^{-7}$ there, but residual 895.18 at $N=1$. Neither label nor
+fixed steps make these discrepancies harmless.
+
+Independently of discretisation, inverting a contracting continuous flow amplifies absolute
+endpoint perturbations by $e^{|a|T}$ (the norm of the inverse derivative for scalar $a<0$).
+For $a=-5,T=1$ this is about 148.4. This is absolute error amplification, not a scalar
+relative condition number of 148.4. A symmetric integrator can invert its own discrete map
+without accurately recovering the continuous start point or removing this conditioning.
+`test/sciml.jl` verifies symmetric round trips at `abstol=reltol=1e-12`, and measures
+Tsit5 residuals as its tolerance is tightened; neither promises a global residual bound.
 
 ### 4.4 `local_free_energy` is identically zero on the relation
 

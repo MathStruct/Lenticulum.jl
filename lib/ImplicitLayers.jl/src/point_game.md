@@ -63,3 +63,8 @@ is implemented. A DEQ solve may stop before reaching a root, and a reversed disc
 flow may have round-trip error. The game retains the resulting residual energy; the exact
 identity above requires its zero-residual premise. Stateful layers have the same running
 statistics limitations as the existing solvers/integrators; see [[deq]] and [[neuralode]].
+
+NeuralODE lens dispatch accepts both `SolverInversion` and `ExactInversion`. Explicit and
+adaptive endpoint integration retains the actual reverse round-trip residual in the game;
+only symmetric fixed-step configurations on matching grids can declare discrete exactness.
+See [[neuralode]] §2 and §4.3 and `test/sciml.jl` for conformance in both cases.

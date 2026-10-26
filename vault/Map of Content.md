@@ -172,8 +172,8 @@ and neural ODEs, wrapped as factors. Entry point: [[The Equilibrium Family]].
 - *the fixed point*: [[DEQ as a Relation]] — a DEQ is defined by a relation and shipped as a
   function; the reverse solve; the contraction caveat made testable; why the IFT brings
   automatic differentiation back
-- *the flow*: [[NeuralODE as an Invertible Factor]] — bidirectional for free, because a flow
-  is a diffeomorphism; the density correction, and why it is currently dead code
+- *the flow*: [[NeuralODE as an Invertible Factor]] — continuous versus numerical inverses,
+  symmetric integrators, inverse conditioning, and the continuous density correction
 
 ## 3e. The diffusion family, worked out
 

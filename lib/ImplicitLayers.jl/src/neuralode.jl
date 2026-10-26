@@ -6,10 +6,8 @@
 #     z₀ observed  →  z₁ = Φ_{t₀→t₁}(z₀)      integrate forwards
 #     z₁ observed  →  z₀ = Φ_{t₁→t₀}(z₁)      integrate backwards
 #
-# and the second is exact in exact arithmetic because a flow is a diffeomorphism. No solver,
-# no invertible-architecture constraint (RealNVP, coupling layers), no learned inverse. This
-# is the cleanest bidirectional factor in the project, and the reason is a theorem about ODEs
-# rather than anything about neural networks.
+# The continuous inverse is another flow. Numerical time reversal only inverts the discrete
+# map for symmetric methods on matching grids; Euler/RK4 merely approximate that inverse.
 #
 # See `neuralode.md` and `NeuralODE as an Invertible Factor.md`.
 # ---------------------------------------------------------------------------
@@ -91,13 +89,10 @@ LenticulumCore.islearnable(::NeuralODEFactor) = true
 """
     LenticulumCore.supported_polarities(f::NeuralODEFactor)
 
-Both of them, always, with no dimension condition and no solver — because a flow is
-invertible by construction.
-
-This is the only factor in the project for which both directions are *equally* cheap and
-*equally* exact. `GaussianFactor` is bidirectional but its two directions do different
-arithmetic (a pushforward vs a likelihood); `DEQFactor`'s reverse direction is a root-find
-that may not converge; this one runs the identical integrator with the endpoints swapped.
+Both endpoint polarities are supported. Each runs the configured integrator with the
+appropriate endpoints. Built-in fixed-step methods use equal work in both directions, but
+reverse integration need not invert the discrete forward map. Adaptive/implicit solvers may
+also require different work. Contracting flows amplify perturbations when inverted.
 """
 function LenticulumCore.supported_polarities(f::NeuralODEFactor{names}) where {names}
     O, U = LenticulumCore.Observed(), LenticulumCore.Unobserved()
@@ -195,8 +190,8 @@ LenticulumCore.energy(f::NeuralODEFactor, x, a, y, ps, st) = residual(f, x, y, p
 """
     NeuralODEModel(factor, polarity)
 
-The open model the polarity selects. Pure, and — unusually — *exactly invertible*, so the
-same object serves as its own inverse with the time direction flipped.
+The open model the polarity selects. Both directions integrate the dynamics; the inversion
+label depends on the numerical method, time grid and deterministic dynamics assumption.
 """
 struct NeuralODEModel{F<:NeuralODEFactor,P} <: LenticulumCore.AbstractOpenModel
     factor::F
@@ -208,20 +203,25 @@ LenticulumCore.latentspace(::NeuralODEModel) = nothing
 """
     LenticulumCore.assemble(f::NeuralODEFactor, p, ps, st)
 
-Produces a lens with `ExactInversion` — not `SolverInversion`.
-
-That is a real claim, not an optimism: the inverse of a flow is the flow with negative time,
-and it is exact in exact arithmetic. What it is *not* is exact in floating point, and the
-gap is the integrator's round-trip error. `neuralode.md` §4.3 argues that
-`ExactInversion` is nonetheless the right label, and says what would change if you disagree.
+Select the inversion label with `inversion_kind(f.integrator, f.tspan...)`.
+Euler/RK4 and adaptive SciML methods use `SolverInversion(integrator)`: reversing time
+approximates the continuous inverse, not the inverse of the discrete residual map.
+Symmetric fixed-step SciML methods on matching grids use `ExactInversion`, up to nonlinear
+solve tolerance and roundoff. Nonempty Lux state conservatively keeps `SolverInversion`,
+since state updates can change the dynamics. See
+`neuralode.md` §4.3 for convergence and conditioning limitations.
 """
-LenticulumCore.assemble(f::NeuralODEFactor, p::LenticulumCore.Polarity, ps, st) =
-    (LenticulumCore.BayesianLens(NeuralODEModel(f, p), LenticulumCore.ExactInversion()), st)
+function LenticulumCore.assemble(f::NeuralODEFactor, p::LenticulumCore.Polarity, ps, st)
+    # Conservatively avoid promising an inverse when threaded Lux state may change the RHS.
+    kind = st isa NamedTuple && isempty(st) ? inversion_kind(f.integrator, f.tspan...) :
+           LenticulumCore.SolverInversion(f.integrator)
+    return (LenticulumCore.BayesianLens(NeuralODEModel(f, p), kind), st)
+end
 
-function LenticulumCore.invert(
-    lens::LenticulumCore.BayesianLens{<:NeuralODEModel,LenticulumCore.ExactInversion},
-    π, inputs, ps, st,
-)
+const _NeuralODELens = LenticulumCore.BayesianLens{<:NeuralODEModel,
+    <:Union{LenticulumCore.ExactInversion,LenticulumCore.SolverInversion}}
+
+function LenticulumCore.invert(lens::_NeuralODELens, π, inputs, ps, st)
     f, p = lens.model.factor, lens.model.polarity
     target = only(LenticulumCore.unobserved_channels(p))
     return _flow_for(f, target, inputs, ps, st)
@@ -266,10 +266,9 @@ Mycelium.uses_cavity(::NeuralODEFactor) = true
 
 ``\\tfrac12\\|z_1 - \\Phi(z_0)\\|^2`` when both endpoints carry points, else `0.0`.
 
-On the relation this is **identically zero**, because the flow is exact and both endpoints
-agree by construction. That makes it a poor diagnostic and a good invariant: a nonzero value
-means either the integrator is inaccurate or the two messages disagree, and the test suite
-uses it that way.
+This is zero when the end point was produced by the same numerical forward map.
+Reverse-solved endpoints can have nonzero energy from round-trip error. The energy measures
+endpoint consistency with the numerical map; it cannot establish continuous-flow accuracy.
 """
 function Mycelium.local_free_energy(f::NeuralODEFactor, msgs, ps, st)
     z₀ = _point(_get(msgs, startchannel(f)))

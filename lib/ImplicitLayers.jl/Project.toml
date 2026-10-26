@@ -17,3 +17,17 @@ Mycelium = {path = "../Mycelium.jl"}
 
 [workspace]
 projects = ["test"]
+
+[weakdeps]
+SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
+OrdinaryDiffEqCore = "bbf590c4-e513-4bbe-9b18-05decba2e5d8"
+OrdinaryDiffEqSDIRK = "2d112036-d095-4a1e-ab9a-08536f3ecdbf"
+
+[extensions]
+ImplicitLayersOrdinaryDiffEqExt = ["OrdinaryDiffEqCore", "SciMLBase"]
+ImplicitLayersOrdinaryDiffEqSDIRKExt = ["OrdinaryDiffEqCore", "OrdinaryDiffEqSDIRK"]
+
+[compat]
+SciMLBase = "2, 3"
+OrdinaryDiffEqCore = "3, 4"
+OrdinaryDiffEqSDIRK = "1, 2"

@@ -156,8 +156,13 @@ i.e. a function with the solve sealed inside and one direction. Keeping the *res
 gives two. Wrapping their assembled layer is supported (`LuxFactor`) and yields exactly one
 polarity — which is the point of the comparison.
 
-For anything requiring stiff solvers, adaptivity, GPU support or real sensitivity analysis,
-these packages are the answer and this one is not.
+`ImplicitLayers` has no hard SciML dependency, and now offers an optional
+`SciMLIntegrator` extension: `OrdinaryDiffEqCore`/`SciMLBase` plus solver subpackages
+(`OrdinaryDiffEqTsit5`, `OrdinaryDiffEqSDIRK`) supply adaptive and implicit endpoint solves.
+Built-in Euler/RK4 remain unchanged. Only symmetric fixed-step configurations on matching
+grids can receive an exact discrete-inversion label, up to nonlinear-solve tolerance.
+See [[flow]] and [[neuralode]] for tested limits. GPU support for this wrapper and
+SciMLSensitivity gradients are not established here; gradients remain LP-002.
 
 ## 9. Catlab.jl and AlgebraicDynamics.jl — the structure, already implemented
 

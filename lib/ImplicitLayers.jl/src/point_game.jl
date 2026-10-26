@@ -17,7 +17,7 @@ end
 
 const _PointGameLens = Union{
     LenticulumCore.BayesianLens{<:DEQModel,<:LenticulumCore.SolverInversion},
-    LenticulumCore.BayesianLens{<:NeuralODEModel,LenticulumCore.ExactInversion},
+    _NeuralODELens,
 }
 
 LenticulumCore.energyspace(::_PointGameLens) = LenticulumCore.ScalarEnergySpace()

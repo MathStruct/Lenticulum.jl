@@ -50,8 +50,8 @@ says how the backward direction is computed:
 
 | kind | means | used by |
 |---|---|---|
-| `ExactInversion` | closed form | `GaussianFactor`, `NeuralODEFactor` |
-| `SolverInversion` | root-finding | `DEQFactor` |
+| `ExactInversion` | exact model inversion, up to numerical solve tolerance | `GaussianFactor`; symmetric fixed-step `NeuralODEFactor` on matching grids |
+| `SolverInversion` | approximate numerical inversion | `DEQFactor`; explicit/adaptive `NeuralODEFactor` |
 | `ProximalInversion` | a proximal / optimisation step | `DiffusionFactor` |
 | `AmortisedInversion` | a separate trained network | `RatioFactor` |
 | `TrivialInversion` | there is nothing to invert | `LuxFactor`, priors |

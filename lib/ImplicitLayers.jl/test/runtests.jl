@@ -278,7 +278,7 @@ end
     # THE property: integrating backwards inverts the flow. Same function, endpoints swapped.
     back = integrate(vf, z_rk, t₁, t₀, RK4Integrator(steps = 100))
     @test back ≈ z₀ rtol = 1e-9
-    # ...but NOT bit-exactly. The round trip is exact in exact arithmetic only.
+    # The discrete round trip has truncation error even in exact arithmetic.
     @test back != z₀
     @test 0 < _err(back, z₀) < 1e-9
 
@@ -297,7 +297,7 @@ end
     @test map(LenticulumCore.channelname, LenticulumCore.channels(f)) == (:z0, :z1)
     @test startchannel(f) === :z0 && endchannel(f) === :z1
 
-    # both polarities, unconditionally — no dimension test, no solver, no caveat
+    # Both polarities are supported; numerical accuracy is a separate question.
     @test length(LenticulumCore.supported_polarities(f)) == 2
     @test !LenticulumCore.isunidirectional(f)
     @test LenticulumCore.supports_polarity(f, Polarity(; z0 = Observed(), z1 = Unobserved()))
@@ -310,9 +310,10 @@ end
     zb, _ = flow_reverse(f, z₁, ps, st)
     @test zb ≈ z₀ rtol = 1e-9
 
-    # the inversion is labelled EXACT, not SolverInversion — see neuralode.md §4.3
+    # Explicit time reversal is an approximate inversion of the discrete forward map.
     lens, _ = LenticulumCore.assemble(f, Polarity(; z0 = Unobserved(), z1 = Observed()), ps, st)
-    @test lens.inversion isa LenticulumCore.ExactInversion
+    @test lens.inversion isa LenticulumCore.SolverInversion
+    @test !LenticulumCore.isexact(lens.inversion)
     b, _ = LenticulumCore.invert(lens, TrivialBelief(), (z1 = DiracBelief(z₁),), ps, st)
     @test b isa DiracBelief
     @test b.value ≈ z₀ rtol = 1e-9
@@ -430,3 +431,6 @@ end
 end
 
 include("conformance.jl")
+
+include("roundtrip.jl")
+include("sciml.jl")

@@ -24,7 +24,7 @@ there are two ways to wrap them, and the difference is the whole point of this p
 |---|---|---|---|
 | [`LuxFactor`](@ref) | the assembled `DeepEquilibriumNetwork` / `NeuralODE` | **1** | graph membership; a Lux layer with extra steps |
 | [`DEQFactor`](@ref) | the *cell* ``g_\\theta`` | **2** (if square) | the relation; solvable for either channel |
-| [`NeuralODEFactor`](@ref) | the *dynamics* ``f_\\theta`` | **2**, always | the flow; invertible by construction |
+| [`NeuralODEFactor`](@ref) | the *dynamics* ``f_\\theta`` | **2**, always | both endpoint integrations; exactness depends on method |
 
 `LuxFactor` works today on anything in the SciML ecosystem and asks nothing of it. The other
 two need the inner network rather than the assembled layer, and give back the bidirectionality
@@ -45,12 +45,13 @@ Concept notes: [[The Equilibrium Family]], [[DEQ as a Relation]],
 
 ## Two properties worth knowing up front
 
-**No SciML dependency, and no AD.** Dependencies are `LuxCore`, `Random`, `LinearAlgebra` —
-the same choice `VariationalDiffusion.jl` makes and for the same reason. Solvers are
-derivative-free (Broyden is what `DeepEquilibriumNetworks.jl` uses anyway) and integrators are
-fixed-step explicit. Derivative information, where needed, comes from finite differences and
-is honestly labelled a test-scale tool: the real answer is a VJP from automatic
-differentiation. See [[solve]] §4.
+**No hard SciML dependency.** Built-in root solvers and Euler/RK4 work without SciML.
+Optional [`SciMLIntegrator`](@ref) uses `OrdinaryDiffEqCore`/`SciMLBase` and solver subpackages
+such as `OrdinaryDiffEqTsit5` and `OrdinaryDiffEqSDIRK`. Explicit time reversal only
+approximates the inverse of the numerical forward map; symmetric fixed-step methods on
+matching grids can invert it up to nonlinear-solve tolerance. See [`inversion_kind`](@ref).
+SciMLSensitivity gradients are not implemented here (LP-002). Base derivative tools use
+finite differences and remain small-system tools; see `solve.md` §4.
 
 **Every inversion returns a `DiracBelief`.** A root-find and an ODE solve both produce a
 *point*. `GaussianBelief` is now in `LenticulumCore`, so a Gaussian answer (a covariance pushed
@@ -101,7 +102,8 @@ export cell_value, solve_state, solve_input, deq_sensitivity
 export inchannel, statechannel, indim, statedim
 
 # --- Flows -----------------------------------------------------------------
-export AbstractIntegrator, EulerIntegrator, RK4Integrator, nsteps
+export AbstractIntegrator, EulerIntegrator, RK4Integrator, SciMLIntegrator, nsteps
+export isreversible, inversion_kind
 export integrate, integrate_with_divergence
 
 # --- NeuralODE -------------------------------------------------------------
