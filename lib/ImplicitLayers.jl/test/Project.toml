@@ -1,4 +1,10 @@
 [deps]
+Lenticulum = "80a378fd-9e01-49e8-9939-ada6559002ad"
+ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
+DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 ImplicitLayers = "3c0d5f2a-7b41-4e88-9a6d-1f5c8e2b4471"
 LenticulumCore = "1ac3b398-e9e9-400d-83fd-862c57ff485d"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -10,3 +16,6 @@ OrdinaryDiffEqTsit5 = "b1df2697-797e-41e3-8120-5422d3b24e4a"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[sources]
+Lenticulum = {path = "../../.."}

@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Root finding, and the derivative it does not have.
+# Root finding and finite-difference reference derivatives.
 #
 # Every factor in this package is a RELATION defined by a residual F(u) = 0, and inference is
 # solving that residual for whichever channel the polarity left unobserved. So one root-finder
@@ -171,11 +171,10 @@ end
 The dense Jacobian ``\\partial F/\\partial u`` by forward differences: ``n+1`` evaluations of
 `F`.
 
-This is the package's **only** source of derivative information, and it is a test-scale tool.
-For a real DEQ the answer is a vector–Jacobian product from automatic differentiation, at
-``O(1)`` cost; here it is ``O(n)`` forward passes and it loses roughly half the significant
-digits to the step size. It exists so that [`ift_sensitivity`](@ref) can be *implemented and
-checked* against a closed form, not so that it can be used at scale. See `solve.md` §4.1.
+This remains a reference for small systems. Optional DI derivatives and solved-state
+IFT rules use automatic differentiation instead; see `deq_sensitivity` and
+`solve_state(...; ad)`. The root iterations themselves do not need derivatives.
+
 """
 function fd_jacobian(F, u; ε = 1e-7)
     f0 = F(u)
@@ -201,14 +200,14 @@ The implicit function theorem, applied to a fixed point ``z^\\ast = g(z^\\ast, x
 \\frac{\\partial z^\\ast}{\\partial x} = (I - \\partial_z g)^{-1}\\,\\partial_x g
 ```
 
-**One linear solve, no unrolling** — the property that makes implicit layers ``O(1)`` in
-memory, and the reason `Implicit Learners.md` lists the IFT as the equilibrium family's
+**One linear solve, no unrolling** — storage independent of the root iteration count
+(the dense state Jacobian still takes quadratic storage), and the reason `Implicit Learners.md` lists the IFT as the equilibrium family's
 backward pass. See [[Backpropagation by the Implicit Function Theorem]].
 
-Throws if ``I - \\partial_z g`` is singular. That is not a numerical accident: it is the
-statement that the fixed point is **not locally unique**, i.e. that the relation branches
-there. The algebraic family calls that locus the discriminant
-([[Branches and the Discriminant]]); here it is the same phenomenon and the same failure.
+Throws if ``I - \\partial_z g`` is singular: the IFT does not establish a locally
+differentiable inverse there. This alone does not imply nonuniqueness (a cubic
+residual can have a unique root with zero derivative). Dense matrix reference only.
+
 """
 function ift_sensitivity(Jz::AbstractMatrix, Jx::AbstractMatrix)
     n = size(Jz, 1)

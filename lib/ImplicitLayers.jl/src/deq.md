@@ -111,10 +111,25 @@ regularises training. That is a second parameter tree on the inversion — the
 `AmortisedInversion` situation of [[Inversions and Bayesian Lenses]] — and implementing it would make this the
 first factor in the project with genuinely two parametrised halves. Not done.
 
-### 4.5 `deq_sensitivity` costs $O(\dim x + \dim z)$ forward passes
+### 4.5 Sensitivities and training
 
-Two dense finite-difference Jacobians. See [[solve]] §4.1: the real answer is a VJP, and this
-family cannot avoid needing derivatives the way the diffusion family did.
+`deq_sensitivity(f, x, zstar, ps, st; wrt=:x, ad=nothing)` defaults to central
+differences; `wrt=:ps` selects flattened parameters. Supplying an ADTypes backend
+uses DI residual derivatives. `solve_state(...; ad)` also has optional ChainRulesCore
+and ForwardDiff extensions implementing the IFT through the solved state; see [[solve]].
+Its incoming state is fixed throughout iterations and advanced once at the root.
+
+For $z^*=(I-W)^{-1}(Ux+b)$, a perturbation obeys
+
+$$
+\delta z^*=(I-W)^{-1}(\delta W z^*+\delta Ux+\delta b).
+$$
+
+`test/parameter_ad.jl` checks this parameter Jacobian against ForwardDiff, Zygote and
+central differences, and checks a scalar loss on the solved state. `energy_gradient`
+and `free_energy_gradient` instead score fixed incoming endpoints, so their DEQ
+parameter derivatives need no root solve. Graph `parameter_step` uses this latter
+objective with fixed messages; it does not backpropagate through message schedules.
 
 Related: [[solve]], [[luxfactor]], [[neuralode]], [[DEQ as a Relation]],
 [[The Equilibrium Family]], [[Scalar and Multivariate Energy]], [[Implicit Learners]]
@@ -160,3 +175,8 @@ cubic absolute energy error and, generically, first-order relative energy error 
 Scoring an arbitrary point uses `energy`/`scalar_energy`, the pointwise level of
 [[L-ADR-0003 Pointwise energy and free energy are separate levels]], not a keyword on
 `free_energy`. Shared implementation and limitations: [[point_game]].
+
+Solved-state IFT AD currently accepts `AutoForwardDiff()` and `AutoZygote()`. Other
+solve backends are rejected explicitly, so they cannot silently differentiate the
+root iterations. Pass the backend to `solve_state` as well as the outer loss
+derivative. Core pointwise parameter derivatives have wider backend support.

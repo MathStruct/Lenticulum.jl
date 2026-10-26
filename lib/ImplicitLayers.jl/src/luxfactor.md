@@ -51,16 +51,21 @@ statement of what this package is for.
 
 ## 3. Implementation difficulties
 
-### 3.1 The energy is zero, which is a placeholder rather than a fact
+### 3.1 Zero energy is the compatible default; endpoint scoring is opt-in
 
-A function has no residual of its own — there is nothing to be "approximately satisfied". So
-`energy` returns `0.0` and `local_free_energy` likewise, on the reasoning that a `LuxFactor`'s
-contribution to a graph's loss comes from a downstream `LossFactor`
-([[Everything is a Factor]]).
+The default wrapper delegates losses to other factors and reports zero energy.
+`LuxFactor(layer, :x=>:y; dims=(nin,nout), residual=true)` instead gives pointwise
+vector energy $y-\mathrm{layer}_\theta(x)$, scalarised by half its squared norm.
+Its free energy scores incoming endpoint points with the same scalar energy and zero
+point-belief entropy. An explicit output dimension is required. Such graph nodes need
+absorbing/bidirectional edges to read endpoint beliefs.
 
-That is defensible and it is also how a factor silently contributes nothing to a free energy
-that is supposed to total $-\log p(y)$. A `LuxFactor` in a graph makes the Bethe sum wrong in
-a way no assertion catches.
+This opt-in preserves existing downstream-loss graphs while allowing fixed-message
+parameter learning. With zero energy, the graph's partial parameter derivative is zero:
+training a downstream loss through an inference schedule is a different, unimplemented
+operation. Users may differentiate `apply_layer` inside `parameter_gradient` directly.
+The backend compatibility of a wrapped solver is the wrapped layer's responsibility.
+ForwardDiff and Zygote are checked on a scalar Lux parameter in `test/parameter_ad.jl`.
 
 ### 3.2 `dims` are optional and unchecked
 
@@ -80,7 +85,7 @@ Related: [[deq]], [[neuralode]], [[DEQ as a Relation]], [[Lux as a Parametric Le
 
 ## Game quantities and common checker (2026-10-26)
 
-The conditional point game has `free_energy = 0` and `entropy = 0` in
+By default the conditional point game has `free_energy = 0` and `entropy = 0` in
 `ScalarEnergySpace`, exactly like `energy` and `local_free_energy`: the wrapper delegates
 loss accounting to other factors. `test/conformance.jl` runs the shared default lens path
 at its sole polarity using the independent map `y = 2x`, and checks option-1 game/graph

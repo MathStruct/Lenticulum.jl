@@ -92,7 +92,13 @@ function LenticulumCore.energy(f::PolynomialFactor,x,a,y,ps,st)
     return ps.Θ*veronese(f.table,_polynomial_data(f,x,y)),st
 end
 
-function LenticulumCore.energy_jacobian(f::PolynomialFactor,x,a,y,ps,st;wrt::Symbol=:y,ε::Real=1e-6)
+function LenticulumCore.energy_jacobian(f::PolynomialFactor,x,a,y,ps,st;
+                                      wrt::Symbol=:y, ε::Real=1e-6, ad=nothing)
+    if wrt === :ps
+        return invoke(LenticulumCore.energy_jacobian,
+            Tuple{LenticulumCore.AbstractLenticulumFactor,Any,Any,Any,Any,Any},
+            f,x,a,y,ps,st; wrt, ε, ad)
+    end
     wrt === :y && x === nothing && y isa AbstractVector || throw(ArgumentError(
         "PolynomialFactor Jacobian needs x=nothing, packed y=z, wrt=:y (all coordinates)"))
     return ps.Θ*veronese_jacobian(f.table,y)

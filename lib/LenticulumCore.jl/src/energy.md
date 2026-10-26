@@ -225,11 +225,42 @@ right place), but the message will be unhelpful. A custom error explaining "the
 scalarisation's grading does not match the energy's" is worth adding. Issue #8 was this
 error in another form: a graded scalarisation applied to a plain vector.
 
-### 6. The reference Jacobian and the remaining AD gap
+### 6. Parameter derivatives and optional AD (LP-002, 2026-10-26)
 
-`energy_jacobian` already provides central finite differences in `:x` or `:y`, and
-`gauss_newton_metric` forms the pull-back. The earlier statement that no Jacobian
-support existed was stale. Parameter Jacobians and backend AD through localisation
-remain outside this implementation; finite differences are a reference, not an AD rule.
+`energy_jacobian(...; wrt=:ps, ad)` returns the pointwise vector energy's parameter
+Jacobian. Extending the existing function keeps input and parameter pull-backs on the
+same API; `wrt=:x` remains the compatible default. `wrt=:y` is also supported.
+`gauss_newton_metric` accepts the same backend and coordinates. With no backend,
+central differences remain the reference/default.
+
+`energy_gradient` differentiates `scalar_energy`; `free_energy_gradient` differentiates
+`scalar_free_energy`. They return the same numeric tree structure as `ps`, including
+empty subtrees, scalar leaves and array shapes. `parameter_gradient(loss, ps; ad)`
+provides the same mechanism for a user scalar loss. Incoming state is held fixed;
+derivative evaluations do not commit state. A family using randomness must itself
+provide an appropriate differentiable expectation/estimator; these APIs do not invent one.
+
+Load `DifferentiationInterface` and the backend package, then pass an ADTypes object,
+for example `ad=AutoForwardDiff()` or `ad=AutoZygote()`. DI is a weak dependency;
+passing a backend without its extension gives a loading hint. Backend compatibility
+still depends on the model's operations. Core's `test/parameter_ad.jl` checks both
+backends, Enzyme and finite differences against linear residual Jacobians and quadratic gradients.
+The top-level `test/runtests.jl` also checks GaussianFactor's parameter Jacobian,
+precision-weighted gradient and Gauss–Newton metric against their closed forms.
+
+Graded scalarisation uses an explicit empty case rather than the tested stack's
+unsupported Zygote `sum(::Tuple; init)` rule; constant objectives rebuild zero trees
+even when a backend returns `nothing` for an inactive derivative. Both cases have
+analytic gradient tests.
+
+Coordinate selection is dispatched before the AD trace, keeping active and constant
+arrays separate for Enzyme static activity analysis. Existing exact Jacobian overrides
+can still omit the `ad` keyword on calls without a backend. After adding weak extensions
+to an already-instantiated checkout, run `Pkg.resolve()` in that environment to refresh
+its manifest extension metadata.
+
+The shared tree implementation is [[parameter_tree]]. Backend AD through a
+finite-difference Sampson localisation is not supported; this addition does not supply
+higher-order rules for that metric. Gauss–Newton freezes the local metric as before.
 
 Related: [[Scalar and Multivariate Energy]], [[Factors are Parameterized Statistical Games]], [[statistical_game]]

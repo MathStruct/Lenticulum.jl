@@ -11,14 +11,17 @@ LuxCore = "bb33d45b-7691-41d6-9220-0943567d0623"
 
 
 [weakdeps]
+DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
 BayesBase = "b4ee3484-f114-42fe-b91c-797d54a0c67e"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 ExponentialFamily = "62312e5e-252a-4322-ace9-a5f4bf9b357b"
 
 [extensions]
+LenticulumCoreDifferentiationInterfaceExt = "DifferentiationInterface"
 LenticulumCoreExponentialFamilyExt = ["ExponentialFamily", "BayesBase", "Distributions"]
 
 [compat]
+DifferentiationInterface = "0.7"
 BayesBase = "1"
 Distributions = "0.25"
 ExponentialFamily = "2"

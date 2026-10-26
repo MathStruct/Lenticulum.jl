@@ -154,23 +154,51 @@ LenticulumCore.energy(f::DEQFactor, x, a, y, ps, st) = residual(f, x, y, ps, st)
 # --- Solving, in whichever direction --------------------------------------
 
 """
-    solve_state(f, x, ps, st; z₀) -> (z★, SolveReport, st)
+    solve_state(f, x, ps, st; z₀, ad = nothing) -> (z★, SolveReport, st)
 
 Solve ``z = g_\\theta(z, x)`` for `z`. The forward DEQ pass — what
 `DeepEquilibriumNetworks.jl` does.
 
 `z₀` defaults to zeros, which is `SkipDeepEquilibriumNetwork`'s point of departure: a learned
-initial guess is strictly better and is not implemented (`deq.md` §4.4).
+initial guess can improve convergence and is not implemented (`deq.md` §4.4).
+
+The incoming Lux state is fixed throughout the iterations, then advanced once at the
+returned root. Supply an ADTypes backend to use the optional IFT solve rules (tested
+with ForwardDiff and Zygote). In this AD path a nonconverged solve throws; reports and
+returned state are bookkeeping without tangents. No AD rule is provided for `solve_input`.
 """
-function solve_state(f::DEQFactor, x, ps, st; z₀ = zeros(Float64, statedim(f)))
-    stref = Ref(st)
-    F = function (z)
-        r, s = residual(f, x, z, ps, stref[])
-        stref[] = s
-        return r
-    end
+function solve_state(f::DEQFactor, x, ps, st; z₀ = zeros(Float64, statedim(f)), ad = nothing)
+    return _solve_state(ad, f, x, ps, st, z₀)
+end
+function _solve_state(::Nothing, f, x, ps, st, z₀)
+    # A root must be a root of one fixed function. Threading state across iterations
+    # would change the equation with the solver trajectory.
+    F(z) = first(residual(f, x, z, ps, st))
     z, rep = solve_root(F, z₀, f.solver)
-    return (z, rep, stref[])
+    _, stnew = residual(f, x, z, ps, st)
+    return (z, rep, stnew)
+end
+_solve_state(ad, f, x, ps, st, z₀) = LenticulumCore._ad_error(ad)
+
+# Primitive shared by the DI, ChainRules and ForwardDiff extensions. Its joint
+# variable contains input followed by flattened parameters; only the root is active.
+function _implicit_state(ad, f, u, like, offs, st, z₀)
+    nx = indim(f)
+    x = u[1:nx]
+    ps = LenticulumCore._unflatten(u[(nx + 1):end], offs, like)
+    z, rep, stnew = _solve_state(nothing, f, x, ps, st, z₀)
+    rep.converged || throw(ArgumentError("DEQ AD requires a converged root; residual norm $(rep.residual)"))
+    return z, rep, stnew
+end
+function _joint_residual(u, f, z, like, offs, st)
+    nx = indim(f)
+    return first(residual(f, u[1:nx], z,
+        LenticulumCore._unflatten(u[(nx + 1):end], offs, like), st))
+end
+function _root_jacobian(ad, f, u, z, like, offs, st)
+    nx = indim(f)
+    ps = LenticulumCore._unflatten(u[(nx + 1):end], offs, like)
+    return LenticulumCore.energy_jacobian(f, u[1:nx], nothing, z, ps, st; wrt = :y, ad)
 end
 
 """
@@ -200,29 +228,20 @@ function solve_input(f::DEQFactor, z, ps, st; x₀ = zeros(Float64, indim(f)))
 end
 
 """
-    deq_sensitivity(f, x, z★, ps, st) -> ∂z★/∂x
+    deq_sensitivity(f, x, z★, ps, st; wrt = :x, ad = nothing)
 
-The implicit function theorem at the solved fixed point:
-``\\partial z^\\ast/\\partial x = (I - \\partial_z g)^{-1}\\partial_x g``.
-
-Both Jacobians come from [`fd_jacobian`](@ref), so this costs ``O(\\dim x + \\dim z)`` forward
-passes and is a **test-scale tool** — the real answer is a VJP from automatic
-differentiation. It is here because it makes the IFT *checkable*: for a linear cell
-``g = Wz + Ux + b`` the exact answer is ``(I-W)^{-1}U``, and the test suite compares against
-it.
-
-This is also the quantity a Gaussian message would need in order to push a covariance through
-the layer, which `deq.md` §4.1 explains cannot currently be returned.
+The dense IFT sensitivity `-(D_z r) \\ D_u r` at a supplied root. `wrt=:x`
+selects inputs; `wrt=:ps` selects flattened parameters in the core tree order.
+With `ad=nothing`, use central differences; an ADTypes object uses the optional DI extension.
+The incoming state is fixed, and the root must have a nonsingular residual Jacobian.
+For differentiating a scalar loss through the root itself use `solve_state(...; ad)`;
+its weak ChainRulesCore/ForwardDiff rules avoid differentiating solver iterations.
 """
-function deq_sensitivity(f::DEQFactor, x, z★, ps, st)
-    # ∂r/∂z = I - ∂_z g  and  ∂r/∂x = -∂_x g, so both cell Jacobians come from the residual
-    Jr_z = fd_jacobian(z -> first(residual(f, x, z, ps, st)), z★)
-    Jr_x = fd_jacobian(xx -> first(residual(f, xx, z★, ps, st)), x)
-    n = size(Jr_z, 1)
-    Idn = Matrix{Float64}(I, n, n)
-    ∂zg = Idn .- Jr_z
-    ∂xg = .-Jr_x
-    return ift_sensitivity(∂zg, ∂xg)
+function deq_sensitivity(f::DEQFactor, x, z★, ps, st; wrt = :x, ad = nothing)
+    wrt in (:x, :ps) || throw(ArgumentError("deq_sensitivity wrt must be :x or :ps"))
+    Jz = LenticulumCore.energy_jacobian(f, x, nothing, z★, ps, st; wrt = :y, ad)
+    Ju = LenticulumCore.energy_jacobian(f, x, nothing, z★, ps, st; wrt, ad)
+    return -(Jz \ Ju)
 end
 
 # --- The open model and the solver inversion -------------------------------

@@ -323,7 +323,9 @@ scalarise(σ::WeightedSum, e) = sum(σ.λ .* e)
 scalarise(σ::SquaredNorm{Nothing}, e) = sum(abs2, e) / 2
 scalarise(σ::SquaredNorm, e) = dot_quadratic(σ.M, e) / 2
 function scalarise(σ::GradedScalarisation{names}, e::GradedEnergy{names}) where {names}
-    return sum(map(scalarise, values(σ.parts), values(e.parts)); init = 0.0)
+    # Avoid sum(::Tuple; init), which has no working Zygote rule in the tested stack.
+    parts = map(scalarise, values(σ.parts), values(e.parts))
+    return isempty(parts) ? 0.0 : 0.0 + sum(parts)
 end
 
 dot_quadratic(M, e) = dot(e, M, e)
@@ -470,40 +472,108 @@ _scalarisation(f, ::Nothing) = scalarisation(f)
 _scalarisation(f, polarity) = scalarisation(f, polarity)
 
 """
-    energy_jacobian(factor, x, a, y, ps, st; wrt = :x, ε = 1e-6) -> Matrix
+    energy_jacobian(factor, x, a, y, ps, st; wrt = :x, ε = 1e-6, ad = nothing) -> Matrix
 
 The Jacobian ``J = \\partial \\mathbf{l}^c / \\partial u`` of the pointwise vector energy
-[`energy`](@ref) with respect to `wrt` (`:x` or `:y`). This is the reason the pointwise
+[`energy`](@ref) with respect to `wrt` (`:x`, `:y`, or `:ps`). Parameter columns follow depth-first
+tuple field order and column-major array order. This is the reason the pointwise
 energy is kept vector-valued (`L-ADR-0002`, `LP-002`): from `J` and a [`SquaredNorm`](@ref)
 metric ``M``, [`gauss_newton_metric`](@ref) forms ``J^\\top M J`` without second derivatives.
 
 This is a **reference implementation by central finite differences** (step `ε (1 + |u_j|)`), so
 that `LenticulumCore` needs no AD dependency: accurate to about `√eps`, one energy evaluation per
-coordinate and side, and not differentiable itself. Jacobians by automatic differentiation, in
-the inputs and in the parameters, belong in package extensions (`LP-002`, still open).
+coordinate and side, and not differentiable itself. Pass `ad=AutoForwardDiff()` or another ADTypes backend to use the optional
+DifferentiationInterface extension instead. Load that package and the backend first.
 """
 function energy_jacobian(
-    f::AbstractLenticulumFactor, x, a, y, ps, st; wrt::Symbol = :x, ε::Real = 1e-6
+    f::AbstractLenticulumFactor, x, a, y, ps, st; wrt::Symbol = :x, ε::Real = 1e-6, ad = nothing
 )
-    u = wrt === :x ? x : wrt === :y ? y : throw(ArgumentError("wrt must be :x or :y; got :$wrt"))
-    eval_r(v) = wrt === :x ? first(energy(f, v, a, y, ps, st)) : first(energy(f, x, a, v, ps, st))
-    r0 = eval_r(u)
-    m, n = length(r0), length(u)
+    u = wrt === :ps ? _flatten(ps) : wrt === :x ? x : wrt === :y ? y :
+        throw(ArgumentError("wrt must be :x, :y or :ps; got :$wrt"))
+    offs = wrt === :ps ? offset_tree(ps) : nothing
+    return _jacobian(ad, _energy_at, u, f, x, a, y, ps, offs, st, Val(wrt); ε)
+end
+
+_energy_vector(r::Number) = [r]
+_energy_vector(r::AbstractArray) = vec(r)
+_energy_vector(r::GradedEnergy) = reduce(vcat, map(_energy_vector, values(r.parts)); init = Float64[])
+# Dispatch on coordinates before entering AD, so Enzyme's static activity analysis
+# never has to merge an active vector with a constant input/parameter tree.
+_energy_at(u, f, x, a, y, ps, offs, st, ::Val{:ps}) =
+    _energy_vector(first(energy(f, x, a, y, _unflatten(u, offs, ps), st)))
+_energy_at(u, f, x, a, y, ps, offs, st, ::Val{:x}) =
+    _energy_vector(first(energy(f, u, a, y, ps, st)))
+_energy_at(u, f, x, a, y, ps, offs, st, ::Val{:y}) =
+    _energy_vector(first(energy(f, x, a, u, ps, st)))
+
+# Also used by implicit layers and graph training. Context arguments are DI Constants.
+function _jacobian(::Nothing, fun, u, args...; ε = 1e-6)
+    r0 = fun(u, args...)
     T = float(promote_type(eltype(r0), eltype(u)))
-    J = zeros(T, m, n)
-    up = collect(T, u)
-    um = collect(T, u)
-    for j in 1:n
-        uj = T(u[j])
-        h = T(ε) * (one(T) + abs(uj))
-        up[j] = uj + h
-        um[j] = uj - h
-        J[:, j] .= (eval_r(up) .- eval_r(um)) ./ (2 * h)
-        up[j] = uj
-        um[j] = uj
+    J = zeros(T, length(r0), length(u))
+    up, um = collect(T, u), collect(T, u)
+    for j in eachindex(u)
+        h = T(ε) * (one(T) + abs(u[j]))
+        up[j], um[j] = u[j] + h, u[j] - h
+        J[:, j] .= (fun(up, args...) .- fun(um, args...)) ./ (2h)
+        up[j] = um[j] = u[j]
     end
     return J
 end
+_ad_error(ad) = throw(ArgumentError(
+    "AD backend $(typeof(ad)) requires `using DifferentiationInterface` and its backend package " *
+    "(e.g. `using ForwardDiff` or `using Zygote`); pass an ADTypes backend object."))
+_jacobian(ad, fun, u, args...; ε = 1e-6) = _ad_error(ad)
+_gradient(ad, fun, u, args...; ε = 1e-6) = _ad_error(ad)
+_scalar_vector(u, fun, args...) = [fun(u, args...)]
+_gradient(::Nothing, fun, u, args...; ε = 1e-6) =
+    vec(_jacobian(nothing, _scalar_vector, u, fun, args...; ε))
+
+"""
+    parameter_gradient(loss, ps; ad = nothing, ε = 1e-6)
+
+Differentiate scalar `loss(ps)` and return the numeric parameter tree's structure.
+Arrays use column-major order; tuples/NamedTuples use depth-first field order. Empty
+subtrees are preserved. State and data captured by `loss` are held fixed. No state is
+committed by this operation. `ad=nothing` uses central differences; an ADTypes object
+selects the optional DifferentiationInterface extension and a user-loaded backend.
+Only numeric scalar/array leaves and tuple/NamedTuple containers are supported.
+"""
+parameter_gradient(loss, ps; ad = nothing, ε = 1e-6) =
+    _parameter_gradient(ad, _call_loss, ps, loss; ε)
+_call_loss(ps, loss) = loss(ps)
+_parameter_loss(θ, fun, like, offs, args...) = fun(_unflatten(θ, offs, like), args...)
+function _parameter_gradient(ad, fun, ps, args...; ε = 1e-6)
+    θ, offs = _flatten(ps), offset_tree(ps)
+    isempty(θ) && return _unflatten(θ, offs, ps)
+    g = _gradient(ad, _parameter_loss, θ, fun, ps, offs, args...; ε)
+    return _unflatten(g === nothing ? zero(θ) : g, offs, ps)
+end
+
+"""
+    energy_gradient(f, x, a, y, ps, st; ad = nothing, ε = 1e-6, kwargs...)
+
+Parameter gradient of `first(scalar_energy(...; kwargs...))`, shaped like `ps`.
+Scalarisation and polarity keywords have exactly `scalar_energy`'s meaning, including
+any parameter dependence of a point scalarisation. The incoming state is held fixed.
+"""
+function energy_gradient(f, x, a, y, ps, st; ad = nothing, ε = 1e-6, kwargs...)
+    return _parameter_gradient(ad, _scalar_energy_params, ps, f, x, a, y, st, (; kwargs...); ε)
+end
+_scalar_energy_params(ps, f, x, a, y, st, kw) = first(scalar_energy(f, x, a, y, ps, st; kw...))
+
+"""
+    free_energy_gradient(f, π, y, ps, st; ad = nothing, ε = 1e-6, kwargs...)
+
+Parameter gradient of `first(scalar_free_energy(...; kwargs...))`, shaped like `ps`.
+Beliefs and incoming state are held fixed. This differentiates the family-defined free
+energy, including expectations if that implementation differentiates them; it does not
+supply an estimator for a stochastic inversion.
+"""
+function free_energy_gradient(f, π, y, ps, st; ad = nothing, ε = 1e-6, kwargs...)
+    return _parameter_gradient(ad, _scalar_free_energy_params, ps, f, π, y, st, (; kwargs...); ε)
+end
+_scalar_free_energy_params(ps, f, π, y, st, kw) = first(scalar_free_energy(f, π, y, ps, st; kw...))
 
 """
     gauss_newton_metric(σ::SquaredNorm, J::AbstractMatrix) -> Symmetric
@@ -525,11 +595,13 @@ end
 function gauss_newton_metric(
     f::AbstractLenticulumFactor, x, a, y, ps, st;
     wrt::Symbol = :x, polarity = nothing,
-    σ = _pointwise_scalarisation(f, polarity), ε::Real = 1e-6,
+    σ = _pointwise_scalarisation(f, polarity), ε::Real = 1e-6, ad = nothing,
 )
     σ = localise(σ, f, x, a, y, ps, st)
     σ isa SquaredNorm || throw(ArgumentError(
         "gauss_newton_metric requires a SquaredNorm pointwise scalarisation; got $(typeof(σ))"))
-    J = energy_jacobian(f, x, a, y, ps, st; wrt = wrt, ε = ε)
+    # Preserve existing analytic overrides that predate the optional ad keyword.
+    J = ad === nothing ? energy_jacobian(f, x, a, y, ps, st; wrt, ε) :
+                         energy_jacobian(f, x, a, y, ps, st; wrt, ε, ad)
     return gauss_newton_metric(σ, J)
 end

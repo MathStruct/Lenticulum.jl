@@ -84,4 +84,4 @@ missing lens, distributional entropy or general BP law.
 ## Open
 
 - Polarity-dependent energies are allowed by §3 but no factor has one.
-- AD package extensions for parameter-space Jacobians $D_\theta \mathbf F$ and closed-form factor Jacobian overrides remain open ([[LP-002 The Jacobian side is not implemented]]).
+- Optional DifferentiationInterface parameter Jacobians/gradients and parameter pull-back metrics are implemented; finite differences remain the reference. See [[LP-002 The Jacobian side is not implemented]] for tested paths and remaining scope.

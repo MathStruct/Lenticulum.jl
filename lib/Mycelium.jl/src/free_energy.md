@@ -135,3 +135,26 @@ Here the names *do* come from the graph in one step (factor names, variable name
 `E_G = ⊕_f E_f` grading is built correctly. It is only the outer two-way split that is a fold.
 
 Related: [[Bethe Free Energy]], [[Scalar and Multivariate Energy]], [[energy]], [[graph]]
+
+## Parameter training at fixed beliefs (LP-002, 2026-10-26)
+
+`free_energy_gradient(store, g, ps, st; ad)` differentiates each scalarised local free
+energy and assembles a tree matching `ps`. Nonlearnable factors get zero subtrees.
+Messages are snapshotted outside AD. Bethe variable corrections are constant under
+this partial derivative, so the result is the parameter gradient of their sum plus
+those corrections. The same cavity edge validation as reporting applies.
+
+`parameter_step(store, g, ps, st; ad, rule, optimiser_state)` evaluates the rule's
+look-ahead parameters, obtains that gradient, and applies `rule_put` to each learnable
+factor's flattened vector. It returns `(ps_new, st_new, optimiser_state_new)`; Lux state
+advances once at the look-ahead parameters. Pass the returned optimiser state on the
+next call for Momentum/Nesterov. The existing `OptimiserFactor` still operates on exposed
+parameter wires with an externally supplied gradient; schedules do inference only.
+There was no graph `train`/`learn` driver supplying those gradients.
+
+This is the smallest training driver: alternate inference and parameter steps as
+appropriate for the model. It neither differentiates through inference schedules nor
+implements per-edge couplings, parameter sharing, stochastic gradient estimators or
+frozen cotangent semantics. `ImplicitLayers/test/parameter_ad.jl` learns the coefficient
+of a discrete scalar ODE to its known generating value and checks the Nesterov
+look-ahead formula, with ForwardDiff and Zygote.

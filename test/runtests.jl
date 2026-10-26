@@ -1225,3 +1225,17 @@ end
     @test Fi[:fit] ≈ Hpois(1.5) + Hpois(0.5) rtol = 1e-8
     @test_throws ArgumentError Mycelium.local_free_energy(f, (x = nothing, y = nothing), nt, nt)
 end
+
+@testset "LP-002 Gaussian parameter derivatives against closed form" begin
+    f = GaussianFactor(2 => 2; noise = [0.7 0.1; 0.1 0.5])
+    ps, st = (A = [0.2 -0.3; 0.4 0.1], b = [0.1, -0.2]), (;)
+    x, y = [0.8, -1.2], [0.5, 0.7]
+    Id = Matrix{Float64}(I, 2, 2)
+    J = -hcat(kron(x', Id), Id)
+    r = y - ps.A*x - ps.b
+    @test energy_jacobian(f, x, nothing, y, ps, st; wrt = :ps) ≈ J atol = 1e-9
+    @test gauss_newton_metric(f, x, nothing, y, ps, st; wrt = :ps) ≈ J'*(f.Q\J) atol = 1e-8
+    grad = LenticulumCore.energy_gradient(f, x, nothing, y, ps, st)
+    @test grad.A ≈ -(f.Q\r)*x' atol = 1e-9
+    @test grad.b ≈ -(f.Q\r) atol = 1e-9
+end

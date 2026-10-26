@@ -136,7 +136,7 @@ checks solver completion, but cannot repair inverse conditioning. A contracting 
 with $a<0$ amplifies absolute endpoint errors by $e^{|a|T}$ when inverted. This is distinct
 from discretisation and persists even with a symmetric method. See [[neuralode]] §4.3.
 
-### 4.4 Gradients remain LP-002
+### 4.4 Optional endpoint gradients, pending SciML adjoints
 
 This extension adds integration, not SciMLSensitivity gradients. That is
 [[LP-002 The Jacobian side is not implemented]]. SciMLSensitivity's
@@ -147,3 +147,7 @@ applies; using SciML does not remove it.
 
 Related: [[neuralode]], [[solve]], [[NeuralODE as an Invertible Factor]],
 [[The Equilibrium Family]]
+
+Built-in NeuralODEFactor Euler/RK4 endpoint flows now have tested DI parameter
+derivatives with ForwardDiff and Zygote; see [[neuralode]]. CNF divergence and the
+SciML `Ref` path are outside that coverage.

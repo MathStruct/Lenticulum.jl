@@ -91,6 +91,6 @@ export bethe_free_energy, chain_free_energy   # scalar_free_energy extends Lenti
 export local_free_energy, uses_cavity, issink, point
 export DataFactor, PriorFactor, LossFactor, RelayFactor, OptimiserFactor
 export AbstractUpdateRule, GradientDescent, Momentum, Nesterov
-export rule_get, rule_put, optimiser_step
+export rule_get, rule_put, optimiser_step, parameter_step
 
 end # module

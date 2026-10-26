@@ -59,6 +59,25 @@ says how the backward direction is computed:
 Nothing requires an inversion to be exact. An approximate one is legal; the free energy is
 what records the cost.
 
+## Parameter derivatives
+
+```julia
+using LenticulumCore, DifferentiationInterface, ADTypes, ForwardDiff
+ad = AutoForwardDiff()     # or load Zygote and use AutoZygote()
+J = energy_jacobian(f, x, a, y, ps, st; wrt=:ps, ad)
+G = gauss_newton_metric(f, x, a, y, ps, st; wrt=:ps, ad)
+grad = energy_gradient(f, x, a, y, ps, st; ad)
+grad_free = free_energy_gradient(f, prior, observation, ps, st; ad)
+```
+
+`J` has one column per flattened parameter (depth-first fields, column-major arrays).
+Scalar gradients have the same numeric tree structure as `ps`. Omitting `ad` keeps
+central finite differences. DI is a weak dependency and the user loads the backend.
+`parameter_gradient(loss, ps; ad)` supports custom scalar objectives. State/data are
+held fixed; no estimator for stochastic expectations is supplied. ForwardDiff,
+Zygote and Enzyme are tested against closed forms; other backends depend on their support for
+the chosen model. AD through finite-difference Sampson localisation is not covered.
+
 ## Known gaps
 
 - Per-edge gradient semantics are planned (LP-011, L-SPEC-002). `ComposedFactor` accepts

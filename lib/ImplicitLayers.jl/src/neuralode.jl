@@ -142,15 +142,34 @@ Integrate ``t_0 \\to t_1`` and ``t_1 \\to t_0`` respectively. Same integrator, e
 swapped — that is the entire implementation of the reverse direction.
 """
 function flow_forward(f::NeuralODEFactor, z₀, ps, st)
-    vf, stref = vectorfield(f, ps, st)
-    z₁ = integrate(vf, z₀, f.tspan[1], f.tspan[2], f.integrator)
-    return (z₁, stref[])
+    return _flow(f, z₀, ps, st, f.tspan[1], f.tspan[2], f.integrator)
 end
-
 function flow_reverse(f::NeuralODEFactor, z₁, ps, st)
+    return _flow(f, z₁, ps, st, f.tspan[2], f.tspan[1], f.integrator)
+end
+function _flow(f, u, ps, st, t0, t1, itg::Union{EulerIntegrator,RK4Integrator})
+    h = (t1 - t0) / nsteps(itg)
+    return foldl(1:nsteps(itg); init = (u, st)) do (z, state), k
+        _lux_step(f, z, ps, state, t0 + (k - 1) * h, h, itg)
+    end
+end
+_rhs(f, z, t, ps, st) = LuxCore.apply(f.dynamics, f.input(z, t), ps, st)
+function _lux_step(f, z, ps, st, t, h, ::EulerIntegrator)
+    k, st = _rhs(f, z, t, ps, st)
+    return z .+ h .* k, st
+end
+function _lux_step(f, z, ps, st, t, h, ::RK4Integrator)
+    k1, s1 = _rhs(f, z, t, ps, st)
+    k2, s2 = _rhs(f, z .+ (h / 2) .* k1, t + h / 2, ps, s1)
+    k3, s3 = _rhs(f, z .+ (h / 2) .* k2, t + h / 2, ps, s2)
+    k4, s4 = _rhs(f, z .+ h .* k3, t + h, ps, s3)
+    return z .+ (h / 6) .* (k1 .+ 2 .* k2 .+ 2 .* k3 .+ k4), s4
+end
+# Adaptive SciML and divergence paths retain their existing Ref interface.
+function _flow(f, u, ps, st, t0, t1, itg::AbstractIntegrator)
     vf, stref = vectorfield(f, ps, st)
-    z₀ = integrate(vf, z₁, f.tspan[2], f.tspan[1], f.integrator)
-    return (z₀, stref[])
+    z = integrate(vf, u, t0, t1, itg)
+    return z, stref[]
 end
 
 """

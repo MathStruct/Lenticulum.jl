@@ -90,6 +90,26 @@ an improper second argument is allowed up to a constant depending on it alone.
 Disjoint categorical support returns `(c,-Inf)`. Mixture weights and the
 AlgebraicFactors homotopy extension use this public rule.
 
+## Parameter steps
+
+After inference has populated incoming messages:
+
+```julia
+using DifferentiationInterface, ADTypes, ForwardDiff
+ad = AutoForwardDiff()
+grad = LenticulumCore.free_energy_gradient(store, g, ps, st; ad)
+ps, st, optstate = parameter_step(store, g, ps, st; ad, rule=GradientDescent(0.01))
+# On subsequent steps pass optimiser_state=optstate (needed for Momentum/Nesterov).
+```
+
+The objective is the sum of scalarised local free energies, with beliefs fixed.
+Bethe variable corrections have zero parameter derivative under that convention.
+Only learnable factors are updated. Inference schedules and `OptimiserFactor` remain
+separate; no gradient is propagated through the mutating inference schedule.
+LuxFactor requires `residual=true` to learn from endpoint scoring in this mode.
+The ImplicitLayers AD tests fit a known ODE coefficient and check Nesterov look-ahead
+updates with ForwardDiff and Zygote.
+
 ## Known gaps
 
 - `combine` is partial: particles can be reweighted by a density or an

@@ -19,15 +19,24 @@ Mycelium = {path = "../Mycelium.jl"}
 projects = ["test"]
 
 [weakdeps]
+DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
+ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
 OrdinaryDiffEqCore = "bbf590c4-e513-4bbe-9b18-05decba2e5d8"
 OrdinaryDiffEqSDIRK = "2d112036-d095-4a1e-ab9a-08536f3ecdbf"
 
 [extensions]
+ImplicitLayersDifferentiationInterfaceExt = "DifferentiationInterface"
+ImplicitLayersChainRulesCoreExt = ["DifferentiationInterface", "ChainRulesCore"]
+ImplicitLayersForwardDiffExt = ["DifferentiationInterface", "ForwardDiff"]
 ImplicitLayersOrdinaryDiffEqExt = ["OrdinaryDiffEqCore", "SciMLBase"]
 ImplicitLayersOrdinaryDiffEqSDIRKExt = ["OrdinaryDiffEqCore", "OrdinaryDiffEqSDIRK"]
 
 [compat]
+DifferentiationInterface = "0.7"
+ChainRulesCore = "1"
+ForwardDiff = "0.10, 1"
 SciMLBase = "2, 3"
 OrdinaryDiffEqCore = "3, 4"
 OrdinaryDiffEqSDIRK = "1, 2"

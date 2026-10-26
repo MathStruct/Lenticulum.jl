@@ -31,8 +31,8 @@ $$u_1 = u_0 - I\cdot F(u_0) = u_0 - (u_0 - g(u_0)) = g(u_0)$$
 Asserted in the tests, and worth knowing because it means Broyden is never worse than Picard
 on the first iteration.
 
-Both are derivative-free, which is a requirement rather than a preference: the residual
-contains a neural network and this package has no AD dependency. It is also what
+Both root algorithms are derivative-free, so inference has no hard AD dependency.
+Optional AD of a solved state is a separate IFT calculation. These are also what
 `DeepEquilibriumNetworks.jl` does — Broyden and limited-memory Broyden are its workhorses.
 
 ## 2. `SolveReport`, and why nothing throws
@@ -61,9 +61,9 @@ and the reason [[Implicit Learners]] lists the IFT as this family's backward pas
 `ift_sensitivity` throws `SingularException` when $I - \partial_z g$ is singular, and that
 deserves emphasis:
 
-> [!important] A singular $I - \partial_z g$ is not a numerical accident
-> It is the statement that the fixed point is **not locally unique** — the relation branches
-> there. The algebraic family calls that locus the discriminant
+> [!important] A singular $I - \partial_z g$ prevents applying the IFT
+> It means the IFT does not establish a locally differentiable inverse; the relation may branch
+> there, but uniqueness alone is not ruled out. The algebraic family calls that locus the discriminant
 > ([[Branches and the Discriminant]]); it is literally the same phenomenon in a different
 > model class, and it produces the same failure. Two of the three
 > [[Implicit Learners]] families therefore fail in the same place for the same reason, which
@@ -71,21 +71,34 @@ deserves emphasis:
 
 ## 4. Implementation difficulties
 
-### 4.1 `fd_jacobian` is a test-scale tool, and says so
+### 4.1 Optional AD uses the implicit function theorem
 
-Dense forward differences: $n+1$ evaluations of $F$, and roughly half the significant digits
-lost to the step size. For a real DEQ the answer is a **vector–Jacobian product from
-automatic differentiation** at $O(1)$ cost.
+`fd_jacobian` remains a forward-difference reference. `deq_sensitivity(...; wrt=:ps,
+ad)` and the differentiable `solve_state(...; ad)` use the chosen DI backend instead.
+For a residual $r(z,u)=0$ they solve
 
-It exists so the IFT can be *implemented and checked* — for a linear cell the exact
-sensitivity is $(I-W)^{-1}U$ and the test suite compares against it. It is not a scalable
-path, and `deq_sensitivity` inherits the limitation.
+$$
+D_u z^* = -(D_z r)^{-1} D_u r.
+$$
 
-> The contrast with `VariationalDiffusion.jl` is the sharpest thing in this package.
-> RED-Diff's stop-gradient meant that family needed **no derivative of the network at all**.
-> The equilibrium family cannot do that: the IFT *is* a linear system built from the
-> Jacobian, so the derivative is not an optimisation to be skipped, it is the answer. The
-> diffusion family avoided AD by approximating; this one can only avoid it by not scaling.
+The ChainRulesCore weak extension supplies an `rrule` for the internal solved-state
+primitive. A cotangent $v$ gives $\lambda$ by $(D_z r)^\top\lambda=v$, then
+$\bar u=-(D_u r)^\top\lambda$ via a backend VJP. The ForwardDiff weak extension
+strips duals before the root solve, obtains residual JVPs in their seed directions,
+and solves the same linear system to rebuild the root's duals. Neither differentiates
+Broyden/Picard iterations. Both the input and parameters are active; the initial guess,
+solve report and returned Lux state are nondifferentiated bookkeeping.
+
+AD requires a converged root and a nonsingular residual Jacobian. A singular Jacobian
+means the IFT gives no local inverse; it does **not** prove nonuniqueness (for example
+$r(z)=z^3$ has a unique root and zero derivative there). The solve is dense: AD products
+remove parameter-Jacobian storage in the reverse rule, but the state Jacobian and its
+factorisation still cost quadratic storage and cubic factorisation work. A matrix-free
+Krylov version remains future work. These are first-order rules; higher derivatives
+through the primitive, the reverse `solve_input`, GPU and additional backends are untested.
+
+`test/parameter_ad.jl` checks ForwardDiff and Zygote against the linear-cell closed
+form and central differences, including a nonzero downstream scalar loss.
 
 ### 4.2 Broyden stores a dense inverse Jacobian
 
@@ -104,13 +117,19 @@ a badly scaled problem that is either unreachable or trivially satisfied. A real
 `abstol` and `reltol`; `NonlinearSolve.jl` does, and if this package ever grows a dependency
 it should be that one.
 
-### 4.4 The state `Ref` leaks LuxCore's threading into the solver
+### 4.4 Root state is fixed during `solve_state`
 
-`solve_root` wants a pure `F(u)`. LuxCore wants `st` threaded through every call. The factors
-bridge that with a `Ref` captured in the closure, so the last call's state wins. For a
-stateless cell that is correct; for a cell with running statistics (a `BatchNorm` inside a
-DEQ) it is *whatever the final solver iterate happened to write*, which is not obviously the
-right thing and is not obviously wrong either. Nothing tests it.
+A fixed-point solve must evaluate one fixed residual, including its incoming Lux state.
+`solve_state` now holds that state fixed through the root iterations and advances it once
+at the final root. This also defines the equation used by the IFT. State is not an
+additional implicit variable. A cell that mutates arrays in its incoming state in place
+violates this functional contract. The reverse `solve_input` still has the legacy `Ref`
+threading and has no AD rule.
 
 Related: [[deq]], [[flow]], [[neuralode]], [[The Equilibrium Family]],
 [[Backpropagation by the Implicit Function Theorem]], [[Branches and the Discriminant]]
+
+Solved-state IFT AD currently accepts `AutoForwardDiff()` and `AutoZygote()`. Other
+solve backends are rejected explicitly, so they cannot silently differentiate the
+root iterations. Pass the backend to `solve_state` as well as the outer loss
+derivative. Core pointwise parameter derivatives have wider backend support.

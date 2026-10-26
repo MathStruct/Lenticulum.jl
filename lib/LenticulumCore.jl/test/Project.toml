@@ -1,4 +1,9 @@
 [deps]
+Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
+DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 LenticulumCore = "1ac3b398-e9e9-400d-83fd-862c57ff485d"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"

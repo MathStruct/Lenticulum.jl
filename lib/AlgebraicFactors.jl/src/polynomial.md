@@ -206,3 +206,11 @@ subset remains checked on all degree-one polarities with the independent constra
 Exact mixture entropies, game/free-energy contributions (LP-009), IFT jvp/vjp rules and
 missing-data EM. `PolynomialModel` is pure for this local branch approximation;
 the optional mixture mode still exposes no joint latent branch-index API.
+
+## Parameter derivative compatibility (LP-002, 2026-10-26)
+
+The exact packed-data Jacobian remains the `wrt=:y` path, including calls with an
+`ad` keyword. `wrt=:ps` delegates to the core finite-difference/optional DI parameter
+path; columns follow column-major order in `Θ`. The polynomial tests derive the
+parameter Jacobian as `v(z)' ⊗ I` and check it and its parameter pull-back by FD.
+No AD backend coverage for polynomial metric localisation is claimed here.

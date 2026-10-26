@@ -371,3 +371,5 @@ end
     @test !applicable(belief_mean, b)
     @test !applicable(belief_cov, b)
 end
+
+include("parameter_ad.jl")

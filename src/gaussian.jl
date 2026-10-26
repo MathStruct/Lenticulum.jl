@@ -303,7 +303,7 @@ function residual_statistics(f::GaussianFactor, msgs, ps)
         ηy, Λy = _canon(my, f.nout)
         x0 = _vec(mx.value)
         ŷ = A * x0 .+ b
-        Λ = inv(_chol(f.Q, "Q")) + Λy
+        Λ = inv(Symmetric(f.Q)) + Λy
         η = (f.Q \ ŷ) + ηy
         bel = GaussianBelief(η, Λ)
         m, Σ = belief_mean(bel), belief_cov(bel)
@@ -312,7 +312,7 @@ function residual_statistics(f::GaussianFactor, msgs, ps)
         ηx, Λx = _canon(mx, f.nin)
         ηy, Λy = _canon(my, f.nout)
         G = hcat(-A, Matrix{Float64}(I, f.nout, f.nout))
-        Qi = inv(_chol(f.Q, "Q"))
+        Qi = inv(Symmetric(f.Q))
         Λ = G' * Qi * G + _blockdiag(Λx, Λy)
         η = G' * (Qi * b) + vcat(ηx, ηy)
         bel = GaussianBelief(η, Λ)
@@ -351,7 +351,7 @@ is what the Bethe formula asks for, and getting it wrong is the bug recorded in
 """
 function Mycelium.local_free_energy(f::GaussianFactor, msgs, ps, st)
     r̄, Cr, H = residual_statistics(f, msgs, ps)
-    Qi = inv(_chol(f.Q, "Q"))
+    Qi = inv(Symmetric(f.Q))
     fit = (r̄' * (Qi * r̄) + tr(Qi * Cr)) / 2
     complexity = logdet(_chol(2π .* f.Q, "2πQ")) / 2
     return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -H)), st

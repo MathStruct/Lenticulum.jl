@@ -104,3 +104,14 @@ energy is the graded negative log-density (quadratic fit; the Gaussian normalise
 Both are checked by `check_factor_conformance` (`test/factor_conformance.jl`).
 
 Related: [[constraint]], [[nonlinear]], [[likelihood]], [[beliefs]]
+
+## Optional parameter AD (LP-002, 2026-10-26)
+
+`energy_jacobian(...; wrt=:ps, ad)` and `energy_gradient` differentiate the residual
+and its fixed precision norm. For Dirac endpoint beliefs, `free_energy_gradient`
+has the same parameter derivative: the noise normalizer is fixed and entropy is zero.
+The ImplicitLayers AD tests check these facts with ForwardDiff and Zygote against
+`-(x' ⊗ I)`, `-I` and the precision-weighted residual gradients. The top-level suite
+also checks their finite-difference reference. Fixed `Q` precision is formed by
+`inv(Symmetric(Q))`, avoiding the mutating inverse-of-Cholesky path under Zygote.
+This does not establish AD coverage for every distributional belief/inversion path.

@@ -44,7 +44,10 @@ remain available without SciML. Optional `SciMLIntegrator` loads through package
 both bring `OrdinaryDiffEqCore` and `SciMLBase` without the umbrella's unrelated solvers.
 See [[flow]] for loading, reversibility conditions, CNF augmentation and tests.
 
-There is no SciMLSensitivity gradient implementation here; that remains LP-002. The base
+Optional AD now uses DifferentiationInterface with a user-supplied ADTypes backend.
+DEQ solved-state derivatives use IFT rules in ChainRulesCore/ForwardDiff weak extensions;
+Euler/RK4 differentiate the discrete endpoint map. ForwardDiff and Zygote are tested.
+There is no SciMLSensitivity gradient implementation yet. The base
 package still uses finite differences for derivative information:
 
 > RED-Diff's stop-gradient means the diffusion family needs **no derivative of the network at

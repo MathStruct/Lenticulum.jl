@@ -32,6 +32,7 @@ using LinearAlgebra: LinearAlgebra, Diagonal, Hermitian, Symmetric, cholesky, do
 
 include("abstract_types.jl")
 include("channels.jl")
+include("parameter_tree.jl")
 include("energy.jl")
 include("open_model.jl")
 include("gaussian_belief.jl")
@@ -65,6 +66,7 @@ export AbstractPointScalarisation, IdentityScalarisation, WeightedSum, SquaredNo
 export localise, sampson_damping
 export energyspace, scalarisation, pointwise_energyspace, pointwise_scalarisation, scalarise, islinear, jensen_gap, oplus, ⊕, dimension
 export energy, entropy, scalar_energy, energy_jacobian, gauss_newton_metric
+export energy_gradient, free_energy_gradient, parameter_gradient
 
 # --- Models and lenses -----------------------------------------------------
 export OpenModelResult, DiracBelief, SampleBelief, TrivialBelief

@@ -703,3 +703,18 @@ end
         end
     end
 end
+
+@testset "LP-002 polynomial parameter Jacobian and analytic override compatibility" begin
+    tab = ExponentTable(2, 2)
+    f = PolynomialFactor((x=1, y=1), tab, 2)
+    ps, st = LuxCore.setup(Xoshiro(3008), f)
+    z = [0.3, -0.4]
+    v = veronese(tab, z)
+    J = kron(v', Matrix{Float64}(I, 2, 2))
+    @test energy_jacobian(f, nothing, nothing, z, ps, st; wrt=:ps) ≈ J atol=1e-9
+    @test gauss_newton_metric(f, nothing, nothing, z, ps, st; wrt=:ps, σ=SquaredNorm()) ≈ J'J atol=1e-9
+    # Existing third-party exact overrides need not accept a new ad keyword for FD calls.
+    g = GaugeResidual{true}()
+    Jz = ps.Θ * monomial_jacobian2(z)
+    @test gauss_newton_metric(g, nothing, nothing, z, ps, st; wrt=:y, σ=SquaredNorm()) ≈ Jz'Jz
+end

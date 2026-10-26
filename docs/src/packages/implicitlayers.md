@@ -34,6 +34,30 @@ solve_input(f, z, ps, st)     # solve for x  — what it cannot be asked
 The reverse solve needs ``\dim x = \dim z``; otherwise the residual is not square and
 `supports_polarity` refuses that direction rather than solving it badly.
 
+## Optional automatic differentiation
+
+Load `DifferentiationInterface`, `ADTypes` and your backend package. For a DEQ solve,
+pass `ad=AutoForwardDiff()` or `ad=AutoZygote()` to `solve_state`. The ForwardDiff and
+ChainRulesCore weak extensions implement the IFT, without differentiating root-finder
+iterations. Both input and parameter derivatives are tested against the linear-cell
+closed form and finite differences. Root convergence is required; singular residual
+Jacobians throw. Only first-order solved-state derivatives are covered; the reverse
+`solve_input` has no AD rule. Lux state is fixed throughout the state root solve and
+advances once at the final root. Solve reports, initial guesses and state have no tangent.
+
+`deq_sensitivity(...; wrt=:ps, ad)` gives the dense parameter sensitivity directly.
+The reverse solve rule uses a dense state linear solve followed by a backend VJP;
+ForwardDiff uses backend JVPs for its dual directions. Matrix-free solves remain future
+work. Enzyme, Mooncake and GPU rules have not been tested here.
+
+Core's `energy_jacobian(...; wrt=:ps, ad)`, `energy_gradient` and
+`free_energy_gradient` apply to DEQ, NeuralODE and scored Lux factors. Built-in
+Euler/RK4 endpoint flows use functional Lux state threading and differentiate the
+discrete map with ForwardDiff/Zygote. Tests derive both scalar discrete derivatives,
+check nonempty Lux state and fit a known ODE parameter using Mycelium's graph
+`parameter_step`. `LuxFactor(...; dims=(nin,nout), residual=true)` opts into squared
+endpoint-residual scoring; the default wrapper still delegates energy to downstream losses.
+
 ## Neural ODE endpoint integration
 
 The continuous flow has an inverse wherever solutions exist uniquely in both directions.
@@ -86,7 +110,8 @@ and only `dt`, `adaptive`, `abstol`, `reltol`, `maxiters` options, the trait per
 Lux state. This describes the discrete inverse, not exactness against the continuous ODE.
 Tests use `abstol=reltol=1e-12` and check relative round-trip residual below ``10^{-10}``.
 
-SciMLSensitivity gradients remain LP-002 and are not implemented by this extension.
+SciMLSensitivity adjoints for `SciMLIntegrator` are the next step and are not implemented
+by this extension. Built-in Euler/RK4 AD is independent of that extension.
 Its [`BacksolveAdjoint` docs](https://docs.sciml.ai/SciMLSensitivity/stable/manual/differential_equation_sensitivities/#SciMLSensitivity.BacksolveAdjoint)
 describe backward re-integration, unstable reverse solutions and checkpointing; the same
 reverse-conditioning concern applies.
@@ -107,8 +132,8 @@ unrolling.
 
 ## Known gaps
 
-- `fd_jacobian` is finite differences: ``O(n)`` forward passes, fine for tests, not for scale.
-  The real answer is a VJP from automatic differentiation.
+- The IFT rules still factor a dense state Jacobian; `fd_jacobian` remains a reference.
+- SciML adjoints, AD through divergence and higher-order solve rules are not covered.
 - Broyden stores a dense inverse Jacobian; real DEQs use limited-memory Broyden.
 - Built-in explicit methods have no error estimate and may diverge on coarse or stiff
   problems. The optional solvers do not remove inverse conditioning or establish GPU support.
@@ -126,8 +151,9 @@ Modules = [ImplicitLayers]
 
 ## Game quantities and conformance
 
-LuxFactor requires a Dirac input observation `y` and contributes zero game energy and
-entropy. DEQFactor and NeuralODEFactor implement two games:
+The default LuxFactor requires a Dirac input observation `y` and contributes zero game
+energy and entropy. With `residual=true`, its game instead scores Dirac endpoints in
+the first/second channel order, with zero point-belief entropy. DEQFactor and NeuralODEFactor implement two games:
 
 - `free_energy(f, π, y, ps, st)` scores incoming Dirac points: `π` on the first channel
   (`x` or start), `y` on the second (`z` or end), following GaussianFactor's fixed order.
@@ -155,3 +181,8 @@ centered at the incoming unknown. `energy_jacobian` supplies this metric. The te
 at endpoints `1,3` in both directions. A nonlinear quadratic DEQ checks cubic absolute
 energy error for the first-order Gauss–Newton approximation. The common factor checker
 now covers the complete point game for both factors without LP-009 exemptions.
+
+Solved-state IFT AD currently accepts `AutoForwardDiff()` and `AutoZygote()`. Other
+solve backends are rejected explicitly, so they cannot silently differentiate the
+root iterations. Pass the backend to `solve_state` as well as the outer loss
+derivative. Core pointwise parameter derivatives have wider backend support.

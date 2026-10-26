@@ -97,18 +97,10 @@ its local free energy needs variable-to-factor messages. Use `Bidirectional()` o
 Missing messages on edges that can carry them remain `nothing`.
 """
 function factor_free_energies(s::MessageStore, g::FactorGraph, ps, st)
+    _check_energy_edges(g)
     names = Tuple(f.name for f in g.factors)
     vals = Any[]
     for f in g.factors
-        if uses_cavity(f.factor)
-            for ei in g.edges_of_factor[f.id]
-                edge = g.edges[ei]
-                absorbs(edge.direction) || throw(ArgumentError(
-                    "factor :$(f.name) ($(typeof(f.factor))) uses cavity messages for its free energy, " *
-                    "but channel :$(edge.channel) on variable :$(g.variables[edge.variable].name) " *
-                    "has an Emitting() edge; use Bidirectional() (LP-014)"))
-            end
-        end
         beliefs = messages_into(s, g, f.id)
         psf = _subtree(ps, f.name)
         stf = _subtree(st, f.name)
@@ -256,4 +248,84 @@ function LenticulumCore.scalar_free_energy(s::MessageStore, g::FactorGraph, ps, 
         total += counting_number(g, v.id) * variable_free_energy(marginal(s, g, v.id))
     end
     return total, st
+end
+
+# Snapshot beliefs outside AD: training is a partial derivative at fixed messages,
+# not differentiation through the mutating inference schedule.
+_local_scalar(ps, factor, beliefs, st) = LenticulumCore.scalarise(
+    LenticulumCore.scalarisation(factor), first(local_free_energy(factor, beliefs, ps, st)))
+
+"""
+    LenticulumCore.free_energy_gradient(store, g, ps, st; ad = nothing, ε = 1e-6)
+
+Parameter gradient of the graph scalar free energy at fixed incoming messages.
+This is the sum of scalarised local free energies; Bethe variable corrections are
+constant with respect to parameters at fixed beliefs. Nonlearnable subtrees receive
+zeros. The result has `ps`'s structure. No messages or state are updated.
+"""
+function LenticulumCore.free_energy_gradient(s::MessageStore, g::FactorGraph, ps, st;
+                                            ad = nothing, ε = 1e-6)
+    # Keep the same cavity validation as the reporting API.
+    _check_energy_edges(g)
+    names = Tuple(f.name for f in g.factors)
+    grads = map(Tuple(g.factors)) do f
+        p = _subtree(ps, f.name)
+        if !LenticulumCore.islearnable(f.factor)
+            θ = LenticulumCore._flatten(p)
+            return LenticulumCore._unflatten(zero(θ), p)
+        end
+        return LenticulumCore._parameter_gradient(ad, _local_scalar, p,
+            f.factor, messages_into(s, g, f.id), _subtree(st, f.name); ε)
+    end
+    return NamedTuple{names}(grads)
+end
+
+"""
+    parameter_step(store, g, ps, st; ad, rule = GradientDescent(0.01), optimiser_state = nothing)
+        -> (ps_new, st_new, optimiser_state_new)
+
+One graph free-energy parameter step with an explicit AD backend (`nothing` selects
+reference differences). Inference must populate incoming messages first. The rule's
+`get` supplies a look-ahead parameter vector per learnable factor, the gradient is
+computed at those parameters with messages fixed, and `put` applies the update.
+Optimiser state is a NamedTuple of vectors keyed by learnable factor name, initialised
+to zero if omitted. Pass the returned state on the next step (Momentum/Nesterov).
+Lux state advances once, by evaluating local energies at the look-ahead parameters.
+This does not perform inference or update exposed parameter wires in OptimiserFactor.
+"""
+function parameter_step(s::MessageStore, g::FactorGraph, ps, st;
+                        ad, rule = GradientDescent(0.01), optimiser_state = nothing)
+    fs = Tuple(g.factors[i] for i in learnable_factors(g))
+    names = Tuple(f.name for f in fs)
+    θs = map(f -> LenticulumCore._flatten(_subtree(ps, f.name)), fs)
+    os = optimiser_state === nothing ? NamedTuple{names}(map(zero, θs)) : optimiser_state
+    look = map(fs, θs) do f, θ
+        LenticulumCore._unflatten(rule_get(rule, os[f.name], θ), _subtree(ps, f.name))
+    end
+    at = merge(ps, NamedTuple{names}(look))
+    grad = LenticulumCore.free_energy_gradient(s, g, at, st; ad)
+    _, stnew = factor_free_energies(s, g, at, st)
+    updates = map(fs, θs) do f, θ
+        rule_put(rule, os[f.name], θ, LenticulumCore._flatten(grad[f.name]))
+    end
+    newps = map(fs, updates) do f, u
+        LenticulumCore._unflatten(u[2], _subtree(ps, f.name))
+    end
+    return merge(ps, NamedTuple{names}(newps)), stnew,
+           NamedTuple{names}(map(first, updates))
+end
+
+function _check_energy_edges(g)
+    for f in g.factors
+        if uses_cavity(f.factor)
+            for ei in g.edges_of_factor[f.id]
+                edge = g.edges[ei]
+                absorbs(edge.direction) || throw(ArgumentError(
+                    "factor :$(f.name) ($(typeof(f.factor))) uses cavity messages for its free energy, " *
+                    "but channel :$(edge.channel) on variable :$(g.variables[edge.variable].name) " *
+                    "has an Emitting() edge; use Bidirectional() (LP-014)"))
+            end
+        end
+    end
+    return nothing
 end

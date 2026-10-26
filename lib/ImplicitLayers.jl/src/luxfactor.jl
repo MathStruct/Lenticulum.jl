@@ -19,7 +19,7 @@
 # ---------------------------------------------------------------------------
 
 """
-    LuxFactor(layer, :in => :out; dims = (nothing, nothing), postprocess = identity)
+    LuxFactor(layer, :in => :out; dims = (nothing, nothing), postprocess = identity, residual = false)
 
 Any `LuxCore.AbstractLuxLayer` as a **unidirectional** factor.
 
@@ -39,6 +39,12 @@ LuxFactor(NeuralODE(net, (0.0, 1.0), Tsit5()), :x => :y;
 LuxFactor(DeepEquilibriumNetwork(cell, NewtonRaphson()), :x => :z)
 ```
 
+Set `residual=true` (with an explicit output dimension in `dims`) to score the
+endpoint vector `y - layer(x)` with a squared norm. Core parameter derivatives and
+Mycelium's fixed-message `parameter_step` can then train this factor. The default
+keeps zero energy for compatibility with downstream-loss graphs. Direct losses on
+`apply_layer` can also be differentiated with `LenticulumCore.parameter_gradient`.
+
 !!! warning "One polarity, by construction"
     `isunidirectional(::LuxFactor) == true`. A Lux layer *is* a lens
     ([[Lux as a Parametric Lens]]); a factor only *becomes* one once a polarity is chosen, and
@@ -53,12 +59,14 @@ struct LuxFactor{L,I,O,D,P} <: LenticulumCore.AbstractLenticulumFactor
     outchannel::O
     dims::D
     postprocess::P
+    scored::Bool
 end
 
 function LuxFactor(
     layer, io::Pair{Symbol,Symbol};
     dims = (nothing, nothing),
     postprocess = identity,
+    residual::Bool = false,
 )
     first(io) === last(io) && throw(ArgumentError(
         "input and output channels must differ; got :$(first(io)) for both"))
@@ -67,7 +75,9 @@ function LuxFactor(
         (d === nothing || (d isa Int && d > 0)) ||
             throw(ArgumentError("channel dimensions must be positive Ints or nothing; got $dims"))
     end
-    return LuxFactor(layer, first(io), last(io), (dims[1], dims[2]), postprocess)
+    residual && dims[2] === nothing && throw(ArgumentError(
+        "residual=true needs an explicit output dimension in dims"))
+    return LuxFactor(layer, first(io), last(io), (dims[1], dims[2]), postprocess, residual)
 end
 
 LuxCore.initialparameters(rng::AbstractRNG, f::LuxFactor) =
@@ -94,11 +104,18 @@ end
 
 LenticulumCore.islearnable(f::LuxFactor) = LuxCore.parameterlength(f.layer) > 0
 
-# A function has no residual of its own — the energy is whatever the graph's loss factor says
-# it is. Zero rather than an error, so a LuxFactor can sit in a graph whose free energy is
-# accounted for elsewhere.
+# The default delegates loss accounting to other graph nodes. Scored wrappers
+# opt into endpoint residual energy while keeping a scalar free-energy space.
 LenticulumCore.energyspace(::LuxFactor) = LenticulumCore.ScalarEnergySpace()
-LenticulumCore.energy(::LuxFactor, x, a, y, ps, st) = (0.0, st)
+LenticulumCore.pointwise_energyspace(f::LuxFactor) = f.scored ?
+    LenticulumCore.EuclideanEnergySpace(something(f.dims[2], 1)) : LenticulumCore.ScalarEnergySpace()
+LenticulumCore.pointwise_scalarisation(f::LuxFactor) = f.scored ?
+    LenticulumCore.SquaredNorm() : LenticulumCore.IdentityScalarisation()
+function LenticulumCore.energy(f::LuxFactor, x, a, y, ps, st)
+    f.scored || return (0.0, st)
+    pred, st = apply_layer(f, x, ps, st)
+    return (y .- pred, st)
+end
 
 """
     apply_layer(f::LuxFactor, x, ps, st) -> (y, st)
@@ -157,11 +174,21 @@ function Mycelium.factor_message(
     return (LenticulumCore.DiracBelief(y), st)
 end
 
-Mycelium.local_free_energy(::LuxFactor, msgs, ps, st) = (0.0, st)
+function Mycelium.local_free_energy(f::LuxFactor, msgs, ps, st)
+    f.scored || return (0.0, st)
+    x, y = _point(_get(msgs, f.inchannel)), _point(_get(msgs, f.outchannel))
+    (x === nothing || y === nothing) && return (0.0, st)
+    return LenticulumCore.scalar_energy(f, x, nothing, y, ps, st)
+end
+Mycelium.uses_cavity(f::LuxFactor) = f.scored
 
-# The wrapper delegates all energy accounting to downstream losses. Its point inversion
-# contributes zero energy and zero point-belief entropy, just as local_free_energy does.
-LenticulumCore.free_energy(::LuxFactor, π, y::LenticulumCore.DiracBelief, ps, st) = (0.0, st)
+# The default game delegates loss accounting; scored wrappers use incoming endpoints.
+# Both use zero point-belief entropy.
+function LenticulumCore.free_energy(f::LuxFactor, π, y::LenticulumCore.DiracBelief, ps, st)
+    f.scored || return (0.0, st)
+    π isa LenticulumCore.DiracBelief || throw(ArgumentError("scored LuxFactor needs Dirac endpoints"))
+    return LenticulumCore.scalar_energy(f, _point(π), nothing, _point(y), ps, st)
+end
 LenticulumCore.entropy(::LuxFactor, π, y::LenticulumCore.DiracBelief, ps, st) = (0.0, st)
 for op in (:free_energy, :entropy)
     @eval LenticulumCore.$op(::LuxFactor, π, y, ps, st) = throw(ArgumentError(

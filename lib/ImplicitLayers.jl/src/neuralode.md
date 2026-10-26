@@ -73,11 +73,12 @@ bijection between spaces of equal dimension.
 
 ## 4. Implementation difficulties
 
-### 4.1 The state `Ref` is a wart with a cause
+### 4.1 State threading depends on the integration path
 
-`integrate` wants a pure `(u,t) -> du`. `LuxCore` wants `st` threaded in and out of every
-call. `vectorfield` bridges them with a `Ref` that the closure writes on each evaluation, so
-**the state after an integration is whatever the last RHS evaluation wrote**.
+Built-in Euler/RK4 endpoint flows use a functional fold carrying `(z, st)` from step
+to step. RK4 threads state through its four stages in order. There is no `Ref` mutation
+on this path, so Zygote can differentiate the actual discrete map. The public
+`vectorfield`, adaptive SciML and divergence paths retain their existing `Ref` interface.
 
 For a stateless dynamics layer that is correct. For one with running statistics it is
 arbitrary — and worse here than in [[deq]] §4.1, because RK4 evaluates the field four times
@@ -215,3 +216,23 @@ zero residual at the solved point; finite integration error need not satisfy tha
 Scoring arbitrary endpoints uses `energy`/`scalar_energy` (the pointwise level of
 [[L-ADR-0003 Pointwise energy and free energy are separate levels]]), not a keyword on
 `free_energy`. Shared implementation and limitations: [[point_game]].
+
+## Parameter derivatives (LP-002, 2026-10-26)
+
+The optional core DI extension differentiates built-in Euler/RK4 endpoint energies
+with user-selected backends. This is discretise-then-differentiate, including functional
+Lux state updates, not a continuous adjoint. `test/parameter_ad.jl` checks ForwardDiff,
+Zygote and FD against scalar linear dynamics: with $h=T/N$ and multiplier $P(ah)$,
+
+$$
+z_1=P(ah)^N z_0,\qquad D_a z_1=N h P(ah)^{N-1}P'(ah)z_0.
+$$
+
+Euler has $P(q)=1+q$; RK4 has $P(q)=1+q+q^2/2+q^3/6+q^4/24$.
+Tests also compare AD and FD for state-dependent stage dynamics, and fit a known
+Euler parameter through the graph's summed local free energy using both backends.
+
+SciMLSensitivity for `SciMLIntegrator` remains a next step; no adjoint extension is
+claimed here. It needs explicit parameters in the ODE problem and a state policy for
+adaptive/rejected stages. `flow_logdet` still uses FD divergence and has no tested AD
+path. Enzyme, Mooncake, GPU and higher-order derivatives are untested in this package.
