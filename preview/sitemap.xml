@@ -168,7 +168,7 @@
     <lastmod>2026-10-26T01:19:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-10-26T12:37:36.794Z</lastmod>
+    <lastmod>2026-10-26T15:34:23.784Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-10-25T22:36:28.000Z</lastmod>
@@ -336,10 +336,10 @@
     <lastmod>2026-10-24T14:25:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-008-No-conformance-test-for-the-factor-interface</loc>
-    <lastmod>2026-10-26T12:37:22.000Z</lastmod>
+    <lastmod>2026-10-26T15:34:04.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-009-Game-level-free-energy-is-declared-but-not-implemented</loc>
-    <lastmod>2026-10-26T12:37:22.000Z</lastmod>
+    <lastmod>2026-10-26T15:34:04.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-010-Where-the-graph-of-a-problem-comes-from</loc>
     <lastmod>2026-10-22T19:45:29.000Z</lastmod>
@@ -366,10 +366,10 @@
     <lastmod>2026-10-26T12:37:22.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/Problem-Log</loc>
-    <lastmod>2026-10-26T12:37:22.000Z</lastmod>
+    <lastmod>2026-10-26T15:34:04.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-001-The-Factor-Interface</loc>
-    <lastmod>2026-10-26T12:37:22.000Z</lastmod>
+    <lastmod>2026-10-26T15:34:04.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-002-Stop-Gradient</loc>
     <lastmod>2026-10-26T01:41:53.000Z</lastmod>
@@ -462,7 +462,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/ImplicitLayers.jl/deq</loc>
-    <lastmod>2026-10-26T09:17:20.000Z</lastmod>
+    <lastmod>2026-10-26T15:34:04.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/ImplicitLayers.jl/flow</loc>
     <lastmod>2026-10-15T14:28:44.000Z</lastmod>
@@ -471,7 +471,10 @@
     <lastmod>2026-10-26T09:17:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/ImplicitLayers.jl/neuralode</loc>
-    <lastmod>2026-10-26T09:17:20.000Z</lastmod>
+    <lastmod>2026-10-26T15:34:04.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/ImplicitLayers.jl/point_game</loc>
+    <lastmod>2026-10-26T15:34:04.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/ImplicitLayers.jl/solve</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
@@ -501,7 +504,7 @@
     <lastmod>2026-10-26T12:37:22.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/statistical_game</loc>
-    <lastmod>2026-10-26T09:17:20.000Z</lastmod>
+    <lastmod>2026-10-26T15:34:04.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/Mycelium</loc>
     <lastmod>2026-10-26T12:37:22.000Z</lastmod>
