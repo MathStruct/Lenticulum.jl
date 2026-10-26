@@ -47,8 +47,9 @@ checks convergence on a relay chain.
 
 These belong in the interface package, not downstream, so they were added there:
 
-- `supported_polarities(factor)` — the *listable* form of `supports_polarity`. A scheduler
-  needs to enumerate, not just test.
+- `supported_polarities(factor)` — the *listable* form of `supports_polarity`. It must be complete when listable and may throw above a documented cap. Structural
+  predicates can be overridden without a list. Polarity resolution itself constructs the
+  assignment from the target and available messages and tests `supports_polarity`.
 - `isunidirectional(factor)` — exactly one supported polarity.
 - `islearnable(factor)` / `isfrozen(factor)` — the user's "non-learnable factors" made a trait.
   `islearnable` defaults to `parameterlength > 0` but is overridable, because a factor with

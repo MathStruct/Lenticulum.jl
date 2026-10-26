@@ -12,7 +12,7 @@
 
 Run the factor's implicit inversion and return the whole [`ImplicitSolution`](@ref): the full
 state, the residual, and the `converged` / `stable` flags. `invert` and `factor_message` return
-only the target block as a `DiracBelief`; this is the call to make when the report matters.
+the unobserved blocks jointly (`invert`) or one target (`factor_message`) as a belief; this is the call to make when the report matters.
 
 The reference configuration is [`assemble_state`](@ref)`(f, inputs, π)`: inputs on their
 channels, and the prior `π`'s point (if any) on the others. It doubles as the **warm start**,
@@ -58,8 +58,9 @@ have zero cotangent).
 Returns the cotangents with respect to
 - each channel's incoming point (`inputs`): the clamped value for an observed channel, the
   anchor for a soft one;
-- the prior's point (`prior`): sums the blocks initialized from `π`, zero when incoming
-  points override it, and `nothing` if `π` carries no point;
+- the prior's point (`prior`): fills the corresponding ranges for a joint prior point,
+  sums the blocks for a shared-block point, zero when incoming points override it, and
+  `nothing` if `π` carries no point;
 - the predictor's parameters (`ps`);
 - each channel's precision (`precisions`; zero for hard-clamped channels, whose precision is
   infinite and not a differentiable quantity).
@@ -86,10 +87,11 @@ function implicit_factor_pullback(f::DiffusionFactor{names}, p::LenticulumCore.P
     prior_point = _point(π)
     prior_cot = prior_point === nothing ? nothing : zeros(eltype(b.z₀), length(prior_point))
     if prior_cot !== nothing
+        prior_ranges = _prior_ranges(f, unobs, prior_point)
         for nm in unobs
             # assemble_state reads π only when this channel has no incoming point.
             _point(_get(inputs, nm)) === nothing || continue
-            prior_cot .+= b.z₀[getfield(rs, nm)]
+            prior_cot[getfield(prior_ranges, nm)] .+= b.z₀[getfield(rs, nm)]
         end
     end
     return (inputs = blocks_in, prior = prior_cot, ps = b.ps, precisions = blocks_ρ)
@@ -100,7 +102,7 @@ _factor_pullback(prox::ImplicitProx, f::DiffusionFactor, sol, z₀, ρ, z̄, ps,
 
 # --- Gaussian messages --------------------------------------------------------------------
 
-# The Laplace posterior on the target channel; as a message (`likelihood = true`) the target's
+# The Laplace posterior on the selected target blocks; as a message (`likelihood = true`) their
 # own anchor N(z₀, ρ⁻²), which the solver multiplied in, is divided out again. In canonical form
 # that is a subtraction, Λ - diag(ρ²) and η - ρ²z₀, exact for the Laplace approximation, and the
 # result may be improper (a likelihood that constrains only some directions). The diffusion
@@ -110,7 +112,7 @@ function _target_belief(prox::ImplicitProx, f::DiffusionFactor, p, inputs, π, p
                                              prox, f, p, inputs, π, ps, st, target; likelihood)
     z₀, ρ = _implicit_problem(f, p, inputs, π)
     m = _implicit_model(f)
-    r = getfield(blockranges(f), target)
+    r = _target_ranges(f, target)
     if prox.message === :mixture
         mix, st = implicit_mixture(m, z₀, ρ, ps, st; coords = r, linsolve = prox.linsolve,
                                    tol = prox.tol, maxiters = prox.maxiters, step = prox.step)

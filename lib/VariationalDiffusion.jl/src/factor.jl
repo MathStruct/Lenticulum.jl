@@ -31,9 +31,9 @@ f = DiffusionFactor((obs = 4, hidden = 4), NoisePredictor(unet, VPSDE());
                     prox = REDDiff(λ = 1.0, steps = 300))
 ```
 
-This is the third of the three [`Implicit Learners`] families — the diffusion one — and the
-only one whose inversion is neither exact nor a root-find. `LenticulumCore` anticipated it:
-[`LenticulumCore.ProximalInversion`](@ref) exists in `lens.jl` and names this package.
+This is the diffusion family of implicit learners. The `prox` selects RED-Diff's stochastic
+solve, deterministic implicit inference, or ProxDM. All use the
+[`LenticulumCore.ProximalInversion`](@ref) interface.
 """
 struct DiffusionFactor{names,D<:Tuple,P<:NoisePredictor,C<:Union{REDDiff,ImplicitProx,ProxDM}} <:
        LenticulumCore.AbstractLenticulumFactor
@@ -107,20 +107,26 @@ LenticulumCore.channels(f::DiffusionFactor{names}) where {names} =
 """
     LenticulumCore.supported_polarities(f::DiffusionFactor)
 
-The `n` polarities with one channel `Unobserved()` and the rest `Observed()`.
+All ``3^n - 2^n`` assignments with at least one unobserved channel, for at most
+four channels (65 assignments). The one-target/all-other-observed entries come first,
+in channel order; the remainder follows [`LenticulumCore.polarities`](@ref) order.
 
-**This under-reports what the factor can do.** [`LenticulumCore.supports_polarity`](@ref) accepts any
-assignment with at least one unobserved channel, including `Latent()` ones, because a
-diffusion prior over the joint space can inpaint any subset from any other subset — that is
-the entire appeal of using one. The enumeration is truncated because a scheduler needs a
-*listable* set and the full set has ``3^n - 2^n`` elements. See `factor.md` §3.
+Above four channels this throws `ArgumentError`: use `supports_polarity` for membership
+or `polarities` for lazy traversal. Structural predicates do not enumerate.
 """
 function LenticulumCore.supported_polarities(f::DiffusionFactor{names}) where {names}
+    length(names) <= 4 || throw(ArgumentError(
+        "DiffusionFactor supported_polarities is capped at 4 channels; use supports_polarity or the lazy polarities iterator"))
     O, U = LenticulumCore.Observed(), LenticulumCore.Unobserved()
-    return map(names) do t
+    leading = map(names) do t
         LenticulumCore.Polarity(NamedTuple{names}(map(n -> n === t ? U : O, names)))
     end
+    rest = Iterators.filter(p -> !(p in leading), LenticulumCore.polarities(f))
+    return (leading..., rest...)
 end
+
+LenticulumCore.hasnopolarity(::DiffusionFactor) = false
+LenticulumCore.isunidirectional(f::DiffusionFactor) = length(f.blocks) == 1
 
 function LenticulumCore.supports_polarity(
     f::DiffusionFactor{names}, p::LenticulumCore.Polarity
@@ -193,20 +199,24 @@ Build the reference configuration ``x_0`` of ``\\tfrac12\\|P(x_0-x)\\|^2`` by la
 channel's incoming belief into its block.
 
 A `DiracBelief` contributes its value; anything with a mean contributes that; a channel with
-no message contributes zeros. The prior `π` fills the target block when it carries a point.
-Channels whose precision is zero never read their entry, so the zeros are not a silent
-default — they are multiplied out.
+no message contributes zeros. The prior `π` fills unobserved blocks without incoming points. For multiple targets,
+a point of the concatenated target dimension is split in channel order. Otherwise the
+point is reused on each target block (and must match each block's dimension).
+A missing point leaves a zero reference. A positive precision then anchors that channel
+to zero; a zero precision ignores the reference.
 """
 function assemble_state(f::DiffusionFactor{names}, inputs, π,
                         polarity::Union{Nothing,LenticulumCore.Polarity} = nothing) where {names}
     x₀ = zeros(Float64, statedim(f))
     rs = blockranges(f)
     unobs = polarity === nothing ? names : LenticulumCore.unobserved_channels(polarity)
+    prior_point = _point(π)
+    prior_ranges = _prior_ranges(f, unobs, prior_point)
     for nm in names
         r = getfield(rs, nm)
         v = _point(_get(inputs, nm))
         if v === nothing && (nm in unobs)
-            vp = _point(π)
+            vp = prior_point === nothing ? nothing : prior_point[getfield(prior_ranges, nm)]
             if vp !== nothing && (polarity !== nothing || length(vp) == length(r))
                 v = vp
             end
@@ -218,6 +228,29 @@ function assemble_state(f::DiffusionFactor{names}, inputs, π,
     end
     return x₀
 end
+
+# A joint prior uses concatenated target coordinates. Retain the shared-block convention
+# for callers supplying one block's point; single-target slicing is unchanged numerically.
+function _prior_ranges(f, unobs, point)
+    joint = point !== nothing && length(unobs) > 1 &&
+            length(point) == sum(n -> getfield(f.blocks, n), unobs; init = 0)
+    offset = 0
+    return NamedTuple{unobs}(map(unobs) do n
+        d = joint ? getfield(f.blocks, n) : (point === nothing ? 0 : length(point))
+        r = joint ? ((offset + 1):(offset + d)) : (1:d)
+        offset += d
+        r
+    end)
+end
+
+# Keep a single channel as a Symbol, so its original range and belief path are preserved.
+function _inversion_target(p)
+    targets = LenticulumCore.unobserved_channels(p)
+    isempty(targets) && throw(ArgumentError("diffusion inversion needs an unobserved channel"))
+    return length(targets) == 1 ? only(targets) : targets
+end
+_target_ranges(f, target::Symbol) = getfield(blockranges(f), target)
+_target_ranges(f, targets::Tuple) = vcat(map(n -> collect(getfield(blockranges(f), n)), targets)...)
 
 _get(inputs, k) = (inputs isa NamedTuple && haskey(inputs, k)) ? getfield(inputs, k) : nothing
 _point(::Nothing) = nothing
@@ -257,16 +290,12 @@ LenticulumCore.assemble(f::DiffusionFactor, p::LenticulumCore.Polarity, ps, st) 
     (LenticulumCore.BayesianLens(DiffusionModel(f, p), LenticulumCore.ProximalInversion(f.prox)), st)
 
 """
-    LenticulumCore.invert(lens, π, inputs, ps, st) -> (DiracBelief, st)
+    LenticulumCore.likelihood_message(lens, π, inputs, ps, st) -> (belief, st)
 
-Run the RED-Diff prox and return the reconstructed unobserved block.
-
-The return type is a **`DiracBelief`** (for the implicit solver, a `GaussianBelief` on
-request: `ImplicitProx(…; message = :gaussian)`). For RED-Diff that is faithful rather than lazy: RED-Diff's
-variational family is ``q = \\mathcal{N}(\\mu, \\sigma^2 I)`` with ``\\sigma \\to 0``, so the
-posterior it computes *is* a point mass. The consequence is recorded in `factor.md` §5 —
-a Dirac message dominates every `combine` it meets, so a diffusion factor in a graph
-overrides its neighbours rather than negotiating with them.
+A joint message on the concatenated unobserved blocks in channel order. Uses the same
+construction as `invert`; for implicit Gaussian/mixture messages, divides out the product
+of diagonal target anchors. The diffusion prior remains. An improper mixture component
+throws because normalized weights would be undefined; improper Gaussians are allowed.
 """
 function LenticulumCore.likelihood_message(
     lens::LenticulumCore.BayesianLens{<:DiffusionModel,<:LenticulumCore.ProximalInversion},
@@ -274,17 +303,34 @@ function LenticulumCore.likelihood_message(
 )
     f = lens.model.factor
     p = lens.model.polarity
-    target = first(LenticulumCore.unobserved_channels(p))
+    target = _inversion_target(p)
     return _target_belief(f.prox, f, p, inputs, π, ps, st, target; likelihood = true)
 end
 
+"""
+    LenticulumCore.invert(lens, π, inputs, ps, st) -> (belief, st)
+
+Run the prox and return a joint belief on the concatenated unobserved blocks in channel
+order. Point messages return a `DiracBelief`; `ImplicitProx` can instead return a joint
+Gaussian or mixture. `likelihood_message` removes the diagonal anchor on those same
+coordinates, retaining the diffusion prior. Mixture anchor removal throws if any component
+becomes improper, because normalized weights would be undefined. `factor_message` remains
+per-target.
+
+The default return type is a `DiracBelief`; the implicit solver also offers
+`message = :gaussian` and `message = :mixture`. For RED-Diff that is faithful rather than lazy: RED-Diff's
+variational family is ``q = \\mathcal{N}(\\mu, \\sigma^2 I)`` with ``\\sigma \\to 0``, so the
+posterior it computes *is* a point mass. The consequence is recorded in `factor.md` §5 —
+a Dirac message dominates every `combine` it meets, so a diffusion factor in a graph
+overrides its neighbours rather than negotiating with them.
+"""
 function LenticulumCore.invert(
     lens::LenticulumCore.BayesianLens{<:DiffusionModel,<:LenticulumCore.ProximalInversion},
     π, inputs, ps, st,
 )
     f = lens.model.factor
     p = lens.model.polarity
-    target = first(LenticulumCore.unobserved_channels(p))
+    target = _inversion_target(p)
     return _target_belief(f.prox, f, p, inputs, π, ps, st, target; likelihood = false)
 end
 
@@ -331,11 +377,11 @@ function Mycelium.factor_message(
     return _target_belief(f.prox, f, p, inputs, prior, ps, st, target; likelihood = true)
 end
 
-# The belief on one channel after inversion: a point, unless the implicit solver is asked for
+# The belief on selected target blocks: a point, unless the implicit solver is asked for
 # Gaussians (`ImplicitProx(…; message = :gaussian)`, in `implicit_factor.jl`).
 function _target_belief(prox, f::DiffusionFactor, p, inputs, π, ps, st, target; likelihood::Bool)
     x, st = _run_prox(f, p, inputs, π, ps, st)
-    r = getfield(blockranges(f), target)
+    r = _target_ranges(f, target)
     return (LenticulumCore.DiracBelief(x[r]), st)
 end
 

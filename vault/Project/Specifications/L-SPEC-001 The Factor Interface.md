@@ -17,7 +17,9 @@ A factor is a subtype of `AbstractLenticulumFactor`. Like a Lux layer, it is a *
 **§2 Channels and polarities** (`channels.jl`, `bayesian_lens.jl`):
 - `channels(f)` — the named ports, each a `Channel(name, dim)`; required;
 - `supports_polarity(f, p::Polarity)` — which splits into observed, unobserved and latent channels the factor can answer; required;
-- `supported_polarities(f)` — the list of them; required for graph use, since polarity resolution enumerates it ([[Polarity Resolution]]);
+- `supported_polarities(f)` — the complete list of accepted default-precision Observed/Unobserved/Latent assignments when listable; a factor may throw an informative error above a documented cap;
+- `polarities(f)` — lazy traversal filtered by the authoritative `supports_polarity` predicate; heterogeneous assignment types make it type-unstable;
+- `hasnopolarity(f)`, `isunidirectional(f)` — structural zero/one-support predicates; defaults inspect the list, capped factors must override both. Mycelium's `issink` delegates to the former. Polarity resolution constructs each per-target assignment from available messages and checks the predicate, without enumeration ([[Polarity Resolution]]);
 - `assemble(f, p, ps, st) -> (lens, st)` — the Bayesian lens for a polarity; required unless §5's `factor_message` is implemented directly;
 - `invert(lens, π, inputs, ps, st) -> (posterior, st)` — the Bayesian inversion $c^\dagger_\pi(y)$ of AutoBayes Definition 10 (posterior including the prior $\pi$);
 - `likelihood_message(lens, π, inputs, ps, st) -> (msg, st)` — the cavity-free BP likelihood message $\mu_{c\to\text{target}}$ (using $\pi$ at most as an expansion point; defaults to `invert` for point/likelihood lenses, [[L-ADR-0006 Separate likelihood_message from invert]]).
@@ -55,10 +57,11 @@ A factor is a subtype of `AbstractLenticulumFactor`. Like a Lux layer, it is a *
   unary and Relay both directions; Loss sink path, with explicit unsupported-section reasons.
 - `lib/Adversarial.jl/test/conformance.jl`: common default lens path on NoiseSource unary,
   Generator forward, Ratio unary; conditional point games, fixed draw and LP-016 broken tests.
-- `lib/VariationalDiffusion.jl/test/conformance.jl`: common default lens path on both enumerated
-  binary polarities, the two latent/single-target cases and the multiple-target case, plus
-  unary: fixed-node Gaussian/point fixtures, explicit game/enumeration/joint-message gaps
-  and four broken LP-017 assertions.
+- `lib/VariationalDiffusion.jl/test/conformance.jl`: common default lens path on all five binary
+  assignments and unary, with fixed-node Gaussian/point fixtures and an explicit game gap.
+  "Diffusion polarity enumeration and cap (LP-017)" and "Joint diffusion messages (LP-017)"
+  check complete support and joint point/Gaussian/mixture messages; the four LP-017 broken
+  assertions now pass.
 - `lib/AlgebraicFactors.jl/test/runtests.jl`: direct-message common checker for Toric at arities
   one to three and Plucker forward point games at r=2,4. Polynomial keeps its independent
   per-polarity subset tests; full conformance is not claimed.

@@ -150,7 +150,8 @@ function channels end
 """
     supports_polarity(factor, p::Polarity) -> Bool
 
-Whether `factor` can answer the input/output split `p`.
+Whether `factor` can answer the input/output split `p`. This predicate is the authority;
+answering it must not require enumerating the supported assignments.
 
 This predicate replaces Lux's acyclicity restriction. A Lux `Chain` is well-formed iff the
 wiring is a DAG; a Lenticulum graph is well-formed iff every scheduled message uses a
@@ -165,14 +166,47 @@ supports_polarity(::AbstractLenticulumFactor, ::Polarity) = false
 
 The polarities `factor` can answer, enumerated.
 
-[`supports_polarity`](@ref) is the predicate form; this is the *listable* form, which a
-scheduler needs in order to plan messages without guessing. The default is empty, matching
-`supports_polarity`'s conservative `false`.
+The list must equal the set of default-precision Observed/Unobserved/Latent assignments
+accepted by [`supports_polarity`](@ref) when finite and listable. The default is empty,
+matching `supports_polarity`'s conservative `false`.
+
+A factor may throw an informative `ArgumentError` above a size cap instead of returning
+an incomplete list. It must then override [`hasnopolarity`](@ref) and
+[`isunidirectional`](@ref) to answer without enumeration. Callers can use those structural
+predicates, `supports_polarity` for a particular assignment, or [`polarities`](@ref) for
+lazy traversal. The default structural predicates retain their list-based behaviour.
 
 A factor with exactly one supported polarity is **unidirectional**: it can be evaluated in
 one direction only, like an ordinary Lux layer. See [`isunidirectional`](@ref).
 """
 supported_polarities(::AbstractLenticulumFactor) = ()
+
+"""
+    polarities(factor)
+
+Lazily iterate the default-precision Observed/Unobserved/Latent assignments over
+`channels(factor)` accepted by [`supports_polarity`](@ref). Roles cycle in that order,
+with the first channel changing fastest. No set of size `3^n` is materialised, although
+complete traversal still takes exponential work. Assignments have heterogeneous types,
+so this iterator is intentionally type-unstable. Its order need not match
+[`supported_polarities`](@ref).
+"""
+function polarities(f::AbstractLenticulumFactor)
+    names = map(channelname, channels(f))
+    roles = (Observed(), Unobserved(), Latent())
+    assignments = Iterators.product(map(_ -> roles, names)...)
+    candidates = (Polarity(NamedTuple{names}(a)) for a in assignments)
+    return Iterators.filter(p -> supports_polarity(f, p), candidates)
+end
+
+"""
+    hasnopolarity(factor) -> Bool
+
+Whether the factor supports no polarity. Defaults to `isempty(supported_polarities(factor))`;
+override this and [`isunidirectional`](@ref) when a factor cannot cheaply list its support.
+Graph sinks use this predicate.
+"""
+hasnopolarity(f::AbstractLenticulumFactor) = isempty(supported_polarities(f))
 
 """
     isunidirectional(factor) -> Bool
@@ -181,7 +215,7 @@ Whether `factor` admits exactly one polarity, i.e. has a fixed input/output spli
 therefore an explicit rather than an implicit factor.
 
 Non-learnable structural nodes are usually unidirectional: a data source only emits, a loss
-only absorbs.
+only absorbs. Capped factors must override this predicate to avoid enumeration.
 """
 isunidirectional(f::AbstractLenticulumFactor) = length(supported_polarities(f)) == 1
 

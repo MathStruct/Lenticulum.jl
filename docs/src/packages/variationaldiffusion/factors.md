@@ -48,16 +48,22 @@ Pages = ["implicit_factor.jl"]
 
 ## Conformance and game-level limits
 
-`test/conformance.jl` runs the shared default lens checker on both enumerated binary
-polarities (Gaussian messages) and the unary point polarity. Fixed zero-noise quadrature
-and a unit Gaussian predictor give independent linear-field and energy fixtures. Game
-checks have an explicit opt-out: the graph's score coordinate is a denoising surrogate,
-not posterior entropy, and its inferred polarity/trivial prior cannot preserve an explicit
-game's split and precisions. No game free energy or entropy is supplied (LP-009).
-These checks do not certify arbitrary priors, joint latent/multiple-target splits,
-stochastic REDDiff or learned ProxDM inversions.
+`test/conformance.jl` runs the shared default lens checker on all five accepted binary
+assignments and the unary point polarity. Fixed zero-noise quadrature and a unit Gaussian
+predictor give independent linear-field and energy fixtures, including the two-coordinate
+posterior from an `N(0,I)` anchor and a site of precision `c I`.
 
-The remaining accepted binary role assignments are also exercised: both latent/single-target
-splits check the lens with an explicit enumeration gap, and the multiple-target split
-checks only traits/energy with an explicit message gap. Four broken assertions track
-missing enumeration and the absent joint posterior (LP-017).
+`supported_polarities` lists all `3^n - 2^n` assignments through four channels (65 entries),
+with one-target/all-other-observed entries first. Above that cap it throws; use
+`supports_polarity` or the lazy `polarities` iterator. Structural sink/direction checks do
+not enumerate. Joint inversion and likelihood messages concatenate the unobserved blocks
+in channel order. Gaussian/mixture messages restrict the full-state construction to those
+blocks; likelihood messages divide out their diagonal anchors. Improper mixture components
+throw because their normalized weights are undefined. Graph `factor_message` stays per target.
+
+The LP-017 testsets check complete lists, lazy traversal, structural answers above the cap,
+joint point/Gaussian/mixture messages, correlated covariance and anchor removal. Its four
+broken assertions now pass. Game checks retain an explicit opt-out: the graph's score
+coordinate is a denoising surrogate, not posterior entropy, and its inferred polarity/trivial
+prior cannot preserve an explicit game's split and precisions (LP-009). These checks do not
+certify arbitrary priors, joint latent posteriors, stochastic REDDiff or learned ProxDM.

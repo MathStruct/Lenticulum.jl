@@ -62,15 +62,17 @@ message, which times the anchor gives the posterior.
 ## 5. Gaussian messages
 
 `ImplicitProx(nodes; λ, message = :gaussian)` makes the factor return a `GaussianBelief` on the
-target channel instead of a `DiracBelief`:
+concatenated unobserved blocks instead of a `DiracBelief`:
 
 | call | returns |
 |---|---|
-| `invert` | the Laplace posterior at the answer, marginalised onto the target ([[implicit]] §5) |
+| `invert` | the joint Laplace posterior on all unobserved blocks ([[implicit]] §5) |
+| `likelihood_message` | the same joint belief, with the anchors on those blocks divided out |
 | `factor_message` | the same, with the target's own anchor divided out |
 
 The solver's query multiplies in an anchor on the target, $\mathcal N(z_0, \rho^{-2})$, from the
-incoming belief and the polarity's precision. If the message kept it, the variable would
+incoming belief and the polarity's precision. For a joint target, the anchor is the product
+of these diagonal anchors on the concatenated blocks. If the message kept it, the variable would
 count its own belief twice: once inside the message, once when it pools the message with
 itself. In canonical form the division is a subtraction,
 
@@ -102,8 +104,13 @@ Gaussian log-partition, so that multiplying by the anchor gives back the posteri
 as its components. A component made improper by the division throws; it has no normalised form.
 
 The pullback's `prior` field follows `assemble_state`: only unobserved blocks without an incoming point
-read $\pi$, their cotangents add, and when inputs override all of them the prior's cotangent is zero.
-Tests: "mixture likelihood removes anchor normalization", "prior cotangent follows assemble_state
+read $\pi$. For a joint prior point their cotangents fill the corresponding concatenated
+ranges; for a shared-block point they add. When inputs override all of them the prior's
+cotangent is zero. "Joint diffusion messages (LP-017)" checks joint ranges and cotangents,
+Gaussian covariance and mixture pooling; the single-target calls retain their original path.
+The joint analogue is checked by "Joint mixture anchor pooling (LP-017)"; removing the
+only confining anchor is rejected by "Joint mixture rejects undefined anchor division
+(LP-017)". Tests: "mixture likelihood removes anchor normalization", "prior cotangent follows assemble_state
 dependencies" (against finite differences).
 
 Related: [[implicit]], [[factor]], [[The Diffusion Factor]], [[Inference Signatures]]

@@ -34,12 +34,12 @@ the default lens path.
 | NoiseSource | default lens; unary | injected fixed one-particle draw; game conditioned on a Dirac draw, no cloud entropy |
 | GeneratorFactor | default lens; forward | Dirac latent fixture, no distributional entropy |
 | RatioFactor | default lens; unary | Dirac prior only; particle contract fails, [[LP-016 RatioFactor emits a particle posterior as a likelihood]] |
-| DiffusionFactor | default lens; all five accepted binary role assignments and unary | fixed-node Gaussian/point fixtures; game gap; omitted enumeration and missing joint multi-target inversion have explicit gaps and four broken tests (LP-017); other backends not certified |
+| DiffusionFactor | default lens; all five accepted binary role assignments and unary | fixed-node Gaussian/point fixtures and joint messages; game gap remains; LP-017 enumeration/joint inversion resolved; other backends not certified |
 | PluckerFactor | direct; sole forward polarity at r=2,4 | trivially extended Dirac-input game; no assembled lens/inverse fibre/distributional entropy |
 | PolynomialFactor | unchanged independent per-polarity tests | no local/game free energy or normalised joint branch model; full checker inapplicable |
 | ComposedFactor, TensorFactor | checker inapplicable; Core tests verify scope | parameter/energy-space containers without channels, inversion or evaluated game laws |
 
-**Remaining:** full particle conformance for Ratio (LP-016); diffusion enumeration/joint inversion (LP-017); DEQ/ODE and diffusion game
+**Remaining:** full particle conformance for Ratio (LP-016); DEQ/ODE and diffusion game
 contracts (LP-009); normalized branch/game laws for Polynomial; wired container semantics.
 The rollout tests do not establish conformance for arbitrary belief families or diffusion
 backends. No placeholders or new approximation have been introduced for these gaps.
@@ -77,6 +77,13 @@ counts above include the subsequent domain-rejection tests.
 Broken counts: DEQ/NeuralODE incoming-versus-solved energy (four); Ratio particle pooling,
 target exclusion and expectation mismatch (three, LP-016); Diffusion enumeration and joint
 posterior dimension (four, LP-017).
+
+The diffusion counts above record the earlier LP-008 run. LP-017 subsequently replaced
+its four broken assertions with passing checks and added complete enumeration, a lazy
+iterator, structural predicates and joint point/Gaussian/mixture tests; see
+[[LP-017 DiffusionFactor omits supported polarities]]. Ratio's three broken assertions
+remain. The current ImplicitLayers checker records the incoming/solved energy mismatch
+as a passing inequality check; its suite has no broken assertions in the LP-017 run.
 
 ## Files in this change
 

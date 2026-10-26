@@ -47,16 +47,38 @@ what makes this a **relation** rather than a bundle of conditionals: the diffusi
 the joint distribution of all channels, so any subset can be inpainted from any other. A
 per-channel model could not do that, and would be an explicit learner wearing a costume.
 
-## 3. `supported_polarities` under-reports on purpose
+## 3. Complete lists and lazy traversal
 
-`supports_polarity` accepts *any* assignment over the channel set with at least one
-`Unobserved()` channel — including `Latent()` ones — because a joint diffusion prior really
-can answer all of them. `supported_polarities` enumerates only the $n$ "one unobserved, rest
-observed" cases.
+`supports_polarity` accepts every Observed/Unobserved/Latent assignment over the channels
+with at least one `Unobserved()` channel. For $n$ channels there are $3^n - 2^n$ such
+assignments: subtract the assignments that use only Observed and Latent.
 
-The gap is deliberate: a scheduler needs a **listable** set, and the full set has $3^n - 2^n$
-elements. The predicate is the truth; the enumeration is a usable subset. `channels.md` notes
-that the two exist precisely so they can differ, and this is the first factor where they do.
+`supported_polarities` lists all of them through four channels (at most 65 entries).
+The original one-target/all-other-observed entries come first, in channel order. The
+remainder follows `polarities(f)`: roles cycle Observed, Unobserved, Latent, with the
+first channel changing fastest. Above four channels the list throws `ArgumentError`
+pointing to `supports_polarity` and the lazy `polarities` iterator. The latter avoids
+materialising the exponential set, but a complete traversal still takes exponential time
+and is type-unstable because assignments have distinct types.
+
+`hasnopolarity(f)` is always false; `isunidirectional(f)` is true exactly at arity one.
+These predicates do not enumerate. Other factors retain the core's list-based defaults.
+A caller that needs a complete eager list must stay within the cap. Mycelium's
+`resolve_polarity` constructs a per-target assignment from available messages and
+`check_legal` tests it with the predicate; these operations do not need a list.
+
+`invert` and `likelihood_message` return a joint belief on all unobserved blocks,
+concatenated in channel order. Point messages select those coordinates from the prox
+solution. Gaussian and mixture messages marginalise the same full-state construction
+onto those coordinates; latent blocks are omitted. `factor_message(f, target, …)` still
+returns one target block. A joint prior point is split in the same order; a shorter point
+retains the existing shared-block convention when it fits every target. Incoming points
+on individual channels take precedence.
+
+For the implicit solver, likelihood messages divide out the diagonal anchor on the
+selected target coordinates. The diffusion prior remains. A Gaussian may be improper;
+a mixture component made improper by division throws because its normalized weight
+would be undefined. See [[implicit_factor]] §5 and §7.
 
 ## 4. The `energy` signature does not fit, again
 
@@ -127,12 +149,12 @@ The inversion has usually just been computed by `factor_message`; `local_free_en
 again because the message store keeps beliefs, not the internal state the prox converged to.
 Caching the solution on `st` is the obvious fix and is not done.
 
-### 5.5 `assemble_state` silently zero-fills
+### 5.5 Missing points use a zero reference
 
-A channel with no incoming message contributes zeros to $x_0$. That is safe *only* because
-such a channel's precision is zero and the entry is multiplied out — but the invariant is
-implicit, and a future polarity that gives a message-less channel nonzero $\rho$ would read
-the zeros as data.
+A channel with no incoming or prior point contributes zeros to $x_0$. With nonzero
+precision this anchors the channel to zero, including the default unobserved/latent
+precision of one. With zero precision the reference is ignored. Supply a point or set
+precision zero when a zero anchor is not intended.
 
 Related: [[schedule]], [[predictor]], [[reddiff]], [[The Diffusion Factor]],
 [[Channels and Polarity]], [[Implicit Learners]], [[Bethe Free Energy]]
@@ -147,15 +169,17 @@ and prior split. Fixed quadrature makes a value reproducible; it does not repair
 semantic gap. REDDiff additionally resamples the objective on every call.
 
 `test/conformance.jl` includes the shared default lens checker with an explicit `game_gap`.
-It covers both enumerated binary polarities using a Gaussian message and the unary point
-polarity. For an isotropic unit Gaussian, one zero-noise node at time `t` gives the exact
-linear field `g(z) = λ σ(t)^2 z`; site/posterior precision and mean are computed from that
-closed form. Separate assertions check clamp and score coordinates against elementary
-formulas. No new quadrature approximation is introduced. The full set accepted by
-`supports_polarity` also includes latent/multiple-target splits, while enumeration lists
-only one-target/all-other-observed splits; the two latent/single-target binary assignments are also checked with explicit
-`polarity_gap` reasons. All five accepted binary O/U/L assignments are exercised; the
-multiple-target case has a `message_gap` because inversion returns only the first block.
-Three broken enumeration assertions and one broken joint-dimension assertion track
-[[LP-017 DiffusionFactor omits supported polarities]]. This does not certify joint latent
-posteriors, arbitrary priors or stochastic REDDiff/learned ProxDM paths.
+It covers all five accepted binary assignments and the unary point polarity. For an
+isotropic unit Gaussian, one zero-noise node at time `t` gives the exact linear field
+`g(z) = c z`, with `c = λ σ(t)^2`. Its potential is `c ||z||²/2`, so the site has
+precision `c I`. Multiplying by an `N(0,I)` anchor gives the joint posterior
+`N(0, I/(1+c))`. The binary joint fixture checks both coordinates and the full covariance.
+The original single-target fixtures also check nonzero anchor means. Separate assertions
+check clamp and score coordinates against elementary formulas.
+
+"Diffusion polarity enumeration and cap (LP-017)" checks complete lists at arities two,
+three and four, equality with lazy traversal, deterministic leading entries and structural
+answers above the cap. "Joint diffusion messages (LP-017)" checks noncontiguous unequal
+blocks for point/Gaussian/mixture messages, joint-prior cotangents, anchor pooling and
+correlated Gaussian covariance. These resolve [[LP-017 DiffusionFactor omits supported polarities]].
+They do not certify arbitrary priors or stochastic REDDiff/learned ProxDM paths.

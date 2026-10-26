@@ -42,11 +42,14 @@ The `NoisePredictor` is over the whole $\mathbb{R}^n$, not one per channel. That
 this a **relation** rather than a bundle of conditionals: the model knows the joint
 distribution, so any subset of blocks can be inpainted from any other.
 
-Concretely this is why `supports_polarity` accepts *any* assignment with at least one
-unobserved channel, while `supported_polarities` enumerates only the $n$ "one unobserved, rest
-observed" cases. The predicate is the truth; the enumeration is the listable subset a
-scheduler can plan with. `channels.md` says the two exist so they *can* differ; this is the
-first factor where they do, and the full set has $3^n-2^n$ elements.
+`supports_polarity` accepts every Observed/Unobserved/Latent assignment with at least
+one unobserved channel: $3^n-2^n$ assignments. `supported_polarities` lists the complete
+set through four channels (65 entries), with the original one-target/all-observed cases
+first. Above that cap it throws and directs callers to the predicate or the lazy
+`polarities` iterator. Structural sink and direction checks do not enumerate. Joint
+inversion returns all unobserved blocks in channel order; graph messages remain per target.
+These contracts are checked by "Diffusion polarity enumeration and cap (LP-017)" and
+"Joint diffusion messages (LP-017)" in `test/conformance.jl`; see [[factor]] §3.
 
 Read against [[README]]'s table, this factor scores the "symmetry handling: no distinguished
 input/output" row about as well as anything in the repository —

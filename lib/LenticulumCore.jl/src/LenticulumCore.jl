@@ -55,7 +55,7 @@ export AbstractLenticulumFactor,
 # --- Polarity (note: `Channel` is intentionally NOT exported; it shadows Base.Channel) ---
 export Observed, Unobserved, Latent, Polarity
 export channels, channelname, channelspace, supports_polarity, supported_polarities, assemble
-export isunidirectional, islearnable, isfrozen
+export polarities, hasnopolarity, isunidirectional, islearnable, isfrozen
 export default_precision
 export select, observed_channels, unobserved_channels, latent_channels, channel_precision, ispartition
 

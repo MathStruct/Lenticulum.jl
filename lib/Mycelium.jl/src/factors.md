@@ -28,6 +28,10 @@ inversion), and — once parameters can be exposed as channels — of optimisers
 bidirectional: a **sink**, corresponding exactly to Cruttwell et al.'s learning-rate cap, the
 lens $(L,L')\to(1,1)$ that terminates a wire.
 
+`issink(f)` delegates to `LenticulumCore.hasnopolarity(f)`. Its default still checks
+whether `supported_polarities(f)` is empty. Factors with prohibitive lists override the
+core predicate, so structural sink checks need no enumeration (LP-017).
+
 ## Cavity-message trait
 
 `uses_cavity` defaults to `false`. `PriorFactor` overrides it with `true` because its factor

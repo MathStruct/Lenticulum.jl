@@ -1,5 +1,7 @@
 #implementation
 
+> Channel roles, precisions and complete support, with lazy traversal when a list is too large.
+
 > Sources: code: `channels.jl`
 >
 > Theory (CT-ML wiki): [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
@@ -90,3 +92,18 @@ have very different costs. When `reveal` lands, `Latent` should probably split i
 `Latent()` and `Revealed()`, or gain a flag.
 
 Related: [[Channels and Polarity]], [[Open Models and Latent Channels]], [[Open Models and Latent Channels]], [[abstract_types]]
+
+## Complete support without an eager list (LP-017)
+
+`supports_polarity` is the authority. `supported_polarities` must list every accepted
+Observed/Unobserved/Latent assignment with default precisions when listable; it may throw
+an informative error above a size cap. `polarities(f)` lazily filters the Cartesian product
+by the predicate, with the first channel cycling fastest through Observed, Unobserved,
+Latent. It allocates no exponential set. Traversal is still exponential and type-unstable:
+each assignment has its own `Polarity` type.
+
+`hasnopolarity` and `isunidirectional` default to testing the existing list for zero and
+one entries. A capped factor overrides both to answer cheaply. Mycelium's `issink` delegates
+to `hasnopolarity`. No counting API is needed for these questions. The core test
+"Lazy polarity enumeration (LP-017)" checks ordering, default precisions, predicate calls,
+early stopping at arity 20, empty support and overrides independent of an eager list.

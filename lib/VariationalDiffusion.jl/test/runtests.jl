@@ -324,9 +324,9 @@ end
     @test lens.inversion isa LenticulumCore.ProximalInversion
     @test LenticulumCore.latentspace(lens.model) == (:c,)
 
-    # enumerated polarities: one per channel, and the predicate is strictly more permissive
+    # enumeration is complete, with one-target/all-observed entries first
     pols = LenticulumCore.supported_polarities(f)
-    @test length(pols) == 2
+    @test length(pols) == 5
     @test all(p -> LenticulumCore.supports_polarity(f, p), pols)
     @test !LenticulumCore.supports_polarity(f, Polarity(; obs = Observed()))
 

@@ -49,12 +49,14 @@ uses_cavity(factor) = false
 
 A factor with **no** supported polarity: it contributes energy but never sends a message.
 
+Uses `LenticulumCore.hasnopolarity`; capped factors can answer this without a list.
+
 Losses, monitors and pure observations are sinks. This is a third case beyond
 `LenticulumCore.isunidirectional` (exactly one polarity) and bidirectional (two or more), and
 it is the one that corresponds to Cruttwell et al.'s *learning-rate cap* — the lens
 `(L,L') → (1,1)` that terminates a wire.
 """
-issink(f) = isempty(LenticulumCore.supported_polarities(f))
+issink(f) = LenticulumCore.hasnopolarity(f)
 
 """
     point(belief)

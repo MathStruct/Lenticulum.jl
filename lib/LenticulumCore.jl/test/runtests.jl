@@ -322,3 +322,41 @@ end
         @test !applicable(LenticulumCore.entropy, f, TrivialBelief(), nothing, (;), (;))
     end
 end
+
+struct LazyPolarityFactor{N} <: AbstractLenticulumFactor
+    calls::Base.RefValue{Int}
+end
+LenticulumCore.channels(::LazyPolarityFactor{N}) where {N} =
+    ntuple(i -> Channel(Symbol(:c, i), nothing), N)
+function LenticulumCore.supports_polarity(f::LazyPolarityFactor, p::Polarity)
+    f.calls[] += 1
+    return !isempty(unobserved_channels(p))
+end
+LenticulumCore.supported_polarities(::LazyPolarityFactor) =
+    throw(ArgumentError("use polarities or supports_polarity"))
+LenticulumCore.hasnopolarity(::LazyPolarityFactor{N}) where {N} = N == 0
+LenticulumCore.isunidirectional(::LazyPolarityFactor{N}) where {N} = N == 1
+
+@testset "Lazy polarity enumeration (LP-017)" begin
+    f = LazyPolarityFactor{2}(Ref(0))
+    iter = polarities(f)
+    @test f.calls[] == 0
+    listed = collect(iter)
+    @test f.calls[] == 9
+    O, U, L = Observed(), Unobserved(), Latent()
+    expected = [Polarity((c1=a,c2=b)) for b in (O,U,L) for a in (O,U,L)
+                if a isa Unobserved || b isa Unobserved]
+    @test listed == expected
+    @test all(p -> supports_polarity(f,p), listed)
+    @test all(p -> p.precisions == Polarity(p.assignment).precisions, listed)
+    @test_throws ArgumentError supported_polarities(f)
+    @test !hasnopolarity(f)
+    @test !isunidirectional(f)
+    @test isunidirectional(LazyPolarityFactor{1}(Ref(0)))
+    @test isempty(collect(polarities(LazyPolarityFactor{0}(Ref(0)))))
+    large = LazyPolarityFactor{20}(Ref(0))
+    @test first(polarities(large))[:c1] isa Unobserved
+    @test large.calls[] == 2  # traversal stopped after the first accepted assignment
+    @test hasnopolarity(CouplingGuardFactor(:x))  # existing list-based defaults
+    @test !isunidirectional(CouplingGuardFactor(:x))
+end

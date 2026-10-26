@@ -39,13 +39,15 @@ that section for a documented unsupported contract. `polarity_gap` omits only en
 membership for a polarity accepted by `supports_polarity` but missing from the list.
 Callers must test/record the gap separately; these runs are partial conformance.
 `p = nothing` is reserved for sinks (no polarities), with an explicit `message_gap`.
-Independent site/posterior fixtures may also be given on the lens path. All other checks
+Independent site/posterior fixtures may also be given on the lens path. A joint lens
+requires `expected_target_sites`, a NamedTuple of independent per-target graph fixtures. All other checks
 are shared; the default path retains the assemble/invert/likelihood_message checks.
 """
 function check_factor_conformance(f, p; π, inputs, ps, st, pointwise = nothing,
                                   game_prior = nothing, game_y = nothing, msgs,
                                   direct_message = false,
                                   expected_site = nothing, expected_posterior = nothing,
+                                  expected_target_sites = nothing,
                                   pointwise_gap = nothing, game_gap = nothing,
                                   message_gap = nothing, polarity_gap = nothing)
     for gap in (pointwise_gap, game_gap, message_gap, polarity_gap)
@@ -95,8 +97,8 @@ function check_factor_conformance(f, p; π, inputs, ps, st, pointwise = nothing,
         end
 
         if message_gap === nothing
-            target = only(unobserved_channels(p))
             if direct_message
+                target = only(unobserved_channels(p))
                 expected_site isa LenticulumCore.AbstractBelief ||
                     throw(ArgumentError("direct-message conformance requires an independent expected_site"))
                 expected_posterior isa LenticulumCore.AbstractBelief ||
@@ -127,8 +129,18 @@ function check_factor_conformance(f, p; π, inputs, ps, st, pointwise = nothing,
                 if expected_posterior !== nothing
                     @test belief_distance(post, expected_posterior) ≤ 1e-8
                 end
-                graph_site, _ = factor_message(f, target, p, inputs, π, ps, st)
-                @test belief_distance(graph_site, site) ≤ 1e-8
+                targets = unobserved_channels(p)
+                if length(targets) == 1
+                    graph_site, _ = factor_message(f, only(targets), p, inputs, π, ps, st)
+                    @test belief_distance(graph_site, site) ≤ 1e-8
+                else
+                    expected_target_sites isa NamedTuple || throw(ArgumentError(
+                        "joint lens conformance requires independent expected_target_sites"))
+                    for target in targets
+                        graph_site, _ = factor_message(f, target, p, inputs, π, ps, st)
+                        @test belief_distance(graph_site, getfield(expected_target_sites, target)) ≤ 1e-8
+                    end
+                end
             end
 
         end
