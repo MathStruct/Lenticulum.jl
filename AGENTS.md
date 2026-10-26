@@ -72,10 +72,9 @@ python3 docs/site/bib2cff.py        # the references of CITATION.cff
 python3 docs/site/zenodo.py         # .zenodo.json, from CITATION.cff and contributors.toml
 ```
 
-Known bug: `link_sources.py` also rewrites the Bibliography lines of a few unrelated notes
-(`lib/VariationalDiffusion.jl/src/implicit.md`, `sampler.md`, *Backpropagation through Implicit
-Inference*), dropping links that were there. Check `git diff` after running it and restore
-those files.
+`link_sources.py` keeps every existing `> Bibliography:` link whose key is still in `refs.bib`
+(LP-004). So when you remove a citation from a note's sources, delete its link from that note's
+Bibliography line by hand. Check `git diff` after running the scripts as usual.
 
 **Docs.** `julia --project=docs docs/make.jl` builds the API docs and the vault (Node ≥ 22);
 `docs/site/build.sh` builds the vault alone, and `docs/site/build.sh --serve` serves it at
