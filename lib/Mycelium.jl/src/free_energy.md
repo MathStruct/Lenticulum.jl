@@ -1,5 +1,8 @@
 #implementation
 
+> Bethe free energy from incoming cavity messages, with an edge-direction guard for factors
+> that read them and a per-variable entropy counting correction.
+
 > Sources: code: `free_energy.jl`
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
@@ -26,11 +29,38 @@ $$\texttt{total\_counting\_number(g)} \;=\; \sum_f 1 + \sum_v (1-d_v) \;=\; |F|+
 Asserted against [[graph|`euler_characteristic`]] in the tests, because it is the cheapest check
 that the graph and the accounting have not drifted apart.
 
-## `beliefs_at` uses the **full** marginal, not the excluded one
+## Incoming messages and permitted edge directions
 
-Exclusion is a rule about *messages* — it stops a factor's own claim returning to it as
-independent evidence. The free energy is evaluated at the graph's **actual beliefs**, and
-excluding there would be wrong. Easy to get backwards; called out on the docstring.
+`messages_into` returns the variable-to-factor cavity messages, not the full variable
+marginals. Each factor forms its own belief from its potential and those messages:
+
+$$
+b_a \propto f_a \prod_{i\in a} \mu_{i\to a}.
+$$
+
+Using the marginals here would include the factor's outgoing evidence a second time.
+The variable counting correction, by contrast, uses the full variable marginals.
+
+`uses_cavity(factor)` defaults to `false`. Every `local_free_energy` implementation that
+reads its incoming messages must override it with `true`, even if it returns zero when
+some message is absent. In `factor_free_energies`, such a factor's edges are checked with
+`absorbs(edge.direction)` before its local evaluation. `Emitting()` raises `ArgumentError`
+naming the factor, channel and variable and recommending `Bidirectional()`.
+`Absorbing()` and `Bidirectional()` are permitted, including when their stored message is
+`nothing`. Factors returning a constant zero without reading messages keep the default.
+The check scans the existing edge indices without constructing a collection; error text
+is constructed only on failure. Message passing and scheduling do not change.
+
+Both `bethe_free_energy` and graph `scalar_free_energy` call `factor_free_energies`, so all
+three graph entry points enforce the same requirement. Direct `local_free_energy` calls
+have no graph directions to check. `chain_free_energy` combines already evaluated terms.
+
+The Mycelium testset "LP-014: cavity messages and edge directions" checks the three entry
+points, the diagnostic, missing messages on permitted edges, and an unchanged directed
+DataFactor/RelayFactor/LossFactor graph. AlgebraicFactors' "LP-014: a prior on an Emitting
+edge" checks exact enumerated marginals with either prior edge direction, rejection of
+Emitting-prior free energy, and the Bidirectional result against $-\log Z$.
+See [[LP-014 Emitting edges drop the cavity message from the free energy]].
 
 ## Two decompositions
 
@@ -56,18 +86,19 @@ Bethe is the standard way around it — it has no order in it at all. `chain_fre
 provided for reasoning about a specific message path, and the docstring says which to prefer for
 reporting.
 
-### 2. `variable_entropy` is implemented for exactly two types
+### 2. Variable entropy needs an explicit belief representation
 
-`DiracBelief` and `TrivialBelief`, both `0.0`. Everything else throws.
+`DiracBelief` and `TrivialBelief` contribute `0.0`; categorical beliefs and mixtures of
+categoricals use exact Shannon entropy. `gaussian.jl` adds the proper Gaussian entropy.
+Unsupported representations throw.
 
 The Dirac convention deserves scrutiny: the differential entropy of a point mass is $-\infty$,
 but the *correction term* it contributes is taken as zero, on the grounds that a clamped
 variable carries no free bits. That is the convention BP uses for observed nodes and it is
 right, but it is a convention and it is stated rather than derived.
 
-For any real belief type this is the blocking gap: **the counting correction cannot be computed
-without variable entropies**, so on a graph with non-Dirac beliefs `bethe_free_energy` currently
-throws rather than approximates. Throwing is the right failure mode; the gap is real.
+The counting correction cannot be computed without variable entropies; unsupported belief
+representations throw rather than silently approximate.
 
 ### 3. `chain_free_energy` folds with a singleton wrapper
 

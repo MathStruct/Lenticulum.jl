@@ -276,6 +276,8 @@ function Mycelium.factor_message(
     return _score(f, something(_get(inputs, f.channel), prior), ps, st)
 end
 
+Mycelium.uses_cavity(::RatioFactor) = true
+
 """
     Mycelium.local_free_energy(f::RatioFactor, msgs, ps, st)
 

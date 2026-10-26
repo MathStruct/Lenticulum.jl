@@ -298,6 +298,8 @@ end
 
 # --- The Bethe contribution: the linear model's, around the factor's incoming beliefs ----
 
+Mycelium.uses_cavity(::NonlinearFactor) = true
+
 """
     Mycelium.local_free_energy(f::NonlinearFactor, msgs, ps, st)
 

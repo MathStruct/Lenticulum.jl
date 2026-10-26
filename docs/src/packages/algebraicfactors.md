@@ -40,7 +40,11 @@ or forward model. The common conformance checker uses independent site and poole
 fixtures through its direct-message path.
 
 `local_free_energy` computes the joint factor expectation minus joint entropy from the
-incoming cavity messages. Mycelium supplies the variable entropy counting correction.
+incoming cavity messages (`Mycelium.uses_cavity(f) == true`). Mycelium supplies the variable
+entropy counting correction and rejects `Emitting()` edges on cavity-reading factors,
+including `PriorFactor`; use `Bidirectional()` when they must also send messages (LP-014).
+The tree regression checks exact marginals for both prior edge directions and free energy
+against $-\log Z$ for Bidirectional priors; Emitting-prior free energy throws `ArgumentError`.
 Set `normalised = true` for standalone game quantities: `free_energy(f, π, y, ps, st)`
 and `LenticulumCore.entropy(f, π, y, ps, st)`. Use disjoint NamedTuples of prior beliefs
 and observations, or one prior belief and observations naming every other channel.

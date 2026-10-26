@@ -7,6 +7,15 @@
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
+## Graph free-energy edge directions
+
+`NeuralODEFactor` declares `Mycelium.uses_cavity == true`: its local free energy evaluates
+the endpoint residual from incoming points, returning zero if an endpoint is absent.
+Graph free-energy evaluation rejects an attached `Emitting()` edge with `ArgumentError`;
+use `Bidirectional()` if that channel must also send messages. Missing messages on permitted
+edges retain their existing local behaviour. See [[free_energy]] and
+[[LP-014 Emitting edges drop the cavity message from the free energy]].
+
 ## 1. Two directions, both integrations
 
 $$

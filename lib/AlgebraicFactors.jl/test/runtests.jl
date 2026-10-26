@@ -503,7 +503,7 @@ end
 end
 
 @testset "LP-014: a prior on an Emitting edge" begin
-    # Marginals stay exact, but the prior's free-energy term gets no cavity message.
+    # Marginals stay exact; free energy rejects a prior edge that cannot carry the cavity.
     pa = [0.25, 0.75]; A = design((2, 3)); η = [0.3, -0.2, 0.15, 0.4]
     w = [pa[i] * exp(sum(η .* A[:, i + 2*(j-1)])) for i in 1:2, j in 1:3]
     Z = sum(w)
@@ -518,12 +518,14 @@ end
         g = build(b)
         ps = (ab = (; η),); st = LuxCore.initialstates(Xoshiro(1), g)
         marginals, _, next, store = infer!(g, tree_schedule(g; root = :a), ps, st)
+        @test probabilities(marginals[:a]) ≈ vec(sum(w; dims = 2)) / Z
         @test probabilities(marginals[:b]) ≈ vec(sum(w; dims = 1)) / Z
-        F, _ = scalar_free_energy(store, g, ps, next)
         if direction isa Bidirectional
+            F, _ = scalar_free_energy(store, g, ps, next)
             @test F ≈ -log(Z)
         else
-            @test_broken F ≈ -log(Z)
+            @test_throws ArgumentError scalar_free_energy(store, g, ps, next)
+            @test_throws ArgumentError bethe_free_energy(store, g, ps, next)
         end
     end
 end

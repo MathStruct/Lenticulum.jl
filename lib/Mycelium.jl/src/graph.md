@@ -22,6 +22,11 @@ positional because a factor has no distinguished input — which is decided per 
 Built through a mutable `GraphBuilder` (`variable!`, `factor!`, `connect!`, `build`) so the
 adjacency indices cannot drift out of sync with the edge list.
 
+An `Emitting()` edge carries no variable-to-factor message. A factor whose
+`local_free_energy` reads those messages declares `uses_cavity == true`; graph free energy
+then requires `Absorbing()` or `Bidirectional()` on every attached edge. In particular a prior
+that also emits needs `Bidirectional()` for free-energy evaluation; see [[free_energy]].
+
 ## The two predicates
 
 | | on | decides |

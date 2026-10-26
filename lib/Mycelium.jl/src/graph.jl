@@ -43,7 +43,9 @@ struct Bidirectional <: EdgeDirection end
 
 Factor → variable only. The factor *produces* on this channel and never reads it, so the
 channel is never `Observed()`. A data source, a prior, and the output side of an ordinary
-Lux-style layer are all emitting.
+Lux-style layer can all send emitting messages. For graph free energy, a factor with
+[`uses_cavity`](@ref) (including `PriorFactor`) needs `Bidirectional()` instead, so it can
+also receive the cavity message.
 """
 struct Emitting <: EdgeDirection end
 

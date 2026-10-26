@@ -11,6 +11,15 @@
 >
 > Theory: [[Factors are Parameterized Statistical Games]] · [[Scalar and Multivariate Energy]] · [[Bethe Free Energy]] · [[Messages are Inversions]]
 
+## Graph free-energy edge directions
+
+`GaussianFactor` and `GaussianPrior` declare `Mycelium.uses_cavity == true`: their local
+free energies form joint/posterior Gaussian beliefs from incoming messages.
+Graph free-energy evaluation rejects an attached `Emitting()` edge with `ArgumentError`;
+use `Bidirectional()` if that channel must also send messages. Missing messages on permitted
+edges retain their existing local behaviour. See [[free_energy]] and
+[[LP-014 Emitting edges drop the cavity message from the free energy]].
+
 ## 1. Role as the reference oracle
 
 `GaussianFactor` is the first factor in the repository that implements the complete

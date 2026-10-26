@@ -713,6 +713,8 @@ function _conditional_entropy(L::OrdinalProbitLikelihood, z)
     return -sum(l == -Inf ? zero(l) : exp(l) * l for l in lp)
 end
 
+Mycelium.uses_cavity(::LikelihoodFactor) = true
+
 """
     Mycelium.local_free_energy(f::LikelihoodFactor, msgs, ps, st)
 

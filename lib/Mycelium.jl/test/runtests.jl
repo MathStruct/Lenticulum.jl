@@ -267,6 +267,69 @@ end
     @test flat(chain) ≈ total
 end
 
+@testset "LP-014: cavity messages and edge directions" begin
+    nt = NamedTuple()
+    p = [0.25, 0.75]
+    prior = PriorFactor(:z, CategoricalBelief(p), x -> -log(p[x]))
+    @test uses_cavity(prior)
+    @test uses_cavity(LossFactor((:z,), identity))
+    @test !uses_cavity(DataFactor(:z, 1))
+    @test !uses_cavity(RelayFactor(:in, :out))
+    @test !uses_cavity(OptimiserFactor(:z, GradientDescent(0.1)))
+    @test !uses_cavity(nothing)  # the public default
+
+    for direction in (Emitting(), Bidirectional())
+        b = GraphBuilder()
+        variable!(b, :latent)
+        factor!(b, :prior, prior)
+        connect!(b, :prior, :z, :latent; direction)
+        g = build(b)
+        _, _, st, store = infer!(g, tree_schedule(g), nt, nt)
+        if direction isa Emitting
+            err = try
+                bethe_free_energy(store, g, nt, st)
+            catch e
+                e
+            end
+            @test err isa ArgumentError
+            if err isa ArgumentError
+                msg = sprint(showerror, err)
+                @test occursin(":prior", msg)
+                @test occursin(":z", msg)
+                @test occursin(":latent", msg)
+                @test occursin("Bidirectional()", msg)
+            end
+            @test_throws ArgumentError factor_free_energies(store, g, nt, st)
+            @test_throws ArgumentError scalar_free_energy(store, g, nt, st)
+        else
+            @test first(bethe_free_energy(store, g, nt, st))[:factors][:prior] ≈ 0 atol = 1e-14
+            @test first(scalar_free_energy(store, g, nt, st)) ≈ 0 atol = 1e-14
+            # A permitted edge need not already have a message (e.g. before inference).
+            empty_store = MessageStore(g)
+            @test messages_into(empty_store, g, 1).z === nothing
+            @test first(factor_free_energies(empty_store, g, nt, nt))[:prior] ≈ 0 atol = 1e-14
+        end
+    end
+
+    # A directed data -> relay -> loss graph: only constant-zero factors emit.
+    b = GraphBuilder()
+    variable!(b, :x); variable!(b, :y)
+    factor!(b, :data, DataFactor(:x, 2.0))
+    factor!(b, :relay, RelayFactor(:in, :out))
+    factor!(b, :loss, LossFactor((:y,), y -> (y - 5)^2 / 2))
+    connect!(b, :data, :x, :x; direction = Emitting())
+    connect!(b, :relay, :in, :x; direction = Absorbing())
+    connect!(b, :relay, :out, :y; direction = Emitting())
+    connect!(b, :loss, :y, :y; direction = Absorbing())
+    g = build(b)
+    _, _, st, store = infer!(g, tree_schedule(g), nt, nt)
+    @test first(scalar_free_energy(store, g, nt, st)) ≈ 4.5
+    B, _ = bethe_free_energy(store, g, nt, st)
+    @test B[:factors][:data] == B[:factors][:relay] == 0.0
+    @test B[:factors][:loss] ≈ 4.5
+    @test all(iszero, values(B[:variables].parts))
+end
+
 @testset "optimisers are Cruttwell's Definition 3.14 lenses" begin
     # gradient descent: get = p, put = p - η ḡ
     gd = GradientDescent(0.1)
@@ -406,7 +469,8 @@ end
     s.to_factor[ei_in] = Mycelium.Message(uninformative(1), 1)
     @test isempty(available_channels(s, g, fid))
 
-    # PriorFactor local_free_energy works on Emitting edges (incoming === nothing), CategoricalBeliefs, and GaussianBeliefs (exact trace term)
+    # Direct local_free_energy accepts missing messages; graph-level direction checks are separate.
+    # CategoricalBeliefs and GaussianBeliefs (exact trace term).
     pf = PriorFactor(:z, CategoricalBelief([0.25, 0.75]), k -> k == 1 ? -log(0.25) : -log(0.75))
     F_pf, _ = local_free_energy(pf, (; z = nothing), NamedTuple(), NamedTuple())
     @test abs(F_pf) < 1e-12

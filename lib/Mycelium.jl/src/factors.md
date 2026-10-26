@@ -1,5 +1,7 @@
 #implementation
 
+> Structural factors and their local free-energy contract, including whether they read cavity messages.
+
 > Sources: code: `factors.jl`
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Gradient Based Learning with Parametric Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Gradient-Based-Learning-with-Parametric-Lenses)
@@ -17,7 +19,7 @@ inversion), and — once parameters can be exposed as channels — of optimisers
 | type | edges | learnable | polarities | energy |
 |---|---|---|---|---|
 | `DataFactor` | `Emitting` | no | 1 | $0$ |
-| `PriorFactor` | `Emitting` | optional | 1 | $-\log p_\pi(x)$ |
+| `PriorFactor` | `Bidirectional` for graph free energy | optional | 1 | $-\log p_\pi(x)$ |
 | `LossFactor` | `Absorbing` | no | **0** (a sink) | $f(\ldots)$ |
 | `RelayFactor` | `Bidirectional` | no | 2 | $0$ |
 | `OptimiserFactor` | `Bidirectional` | no (holds *state*) | 1 | $0$ |
@@ -25,6 +27,20 @@ inversion), and — once parameters can be exposed as channels — of optimisers
 `LossFactor` having **zero** polarities is the third case beyond unidirectional and
 bidirectional: a **sink**, corresponding exactly to Cruttwell et al.'s learning-rate cap, the
 lens $(L,L')\to(1,1)$ that terminates a wire.
+
+## Cavity-message trait
+
+`uses_cavity` defaults to `false`. `PriorFactor` overrides it with `true` because its factor
+belief combines the prior with the incoming cavity. `LossFactor` also returns `true`: it
+reads incoming points to evaluate the loss. `DataFactor`, `RelayFactor` and `OptimiserFactor`
+ignore incoming messages in `local_free_energy` and return zero, so retain `false`.
+
+For factors with `uses_cavity == true`, graph free-energy evaluation rejects `Emitting()`
+edges with `ArgumentError`; use `Bidirectional()` when the factor must send as well.
+This is independent of supported message polarities: a prior still only emits its own belief.
+`nothing` on a permitted edge remains valid input to the local method. The Mycelium testset
+"LP-014: cavity messages and edge directions" checks the trait values and guard; see
+[[free_energy]] and [[LP-014 Emitting edges drop the cavity message from the free energy]].
 
 ## The optimiser rules are Cruttwell's table verbatim
 
@@ -73,7 +89,7 @@ points is still a smell, and a caller could implement one and not the other and 
 `local_free_energy` deriving from `free_energy` for a chosen polarity would be better and is not
 obviously well-defined.
 
-### 3. `point` refuses non-Dirac beliefs, which blocks every real energy
+### 3. `LossFactor` requires Dirac beliefs
 
 Energies are pointwise ([Definition 20](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)), so they need a sample. `point`
 extracts one from a `DiracBelief` and **throws** for anything else, rather than silently taking
@@ -81,15 +97,13 @@ a mean.
 
 Throwing is right — a mean is not a sample, and $\mathbb{E}[l(x)] \ne l(\mathbb{E}[x])$ for any
 nonlinear $l$, which is the same Jensen gap [[Scalar and Multivariate Energy]] §5 quantifies.
-But it means **no structural factor can compute an energy under a non-Dirac belief**, which is
-most of the interesting cases. The fix is a `sample(belief, rng)` and Monte-Carlo evaluation, or
-an energy interface that accepts distributions. Neither exists.
+This limits `LossFactor` to incoming Dirac beliefs. `PriorFactor` handles categorical
+expectations directly and Gaussian expectations with the qualification in its docstring.
 
 ### 4. `OptimiserFactor.factor_message` reads `st.p` and `st.state` by convention
 
-There is no declared state schema. A state tree missing `:p` yields `nothing`, which then flows
-into `rule_get` and produces a `DiracBelief(nothing)` — a wrong answer with no error. This is
-the most fragile thing in the file and wants either a typed state struct or an explicit check.
+There is no declared state schema. `factor_message` explicitly checks that both fields exist
+and throws `ArgumentError` when either is missing; the state values themselves remain untyped.
 
 ### 5. `optimiser_step` is separate from message passing, deliberately
 

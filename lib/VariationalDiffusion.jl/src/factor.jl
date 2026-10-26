@@ -394,6 +394,8 @@ function LenticulumCore.energy(f::DiffusionFactor, x, a::LenticulumCore.Polarity
     return (LenticulumCore.GradedEnergy((clamp = clamp_term, score = sc)), st)
 end
 
+Mycelium.uses_cavity(::DiffusionFactor) = true
+
 """
     Mycelium.local_free_energy(f::DiffusionFactor, msgs, ps, st)
 

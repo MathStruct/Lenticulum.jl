@@ -12,6 +12,15 @@
 >
 > Theory: [[Belief Algebra]] §4 · [[Beliefs]] · [[Categorical Belief]] · [[nonlinear]]
 
+## Graph free-energy edge directions
+
+`LikelihoodFactor` declares `Mycelium.uses_cavity == true`: it reads incoming evidence
+and input beliefs for its observed and predictive local free energies.
+Graph free-energy evaluation rejects an attached `Emitting()` edge with `ArgumentError`;
+use `Bidirectional()` if that channel must also send messages. Missing messages on permitted
+edges retain their existing local behaviour. See [[free_energy]] and
+[[LP-014 Emitting edges drop the cavity message from the free energy]].
+
 ## 1. The factor
 
 The likelihood reads $x$ only through the linear predictor $z = Ax + b \in \mathbb R^k$:

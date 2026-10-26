@@ -7,6 +7,15 @@
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
+## Graph free-energy edge directions
+
+`DEQFactor` declares `Mycelium.uses_cavity == true`: its local free energy evaluates the
+residual at incoming points, even though it returns zero if a point is absent.
+Graph free-energy evaluation rejects an attached `Emitting()` edge with `ArgumentError`;
+use `Bidirectional()` if that channel must also send messages. Missing messages on permitted
+edges retain their existing local behaviour. See [[free_energy]] and
+[[LP-014 Emitting edges drop the cavity message from the free energy]].
+
 ## 1. What SciML gives you, and what it keeps
 
 `DeepEquilibriumNetworks.jl` builds a Lux layer. You hand it a cell and a

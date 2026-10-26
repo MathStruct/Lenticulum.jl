@@ -8,6 +8,15 @@
 >
 > Theory (CT-ML wiki): [Hypergraph Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Hypergraph-Category) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
+## Graph free-energy edge directions
+
+`LinearConstraintFactor` declares `Mycelium.uses_cavity == true`: its local free energy
+uses residual statistics and entropy of the belief formed from incoming messages.
+Graph free-energy evaluation rejects an attached `Emitting()` edge with `ArgumentError`;
+use `Bidirectional()` if that channel must also send messages. Missing messages on permitted
+edges retain their existing local behaviour. See [[free_energy]] and
+[[LP-014 Emitting edges drop the cavity message from the free energy]].
+
 ## 1. Why this factor exists
 
 [[README]]'s table promises *"Symmetry handling: symmetric, no distinguished input/output"*.

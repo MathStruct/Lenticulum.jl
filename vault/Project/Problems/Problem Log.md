@@ -19,5 +19,5 @@ Implementation notes also record what their code does not do; a problem gets an 
 | [[LP-011 Gradient couplings and isfrozen are declared but unused]] | Per-edge couplings and `isfrozen` are stored but no code reads them | open |
 | [[LP-012 Factor graphs and schemes]] | Links to algebraic geometry: singular models, dual-number points, cellular sheaves | open, theory |
 | [[LP-013 Defects found in the review of master]] | Codex's review of master: entropy type, iterated nonlinear site, predictive fit, mixture weights, prior cotangent, a rate claim | closed (2026-10-25) |
-| [[LP-014 Emitting edges drop the cavity message from the free energy]] | A `PriorFactor` on an `Emitting()` edge gets no cavity message, so the Bethe free energy is wrong while marginals are right | open |
+| [[LP-014 Emitting edges drop the cavity message from the free energy]] | Cavity-reading factors now reject `Emitting()` edges during graph free-energy evaluation (`uses_cavity`, option 2); marginals unchanged | closed (2026-10-26) |
 | [[LP-015 Momentum had the wrong sign on its decay]] | `Momentum` and `Nesterov` used $s' = -\gamma s - \eta\bar p$ instead of $\gamma s - \eta\bar p$ (Cruttwell et al. Example 3.16) | closed (2026-10-25) |

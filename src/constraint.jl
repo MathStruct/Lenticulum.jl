@@ -306,6 +306,8 @@ function _blockdiag(blocks::AbstractVector{<:AbstractMatrix})
     return M
 end
 
+Mycelium.uses_cavity(::LinearConstraintFactor) = true
+
 """
     Mycelium.local_free_energy(f::LinearConstraintFactor, msgs, ps, st)
 

@@ -7,6 +7,15 @@
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
+## Graph free-energy edge directions
+
+`DiffusionFactor` declares `Mycelium.uses_cavity == true` for every prox backend: its local
+free energy reads messages to choose a polarity, assemble evidence and run the prox.
+Graph free-energy evaluation rejects an attached `Emitting()` edge with `ArgumentError`;
+use `Bidirectional()` if that channel must also send messages. Missing messages on permitted
+edges retain their existing local behaviour. See [[free_energy]] and
+[[LP-014 Emitting edges drop the cavity message from the free energy]].
+
 ## 1. P is derived from the polarity, not configured
 
 The note asks for diagonal selection matrices with

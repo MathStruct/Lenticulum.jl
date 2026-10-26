@@ -14,8 +14,9 @@
 """
     local_free_energy(factor, beliefs::NamedTuple, ps, st) -> (𝐅, st)
 
-The factor's **vector** free energy, evaluated at the current beliefs of its neighbouring
-variables (keyed by channel).
+The factor's **vector** free energy, evaluated using incoming variable-to-factor messages
+(keyed by channel), as supplied by [`messages_into`](@ref), rather than variable marginals.
+Methods that read these messages must implement [`uses_cavity`](@ref) as `true`.
 
 This is the graph-level entry point corresponding to
 `LenticulumCore.free_energy(factor, π, y, ps, st)`; it differs in taking *all* the factor's
@@ -28,6 +29,20 @@ function local_free_energy end
 local_free_energy(f, beliefs, ps, st) = throw(ArgumentError(
     "no `local_free_energy` for $(typeof(f)). Every factor in a graph must be able to \
      report its own vector free energy; see factors.md."))
+
+"""
+    uses_cavity(factor) -> Bool
+
+Whether [`local_free_energy`](@ref) reads incoming variable-to-factor messages. Defaults to
+`false`; implement as `true` for factors that use them, including those forming the Bethe
+factor belief ``b_a \\propto f_a \\prod_i \\mu_{i\\to a}``.
+
+Graph free-energy evaluation requires every edge of such a factor to carry variable-to-factor
+messages (`Absorbing()` or `Bidirectional()`). An `Emitting()` edge raises `ArgumentError`;
+use `Bidirectional()` if the factor also sends messages. A missing message on an edge that
+can carry one is still passed as `nothing` to `local_free_energy`.
+"""
+uses_cavity(factor) = false
 
 """
     issink(factor) -> Bool
@@ -110,6 +125,8 @@ Learnable if `nlogp` carries parameters — set `learnable = true` and implement
 exactly for Dirac and categorical beliefs. For a Gaussian belief it uses
 `nlogp(mean) + tr(Λ₀ Σ)/2`, which is exact **only if `nlogp` is the negative log-density of
 `belief`** (precision `Λ₀`); for any other `nlogp` it is a second-order approximation.
+
+`uses_cavity` is `true`: use `Bidirectional()` for its edge when evaluating graph free energy.
 """
 struct PriorFactor{B,E} <: LenticulumCore.AbstractLenticulumFactor
     channel::Symbol
@@ -128,6 +145,7 @@ LenticulumCore.supports_polarity(f::PriorFactor, p::LenticulumCore.Polarity) =
 LenticulumCore.islearnable(f::PriorFactor) = f.learnable
 
 factor_message(f::PriorFactor, ::Symbol, _, _, _, ps, st) = (f.belief, st)
+uses_cavity(::PriorFactor) = true
 function local_free_energy(f::PriorFactor, beliefs, ps, st)
     incoming = haskey(beliefs, f.channel) ? getfield(beliefs, f.channel) : nothing
     bel = incoming === nothing ? f.belief : combine(f.belief, incoming)
@@ -222,6 +240,7 @@ LenticulumCore.islearnable(::LossFactor) = false
 LenticulumCore.scalarisation(f::LossFactor) = f.scalarisation
 LenticulumCore.energyspace(f::LossFactor) = f.energyspace
 
+uses_cavity(::LossFactor) = true
 local_free_energy(f::LossFactor, beliefs, ps, st) =
     (f.loss(map(c -> point(getfield(beliefs, c)), f.chans)...), st)
 

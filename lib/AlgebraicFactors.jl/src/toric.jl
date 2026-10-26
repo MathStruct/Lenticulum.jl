@@ -233,6 +233,8 @@ function _factor_statistics(f, msgs, ps)
     return U, H
 end
 
+Mycelium.uses_cavity(::ToricFactor) = true
+
 """
     Mycelium.local_free_energy(f::ToricFactor, msgs, ps, st)
 

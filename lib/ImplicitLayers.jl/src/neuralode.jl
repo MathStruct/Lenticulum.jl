@@ -259,6 +259,8 @@ function Mycelium.factor_message(
     return _flow_for(f, target, inputs, ps, st)
 end
 
+Mycelium.uses_cavity(::NeuralODEFactor) = true
+
 """
     Mycelium.local_free_energy(f::NeuralODEFactor, msgs, ps, st)
 

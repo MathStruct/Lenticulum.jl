@@ -68,10 +68,19 @@ rules `GradientDescent`, `Momentum`, `Nesterov`.
 per-variable entropy correction. For a linear-Gaussian graph this equals the exact negative
 log marginal likelihood; see the [worked example](@ref getting-started).
 
+`uses_cavity(factor)` defaults to `false`; implement it as `true` whenever
+`local_free_energy` reads incoming variable-to-factor messages. All graph free-energy entry
+points reject `Emitting()` edges on those factors with `ArgumentError`, identifying the
+factor, channel and variable and recommending `Bidirectional()` (LP-014). Missing messages
+on `Absorbing()` or `Bidirectional()` edges keep their existing behaviour. `PriorFactor` and
+`LossFactor` return `true`; the constant-zero local free energies of `DataFactor`,
+`RelayFactor` and `OptimiserFactor` retain `false`.
+
 ## Known gaps
 
-- `combine` works for Gaussians and Diracs and throws for anything else — pooling general
-  beliefs needs densities.
+- `combine` is partial: sample reweighting needs the other belief's density, and two sample
+  beliefs cannot be pooled directly. Gaussian, categorical and supported mixture products
+  have explicit rules.
 - No parameter sharing between factor nodes, so weight tying is not expressible.
 - Loopy message passing has no convergence guarantees, and `report.converged` means the
   *messages* stopped moving, not that the answer is right.

@@ -298,6 +298,8 @@ function Mycelium.factor_message(
     return _solve_for(f, target, inputs, prior, ps, st)
 end
 
+Mycelium.uses_cavity(::DEQFactor) = true
+
 """
     Mycelium.local_free_energy(f::DEQFactor, msgs, ps, st)
 

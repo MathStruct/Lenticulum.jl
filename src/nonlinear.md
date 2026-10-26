@@ -11,6 +11,15 @@
 >
 > Theory: [[Belief Algebra]] · [[RxInfer as a Backend]] · [[Open Problems in Implicit Diffusion Learning]]
 
+## Graph free-energy edge directions
+
+`NonlinearFactor` declares `Mycelium.uses_cavity == true`: it linearises at the incoming
+belief, then passes those messages to the Gaussian local free energy.
+Graph free-energy evaluation rejects an attached `Emitting()` edge with `ArgumentError`;
+use `Bidirectional()` if that channel must also send messages. Missing messages on permitted
+edges retain their existing local behaviour. See [[free_energy]] and
+[[LP-014 Emitting edges drop the cavity message from the free energy]].
+
 ## 1. One local linear model, then GaussianFactor's algebra
 
 Every message goes through a local model $y \approx Ax + b + \nu$, $\nu \sim \mathcal N(0, Q + \Omega)$,

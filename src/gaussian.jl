@@ -333,6 +333,8 @@ function _blockdiag(A1, A2)
     return M
 end
 
+Mycelium.uses_cavity(::GaussianFactor) = true
+
 """
     Mycelium.local_free_energy(f::GaussianFactor, msgs, ps, st)
 
@@ -450,6 +452,8 @@ end
 
 Mycelium.factor_message(f::GaussianPrior, ::Symbol, _, _, _, ps, st) =
     (Gaussian(f.μ, f.Σ), st)
+
+Mycelium.uses_cavity(::GaussianPrior) = true
 
 function Mycelium.local_free_energy(f::GaussianPrior, msgs, ps, st)
     Λ0 = inv(_chol(f.Σ, "Σ"))

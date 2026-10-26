@@ -87,11 +87,14 @@ factor entropy once, and the variable terms correct the repeated variable entrop
 The test graph has five variables, three toric factors and two priors, optionally an
 observation; every marginal and the total Bethe energy are checked against the joint
 enumeration. Prior edges are bidirectional so their local factor beliefs receive the
-cavity messages too. Emitting-only prior edges would omit that information from their
-free-energy computation, even though the prior's outgoing message remains valid: the
-marginals stay exact but the Bethe free energy is wrong, silently. That is a Mycelium
-problem, not a toric one, recorded as [[LP-014 Emitting edges drop the cavity message from the free energy]]
-and by a `@test_broken` in the tests.
+cavity messages too. `ToricFactor` declares `Mycelium.uses_cavity == true` because its
+joint belief uses those incoming messages. Mycelium now rejects `Emitting()` edges on any
+factor with that trait before evaluating its local free energy; use `Bidirectional()` when
+the factor also sends messages. This closes
+[[LP-014 Emitting edges drop the cavity message from the free energy]] with option 2.
+The regression "LP-014: a prior on an Emitting edge" checks that the prior graph's marginals
+still match enumeration, free energy throws `ArgumentError`, and the Bidirectional version
+matches $-\log Z$.
 
 Game-level quantities require `normalised = true`. `π` can be a NamedTuple of channel
 beliefs, and `y` a disjoint NamedTuple of beliefs or point labels. A single prior belief

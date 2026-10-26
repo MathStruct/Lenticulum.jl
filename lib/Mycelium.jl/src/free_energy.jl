@@ -91,11 +91,24 @@ Each factor's **vector** free energy ``\\mathbf{F}^f``, graded by factor name.
 This is ``E_G = \\bigoplus_f E_f`` from `Scalar and Multivariate Energy.md`, realised: the
 composite energy of a graph *is* the per-factor breakdown, not a number that a logger later
 decomposes.
+
+Throws `ArgumentError` if a factor with [`uses_cavity`](@ref) has an `Emitting()` edge:
+its local free energy needs variable-to-factor messages. Use `Bidirectional()` on that edge.
+Missing messages on edges that can carry them remain `nothing`.
 """
 function factor_free_energies(s::MessageStore, g::FactorGraph, ps, st)
     names = Tuple(f.name for f in g.factors)
     vals = Any[]
     for f in g.factors
+        if uses_cavity(f.factor)
+            for ei in g.edges_of_factor[f.id]
+                edge = g.edges[ei]
+                absorbs(edge.direction) || throw(ArgumentError(
+                    "factor :$(f.name) ($(typeof(f.factor))) uses cavity messages for its free energy, " *
+                    "but channel :$(edge.channel) on variable :$(g.variables[edge.variable].name) " *
+                    "has an Emitting() edge; use Bidirectional() (LP-014)"))
+            end
+        end
         beliefs = messages_into(s, g, f.id)
         psf = _subtree(ps, f.name)
         stf = _subtree(st, f.name)
@@ -110,7 +123,9 @@ end
     messages_into(store, g, fid) -> NamedTuple
 
 The **incoming messages** ``\\mu_{i \\to a}`` of each variable this factor touches, keyed by
-channel. `nothing` for a channel whose edge cannot carry one.
+channel. `nothing` when no message is stored, including on edges that cannot carry one.
+[`factor_free_energies`](@ref) rejects such edge directions for factors with
+[`uses_cavity`](@ref); it does not reject a missing message on a permitted edge.
 
 > [!warning] These are messages, not marginals — and the difference is the whole formula
 > The Bethe factor belief is ``b_a \\propto f_a \\prod_{i \\in a}\\mu_{i\\to a}``: the
@@ -174,6 +189,8 @@ know when the two appear to disagree.
 
 Contrast [`chain_free_energy`](@ref), which follows AutoBayes Theorem 23 literally and is
 **schedule-dependent**.
+
+Uses [`factor_free_energies`](@ref), including its cavity edge-direction check.
 """
 function bethe_free_energy(s::MessageStore, g::FactorGraph, ps, st)
     F, st = factor_free_energies(s, g, ps, st)
@@ -225,6 +242,8 @@ Each factor's own `scalarisation` is applied to its own summand, per
 `GradedScalarisation` — so a residual factor can use a squared norm while a
 likelihood factor uses the identity, in the same graph. See
 `Scalar and Multivariate Energy.md` §5 for when that is strict and when it is lax.
+
+Uses [`factor_free_energies`](@ref), including its cavity edge-direction check.
 """
 function LenticulumCore.scalar_free_energy(s::MessageStore, g::FactorGraph, ps, st)
     F, st = factor_free_energies(s, g, ps, st)
