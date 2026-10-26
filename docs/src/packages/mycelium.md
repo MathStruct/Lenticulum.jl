@@ -76,6 +76,12 @@ on `Absorbing()` or `Bidirectional()` edges keep their existing behaviour. `Prio
 `LossFactor` return `true`; the constant-zero local free energies of `DataFactor`,
 `RelayFactor` and `OptimiserFactor` retain `false`.
 
+`combine_with_overlap(c,d)` returns the pooled belief and log overlap for
+categorical and Gaussian pairs. A Gaussian first argument must be proper;
+an improper second argument is allowed up to a constant depending on it alone.
+Disjoint categorical support returns `(c,-Inf)`. Mixture weights and the
+AlgebraicFactors homotopy extension use this public rule.
+
 ## Known gaps
 
 - `combine` is partial: sample reweighting needs the other belief's density, and two sample

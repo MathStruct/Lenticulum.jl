@@ -1,6 +1,9 @@
 #implementation
 
-> Sources: code: `messages.jl`
+> The message store keeps both directions on every edge. Pooling and public
+> overlap rules support categorical and mixture beliefs, with explicit exclusions.
+
+> Sources: code: `messages.jl`, `gaussian.jl`, `../test/overlap.jl`
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion)
 
@@ -40,7 +43,7 @@ The second was **not** in the design; the test suite found it. See [[Mycelium]] 
 | `DiracBelief` with anything | the Dirac |
 | `CategoricalBelief` with `CategoricalBelief` | elementwise product, renormalised; disjoint supports throw |
 | `SampleBelief` with a belief that has `belief_logdensity` | the samples, reweighted (warns if the effective sample size collapses) |
-| `MixtureBelief` with anything | componentwise products, weights scaled by each overlap (`_product` rules: categorical here, Gaussian in `Lenticulum`) |
+| `MixtureBelief` with anything | componentwise products, weights scaled by each overlap (`combine_with_overlap` rules: categorical here, Gaussian in Mycelium’s `gaussian.jl`) |
 | two `SampleBelief`s | throws: neither has a density |
 | anything else | throws informatively |
 
@@ -209,3 +212,15 @@ sits next to it — a sweep is **quadratic in the number of factors**, because `
 Related: [[Messages are Inversions]], [[passing]], [[Loopy Message Passing]],
 [[Parallelism and Compilation]],
 [[The Linear Gaussian Chain]]
+
+## Public overlap rule
+
+`combine_with_overlap(c,d)` returns the pooled belief and log ∫p_c p_d.
+Categorical pairs use a log-sum-exp; disjoint support returns `(c,-Inf)`
+as a placeholder, and mixture pooling drops that zero-mass pair. Gaussian
+pairs are implemented in Mycelium's `gaussian.jl`, require proper c, and
+allow improper d up to an additive constant depending on d alone. There is
+no extra `log_overlap` wrapper: callers needing only the mass use `last`.
+`test/overlap.jl` checks categorical sums, Gaussian convolution, and improper
+Gaussian overlap differences against closed forms. Homotopy branch weighting
+uses this public rule, as does mixture pooling's availability check.

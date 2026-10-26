@@ -95,9 +95,19 @@ damping is basis dependent. See the implementation note `polynomial.md`.
 all m singular values, numerical_rank, nullity and threshold. No centring,
 normalisation or column scaling is performed. `fit_sampson` minimises the summed
 half squared Sampson cost with the full analytic gradient, horizontal projection,
-QR retraction and Armijo backtracking; method=:fns uses the corrected published
-one-equation FNS update. Both stop at the horizontal Frobenius gradient norm,
-and return Θ,cost,gradient_norm,converged,iterations. Singular covariance throws
+QR retraction and exchangeable `AbstractSampsonMethod` instances. `RiemannianGradient()`
+is Armijo descent; `FNS()` is the corrected published one-equation update; the
+default `RiemannianTrustRegion()` uses truncated CG with the exact Riemannian
+Hessian, including the Grassmann curvature term.
+`:riemannian`, `:fns` and `:trust_region` alias default instances. Implement
+`AlgebraicFactors.sampson_solve(method, problem::SampsonProblem, Θ0;tol,maxiter)`
+to plug in a method: `problem.manifold`, `problem.cost_gradient(Θ)` (Euclidean
+gradient), `problem.hessian_vector(Θ,ξ)`, `project_tangent` and `retract` supply
+the objective and geometry. All stop at the horizontal Frobenius gradient norm,
+and return Θ,cost,gradient_norm,converged,iterations. RTR additionally reports
+hessian_products; its iteration count includes rejected trials. The seeded
+ellipse and noisy k=2 tests reach tol=1e-7 in four RTR iterations; [[polyfit]]
+records the method comparison and its limits. Singular covariance throws
 with point index; explicit λ adds λΘΘ′. No global optimality is claimed.
 The implementation note `polyfit.md` derives the gradient and records the
 seeded Klein/conic/two-equation checks and their numerical results.

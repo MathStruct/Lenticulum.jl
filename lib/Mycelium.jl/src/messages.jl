@@ -116,7 +116,7 @@ _same_support(a, b) = length(a.logp) == length(b.logp) && a.labels == b.labels
 # reaches this method is handled by representation-independent rules where they exist:
 #   - a SampleBelief pooled with anything that has a density: importance reweighting;
 #   - a MixtureBelief pooled with anything: the product of each component, reweighted by its
-#     overlap (needs a `_product` rule for the component types);
+#     overlap (needs a `combine_with_overlap` rule for the component types);
 # and otherwise refused, informatively.
 function combine(a::LenticulumCore.AbstractBelief, b::LenticulumCore.AbstractBelief)
     if a isa LenticulumCore.SampleBelief && b isa LenticulumCore.SampleBelief
@@ -154,16 +154,19 @@ end
 
 # --- mixtures: componentwise products, weighted by their overlap -----------------------
 """
-    _product(c, d) -> (belief, logZ)
+    combine_with_overlap(c, d) -> (belief, logZ)
 
-The pooled belief of two components and ``\\log Z``, the logarithm of their overlap
-``\\int p_c\\,p_d``, up to a constant that may depend on `d` alone (so that an improper `d`,
-e.g. an uninformative Gaussian message, is allowed when it is not itself a mixture component).
-Implemented for categorical pairs here and for Gaussian pairs in `Lenticulum`.
+Return the pooled belief and ``\\log Z = \\log \\int p_c\\,p_d``.
+For proper beliefs this is the exact log overlap. When `d` is improper,
+`logZ` is defined up to an additive constant depending on `d` alone, which
+cancels when normalising mixture weights. For Gaussian pairs, `c` must be
+proper and `d` may be improper. For disjoint categorical support, return
+`(c, -Inf)` since the pooled distribution is undefined.
+Implemented for categorical pairs here and Gaussian pairs in Mycelium's `gaussian.jl`.
 """
-function _product end
+function combine_with_overlap end
 
-function _product(c::LenticulumCore.CategoricalBelief, d::LenticulumCore.CategoricalBelief)
+function combine_with_overlap(c::LenticulumCore.CategoricalBelief, d::LenticulumCore.CategoricalBelief)
     l = c.logp .+ d.logp
     m = maximum(l)
     logZ = m == -Inf ? -Inf : m + log(sum(exp.(l .- m)))
@@ -177,9 +180,9 @@ function _mixture_product(a, b)
     (ca, la), (cb, lb) = _parts(a), _parts(b)
     comps, logw = Any[], Float64[]
     for (i, c) in enumerate(ca), (j, d) in enumerate(cb)
-        hasmethod(_product, Tuple{typeof(c),typeof(d)}) || throw(ArgumentError(
+        hasmethod(combine_with_overlap, Tuple{typeof(c),typeof(d)}) || throw(ArgumentError(
             "no product rule for mixture components of types $(typeof(c)) and $(typeof(d))"))
-        cd, logZ = _product(c, d)
+        cd, logZ = combine_with_overlap(c, d)
         logZ == -Inf && continue                              # disjoint: this pair contributes nothing
         push!(comps, cd); push!(logw, la[i] + lb[j] + logZ)
     end

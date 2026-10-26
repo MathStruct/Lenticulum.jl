@@ -1,3 +1,5 @@
+include("legacy_sampson.jl")
+
 @testset "Polynomial basis tables" begin
     expected = [0 1 0 2 1 0; 0 0 1 0 1 2]
     @test ExponentTable(2,2).exponents == expected
@@ -162,12 +164,20 @@ end
     noisy = X+0.04randn(rng,size(X))
     init = fit_nullspace(tab,noisy,1).Θ
     initialcost = sampson_oracle(tab,noisy,init)
-    result = fit_sampson(tab,noisy,1;tol=2e-6,maxiter=20000)
+    # Defaults and Symbol aliases preserve every field of the original solver.
+    for (symbol,method,limit) in ((:riemannian,RiemannianGradient(),20000),(:fns,FNS(),1000))
+        old = legacy_fit_sampson(tab,noisy,1;method=symbol,tol=2e-6,maxiter=limit)
+        @test fit_sampson(tab,noisy,1;method=symbol,tol=2e-6,maxiter=limit) == old
+        @test fit_sampson(tab,noisy,1;method,tol=2e-6,maxiter=limit) == old
+    end
+    result = fit_sampson(tab,noisy,1;method=RiemannianTrustRegion(),tol=1e-7,maxiter=20)
     @test result.converged
-    @test result.gradient_norm <= 2e-6
+    @test result.gradient_norm <= 1e-7
+    @test result.iterations <= 6
+    @test fit_sampson(tab,noisy,1;method=:trust_region,tol=1e-7,maxiter=20) == result
     @test result.cost ≈ sampson_oracle(tab,noisy,result.Θ) rtol=2e-13
     @test result.cost < initialcost
-    fns = fit_sampson(tab,noisy,1;method=:fns,tol=2e-6,maxiter=1000)
+    fns = fit_sampson(tab,noisy,1;method=:fns,tol=1e-7,maxiter=1000)
     @test fns.converged
     @test fns.cost ≈ result.cost atol=1e-11
     @test abs(dot(vec(fns.Θ),vec(result.Θ))) ≈ 1 atol=1e-10
@@ -205,7 +215,16 @@ end
     target = retract(Grassmann(2,10),rows,zero(rows))
     @test fitted.nullity == 2
     @test fitted.Θ'*fitted.Θ ≈ target'*target atol=2e-13
-    refined = fit_sampson(t3,curve,2;tol=1e-8)
+    refined = fit_sampson(t3,curve,2;method=:riemannian,tol=1e-8)
+    for symbol in (:riemannian,:fns)
+        if symbol === :fns
+            @test fit_sampson(tab,X,1;method=symbol) == legacy_fit_sampson(tab,X,1;method=symbol)
+        else
+            @test refined == legacy_fit_sampson(t3,curve,2;tol=1e-8)
+            @test fit_sampson(tab,X,1;method=:riemannian) == legacy_fit_sampson(tab,X,1)
+            @test fit_sampson(tab,X,1) == fit_sampson(tab,X,1;method=RiemannianTrustRegion())
+        end
+    end
     @test refined.converged
     @test refined.cost < 1e-24
     @test ispoint(Grassmann(2,10),refined.Θ)
@@ -535,4 +554,152 @@ end
     # Nonnegative polynomial least squares need not attain its infimum.
     # r(x,y)=[xy-1,x] has no zero, yet at (1/n,n) its squared norm is 1/n².
     @test [(1/n*n-1)^2+(1/n)^2 for n in (1,10,100)] ≈ [1.,0.01,0.0001]
+end
+
+# A downstream method only implements this documented dispatch hook.
+struct FixedSampsonDescent <: AbstractSampsonMethod
+    step::Float64
+end
+function AlgebraicFactors.sampson_solve(method::FixedSampsonDescent,problem::SampsonProblem,Θ;
+                                        tol,maxiter)
+    M = problem.manifold
+    cost,G = problem.cost_gradient(Θ)
+    grad = project_tangent(M,Θ,G)
+    iterations = 0
+    while norm(grad)>tol && iterations<maxiter
+        Θ = retract(M,Θ,-method.step*grad)
+        cost,G = problem.cost_gradient(Θ)
+        grad = project_tangent(M,Θ,G)
+        iterations += 1
+    end
+    gradient_norm = norm(grad)
+    return (;Θ,cost,gradient_norm,converged=gradient_norm<=tol,iterations)
+end
+
+@testset "Exchangeable Sampson solvers and RTR" begin
+    rng = Xoshiro(3003)
+    tab = ExponentTable(2,2)
+    φ=rand(rng)*2π; R=[cos(φ) -sin(φ);sin(φ) cos(φ)]
+    A=R*Diagonal([1.3,0.8]); c=0.2randn(rng,2); angles=2π*rand(rng,200)
+    noisy=c .+ A*vcat(cos.(angles)',sin.(angles)')+0.04randn(rng,2,200)
+    for (label,Y) in (("unscaled ellipse",noisy),("ellipse / 2 (Σ=I)",noisy/2))
+        fits = [fit_sampson(tab,Y,1;method,tol=1e-7,maxiter=1000)
+                for method in (RiemannianGradient(),FNS(),RiemannianTrustRegion())]
+        for (method,r) in zip((:riemannian,:fns,:trust_region),fits)
+            @test r.converged
+            @test r.gradient_norm<=1e-7
+            @test ispoint(Grassmann(1,6),r.Θ)
+            @test r.cost ≈ sampson_oracle(tab,Y,r.Θ) rtol=2e-13
+            @info "Sampson comparison" problem=label method iterations=r.iterations cost=r.cost gradient_norm=r.gradient_norm hessian_products=get(r,:hessian_products,0)
+        end
+        @test fits[3].iterations<=6
+        @test fits[3].cost ≈ fits[2].cost atol=1e-12
+        @test fits[3].cost <= fits[1].cost+1e-14
+    end
+    # Coordinates of size ~30 (ellipse × 20, Σ=I): the quadratic Veronese columns (~10³) dwarf the
+    # constant one, gradient descent stalls, the second-order methods do not.
+    big = 20noisy
+    stalled = fit_sampson(tab,big,1;method=RiemannianGradient(),tol=1e-7,maxiter=2000)
+    fnsbig = fit_sampson(tab,big,1;method=FNS(),tol=1e-7,maxiter=100)
+    rtrbig = fit_sampson(tab,big,1;method=RiemannianTrustRegion(),tol=1e-7,maxiter=100)
+    @test !stalled.converged && stalled.gradient_norm>1e-3
+    @test fnsbig.converged && rtrbig.converged
+    @test rtrbig.iterations<=10
+    @test rtrbig.cost ≈ fnsbig.cost rtol=1e-12
+    @test rtrbig.cost < stalled.cost
+    for (method,r) in ((:riemannian,stalled),(:fns,fnsbig),(:trust_region,rtrbig))
+        @info "Sampson comparison" problem="ellipse × 20 (Σ=I)" method iterations=r.iterations cost=r.cost gradient_norm=r.gradient_norm hessian_products=get(r,:hessian_products,0)
+    end
+    # Well-conditioned affine line: a simple external fixed-step solver reaches
+    # the same stationary subspace without relying on any private cache layout.
+    line = vcat(collect(range(-1.,1.;length=40))', (0.7collect(range(-1.,1.;length=40)).+0.2)')
+    line += 0.04randn(rng,2,40)
+    linear = ExponentTable(2,1)
+    reference = fit_sampson(linear,line,1;method=RiemannianTrustRegion())
+    initial = fit_nullspace(linear,line,1).Θ
+    initialcopy = copy(initial)
+    custom = fit_sampson(linear,line,1;Θ0=initial,method=FixedSampsonDescent(0.005),maxiter=1000)
+    @test custom.converged && reference.converged
+    @test custom.cost ≈ reference.cost atol=1e-12
+    @test custom.Θ'*custom.Θ ≈ reference.Θ'*reference.Θ atol=1e-7
+    @test initial == initialcopy
+    rng2 = Xoshiro(3010)
+    t3 = ExponentTable(3,2); t=2π*rand(rng2,200)
+    curve=vcat(cos.(t)',sin.(t)',(cos.(t).^2)')+0.02randn(rng2,3,200)
+    gradient = fit_sampson(t3,curve,2;method=RiemannianGradient(),tol=1e-7,maxiter=1000)
+    trust = fit_sampson(t3,curve,2;method=RiemannianTrustRegion(),tol=1e-7,maxiter=20)
+    @test trust.converged && trust.gradient_norm<=1e-7
+    @test trust.iterations<=6
+    @test trust.cost <= gradient.cost
+    @test trust.cost ≈ sampson_oracle(t3,curve,trust.Θ) rtol=2e-12
+    @test ispoint(Grassmann(2,10),trust.Θ)
+    for (method,r) in ((:riemannian,gradient),(:trust_region,trust))
+        @info "Sampson comparison" problem="noisy two quadrics, k=2 (seed 3010)" method iterations=r.iterations cost=r.cost gradient_norm=r.gradient_norm hessian_products=get(r,:hessian_products,0)
+    end
+    # Non-default radii force boundary truncation; still converge on the ellipse.
+    small = fit_sampson(tab,noisy,1;method=RiemannianTrustRegion(Δ0=1e-4,Δmax=0.01,tcg_maxiter=20),maxiter=100)
+    @test small.converged
+    @test small.iterations>4
+    for method in (RiemannianGradient(),FNS(),RiemannianTrustRegion(),FixedSampsonDescent(0.005))
+        stopped = fit_sampson(tab,noisy,1;method,maxiter=0)
+        @test !stopped.converged && stopped.iterations==0
+        @test stopped.Θ == fit_nullspace(tab,noisy,1).Θ
+    end
+    @test_throws ArgumentError fit_sampson(tab,noisy,1;method=1)
+    @test_throws ArgumentError fit_sampson(tab,noisy,2;method=FNS())
+    for kwargs in ((c=0.,),(c=1.,),(c=NaN,),(shrink=0.,),(shrink=1.,),(shrink=Inf,),
+                   (max_backtracks=0,),(max_backtracks=true,),(max_backtracks=1.5,),(initial_step=0.,),(initial_step=Inf,))
+        @test_throws ArgumentError RiemannianGradient(;kwargs...)
+    end
+    for kwargs in ((Δ0=0.,),(Δ0=NaN,),(Δmax=Inf,),(Δmax=0.1,Δ0=1.,),
+                   (ρ_accept=-0.1,),(ρ_accept=0.25,),(ρ_accept=NaN,),
+                   (tcg_maxiter=0,),(tcg_maxiter=true,),(tcg_maxiter=1.5,),(κ=0.,),(κ=1.,),(κ=NaN,),
+                   (θ=0.,),(θ=Inf,))
+        @test_throws ArgumentError RiemannianTrustRegion(;kwargs...)
+    end
+    # Negative curvature and positive-curvature boundary intersections, plus interior CG.
+    method = RiemannianTrustRegion()
+    g = [1. 0.]
+    for H in (ξ->-ξ, ξ->ξ)
+        η,boundary = AlgebraicFactors._sampson_tcg(method,g,H,0.1)
+        @test boundary && norm(η)≈0.1
+        @test dot(g,η)+dot(η,H(η))/2<0
+    end
+    η,boundary = AlgebraicFactors._sampson_tcg(method,g,ξ->ξ,2.)
+    @test !boundary && η == -g
+end
+
+@testset "Analytic Sampson Riemannian Hessian" begin
+    rng = Xoshiro(3011)
+    tab = ExponentTable(3,2)
+    t = range(0,2π;length=80)
+    X = vcat(cos.(t)',sin.(t)',(cos.(t).^2)')+0.02randn(rng,3,80)
+    for k in (1,2), λ in (0.,0.2)
+        M = Grassmann(k,10)
+        Θ = fit_nullspace(tab,X,k).Θ
+        data = AlgebraicFactors._sampson_data(tab,X,[1.4 0.2 0.;0.2 0.8 0.;0. 0. 1.1],λ)
+        cost,G = AlgebraicFactors._sampson_cost_gradient(Θ,data)
+        grad = project_tangent(M,Θ,G)
+        for _ in 1:4
+            ξ = project_tangent(M,Θ,randn(rng,k,10)); ξ/=norm(ξ)
+            ζ = project_tangent(M,Θ,randn(rng,k,10)); ζ/=norm(ζ)
+            Hξ = AlgebraicFactors._sampson_hessian(M,Θ,ξ,data)
+            Hζ = AlgebraicFactors._sampson_hessian(M,Θ,ζ,data)
+            @test norm(Hξ*Θ') < 1e-10*max(1,norm(Hξ))
+            @test dot(ζ,Hξ) ≈ dot(ξ,Hζ) rtol=1e-10 atol=1e-9
+            h = 1e-6
+            Θp,Θm = retract(M,Θ,h*ξ),retract(M,Θ,-h*ξ)
+            gp = project_tangent(M,Θp,last(AlgebraicFactors._sampson_cost_gradient(Θp,data)))
+            gm = project_tangent(M,Θm,last(AlgebraicFactors._sampson_cost_gradient(Θm,data)))
+            @test Hξ ≈ project_tangent(M,Θ,(gp-gm)/(2h)) rtol=2e-6 atol=1e-6
+            # Independent cost oracle: symmetric second differences cancel odd terms.
+            h = 2e-4
+            second = (sampson_oracle(tab,X,retract(M,Θ,h*ξ);Σ=[1.4 0.2 0.;0.2 0.8 0.;0. 0. 1.1],λ)+
+                      sampson_oracle(tab,X,retract(M,Θ,-h*ξ);Σ=[1.4 0.2 0.;0.2 0.8 0.;0. 0. 1.1],λ)-2cost)/h^2
+            @test dot(ξ,Hξ) ≈ second rtol=2e-5 atol=1e-5
+            errors = [abs(sampson_oracle(tab,X,retract(M,Θ,h*ξ);Σ=[1.4 0.2 0.;0.2 0.8 0.;0. 0. 1.1],λ)-
+                          cost-h*dot(grad,ξ)-h^2*dot(ξ,Hξ)/2) for h in (0.002,0.001)]
+            @test errors[2] <= 0.2errors[1]+1e-12 # cubic Taylor remainder
+        end
+    end
 end

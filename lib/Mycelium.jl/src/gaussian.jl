@@ -79,8 +79,8 @@ _damp(a::GaussianBelief, b::GaussianBelief, α::Real) =
 # ∫ p_c p_d = exp(A(c⊙d) − A(c) − A(d)), with A the log-partition. An improper d (a likelihood
 # message) has no A; the overlap is then taken up to the constant A(d), which is the same for
 # every component and cancels when the mixture weights are normalised.
-function _product(c::GaussianBelief, d::GaussianBelief)
-    isproper(c) || throw(ArgumentError("a mixture component must be a proper Gaussian"))
+function combine_with_overlap(c::GaussianBelief, d::GaussianBelief)
+    isproper(c) || throw(ArgumentError("combine_with_overlap requires a proper first Gaussian belief"))
     cd = combine(c, d)
     logZ = logpartition(cd) - logpartition(c) - (isproper(d) ? logpartition(d) : 0.0)
     return cd, logZ

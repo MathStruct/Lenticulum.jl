@@ -4,9 +4,9 @@
 > closed-form global optimum: the bottom-$k$ eigenspace of the Veronese second-moment
 > matrix. Sampson fitting uses a different, non-convex objective and an iterative solver.
 
-> Sources: original analysis; Chojnacki, Brooks, van den Hengel & Gawley (2000), *On the fitting of surfaces to data with covariances*, §4.1–§4.2, Fig. 1; code: `lib/AlgebraicFactors.jl/src/polyfit.jl`, `veronese.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl`.
+> Sources: original analysis; Chojnacki, Brooks, van den Hengel & Gawley (2000), *On the fitting of surfaces to data with covariances*, §4.1–§4.2, Fig. 1; Absil, Mahony & Sepulchre (2008), *Optimization Algorithms on Matrix Manifolds*, Chapter 7, Algorithms 10–11; code: `lib/AlgebraicFactors.jl/src/polyfit.jl`, `veronese.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl`.
 >
-> Bibliography: [[Bibliography#^chojnacki2000fitting|Chojnacki et al. 2000]]
+> Bibliography: [[Bibliography#^chojnacki2000fitting|Chojnacki et al. 2000]] · [[Bibliography#^absil2008optimization|Absil et al. 2008]]
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Cospan](https://mathstruct.org/CategoryTheory-ML-Wiki/Cospan)
 
@@ -148,12 +148,18 @@ cutoffs have been removed.
 `fit_nullspace` returns Θ, all m singular values (including structural zeros),
 numerical_rank, nullity and threshold. No column scaling is applied.
 `fit_sampson` uses the full analytic gradient, horizontal projection, QR
-retraction and Armijo line search; `method=:fns` implements the one-equation
-FNS correction, not naive frozen-weight reweighting. It stops on the
-Riemannian gradient norm and reports convergence separately from iteration count.
+retraction and exchangeable solvers: `RiemannianGradient()` (Armijo),
+`FNS()` for one equation, and the default `RiemannianTrustRegion()` with analytic
+Hessian and truncated CG. Symbols `:riemannian`, `:fns`, `:trust_region` alias defaults;
+user subtypes of `AbstractSampsonMethod` implement `sampson_solve` using the
+public problem/geometry interface. These methods stop on the
+Riemannian gradient norm and report convergence separately from iteration count.
 See [[polyfit]] for the gradient derivation, checked citation, numerical choices
 and seeded results: the real 400-point Klein fit in both bases, conic recovery
 and noisy cost decrease, retracted-curve gradient differences, finite local
-minimum checks, and a two-quadric intersection. No global Sampson optimum is claimed.
+minimum checks, and a two-quadric intersection. The comparison test reaches
+1e-7 in four RTR iterations on the ellipse (scaled and unscaled) and the noisy
+k=2 curve; see [[polyfit]] for costs and limitations. No global Sampson optimum
+is claimed.
 
 Related: [[The Veronese Parametrisation]], [[The Parameter is a Grassmannian]], [[Algebraic versus Geometric Distance]], [[AutoBayes Examples as Factor Graphs]]

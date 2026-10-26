@@ -5,9 +5,9 @@
 > [[Scalar and Multivariate Energy|scalarisation]] — and shows what the energy space $E$
 > *is*: the space the noise lives in.
 
-> Sources: original analysis; Chojnacki, Brooks, van den Hengel & Gawley (2000), *On the fitting of surfaces to data with covariances*, §4.1–§4.2, Fig. 1; code: `lib/LenticulumCore.jl/src/energy.jl` (`SampsonNorm`, `localise`, `sampson_damping`), `lib/LenticulumCore.jl/test/runtests.jl` (circle closed form), `lib/AlgebraicFactors.jl/src/polynomial.jl`, `polyfit.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (real factor gauge/basis tests and fitting).
+> Sources: original analysis; Chojnacki, Brooks, van den Hengel & Gawley (2000), *On the fitting of surfaces to data with covariances*, §4.1–§4.2, Fig. 1; Absil, Mahony & Sepulchre (2008), *Optimization Algorithms on Matrix Manifolds*, Chapter 7, Algorithms 10–11; code: `lib/LenticulumCore.jl/src/energy.jl` (`SampsonNorm`, `localise`, `sampson_damping`), `lib/LenticulumCore.jl/test/runtests.jl` (circle closed form), `lib/AlgebraicFactors.jl/src/polynomial.jl`, `polyfit.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (real factor gauge/basis tests and fitting).
 >
-> Bibliography: [[Bibliography#^chojnacki2000fitting|Chojnacki et al. 2000]]
+> Bibliography: [[Bibliography#^chojnacki2000fitting|Chojnacki et al. 2000]] · [[Bibliography#^absil2008optimization|Absil et al. 2008]]
 >
 > Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
 
@@ -99,7 +99,9 @@ things that made the algebraic distance attractive:
    resolving a quadratic subproblem omits derivatives of those metrics. Such
    naive reweighting does not in general minimise the full Sampson objective.
    [[polyfit]] implements its full gradient with an Armijo Riemannian solver,
-   plus the corrected FNS iteration for k=1.
+   the corrected FNS iteration for k=1, and Riemannian trust regions with
+   analytic Hessian and truncated CG. `AbstractSampsonMethod`/`sampson_solve`
+   make the solver exchangeable; the default is the trust-region method.
 2. **There is no single fixed $\sigma$.** A frozen `SquaredNorm(M)` is convex and
    has Jensen gap $\tfrac12\operatorname{tr}(M\operatorname{Cov}(r))$. A field of
    metrics at different points is a different object: the fixed-map Jensen identity
@@ -154,13 +156,15 @@ basis conversions; [[polynomial]] states that limitation.
 | distance | fit | statistical interpretation |
 |---|---|---|
 | algebraic $\|r\|^2$ | global spectral solution under orthonormal-row constraint | depends on residual/feature scaling |
-| Sampson $r^\top(JJ^\top)^{-1}r$ | non-convex; full-gradient descent or FNS | first-order geometric correction |
+| Sampson $r^\top(JJ^\top)^{-1}r$ | non-convex; full-gradient descent, RTR, or k=1 FNS | first-order geometric correction |
 | geometric $\mathrm{dist}(x,V)^2$ | non-convex projection problem | profile errors-in-variables MLE under isotropic Gaussian noise |
 
 `fit_sampson` initialises at `fit_nullspace` by default. The seeded noisy-conic
 test lowers the full Sampson cost, checks the gradient and random local
-directions, and compares FNS to Riemannian descent; [[polyfit]] records the run
-and its limits. Neither method certifies a global minimum.
+directions, and compares all three methods. RTR reaches tol=1e-7 in four iterations
+on the unscaled ellipse, its X/2 variant, and the noisy two-quadric k=2 curve;
+[[polyfit]] records costs, gradient norms and budgets. These checks do not
+certify a global minimum.
 Algebraic and Sampson energies use the same residual, with a fixed metric versus
 a field of metrics. Exact geometric projection additionally needs the variety and a
 projection solver; it is not in general a function of the residual vector alone.

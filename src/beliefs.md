@@ -17,7 +17,7 @@ needs:
 | Layer | File | Contents |
 |---|---|---|
 | `LenticulumCore` | `src/gaussian_belief.jl` | `GaussianBelief(η, Λ)`, `Gaussian(μ, Σ)`, `uninformative`, `isuninformative`, `isproper`, `belief_mean`, `belief_cov`, `logpartition` |
-| `Mycelium` | `src/gaussian.jl` | `combine`, `belief_logdensity`, `variable_entropy`, `belief_distance`, `can_damp`, `_damp`, `_product` |
+| `Mycelium` | `src/gaussian.jl` | `combine`, `belief_logdensity`, `variable_entropy`, `belief_distance`, `can_damp`, `_damp`, `combine_with_overlap` |
 | `Lenticulum` | `src/beliefs.jl` | `kl_divergence`, `moment_match`, `reduce_mixture` |
 
 ## 2. Projections onto the Gaussian family

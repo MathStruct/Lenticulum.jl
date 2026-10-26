@@ -124,7 +124,7 @@ at-infinity paths remain inspectable even when other paths yield a mixture.
 Inference warns when it excludes failed/infinite paths or singular real roots
 while retaining regular real components.
 
-## Checked runs (Julia 1.13.1, HC 2.22.4)
+## Original homotopy implementation run (Julia 1.13.1, HC 2.22.4)
 
 `julia --project=lib/AlgebraicFactors.jl -e 'using Pkg; @time Pkg.test()'`
 passed **14099 checks with one existing LP-014 broken check**. The added file
@@ -181,3 +181,7 @@ separated estimate agrees with the upper bound within that allowance; the
 overlapping estimate is at least 0.1 below it. Finite Monte Carlo estimates
 can fall just outside an exact bound. These checks concern mixture differential
 entropy, not implemented statistical-game entropy or free energy.
+
+Branch masses use the public `Mycelium.combine_with_overlap(site, πprior)`
+contract for Gaussian priors. Trivial priors contribute zero log-overlap;
+this extension still requires a proper Gaussian or trivial target prior.

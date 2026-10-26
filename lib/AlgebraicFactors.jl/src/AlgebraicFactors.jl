@@ -27,6 +27,8 @@ export plucker_pairs, plucker, plucker_jacobian, plucker_relations, plucker_resi
 export plucker_moments, PluckerFactor
 export ExponentTable, veronese, veronese_jacobian, basis_change
 export HomotopyBranches, polynomial_branches, branch_entropy_bounds
+export AbstractSampsonMethod, RiemannianGradient, FNS, RiemannianTrustRegion
+export SampsonProblem, sampson_solve
 export PolynomialFactor, PolynomialModel, fit_nullspace, fit_sampson
 
 include("plucker.jl")

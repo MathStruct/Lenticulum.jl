@@ -82,7 +82,7 @@ function AF._polynomial_branches(method::HomotopyBranches, f::PolynomialFactor,
             component = Mycelium.combine(πprior,site)
             push!(sites,site);push!(components,component)
             push!(logmass,-first(logabsdet(Ju)))
-            overlap = πprior isa TrivialBelief ? 0.0 : last(Mycelium._product(site,πprior))
+            overlap = πprior isa TrivialBelief ? 0.0 : last(Mycelium.combine_with_overlap(site,πprior))
             push!(logpost,last(logmass)+overlap)
             index=length(sites)
         end

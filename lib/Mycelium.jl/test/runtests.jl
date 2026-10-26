@@ -514,3 +514,5 @@ end
     @test_throws ArgumentError LenticulumCore.free_energy(fg, TrivialBelief(), nothing, nt, nt)
     @test_throws ArgumentError LenticulumCore.entropy(fg, TrivialBelief(), nothing, nt, nt)
 end
+
+include("overlap.jl")

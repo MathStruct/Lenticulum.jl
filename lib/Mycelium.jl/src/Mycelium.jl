@@ -68,7 +68,7 @@ export PolarityError, resolve_polarity, check_legal, can_emit, can_absorb
 export legal_targets, legal_sources
 
 # --- Messages --------------------------------------------------------------
-export Message, MessageStore, reset!, combine, belief_logdensity, belief_distance
+export Message, MessageStore, reset!, combine, combine_with_overlap, belief_logdensity, belief_distance
 export marginal, excluded_marginal, damp, can_damp
 export has_to_variable, has_to_factor
 

@@ -1,6 +1,6 @@
 #design
 
-> **Status: partly implemented (2026-10-25): §0, §1.1–§1.7, §2.1–§2.3, §3(a,b), §4 and §5; §2.4 remains planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl`, `fit.jl`, `grassmann.jl`, `plucker.jl`, `veronese.jl`, `polynomial.jl` and `polyfit.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. §2.3 also uses `lib/LenticulumCore.jl/src/energy.jl` and its core tests. These steps needed no Mycelium changes.
+> **Status: partly implemented (2026-10-26): §0, §1.1–§1.7, §2.1–§2.3, §3(a,b), §4 and §5; §2.4 remains planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl`, `fit.jl`, `grassmann.jl`, `plucker.jl`, `veronese.jl`, `polynomial.jl` and `polyfit.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. §2.3 also uses `lib/LenticulumCore.jl/src/energy.jl` and its core tests. Mycelium supplies the public `combine_with_overlap` rule shared by mixture pooling and homotopy branch weights.
 
 ## Scope
 
@@ -29,7 +29,7 @@ binding when it is implemented with its tests.
 | parameters on a manifold | `Grassmann`, horizontal projection, positive-diagonal QR retraction and `Retracted` for Mycelium's `GradientDescent` and `Momentum`, including velocity transport and `OptimiserFactor` integration; Nesterov remains planned |
 | Plücker map and quadrics | `plucker`, closed-form Jacobian, lexicographic coordinate pairs and sparse relations; forward-only `PluckerFactor` with exact Dirac/paired-particle transport and independent-Gaussian moments; singular Gaussian messages require explicitly requested regularisation |
 | gauge-invariant residual scalarisation | core `SampsonNorm` localises to a metric; checked on the real polynomial factor with ΘΘ′ damping, a singular Jacobian and undamped polynomial basis changes |
-| polynomial basis tables, residual and fitting (§3a) | `ExponentTable`, exact monomial/Chebyshev values and Jacobians, affine `basis_change`, `PolynomialFactor` with full-coordinate Sampson scalarisation, `fit_nullspace` rank diagnostics, full-gradient Riemannian `fit_sampson` and k=1 FNS |
+| polynomial basis tables, residual and fitting (§3a) | `ExponentTable`, exact monomial/Chebyshev values and Jacobians, affine `basis_change`, `PolynomialFactor` with full-coordinate Sampson scalarisation, `fit_nullspace` rank diagnostics, exchangeable `fit_sampson` methods: default Armijo gradient, k=1 FNS, and exact-Hessian RTR; custom `sampson_solve` hook |
 | polynomial single-branch messages (§3b) | all single-target polarities; exact Jacobian, full-data frozen Sampson covariance, improper information-form sites and iterated posterior linearisation; lens/graph sites agree; no game quantities |
 | multi-branch roots (§4) | optional `HomotopyBranches()` / HomotopyContinuation extension; isolated square systems, root/path diagnostics, Gaussian branch mixtures, log masses and entropy bounds; see [[homotopy]] |
 
@@ -117,12 +117,18 @@ packages under `lib/`.
 - `fit_nullspace(tab,X,k;rtol=1e-12)` uses the bottom right singular vectors,
   returns Θ, the full spectrum (structural zeros included), numerical_rank,
   nullity and threshold; there is no column scaling or normalisation.
-- `fit_sampson(tab,X,k;Σ=I,Θ0=nothing,method=:riemannian,tol=1e-7,
+- `fit_sampson(tab,X,k;Σ=I,Θ0=nothing,method=RiemannianTrustRegion(),tol=1e-7,
   maxiter=10000,λ=0)` starts at the nullspace fit by default. Full analytic
-  gradient, horizontal projection, QR retraction and Armijo backtracking
+  gradient, horizontal projection, QR retraction and exchangeable methods
   minimise the non-convex summed half squared Sampson objective. The stopping
   rule is horizontal Frobenius gradient norm ≤tol; results report cost,
-  gradient_norm, converged and completed iterations. Singular current/trial
+  gradient_norm, converged and iterations (RTR counts rejected outer trials too,
+  and adds hessian_products). `RiemannianGradient` exposes Armijo tunables;
+  `RiemannianTrustRegion` uses analytic Hessian-vector products with Grassmann
+  curvature correction and Steihaug–Toint CG. Symbols `:riemannian`, `:fns`,
+  `:trust_region` alias defaults. A user `AbstractSampsonMethod` implements
+  the documented `sampson_solve` hook with `SampsonProblem` objective/geometry.
+  Singular current/trial
   covariances throw with point index; optional λ adds gauge-compatible damping.
   `method=:fns` is the published corrected iteration for k=1 (throws otherwise),
   with the same gradient stopping criterion. Naive frozen-weight IRLS is not a
@@ -305,12 +311,20 @@ Unit-normalised data remain unverified; see [[polyfit]].
 
 The conic test uses Xoshiro(3003), 200 points on a random rotated/translated ellipse
 with axes 1.3 and 0.8; noiseless fitting recovers its coefficients up to sign.
-Coordinate noise σ=0.04 gives nullspace Sampson cost 0.16489226427736944;
-Riemannian fitting gives 0.1616779698003989, gradient 1.7759602467593341e-6,
-82 updates at tol=2e-6. FNS gives 0.1616779698003528, gradient
-2.2989028737805305e-7, 5 updates. Costs agree within 1e-11. Twenty-five random
-horizontal unit directions at steps ±1e-4 do not reduce the final cost
-(allowance 1e-11), a finite local check rather than a global certificate.
+Coordinate noise σ=0.04 gives nullspace Sampson cost 0.16489226427736944.
+`Exchangeable Sampson solvers and RTR` at tol=1e-7 gives gradient: 103 updates,
+cost 0.16167796980035265, norm 9.8000083743e-8; FNS: 6 updates,
+cost 0.16167796980035248, norm 1.1211849657e-8; RTR: 4 iterations,
+cost 0.16167796980035246, norm 5.0226342224e-12. Costs agree within 1e-12.
+The X/2 test also converges in four RTR iterations. The noisy k=2 intersection
+(Xoshiro(3010), σ=0.02) reaches cost 0.08014291692590922 and gradient
+7.4079661709e-8 in four RTR iterations; gradient descent remains unconverged
+at 1000. See [[polyfit]] for the full table and scaling convention.
+Legacy methods are checked field-for-field against the frozen old solver.
+Hessian tests check projected gradient differences, symmetry and second-order
+cost Taylor agreement at k=1,2 with anisotropic covariance and damping.
+Twenty-five random horizontal unit directions at steps ±1e-4 do not lower
+the final RTR conic cost (allowance 1e-11), a finite local check.
 The seeded intersection z=x², x²+y²=1 in ℝ³ has exactly two quadratic null
 directions; the fitted projector agrees with the known equations (atol=2e-13)
 and k=2 Sampson fitting starts stationary (cost below 1e-24). Underdetermined
