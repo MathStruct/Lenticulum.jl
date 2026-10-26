@@ -88,6 +88,7 @@ include("solve.jl")
 include("deq.jl")
 include("flow.jl")
 include("neuralode.jl")
+include("point_game.jl")
 include("luxfactor.jl")
 
 # --- Solvers ---------------------------------------------------------------

@@ -278,3 +278,11 @@ function Mycelium.local_free_energy(f::NeuralODEFactor, msgs, ps, st)
     r, st = residual(f, z₀, z₁, ps, st)
     return (sum(abs2, r) / 2, st)
 end
+
+# Same fixed channel order as GaussianFactor, independent of inversion polarity.
+LenticulumCore.free_energy(f::NeuralODEFactor, π, y, ps, st) =
+    Mycelium.local_free_energy(f, _incoming_point_messages(f, π, y), ps, st)
+function LenticulumCore.entropy(f::NeuralODEFactor, π, y, ps, st)
+    _incoming_point_messages(f, π, y)
+    return (0.0, st)
+end

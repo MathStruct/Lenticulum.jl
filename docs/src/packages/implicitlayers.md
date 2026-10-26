@@ -84,10 +84,32 @@ Modules = [ImplicitLayers]
 
 ## Game quantities and conformance
 
-LuxFactor requires a Dirac input observation `y` and contributes zero game energy and entropy, matching its pointwise and graph
-accounting. The shared checker covers its forward polarity and both DEQ/NeuralODE
-polarities with closed-form linear fixtures. DEQ/NeuralODE explicitly omit game checks:
-their graph energy evaluates incoming endpoints, while their inversions solve new points.
-Those energies can disagree even with a Dirac prior and observation. Tests demonstrate
-the conflict by asserting the disagreement; no game semantics are invented
-(LP-009). The point-belief entropy convention alone cannot fix that mismatch.
+LuxFactor requires a Dirac input observation `y` and contributes zero game energy and
+entropy. DEQFactor and NeuralODEFactor implement two games:
+
+- `free_energy(f, π, y, ps, st)` scores incoming Dirac points: `π` on the first channel
+  (`x` or start), `y` on the second (`z` or end), following GaussianFactor's fixed order.
+  It equals `Mycelium.local_free_energy` for those messages. Entropy is scalar zero;
+  non-Dirac arguments throw.
+- `lens = first(assemble(f, p, ps, st))` restricts the relation to one polarity.
+  `free_energy(lens, π, inputs, ps, st)` runs that inversion and scores its returned point:
+  residual energy plus an anchor on the unobserved channel. `inputs` contains a named Dirac
+  observation (or that Dirac directly). A trivial prior costs zero; an incompatible hard
+  Dirac prior costs infinity; a proper Gaussian costs ``\tfrac12(u^*-\mu)^\top\Lambda(u^*-\mu)``
+  relative to its mean, without a normalization constant. The inversion still uses the prior
+  only as a warm start (DEQ), or ignores it (ODE). Soft observations, singular Gaussian
+  anchors and other prior families throw. Channel precision does not soften Dirac priors.
+
+The lens game is Definition 20's expectation under the point inversion, with zero
+point-belief entropy. Both games return `(F, st)` in `ScalarEnergySpace()`;
+`scalar_free_energy` also accepts these lenses and a scalarisation override `σ`.
+Scoring arbitrary points uses `energy`/`scalar_energy` (L-ADR-0003), not a `free_energy`
+keyword.
+
+If the residual is affine in the unknown and vanishes at the solved point, the incoming
+energy equals the solved residual energy plus a Gaussian anchor with precision ``J_u^\top J_u``
+centered at the incoming unknown. `energy_jacobian` supplies this metric. The tests derive
+`1/8` for `g(z,x)=z/2+x` at `x=1,z=3` in both directions, and `2` for zero ODE dynamics
+at endpoints `1,3` in both directions. A nonlinear quadratic DEQ checks cubic absolute
+energy error for the first-order Gauss–Newton approximation. The common factor checker
+now covers the complete point game for both factors without LP-009 exemptions.

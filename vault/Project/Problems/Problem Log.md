@@ -14,7 +14,7 @@ Implementation notes also record what their code does not do; a problem gets an 
 | [[LP-006 Gaussian entropies are relative to Lebesgue measure]] | Categorical KL entropy of a continuous belief is infinite; ours are relative to Lebesgue | accepted, documented |
 | [[LP-007 Missing implementation notes]] | `gaussian.md` and `beliefs.md` are cited but not written | closed (`review-argon`, 2026-10-23) |
 | [[LP-008 No conformance test for the factor interface]] | `check_factor_conformance` now reaches structural, implicit, adversarial, diffusion and Plucker point paths; explicit game/particle/branch/container gaps remain | open, extended 2026-10-26 |
-| [[LP-009 Game-level free energy is declared but not implemented]] | Point/terminal games added; DEQ/ODE incoming-vs-solved conflict, diffusion surrogate entropy, distributional and container laws remain (Equality/Deterministic types do not exist) | open, partly addressed 2026-10-26 |
+| [[LP-009 Game-level free energy is declared but not implemented]] | DEQ/ODE incoming factor and solved-point lens games settled with identity tests; diffusion entropy, distributional and container laws remain | open, partly addressed 2026-10-26 |
 | [[LP-010 Where the graph of a problem comes from]] | Finding a problem's factor graph: from a model, by structure learning, or by exploring with TDA first | open, theory |
 | [[LP-011 Gradient couplings and isfrozen are declared but unused]] | Unsupported couplings and frozen factors now throw; gradient semantics remain planned | open, option 2 done |
 | [[LP-012 Factor graphs and schemes]] | Links to algebraic geometry: singular models, dual-number points, cellular sheaves | open, theory |

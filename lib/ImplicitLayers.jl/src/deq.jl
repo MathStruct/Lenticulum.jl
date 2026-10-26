@@ -289,7 +289,7 @@ The factor → variable message: a `DiracBelief` on `target`, from a root solve.
 The incoming `prior` is used as the solver's **initial guess** and nothing else. That is a
 genuinely good use for it — warm-starting from the current belief is what makes iterated
 message passing over implicit layers cheap — and it is *not* the same as conditioning on it.
-See `deq.md` §4.2 for why this message is a posterior rather than a likelihood.
+This point site does not condition on the prior; see `deq.md` §4.2.
 """
 function Mycelium.factor_message(
     f::DEQFactor{names}, target::Symbol, polarity, inputs, prior, ps, st
@@ -317,4 +317,13 @@ function Mycelium.local_free_energy(f::DEQFactor, msgs, ps, st)
     (x === nothing || z === nothing) && return (0.0, st)
     r, st = residual(f, x, z, ps, st)
     return (sum(abs2, r) / 2, st)
+end
+
+# The polarity-free game follows GaussianFactor: π on the first channel (x), y on
+# the second (z). It scores incoming points, without running an inversion.
+LenticulumCore.free_energy(f::DEQFactor, π, y, ps, st) =
+    Mycelium.local_free_energy(f, _incoming_point_messages(f, π, y), ps, st)
+function LenticulumCore.entropy(f::DEQFactor, π, y, ps, st)
+    _incoming_point_messages(f, π, y) # same supported domain as free_energy
+    return (0.0, st) # ScalarEnergySpace; point-belief entropy convention
 end

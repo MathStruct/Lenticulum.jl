@@ -42,7 +42,8 @@ each other.
 
 ## 2. The energy is a proper vector energy
 
-`energyspace` is `EuclideanEnergySpace(dim z)` and the scalarisation is `SquaredNorm` — the
+`pointwise_energyspace` is `EuclideanEnergySpace(dim z)` and
+`pointwise_scalarisation` is `SquaredNorm` — the
 residual is returned as an $\mathbb{R}^n$-valued object, not collapsed to a number.
 
 This is what [[Scalar and Multivariate Energy]] asks every implicit factor to do and what
@@ -50,7 +51,8 @@ This is what [[Scalar and Multivariate Energy]] asks every implicit factor to do
 inconsistency). Here it comes for free, and it is exactly what the IFT needs — that note's
 §6.3 is about needing the Jacobian of the *vector* residual.
 
-**So the equilibrium family is the first one to satisfy the vault's own energy design.**
+The game energy instead has `ScalarEnergySpace()` and `IdentityScalarisation()`:
+it contains the squared residual, not the residual vector.
 
 ## 3. The reverse direction needs a square residual
 
@@ -84,26 +86,22 @@ and `VariationalDiffusion` already returns Laplace Gaussians. For this factor th
 possible, $\Sigma_y = (\partial z^\ast/\partial x)\,\Sigma_x\,(\partial z^\ast/\partial x)^\top$ from `deq_sensitivity`,
 but not built.
 
-### 4.2 The message is a posterior, not a likelihood
+### 4.2 The prior warm-starts the solve
 
-The same problem `VariationalDiffusion`'s `factor.md` §5.1 records, for the same reason: there
-is no way to divide a neural network's contribution out of the answer. The message is correct
-when the target variable has degree 1 and double-counts otherwise, and nothing detects it.
+The `prior` argument supplies the solver's initial guess. The returned Dirac site does not
+condition on that prior; `likelihood_message` therefore uses the default point-lens path.
+A conflicting hard prior cannot be combined with that site. The lens game below records
+that incompatibility as infinite anchor cost; it does not change the solve into Bayesian
+conditioning. No distributional posterior is supplied.
 
-The `prior` argument is used as the solver's **warm start** and nothing else. That is a
-genuinely good use — warm-starting from the current belief is what makes iterated message
-passing over implicit layers affordable, and the test suite checks that starting at the
-answer costs zero iterations — but it is *not* conditioning, and calling the argument `prior`
-invites the confusion.
+### 4.3 Point-belief entropy convention
 
-### 4.3 No entropy, hence nothing for the Bethe correction to correct
-
-`local_free_energy` returns $\tfrac12\|r\|^2$ and no entropy term, because a Dirac has none.
-So a `DEQFactor` contributes energy only. In a graph mixing it with a `GaussianFactor`, the
-counting correction of [[Bethe Free Energy]] is applied to variables whose entropy this factor
-never charged — the total is not $-\log p(y)$ for anything. Same conclusion as the diffusion
-factor reached, and for the same underlying reason: **Dirac-valued inversions do not have
-free energies in the sense the Bethe formula wants.**
+`local_free_energy` returns $\tfrac12\|r\|^2$ without an entropy term. The game adopts the
+same zero point-belief entropy convention as Mycelium's counting correction; this is not
+the differential entropy of a Dirac relative to Lebesgue measure. The graph method can also
+read a Gaussian's mean, but supplies no joint distributional factor entropy. Consequently,
+mixing these residual diagnostics with Gaussian factors does not establish a normalized
+marginal-likelihood interpretation for the resulting Bethe objective.
 
 ### 4.4 The initial guess is zeros
 
@@ -121,22 +119,44 @@ family cannot avoid needing derivatives the way the diffusion family did.
 Related: [[solve]], [[luxfactor]], [[neuralode]], [[DEQ as a Relation]],
 [[The Equilibrium Family]], [[Scalar and Multivariate Energy]], [[Implicit Learners]]
 
-## LP-008/009 check (2026-10-26)
+## Incoming factor game and solved-point lens game (LP-009)
 
-`test/conformance.jl` runs the common default lens checker at both enumerated polarities,
-with closed forms for `z = z/2 + x`. Pointwise residual/scalarisation, inversion, graph
-messages and finite local energies are checked. Game checks have an explicit `game_gap`.
+`free_energy(f, π, y, ps, st)` follows `GaussianFactor`'s fixed channel order:
+`π` is the incoming point on the first channel (`x`), `y` the point on the second (`z`).
+This corresponds to the reverse split, with `x` unobserved and `z` observed; the factor
+method takes no polarity and does not reinterpret the arguments for a forward solve.
+Both must be `DiracBelief`s. The method passes them to `local_free_energy`; entropy is
+scalar zero. Other beliefs throw because no distributional residual expectation is defined.
 
-No game methods were added: x=1, z=3 gives incoming energy 1/8; the solution z=2 gives zero. Thus evaluating energy at the inversion's
-Dirac point would contradict `local_free_energy` under option 1 with an incoming Dirac
-prior and a Dirac observation. The test asserts this mismatch explicitly (`@test !isapprox`, not `@test_broken`) in each
-direction. Choosing an incoming-point diagnostic instead of a solved-point statistical
-game, or changing graph semantics, needs a decision in
-[[LP-009 Game-level free energy is declared but not implemented]]. The zero point-belief
-entropy convention alone does not resolve that energy mismatch.
+`lens = first(assemble(f, p, ps, st))` restricts the relation to polarity `p`.
+`free_energy(lens, π, inputs, ps, st)` runs that inversion and evaluates the residual at its
+returned point, plus the prior cost on the unobserved channel. Here `inputs` is the named
+Dirac observation (or that Dirac directly). A trivial prior costs zero, a Dirac costs zero
+only at the same point and infinity elsewhere, and a proper Gaussian costs its quadratic
+penalty relative to its mean. No normalizing constant is charged. This is where Definition
+20's expectation under the inversion lives, with zero point-belief entropy. A finite channel
+precision does not soften a Dirac prior; soft observations and singular Gaussian anchors
+throw. The solver still uses the prior only as a warm start.
 
-The polarity audit also found and fixed a small trait defect: `supports_polarity` accepted
-`(Unobserved, Latent)` and `(Latent, Unobserved)` even though solving needs a point on the
-companion channel and the enumeration advertises only observed/unobserved splits. It now
-requires one observed channel. Both rejected assignments are regression-tested in
-`test/conformance.jl`; no solver or graph-energy semantics changed.
+For residuals affine in the unknown `u`, with root `u*`,
+
+$$
+\tfrac12\|r(x,u_0)\|^2 = \tfrac12\|J_u(u_0-u^*)\|^2.
+$$
+
+Thus the incoming factor energy equals the solved residual energy (zero at a root) plus
+an anchor of precision `J_u'J_u`. `energy_jacobian` supplies this metric; the caller chooses
+it, and the lens game does not invent a prior. For `g(z,x)=z/2+x`, at `x=1,z₀=3`, the root
+is `z*=2`, `Jz=1/2`, so both sides are `½(1/2)²=1/8`. In reverse at `z=3,x₀=1`, the root
+is `x*=3/2`, `Jx=-1`, giving `½(1/2)²=1/8` again.
+
+`test/conformance.jl` checks both full factor games without `game_gap`, solved-point lens
+games, hard-prior infinity, and the exact linear identity. Its nonlinear cell has
+`r= z+z²/4-x`, root `z*=2` at `x=3`, and `Jz=2`. At `z₀=2+h` the incoming energy is
+`2h²+h³/2+h⁴/32`; the Gaussian anchor costs `2h²`. The gap is `h³/2+h⁴/32`, checked at
+four halving step sizes. The residual approximation is first order (Gauss–Newton), with
+cubic absolute energy error and, generically, first-order relative energy error near the root.
+
+Scoring an arbitrary point uses `energy`/`scalar_energy`, the pointwise level of
+[[L-ADR-0003 Pointwise energy and free energy are separate levels]], not a keyword on
+`free_energy`. Shared implementation and limitations: [[point_game]].

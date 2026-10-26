@@ -9,6 +9,14 @@
 Implements: [[Factors are Parameterized Statistical Games]] (Def. 20), [Composition of Statistical Games](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#composition-energies-add-entropies-chain-definition-22) (Defs. 22,
 25), [[Factors are Parameterized Statistical Games]] (Defs. 27, 28) — i.e. the factor interface itself.
 
+`free_energy` and `entropy` are also extension points for concrete assembled lenses.
+`scalar_free_energy` accepts either a factor or a lens when its family supplies the game
+and scalarisation; there is no generic lens game. In ImplicitLayers, the factor game
+scores incoming Dirac points, and the lens game scores its inversion's point plus a prior
+anchor. That lens level is Definition 20's expectation under the inversion; see [[point_game]].
+An arbitrary point is scored with `energy`/`scalar_energy` (L-ADR-0003), not a keyword
+on `free_energy`.
+
 ## The composition laws, side by side
 
 |  | AutoBayes Def. 22 | here |

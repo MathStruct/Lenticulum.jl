@@ -1,6 +1,6 @@
 #open-problem
 
-> **Status: open, remaining semantics identified (2026-10-26). The 2026-10-23 resolution listed methods that do not exist.** Related: [[L-SPEC-001 The Factor Interface]] §4–§5, [[statistical_game]], [[abstract_types]], [[factors]].
+> **Status: open, item 1 resolved; other semantics remain (2026-10-26). The 2026-10-23 resolution listed methods that do not exist.** Related: [[L-SPEC-001 The Factor Interface]] §4–§5, [[statistical_game]], [[abstract_types]], [[factors]].
 
 **Problem.** `LenticulumCore` declares the game-level `entropy(f, π, y, ps, st)` and `free_energy(f, π, y, ps, st)` (AutoBayes Definition 20), and `abstract_types.jl` lists `entropy` among the methods a factor must provide. At the time this problem was opened, no factor implemented either. Every factor that is used in a graph implements Mycelium's `local_free_energy(f, msgs, ps, st)` instead, which takes all incoming messages because a graph has no distinguished prior/observation split. Then `scalar_free_energy(f, π, y, ...)` failed for every factor in the repository, the same kind of gap as issue #8.
 
@@ -9,10 +9,10 @@
 2. Implement `free_energy` and `entropy` per factor.
 3. Drop them from the required list, and document `local_free_energy` as the free energy of a factor.
 
-**Resolution so far.** Option 1 for the five `Lenticulum` factors (`GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor`, `NonlinearFactor`, `LikelihoodFactor`): `free_energy` passes the prior and the observation to `Mycelium.local_free_energy`, and since 4a49ca5c `entropy` returns an element of the energy space, not a bare number. `PriorFactor` has exact game-level methods for Dirac and categorical beliefs (bb3af9e9); for a Gaussian belief with an arbitrary `nlogp` they throw, because the expectation has no closed form. The 2026-10-23 resolution also listed a generic `LenticulumCore` fallback and methods for `EqualityFactor`, `DeterministicFactor`, the equilibrium and neural-ODE factors; none of these exist ([[LP-013 Defects found in the review of master]]). **Correction (2026-10-26):** `EqualityFactor` and `DeterministicFactor` are not types in this
+**Resolution so far.** Option 1 for the five `Lenticulum` factors (`GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor`, `NonlinearFactor`, `LikelihoodFactor`): `free_energy` passes the prior and the observation to `Mycelium.local_free_energy`, and since 4a49ca5c `entropy` returns an element of the energy space, not a bare number. `PriorFactor` has exact game-level methods for Dirac and categorical beliefs (bb3af9e9); for a Gaussian belief with an arbitrary `nlogp` they throw, because the expectation has no closed form. The 2026-10-23 resolution also listed a generic `LenticulumCore` fallback and methods for `EqualityFactor`, `DeterministicFactor`, the equilibrium and neural-ODE factors; none of those methods existed at review ([[LP-013 Defects found in the review of master]]). **Correction (2026-10-26):** `EqualityFactor` and `DeterministicFactor` are not types in this
 monorepo (`rg` over the Julia sources finds no occurrence); they are not outstanding
-implementations. DEQFactor and NeuralODEFactor do exist, but have the graph/game conflict
-recorded below.
+implementations. DEQFactor and NeuralODEFactor do exist; the incoming/solved distinction is now
+implemented at factor and assembled-lens levels, as recorded below.
 
 
 **Algebraic family (L-SPEC-004; history through 2026-10-25, superseded below).** `ToricFactor` has exact game-level quantities
@@ -37,7 +37,7 @@ checks in `lib/AlgebraicFactors.jl/test/polynomial.jl` ([[polynomial]]).
   undefined and now throw clear `ArgumentError`s.
 - LuxFactor: conditional point inversion, constant-zero energy and zero point-belief entropy.
 - GeneratorFactor: same zero pair for a Dirac latent observation `y`; NoiseSource: same pair
-  conditioned on a fixed Dirac draw `π` with `nsamples=1` with `nsamples=1`, without resampling. Particle entropy is not supplied;
+  conditioned on a fixed Dirac draw `π` with `nsamples=1`, without resampling. Particle entropy is not supplied;
   unsupported game domains throw `ArgumentError`.
 - RatioFactor: with a Dirac prior, reweighting preserves the point, so energy is `-logratio`
   and entropy zero. Particle game priors still throw because no entropy reference measure
@@ -52,14 +52,37 @@ Every implemented domain above is tested against `local_free_energy` with option
 and a trivial prior). Shared checker fixtures use closed forms; package tests also assert the
 actual energy/entropy values, including nonzero Prior, Loss and Ratio energies.
 
-**Remaining, with reasons:**
+## Item 1 resolved: incoming factor and solved-point lens games (2026-10-26)
 
-1. DEQFactor and NeuralODEFactor: their graph methods evaluate residuals at **incoming**
-   endpoints, whereas inversion returns a new solved point. For z=z/2+x at x=1,z=3 the
-   incoming energy is 1/8 and solved energy zero; for dz/dt=0 at endpoints 1,3 they are 2
-   and zero. Both directions are tested; the disagreement is asserted, not marked broken.
-   No game methods were added because the requested Dirac-solution interpretation would
-   contradict the graph. Entropy zero alone cannot repair the mismatch.
+The maintainer chose two levels. `DEQFactor` and `NeuralODEFactor` now implement option 1:
+`π` is a Dirac on the first channel, `y` a Dirac on the second, matching `GaussianFactor`'s
+fixed argument order. This is the first-unobserved/second-observed split regardless of the
+polarity used for inversion. Factor free energy delegates to `local_free_energy`; entropy
+is zero in `ScalarEnergySpace()`. Other beliefs throw with a reason.
+
+For `lens = first(assemble(f, p, ps, st))`, `free_energy(lens, π, inputs, ps, st)` instead
+scores the point returned by that polarity's inversion: residual energy plus the prior's
+anchor cost. This is Definition 20's expectation under the inversion, with zero point-belief
+entropy. A trivial prior has no cost. A hard Dirac prior at a different point costs infinity.
+A proper Gaussian anchor costs `½(u*-μ)'Λ(u*-μ)`, relative to its mean (no normalization
+constant). A finite channel precision does not soften a Dirac prior. Soft observations,
+singular Gaussian anchors and other priors throw. The existing solve/flow inversion is
+unchanged; scoring a prior does not turn it into a prior-conditioned posterior.
+
+For a residual affine in the unknown `u`, vanishing at `u*`, the incoming energy equals
+the solved residual energy plus the anchor centered at `u₀`, with precision `J_u'J_u`.
+`energy_jacobian` computes that precision in `lib/ImplicitLayers.jl/test/conformance.jl`.
+For `g=z/2+x`, `x=1,z₀=3` gives root `2`, Jacobian `1/2`, and `½(3-2)²/4=1/8`;
+reverse `z=3,x₀=1` gives root `3/2`, Jacobian `-1`, and `½(1-3/2)²=1/8`.
+For `dz/dt=0`, endpoints `1,3` give `½(3-1)²=2` in either direction.
+The nonlinear test derives a cubic energy gap under the first-order Gauss–Newton
+approximation; see [[deq]] and [[point_game]]. These replace the old disagreement assertions
+and remove both factors' `game_gap` exemptions. Arbitrary-point scoring remains
+`energy`/`scalar_energy` ([[L-ADR-0003 Pointwise energy and free energy are separate levels]]),
+not a keyword on `free_energy`.
+
+**Remaining, with reasons (original item numbers retained):**
+
 2. DiffusionFactor: graph `(clamp,score)` uses a denoising surrogate, not posterior entropy;
    its missing-channel heuristic also reconstructs a polarity with a trivial prior. An
    exact Definition 20 entropy/free energy cannot be recovered by wrapping that code.

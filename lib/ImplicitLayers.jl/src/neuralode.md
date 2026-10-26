@@ -52,9 +52,9 @@ would lose the distinction the vault cares about
 ([[Inversions and Bayesian Lenses]]: *"nothing constrains an inversion to be exact… the quality of the choice
 is what the free energy measures"*).
 
-> If you disagree, the change is one line and the consequence is that the free energy would
-> start charging for discretisation error — which nothing currently computes, since the
-> residual on the relation is identically zero. See §4.4.
+The lens game evaluates the actual endpoint residual. Forward integration followed by
+the same forward residual gives zero; reverse integration followed by a forward residual
+can expose round-trip error. This does not estimate error against the true continuous flow.
 
 ## 3. A flow cannot change dimension
 
@@ -81,13 +81,10 @@ NeuralODE would accumulate statistics from points the solution never visits.
 
 ### 4.2 `flow_logdet` exists and nothing can use it
 
-It computes exactly the correction needed to transport a density
-($\log p(z_1) = \log p(z_0) - \Delta$), and the inversion still returns a `DiracBelief` —
-because the belief type that could hold the result is not reachable from a `lib/` package
-([[deq]] §4.1, and [[The Equilibrium Family]] §5).
-
-So the most valuable thing in this file is dead code with a passing test. That is the
-sharpest single illustration of why `GaussianBelief` is in the wrong package.
+It computes the divergence correction for transporting a density, but inversion still
+returns a `DiracBelief`. `GaussianBelief` is available in `LenticulumCore`; a general
+non-Gaussian pushforward belief is not implemented, so the correction does not yet transport
+beliefs through this factor.
 
 ### 4.3 The round trip is not bit-exact, and dissipative dynamics make it worse
 
@@ -107,28 +104,45 @@ the free energy is a good invariant (the tests use it as one) and a useless diag
 cannot distinguish a well-integrated flow from a badly-integrated one, because both satisfy
 their own residual.
 
-The quantity that *would* be informative is the discretisation error, i.e. the difference
-between this integrator's answer and a finer one. Nothing computes it.
+Reverse-solved endpoints can have nonzero forward residual from round-trip error. The
+lens game retains that residual. Comparing with a finer integration would estimate
+discretisation error; the game does not perform that comparison.
 
 ### 4.5 The `prior` argument is genuinely unused
 
 Unlike [[deq]], where it warm-starts the solver, a flow has nothing to warm-start. The
-argument is accepted and ignored, which is correct and worth stating so nobody looks for the
-place it should have been used.
+inversion accepts and ignores it. The lens game separately scores its anchor cost at the
+returned point; it does not change the flow to condition on the prior.
 
 Related: [[flow]], [[deq]], [[luxfactor]], [[NeuralODE as an Invertible Factor]],
 [[The Equilibrium Family]], [[Inversions and Bayesian Lenses]]
 
-## LP-008/009 check (2026-10-26)
+## Incoming factor game and solved-point lens game (LP-009)
 
-`test/conformance.jl` runs the common default lens checker at both enumerated polarities,
-with closed forms for `dz/dt = 0`. Pointwise residual/scalarisation, inversion, graph
-messages and finite local energies are checked. Game checks have an explicit `game_gap`.
+`free_energy(f, π, y, ps, st)` follows `GaussianFactor`: `π` is the incoming Dirac on the
+first (start) channel, `y` the incoming Dirac on the second (end) channel. This fixed order
+corresponds to start unobserved, end observed; it does not depend on an inversion polarity.
+It delegates to `local_free_energy`, with scalar zero entropy. Non-Dirac arguments throw.
 
-No game methods were added: z0=1, z1=3 gives incoming energy 2; the solved endpoint gives zero. Thus evaluating energy at the inversion's
-Dirac point would contradict `local_free_energy` under option 1 with an incoming Dirac
-prior and a Dirac observation. The test asserts this mismatch explicitly (`@test !isapprox`, not `@test_broken`) in each
-direction. Choosing an incoming-point diagnostic instead of a solved-point statistical
-game, or changing graph semantics, needs a decision in
-[[LP-009 Game-level free energy is declared but not implemented]]. The zero point-belief
-entropy convention alone does not resolve that energy mismatch.
+`lens = first(assemble(f, p, ps, st))` restricts the flow relation to polarity `p`.
+`free_energy(lens, π, inputs, ps, st)` evaluates the endpoint residual at `invert`'s output
+plus an anchor cost on the unobserved endpoint. `inputs` is the named Dirac observation or
+that Dirac directly. This is Definition 20's expectation under the point inversion. Entropy
+is scalar zero. Trivial priors cost zero; a Dirac prior costs infinity when the solved point
+differs, zero when equal; a proper Gaussian costs `½(u*-μ)'Λ(u*-μ)`, relative to its mean,
+without normalization constants. Channel precision does not soften Diracs. Soft observations,
+singular Gaussian anchors and other belief families throw. The inversion itself still
+ignores the prior, so this is scoring its output, not a prior-conditioned posterior flow.
+
+For `dz/dt=0`, endpoints `1,3` give incoming energy `½(3-1)²=2`. Solving either endpoint
+gives residual zero. The unknown-endpoint Jacobian is `+1` or `-1`, so a Gaussian anchor
+centered on the incoming unknown, with precision `J'J=1`, costs `½(3-1)²=2` at the solution.
+`test/conformance.jl` checks this identity in both polarities, full factor conformance
+without `game_gap`, lens energies and incompatible hard priors. The same identity is exact
+for any residual affine in the unknown, with precision `J'J`; a nonlinear residual gives
+the first-order Gauss–Newton approximation described and tested in [[deq]]. It presumes a
+zero residual at the solved point; finite integration error need not satisfy that premise.
+
+Scoring arbitrary endpoints uses `energy`/`scalar_energy` (the pointwise level of
+[[L-ADR-0003 Pointwise energy and free energy are separate levels]]), not a keyword on
+`free_energy`. Shared implementation and limitations: [[point_game]].

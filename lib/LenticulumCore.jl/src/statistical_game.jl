@@ -21,6 +21,13 @@ The **vector** loss
 
 an element of `energyspace(factor)` — *not* a number. Collapse it with
 [`scalar_free_energy`](@ref) when you want a loss.
+
+Concrete families may also implement `free_energy(lens, π, inputs, ps, st)` for an
+assembled `AbstractBayesianLens`: this evaluates the expectation under that inversion.
+Its domain and prior cost must be specified by the family; no generic lens game is assumed.
+For DEQ/NeuralODE, the factor game scores incoming points, while the assembled lens game
+scores the solved point plus an anchor cost. Arbitrary point scoring uses `energy` or
+`scalar_energy` (L-ADR-0003), not a keyword on `free_energy`.
 """
 function free_energy end
 
@@ -31,8 +38,10 @@ function free_energy end
 
 `σ` defaults to [`scalarisation`](@ref)`(factor)`, or to `scalarisation(factor, polarity)` when a
 polarity is given; pass another to weigh the summands differently without rebuilding the factor.
+Also accepts an assembled lens when its family implements `free_energy` and `scalarisation`.
+The lens already fixes a polarity; omit the `polarity` override in that case.
 """
-function scalar_free_energy(f::AbstractLenticulumFactor, π, y, ps, st; polarity = nothing,
+function scalar_free_energy(f::Union{AbstractLenticulumFactor,AbstractBayesianLens}, π, y, ps, st; polarity = nothing,
                             σ = _scalarisation(f, polarity))
     F, st = free_energy(f, π, y, ps, st)
     return scalarise(σ, F), st

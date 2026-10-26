@@ -35,8 +35,14 @@ A factor is a subtype of `AbstractLenticulumFactor`. Like a Lux layer, it is a *
 - `entropy(f, π, y, ps, st) -> (𝐇, st)` and `free_energy(f, π, y, ps, st) -> (𝐅, st)` are the game-level functions of AutoBayes Definition 20 (both in `energyspace(f)`: `entropy` is a vector too, e.g. `(fit = 0, complexity = 0, negentropy = H)` in the graded space, and `free_energy` subtracts it). Implemented for the five `Lenticulum` factors and exact Dirac/categorical `PriorFactor`
   games; also Data/Relay/Lux constant-zero games, Loss terminal point observations, fixed-Dirac
   Generator/NoiseSource/Plucker games, and Dirac-prior Ratio games. Optimiser explicitly throws.
-  DEQ/NeuralODE graph residuals disagree with solved-point energy; diffusion's score surrogate
-  has no posterior entropy; polynomial and container games remain undefined ([[LP-009 Game-level free energy is declared but not implemented]]);
+  DEQ/NeuralODE Dirac factor games score incoming points (`π` on the first channel, `y` on
+  the second), with scalar zero entropy, matching graph energy. Their assembled-lens games
+  score the inversion output plus a hard Dirac or proper Gaussian anchor cost, or no cost
+  for a trivial prior; this is their Definition 20 expectation. Gaussian cost is relative
+  to its mean; soft observations and singular anchors are unsupported. `assemble(f,p)`
+  restricts the factor relation to one polarity. Arbitrary points use `energy`/`scalar_energy`,
+  not a keyword on `free_energy` (L-ADR-0003). Diffusion's score surrogate has no posterior
+  entropy; polynomial and container games remain undefined ([[LP-009 Game-level free energy is declared but not implemented]]);
 - `scalar_free_energy(f, π, y, ps, st; polarity, σ)` and `scalar_energy(f, x, a, y, ps, st; polarity, σ)` are provided; `σ` overrides the default scalarisation for one call.
 
 **§5 In a factor graph** (Mycelium):
@@ -52,7 +58,8 @@ A factor is a subtype of `AbstractLenticulumFactor`. Like a Lux layer, it is a *
 - `lib/LenticulumCore.jl/test/runtests.jl` (the energy algebra, `SquaredNorm` validation, `energy_jacobian`, and `gauss_newton_metric` of §3–§4);
 - `lib/Mycelium.jl/test/runtests.jl` (§5 on structural factors, including non-zero `PriorFactor` `local_free_energy`);
 - `lib/ImplicitLayers.jl/test/conformance.jl`: common default lens path for Lux forward and
-  DEQ/NeuralODE both directions; explicit game gaps and broken conflict tests.
+  DEQ/NeuralODE both directions, including full incoming game checks, solved-point lens
+  games, linear identity and nonlinear Gauss–Newton error tests.
 - `lib/Mycelium.jl/test/conformance.jl`: common direct-message path on Data, Prior, Optimiser
   unary and Relay both directions; Loss sink path, with explicit unsupported-section reasons.
 - `lib/Adversarial.jl/test/conformance.jl`: common default lens path on NoiseSource unary,

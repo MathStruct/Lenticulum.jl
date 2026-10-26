@@ -29,8 +29,8 @@ the default lens path.
 | RelayFactor | direct; both directions | identity point game |
 | OptimiserFactor | direct; unary | no pointwise energy or statistical game; game methods throw |
 | LuxFactor | default lens; forward | conditional point game with zero accounting |
-| DEQFactor | default lens; both directions | game gap: incoming residual differs from solved-point energy, asserted by a test |
-| NeuralODEFactor | default lens; both directions | same game gap, independently tested with a constant flow |
+| DEQFactor | default lens; both directions | full incoming Dirac game; solved-point lens game and Jacobian-anchor identity checked separately (LP-009 item 1 resolved) |
+| NeuralODEFactor | default lens; both directions | full incoming Dirac game; solved-point lens game and both zero-flow identities checked (LP-009 item 1 resolved) |
 | NoiseSource | default lens; unary | injected fixed one-particle draw; game conditioned on a Dirac draw, no cloud entropy |
 | GeneratorFactor | default lens; forward | Dirac latent fixture, no distributional entropy |
 | RatioFactor | default lens; unary | Dirac game; particle likelihood, posterior energy contribution, and two-ratio graph checked (LP-016 resolved) |
@@ -39,8 +39,8 @@ the default lens path.
 | PolynomialFactor | unchanged independent per-polarity tests | no local/game free energy or normalised joint branch model; full checker inapplicable |
 | ComposedFactor, TensorFactor | checker inapplicable; Core tests verify scope | parameter/energy-space containers without channels, inversion or evaluated game laws |
 
-**Remaining:** particle game entropy for Ratio (LP-006/009); DEQ/ODE and diffusion game
-contracts (LP-009); normalized branch/game laws for Polynomial; wired container semantics.
+**Remaining:** particle game entropy for Ratio (LP-006/009); diffusion game contracts
+(LP-009); normalized branch/game laws for Polynomial; wired container semantics.
 The rollout tests do not establish conformance for arbitrary belief families or diffusion
 backends. No placeholders or new approximation have been introduced for these gaps.
 
@@ -50,7 +50,7 @@ accepted although neither solve has an observed companion point. `supports_polar
 requires one observed channel; two regression assertions cover the rejected splits.
 
 
-## Validation run, 2026-10-26
+## Earlier validation run, 2026-10-26 (history)
 
 All commands below completed with zero unexpected failures/errors. Broken assertions are
 intentional executable records of the conflicts above, not passing conformance claims.
@@ -82,8 +82,9 @@ The diffusion counts above record the earlier LP-008 run. LP-017 subsequently re
 its four broken assertions with passing checks and added complete enumeration, a lazy
 iterator, structural predicates and joint point/Gaussian/mixture tests; see
 [[LP-017 DiffusionFactor omits supported polarities]]. Ratio's three broken assertions
-remain. The current ImplicitLayers checker records the incoming/solved energy mismatch
-as a passing inequality check; its suite has no broken assertions in the LP-017 run.
+were later replaced by LP-016 (below). At the LP-017 run, ImplicitLayers recorded the
+incoming/solved energy mismatch as passing inequality checks. LP-009 item 1 now replaces
+those checks with two explicit games and the identity linking them.
 
 ## Files in this change
 
@@ -110,3 +111,26 @@ LP-016 subsequently replaced its three broken assertions with passing checks: Ra
 now emits a log-potential, excludes target inputs, and averages its graph energy under the
 reweighted cavity. The two-ratio graph test checks multiplication once per factor. Particle
 game entropy remains unsupported; the earlier counts above record the pre-LP-016 run.
+
+
+## LP-009 item 1 validation, 2026-10-26
+
+The incoming factor and solved-point lens games now have separate methods; DEQ/NeuralODE
+run the full common game checker without exemptions in both polarities. Linear tests derive
+`1/8` (DEQ) and `2` (zero flow) using `energy_jacobian` to form the Gaussian anchor precision.
+A quadratic DEQ checks cubic absolute energy error for the Gauss–Newton approximation.
+Matrix anchors, custom channel names, stopped solves, reverse-flow residuals and state
+threading have separate checks in `lib/ImplicitLayers.jl/test/conformance.jl`.
+
+All seven full package suites passed with no broken assertions, using the package commands
+above and their repository `test/runtests.jl` entry points:
+
+| Environment | Pass |
+|---|---:|
+| LenticulumCore | 236 |
+| Mycelium | 494 |
+| Lenticulum (top level) | 775 |
+| ImplicitLayers | 480 |
+| Adversarial | 254 |
+| AlgebraicFactors | 14396 |
+| VariationalDiffusion | 1143 |
