@@ -137,8 +137,10 @@ note `lib/AlgebraicFactors.jl/src/plucker.md` derives the formula and explains
 this distinction from singular precision.
 
 Pointwise and graph-local energy are zero, as for `GeneratorFactor`.
-Game-level free energy/entropy and an assembled lens are absent (LP-009), so the
-full conformance checker does not apply. Tests exercise the supported interface
+For named Dirac observations on both inputs, game free energy and entropy are zero,
+matching graph energy. The shared direct-message checker covers this sole forward point
+polarity at r=2 and r=4, with independent exterior-product fixtures and option-1 agreement.
+There is no assembled lens, inverse fibre belief or distributional entropy. Tests also exercise the supported interface
 and a Mycelium DAG with two Gaussian priors, and compare moments to an independent
 second-moment expansion and seeded Monte Carlo. The 400-point Klein-quadric
 test now exercises `fit_nullspace` in monomial and Chebyshev bases.

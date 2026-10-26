@@ -81,3 +81,13 @@ Modules = [ImplicitLayers]
 ```@autodocs
 Modules = [ImplicitLayers]
 ```
+
+## Game quantities and conformance
+
+LuxFactor requires a Dirac input observation `y` and contributes zero game energy and entropy, matching its pointwise and graph
+accounting. The shared checker covers its forward polarity and both DEQ/NeuralODE
+polarities with closed-form linear fixtures. DEQ/NeuralODE explicitly omit game checks:
+their graph energy evaluates incoming endpoints, while their inversions solve new points.
+Those energies can disagree even with a Dirac prior and observation. Tests demonstrate
+the conflict by asserting the disagreement; no game semantics are invented
+(LP-009). The point-belief entropy convention alone cannot fix that mismatch.

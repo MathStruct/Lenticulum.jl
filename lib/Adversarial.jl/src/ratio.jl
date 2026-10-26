@@ -304,3 +304,14 @@ function Mycelium.local_free_energy(f::RatioFactor, msgs, ps, st)
     end
     return (acc, st)
 end
+
+# For a point prior reweighting leaves the point fixed. The finite incoming-particle
+# average used by local_free_energy is not the posterior expectation of Definition 20.
+function LenticulumCore.free_energy(f::RatioFactor, π::LenticulumCore.DiracBelief, y, ps, st)
+    return Mycelium.local_free_energy(f, NamedTuple{(f.channel,)}((π,)), ps, st)
+end
+LenticulumCore.entropy(::RatioFactor, π::LenticulumCore.DiracBelief, y, ps, st) = (0.0, st)
+for op in (:free_energy, :entropy)
+    @eval LenticulumCore.$op(::RatioFactor, π, y, ps, st) = throw(ArgumentError(
+        "RatioFactor game quantities require a Dirac prior; incoming-particle averages are not posterior free energies"))
+end

@@ -123,3 +123,20 @@ output can be checked.
 
 Related: [[generator]], [[Adversarial]], [[Implicit Generative Models]],
 [[GANs as Two Factors]], [[messages]]
+
+## Point game and remaining particle defect (2026-10-26)
+
+For a Dirac prior, reweighting leaves the point fixed, so the game has energy `-logratio`
+and zero point-belief entropy in `ScalarEnergySpace`. These methods agree with
+`local_free_energy` using that prior on the unary channel (option 1). Other priors throw
+`ArgumentError`: the incoming-particle average used by the graph is not the expectation
+under the reweighted posterior, and no posterior entropy is supplied.
+
+`test/conformance.jl` runs the shared default lens checker at the unary polarity with a
+point prior. Its independent oracle is `log(p/q) = 1/2 - x` for unit-variance Gaussians
+centred at zero and one. This is point-prior conformance only. A two-particle example also
+checks exact reweighted probabilities and retains three `@test_broken` assertions: pooling
+the emitted posterior with the prior throws, target inputs override the supposedly
+extrinsic message, and incoming/posterior energy expectations differ. See
+[[LP-016 RatioFactor emits a particle posterior as a likelihood]]. No particle likelihood
+representation was invented to hide this defect.

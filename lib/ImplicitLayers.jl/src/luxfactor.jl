@@ -158,3 +158,12 @@ function Mycelium.factor_message(
 end
 
 Mycelium.local_free_energy(::LuxFactor, msgs, ps, st) = (0.0, st)
+
+# The wrapper delegates all energy accounting to downstream losses. Its point inversion
+# contributes zero energy and zero point-belief entropy, just as local_free_energy does.
+LenticulumCore.free_energy(::LuxFactor, π, y::LenticulumCore.DiracBelief, ps, st) = (0.0, st)
+LenticulumCore.entropy(::LuxFactor, π, y::LenticulumCore.DiracBelief, ps, st) = (0.0, st)
+for op in (:free_energy, :entropy)
+    @eval LenticulumCore.$op(::LuxFactor, π, y, ps, st) = throw(ArgumentError(
+        "LuxFactor point-game quantities require a Dirac input observation; no distributional inversion entropy is supplied"))
+end

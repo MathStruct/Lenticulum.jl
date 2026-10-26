@@ -66,3 +66,17 @@ Modules = [Adversarial]
 ```@autodocs
 Modules = [Adversarial]
 ```
+
+## Point games and conformance
+
+Generator has zero game free energy/entropy for a Dirac latent observation `y`.
+NoiseSource has the same pair for a fixed Dirac draw `π` with `nsamples=1` with `nsamples=1`, without sampling again.
+Ratio has game energy `-logratio` and zero entropy for a Dirac prior. Other belief domains
+throw `ArgumentError`; particle entropy is unavailable and Ratio's graph average uses the
+incoming cloud rather than the reweighted posterior.
+
+`test/conformance.jl` uses the shared default lens checker at each unary/forward polarity,
+with a fixed noise draw, affine generator and analytic Gaussian log ratio. All supported
+point games check option-1 graph agreement. Ratio's particle message still includes its
+prior and accepts target inputs: three broken assertions record these failures (LP-016).
+No particle BP conformance is claimed.

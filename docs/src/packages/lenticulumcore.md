@@ -130,3 +130,9 @@ Pages = ["statistical_game.jl"]
 Modules = [LenticulumCore]
 Pages = ["LenticulumCore.jl"]
 ```
+
+`ComposedFactor` and `TensorFactor` are currently parameter/energy-space containers.
+They have no channels, assembled inversion or evaluable game laws, so the shared factor
+checker does not apply. Core tests explicitly check this scope. The helpers
+`compose_energy`, `compose_entropy` and `compose_free_energy` operate on supplied values;
+they do not turn those containers into wired statistical games (LP-008/009).

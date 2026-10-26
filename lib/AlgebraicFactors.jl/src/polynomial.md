@@ -195,11 +195,11 @@ Hessian inverse has c variance 0.0246 (absolute tolerance 2e−12). This checks
 that graph and objective, not arbitrary nonlinear BP or the exact non-Gaussian
 product marginal (which would include Va Vb).
 
-The common `test/factor_conformance.jl` checker unconditionally requires game
-free_energy/entropy and graph-local free energy, so it is **not applicable**.
-The lens/site/posterior subset is checked on all degree-one polarities with the
-independent constraint oracle. No shared checker, LenticulumCore, Mycelium or
-Lenticulum code changes are needed.
+The full common `test/factor_conformance.jl` checker is **not applicable**: this factor
+has neither graph-local nor game free energy, and its branch-dependent metric does not
+define a normalised joint model. The checker's 2026-10-26 section opt-outs still require
+finite graph-local energy; no placeholder is introduced here. The existing lens/site/posterior
+subset remains checked on all degree-one polarities with the independent constraint oracle.
 
 ## Still absent
 

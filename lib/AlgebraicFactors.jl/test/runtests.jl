@@ -876,10 +876,9 @@ end
                               (a=DiracBelief(z),b=DiracBelief(w)),nothing,ps,st)).value == d.value
     @test first(energy(f,nothing,nothing,nothing,ps,st)) == 0
     @test first(local_free_energy(f,NamedTuple(),ps,st)) == 0
-    # The common conformance checker requires game-level free_energy/entropy. Like
-    # GeneratorFactor these are absent (LP-009); do not claim full conformance.
-    @test !applicable(free_energy,f,TrivialBelief(),NamedTuple(),ps,st)
-    @test !applicable(LenticulumCore.entropy,f,TrivialBelief(),NamedTuple(),ps,st)
+    # Forward point game: no inverse fibre law or distributional entropy is claimed.
+    @test first(free_energy(f,TrivialBelief(),(z=DiracBelief(z),w=DiracBelief(w)),ps,st)) == 0
+    @test first(LenticulumCore.entropy(f,TrivialBelief(),(z=DiracBelief(z),w=DiracBelief(w)),ps,st)) == 0
 
     zs, ws = [z,2z,-z], hcat(w,-w,3w)
     weights = [1.,2,3]
@@ -1012,3 +1011,24 @@ end
 include("polynomial.jl")
 
 include("homotopy.jl")
+
+@testset "Plucker point-game direct-message conformance" begin
+    nt = (;)
+    for (r, names) in ((2,(:z,:w,:p)), (4,(:a,:b,:c)))
+        f = PluckerFactor(r; names)
+        # e1 ∧ e2 has first coordinate 1 and all remaining coordinates zero.
+        z = Float64[i==1 for i in 1:r]; w = Float64[i==2 for i in 1:r]
+        out = zeros(binomial(r,2)); out[1] = 1
+        inputs = NamedTuple{names[1:2]}((DiracBelief(z),DiracBelief(w)))
+        check_factor_conformance(f, only(supported_polarities(f)); π=TrivialBelief(),
+            inputs, ps=nt, st=nt, pointwise=(nothing,nothing,nothing),
+            game_prior=DiracBelief(out), game_y=inputs,
+            msgs=merge(inputs,NamedTuple{(names[3],)}((DiracBelief(out),))),
+            direct_message=true, expected_site=DiracBelief(out), expected_posterior=DiracBelief(out))
+        @test first(free_energy(f, TrivialBelief(), inputs, nt, nt)) == 0
+        @test first(LenticulumCore.entropy(f, TrivialBelief(), inputs, nt, nt)) == 0
+        clouds = NamedTuple{names[1:2]}((SampleBelief([z]),SampleBelief([w])))
+        @test_throws ArgumentError free_energy(f, TrivialBelief(), clouds, nt, nt)
+        @test_throws ArgumentError LenticulumCore.entropy(f, TrivialBelief(), clouds, nt, nt)
+    end
+end

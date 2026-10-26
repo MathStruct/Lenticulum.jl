@@ -407,3 +407,29 @@ function factor_message(f::OptimiserFactor, ::Symbol, _, _, _, ps, st)
     return (LenticulumCore.DiracBelief(rule_get(f.rule, st.state, st.p)), st)
 end
 local_free_energy(::OptimiserFactor, _, ps, st) = (0.0, st)
+
+# Game quantities for structural sources and the terminal loss. A sink has no inferred
+# variables: game_y supplies all its channels as point observations.
+LenticulumCore.energy(::DataFactor, x, a, y, ps, st) = (0.0, st)
+LenticulumCore.energy(f::PriorFactor, x, a, y, ps, st) = (f.nlogp(x), st)
+LenticulumCore.energy(::RelayFactor, x, a, y, ps, st) = (0.0, st)
+for T in (DataFactor, RelayFactor)
+    @eval begin
+        LenticulumCore.free_energy(::$T, π, y, ps, st) = (0.0, st)
+        LenticulumCore.entropy(::$T, π, y, ps, st) = (0.0, st)
+    end
+end
+function LenticulumCore.free_energy(f::LossFactor, π, y::NamedTuple, ps, st)
+    observations = map(y) do v
+        v isa LenticulumCore.AbstractBelief ? v : LenticulumCore.DiracBelief(v)
+    end
+    return local_free_energy(f, observations, ps, st)
+end
+function LenticulumCore.entropy(f::LossFactor, π, y::NamedTuple, ps, st)
+    F, st = LenticulumCore.free_energy(f, π, y, ps, st)
+    return (zero(F), st)
+end
+for op in (:free_energy, :entropy)
+    @eval LenticulumCore.$op(::OptimiserFactor, π, y, ps, st) = throw(ArgumentError(
+        "OptimiserFactor is a stateful update rule, not a statistical game; game-level quantities are undefined"))
+end

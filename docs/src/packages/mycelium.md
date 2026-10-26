@@ -160,3 +160,14 @@ Pages = ["factors.jl"]
 Modules = [Mycelium]
 Pages = ["Mycelium.jl"]
 ```
+
+## Game quantities and conformance
+
+Data and Relay have zero game free energy and entropy. Prior supports exact Dirac and
+categorical games; arbitrary Gaussian `nlogp` expectations still throw. Loss is a terminal
+game: pass every channel as a point or Dirac in the named observation `y`; its entropy is
+zero with the loss's shape. Optimiser is an update rule and both game methods throw
+`ArgumentError`. Structural factors use the shared checker in `test/conformance.jl`:
+direct messages for emitting factors (both Relay directions), explicit pointwise/game
+opt-outs for Optimiser and sink/message/pointwise opt-outs for Loss. Their supported game
+methods are compared to `local_free_energy` using option 1.

@@ -109,6 +109,7 @@ function LenticulumCore.supports_polarity(
     keys(p) == names || return false
     u = LenticulumCore.unobserved_channels(p)
     length(u) == 1 || return false
+    length(LenticulumCore.observed_channels(p)) == 1 || return false
     only(u) === statechannel(f) && return true
     # the reverse solve is only well posed on a square residual
     return only(u) === inchannel(f) && indim(f) == statedim(f)

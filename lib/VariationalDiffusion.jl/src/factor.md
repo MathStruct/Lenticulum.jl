@@ -136,3 +136,26 @@ the zeros as data.
 
 Related: [[schedule]], [[predictor]], [[reddiff]], [[The Diffusion Factor]],
 [[Channels and Polarity]], [[Implicit Learners]], [[Bethe Free Energy]]
+
+## LP-008/009 scope (2026-10-26)
+
+No Definition 20 game methods are added. Option 1 cannot supply an honest entropy from
+the current `(clamp, score)` graph objective: `score` is a denoising surrogate, not the
+entropy of the inferred belief. The graph method also reconstructs a polarity from missing
+channels and runs with a trivial prior, losing an explicitly requested game's precision
+and prior split. Fixed quadrature makes a value reproducible; it does not repair either
+semantic gap. REDDiff additionally resamples the objective on every call.
+
+`test/conformance.jl` includes the shared default lens checker with an explicit `game_gap`.
+It covers both enumerated binary polarities using a Gaussian message and the unary point
+polarity. For an isotropic unit Gaussian, one zero-noise node at time `t` gives the exact
+linear field `g(z) = λ σ(t)^2 z`; site/posterior precision and mean are computed from that
+closed form. Separate assertions check clamp and score coordinates against elementary
+formulas. No new quadrature approximation is introduced. The full set accepted by
+`supports_polarity` also includes latent/multiple-target splits, while enumeration lists
+only one-target/all-other-observed splits; the two latent/single-target binary assignments are also checked with explicit
+`polarity_gap` reasons. All five accepted binary O/U/L assignments are exercised; the
+multiple-target case has a `message_gap` because inversion returns only the first block.
+Three broken enumeration assertions and one broken joint-dimension assertion track
+[[LP-017 DiffusionFactor omits supported polarities]]. This does not certify joint latent
+posteriors, arbitrary priors or stochastic REDDiff/learned ProxDM paths.

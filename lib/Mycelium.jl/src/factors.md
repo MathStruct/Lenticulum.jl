@@ -122,3 +122,25 @@ structural factor ([[AutoBayes Examples as Factor Graphs|Example 1]]'s mixing pr
 new type for it seemed worse. Worth revisiting.
 
 Related: [[Everything is a Factor]], [Learning Components as Parametric Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Gradient-Based-Learning-with-Parametric-Lenses), [[passing]], [[Factors are Parameterized Statistical Games]]
+
+## Game quantities and conformance (2026-10-26)
+
+`DataFactor` is a clamped source: its game energy and entropy are zero, matching its
+constant graph contribution. `RelayFactor` is the identity game with the same zero pair.
+Their pointwise energies now expose that convention. `PriorFactor.energy` evaluates
+`nlogp(x)`; its existing exact Dirac/categorical game methods are unchanged.
+
+`LossFactor` is a terminal game with no inferred variables. Pass all observations in a
+`NamedTuple` as `y`, either points or Dirac beliefs. `free_energy` evaluates the loss and
+`entropy` returns zero with the same shape (scalar or vector). There is no assembled lens,
+polarity or canonical pointwise `x/a/y` split. Nonpoint beliefs are refused by `point`.
+`OptimiserFactor` is a stateful update rule rather than an inference game: both game methods
+throw `ArgumentError`. Its graph contribution remains zero and it has no pointwise energy.
+
+`test/conformance.jl` includes the single repository checker by relative path; no production
+dependency or duplicate checker is needed. Data, Prior and Optimiser use its direct-message
+path at their unary polarity, Relay at both polarities. Optimiser explicitly opts out of
+pointwise and game checks. Loss uses `p = nothing` (sink) with pointwise/message opt-outs;
+its scalar and vector terminal games still check game/graph agreement. Fixtures use fixed
+clamps, independently normalised categorical probabilities and elementary losses. This
+checks the declared accounting conventions, not distributional entropy of a data source.

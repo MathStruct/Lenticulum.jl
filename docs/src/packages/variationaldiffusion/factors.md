@@ -45,3 +45,19 @@ Pages = ["src/factor.jl"]
 Modules = [VariationalDiffusion]
 Pages = ["implicit_factor.jl"]
 ```
+
+## Conformance and game-level limits
+
+`test/conformance.jl` runs the shared default lens checker on both enumerated binary
+polarities (Gaussian messages) and the unary point polarity. Fixed zero-noise quadrature
+and a unit Gaussian predictor give independent linear-field and energy fixtures. Game
+checks have an explicit opt-out: the graph's score coordinate is a denoising surrogate,
+not posterior entropy, and its inferred polarity/trivial prior cannot preserve an explicit
+game's split and precisions. No game free energy or entropy is supplied (LP-009).
+These checks do not certify arbitrary priors, joint latent/multiple-target splits,
+stochastic REDDiff or learned ProxDM inversions.
+
+The remaining accepted binary role assignments are also exercised: both latent/single-target
+splits check the lens with an explicit enumeration gap, and the multiple-target split
+checks only traits/energy with an explicit message gap. Four broken assertions track
+missing enumeration and the absent joint posterior (LP-017).

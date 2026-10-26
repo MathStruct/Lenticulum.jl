@@ -159,7 +159,8 @@ abstract type AbstractGradientCoupling end
 
 The default annotation for the planned block-diagonal semantics of Definition 29
 (stop-gradient through the sampling path and pushforward prior).
-Currently accepted for compatibility; it does not itself insert stop-gradients into AD.
+Cheapest, biased. Currently accepted for compatibility; it does not itself insert
+stop-gradients into AD.
 """
 struct DiagonalCoupling <: AbstractGradientCoupling end
 
@@ -167,7 +168,7 @@ struct DiagonalCoupling <: AbstractGradientCoupling end
     PathwiseCoupling()
 
 Planned differentiation through the sampler (the reparametrisation trick), requiring a
-reparametrisable inversion. Not implemented: `ComposedFactor` and Mycelium's `connect!` /
+reparametrisable inversion; unbiased, low variance. Not implemented: `ComposedFactor` and Mycelium's `connect!` /
 `Edge` throw `ArgumentError` for this annotation (LP-011, L-SPEC-002).
 """
 struct PathwiseCoupling <: AbstractGradientCoupling end
@@ -175,8 +176,8 @@ struct PathwiseCoupling <: AbstractGradientCoupling end
 """
     ScoreFunctionCoupling(baseline=nothing)
 
-Planned REINFORCE correction `E[F ∇ log q]`, optionally with a control variate, including
-for discrete inversions. Not implemented: `ComposedFactor` and Mycelium's `connect!` /
+Planned REINFORCE correction `E[F ∇ log q]`, optionally with a control variate; unbiased,
+high variance, and works for discrete inversions. Not implemented: `ComposedFactor` and Mycelium's `connect!` /
 `Edge` throw `ArgumentError` for this annotation, with any baseline (LP-011, L-SPEC-002).
 """
 struct ScoreFunctionCoupling{B} <: AbstractGradientCoupling
@@ -187,7 +188,8 @@ ScoreFunctionCoupling() = ScoreFunctionCoupling(nothing)
 """
     ExactCoupling()
 
-Planned conjugate/analytic semantics, keeping the full Jacobian without dropping terms.
+Planned conjugate/analytic semantics, keeping the full Jacobian without dropping terms;
+composition of gradients would then be strictly functorial across this edge.
 Not implemented: `ComposedFactor` and Mycelium's `connect!` / `Edge` throw `ArgumentError`
 for this annotation (LP-011, L-SPEC-002).
 """

@@ -308,3 +308,17 @@ end
     end
     @test_throws ArgumentError CategoricalBelief(Float64[])
 end
+
+@testset "Container conformance scope (LP-008/009)" begin
+    a, b = CouplingGuardFactor(:a), CouplingGuardFactor(:b)
+    for f in (ComposedFactor(a,b), TensorFactor((a=a,b=b)))
+        # These describe parameter/energy-space containers, not wired factors. No
+        # channels or assembled inversion exist, so the common checker cannot apply.
+        @test !applicable(LenticulumCore.channels, f)
+        @test !applicable(assemble, f, Polarity((x=Observed(),y=Unobserved())), (;), (;))
+        @test isempty(supported_polarities(f))
+        @test !applicable(energy, f, nothing, nothing, nothing, (;), (;))
+        @test !applicable(free_energy, f, TrivialBelief(), nothing, (;), (;))
+        @test !applicable(LenticulumCore.entropy, f, TrivialBelief(), nothing, (;), (;))
+    end
+end

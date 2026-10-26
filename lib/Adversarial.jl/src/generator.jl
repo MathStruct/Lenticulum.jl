@@ -273,3 +273,26 @@ function Mycelium.factor_message(
 end
 
 Mycelium.local_free_energy(::GeneratorFactor, _, ps, st) = (0.0, st)
+
+# Conditional point games only. Particle entropy cannot be recovered from these samples.
+function LenticulumCore.free_energy(::GeneratorFactor, π, y::LenticulumCore.DiracBelief, ps, st)
+    return (0.0, st)
+end
+LenticulumCore.entropy(f::GeneratorFactor, π, y::LenticulumCore.DiracBelief, ps, st) =
+    LenticulumCore.free_energy(f, π, y, ps, st)
+# A fixed draw is a point game; this neither samples nor claims the source density's entropy.
+function LenticulumCore.free_energy(f::NoiseSource, π::LenticulumCore.DiracBelief, y, ps, st)
+    f.nsamples == 1 || throw(ArgumentError(
+        "NoiseSource point-game quantities require nsamples = 1; a particle cloud has no supplied entropy"))
+    return (0.0, st)
+end
+LenticulumCore.entropy(f::NoiseSource, π::LenticulumCore.DiracBelief, y, ps, st) =
+    LenticulumCore.free_energy(f, π, y, ps, st)
+for op in (:free_energy, :entropy)
+    @eval begin
+        LenticulumCore.$op(::GeneratorFactor, π, y, ps, st) = throw(ArgumentError(
+            "GeneratorFactor game quantities require a fixed Dirac latent observation; particle entropy is unavailable"))
+        LenticulumCore.$op(::NoiseSource, π, y, ps, st) = throw(ArgumentError(
+            "NoiseSource game quantities require a fixed Dirac draw as prior; the sampler supplies no density"))
+    end
+end

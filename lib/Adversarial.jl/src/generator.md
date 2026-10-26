@@ -102,3 +102,21 @@ implemented.
 
 Related: [[ratio]], [[Adversarial]], [[Implicit Generative Models]],
 [[Three Senses of Implicit]], [[GANs as Two Factors]]
+
+## Conditional point games and conformance (2026-10-26)
+
+`GeneratorFactor.free_energy` and `entropy` return scalar zero when `y` is a Dirac
+latent observation. `NoiseSource` accepts a fixed Dirac draw as `π` and returns the same
+zero pair without drawing again. These match the existing constant-zero pointwise and
+local energies. They are conditional point accounting, not differential entropy estimates.
+Other arguments throw `ArgumentError`: a particle cloud has no supplied density/entropy.
+
+`test/conformance.jl` uses the shared default lens checker at each factor's sole polarity.
+The generator oracle is `x = 3z + 1`; the noise fixture injects a deterministic one-particle
+draw, so repeated calls need no RNG reset. Noise inversion still returns `SampleBelief`,
+not `DiracBelief`; the test does not relabel that API. Game/graph agreement uses the fixed
+Dirac draw. Random-cloud entropy and pooling two empirical clouds remain outside this check.
+
+The NoiseSource point game requires `nsamples=1`; a multi-particle source is rejected
+even when a Dirac draw argument is supplied. This prevents silently assigning zero entropy
+to a cloud. The unsupported-domain behavior is regression-tested.

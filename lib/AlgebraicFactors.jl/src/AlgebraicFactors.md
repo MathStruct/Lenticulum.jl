@@ -47,9 +47,10 @@ trace objective with a known eigenplane and drive the same iterates through
 inputs give exact moments and a Gaussian approximation to the output law.
 `plucker_moments` exposes singular covariances; messages reject those unless callers
 explicitly request covariance jitter, since the core belief type needs positive-definite
-covariance. This factor has no game-level quantities or assembled lens, so the full
-conformance checker does not apply (LP-009). Its tests check direct messages and a
-Mycelium DAG. The Klein test now uses the real nullspace-fitting API in both polynomial bases.
+covariance. Conditional Dirac-input game quantities are scalar zero; the common checker
+runs its direct-message path on that forward point game (2026-10-26). No assembled lens,
+inverse fibre belief or distributional entropy is supplied. Other tests check direct
+messages and a Mycelium DAG. The Klein test now uses the real nullspace-fitting API in both polynomial bases.
 
 
 The §2.3 `Sampson gauge obligation (§2.3)` test uses a **test-only** two-equation

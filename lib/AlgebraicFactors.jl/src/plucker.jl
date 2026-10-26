@@ -122,7 +122,8 @@ to every output coordinate before constructing the belief (then covariance is ap
 No jitter is ever added by default. Improper Gaussians and other belief pairs throw.
 
 Pointwise energy and graph-local free energy return zero, following `GeneratorFactor`.
-Game-level free energy/entropy and an assembled Bayesian lens are not supplied (LP-009).
+Game-level quantities are zero for fixed Dirac inputs; distributional entropy and an
+assembled Bayesian lens are not supplied.
 """
 struct PluckerFactor{N,J<:Real} <: LenticulumCore.AbstractLenticulumFactor
     r::Int
@@ -233,3 +234,12 @@ function Mycelium.factor_message(f::PluckerFactor, target::Symbol, polarity, inp
         throw(ArgumentError("PluckerFactor needs beliefs on both input channels $(f.names[1:2])"))
     return LenticulumCore.pushforward(f, (inputs[f.names[1]], inputs[f.names[2]]), ps, st)
 end
+
+# Conditional deterministic game, restricted to the point inputs whose entropy is zero.
+function LenticulumCore.free_energy(f::PluckerFactor, π, y::NamedTuple, ps, st)
+    all(n -> haskey(y,n) && y[n] isa LenticulumCore.DiracBelief, f.names[1:2]) ||
+        throw(ArgumentError("PluckerFactor game quantities require Dirac observations on both input channels"))
+    return (0.0, st)
+end
+LenticulumCore.entropy(f::PluckerFactor, π, y::NamedTuple, ps, st) =
+    LenticulumCore.free_energy(f, π, y, ps, st)

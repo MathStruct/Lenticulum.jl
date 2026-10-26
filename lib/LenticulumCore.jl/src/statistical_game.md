@@ -109,3 +109,14 @@ optimiser list and does not guarantee frozen input-cotangent semantics. No backw
 is added here, and the default coupling annotation does not insert AD stops.
 
 Related: [[Factors are Parameterized Statistical Games]], [Composition of Statistical Games](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#composition-energies-add-entropies-chain-definition-22), [Composition of Gradients](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients), [[energy]], [[LenticulumCore]]
+
+## Container conformance scope (2026-10-26)
+
+`ComposedFactor` and `TensorFactor` still provide parameter/state trees and energy spaces,
+not wired statistical games: neither implements `channels`, assembly, pointwise energy,
+game free energy or entropy. Their default polarity enumeration is empty. The common
+factor checker is therefore inapplicable; treating them as sinks would conceal missing
+wiring. `test/runtests.jl`, "Container conformance scope (LP-008/009)", checks these absences.
+Composition needs a pushforward prior and downstream inversion law; tensor needs a joint
+belief/input convention before its component laws can be evaluated. No arbitrary
+expectation or mean-field approximation is added here. Existing LP-011 guards are unchanged.

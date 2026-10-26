@@ -118,3 +118,17 @@ place it should have been used.
 
 Related: [[flow]], [[deq]], [[luxfactor]], [[NeuralODE as an Invertible Factor]],
 [[The Equilibrium Family]], [[Inversions and Bayesian Lenses]]
+
+## LP-008/009 check (2026-10-26)
+
+`test/conformance.jl` runs the common default lens checker at both enumerated polarities,
+with closed forms for `dz/dt = 0`. Pointwise residual/scalarisation, inversion, graph
+messages and finite local energies are checked. Game checks have an explicit `game_gap`.
+
+No game methods were added: z0=1, z1=3 gives incoming energy 2; the solved endpoint gives zero. Thus evaluating energy at the inversion's
+Dirac point would contradict `local_free_energy` under option 1 with an incoming Dirac
+prior and a Dirac observation. The test asserts this mismatch explicitly (`@test !isapprox`, not `@test_broken`) in each
+direction. Choosing an incoming-point diagnostic instead of a solved-point statistical
+game, or changing graph semantics, needs a decision in
+[[LP-009 Game-level free energy is declared but not implemented]]. The zero point-belief
+entropy convention alone does not resolve that energy mismatch.

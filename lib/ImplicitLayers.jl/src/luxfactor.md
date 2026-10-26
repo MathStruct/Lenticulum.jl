@@ -77,3 +77,15 @@ solution objects) is the one that actually comes up.
 
 Related: [[deq]], [[neuralode]], [[DEQ as a Relation]], [[Lux as a Parametric Lens]],
 [[The Equilibrium Family]]
+
+## Game quantities and common checker (2026-10-26)
+
+The conditional point game has `free_energy = 0` and `entropy = 0` in
+`ScalarEnergySpace`, exactly like `energy` and `local_free_energy`: the wrapper delegates
+loss accounting to other factors. `test/conformance.jl` runs the shared default lens path
+at its sole polarity using the independent map `y = 2x`, and checks option-1 game/graph
+agreement. The scalar-parameter test layer supplies its own LuxCore parameter count;
+LuxCore's default parameter counting expects array parameters.
+
+The game observation `y` must be a Dirac input belief; other observations throw
+`ArgumentError`. No distributional inversion entropy is inferred from the layer API.

@@ -110,12 +110,17 @@ representation with affine support would be a separate change.
 Parameters and state are empty NamedTuples; the factor is not learnable. Like
 `GeneratorFactor`, scalar pointwise energy and graph-local free energy return zero.
 These are forward-map accounting conventions, not a density or an energy penalising
-inconsistent triples. Game-level `free_energy`/`entropy` and an assembled lens are
-not implemented; [[LP-009 Game-level free energy is declared but not implemented]]
-remains open. The common conformance checker requires those game quantities even
-on its direct-message path, so it does not apply in full. Tests check the available
-interface, prior exclusion and actual Mycelium messages without claiming full conformance.
-No game-level gap has been closed, so LP-009's list is unchanged.
+inconsistent triples. Since 2026-10-26, the conditional point game supplies scalar zero
+`free_energy` and `entropy` for named Dirac observations on both inputs. This trivially
+extends the existing convention without inventing an inverse fibre law or particle entropy.
+Nonpoint inputs throw `ArgumentError`. An assembled lens remains absent.
+
+"Plucker point-game direct-message conformance" in `test/runtests.jl` runs the common
+checker at the sole forward polarity, for arities r=2 and r=4 (including renamed channels).
+The independent fixture is e1 ∧ e2, with first coordinate one and all others zero. The
+checker tests outgoing messages, prior/target exclusion, pointwise energy and option-1
+game/graph agreement. This certifies the point path only, not entropy for Gaussian or
+particle outputs.
 
 ## Checks and limits
 

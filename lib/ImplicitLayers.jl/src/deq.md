@@ -120,3 +120,23 @@ family cannot avoid needing derivatives the way the diffusion family did.
 
 Related: [[solve]], [[luxfactor]], [[neuralode]], [[DEQ as a Relation]],
 [[The Equilibrium Family]], [[Scalar and Multivariate Energy]], [[Implicit Learners]]
+
+## LP-008/009 check (2026-10-26)
+
+`test/conformance.jl` runs the common default lens checker at both enumerated polarities,
+with closed forms for `z = z/2 + x`. Pointwise residual/scalarisation, inversion, graph
+messages and finite local energies are checked. Game checks have an explicit `game_gap`.
+
+No game methods were added: x=1, z=3 gives incoming energy 1/8; the solution z=2 gives zero. Thus evaluating energy at the inversion's
+Dirac point would contradict `local_free_energy` under option 1 with an incoming Dirac
+prior and a Dirac observation. The test asserts this mismatch explicitly (`@test !isapprox`, not `@test_broken`) in each
+direction. Choosing an incoming-point diagnostic instead of a solved-point statistical
+game, or changing graph semantics, needs a decision in
+[[LP-009 Game-level free energy is declared but not implemented]]. The zero point-belief
+entropy convention alone does not resolve that energy mismatch.
+
+The polarity audit also found and fixed a small trait defect: `supports_polarity` accepted
+`(Unobserved, Latent)` and `(Latent, Unobserved)` even though solving needs a point on the
+companion channel and the enumeration advertises only observed/unobserved splits. It now
+requires one observed channel. Both rejected assignments are regression-tested in
+`test/conformance.jl`; no solver or graph-energy semantics changed.
