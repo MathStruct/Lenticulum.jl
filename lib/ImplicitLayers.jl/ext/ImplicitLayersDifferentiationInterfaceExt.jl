@@ -22,13 +22,13 @@ end
 function IL._solve_state(ad::DI.ADTypes.AbstractADType, f, x, ps, st, z0)
     ad isa Union{DI.ADTypes.AutoForwardDiff,DI.ADTypes.AutoZygote,
                     DI.ADTypes.AutoEnzyme,DI.ADTypes.AutoMooncake} || throw(ArgumentError(
-        "solve_state IFT rules currently support AutoForwardDiff, AutoZygote, AutoEnzyme and AutoMooncake. " *
+        "DEQ solve IFT rules currently support AutoForwardDiff, AutoZygote, AutoEnzyme and AutoMooncake. " *
         "Other DI backends can still differentiate pointwise DEQ energies; " *
         "an unsupported solve backend is rejected to prevent differentiating root iterations."))
     ext = ad isa DI.ADTypes.AutoEnzyme ? :ImplicitLayersEnzymeCoreExt :
           ad isa DI.ADTypes.AutoMooncake ? :ImplicitLayersMooncakeExt : nothing
     if ext !== nothing && Base.get_extension(IL, ext) === nothing
-        throw(ArgumentError("solve_state with Enzyme/Mooncake requires loading " *
+        throw(ArgumentError("DEQ solves with Enzyme/Mooncake requires loading " *
             "DifferentiationInterface, the backend package and ForwardDiff for its IFT rule."))
     end
     u = IL._joint_vector(x, LC._flatten_active(ps))

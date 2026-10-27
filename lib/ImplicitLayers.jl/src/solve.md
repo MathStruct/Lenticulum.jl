@@ -4,13 +4,13 @@
 > residual* solved for a different variable. That is the entire reason a DEQ is worth
 > expressing as a factor.
 
-> Sources: Montoison and Orban (2023), *Krylov.jl*, p. 1 (operator products); Saad and Schultz (1986), GMRES;  code: `solve.jl`, `deq.jl`, `../ext/ImplicitLayersEnzymeCoreExt.jl`, `../ext/ImplicitLayersMooncakeExt.jl`, `../test/parameter_ad.jl`
+> Sources: Montoison and Orban (2023), *Krylov.jl*, p. 1 (operator products); Saad and Schultz (1986), GMRES;  code: `solve.jl`, `deq.jl`, `../ext/ImplicitLayersEnzymeCoreExt.jl`, `../ext/ImplicitLayersMooncakeExt.jl`, `../test/parameter_ad.jl`, `../test/solver_numerics.jl`
 >
 > Bibliography: [[Bibliography#^montoison2023krylov|Montoison & Orban 2023]] · [[Bibliography#^saad1986gmres|Saad & Schultz 1986]]
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
-## 1. Two solvers, and the difference is the caveat
+## 1. Root solvers and the convergence caveat
 
 $$
 \text{Picard: } u \leftarrow u - \beta F(u)
@@ -19,8 +19,7 @@ $$
 $$
 
 For the DEQ residual $F(z) = z - g(z,x)$, Picard *is* "keep applying the layer":
-$z \leftarrow (1-\beta)z + \beta g(z,x)$. It converges **iff the iteration is a
-contraction**, which is [[Implicit Learners]]'s recorded caveat —
+$z \leftarrow (1-\beta)z + \beta g(z,x)$. A contraction is **sufficient for convergence**, which is [[Implicit Learners]]'s recorded caveat —
 *"this only works if the iteration converges, and unconstrained DEQs need not"* — and the
 test suite makes it concrete: a linear cell with $\rho(W) = 1.6$ has a perfectly good unique
 fixed point that Picard cannot reach and Broyden reaches in a handful of steps.
@@ -30,10 +29,10 @@ Broyden is initialised with $H_0 = I$, which makes its first step
 $$u_1 = u_0 - I\cdot F(u_0) = u_0 - (u_0 - g(u_0)) = g(u_0)$$
 
 **exactly a Picard step**, with everything after it the correction Picard never makes.
-Asserted in the tests, and worth knowing because it means Broyden is never worse than Picard
-on the first iteration.
+Asserted in the tests when `init_scale=1`; other scales give damped Picard.
+This equality says nothing about later convergence.
 
-Both root algorithms are derivative-free, so inference has no hard AD dependency.
+All three root algorithms are derivative-free, so inference has no hard AD dependency.
 Optional AD of a solved state is a separate IFT calculation. These are also what
 `DeepEquilibriumNetworks.jl` does — Broyden and limited-memory Broyden are its workhorses.
 
@@ -96,8 +95,9 @@ means the IFT gives no local inverse; it does **not** prove nonuniqueness (for e
 $r(z)=z^3$ has a unique root and zero derivative there). The default `DenseIFT()` solve is dense: a reverse
 backend VJP in the ChainRules rule can avoid parameter-Jacobian storage, but the
 Enzyme/Mooncake rules use a dense ForwardDiff VJP. The state Jacobian and its
-factorisation cost quadratic storage and cubic factorisation work. An opt-in `KrylovIFT()` path is described below. These are first-order rules; higher derivatives
-through the primitive, the reverse `solve_input`, GPU and additional backends are untested.
+factorisation cost quadratic storage and cubic factorisation work. An opt-in `KrylovIFT()` path is described below. These primitive rules are first order. `solve_input(...; ad)` now reuses them in
+the other polarity. A dedicated dense second-order adjoint is described below;
+GPU and additional backends are untested.
 
 The EnzymeCore extension provides native `EnzymeRules.forward`, `augmented_primal`
 and `reverse` rules on `_implicit_state`. DI's default `AutoEnzyme()` Jacobian uses
@@ -125,12 +125,30 @@ and central differences, including active warm starts, a zero warm-start-only
 Jacobian and a nonzero downstream scalar loss. Nonlinear scalar parameters,
 nonempty Lux state, endpoint gradients and graph parameter steps have separate checks.
 
-### 4.2 Broyden stores a dense inverse Jacobian
+### 4.2 Dense and limited-memory Broyden
 
-$O(n^2)$ memory, which is fine at test scale and hopeless for a real DEQ. That is exactly
-why `DeepEquilibriumNetworks.jl` ships *limited-memory* Broyden: keep the last $m$ secant
-pairs instead of the matrix. Not implemented; it is a self-contained addition and the obvious
-next one.
+The default `BroydenSolver` still stores an $O(n^2)$ inverse. Opt-in
+`LimitedBroydenSolver(memory=m)` stores transformed secant pairs $(a_i,b_i)$:
+
+$$
+H_k=\alpha I+\sum_i a_i b_i^\top,\qquad
+ a_k=\frac{s_k-H_k y_k}{s_k^\top H_k y_k},\qquad b_k=H_k^\top s_k.
+$$
+
+Here $s_k=u_{k+1}-u_k$, $y_k=F(u_{k+1})-F(u_k)$ and $\alpha$ is `init_scale`.
+This is the same good inverse Broyden update as the dense solver. Products with
+$H_k$ and $H_k^\top$ cost $O(mn)$; no dense inverse is allocated. The absolute
+`1e-14` denominator guard matches the default solver. At capacity the oldest
+rank-one correction is removed, without recomputing the retained corrections.
+These are transformed secant pairs, not a multisecant interpolation of the last
+raw $(s,y)$ pairs: eviction need not preserve the latest secant equation and can
+slow convergence. There is no line search or global convergence guarantee.
+
+Without eviction, iterates agree with dense Broyden up to roundoff; arithmetic
+order differs, so bitwise equality is not claimed. The first step is
+$u_1=u_0-\alpha F(u_0)$, exactly damped Picard (ordinary Picard for $\alpha=1$).
+`SolveReport` and nonconvergence behavior match the existing solvers. Tests cover
+full iteration traces, finite memory, degenerate updates and nonfinite residuals.
 
 Anderson acceleration is likewise absent, and is the other solver DEQ implementations
 commonly use.
@@ -148,8 +166,10 @@ A fixed-point solve must evaluate one fixed residual, including its incoming Lux
 `solve_state` now holds that state fixed through the root iterations and advances it once
 at the final root. This also defines the equation used by the IFT. State is not an
 additional implicit variable. A cell that mutates arrays in its incoming state in place
-violates this functional contract. The reverse `solve_input` still has the legacy `Ref`
-threading and has no AD rule.
+violates this functional contract. `solve_input(...; ad)` uses this same contract;
+without `ad`, it retains legacy `Ref` state threading to preserve the existing API.
+For stateful cells these are deliberately different equations, so the legacy
+trajectory is not a derivative oracle for the AD solve.
 
 Related: [[deq]], [[flow]], [[neuralode]], [[The Equilibrium Family]],
 [[Backpropagation by the Implicit Function Theorem]], [[Branches and the Discriminant]]
@@ -229,7 +249,7 @@ GMRES needs only a typed `size`/`eltype`/`mul!` operator, so no operator package
 matrix materialisation is needed. The operator has no indexing or conversion to a
 matrix. Prepared DI products are reused across GMRES iterations. Restarted GMRES
 stores `O(memory)` basis vectors (plus its small Hessenberg workspace).
-There is no preconditioner interface yet. `itmax=0` means Krylov's default, twice
+Preconditioning is opt-in; see below. `itmax=0` means Krylov's default, twice
 the state dimension. Nonconvergence throws `ArgumentError`, including when the
 explicit final residual exceeds `atol + rtol*norm(rhs)` despite an optimistic
 recursive estimate. Zero right-hand sides still undergo the residual check.
@@ -241,5 +261,93 @@ against $(I-W)^{-\top}z^*$ and overrides `_root_jacobian` to throw if called.
 This guards the state-Jacobian entry point independently of AD chunk size.
 `deq_sensitivity` and `ift_sensitivity` remain dense reference APIs; selecting
 Krylov on the factor changes differentiable `solve_state`, not those APIs.
-Broyden's primal storage is still dense; select Picard for a matrix-free primal.
-GPU, complex parameters and higher-order IFT rules are untested.
+Select Picard or LimitedBroydenSolver for a primal without a dense inverse.
+GPU and complex parameters remain untested; second order has the dedicated scope below.
+
+
+## Solver numerics follow-up (2026-10-27)
+
+### Preconditioning and measurement
+
+`KrylovIFT(precond=...)` accepts a left operator or a factory returning
+`(; left=M, right=N)`; omitted sides are identity. A factory receives the current
+`operator`, `transposed`, `factor`, `solved` (channel name), `joint`, `root`, `template`, `offsets`, and
+incoming `state`. The joint vector is observed channel then parameters, in either
+polarity. Operators must implement Krylov's `mul!` protocol, or `ldiv!` when
+`ldiv=true`. With the default `ldiv=false`, supply approximate inverses: GMRES
+operates on $MAN$ and recovers the unknown through $N$. Factories are responsible
+for orientation, including transposing their preconditioners for reverse solves.
+Preconditioner construction is bookkeeping, without parameter derivatives.
+
+`JacobiIFT()` supplies an inverse diagonal on the left. It probes the current
+operator with each coordinate basis vector: $n$ JVPs in forward mode or $n$ VJPs
+in reverse mode, $O(n)$ storage, no matrix. This setup can be expensive and is
+not a stochastic diagonal estimator. Nonfinite or small diagonal entries throw;
+`ldiv=true` with this inverse preconditioner also throws. No forward Broyden
+history is reused: doing so would require retaining solver workspace in the
+primitive and defining its orientation for both polarities.
+
+`on_solve = report -> ...` receives iterations, actual residual and solved status
+for each RHS. Convergence still requires the original unpreconditioned residual
+bound, not just Krylov's recursive estimate. A preconditioner can change the
+recursive stopping scale; the explicit final check can therefore reject an
+apparently converged preconditioned solve. There is no automatic refinement.
+The defaults remain `DenseIFT()` and `BroydenSolver()`.
+
+### Reverse-input first-order IFT
+
+LP-002's history and [[deq]] describe “different variable held fixed.” We interpret
+“reverse-input solve rules” as differentiating `solve_input` with observed $z$,
+not as the input cotangent of `solve_state` (which was already tested).
+For $r(x,z,\theta)=0$ with square nonsingular $r_x$:
+
+$$
+\delta x=-r_x^{-1}(r_z\delta z+r_\theta\delta\theta),\qquad
+r_x^\top\lambda=\bar x,\qquad
+(\bar z,\bar\theta)=-(r_z,r_\theta)^\top\lambda.
+$$
+
+An internal problem adapter swaps the residual coordinate solved by the existing
+primitive. Thus ForwardDiff, ChainRules/Zygote, native Enzyme forward/reverse and
+Mooncake use the same rules, dense or Krylov. No duplicated AD rules trace the
+root iterations. The initial guess has zero derivative, including an active
+warm start. Nonconverged roots and singular residual Jacobians fail as in
+`solve_state`. Square shape alone does not ensure local invertibility.
+
+### Dedicated second-order adjoint
+
+`deq_hvp(loss, f, x, ps, st, direction; wrt=:ps, ad=AutoForwardDiff())`
+returns a flat Hessian-vector product for `loss(zstar)`. `:x` selects the input
+block; `:joint` selects input followed by flattened parameters and includes mixed
+blocks. The loss has no direct input/parameter dependence. `DenseIFT()` and CPU
+real floating-point arrays are required. Other backend selections are rejected
+with `ArgumentError`. This is an explicit second-order API, not an arbitrary
+nested derivative rule for the solve primitive.
+
+Write $u=(x,\theta)$, $J=r_z$, $B=r_u$, $Jt=-Bv$ and
+$J^\top\lambda=L_z$. At fixed $\lambda$ compute
+
+$$
+c=\nabla^2_{(z,u)}(\lambda^\top r)\begin{pmatrix}t\\v\end{pmatrix},\qquad
+J^\top\dot\lambda=L_{zz}t-c_z,\qquad
+\nabla_u^2 L(z^*(u))v=-B^\top\dot\lambda-c_u.
+$$
+
+ForwardDiff builds the residual Jacobian, the scalar contracted residual Hessian
+and the loss Hessian, evaluated at one converged root. Only residuals and loss
+are differentiated twice; the root finder is never traced. This reference uses
+quadratic storage in state plus input plus parameter dimension and dense solves;
+it is unsuitable for large parameter trees. State and warm start are fixed and
+carry no tangent. The HVP API itself has no higher-order rule.
+
+ForwardDiff nesting of the solve primitive and ForwardDiff over the other three
+solve backends are rejected. The ChainRules pullback also has an explicit nested
+reverse guard. Use the dedicated adjoint instead of composing backend tapes;
+other native mixed/nested Enzyme/Mooncake tapes are outside the supported API.
+
+`test/solver_numerics.jl` records iteration counts and checks linear full-trace
+Broyden agreement, reverse-input closed forms and nonlinear branches, fixed state,
+left/right and inverse/solve preconditioner conventions, and HVPs against an
+analytic linear solution, scalar second derivatives and central differences of
+first-order IFT gradients. Measurements and full verification are recorded in
+[[LP-002 The Jacobian side is not implemented]].

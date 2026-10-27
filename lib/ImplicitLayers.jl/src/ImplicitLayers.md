@@ -26,8 +26,8 @@ one polarity and as a `DEQFactor` has two, with identical parameters.
 
 | file | note |
 |---|---|
-| `solve.jl` | [[solve]] — Picard, Broyden, `SolveReport`, FD Jacobians, the IFT |
-| `deq.jl` | [[deq]] — the fixed-point relation |
+| `solve.jl` | [[solve]] — Picard, dense/limited Broyden, `SolveReport`, preconditioned IFT |
+| `deq.jl` | [[deq]] — both solve polarities, first-order AD and dense HVP |
 | `flow.jl` | [[flow]] — fixed-step RK forwards **and backwards**, CNF divergence |
 | `neuralode.jl` | [[neuralode]] — the flow relation |
 | `luxfactor.jl` | [[luxfactor]] — any Lux layer, one polarity |
@@ -45,9 +45,13 @@ both bring `OrdinaryDiffEqCore` and `SciMLBase` without the umbrella's unrelated
 See [[flow]] for loading, reversibility conditions, CNF augmentation and tests.
 
 Optional AD now uses DifferentiationInterface with a user-supplied ADTypes backend.
-DEQ solved-state derivatives use IFT rules in ChainRulesCore/ForwardDiff weak extensions;
-Euler/RK4 differentiate the discrete endpoint map. ForwardDiff and Zygote are tested.
-There is no SciMLSensitivity gradient implementation yet. The base
+Both DEQ solve polarities have first-order IFT rules for ForwardDiff, Zygote,
+Enzyme and Mooncake, using dense LU by default or opt-in preconditioned Krylov.
+`LimitedBroydenSolver` bounds primal storage. `deq_hvp` provides a dedicated dense
+second-order adjoint using ForwardDiff residual and loss derivatives.
+Euler/RK4 endpoint AD also supports runtime-activity Enzyme; SciMLSensitivity
+supports the tested Tsit5 endpoint algorithms with ForwardDiff/Zygote/Mooncake
+and recursively empty Lux state; see [[neuralode]]. The base
 package still uses finite differences for derivative information:
 
 > RED-Diff's stop-gradient means the diffusion family needs **no derivative of the network at
@@ -56,8 +60,8 @@ package still uses finite differences for derivative information:
 > Avoiding AD here costs scalability: `fd_jacobian` is $O(n)$ forward passes and is honestly
 > labelled a test-scale tool.
 
-The built-in derivative tools are suitable for small systems; the optional integrators add
-solver choices without establishing sensitivity-analysis or device support for this wrapper.
+The base derivative tools are suitable for small systems. Optional endpoint sensitivities
+have the tested scope above; no general device support is established for this wrapper.
 
 ## What it exposed
 

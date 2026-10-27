@@ -38,25 +38,24 @@ The reverse solve needs ``\dim x = \dim z``; otherwise the residual is not squar
 
 Load `DifferentiationInterface`, `ADTypes` and your backend package. For a DEQ solve,
 pass `ad=AutoForwardDiff()`, `AutoZygote()`, `AutoEnzyme()` or `AutoMooncake()` to
-`solve_state`. Load ForwardDiff as well for the EnzymeCore/Mooncake extensions.
+`solve_state` or `solve_input`. Load ForwardDiff as well for the EnzymeCore/Mooncake extensions.
 The weak extensions implement the IFT, without differentiating root-finder
 iterations. Both input and parameter derivatives are tested against the linear-cell
 closed form and finite differences. Root convergence is required; singular residual
-Jacobians throw. Only first-order solved-state derivatives are covered; the reverse
-`solve_input` has no AD rule. Lux state is fixed throughout the state root solve and
+Jacobians throw. Both solve polarities have first-order rules. Lux state is fixed throughout an AD root solve and
 advances once at the final root. Solve reports, initial guesses and state have no tangent.
 
 `deq_sensitivity(...; wrt=:ps, ad)` gives the dense parameter sensitivity directly.
 `DEQFactor(...; ift=DenseIFT())` defaults to dense LU. To use matrix-free IFT
 rules, load Krylov and select `ift=KrylovIFT(rtol=1e-10, atol=1e-12, itmax=400,
-memory=20)`. Restarted GMRES uses only residual JVPs (forward) or VJPs (reverse).
+memory=20, precond=JacobiIFT())`. Restarted GMRES uses only residual JVPs (forward) or VJPs (reverse).
 It throws on nonconvergence and checks the final residual explicitly. Krylov.jl
 provides the operator-product interface directly, without another operator package.
 All four backends are checked against the linear exact solution, including a
 200-dimensional contractive example that forbids the dense state-Jacobian API.
 `deq_sensitivity` stays dense. The native Enzyme/Mooncake rules keep their existing
 inner ForwardDiff path in dense mode; in Krylov reverse mode each uses its own
-reverse backend. GPU and higher-order IFT rules remain untested. Enzyme outer
+reverse backend. GPU remains untested. Dedicated dense second-order products are described below. Enzyme outer
 closures capturing arrays need DI constant contexts or
 `AutoEnzyme(function_annotation=Enzyme.Const)`; see `solve.md` for a reproducer.
 
@@ -74,6 +73,40 @@ LuxFactor paths. The ODE activity check does not require ForwardDiff; DEQ IFT do
 check nonempty Lux state and fit a known ODE parameter using Mycelium's graph
 `parameter_step`. `LuxFactor(...; dims=(nin,nout), residual=true)` opts into squared
 endpoint-residual scoring; the default wrapper still delegates energy to downstream losses.
+
+## Preconditioning and second order
+
+`KrylovIFT(precond=M)` uses a left operator. A factory
+`precond=ctx -> (; left=M, right=N)` can construct either side from the current
+problem; `ctx.transposed` distinguishes reverse solves. Omitted sides are identity.
+The default `ldiv=false` applies `mul!` with approximate inverses; `ldiv=true`
+applies `ldiv!`. Operators follow Krylov.jl's protocol. `JacobiIFT()` supplies an
+inverse diagonal using n operator probes and O(n) storage; small/nonfinite diagonal
+entries throw. `on_solve=r -> ...` receives a named tuple with `iterations`,
+`residual` and `solved` for each RHS. The final original residual is checked even
+with preconditioning. The built-in inverse requires `ldiv=false`.
+
+```julia
+using ForwardDiff, DifferentiationInterface, ADTypes
+hv = deq_hvp(z -> sum(abs2,z)/2, f, x, ps, st, v;
+             wrt=:ps, ad=AutoForwardDiff())
+```
+
+This dedicated second-order adjoint computes a flat Hessian-vector product of
+`loss(zstar)` using dense residual and loss derivatives, without differentiating
+root iterations. `wrt=:x` selects inputs; `:joint` selects input followed by
+flattened parameters and includes mixed blocks. The loss may depend on input and
+parameters only through the solved state. Only `DenseIFT()`, CPU real floating
+point arrays and `AutoForwardDiff()` are supported. Storage is quadratic in the
+combined state/input/parameter dimension. Unsupported backend selections raise
+`ArgumentError`; arbitrary nesting of the first-order solve rules is unsupported.
+The tests compare linear products to the closed-form solve, nonlinear scalar
+second derivatives, and finite differences of first-order IFT gradients.
+
+The no-AD `solve_input` retains legacy state threading. Its AD path holds incoming
+state fixed and advances it once at the root; stateful cells can therefore produce
+different roots in these two paths. Warm starts have zero derivative in both solve
+polarities' AD rules. Square dimensions alone do not guarantee a nonsingular root.
 
 ## Neural ODE endpoint integration
 
@@ -169,7 +202,13 @@ iteration is a contraction. `BroydenSolver` is derivative-free quasi-Newton and 
 plenty of problems where Picard diverges — it is the default, and it is what
 `DeepEquilibriumNetworks.jl` reaches for too.
 
-Both return a `SolveReport` (converged, iterations, residual, function evaluations) rather
+`LimitedBroydenSolver(memory=20)` opts into good inverse Broyden with at most 20
+rank-one corrections, O(memory*n) storage and work, and no dense inverse. With no
+eviction its iterates agree with dense Broyden up to roundoff. The first step is
+Picard for `init_scale=1`, damped Picard otherwise. Dropping old corrections can
+slow convergence; there is no line search.
+
+All root solvers return a `SolveReport` (converged, iterations, residual, function evaluations) rather
 than throwing. A solver that stopped early is an inexact inversion, which is legal.
 
 `ift_sensitivity` implements the implicit function theorem,
@@ -178,10 +217,10 @@ unrolling.
 
 ## Known gaps
 
-- Dense IFT remains the default; matrix-free mode has no preconditioner interface.
+- Dense IFT remains the default. Jacobi setup requires one operator probe per coordinate.
 - SciML coverage is limited to the tested Tsit5 endpoint algorithms above; divergence
-  AD, nonempty-state sensitivities and higher-order solve rules are not covered.
-- Broyden stores a dense inverse Jacobian; real DEQs use limited-memory Broyden.
+  AD and nonempty-state sensitivities are not covered.
+- Second-order IFT is limited to the dedicated dense forward-polarity adjoint above.
 - Built-in explicit methods have no error estimate and may diverge on coarse or stiff
   problems. The optional solvers do not remove inverse conditioning or establish GPU support.
 - Every inversion returns a `DiracBelief`.
@@ -234,4 +273,4 @@ Solved-state IFT AD accepts `AutoForwardDiff()`, `AutoZygote()`, `AutoEnzyme()` 
 extensions and other solve backends are rejected before solving. Pass the backend to
 `solve_state` and the outer derivative. Enzyme outer closures that capture arrays
 need DI constant contexts or `function_annotation=Enzyme.Const`; see the implementation note `solve.md` for
-the limitation and reproducer. GPU and higher-order IFT derivatives remain untested.
+the limitation and reproducer. GPU remains untested. Second order is limited to the dedicated dense adjoint above.

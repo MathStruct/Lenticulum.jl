@@ -34,8 +34,8 @@ the rest of the project is about.
 
 | file | note | supplies |
 |---|---|---|
-| `solve.jl` | [[solve]] | Picard, Broyden, `SolveReport`, FD Jacobians, the IFT |
-| `deq.jl` | [[deq]] | `DEQFactor` — the fixed-point relation |
+| `solve.jl` | [[solve]] | Picard, dense/limited Broyden, `SolveReport`, preconditioned IFT |
+| `deq.jl` | [[deq]] | `DEQFactor` — both solve polarities, first-order AD and dense HVP |
 | `flow.jl` | [[flow]] | fixed-step RK, forwards **and backwards**, CNF divergence |
 | `neuralode.jl` | [[neuralode]] | `NeuralODEFactor` — the flow relation |
 | `luxfactor.jl` | [[luxfactor]] | `LuxFactor` — any Lux layer, one polarity |
@@ -101,13 +101,13 @@ include("point_game.jl")
 include("luxfactor.jl")
 
 # --- Solvers ---------------------------------------------------------------
-export SolveReport, AbstractRootSolver, PicardSolver, BroydenSolver
-export DenseIFT, KrylovIFT
+export SolveReport, AbstractRootSolver, PicardSolver, BroydenSolver, LimitedBroydenSolver
+export DenseIFT, KrylovIFT, JacobiIFT
 export solve_root, fd_jacobian, ift_sensitivity
 
 # --- DEQ -------------------------------------------------------------------
 export DEQFactor, DEQModel, default_cell_input
-export cell_value, solve_state, solve_input, deq_sensitivity
+export cell_value, solve_state, solve_input, deq_sensitivity, deq_hvp
 export inchannel, statechannel, indim, statedim
 
 # --- Flows -----------------------------------------------------------------

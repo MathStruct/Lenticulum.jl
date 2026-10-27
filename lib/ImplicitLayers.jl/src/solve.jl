@@ -64,8 +64,8 @@ Damped fixed-point iteration ``u \\leftarrow u - \\beta F(u)``.
 For the DEQ residual ``F(z) = z - g(z,x)`` this is exactly ``z \\leftarrow (1-\\beta)z +
 \\beta g(z,x)``: the naive "just keep applying the layer" loop.
 
-**It converges if and only if the iteration is a contraction**, and nothing checks that in
-advance. That is the caveat `Implicit Learners.md` records — *"this only works if the
+**A contraction is sufficient for convergence**, and nothing checks that in
+advance; it is not a necessary condition for a particular initial guess. That is the caveat `Implicit Learners.md` records — *"this only works if the
 iteration converges, and unconstrained DEQs need not"* — and the test suite exhibits a linear
 cell with spectral radius > 1 on which this solver diverges and [`BroydenSolver`](@ref) does
 not.
@@ -104,6 +104,69 @@ struct BroydenSolver <: AbstractRootSolver
 end
 BroydenSolver(; maxiters = 100, tol = 1e-10, init_scale = 1.0) =
     BroydenSolver(maxiters, tol, init_scale)
+
+"""
+    LimitedBroydenSolver(; memory=20, maxiters=100, tol=1e-10, init_scale=1.0)
+
+Good inverse Broyden with at most `memory` rank-one secant corrections to
+`init_scale*I`. Stores two vectors per correction, never a dense inverse: O(memory*n)
+storage and work per step. Evicts the oldest correction without rebuilding the others.
+With no eviction, reproduces dense Broyden up to roundoff. The first step is damped
+Picard with damping `init_scale` (ordinary Picard when it is one).
+"""
+struct LimitedBroydenSolver <: AbstractRootSolver
+    memory::Int
+    maxiters::Int
+    tol::Float64
+    init_scale::Float64
+    function LimitedBroydenSolver(; memory=20, maxiters=100, tol=1e-10, init_scale=1.0)
+        memory > 0 || throw(ArgumentError("memory must be positive"))
+        maxiters >= 0 || throw(ArgumentError("maxiters must be nonnegative"))
+        isfinite(tol) && tol >= 0 || throw(ArgumentError("tol must be finite and nonnegative"))
+        isfinite(init_scale) && init_scale != 0 || throw(ArgumentError("init_scale must be finite and nonzero"))
+        new(memory, maxiters, tol, init_scale)
+    end
+end
+
+# H = scale*I + sum(a*b'). The stored vectors are transformed secant pairs.
+function _broyden_product(a, b, scale, v)
+    out = scale .* v
+    for (ai, bi) in zip(a, b)
+        out .+= ai .* dot(bi, v)
+    end
+    return out
+end
+
+function solve_root(F, u₀, s::LimitedBroydenSolver)
+    u = copy(u₀)
+    r = F(u)
+    n = _norm(r)
+    n <= s.tol && return (u, SolveReport(true, 0, n, 1))
+    T = promote_type(Float64, eltype(u), eltype(r))
+    a, b = Vector{T}[], Vector{T}[]
+    for k in 1:s.maxiters
+        du = -_broyden_product(a, b, s.init_scale, r)
+        unew = u .+ du
+        rnew = F(unew)
+        nn = _norm(rnew)
+        isfinite(nn) || return (unew, SolveReport(false, k, nn, k+1))
+        Hdr = _broyden_product(a, b, s.init_scale, rnew .- r)
+        denom = dot(du, Hdr)
+        if abs(denom) > 1e-14
+            right = _broyden_product(b, a, s.init_scale, du)
+            left = (du .- Hdr) ./ denom
+            if length(a) == s.memory
+                popfirst!(a)
+                popfirst!(b)
+            end
+            push!(a, left)
+            push!(b, right)
+        end
+        u, r, n = unew, rnew, nn
+        n <= s.tol && return (u, SolveReport(true, k, n, k+1))
+    end
+    return (u, SolveReport(false, s.maxiters, n, s.maxiters+1))
+end
 
 _norm(v) = sqrt(sum(abs2, v))
 
@@ -222,23 +285,53 @@ abstract type AbstractIFT end
 "Dense residual Jacobian and LU (the default first-order IFT rule)."
 struct DenseIFT <: AbstractIFT end
 """
-    KrylovIFT(; rtol=1e-10, atol=1e-12, itmax=0, memory=20)
+    KrylovIFT(; rtol=1e-10, atol=1e-12, itmax=0, memory=20,
+               precond=nothing, ldiv=false, on_solve=nothing)
 
 Opt-in matrix-free GMRES IFT solve. Load Krylov and DifferentiationInterface.
 `itmax=0` uses Krylov's default (twice the state dimension). Restart after `memory`
 iterations to bound basis storage. Failure to meet the residual tolerance throws.
+
+`precond` accepts a left operator or a factory `ctx -> (; left=M, right=N)`;
+omitted sides are identity. `ctx` contains `operator`, `transposed`, `factor`, `solved` (channel name),
+`joint` (observed channel followed by parameters), `root`, `template`, `offsets`
+and `state`. Build preconditioners for the indicated orientation. Krylov applies
+`mul!` by default (operators approximate the inverse); `ldiv=true` applies `ldiv!`
+instead. `JacobiIFT()` probes the operator diagonal. `on_solve`, when supplied,
+receives `(iterations, residual, solved)` as a named tuple after each linear solve,
+including failures; residual is measured in the original, unpreconditioned system.
 """
-struct KrylovIFT <: AbstractIFT
+struct KrylovIFT{P,C} <: AbstractIFT
     rtol::Float64
     atol::Float64
     itmax::Int
     memory::Int
-    function KrylovIFT(; rtol=1e-10, atol=1e-12, itmax=0, memory=20)
+    precond::P
+    ldiv::Bool
+    on_solve::C
+    function KrylovIFT(; rtol=1e-10, atol=1e-12, itmax=0, memory=20,
+                       precond=nothing, ldiv=false, on_solve=nothing)
         isfinite(rtol) && rtol >= 0 || throw(ArgumentError("rtol must be finite and nonnegative"))
         isfinite(atol) && atol >= 0 || throw(ArgumentError("atol must be finite and nonnegative"))
         itmax >= 0 || throw(ArgumentError("itmax must be nonnegative"))
         memory > 0 || throw(ArgumentError("memory must be positive"))
-        new(rtol, atol, itmax, memory)
+        new{typeof(precond),typeof(on_solve)}(rtol, atol, itmax, memory, precond, ldiv, on_solve)
+    end
+end
+
+"""
+    JacobiIFT(; min_diagonal=1e-14)
+
+Opt-in `KrylovIFT(precond=JacobiIFT())` inverse diagonal preconditioner. Uses n
+operator probes and O(n) storage, without forming the state Jacobian. Rejects
+nonfinite or small diagonal entries. Uses `mul!` (`ldiv=false`).
+"""
+struct JacobiIFT
+    min_diagonal::Float64
+    function JacobiIFT(; min_diagonal=1e-14)
+        isfinite(min_diagonal) && min_diagonal >= 0 ||
+            throw(ArgumentError("min_diagonal must be finite and nonnegative"))
+        new(min_diagonal)
     end
 end
 _ift_prepare(ad, f, u, z, like, offs, st, transposed) =

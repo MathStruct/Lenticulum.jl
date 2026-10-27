@@ -2,6 +2,15 @@ module ImplicitLayersChainRulesCoreExt
 using ImplicitLayers: ImplicitLayers as IL
 using DifferentiationInterface: DifferentiationInterface as DI
 using ChainRulesCore: ChainRulesCore as CRC
+
+function _solve_pullback(ad, fac, f, u, z, like, offs, st, dz)
+    v = IL._ift_solve(fac, dz)
+    return -only(DI.pullback(IL._joint_residual, ad, u, (v,), DI.Constant(f),
+        DI.Constant(z), DI.Constant(like), DI.Constant(offs), DI.Constant(st)))
+end
+function CRC.rrule(::typeof(_solve_pullback), args...)
+    throw(ArgumentError("Nested DEQ reverse AD is unsupported; use deq_hvp(...; ad=AutoForwardDiff()) for second order."))
+end
 function CRC.rrule(::typeof(IL._joint_vector), x, θ)
     u = IL._joint_vector(x, θ)
     function back(du)
@@ -23,9 +32,7 @@ function CRC.rrule(::typeof(IL._implicit_state), ad, f, u, like, offs, st, z0)
         du = if dz isa CRC.AbstractZero
             zero(u)
         else
-            v = IL._ift_solve(fac, dz)
-            -only(DI.pullback(IL._joint_residual, ad, u, (v,), DI.Constant(f),
-                DI.Constant(z), DI.Constant(like), DI.Constant(offs), DI.Constant(st)))
+            _solve_pullback(ad, fac, f, u, z, like, offs, st, dz)
         end
         return CRC.NoTangent(), CRC.NoTangent(), CRC.NoTangent(), du,
                CRC.NoTangent(), CRC.NoTangent(), CRC.NoTangent(), CRC.ZeroTangent()

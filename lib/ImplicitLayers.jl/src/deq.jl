@@ -169,7 +169,8 @@ The incoming Lux state is fixed throughout the iterations, then advanced once at
 returned root. Supply an ADTypes backend to use the optional IFT solve rules (tested
 with ForwardDiff, Zygote, Enzyme and Mooncake; the latter two also need ForwardDiff
 loaded). In this AD path a nonconverged solve throws; reports and
-returned state are bookkeeping without tangents. No AD rule is provided for `solve_input`.
+returned state are bookkeeping without tangents. `solve_input(...; ad)` supports the
+same first-order backends in the other polarity.
 """
 function solve_state(f::DEQFactor, x, ps, st; z₀ = zeros(Float64, statedim(f)), ad = nothing)
     return _solve_state(ad, f, x, ps, st, z₀)
@@ -215,7 +216,7 @@ function _root_jacobian(ad, f, u, z, like, offs, st)
 end
 
 """
-    solve_input(f, z, ps, st; x₀) -> (x★, SolveReport, st)
+    solve_input(f, z, ps, st; x₀, ad=nothing) -> (x★, SolveReport, st)
 
 Solve ``z = g_\\theta(z, x)`` for **`x`**, holding `z` fixed — the direction a
 `DeepEquilibriumNetwork` cannot be asked for.
@@ -224,12 +225,22 @@ Requires ``\\dim x = \\dim z``. Even then it is a general nonlinear root-find in
 contraction structure to lean on, so `Broyden` is the only sensible solver and convergence is
 a genuinely open question per call. That is why the `SolveReport` is returned rather than
 discarded.
+
+With `ad`, supports the same first-order IFT backends as `solve_state`, requires
+convergence, holds incoming Lux state fixed and advances it once at the root.
+Without `ad`, retains legacy state threading across residual evaluations.
 """
-function solve_input(f::DEQFactor, z, ps, st; x₀ = zeros(Float64, indim(f)))
+function solve_input(f::DEQFactor, z, ps, st; x₀ = zeros(Float64, indim(f)), ad=nothing)
     indim(f) == statedim(f) || throw(ArgumentError(
         "solve_input needs dim($(inchannel(f))) == dim($(statechannel(f))); got \
          $(indim(f)) and $(statedim(f)). The residual is not square, so solving for \
          :$(inchannel(f)) is not a well-posed root-find."))
+    if ad !== nothing
+        # Reuse every backend's solved-state primitive with the other residual
+        # coordinate active. The AD equation holds incoming state fixed.
+        p = _InputProblem(f, f.solver, f.ift)
+        return _solve_state(ad, p, z, ps, st, x₀)
+    end
     stref = Ref(st)
     F = function (x)
         r, s = residual(f, x, z, ps, stref[])
@@ -239,6 +250,50 @@ function solve_input(f::DEQFactor, z, ps, st; x₀ = zeros(Float64, indim(f)))
     x, rep = solve_root(F, x₀, f.solver)
     return (x, rep, stref[])
 end
+
+# Private problem adapter, not a second model or a second set of AD rules.
+struct _InputProblem{F,S,K}
+    factor::F
+    solver::S
+    ift::K
+end
+indim(p::_InputProblem) = statedim(p.factor)
+function _solve_state(::Nothing, p::_InputProblem, z, ps, st, x0)
+    F(x) = first(residual(p.factor, x, z, ps, st))
+    x, rep = solve_root(F, x0, p.solver)
+    _, stnew = residual(p.factor, x, z, ps, st)
+    return x, rep, stnew
+end
+function _joint_residual(u, p::_InputProblem, x, like, offs, st)
+    n = indim(p)
+    return first(residual(p.factor, x, u[1:n],
+        LenticulumCore._unflatten(u[(n+1):end], offs, like), st))
+end
+function _root_jacobian(ad, p::_InputProblem, u, x, like, offs, st)
+    n = indim(p)
+    ps = LenticulumCore._unflatten(u[(n+1):end], offs, like)
+    return LenticulumCore.energy_jacobian(p.factor, x, nothing, u[1:n], ps, st; wrt=:x, ad)
+end
+
+"""
+    deq_hvp(loss, f, x, ps, st, direction; wrt=:ps, ad, z₀=zeros(statedim(f)))
+
+Dense second-order IFT adjoint for the scalar `loss(z★)`. Returns a flat
+Hessian-vector product in core parameter order (`wrt=:ps`), input order (`:x`),
+or input followed by parameters (`:joint`). Load ForwardDiff and DI and pass
+`ad=AutoForwardDiff()`. Differentiates residuals and loss twice, never solver
+iterations. Requires `DenseIFT()`, a converged root, and a nonsingular Jacobian.
+CPU real arrays only; loss may depend on x/parameters only through z★.
+Arbitrary nesting of the first-order solve rules is unsupported: use this API.
+"""
+function deq_hvp(loss, f::DEQFactor, x, ps, st, direction;
+                 wrt=:ps, ad=nothing, z₀=zeros(Float64, statedim(f)))
+    wrt in (:ps, :x, :joint) || throw(ArgumentError("deq_hvp wrt must be :ps, :x or :joint"))
+    f.ift isa DenseIFT || throw(ArgumentError("deq_hvp supports DenseIFT only"))
+    return _deq_hvp(ad, loss, f, x, ps, st, direction, wrt, z₀)
+end
+_deq_hvp(ad, args...) = throw(ArgumentError(
+    "deq_hvp supports only the dedicated AutoForwardDiff second-order adjoint; load ForwardDiff and DifferentiationInterface. Backend nestings are unsupported."))
 
 """
     deq_sensitivity(f, x, z★, ps, st; wrt = :x, ad = nothing)

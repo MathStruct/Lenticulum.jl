@@ -3,7 +3,7 @@
 > `DEQFactor`: the fixed-point condition $z = g_\theta(z,x)$ kept as a **residual**, so the
 > polarity decides which channel to solve for.
 
-> Sources: code: `deq.jl`
+> Sources: original residual/adjoint derivations; code: `deq.jl`, `../test/solver_numerics.jl`
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
@@ -119,7 +119,7 @@ uses DI residual derivatives. `solve_state(...; ad)` also has optional ChainRule
 ForwardDiff, EnzymeCore and Mooncake extensions implementing the IFT through the
 solved state; see [[solve]].
 `DEQFactor(...; ift=DenseIFT())` keeps dense LU as the default.
-`ift=KrylovIFT(; rtol, atol, itmax, memory)` selects matrix-free GMRES in all
+`ift=KrylovIFT(; rtol, atol, itmax, memory, precond)` selects matrix-free GMRES in all
 solved-state AD rules (load Krylov and DI); failure to converge throws.
 `deq_sensitivity` remains a dense reference regardless of this option. See [[solve]]
 for the operator products, storage, backend choices and 200-dimensional oracle.
@@ -189,4 +189,56 @@ activity; the built-in ODE stage fold requires an explicit runtime-activity mode
 extensions and other solve backends are rejected before solving. Pass the backend to
 `solve_state` and the outer derivative. Enzyme outer closures that capture arrays
 need DI constant contexts or `function_annotation=Enzyme.Const`; see [[solve]] for
-the limitation and reproducer. GPU and higher-order IFT derivatives remain untested.
+the limitation and reproducer. GPU remains untested. Second order uses the dedicated dense `deq_hvp` API below.
+
+
+## Solver numerics and the other polarity (2026-10-27)
+
+`LimitedBroydenSolver(; memory=20, maxiters=100, tol=1e-10, init_scale=1.0)`
+is an opt-in primal with $O(mn)$ storage. The default stays dense `BroydenSolver()`.
+No eviction reproduces its iterates up to roundoff; finite memory discards the
+oldest rank-one correction. The first step is Picard at unit `init_scale`, and
+damped Picard otherwise. [[solve]] gives the compact update and its limits.
+
+LP-002's “reverse-input” item means `solve_input(...; ad)`: hold $z$ fixed and
+solve for $x$, then differentiate that solution with respect to observed $z$ and
+parameters. The input derivative of `solve_state` was already covered. For the
+linear cell:
+
+$$
+x^*=U^{-1}((I-W)z-b),\qquad
+\delta x^*=U^{-1}((I-W)\delta z-\delta Wz-\delta Ux^*-\delta b).
+$$
+
+ForwardDiff, ChainRules/Zygote, Enzyme forward/reverse and Mooncake now implement
+this first-order IFT through the shared solve primitive, including dense and
+preconditioned Krylov solves. An internal problem adapter changes which residual
+coordinate is unknown. Warm starts, reports and returned Lux state have no tangent.
+The AD equation holds incoming state fixed and advances it once at the root.
+The existing no-AD reverse solve retains its legacy state threading, so stateful
+AD and no-AD solves need not agree. Branch selection remains the solver's job;
+the derivative is local to its converged, nonsingular branch. Nonsquare systems,
+nonconvergence and singular residual Jacobians remain errors in AD.
+
+Krylov accepts a left operator or a problem factory returning `(; left, right)`;
+`ldiv=false` applies inverse preconditioners with `mul!`, and `ldiv=true` uses
+`ldiv!`. Factories receive a `transposed` flag and must honor it. Built-in
+`JacobiIFT()` probes the current operator diagonal in $n$ products and stores
+$n$ entries. `on_solve` records each RHS's iteration count and actual residual.
+The full contract, setup costs and final residual policy are in [[solve]].
+
+For a scalar loss depending only on the forward fixed point, use
+`deq_hvp(loss, f, x, ps, st, v; wrt=:ps, ad=AutoForwardDiff())`.
+`:x` selects the input Hessian block and `:joint` includes input/parameter mixed
+blocks in input-then-parameter order. The result is a flat vector in the selected
+coordinates. A dedicated second-order adjoint differentiates residuals and loss
+twice at one root; no solver trajectory is differentiated. Only dense CPU real
+ForwardDiff residual/ loss derivatives are supported, with quadratic storage in
+the combined coordinates. This does not add second-order reverse-input solves,
+Krylov HVPs or arbitrary AD nesting. Unsupported backend selections and detected
+nested primitive derivatives throw `ArgumentError`; use the dedicated API.
+
+`test/solver_numerics.jl` compares reverse derivatives to the closed form above,
+a nonlinear selected branch and reference differences. HVP tests compare to the
+analytic linear solve (including mixed blocks), scalar analytic second derivatives,
+and finite differences of first-order IFT gradients. See LP-002 for run measurements.

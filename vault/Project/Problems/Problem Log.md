@@ -7,7 +7,7 @@ Implementation notes also record what their code does not do; a problem gets an 
 | # | Problem | Status |
 |---|---|---|
 | [[LP-001 The vault build uses GNU-only sed]] | `sed -i` in `docs/site/build.sh` fails on macOS (issue #9) | closed (2026-10-23; CI guard 2026-10-25) |
-| [[LP-002 The Jacobian side is not implemented]] | Optional DI parameter Jacobians/gradients, graph parameter steps, DEQ IFT rules cover ForwardDiff/Zygote/Enzyme/Mooncake; Euler/RK4 covers the same backends with runtime activity for Enzyme; opt-in matrix-free DEQ IFT and empty-state Tsit5 sensitivities cover tested CPU backends; broader SciML/state/GPU scope remains | implemented for first-order CPU paths (2026-10-26); follow-ups open |
+| [[LP-002 The Jacobian side is not implemented]] | DI parameter/graph gradients; both DEQ solve polarities with dense/preconditioned Krylov IFT across four backends; limited-memory Broyden and dedicated dense second-order adjoint; tested Euler/RK4 and empty-state Tsit5 sensitivities; broader SciML/state/GPU/nesting scope remains | solver numerics implemented (2026-10-27); broader follow-ups open |
 | [[LP-003 SquaredNorm does not check its metric]] | An indefinite `M` makes the Jensen gap negative, silently | closed (2026-10-25, reopened once) |
 | [[LP-004 link_sources rewrites unrelated notes]] | The bibliography linker drops links in three unrelated notes | closed (`review-argon`, 2026-10-23) |
 | [[LP-005 Learning the noise covariance]] | Opt-in full/diagonal precision parameters for `Q` and `Σ`; normalised free energy with Wishart/log-normal noise priors or an eigenvalue floor | resolved (2026-10-26; ForwardDiff/Zygote CPU paths) |
