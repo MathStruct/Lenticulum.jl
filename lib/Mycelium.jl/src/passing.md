@@ -93,16 +93,22 @@ avoid inventing a type before knowing what else belongs in it.
 
 ### 6. Cotangents are not here, deliberately
 
-Gradients with respect to parameters are **not** messages. The planned gradient pass would
-accumulate them per factor under each edge's `AbstractGradientCoupling`, once per training
-step rather than once per inference sweep. This pass is not implemented.
-
-`optimiser_step` is a separate function from `step!` for exactly this reason. Conflating the two
-schedules (updating parameters inside a belief sweep) is a classic source of silent bugs, and
-the separation is the main structural decision in this file.
-
-The gradient machinery itself does not exist yet: no AD backend is a dependency, and
-`AbstractGradientCoupling` has no gradient implementation ([[statistical_game]] §6).
-Non-default annotations now fail at construction (LP-011 option 2).
+Gradients with respect to parameters are **not** belief messages. They are computed
+once per parameter step by the separate [[gradient_couplings]] driver, with static
+schedule replay for non-diagonal boundaries. `optimiser_step` remains separate from
+`step!`; parameters are not updated inside an inference sweep.
 
 Related: [[Messages are Inversions]], [[schedules]], [[free_energy]], [[Loopy Message Passing]]
+
+## LP-011 implementation (2026-10-27)
+
+Values crossing detached edges use the core stop primitive, in both
+directions. Factor parameters are pinned according to graph freezing and traits before
+ordinary message evaluation. The optional ChainRules infer! rule replays a fixed realised
+static sweep count without damping; it returns no state/report cotangents. It does not
+differentiate convergence decisions. The former statement that all coupling gradients
+are unimplemented is superseded by the separate parameter driver.
+
+Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+`test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
+are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].

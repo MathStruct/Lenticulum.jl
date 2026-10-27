@@ -96,19 +96,19 @@ Throws `ArgumentError` if a factor with [`uses_cavity`](@ref) has an `Emitting()
 its local free energy needs variable-to-factor messages. Use `Bidirectional()` on that edge.
 Missing messages on edges that can carry them remain `nothing`.
 """
-function factor_free_energies(s::MessageStore, g::FactorGraph, ps, st)
+function factor_free_energies(s::AbstractMessageStore, g::FactorGraph, ps, st)
     _check_energy_edges(g)
     names = Tuple(f.name for f in g.factors)
-    vals = Any[]
-    for f in g.factors
+    results = map(_factor_nodes(g)) do f
         beliefs = messages_into(s, g, f.id)
-        psf = _subtree(ps, f.name)
+        psf = _factor_parameters(f, _subtree(ps, f.name))
         stf = _subtree(st, f.name)
-        F, stf = local_free_energy(f.factor, beliefs, psf, stf)
-        push!(vals, F)
-        st = _setsubtree(st, f.name, stf)
+        local_free_energy(f.factor, beliefs, psf, stf)
     end
-    return LenticulumCore.GradedEnergy(NamedTuple{names}(Tuple(vals))), st
+    stnew = foldl(zip(names,results); init=st) do acc, item
+        _setsubtree(acc, item[1], item[2][2])
+    end
+    return LenticulumCore.GradedEnergy(NamedTuple{names}(map(first,results))), stnew
 end
 
 """
@@ -127,10 +127,11 @@ channel. `nothing` when no message is stored, including on edges that cannot car
 > An earlier version of this file did exactly that. It was invisible until a factor with a
 > non-trivial entropy existed to expose it — see `free_energy.md` §7.
 """
-function messages_into(s::MessageStore, g::FactorGraph, fid::Int)
+function messages_into(s::AbstractMessageStore, g::FactorGraph, fid::Int)
     chans = Tuple(g.edges[ei].channel for ei in g.edges_of_factor[fid])
     vals = Tuple(
-        (m = s.to_factor[ei]; m === nothing ? nothing : m.belief)
+        (m = s.to_factor[ei]; m === nothing ? nothing :
+            g.edges[ei].detach ? LenticulumCore.stop_gradient(m.belief) : m.belief)
         for ei in g.edges_of_factor[fid]
     )
     return NamedTuple{chans}(vals)
@@ -261,12 +262,21 @@ _local_scalar(ps, factor, beliefs, st) = LenticulumCore.scalarise(
 Parameter gradient of the graph scalar free energy at fixed incoming messages.
 This is the sum of scalarised local free energies; Bethe variable corrections are
 constant with respect to parameters at fixed beliefs. Nonlearnable subtrees receive
-zeros. The result has `ps`'s structure. No messages or state are updated.
+zeros. Frozen coordinates receive zeros too. The result has `ps`'s structure.
+Non-diagonal edges require `schedule` and finite `nsweeps` (default 1), replaying from
+empty messages rather than differentiating this store's history. Score edges also
+require `rng` and `nsamples >= 2`, returning a `GradientEstimate`. No input store or
+state is mutated. See `gradient_couplings.md` for estimator domains and mixed rules.
 """
 function LenticulumCore.free_energy_gradient(s::MessageStore, g::FactorGraph, ps, st;
-                                            ad = nothing, ε = 1e-6)
+                                            ad = nothing, ε = 1e-6,
+                                            schedule = nothing, nsweeps = 1,
+                                            rng = nothing, nsamples = nothing)
     # Keep the same cavity validation as the reporting API.
     _check_energy_edges(g)
+    if any(e -> !(e.coupling isa DiagonalCoupling), g.edges)
+        return _coupled_gradient(s, g, ps, st; ad, ε, schedule, nsweeps, rng, nsamples)
+    end
     names = Tuple(f.name for f in g.factors)
     grads = map(Tuple(g.factors)) do f
         p = _subtree(ps, f.name)
@@ -275,8 +285,11 @@ function LenticulumCore.free_energy_gradient(s::MessageStore, g::FactorGraph, ps
             return LenticulumCore._unflatten(zero(θ), p)
         end
         LenticulumCore._check_factor_ad(ad, f.factor, _subtree(st, f.name))
-        return LenticulumCore._parameter_gradient(ad, _local_scalar, p,
+        grad = LenticulumCore._parameter_gradient(ad, _local_scalar, p,
             f.factor, messages_into(s, g, f.id), _subtree(st, f.name); ε)
+        indices = _active_indices(f, p)
+        θ = LenticulumCore._flatten(grad)
+        return LenticulumCore._unflatten([i in indices ? θ[i] : zero(θ[i]) for i in eachindex(θ)], p)
     end
     return NamedTuple{names}(grads)
 end
@@ -292,28 +305,54 @@ computed at those parameters with messages fixed, and `put` applies the update.
 Optimiser state is a NamedTuple of vectors keyed by learnable factor name, initialised
 to zero if omitted. Pass the returned state on the next step (Momentum/Nesterov).
 Lux state advances once, by evaluating local energies at the look-ahead parameters.
-This does not perform inference or update exposed parameter wires in OptimiserFactor.
+Frozen coordinates are excluded from state vectors; fully frozen factors have no entry.
+Non-diagonal drivers forward `schedule`, `nsweeps`, `rng`, `nsamples` to the gradient API.
+Score steps return `(ps_new, st_new, optimiser_state_new, estimate)` so uncertainty
+is available to the caller; deterministic steps retain the three-tuple return.
+Coupled steps commit inference and one local-energy state advance from the first
+replicate; other replicates do not accumulate Lux state. This does not update the input
+message store or exposed OptimiserFactor wires.
 """
 function parameter_step(s::MessageStore, g::FactorGraph, ps, st;
-                        ad, rule = GradientDescent(0.01), optimiser_state = nothing)
-    fs = Tuple(g.factors[i] for i in learnable_factors(g))
+                        ad, rule = GradientDescent(0.01), optimiser_state = nothing,
+                        kwargs...)
+    fs = Tuple(f for f in g.factors if !isempty(_active_indices(f, _subtree(ps, f.name))))
     names = Tuple(f.name for f in fs)
-    θs = map(f -> LenticulumCore._flatten(_subtree(ps, f.name)), fs)
+    indices = map(f -> _active_indices(f, _subtree(ps, f.name)), fs)
+    θs = map((f, ii) -> LenticulumCore._flatten(_subtree(ps, f.name))[ii], fs, indices)
     os = optimiser_state === nothing ? NamedTuple{names}(map(zero, θs)) : optimiser_state
-    look = map(fs, θs) do f, θ
-        LenticulumCore._unflatten(rule_get(rule, os[f.name], θ), _subtree(ps, f.name))
+    for (f, θ) in zip(fs, θs)
+        haskey(os,f.name) && length(os[f.name]) == length(θ) || throw(ArgumentError(
+            "optimiser_state for :$(f.name) must contain exactly $(length(θ)) active coordinates; reinitialise it after changing freeze paths"))
+    end
+    look = map(fs, θs, indices) do f, θ, ii
+        _replace_active(_subtree(ps, f.name), ii, rule_get(rule, os[f.name], θ))
     end
     at = merge(ps, NamedTuple{names}(look))
-    grad = LenticulumCore.free_energy_gradient(s, g, at, st; ad)
-    _, stnew = factor_free_energies(s, g, at, st)
-    updates = map(fs, θs) do f, θ
-        rule_put(rule, os[f.name], θ, LenticulumCore._flatten(grad[f.name]))
+    coupled = any(e -> !(e.coupling isa DiagonalCoupling), g.edges)
+    if coupled
+        result, stnew = _coupled_gradient(s,g,at,st;ad,return_state=true,kwargs...)
+    else
+        result = LenticulumCore.free_energy_gradient(s, g, at, st; ad, kwargs...)
+        _, stnew = factor_free_energies(s, g, at, st)
     end
-    newps = map(fs, updates) do f, u
-        LenticulumCore._unflatten(u[2], _subtree(ps, f.name))
+    grad = result isa GradientEstimate ? result.value : result
+    updates = map(fs, θs, indices) do f, θ, ii
+        rule_put(rule, os[f.name], θ, LenticulumCore._flatten(grad[f.name])[ii])
     end
-    return merge(ps, NamedTuple{names}(newps)), stnew,
-           NamedTuple{names}(map(first, updates))
+    newps = map(fs, updates, indices) do f, u, ii
+        _replace_active(_subtree(ps, f.name), ii, u[2])
+    end
+    output = (merge(ps, NamedTuple{names}(newps)), stnew,
+              NamedTuple{names}(map(first, updates)))
+    return result isa GradientEstimate ? (output..., result) : output
+end
+
+function _replace_active(ps, indices, active)
+    θ = LenticulumCore._flatten_active(ps)
+    positions = Dict(i => k for (k, i) in enumerate(indices))
+    return LenticulumCore._unflatten([haskey(positions, i) ? active[positions[i]] : θ[i]
+                                      for i in eachindex(θ)], ps)
 end
 
 function _check_energy_edges(g)

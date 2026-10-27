@@ -1,6 +1,6 @@
 #design
 
-> **Status: draft (2026-10-22, Claude; updated 2026-10-23 on `review-argon`; coverage updated 2026-10-26).** Related: [[abstract_types]], [[channels]], [[energy]], [[statistical_game]], [[factors]], [[L-ADR-0002 Energies are vectors, scalarised late]], [[L-ADR-0003 Pointwise energy and free energy are separate levels]], [[L-ADR-0006 Separate likelihood_message from invert]]. Code: `lib/LenticulumCore.jl/src/abstract_types.jl`, `channels.jl`, `energy.jl`, `statistical_game.jl`; `lib/Mycelium.jl/src/passing.jl`, `factors.jl`.
+> **Status: draft (2026-10-22, Claude; updated 2026-10-23 on `review-argon`; coverage updated 2026-10-27).** Related: [[abstract_types]], [[channels]], [[energy]], [[statistical_game]], [[factors]], [[L-ADR-0002 Energies are vectors, scalarised late]], [[L-ADR-0003 Pointwise energy and free energy are separate levels]], [[L-ADR-0006 Separate likelihood_message from invert]]. Code: `lib/LenticulumCore.jl/src/abstract_types.jl`, `channels.jl`, `energy.jl`, `statistical_game.jl`; `lib/Mycelium.jl/src/passing.jl`, `factors.jl`.
 
 ## Scope
 
@@ -42,7 +42,7 @@ A factor is a subtype of `AbstractLenticulumFactor`. Like a Lux layer, it is a *
   to its mean; soft observations and singular anchors are unsupported. `assemble(f,p)`
   restricts the factor relation to one polarity. Arbitrary points use `energy`/`scalar_energy`,
   not a keyword on `free_energy` (L-ADR-0003). Diffusion's score surrogate has no posterior
-  entropy; polynomial and container games remain undefined ([[LP-009 Game-level free energy is declared but not implemented]]);
+  entropy; the exact polynomial/container cases are specified in the 2026-10-27 amendment below ([[LP-009 Game-level free energy is declared but not implemented]]);
 - `scalar_free_energy(f, π, y, ps, st; polarity, σ)` and `scalar_energy(f, x, a, y, ps, st; polarity, σ)` are provided; `σ` overrides the default scalarisation for one call.
 
 **§5 In a factor graph** (Mycelium):
@@ -70,10 +70,12 @@ A factor is a subtype of `AbstractLenticulumFactor`. Like a Lux layer, it is a *
   check complete support and joint point/Gaussian/mixture messages; the four LP-017 broken
   assertions now pass.
 - `lib/AlgebraicFactors.jl/test/runtests.jl`: direct-message common checker for Toric at arities
-  one to three and Plucker forward point games at r=2,4. Polynomial keeps its independent
-  per-polarity subset tests; full conformance is not claimed.
-- Core "Container conformance scope (LP-008/009)" checks ComposedFactor/TensorFactor's
-  missing channel/game APIs; the common checker is inapplicable.
+  one to three and Plucker forward point games at r=2,4. Degree-one Polynomial additionally
+  uses the common lens/game checker with independent Gaussian fixtures in `test/game_exact.jl`; nonlinear branch laws remain unsupported.
+- `test/game_composition.jl`: common checker for collapsed Gaussian composition in both
+  endpoint polarities and soft Gaussian games, plus independent/nested tensor product games.
+  Core "Container conformance scope (LP-008/009)" verifies that unsupported component laws
+  still reject games and do not invent channels or assembled inversions.
 
 The checker is included from the single repository `test/factor_conformance.jl` file.
 Its default checks are retained. Nonempty `pointwise_gap`, `game_gap`, `message_gap`, `polarity_gap` reasons
@@ -146,7 +148,19 @@ Checked by `test/game_composition.jl`, `lib/VariationalDiffusion.jl/test/bound.j
 `lib/Adversarial.jl/test/transport.jl`, and `lib/AlgebraicFactors.jl/test/game_exact.jl`.
 The common checker covers Gaussian composition in both directions, affine Gaussian
 forward generators, the exact scalar Plucker image and degree-one polynomial polarities.
-Bounds are tested against closed-form likelihoods, not compared with the unrelated graph
-surrogate. Tensor's product-game API and stochastic unconditional NoiseSource use separate
-closed-form checks because the wired checker's belief/inversion fixtures do not represent
-them. Historical game exemptions remain for the unsupported domains named above.
+The common checker's `scope=:bound` checks evaluated bounds against independent exact
+Gaussian reverse-chain likelihoods, separately from the graph surrogate. `scope=:game`
+checks tensor product games and unconditional standard-normal NoiseSource entropy against
+independent energy/entropy fixtures, without claiming wiring or repeatable stochastic
+messages. Both scopes require their fixtures explicitly. The default `scope=:wired` retains
+all existing checks; optional expected game coordinates also check independent closed forms.
+The audited rollout table and deliberately retained exemptions are in [[LP-008 No conformance test for the factor interface]].
+
+## LP-011 factor addition (2026-10-27)
+
+`Mycelium.StraightThroughFactor` is a new parameterless directed structural factor.
+Its pointwise energy, game free energy and entropy are zero, and its forward message
+is a Dirac at the forward callable's value. Its separate surrogate derivative is
+specified in [[L-SPEC-002 Stop Gradient]]. The shared checker now exercises this
+factor in `lib/Mycelium.jl/test/conformance.jl`, with independent round-value and
+zero-cost fixtures. This extends the earlier LP-008 audit without changing its history.

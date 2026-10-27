@@ -276,6 +276,24 @@ end
 
 _get(inputs, k) = haskey(inputs, k) ? getfield(inputs, k) : nothing
 
+# Functional schedule AD avoids the mutating inverse-of-Cholesky implementation.
+# Ordinary message passing retains its established arithmetic.
+function Mycelium._gradient_message(f::GaussianFactor, target::Symbol, pol, inputs, prior, ps, st)
+    if target === f.out_channel
+        m,S=_moments(_get(inputs,f.in_channel),f.nin)
+        m === nothing && return LenticulumCore.TrivialBelief(),st
+        V=ps.A*S*ps.A'+noise_covariance(f,ps)
+        Λ=inv(Symmetric(V))
+        return GaussianBelief(Λ*(ps.A*m+ps.b),Λ),st
+    elseif target === f.in_channel
+        m,S=_moments(_get(inputs,f.out_channel),f.nout)
+        m === nothing && return LenticulumCore.TrivialBelief(),st
+        Ri=inv(Symmetric(noise_covariance(f,ps)+S))
+        return GaussianBelief(ps.A'*(Ri*(m-ps.b)),ps.A'*Ri*ps.A),st
+    end
+    throw(ArgumentError("unknown Gaussian target :$target"))
+end
+
 # (mean, covariance) of an incoming message; `nothing` means "carries no information".
 _moments(b::LenticulumCore.DiracBelief, n) = (_vec(b.value), zeros(n, n))
 _moments(::LenticulumCore.TrivialBelief, n) = (nothing, nothing)
@@ -351,10 +369,8 @@ _canon(::Nothing, n) = (zeros(n), zeros(n, n))
 
 function _blockdiag(A1, A2)
     n1, n2 = size(A1, 1), size(A2, 1)
-    M = zeros(n1 + n2, n1 + n2)
-    M[1:n1, 1:n1] .= A1
-    M[(n1 + 1):end, (n1 + 1):end] .= A2
-    return M
+    T = promote_type(eltype(A1), eltype(A2))
+    return vcat(hcat(A1, zeros(T,n1,n2)),hcat(zeros(T,n2,n1),A2))
 end
 
 # Retain fixed-noise arithmetic, while avoiding inverse-of-Cholesky mutation in AD.
@@ -512,12 +528,17 @@ end
 
 Mycelium.factor_message(f::GaussianPrior, ::Symbol, _, _, _, ps, st) =
     (Gaussian(f.μ, noise_covariance(f, ps)), st)
+function Mycelium._gradient_message(f::GaussianPrior, ::Symbol, _, _, _, ps, st)
+    P=inv(Symmetric(noise_covariance(f,ps)))
+    return GaussianBelief(P*f.μ,P),st
+end
 
 Mycelium.uses_cavity(::GaussianPrior) = true
+_prior_precision(Σ) = inv(_chol(Σ, "Σ"))
 
 function Mycelium.local_free_energy(f::GaussianPrior, msgs, ps, st)
     Λ0, logdetQ = f.noise_learning === nothing ?
-        (inv(_chol(f.Σ, "Σ")), zero(eltype(f.Σ))) : _noise_metrics(f.noise_learning, f.Σ, ps)
+        (_prior_precision(f.Σ), zero(eltype(f.Σ))) : _noise_metrics(f.noise_learning, f.Σ, ps)
     incoming = _get(msgs, f.channel)
     complexity = f.noise_learning === nothing ? logdet(_chol(2π .* f.Σ, "2πΣ")) / 2 :
         (length(f.μ) * log(2π) + logdetQ) / 2 + _noise_penalty(f.noise_learning.prior, Λ0, logdetQ)

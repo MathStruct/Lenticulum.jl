@@ -52,11 +52,9 @@ These belong in the interface package, not downstream, so they were added there:
   assignment from the target and available messages and tests `supports_polarity`.
 - `isunidirectional(factor)` — exactly one supported polarity.
 - `islearnable(factor)` / `isfrozen(factor)` — the user's "non-learnable factors" made a trait.
-  `islearnable` defaults to `parameterlength > 0` but is overridable, because a factor with
-  pinned parameters (a pretrained encoder, a physical constant) is not learnable even though it
-  has parameters. `isfrozen` describes planned freezing with preserved input cotangents;
-  that backward behavior is not implemented. `build` and `validate` reject `isfrozen == true`,
-  including for non-learnable factors (LP-011, L-SPEC-002).
+  `islearnable` defaults to `parameterlength > 0` and identifies optimiser candidates.
+  `isfrozen` pins all parameters for this run while preserving input derivatives.
+  Graph-local `freeze` selects subtrees; optimiser state excludes frozen coordinates.
 
 `Mycelium` adds a fourth, locally: `issink(factor)` — **zero** supported polarities. Losses and
 monitors are sinks, and this is a third case beyond unidirectional and bidirectional.
@@ -131,9 +129,19 @@ it silently. A validation pass for this is missing.
   an oversight; fixing it means deciding where to pay for joint representations.
 - **General residual diagnostics.** `ResidualSchedule` executes, but its convergence report
   measures message changes, not correctness of a loopy posterior.
-- **Cotangent flow.** Planned separately from belief messages, once per training step.
-  No per-edge `AbstractGradientCoupling` gradient machinery exists yet. `connect!` / `Edge`
-  accept only `DiagonalCoupling()` and reject other annotations (LP-011 option 2).
-  `optimiser_step` is separate from `step!`; this separation is not a graph backward pass.
+- **Implicit graph adjoints.** Finite static replay is implemented in [[gradient_couplings]];
+  an implicit fixed-point graph pullback remains open. Belief and parameter updates stay
+  separate.
 
 Related: [[LenticulumCore]], [[AutoBayes to Lenticulum]], [[Factor Graphs]]
+
+## LP-011 implementation (2026-10-27)
+
+Per-edge couplings, detach, graph-local subset freezing and a separate
+StraightThroughFactor are implemented in the documented static CPU domains. See
+[[gradient_couplings]] for mixed semantics, uncertainty returns and explicit restrictions.
+The former option-2 limitations above are historical.
+
+Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+`test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
+are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].

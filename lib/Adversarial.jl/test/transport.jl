@@ -20,7 +20,8 @@ end
         inputs=(z=source,),ps,st,pointwise=(zeros(2),nothing,b),
         game_prior=TrivialBelief(),game_y=source,msgs=(z=source,),
         expected_site=Gaussian(A*[0.3,-0.4]+b,A*[0.8 0.1;0.1 0.5]*A'),
-        expected_posterior=pushed)
+        expected_posterior=Gaussian(A*[0.3,-0.4]+b,A*[0.8 0.1;0.1 0.5]*A'),
+        expected_free_energy=-exact,expected_entropy=exact)
     @test_throws ArgumentError pushforward_entropy(f,DiracBelief([0.0,0.0]),ps,st)
     @test_throws ArgumentError pushforward_entropy(f,SampleBelief([[0.0,0.0]]),ps,st)
     @test_throws ArgumentError pushforward_entropy(f,source,(A=zeros(2,2),b=b),st)
@@ -45,6 +46,9 @@ end
     @test_throws ArgumentError estimate_pushforward_entropy(nf,DiracBelief([0.0,1.0]),np,ns;rng=Xoshiro(1))
     for d in (1,3)
         noise = NoiseSource(:z,d;nsamples=7)
+        check_factor_conformance(noise,nothing;scope=:game,ps=nt,st=nt,
+            game_prior=TrivialBelief(),game_y=nothing,
+            expected_free_energy=-d*(1+log(2π))/2,expected_entropy=d*(1+log(2π))/2)
         @test first(LenticulumCore.entropy(noise,TrivialBelief(),nothing,nt,nt)) ≈ d*(1+log(2π))/2
         @test first(free_energy(noise,TrivialBelief(),nothing,nt,nt)) ≈ -d*(1+log(2π))/2
         @test first(local_free_energy(noise,nt,nt,nt)) ≈ -d*(1+log(2π))/2

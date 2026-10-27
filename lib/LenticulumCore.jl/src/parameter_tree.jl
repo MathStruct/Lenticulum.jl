@@ -66,3 +66,41 @@ function _flatten_active(x::Union{NamedTuple,Tuple})
     parts = map(_flatten_active, values(x))
     return isempty(parts) ? Float64[] : reduce(vcat, parts)
 end
+
+# A tuple of symbols is one path; a tuple of tuples denotes several paths.
+function _freeze_paths(freeze)
+    freeze === :all && return :all
+    freeze isa Tuple || throw(ArgumentError("freeze must be :all, a tuple path, or a tuple of paths"))
+    isempty(freeze) && return ()
+    all(x -> x isa Union{Symbol,Int}, freeze) && return (freeze,)
+    all(x -> x isa Tuple && !isempty(x) && all(k -> k isa Union{Symbol,Int}, x), freeze) ||
+        throw(ArgumentError("invalid parameter freeze paths: $freeze"))
+    return freeze
+end
+function _trainable_indices(ps, freeze)
+    paths = _freeze_paths(freeze)
+    paths === :all && return Int[]
+    frozen = Int[]
+    offsets = offset_tree(ps)
+    for path in paths
+        x, o = ps, offsets
+        for key in path
+            valid = x isa NamedTuple ? key in keys(x) : x isa Tuple && key isa Int && 1 <= key <= length(x)
+            valid || throw(ArgumentError("freeze path $path does not exist in the parameter tree"))
+            x, o = x[key], o[key]
+        end
+        start = o isa Int ? o : _firstoffset(o)
+        append!(frozen, start:(start + _flatlen(x) - 1))
+    end
+    return setdiff(1:_flatlen(ps), frozen)
+end
+_firstoffset(o::Int) = o
+_firstoffset(o::Union{NamedTuple,Tuple}) = isempty(o) ? 1 : _firstoffset(first(o))
+
+"""
+    stop_gradient(x)
+
+Identity on values, zero derivative. ChainRules and ForwardDiff extensions implement
+the AD rule. Reference differences require a fixed reference value at the boundary.
+"""
+stop_gradient(x) = x

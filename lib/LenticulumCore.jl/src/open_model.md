@@ -108,3 +108,11 @@ evaluation. Those types provide their own log-density and can add exact product 
 Mycelium sums log-potentials and reweights explicit particles; it refuses arbitrary
 parametric products. Core construction tests check the representation; Mycelium and
 Adversarial tests check pooling and target exclusion against closed forms.
+
+## LP-011 positive-weight reverse derivatives (2026-10-27)
+
+The optional ChainRules extension supplies the exact normalised log-weight pullback
+`dy ./ weights - sum(dy)/sum(weights)` for strictly positive weights. This avoids the
+tested Zygote/Julia broadcast failure while constructing categorical score messages.
+Zero-weight changing-support derivatives throw. Primal zero-weight beliefs remain legal.
+Evidence: the categorical score estimator tests in Mycelium's `test/gradient_couplings.jl`.

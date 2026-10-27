@@ -45,23 +45,28 @@ A pure game's loss lacks the prior term of the free energy; AutoBayes fixes this
 
 Any of the four pieces may depend on $\theta$ (Definition 27): a decoder, an amortised encoder, a learned loss or critic, a learned regulariser. The parameter tree is Lux's — `initialparameters` returns a nested `NamedTuple`, which is the $\mathbf{Para}$ composite $\Phi \times \Theta$ of Definition 28 with labels. The paper's default semantics is descent **with respect to the Fisher metric** (the Bayesian learning rule); the multivariate energy is what makes a Gauss–Newton approximation of that metric available ([[Scalar and Multivariate Energy]] §6).
 
-Definition 29 composes gradients block-diagonally and is therefore **lax**: it drops the terms where an upstream parameter moves the downstream pushforward prior and where a downstream parameter moves the sampling distribution of the upstream inversion — the reparametrisation/score-function terms. Lenticulum reserves this choice per edge as an `AbstractGradientCoupling`. The following table describes planned semantics:
+Definition 29 composes gradients block-diagonally and is therefore **lax**: it drops the terms where an upstream parameter moves the downstream pushforward prior and where a downstream parameter moves the sampling distribution of the upstream inversion — the reparametrisation/score-function terms. Lenticulum reserves this choice per edge as an `AbstractGradientCoupling`. The supported rules are:
 
 | coupling | keeps | cost |
 |---|---|---|
-| `DiagonalCoupling()` | block diagonal only (stop-gradient) | cheapest, biased |
-| `PathwiseCoupling()` | differentiates through the sampler | needs a reparametrisable inversion |
-| `ScoreFunctionCoupling(baseline)` | REINFORCE estimate of the dropped term | unbiased, high variance |
-| `ExactCoupling()` | everything | conjugate / analytic factors only |
+| `DiagonalCoupling()` | existing local parameter derivative at fixed cavities | cheapest; omitted coupling terms can matter |
+| `PathwiseCoupling()` | Gaussian/Dirac message derivatives, analytic moment rule | restricted message families |
+| `ScoreFunctionCoupling(; baseline)` | terminal sampled point costs plus density scores | explicit rng/samples, standard error |
+| `ExactCoupling()` | full finite static schedule derivative | unroll storage and AD cost |
 
-Only `DiagonalCoupling()` is currently accepted by `compose` / `ComposedFactor` and
-Mycelium's `connect!` / `Edge`. Other annotations throw `ArgumentError` at construction
-(LP-011 option 2, 2026-10-26; the core and Mycelium `LP-011` testsets cover these cases).
-The default does not itself insert AD stops. `isfrozen == true` is likewise rejected by
-Mycelium's `build` and `validate`, including for non-learnable factors; the frozen backward
-pass remains planned with [[L-SPEC-002 Stop Gradient]].
+As of 2026-10-27, all four annotations are implemented for the domains in
+[[gradient_couplings]]. Non-diagonal graph parameter gradients replay an explicit finite
+static schedule. Detach overrides coupling; freezing removes parameter coordinates from
+updates without cutting input derivatives. A mixed Jacobian path survives only when all
+crossed attachments permit it. Score sampling returns a labelled estimate with a standard
+error. Exact means the full finite schedule derivative, rather than restricting the factor
+family to conjugacy.
 
-These name the paper's "different semantics functors" — different lax sections of the gradient fibration (Remark 30) — and [[The Type Discipline of a Factor Graph]] §4 observes that together they form an effect system with no composition rule yet.
+The preserved default holds cavity messages fixed. Gaussian factors recompute their local
+posterior within this derivative, so calling it a true fixed-posterior EM M-step is wrong.
+The independent Gaussian oracle records the distinction in [[L-SPEC-002 Stop Gradient]].
+
+These name the paper's "different semantics functors" — different lax sections of the gradient fibration (Remark 30) — and [[The Type Discipline of a Factor Graph]] §4 observes that the original effect-system proposal is now realised by the boundary composition rule above.
 
 ## The engineering agenda the paper leaves
 

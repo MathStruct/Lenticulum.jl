@@ -1,6 +1,11 @@
 # Exact marginalisation of the internal Gaussian channel. This is a collapsed game,
 # not the graded path game of compose_free_energy (which retains the internal channel).
 const GaussianComposite = LenticulumCore.ComposedFactor{<:GaussianFactor,<:GaussianFactor}
+function LenticulumCore._check_factor_ad(ad, f::GaussianComposite)
+    f.coupling isa LenticulumCore.ScoreFunctionCoupling && throw(ArgumentError(
+        "a score-coupled collapsed Gaussian needs free_energy_gradient(f, prior, observation, ps, st; rng, nsamples); nesting that estimator inside a graph gradient is unsupported"))
+    return nothing
+end
 
 function _check_gaussian_composite(f::GaussianComposite)
     a, b = f.first, f.second
@@ -73,6 +78,11 @@ function Mycelium.factor_message(f::GaussianComposite, target::Symbol, p, inputs
     result, _ = Mycelium.factor_message(g,target,p,inputs,prior,gp,(;))
     return result, st
 end
+function Mycelium._gradient_message(f::GaussianComposite, target::Symbol, p, inputs, prior, ps, st)
+    g,gp=_collapsed_gaussian(f,ps)
+    result,_=Mycelium._gradient_message(g,target,p,inputs,prior,gp,(;))
+    return result,st
+end
 function Mycelium.local_free_energy(f::GaussianComposite, msgs, ps, st)
     g, gp = _collapsed_gaussian(f, ps)
     result, _ = Mycelium.local_free_energy(g,msgs,gp,(;))
@@ -104,3 +114,56 @@ function LenticulumCore.pushforward(f::GaussianComposite, π, ps, st)
     return result, st
 end
 LenticulumCore.exact_product_game(::Union{GaussianFactor,GaussianPrior,GaussianComposite}) = true
+
+# Collapsed endpoints have no exposed internal boundary: the historical diagonal
+# derivative already differentiates the marginalisation. Exact/pathwise agree with
+# that derivative. Score coupling supplies an explicit posterior-sampling estimator.
+function LenticulumCore._composed_parameter_gradient(c::Union{LenticulumCore.DiagonalCoupling,LenticulumCore.ExactCoupling,LenticulumCore.PathwiseCoupling},
+        f::GaussianComposite, π, y, ps, st; ad, ε, kwargs...)
+    isempty(kwargs) || throw(ArgumentError("analytic Gaussian composite gradients do not take sampling keywords"))
+    c isa LenticulumCore.DiagonalCoupling || Mycelium._check_schedule_ad(ad)
+    return LenticulumCore._parameter_gradient(ad, LenticulumCore._scalar_free_energy_params, ps, f, π, y, st, (;); ε)
+end
+
+function _internal_posterior(f::GaussianComposite, x, z, ps)
+    a,b=f.first,f.second
+    Q,R=noise_covariance(a,ps.first),noise_covariance(b,ps.second)
+    Λ=inv(Q)+ps.second.A'*(R\ps.second.A)
+    η=Q\(ps.first.A*x+ps.first.b)+ps.second.A'*(R\(z-ps.second.b))
+    return GaussianBelief(η,Λ)
+end
+function _joint_nll(f, x, z, latent, ps)
+    a,b=f.first,f.second
+    Q,R=noise_covariance(a,ps.first),noise_covariance(b,ps.second)
+    u=latent-ps.first.A*x-ps.first.b
+    v=z-ps.second.A*latent-ps.second.b
+    return (LinearAlgebra.dot(u,Q\u)+LinearAlgebra.dot(v,R\v)+logdet(Q)+logdet(R)+(length(u)+length(v))*log(2π))/2
+end
+function _composite_score_loss(ps,f,x,z,latent,F,baseline,logq0)
+    logq=Mycelium.belief_logdensity(_internal_posterior(f,x,z,ps),latent)
+    return _joint_nll(f,x,z,latent,ps)+logq+(F-baseline)*(logq-logq0)
+end
+function LenticulumCore._composed_parameter_gradient(c::LenticulumCore.ScoreFunctionCoupling,
+        f::GaussianComposite, π, y, ps, st; ad, ε, rng=nothing, nsamples=nothing)
+    Mycelium._check_schedule_ad(ad)
+    π isa LenticulumCore.DiracBelief || throw(ArgumentError("Gaussian composite score gradients currently require a Dirac input prior"))
+    obs=y isa NamedTuple ? get(y,f.second.out_channel,nothing) : y
+    obs isa LenticulumCore.DiracBelief || throw(ArgumentError("Gaussian composite score gradients currently require a Dirac endpoint observation"))
+    rng isa Random.AbstractRNG || throw(ArgumentError("score gradients require an explicit rng"))
+    nsamples isa Int && nsamples>=2 || throw(ArgumentError("score standard errors require nsamples >= 2"))
+    baseline=c.baseline === nothing ? 0.0 : c.baseline
+    baseline isa Real && isfinite(baseline) || throw(ArgumentError("baseline must be a finite fixed scalar"))
+    _check_gaussian_composite(f)
+    x,z=_vec(π.value),_vec(obs.value)
+    posterior=_internal_posterior(f,x,z,ps)
+    F=first(LenticulumCore.scalar_free_energy(f,π,y,ps,st))
+    draws=map(1:nsamples) do _
+        latent=Mycelium._draw(rng,posterior)
+        logq=Mycelium.belief_logdensity(posterior,latent)
+        g=LenticulumCore._parameter_gradient(ad,_composite_score_loss,ps,f,x,z,latent,F,baseline,logq;ε)
+        LenticulumCore._flatten(g)
+    end
+    μ=sum(draws)/nsamples
+    se=sqrt.(sum(g -> abs2.(g-μ),draws)/(nsamples*(nsamples-1)))
+    return Mycelium.GradientEstimate(LenticulumCore._unflatten(μ,ps),LenticulumCore._unflatten(se,ps),nsamples)
+end

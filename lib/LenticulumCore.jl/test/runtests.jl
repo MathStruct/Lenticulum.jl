@@ -18,14 +18,12 @@ end
         @test f.second === b
         @test f.coupling === DiagonalCoupling()
     end
-    # All three non-default built-in families, including both score-function baselines,
-    # plus a user-defined subtype: the guard is a whitelist, not a blacklist.
-    for coupling in (PathwiseCoupling(), ScoreFunctionCoupling(),
-                     ScoreFunctionCoupling(0.5), ExactCoupling(), UnsupportedCoreCoupling())
-        @test_throws ArgumentError ComposedFactor(a, b; coupling)
-        @test_throws ArgumentError ComposedFactor(a, b, coupling)
-        @test_throws ArgumentError ComposedFactor{typeof(a),typeof(b),typeof(coupling)}(a, b, coupling)
+    for coupling in (PathwiseCoupling(), ScoreFunctionCoupling(), ScoreFunctionCoupling(0.5), ExactCoupling())
+        @test ComposedFactor(a, b; coupling).coupling === coupling
+        @test ComposedFactor(a, b, coupling).coupling === coupling
+        @test ComposedFactor{typeof(a),typeof(b),typeof(coupling)}(a, b, coupling).coupling === coupling
     end
+    @test_throws ArgumentError ComposedFactor(a, b; coupling = UnsupportedCoreCoupling())
     @test_throws ArgumentError ComposedFactor(a, b; coupling = nothing)
 end
 
@@ -312,8 +310,9 @@ end
 @testset "Container conformance scope (LP-008/009)" begin
     a, b = CouplingGuardFactor(:a), CouplingGuardFactor(:b)
     for f in (ComposedFactor(a,b), TensorFactor((a=a,b=b)))
-        # These describe parameter/energy-space containers, not wired factors. No
-        # channels or assembled inversion exist, so the common checker cannot apply.
+        # Unsupported component laws have no evaluated game. These generic containers
+        # remain unwired; Gaussian composition and independent product-game conformance
+        # are exercised by the top-level test/game_composition.jl.
         @test !applicable(LenticulumCore.channels, f)
         @test !applicable(assemble, f, Polarity((x=Observed(),y=Unobserved())), (;), (;))
         @test isempty(supported_polarities(f))

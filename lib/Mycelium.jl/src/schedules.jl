@@ -77,8 +77,8 @@ correspondingly shorter.
 > A `LossFactor` on `Absorbing` edges never tells its input variable anything: in *belief*
 > terms a sink is genuinely uninformative about what it consumes. What a loss "tells" its
 > input is a **cotangent**, not a belief, and cotangents travel by the
-> planned `AbstractGradientCoupling` machinery, which is not implemented yet (LP-011,
-> L-SPEC-002). Non-default couplings fail at construction. So `pruned > 0` does not mean
+> `AbstractGradientCoupling` machinery in the parameter driver, with explicit static
+> schedule replay for supported non-diagonal couplings (LP-011, L-SPEC-002). So `pruned > 0` does not mean
 > the schedule is broken — it means part of the graph is explicit rather than implicit. It is
 > surfaced as a field rather than swallowed so that a genuinely mis-wired graph (an implicit
 > factor accidentally given a unidirectional edge) is visible.
@@ -100,8 +100,8 @@ reverse sweep along whatever edges are `Bidirectional`.
 > [!note] The backward list is empty for a strictly unidirectional DAG — and that is correct
 > A Lux-style graph (all edges `Emitting`/`Absorbing`) has **no backward belief flow**. Its
 > backward pass would carry *cotangents*, not beliefs. The per-edge
-> `AbstractGradientCoupling` backward machinery is not implemented (LP-011, L-SPEC-002);
-> non-default couplings fail at construction. Seeing `isempty(sched.backward)` says
+> parameter-driver couplings supply cotangent paths separately from these belief tasks
+> (LP-011, L-SPEC-002). Seeing `isempty(sched.backward)` says
 > "this graph is explicit; there is nothing to infer".
 """
 struct ForwardBackwardSchedule <: AbstractSchedule

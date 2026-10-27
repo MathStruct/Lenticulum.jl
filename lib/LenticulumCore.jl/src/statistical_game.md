@@ -60,13 +60,11 @@ subtyping `AbstractLuxLayer` — see [[abstract_types]] §"Why factors are not a
 
 ### 1. Generic interfaces do not implement composite evaluation
 
-The generic `free_energy`, `energy`, `entropy`, `assemble`, `invert`, `forward` and
-`pushforward` interfaces are extension points implemented by concrete factor families
-elsewhere in the monorepo. The composition **combinators** here are tested, but
-`ComposedFactor` itself only supplies the parameter/state container structure, energy space
-and scalarisation; it has no composed lens or free-energy walker. Concrete graph inference
-and Bethe free energy live in Mycelium. The presence of concrete factors does not make the
-planned composite gradient machinery work.
+The generic game/lens interfaces are extension points for concrete factor families.
+Core supplies domain-checking fallbacks; Lenticulum implements a Gaussian pair as a
+collapsed endpoint game. Mycelium computes graph Bethe free energy and explicit
+coupling replay. Generic non-Gaussian composition still needs a pushforward law and
+inversion rule; the parameter/state container alone cannot supply them.
 
 ### 2. `compose_entropy` and `compose_free_energy` take a plain collection of samples
 
@@ -99,7 +97,7 @@ end. Currently there is no walker, so this is a note for whoever writes it.
 needing `using LuxCore` to set up a factor. The cost is a name that shadows nothing but
 duplicates something. Reconsider if `Lenticulum.jl` ends up re-exporting LuxCore anyway.
 
-### 6. Gradient annotations are guarded, not implemented (LP-011)
+### 6. Historical gradient guards (2026-10-26; superseded below)
 
 `ComposedFactor` retains its `coupling` field for the planned design, but only accepts
 `DiagonalCoupling()`. Keyword, positional and explicitly parameterized constructors throw
@@ -127,7 +125,7 @@ factor checker is therefore inapplicable; treating them as sinks would conceal m
 wiring. `test/runtests.jl`, "Container conformance scope (LP-008/009)", checks these absences.
 Composition needs a pushforward prior and downstream inversion law; tensor needs a joint
 belief/input convention before its component laws can be evaluated. No arbitrary
-expectation or mean-field approximation is added here. Existing LP-011 guards are unchanged.
+expectation or mean-field approximation is added here. The original LP-011 guards were later superseded by the implementation below.
 
 ## Bounds and exact container games (2026-10-27, LP-009)
 
@@ -153,3 +151,15 @@ is the collapsed Gaussian grading, not the pathwise `(first,second)` grading of 
 container. [[composition]] records the distinction, restrictions and closed-form/common
 conformance tests in `test/game_composition.jl`. Generic composition still throws with an
 exact-pushforward reason. The value-level `compose_*` sample combinators are unchanged.
+
+## LP-011 implementation (2026-10-27)
+
+`isfrozen=true` pins all parameters while preserving input derivatives.
+`islearnable=false` identifies an intrinsically nontrainable factor; graph-local subset
+freezing uses `factor!(...; freeze)`. Composite gradient evaluation dispatches on coupling
+and throws when the family has no implemented rule. `straight_through` has optional
+ForwardDiff and ChainRules extensions. The old option-2 section above is historical.
+
+Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+`test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
+are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].

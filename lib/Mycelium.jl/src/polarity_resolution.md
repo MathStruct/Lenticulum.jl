@@ -38,11 +38,9 @@ is a DAG; a Mycelium graph is well-formed iff every scheduled message passes bot
 
 Pre-flight checks: declared channels, no isolated factors or variables, and a warning for
 multiple emitting edges with no reader. Structural validation is optional and separate from
-`build`. Both `validate` and `build` reject `isfrozen == true` with an `ArgumentError` naming
-the factor, even if it is non-learnable (LP-011 option 2, 2026-10-26). No frozen backward
-semantics exist; excluding a node from `learnable_factors` does not supply them. The
-`LP-011 graph construction guards` testset checks both learnability values and both entry
-points independently. The check is outside message passing.
+`build`. Both accept frozen factors: the parameter driver pins selected coordinates
+and preserves input derivatives. The old option-2 rejection is recorded in LP-011's
+historical section. Freeze paths are checked against actual parameter trees at use.
 
 ## Implementation difficulties
 
@@ -85,3 +83,14 @@ knows *why* it refused and has no way to say so. A `supports_polarity` returning
 (`nothing` for yes, a `String` for no) would be strictly better and is a small interface change.
 
 Related: [[Polarity Resolution]], [[Channels and Polarity]], [[messages]]
+
+## LP-011 implementation (2026-10-27)
+
+Frozen factors are now legal in both build and validate;
+parameter freezing lives in the parameter/gradient driver and preserves input
+cotangents. The 2026-10-26 frozen-factor rejection described above is historical.
+Polarity legality and direction checks remain unchanged.
+
+Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+`test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
+are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].

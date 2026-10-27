@@ -3,6 +3,16 @@ using Lenticulum: Lenticulum as LT
 using ChainRulesCore
 using LinearAlgebra
 
+function ChainRulesCore.rrule(::typeof(LT._prior_precision), Σ)
+    P = LT._prior_precision(Σ)
+    function back(dP)
+        D = unthunk(dP)
+        D isa AbstractZero && return NoTangent(), ZeroTangent()
+        return NoTangent(), -(P' * D * P')
+    end
+    return P, back
+end
+
 function ChainRulesCore.rrule(::typeof(LT._clip_precision), P, cap)
     E = eigen(Symmetric(P))
     if maximum(E.values) < cap

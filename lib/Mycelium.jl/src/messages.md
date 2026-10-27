@@ -224,3 +224,15 @@ no extra `log_overlap` wrapper: callers needing only the mass use `last`.
 `test/overlap.jl` checks categorical sums, Gaussian convolution, and improper
 Gaussian overlap differences against closed forms. Homotopy branch weighting
 uses this public rule, as does mixture pooling's availability check.
+
+## LP-011 implementation (2026-10-27)
+
+Read-only message operations accept an internal abstract store,
+allowing immutable replay tuples alongside the ordinary mutable MessageStore. Marginal
+and excluded-marginal reads enforce detach even on externally populated stores.
+A Gaussian belief covariance ChainRules rule uses the inverse-matrix derivative,
+avoiding differentiation through a mutating Cholesky inverse.
+
+Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+`test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
+are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].

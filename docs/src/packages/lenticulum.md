@@ -105,3 +105,15 @@ propagated first-stage noise. Both endpoint polarities, messages and Gaussian pu
 are exact. Component noise hyperpriors and other compositions are unsupported.
 Independent TensorFactor games use NamedTuple products keyed by `parts`, preserving each
 branch's channel game and grading; scalar free energies add. Correlated beliefs are refused.
+
+## Composite parameter gradients
+
+Gaussian `ComposedFactor(a,b; coupling)` is a collapsed endpoint game. Its historical
+diagonal, exact and analytic pathwise gradients all differentiate that collapsed law;
+there is no exposed internal message to cut. Score coupling currently requires Dirac
+input/endpoint beliefs, explicit `rng` and `nsamples >= 2`, and a fixed scalar baseline.
+It samples the exact internal posterior and returns `Mycelium.GradientEstimate` with
+componentwise standard errors. The baseline equal to the reference endpoint NLL cancels
+the posterior score noise. ForwardDiff/Zygote and reference differences support the
+analytic gradients; the score estimator uses the documented schedule-backend whitelist.
+An explicit Mycelium graph exposes internal boundaries when different cuts are needed.

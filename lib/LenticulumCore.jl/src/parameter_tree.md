@@ -22,3 +22,15 @@ leaves are copied before concatenation so rebuilt views do not introduce array/v
 unions into Enzyme's type analysis; see `ImplicitLayers.jl/test/parameter_ad.jl`. Mutating
 `copyto!` during that flatten would break Zygote. GPU support for this nested solve path
 has not been tested. Core tree gradients and VD regression tests exercise the shared code.
+
+## LP-011 implementation (2026-10-27)
+
+`_freeze_paths` normalises one path, several paths, or `:all`;
+`_trainable_indices` validates every selected subtree and computes its active numeric
+coordinates in the existing flatten order. Optimiser state allocates only these
+coordinates. `stop_gradient` is identity on primal values with optional ForwardDiff
+and ChainRules zero-derivative rules. Shape/index computations are nondifferentiable.
+
+Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+`test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
+are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].

@@ -85,7 +85,7 @@ special case, but a graph with variables in one component and factors in another
 by the final `all(seen_v) && all(seen_f)`. Correct, but the special-casing is inelegant enough
 to be worth flagging.
 
-### 5. Construction refuses unsupported gradient settings (LP-011)
+### 5. Historical construction guards (2026-10-26; superseded below)
 
 `connect!` and the `Edge` inner constructor accept only `DiagonalCoupling()`. Other coupling
 values throw `ArgumentError` explaining that per-edge gradient couplings are not implemented
@@ -106,3 +106,15 @@ These are construction/validation checks only: message passing is unchanged, and
 the default coupling does not itself insert stop-gradients into AD.
 
 Related: [[Factor Graphs]], [[polarity_resolution]], [[free_energy]]
+
+## LP-011 implementation (2026-10-27)
+
+`Edge` now includes `detach::Bool`. `connect!` accepts all four built-in
+couplings. `FactorNode` includes graph-local `freeze` paths; its old three-argument
+constructor remains valid. `factor!` checks path syntax, and gradient/update entry points
+check paths against actual parameters. Build/validate no longer reject `isfrozen=true`.
+The construction-time rejection account above describes the 2026-10-26 option-2 state.
+
+Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+`test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
+are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].

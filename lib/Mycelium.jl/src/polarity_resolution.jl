@@ -33,9 +33,6 @@ Structural checks that must hold before any message can be scheduled. Throws on 
 returns `g` on success.
 
 Checks:
-0. no factor declares `isfrozen(f) == true`, even if non-learnable: frozen backward
-   semantics are not implemented (LP-011, L-SPEC-002). Throws `ArgumentError` naming the
-   factor. `build` also checks this, since structural validation is optional;
 1. every edge's channel is declared by its factor (`LenticulumCore.channels`);
 2. every factor has at least one edge (an isolated factor contributes energy nobody reads);
 3. every variable has at least one edge;
@@ -44,7 +41,6 @@ Checks:
    so it is reported as a warning rather than an error.
 """
 function validate(g::FactorGraph)
-    _check_frozen_factors(g.factors)
     for (i, e) in enumerate(g.edges)
         fn = factornode(g, e.factor)
         decl = hasmethod(LenticulumCore.channels, Tuple{typeof(fn.factor)}) ?

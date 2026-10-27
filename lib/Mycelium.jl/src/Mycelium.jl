@@ -53,6 +53,7 @@ include("passing.jl")
 include("free_energy.jl")
 include("factors.jl")
 include("gaussian.jl")
+include("gradient_couplings.jl")
 
 # --- Graph -----------------------------------------------------------------
 export FactorGraph, GraphBuilder, VariableNode, FactorNode, Edge
@@ -92,5 +93,6 @@ export local_free_energy, uses_cavity, issink, point
 export DataFactor, PriorFactor, LossFactor, RelayFactor, OptimiserFactor
 export AbstractUpdateRule, GradientDescent, Momentum, Nesterov
 export rule_get, rule_put, optimiser_step, parameter_step
+export GradientEstimate, StraightThroughFactor
 
 end # module

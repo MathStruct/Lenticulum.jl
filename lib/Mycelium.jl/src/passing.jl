@@ -38,7 +38,7 @@ Channels of factor `fid` that currently have an informative incoming (variable â
 message, optionally excluding one edge. Channels holding `nothing` or an uninformative belief
 (`TrivialBelief()` or `uninformative(n)`) are excluded so they resolve to `Latent()`.
 """
-function available_channels(s::MessageStore, g::FactorGraph, fid::Int; skip::Int = 0)
+function available_channels(s::AbstractMessageStore, g::FactorGraph, fid::Int; skip::Int = 0)
     out = Symbol[]
     for ei in g.edges_of_factor[fid]
         ei == skip && continue
@@ -49,7 +49,7 @@ function available_channels(s::MessageStore, g::FactorGraph, fid::Int; skip::Int
     return Tuple(out)
 end
 
-function _inputs(s::MessageStore, g::FactorGraph, fid::Int, chans)
+function _inputs(s::AbstractMessageStore, g::FactorGraph, fid::Int, chans)
     vals = map(chans) do c
         ei = findfirst(e -> g.edges[e].channel === c, g.edges_of_factor[fid])
         s.to_factor[g.edges_of_factor[fid][ei]].belief
@@ -79,6 +79,7 @@ function step!(s::MessageStore, g::FactorGraph, t::MessageTask, ps, st;
             factornode(g, e.factor).name, e.channel,
             "edge is Emitting; a variable -> factor message is not legal here"))
         belief = excluded_marginal(s, g, e.variable, t.edge)
+        belief = e.detach ? LenticulumCore.stop_gradient(belief) : belief
         old = s.to_factor[t.edge]
         res = belief_distance(old === nothing ? nothing : old.belief, belief)
         if commit
@@ -96,7 +97,7 @@ function step!(s::MessageStore, g::FactorGraph, t::MessageTask, ps, st;
         # not, the factor would be feeding its own previous claim back to itself.
         chans = available_channels(s, g, e.factor; skip = t.edge)
         pol = resolve_polarity(g, e.factor, e.channel, chans)
-        psf = _subtree(ps, fn.name)
+        psf = _factor_parameters(fn, _subtree(ps, fn.name))
         stf = _subtree(st, fn.name)
         if isempty(chans) && !issink(fn.factor) && !LenticulumCore.supports_polarity(fn.factor, pol)
             @warn "factor :$(fn.name) has no informative inputs when emitting on :$(e.channel); sending TrivialBelief()" maxlog = 1
@@ -111,6 +112,7 @@ function step!(s::MessageStore, g::FactorGraph, t::MessageTask, ps, st;
         if old !== nothing && damping > 0
             belief = damp(belief, old.belief, 1 - damping)
         end
+        belief = e.detach ? LenticulumCore.stop_gradient(belief) : belief
         res = belief_distance(old === nothing ? nothing : old.belief, belief)
         if commit
             s.to_variable[t.edge] = Message(belief, s.iteration)

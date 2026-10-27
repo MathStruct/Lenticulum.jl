@@ -18,7 +18,7 @@ include(joinpath(@__DIR__, "../../../test/factor_conformance.jl"))
         check_factor_conformance(f, p; π, inputs, ps, st,
             pointwise=([1.0,2.0],p,[2.0,3.0]), msgs=inputs,
             expected_site=site, expected_posterior=post,
-            game_gap="LP-009: score surrogate has no Definition 20 entropy; graph infers its own polarity")
+            game_gap="deliberate scope: prox/score graph surrogate has no exact posterior game; finite-chain NLL bound is checked separately in bound.jl")
         E = first(LenticulumCore.energy(f, [1.0,2.0], p, [2.0,3.0], ps, st))
         @test E[:clamp] ≈ 0.5
         @test E[:score] ≈ λ * sigma(SCHED,t)^3 * alpha(SCHED,t) * 5
@@ -43,7 +43,7 @@ include(joinpath(@__DIR__, "../../../test/factor_conformance.jl"))
             pointwise=([1.0,2.0],p,[2.0,3.0]), msgs=nt,
             expected_site=site, expected_posterior=post,
             expected_target_sites=(x=scalar_site,y=scalar_site),
-            game_gap="LP-009: no posterior entropy or explicit game/graph split")
+            game_gap="deliberate scope: prox/score graph surrogate has no exact posterior game; finite-chain NLL bound is checked separately in bound.jl")
         @test p in supported_polarities(f)
         if d == 2
             joint, _ = invert(first(assemble(f,p,ps,st)),π,nt,ps,st)
@@ -58,7 +58,7 @@ include(joinpath(@__DIR__, "../../../test/factor_conformance.jl"))
     check_factor_conformance(f1, only(supported_polarities(f1)); π=TrivialBelief(),
         inputs=nt, ps=nt, st=nt, pointwise=([1.0],only(supported_polarities(f1)),[2.0]),
         msgs=nt, expected_site=DiracBelief([0.0]), expected_posterior=DiracBelief([0.0]),
-        game_gap="LP-009: score surrogate is not a posterior entropy")
+        game_gap="deliberate scope: prox/score graph surrogate has no exact posterior game; finite-chain NLL bound is checked separately in bound.jl")
 end
 
 @testset "Diffusion polarity enumeration and cap (LP-017)" begin

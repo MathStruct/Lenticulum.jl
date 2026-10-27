@@ -23,13 +23,12 @@ g = validate(build(b))
 `validate` checks the structure: every edge names a channel its factor actually declares,
 nothing is isolated, and dangling outputs are reported. It is a separate, optional step.
 
-Per-edge gradient couplings are not implemented (LP-011, L-SPEC-002). `connect!` and `Edge`
-accept only `DiagonalCoupling()`; other couplings throw `ArgumentError` at construction,
-including direct and explicitly parameterized `Edge` construction. The default preserves
-existing behavior and does not itself insert AD stops. Both `build` and `validate` throw
-`ArgumentError` naming any factor declaring `isfrozen == true`, even when non-learnable:
-`islearnable == false` only filters the optimiser list, not a frozen backward pass.
-Message passing is unchanged.
+`connect!(...; coupling, detach=false)` accepts all four built-in couplings.
+`factor!(...; freeze=(:encoder,))` pins a subtree, several tuple paths pin several,
+and `freeze=:all` pins the full tree. Frozen coordinates have zero graph gradient
+and no optimiser state; input derivatives are preserved. `isfrozen=true` pins all
+parameters for this run; `islearnable=false` excludes an intrinsically nontrainable
+factor from `learnable_factors`. Frozen learnable factors remain in that candidate list.
 
 Edges are **directed**, and the direction restricts which messages are legal:
 
@@ -195,3 +194,47 @@ zero with the loss's shape. Optimiser is an update rule and both game methods th
 direct messages for emitting factors (both Relay directions), explicit pointwise/game
 opt-outs for Optimiser and sink/message/pointwise opt-outs for Loss. Their supported game
 methods are compared to `local_free_energy` using option 1.
+
+## Finite schedule gradients and straight-through values
+
+```julia
+connect!(builder, :model, :out, :y; coupling=ExactCoupling(), detach=false)
+factor!(builder, :encoder, encoder; freeze=(:pretrained,))
+grad = free_energy_gradient(store, graph, ps, st;
+    ad=AutoForwardDiff(), schedule=tree_schedule(graph), nsweeps=1)
+```
+
+The diagonal default preserves the existing derivative at fixed incoming cavity
+messages. Gaussian factors still recompute their local posterior; this is not generally
+a fixed-posterior EM derivative. Other choices replay from empty messages, with explicit
+finite sweep count. A derivative path survives only if every crossed attachment permits
+it: exact/pathwise keep their local Jacobian, diagonal cuts it, and detach overrides all.
+Pathwise supports Dirac and analytic Gaussian moment propagation; other informative
+families throw. Exact differentiates the iteration, including Bethe corrections, without
+promising converged/exact inference in loopy graphs.
+
+Static sequential/tree/forward-backward schedules and DI ForwardDiff/Zygote or reference
+differences are supported. Reverse `infer!` replays its realised static sweep count with
+zero damping. State/reports have no cotangents. Flooding/residual replay, other schedule
+backends and GPU are unsupported. Replay storage/copying grows with tasks times edges.
+
+`ScoreFunctionCoupling(; baseline=nothing)` supports sampled terminal Gaussian/categorical
+messages on all-absorbing factors for one sweep. Supply an explicit `rng` and
+`nsamples >= 2`; `GradientEstimate` contains `.value`, componentwise `.standard_error`,
+and `.nsamples`. Its objective is expected terminal point cost plus the other analytic local/Bethe
+terms; sampling a terminal Dirac does not estimate distribution entropy.
+Categorical probabilities must be strictly positive. The baseline is a fixed finite scalar. Score `parameter_step` returns four entries,
+including the estimate; deterministic steps retain `(ps_new, st_new, optimiser_state)`.
+Coupled steps commit the first replicate's inferred state plus one local-energy advance;
+other replicates do not accumulate state changes. Bidirectional score sampling throws because replacing BP densities by samples changes
+the free-energy objective. Mixed terminal score and upstream analytic/cut rules compose.
+
+`StraightThroughFactor(round, identity)` has `(:in,:out)` channels, forward round values,
+identity input Jacobian and zero local cost. Its fixed callables take scalar/array inputs.
+ForwardDiff and ChainRules reverse mode are supported; the graph derivative entry points
+reject other backends, including differences of the forward function.
+
+```@autodocs
+Modules = [Mycelium]
+Pages = ["gradient_couplings.jl"]
+```

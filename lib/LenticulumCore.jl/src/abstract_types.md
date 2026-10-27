@@ -1,6 +1,7 @@
 #implementation
 
-> The factor and gradient-annotation type hierarchy; non-default gradient annotations fail at construction (LP-011).
+> The factor and gradient-coupling type hierarchy; all four built-in couplings have
+> supported implementations, with explicit domain restrictions (LP-011).
 
 > Sources: code: `abstract_types.jl`
 >
@@ -55,11 +56,10 @@ mechanistically by an implementation". Its closing paragraph then predicts that 
 method, the delta rule, and sampling schemes of various kinds — will correspond to different
 **semantics functors**".
 
-`DiagonalCoupling` / `PathwiseCoupling` / `ScoreFunctionCoupling` / `ExactCoupling` name
-planned semantics, rather than implemented gradient rules. Different edges may eventually
-need conjugate, reparametrisation or score-function corrections.
+`DiagonalCoupling` / `PathwiseCoupling` / `ScoreFunctionCoupling` / `ExactCoupling` select
+per-boundary derivative rules; see [[gradient_couplings]] for the supported domains.
 
-As of 2026-10-26, LP-011 option 2 is implemented: a shared construction-time guard accepts
+Historical state, 2026-10-26 (superseded by the implementation below): a shared construction-time guard accepts
 only `DiagonalCoupling()` in `ComposedFactor`, `connect!` and `Edge`; all other values raise
 `ArgumentError` identifying LP-011 and L-SPEC-002. The types and fields remain for the future
 gradient implementation. Accepting the default preserves existing behavior; it does not
@@ -95,3 +95,13 @@ default `true` — would let a graph compile and then fail at message-passing ti
 error far from its cause.
 
 Related: [[LenticulumCore]], [[channels]], [[statistical_game]]
+
+## LP-011 implementation (2026-10-27)
+
+All four built-in gradient couplings are accepted; unknown subtypes still throw.
+Graph parameter gradients dispatch per boundary, with explicit finite replay for
+non-diagonal edges. The old option-2 guards described above are historical.
+
+Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+`test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
+are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].

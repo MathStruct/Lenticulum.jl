@@ -30,15 +30,40 @@
             post = forward ? site : Gaussian(vec(postmean),postvar)
             check_factor_conformance(f,p;π=prior,inputs,ps,st,
                 pointwise=(nothing,nothing,[0.2,0.8]),game_prior=π,game_y=(y=obs,),
-                msgs=(x=π,y=obs),expected_site=site,expected_posterior=post)
+                msgs=(x=π,y=obs),expected_site=site,expected_posterior=post,
+                expected_free_energy=GradedEnergy((fit=fit,complexity=logdet((2 * Base.MathConstants.pi)*Q)/2,negentropy=-H)),
+                expected_entropy=GradedEnergy((fit=0.0,complexity=0.0,negentropy=H)))
         end
         for px in (DiracBelief([0.2]),π), py in (obs,Gaussian(0.8,0.2))
-            out = first(free_energy(f,px,(y=py,),ps,st))
-            # The independently implemented top-level Gaussian factor is already included
-            # by polynomial.jl's degree-one message tests, without a package dependency.
-            g = PolynomialLinearOracle.GaussianFactor(1=>1;noise=Q)
-            expected = first(free_energy(g,px,py,(A=a,b=bias),(;)))
-            @test all(out[k] ≈ expected[k] for k in keys(out))
+            # Independent scalar Gaussian conditioning, including a soft y observation.
+            # The prior conditional joint has Cov(x,y)=a*S and Var(y)=a²*S+Q.
+            q = only(Q); gain = A/2; offset = b/2
+            fixed_x = px isa DiracBelief; fixed_y = py isa DiracBelief
+            if fixed_x && fixed_y
+                residual_mean = 0.8-gain*0.2-offset
+                residual_var = 0.0; h = 0.0
+            elseif fixed_y
+                residual_mean = only(r); residual_var = only(a*postvar*a')
+                h = H
+            elseif fixed_x
+                v = inv(inv(q)+inv(0.2))
+                my = v*((gain*0.2+offset)/q+0.8/0.2)
+                residual_mean = my-gain*0.2-offset
+                residual_var = v; h = (1+log((2 * Base.MathConstants.pi)*v))/2
+            else
+                joint_cov = [0.7 gain*0.7; gain*0.7 gain^2*0.7+q]
+                gain_y = joint_cov[:,2]/(joint_cov[2,2]+0.2)
+                joint_mean = [0.2,gain*0.2+offset]+gain_y*(0.8-gain*0.2-offset)
+                joint_post = joint_cov-gain_y*joint_cov[2,:]'
+                residual_mean = dot([-gain,1.0],joint_mean)-offset
+                residual_var = dot([-gain,1.0],joint_post*[-gain,1.0])
+                h = (2*(1+log((2 * Base.MathConstants.pi)))+logdet(joint_post))/2
+            end
+            expected_F = GradedEnergy((fit=(residual_mean^2+residual_var)/(2q),
+                complexity=log((2 * Base.MathConstants.pi)*q)/2,negentropy=-h))
+            expected_H = GradedEnergy((fit=0.0,complexity=0.0,negentropy=h))
+            check_factor_conformance(f,nothing;scope=:game,ps,st,game_prior=px,game_y=(y=py,),
+                expected_free_energy=expected_F,expected_entropy=expected_H)
         end
     end
     f = PolynomialFactor((x=1,y=1),ExponentTable(2,1),1)
@@ -59,7 +84,14 @@ end
     @test first(free_energy(f,nothing,inputs,nt,nt)) ≈ -H
     check_factor_conformance(f,only(supported_polarities(f));π=TrivialBelief(),inputs,
         ps=nt,st=nt,pointwise=(nothing,nothing,nothing),game_prior=TrivialBelief(),
-        game_y=inputs,msgs=inputs,direct_message=true,expected_site=expected,expected_posterior=expected)
+        game_y=inputs,msgs=inputs,direct_message=true,expected_site=expected,expected_posterior=expected,
+        expected_free_energy=-H,expected_entropy=H)
+    swapped = (z=w,w=z)
+    check_factor_conformance(f,only(supported_polarities(f));π=TrivialBelief(),inputs=swapped,
+        ps=nt,st=nt,pointwise=(nothing,nothing,nothing),game_prior=TrivialBelief(),
+        game_y=swapped,msgs=swapped,direct_message=true,
+        expected_site=Gaussian(-1.3,2.7),expected_posterior=Gaussian(-1.3,2.7),
+        expected_free_energy=-H,expected_entropy=H)
     @test first(LenticulumCore.entropy(f,nothing,(z=w,w=z),nt,nt)) ≈ H
     @test_throws ArgumentError LenticulumCore.entropy(f,nothing,(z=w,w=w),nt,nt)
     @test_throws ArgumentError LenticulumCore.entropy(f,nothing,(z=DiracBelief(zeros(2)),w=w),nt,nt)

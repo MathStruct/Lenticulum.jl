@@ -143,3 +143,16 @@ for all four Dirac/Gaussian endpoint combinations and a Gaussian incoming belief
 on `GaussianPrior`. The learned path uses matrix inverses and matrix log determinants
 for posterior statistics to avoid mutating inverse-of-Cholesky and unsupported
 symmetric factorisation paths in Zygote. Inversion derivatives are not established.
+
+## LP-011 implementation (2026-10-27)
+
+Functional schedule messages use matrix inverses instead of a
+mutating inverse of Cholesky; ordinary message passing retains its arithmetic.
+Joint block precision assembly now concatenates promoted numeric blocks, permitting
+active Gaussian cavity precisions under ForwardDiff/Zygote. The gradient tests compare
+full finite-tree replay to closed marginal likelihood derivatives and separately derive
+the legacy fixed-cavity local-posterior derivative; the latter is not a true EM M-step.
+
+Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+`test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
+are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].

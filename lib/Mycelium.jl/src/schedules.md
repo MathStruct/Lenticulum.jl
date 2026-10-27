@@ -1,6 +1,7 @@
 #implementation
 
-> Belief-message schedules and their graph constraints; the planned cotangent pass remains unimplemented.
+> Belief-message schedules and their graph constraints; static parameter-gradient
+> replay is implemented separately.
 
 > Sources: code: `schedules.jl`
 >
@@ -27,7 +28,7 @@ emits). `islegal(g, task)` is the predicate; every generator filters on it.
 emits child→parent messages in reverse BFS order and parent→child in BFS order. That ordering is
 what makes each message computable exactly once from already-final inputs.
 
-## Gradient limitation (LP-011)
+## Historical gradient limitation (2026-10-26; superseded below)
 
 The schedule docstrings describe a planned cotangent pass, not an implemented one. Only
 `DiagonalCoupling()` is accepted at graph construction; other annotations raise
@@ -90,3 +91,14 @@ fresh concatenated vector each time. Trivial to fix (iterate the two vectors), n
 is in the inner loop.
 
 Related: [[Schedules]], [[passing]], [[graph]]
+
+## LP-011 implementation (2026-10-27)
+
+Static sequential/tree/forward-backward schedules can be replayed
+by the parameter gradient driver, with mixed boundary cuts. Flooding/residual replay
+currently throws rather than changing their update semantics. Ordinary scheduling is
+unchanged; the old statement that non-default annotations fail at construction is historical.
+
+Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+`test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
+are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].

@@ -81,12 +81,10 @@ end
 
 Whether `factor` contributes trainable parameters.
 
-Defaults to `LuxCore.parameterlength(factor) > 0`, but is a *trait*, not a computation:
-a factor with parameters that are deliberately held fixed (a pretrained encoder, a physical
-constant, a data clamp) should override it to `false`. A graph uses this to decide which
-nodes are candidates for an optimiser (`Mycelium.learnable_factors`). This trait does not
-implement parameter freezing or control input cotangents; graph backward semantics remain
-planned with L-SPEC-002.
+Defaults to `LuxCore.parameterlength(factor) > 0`. Override to `false` when a factor
+intrinsically contributes no trainable parameters. Mycelium's `learnable_factors` uses
+this trait as the candidate list. Parameters of nonlearnable factors are fixed in graph
+parameter gradients, while input derivatives still propagate through their computations.
 
 See also [`isfrozen`](@ref).
 """
@@ -97,13 +95,21 @@ islearnable(f::AbstractLenticulumFactor) = LuxCore.parameterlength(f) > 0
 
 Whether `factor`'s parameters exist but are pinned for this run.
 
-Defaults to `false`. The planned distinction from [`islearnable`](@ref) is that freezing
-pins parameter updates while preserving input cotangents. This backward behavior is not
-implemented (LP-011, L-SPEC-002). Mycelium's `build` and `validate` throw `ArgumentError`
-naming any factor with `isfrozen(f) == true`, even when `islearnable(f) == false`:
-excluding a factor from the optimiser list does not implement frozen cotangent semantics.
+Defaults to `false`. True pins all parameter updates for this run, excludes them
+from optimiser state, and preserves input cotangents. Unlike `islearnable`, it does
+not remove a factor from `learnable_factors`. Mycelium also accepts `factor!(...;
+freeze=(:encoder,))`, a tuple of paths, or `freeze=:all` for graph-local selection.
 """
 isfrozen(::AbstractLenticulumFactor) = false
+
+"""
+    straight_through(forward, surrogate, x)
+
+Evaluate `forward(x)` with the input Jacobian of `surrogate(x)`. Supported by
+ForwardDiff and ChainRules reverse AD; finite differences of this primal do not
+compute the surrogate derivative. The callables are fixed, parameterless functions.
+"""
+straight_through(f, s, x) = f(x)
 
 """
     ComposedFactor(first, second; coupling = DiagonalCoupling())
@@ -118,11 +124,11 @@ Lenticulum implements a pair of GaussianFactors as a collapsed endpoint game, in
 out the internal channel. Its energy space is that collapsed Gaussian's, distinct from
 the generic path-energy pairs of `compose_energy` / `compose_free_energy`.
 
-`coupling` reserves the choice of gradient terms to restore from Definition 29.
-Only `DiagonalCoupling()` is accepted, preserving existing behavior. All other couplings
-throw `ArgumentError` at construction (including positional and explicitly parameterized
-construction), since gradient couplings are not implemented yet (LP-011, L-SPEC-002)
-and would otherwise be silently ignored. The default annotation does not insert AD stops.
+`coupling` selects the composite parameter-gradient rule. Non-diagonal rules require
+an implemented family and otherwise throw at gradient evaluation. Lenticulum's collapsed
+Gaussian pair supports analytic exact/pathwise gradients and an explicit posterior
+score estimator; its historical diagonal endpoint gradient already marginalises the
+internal channel. A collapsed endpoint game is distinct from a graph exposing that wire.
 """
 struct ComposedFactor{A,B,C<:AbstractGradientCoupling} <:
        AbstractLenticulumContainerFactor{(:first, :second)}
@@ -142,6 +148,16 @@ ComposedFactor(a, b; coupling = DiagonalCoupling()) = ComposedFactor(a, b, coupl
 
 compose(a::AbstractLenticulumFactor, b::AbstractLenticulumFactor; kwargs...) =
     ComposedFactor(a, b; kwargs...)
+
+function free_energy_gradient(f::ComposedFactor, π, y, ps, st; ad=nothing, ε=1e-6, kwargs...)
+    return _composed_parameter_gradient(f.coupling, f, π, y, ps, st; ad, ε, kwargs...)
+end
+function _composed_parameter_gradient(coupling, f, π, y, ps, st; ad, ε, kwargs...)
+    coupling isa DiagonalCoupling || throw(ArgumentError(
+        "$(typeof(f)) has no compositional gradient rule for $(typeof(coupling)); only the implemented Gaussian pair supplies non-diagonal gradients"))
+    isempty(kwargs) || throw(ArgumentError("unsupported composite gradient keywords: $(keys(kwargs))"))
+    return _parameter_gradient(ad, _scalar_free_energy_params, ps, f, π, y, st, (;); ε)
+end
 
 energyspace(f::ComposedFactor) =
     GradedEnergySpace((; first = energyspace(f.first), second = energyspace(f.second)))

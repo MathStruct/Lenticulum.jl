@@ -1,3 +1,5 @@
+include(joinpath(@__DIR__, "../../../test/conformance_capture.jl"))
+
 @testset "LP-009 diffusion ELBO: bounds and exact Gaussian score" begin
     sched = VPSDE(βmin=0.3,βmax=3.0)
     layer = GaussianMixtureEps(sched,zeros(2,1);s=1.0)
@@ -14,6 +16,8 @@
         @test next === st
         @test bound.value >= exact-1e-12
         @test bound.value ≈ exact atol=2e-12
+        check_factor_conformance(f,nothing;scope=:bound,ps,st,
+            bound=(evidence=x,kwargs=(;times),exact=exact))
         @test_throws MethodError scalarise(IdentityScalarisation(),bound)
         # A displaced analytic Gaussian score approaches the exact data score.
         gaps = Float64[]
@@ -30,6 +34,8 @@
             end
             model_nll = (2log(2π)+sum(abs2,x-modelmean))/2
             @test B >= model_nll-2e-12
+            check_factor_conformance(f,nothing;scope=:bound,ps=pp,st,
+                bound=(evidence=x,kwargs=(;times),exact=model_nll))
             push!(gaps,B-model_nll)
         end
         @test issorted(gaps;rev=true)
@@ -37,6 +43,15 @@
         @test gaps[1] > gaps[2] > gaps[3] > 1e-4
     end
     x = [0.4,-0.7]
+    @test_throws ArgumentError check_factor_conformance(f,nothing;scope=:bound,ps,st)
+    @test_throws ArgumentError check_factor_conformance(f,nothing;scope=:bound,ps,st,
+        bound=(evidence=x,kwargs=(;times),exact=Inf))
+    # The stationary chain's NLL is exact. A falsely larger likelihood cost must fail.
+    captured = capture_conformance_checks() do
+        check_factor_conformance(f,nothing;scope=:bound,ps,st,
+            bound=(evidence=x,kwargs=(;times),exact=(2log(2π)+sum(abs2,x))/2+1))
+    end
+    @test conformance_failures(captured) == 1
     estimate,next = estimate_free_energy_upper_bound(f,x,ps,st;times,nsamples=12000,rng=Xoshiro(9002))
     exact = first(free_energy_upper_bound(f,x,ps,st;times)).value
     @test estimate isa FreeEnergyBoundEstimate
@@ -79,6 +94,8 @@
         nll = (2log(2π*v)+sum(abs2,x-m)/v)/2
         B = first(free_energy_upper_bound(gf,x,gp,gs;times)).value
         @test B >= nll-2e-12
+        check_factor_conformance(gf,nothing;scope=:bound,ps=gp,st=gs,
+            bound=(evidence=x,kwargs=(;times),exact=nll))
         estimate = first(estimate_free_energy_upper_bound(gf,x,gp,gs;times,nsamples=10000,rng=Xoshiro(9004)))
         @test abs(estimate.value-B) < 5estimate.standard_error
     end

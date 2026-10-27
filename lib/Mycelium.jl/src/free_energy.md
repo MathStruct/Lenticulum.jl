@@ -163,3 +163,16 @@ frozen cotangent semantics. `ImplicitLayers/test/parameter_ad.jl` learns the coe
 of a discrete scalar ODE to its known generating value and checks the Nesterov
 look-ahead formula, with ForwardDiff, Zygote, Mooncake and runtime-activity Enzyme
 in Reverse and Forward modes.
+
+## LP-011 implementation (2026-10-27)
+
+The all-diagonal driver retains its fixed-cavity derivative and
+now masks frozen coordinates. Other couplings use the explicit replay implementation.
+`parameter_step` applies look-ahead and updates only active coordinates; fully pinned
+factors have no optimiser key. Score steps return their GradientEstimate as a fourth
+entry. Factor free-energy evaluation uses a functional map with the same per-factor
+state threading, so reverse AD avoids mutating a values array.
+
+Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+`test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
+are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].

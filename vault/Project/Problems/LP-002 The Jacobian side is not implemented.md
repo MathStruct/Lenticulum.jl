@@ -66,8 +66,8 @@ Remaining: automatic outer-closure annotations;
 limited-memory Broyden and Krylov preconditioning; nonempty Lux state and non-Tsit5
 SciML sensitivity coverage, Enzyme SciML endpoint gradients; AD through divergence and finite-difference metric
 localisation; higher-order IFT rules; reverse-input solve rules; GPU coverage for new
-implicit rules; differentiating graph inference schedules, per-edge couplings and
-stochastic inversion estimators. These limits do not prevent the tested endpoint
+implicit rules; broader graph schedule/backend coverage and stochastic solver inversion
+estimators (static graph replay and terminal estimators implemented in LP-011, 2026-10-27). These limits do not prevent the tested endpoint
 objectives or custom scalar losses on `solve_state` from training.
 
 ## Runtime-activity flow follow-up validation (2026-10-26)
@@ -296,3 +296,12 @@ and the stateful AD rejection test has 36. The linear endpoint derivative and
 200-dimensional Krylov gradient errors remain `4.912736883966318e-13` absolute
 and `9.183283481970577e-11` relative respectively. The previous LP-002 SciML and
 Krylov work is retained.
+
+## Graph schedule differentiation (2026-10-27)
+
+[[LP-011 Gradient couplings and isfrozen are declared but unused]] implements finite static
+schedule derivatives with DI ForwardDiff/Zygote and reference differences. Mixed edge cuts,
+freezing, terminal score estimators and straight-through rules are documented in
+[[gradient_couplings]]. This closes the static CPU fragment of schedule differentiation;
+flooding/residual schedules, other schedule backends and implicit graph adjoints remain.
+The existing diagonal driver retains its LP-002 backend support.

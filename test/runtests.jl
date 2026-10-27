@@ -1245,3 +1245,5 @@ include("learnable_noise.jl")
 include("game_composition.jl")
 
 include("structure_search.jl")
+
+include("gradient_couplings.jl")

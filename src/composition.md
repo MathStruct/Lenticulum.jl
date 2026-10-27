@@ -50,3 +50,18 @@ No tensor graph wiring or product-belief inversion is added: this API combines i
 channel games, so the common wired-factor checker is inapplicable to TensorFactor itself.
 General composed factors (including nested chains) remain unsupported with an explicit
 reason. No gradient coupling behavior is added.
+
+## LP-011 implementation (2026-10-27)
+
+The collapsed Gaussian endpoint game accepts all four coupling
+annotations. Its historical diagonal derivative already integrates the internal wire,
+so exact and analytic pathwise endpoint gradients agree with it. Score gradients sample
+the exact internal posterior for Dirac endpoints and return GradientEstimate. The
+replicate differentiates joint NLL + log posterior and adds the posterior score term
+weighted by reference endpoint free energy minus the fixed baseline. The baseline equal
+to endpoint NLL cancels that score noise. Other score endpoint domains throw.
+The generic core fallback rejects non-diagonal gradient evaluation for unsupported families.
+
+Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+`test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
+are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].

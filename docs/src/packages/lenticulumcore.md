@@ -78,13 +78,17 @@ held fixed; no estimator for stochastic expectations is supplied. ForwardDiff,
 Zygote and Enzyme are tested against closed forms; other backends depend on their support for
 the chosen model. AD through finite-difference Sampson localisation is not covered.
 
-## Known gaps
+## Gradient semantics and remaining gaps
 
-- Per-edge gradient semantics are planned (LP-011, L-SPEC-002). `ComposedFactor` accepts
-  only `DiagonalCoupling()`; other couplings raise `ArgumentError`, including positional
-  and explicitly parameterized construction. The default preserves existing behavior and
-  does not itself insert AD stops. `isfrozen` defaults to false; Mycelium rejects true even
-  for non-learnable factors because frozen backward behavior is not implemented.
+- All four built-in gradient couplings are accepted. Gradient evaluation requires an
+  implemented family/domain. Mycelium supplies finite static graph replay and terminal
+  score estimates; Lenticulum supplies collapsed Gaussian composite gradients.
+- `isfrozen=true` pins parameter updates while preserving input derivatives. Graph-local
+  subset selection is `factor!(...; freeze)`. `islearnable=false` is the intrinsic
+  optimiser-candidate trait; it also preserves input derivatives.
+- `stop_gradient` has ForwardDiff/ChainRules zero-derivative rules.
+  `straight_through(forward,surrogate,x)` uses the forward value and surrogate input
+  Jacobian with those backends; differences of the forward function do not implement it.
 
 - `SampleBelief` has no `belief_logdensity`, so two of them cannot be pooled. See
   `Adversarial` for a route around this.
@@ -139,7 +143,7 @@ scalarisation; the factor form of `gauss_newton_metric` freezes the localised me
 
 ```@autodocs
 Modules = [LenticulumCore]
-Pages = ["energy.jl"]
+Pages = ["energy.jl", "parameter_tree.jl"]
 ```
 
 ### Statistical games

@@ -1,11 +1,12 @@
-#design #later
+#design #implementation
 
 > What the backward pass should look like at each level where inference has a forward
 > signature: the solver, the factor and the graph. **Short version:** a backward function takes
 > the forward's arguments, the forward's *result* and a cotangent of that result, and returns
 > cotangents shaped like the inputs. On top sit `ChainRulesCore.rrule`s, so that Zygote (and
 > Enzyme, by import) differentiate through `infer!` without users calling the pullbacks. The
-> solver level exists, with its `rrule` (§6, step 1); the factor and graph levels are a design.
+> solver rules and static CPU graph replay exist; the generic factor pullback and implicit
+> graph adjoint remain a design (see the dated implementation section).
 
 > Sources: original to this vault (design); the ChainRules.jl `rrule` / `Tangent` / `NoTangent` conventions; Lux.jl's `(ps, st)` convention; Bai, Kolter & Koltun, *Deep Equilibrium Models*, NeurIPS 2019 (backward by the implicit function theorem); code: `implicit.jl` (`implicit_pullback`), `implicit_factor.jl` (`implicit_factor_pullback`), `solve.jl` / `deq.jl` (`ift_sensitivity`, `deq_sensitivity`), `passing.jl` (`factor_message`, `propagate!`, `infer!`), `lens.jl`
 >
@@ -151,11 +152,23 @@ tested API, and every rule is checked against finite differences, as `implicit_p
 2. `factor_pullback` as a generic function in `Mycelium`, with methods for the structural factors
    and the implicit diffusion factor (rewriting `implicit_factor_pullback` to take the forward
    result).
-3. The unrolled graph pullback, which needs only 1 and 2 plus AD through `step!`. Enough for
-   trees.
+3. The unrolled graph pullback — static CPU replay is built (2026-10-27), with
+   ForwardDiff and a ChainRules reverse rule for Zygote. This uses functional replay;
+   the generic factor-pullback API of step 2 remains open.
 4. The implicit graph pullback (adjoint message passing), for loopy graphs.
 5. The Gaussian-message backward (third derivatives), when a loss is placed on a covariance.
 
 Related: [[Inference Signatures]], [[Backpropagation through Implicit Inference]],
 [[The Inferencer and the Optimizer]], [[Everything is a Factor]], [[Lux as a Parametric Lens]],
 [[RxInfer as a Backend]]
+
+## Static graph derivatives implemented (2026-10-27)
+
+LP-011 supplies finite static-schedule replay through immutable stores with copied message vectors, per-edge
+couplings and detach, parameter freezing, and terminal score estimators. `infer!` has a
+ChainRules reverse rule for its realised static sweep count at zero damping; state and
+reports have no cotangents. DI ForwardDiff also differentiates the ordinary scalar/array
+message path with detach primitives. Parameter gradients have explicit reference-boundary
+cuts so central differences implement the same mixed semantics. See [[gradient_couplings]]
+for the tested domain and cost. This is an unrolled derivative, not the proposed implicit
+fixed-point adjoint, and does not complete the generic factor-pullback interface above.

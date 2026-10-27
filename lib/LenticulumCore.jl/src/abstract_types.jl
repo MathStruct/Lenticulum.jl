@@ -136,70 +136,56 @@ abstract type AbstractScalarisation end
 """
     abstract type AbstractGradientCoupling
 
-How an edge of the graph handles the terms AutoBayes' Definition 29 drops.
-
-Definition 29 composes gradients block-diagonally; the true Jacobian has two extra blocks,
-because the parameter of one factor moves the *sampling distribution* and the *pushforward
-prior* seen by the other. The paper calls the resulting assignment "lax" and says it "can be
-accounted for mechanistically by an implementation". These types describe the planned
-per-edge corrections, corresponding to the paper's "different semantics functors".
-
-The gradient machinery is not implemented (LP-011, L-SPEC-002). `ComposedFactor` and
-Mycelium's `connect!` / `Edge` accept only `DiagonalCoupling()`, preserving existing
-behavior; any other coupling throws `ArgumentError` rather than being silently ignored.
-The annotation does not itself insert stop-gradients into AD.
-
-See [`DiagonalCoupling`](@ref), [`PathwiseCoupling`](@ref),
-[`ScoreFunctionCoupling`](@ref), [`ExactCoupling`](@ref).
+Per-boundary Jacobian semantics (AutoBayes Definition 29). Mycelium's parameter driver
+uses fixed messages for diagonal edges and explicitly replays a finite static schedule
+for non-diagonal edges. A path survives only when every crossed boundary permits it.
+Detach overrides all couplings. See `gradient_couplings.md` for supported domains.
 """
 abstract type AbstractGradientCoupling end
 
 """
     DiagonalCoupling()
 
-The default annotation for the planned block-diagonal semantics of Definition 29
-(stop-gradient through the sampling path and pushforward prior).
-Cheapest, biased. Currently accepted for compatibility; it does not itself insert
-stop-gradients into AD.
+Default: hold messages fixed in graph parameter gradients. This preserves the legacy
+fixed-cavity derivative, including any local posterior recomputation within a factor;
+it is not generally a fixed-posterior EM derivative.
 """
 struct DiagonalCoupling <: AbstractGradientCoupling end
 
 """
     PathwiseCoupling()
 
-Planned differentiation through the sampler (the reparametrisation trick), requiring a
-reparametrisable inversion; unbiased, low variance. Not implemented: `ComposedFactor` and Mycelium's `connect!` /
-`Edge` throw `ArgumentError` for this annotation (LP-011, L-SPEC-002).
+Keep derivatives of Gaussian/Dirac message representations. Gaussian expectations
+are propagated analytically through moments (Rao–Blackwellised reparametrisation);
+no numerical sampler is differentiated. Other informative families throw.
 """
 struct PathwiseCoupling <: AbstractGradientCoupling end
 
 """
-    ScoreFunctionCoupling(baseline=nothing)
+    ScoreFunctionCoupling(; baseline = nothing)
 
-Planned REINFORCE correction `E[F ∇ log q]`, optionally with a control variate; unbiased,
-high variance, and works for discrete inversions. Not implemented: `ComposedFactor` and Mycelium's `connect!` /
-`Edge` throw `ArgumentError` for this annotation, with any baseline (LP-011, L-SPEC-002).
+REINFORCE for sampled terminal Gaussian/categorical messages, with an optional fixed
+scalar baseline. Graph gradients require explicit rng and nsamples >= 2 and return
+a GradientEstimate with a componentwise standard error. Bidirectional sampling throws.
 """
 struct ScoreFunctionCoupling{B} <: AbstractGradientCoupling
     baseline::B
 end
-ScoreFunctionCoupling() = ScoreFunctionCoupling(nothing)
+ScoreFunctionCoupling(; baseline = nothing) = ScoreFunctionCoupling(baseline)
 
 """
     ExactCoupling()
 
-Planned conjugate/analytic semantics, keeping the full Jacobian without dropping terms;
-composition of gradients would then be strictly functorial across this edge.
-Not implemented: `ComposedFactor` and Mycelium's `connect!` / `Edge` throw `ArgumentError`
-for this annotation (LP-011, L-SPEC-002).
+Keep the full derivative of the specified finite inference schedule, including
+message pooling, inversions and the Bethe entropy correction. Exact refers to the
+iteration derivative; it does not promise exact inference on a loopy graph.
 """
 struct ExactCoupling <: AbstractGradientCoupling end
 
-# Shared construction-time guard; no coupling dispatch is added to message passing.
+# Shared whitelist: custom couplings require an implementation before admission.
 function _check_gradient_coupling(coupling)
-    coupling isa DiagonalCoupling || throw(ArgumentError(
-        "per-edge gradient couplings are not implemented yet (LP-011, L-SPEC-002); " *
-        "coupling=$(repr(coupling)) would be silently ignored. Only DiagonalCoupling() is supported."
+    coupling isa Union{DiagonalCoupling,PathwiseCoupling,ScoreFunctionCoupling,ExactCoupling} || throw(ArgumentError(
+        "unsupported gradient coupling $(repr(coupling)); use a built-in coupling"
     ))
     return nothing
 end

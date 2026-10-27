@@ -29,7 +29,8 @@ end
 Per-edge storage for both message directions. `nothing` means "not yet computed", which is
 distinct from "computed and uninformative" (the latter is `TrivialBelief()`).
 """
-mutable struct MessageStore
+abstract type AbstractMessageStore end
+mutable struct MessageStore <: AbstractMessageStore
     to_variable::Vector{Any}
     to_factor::Vector{Any}
     iteration::Int
@@ -37,8 +38,8 @@ end
 MessageStore(g::FactorGraph) =
     MessageStore(Vector{Any}(nothing, nedges(g)), Vector{Any}(nothing, nedges(g)), 0)
 
-has_to_variable(s::MessageStore, ei::Int) = s.to_variable[ei] !== nothing
-has_to_factor(s::MessageStore, ei::Int) = s.to_factor[ei] !== nothing
+has_to_variable(s::AbstractMessageStore, ei::Int) = s.to_variable[ei] !== nothing
+has_to_factor(s::AbstractMessageStore, ei::Int) = s.to_factor[ei] !== nothing
 
 """
     reset!(store)
@@ -301,12 +302,12 @@ The belief at a variable: the combination of **all** incoming factor → variabl
 
 This is what you read out at the end of inference.
 """
-function marginal(s::MessageStore, g::FactorGraph, vid::Int)
+function marginal(s::AbstractMessageStore, g::FactorGraph, vid::Int)
     acc = LenticulumCore.TrivialBelief()
     for ei in g.edges_of_variable[vid]
         m = s.to_variable[ei]
         m === nothing && continue
-        acc = combine(acc, m.belief)
+        acc = combine(acc, g.edges[ei].detach ? LenticulumCore.stop_gradient(m.belief) : m.belief)
     end
     return acc
 end
@@ -326,13 +327,13 @@ Note that we *recompute* the product over the other edges rather than dividing t
 marginal by the skipped message. Division requires densities and is numerically fragile;
 recomputation costs `O(degree)` per message and is always defined.
 """
-function excluded_marginal(s::MessageStore, g::FactorGraph, vid::Int, skip::Int)
+function excluded_marginal(s::AbstractMessageStore, g::FactorGraph, vid::Int, skip::Int)
     acc = LenticulumCore.TrivialBelief()
     for ei in g.edges_of_variable[vid]
         ei == skip && continue
         m = s.to_variable[ei]
         m === nothing && continue
-        acc = combine(acc, m.belief)
+        acc = combine(acc, g.edges[ei].detach ? LenticulumCore.stop_gradient(m.belief) : m.belief)
     end
     return acc
 end
