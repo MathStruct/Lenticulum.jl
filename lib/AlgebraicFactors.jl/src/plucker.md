@@ -158,3 +158,20 @@ path assumes none. Neither convention reconstructs missing cross-channel correla
 The implementation uses CPU arrays. The mean/map cost is $O(r^2)$; dense covariance
 storage and computation are $O(r^4)$. This file supplies no inverse fibre beliefs, GPU or AD support. Polynomial
 residuals, Sampson scalarisation and fitting now live in [[polynomial]] and [[polyfit]].
+
+## Exact distributional game fragment (2026-10-27, LP-009)
+
+Besides the existing conditional point game, $r=2$ with one Dirac vector and one proper
+Gaussian vector has an exact scalar Gaussian image. With fixed $z$, its coefficient is
+$(-z_2,z_1)$, so its variance is $(-z_2,z_1)\Sigma_w(-z_2,z_1)^\top$; the other fixed
+input is analogous. With positive variance, entropy is the scalar Gaussian differential
+entropy and free energy its negative (zero map energy). Output conditioning must be
+absent/trivial, and covariance jitter is rejected. Graph-local evaluation uses the same law.
+`../test/game_exact.jl` checks mean, variance, entropy and the direct-message common checker,
+including both choices of fixed input.
+
+Zero fixed vector gives a Dirac image and no Lebesgue density. For $r>2$ the fixed-vector
+map has rank $r-1<\binom r2$, so that image is singular in the full output coordinates.
+Two Gaussian inputs are generally non-Gaussian: exact moments do not determine entropy.
+Those games continue to throw with these reasons; no moment-matched or regularised entropy
+is passed off as exact. Finite particle output has no supplied Lebesgue density either.

@@ -120,3 +120,20 @@ Dirac draw. Random-cloud entropy and pooling two empirical clouds remain outside
 The NoiseSource point game requires `nsamples=1`; a multi-particle source is rejected
 even when a Dirac draw argument is supplied. This prevents silently assigning zero entropy
 to a cloud. The unsupported-domain behavior is regression-tested.
+
+## Bounds and exact cases (2026-10-27, LP-009)
+
+[[transport]] adds the exact affine Gaussian law and explicit nonlinear entropy estimates.
+This supersedes the earlier blanket statement that distributional game entropy is absent:
+with a square nonsingular `AffineGenerator` and a proper Gaussian latent observation, entropy
+is the output Gaussian's Lebesgue entropy, including `log|det A|`, and free energy is its
+negative. The output prior must be absent/trivial. Pointwise map energy stays zero; the new
+unconditional entropy can depend on parameters, so the earlier assertion that no generator
+objective can depend on its own game contribution applies only to the conditional point
+accounting. Entropy maximisation alone is not a fitted output likelihood.
+
+The default standard-normal NoiseSource has exact unconditional entropy, independent of
+`nsamples`; custom sampler laws are unknown. Conditional point games keep their existing
+meaning. Graph-local Gaussian/unconditional-source games use the exact new laws; legacy
+particle zero contributions are still only forward accounting, not particle differential
+entropy. See `../test/transport.jl` for closed-form checks and [[transport]] for limitations.

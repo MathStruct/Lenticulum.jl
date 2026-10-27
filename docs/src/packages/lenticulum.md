@@ -94,3 +94,14 @@ Modules = [Lenticulum]
 ```@autodocs
 Modules = [Lenticulum]
 ```
+
+
+## Exact Gaussian game composition (LP-009)
+
+`ComposedFactor(first,second)` supports two GaussianFactors sharing an intermediate
+channel of matching dimension. The internal channel is integrated out; endpoint game/free
+energy equals the collapsed GaussianFactor with covariance `B*Q₁*B' + Q₂`, including
+propagated first-stage noise. Both endpoint polarities, messages and Gaussian pushforwards
+are exact. Component noise hyperpriors and other compositions are unsupported.
+Independent TensorFactor games use NamedTuple products keyed by `parts`, preserving each
+branch's channel game and grading; scalar free energies add. Correlated beliefs are refused.

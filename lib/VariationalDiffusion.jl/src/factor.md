@@ -183,3 +183,15 @@ answers above the cap. "Joint diffusion messages (LP-017)" checks noncontiguous 
 blocks for point/Gaussian/mixture messages, joint-prior cotangents, anchor pooling and
 correlated Gaussian covariance. These resolve [[LP-017 DiffusionFactor omits supported polarities]].
 They do not certify arbitrary priors or stochastic REDDiff/learned ProxDM paths.
+
+## A separate normalised bound (2026-10-27, LP-009)
+
+[[bound]] supplies `free_energy_upper_bound` for a fully specified finite VP reverse chain,
+including terminal law, decoder variance and all normalisers. It returns a distinct
+`FreeEnergyUpperBound`; arbitrary networks can use an explicitly different Monte Carlo
+`FreeEnergyBoundEstimate`. This does not turn `(clamp,score)` into a negative ELBO. Earlier
+language identifying the score summand with entropy is only a surrogate analogy, not a
+Definition 20 entropy law. Exact game `entropy` and `free_energy` now throw explanatory
+errors directing callers to the bound APIs. Existing graph surrogate behavior and its
+common conformance exemption are retained. See `../test/bound.jl` for analytic Gaussian
+likelihood equality, upper-bound and score-convergence checks.

@@ -47,15 +47,18 @@ Jacobians throw. Only first-order solved-state derivatives are covered; the reve
 advances once at the final root. Solve reports, initial guesses and state have no tangent.
 
 `deq_sensitivity(...; wrt=:ps, ad)` gives the dense parameter sensitivity directly.
-The reverse solve rule uses a dense state linear solve followed by a backend VJP;
-ForwardDiff uses backend JVPs for its dual directions. Matrix-free solves remain future
-work. Enzyme supplies batched forward and reverse rules; Mooncake uses a native
-reverse `rrule!!`. Both use DI with ForwardDiff for residual derivatives, including
-`deq_sensitivity`; no inner call enters the solve primitive. ForwardDiff residual
-VJPs form a dense Jacobian. GPU and higher-order rules remain untested. Enzyme
-outer closures capturing arrays need DI constant contexts (used in the tests) or
-`AutoEnzyme(function_annotation=Enzyme.Const)`; the default closure annotation can
-raise an upstream mutability error. The implementation note `solve.md` has a reproducer.
+`DEQFactor(...; ift=DenseIFT())` defaults to dense LU. To use matrix-free IFT
+rules, load Krylov and select `ift=KrylovIFT(rtol=1e-10, atol=1e-12, itmax=400,
+memory=20)`. Restarted GMRES uses only residual JVPs (forward) or VJPs (reverse).
+It throws on nonconvergence and checks the final residual explicitly. Krylov.jl
+provides the operator-product interface directly, without another operator package.
+All four backends are checked against the linear exact solution, including a
+200-dimensional contractive example that forbids the dense state-Jacobian API.
+`deq_sensitivity` stays dense. The native Enzyme/Mooncake rules keep their existing
+inner ForwardDiff path in dense mode; in Krylov reverse mode each uses its own
+reverse backend. GPU and higher-order IFT rules remain untested. Enzyme outer
+closures capturing arrays need DI constant contexts or
+`AutoEnzyme(function_annotation=Enzyme.Const)`; see `solve.md` for a reproducer.
 
 Core's `energy_jacobian(...; wrt=:ps, ad)`, `energy_gradient` and
 `free_energy_gradient` apply to DEQ, NeuralODE and scored Lux factors. Built-in
@@ -124,11 +127,40 @@ and only `dt`, `adaptive`, `abstol`, `reltol`, `maxiters` options, the trait per
 Lux state. This describes the discrete inverse, not exactness against the continuous ODE.
 Tests use `abstol=reltol=1e-12` and check relative round-trip residual below ``10^{-10}``.
 
-SciMLSensitivity adjoints for `SciMLIntegrator` are the next step and are not implemented
-by this extension. Built-in Euler/RK4 AD is independent of that extension.
-Its [`BacksolveAdjoint` docs](https://docs.sciml.ai/SciMLSensitivity/stable/manual/differential_equation_sensitivities/#SciMLSensitivity.BacksolveAdjoint)
-describe backward re-integration, unstable reverse solutions and checkpointing; the same
-reverse-conditioning concern applies.
+Load SciMLSensitivity to enable SciML endpoint parameter AD:
+
+```julia
+using SciMLSensitivity, OrdinaryDiffEqTsit5
+itg = SciMLIntegrator(Tsit5(); abstol=1e-12, reltol=1e-10)
+# Optional continuous adjoint:
+adjoint_itg = SciMLIntegrator(Tsit5(); abstol=1e-12, reltol=1e-10,
+    sensealg=GaussAdjoint(autojacvec=ZygoteVJP()))
+f = NeuralODEFactor(my_net, 4; integrator=itg)
+J = energy_jacobian(f, z0, nothing, y, ps, st; wrt=:ps, ad=AutoZygote())
+```
+
+The default `sensealg=nothing` resolves to `ForwardDiffSensitivity()` for small
+parameter counts, as recommended by the
+[SciMLSensitivity manual](https://docs.sciml.ai/SciMLSensitivity/stable/manual/differential_equation_sensitivities/#Choosing-a-Sensitivity-Algorithm).
+Flattened Lux parameters are passed as `ODEProblem.p`, with a zero-valued shape
+template in the RHS. The sensitivity path requires recursively empty incoming and returned Lux state.
+Nonempty incoming state falls back to legacy evaluation-state threading for primal
+forward/reverse flows and inference. Factor and graph derivative entry points reject
+AD with nonempty state before tracing; reference differences remain available.
+This excludes mutable statistics whose evolution depends on adaptive/rejected stages.
+An arbitrary outer DI call bypasses the factor/graph check, so its caller must enforce
+the empty-state restriction, as with Enzyme runtime activity. Euler/RK4 state
+threading is unchanged.
+
+Tsit5 tests cover AutoForwardDiff (dual solves), AutoZygote and AutoMooncake with
+the default, `InterpolatingAdjoint` and `GaussAdjoint` (both with `ZygoteVJP()`).
+They compare with ``D_a z(T)=Tz_0e^{aT}`` and nonlinear finite differences; graph
+`parameter_step` learns the continuous-time target ``e^{0.4}`` with the default.
+Factor/graph derivative entry points explicitly reject AutoEnzyme on this SciML path.
+Sensitivity selection leaves inversion labels and reversal semantics unchanged.
+CNF/divergence AD, other solvers, callbacks, GPU and higher derivatives are untested.
+Continuous adjoints can retain intermediate trajectories internally. Backsolve
+reverse-conditioning concerns still apply.
 
 ## Solvers
 
@@ -146,8 +178,9 @@ unrolling.
 
 ## Known gaps
 
-- The IFT rules still factor a dense state Jacobian; `fd_jacobian` remains a reference.
-- SciML adjoints, AD through divergence and higher-order solve rules are not covered.
+- Dense IFT remains the default; matrix-free mode has no preconditioner interface.
+- SciML coverage is limited to the tested Tsit5 endpoint algorithms above; divergence
+  AD, nonempty-state sensitivities and higher-order solve rules are not covered.
 - Broyden stores a dense inverse Jacobian; real DEQs use limited-memory Broyden.
 - Built-in explicit methods have no error estimate and may diverge on coarse or stiff
   problems. The optional solvers do not remove inverse conditioning or establish GPU support.

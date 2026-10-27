@@ -1032,3 +1032,5 @@ include("homotopy.jl")
         @test_throws ArgumentError LenticulumCore.entropy(f, TrivialBelief(), clouds, nt, nt)
     end
 end
+
+include("game_exact.jl")

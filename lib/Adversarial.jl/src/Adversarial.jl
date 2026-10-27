@@ -67,11 +67,14 @@ _vec(v::Real) = [float(v)]
 _points(b::LenticulumCore.SampleBelief) = b.samples isa AbstractMatrix ? eachcol(b.samples) : b.samples
 
 include("generator.jl")
+include("transport.jl")
 include("ratio.jl")
 
 # --- The latent prior and the generator ------------------------------------
 export NoiseSource, GeneratorFactor, GeneratorModel
 export generate                      # `pushforward` is LenticulumCore's, extended here
+export AffineGenerator, InvertibleGenerator, EntropyEstimate
+export pushforward_entropy, estimate_pushforward_entropy
 export latentchannel, samplechannel, latentdim, sampledim
 
 # --- The discriminator, read as a ratio estimator --------------------------

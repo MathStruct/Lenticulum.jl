@@ -58,12 +58,35 @@ By placing the trace term inside the `fit` summand of `GradedEnergy` and using a
 `IdentityScalarisation`, `GaussianFactor` makes composition strict while still exposing the
 pointwise residual geometry via `pointwise_energyspace` and `pointwise_scalarisation`.
 
-## 3. Why `Q` is fixed in v0
+## 3. Opt-in covariance learning (LP-005, 2026-10-26)
 
-The parameters returned by `LuxCore.initialparameters` are `(A, b)`. The noise covariance `Q`
-is held fixed on the struct because unconstrained gradient steps on `Q` can leave the positive-definite
-cone; learning `Q` requires either a Cholesky/log-Cholesky reparametrisation or a Wishart prior
-channel.
+`GaussianFactor(...; learn_noise=true)` (also `:full`) adds `ps.noise` with
+`log_diagonal` and packed strict `lower` entries of the precision Cholesky:
+$Q^{-1}=LL^\top$, $\log\det Q=-2\sum_i\log L_{ii}$ before flooring.
+`learn_noise=:diagonal` stores only `noise.log_precision`, the logs of the diagonal
+precisions. `noise` supplies the initial covariance, exactly reconstructed at setup;
+a full covariance with off-diagonal entries is rejected in diagonal mode.
+`GaussianPrior(:x, μ, Σ; learn_noise=...)` uses the same options for `Σ`, keeping `μ`
+fixed. `noise_covariance(f, ps)` reads the current covariance; struct fields remain the
+initial values. Default parameters and fixed-noise calculations retain their contracts.
+
+`GaussianFactor.energy` stays the residual. Its default pointwise scalarisation is
+parameter-dependent and localises to `SquaredNorm` of the current precision.
+`scalar_energy` still omits the normaliser. **Train noise with free energy**: fit alone
+falls as covariance grows, so it is not a valid noise likelihood objective.
+`local_free_energy` and `free_energy` include $\tfrac12\log\det(2\pi Q)$ in
+`complexity`. `GaussianPrior.energy` already included its normaliser and continues to
+do so for both fixed and learned covariance. Noise hyperpriors enter free energy only.
+This preserves [[L-ADR-0003 Pointwise energy and free energy are separate levels]].
+
+Without a noise prior, `eigenvalue_floor` (default `1e-6`) clips precision eigenvalues
+at its reciprocal, equivalently flooring covariance eigenvalues. Diagonal mode clips
+log-precisions. The initial covariance must satisfy the floor. Flooring is hard and has
+a kink: saturated eigenvalues have derivative zero, so optimisation can stick there.
+A Wishart prior on full precision (`WishartPrecisionPrior(df, scale)`) or independent
+log-normal priors on diagonal variances (`LogNormalVariancePrior(logmean, logstd)`)
+replace the floor. Their normalised negative log densities enter `complexity`.
+See [[noise]] for density coordinates, dataset multiplicity, formulas and AD rules.
 
 ## 4. `likelihood_message` vs. `invert`
 
@@ -75,12 +98,11 @@ inversion $c^\dagger_\pi(y)$ as the **posterior** (including $\pi$). `GaussianFa
 
 ## 5. What it does not do
 
-- **Observation covariance `Q` is not learnable (`LP-005`).** `LuxCore.initialparameters` returns
-  only `(A, b)`; `Q` is fixed on the struct so gradient steps cannot drive it outside the SPD cone.
 - **No precision-form (`Q = 0`) deterministic limit.** `Q` must be strictly positive definite;
   noiseless linear equality constraints require a non-zero regulariser `Q = εI` (see
   `LinearConstraintFactor` in [[constraint]]).
-- **`GaussianPrior` is non-learnable in v0.** Its `(μ, Σ)` live on the struct rather than in `ps`.
+- **The prior mean is fixed.** Covariance learning does not make `GaussianPrior.μ` a parameter.
+- **CPU AD coverage.** ForwardDiff and Zygote are tested; device and higher-order AD are not established.
 
 ## 6. Implementation difficulties
 
@@ -107,11 +129,17 @@ Related: [[constraint]], [[nonlinear]], [[likelihood]], [[beliefs]]
 
 ## Optional parameter AD (LP-002, 2026-10-26)
 
-`energy_jacobian(...; wrt=:ps, ad)` and `energy_gradient` differentiate the residual
-and its fixed precision norm. For Dirac endpoint beliefs, `free_energy_gradient`
-has the same parameter derivative: the noise normalizer is fixed and entropy is zero.
+For fixed noise, `energy_jacobian(...; wrt=:ps, ad)` and `energy_gradient` differentiate
+the residual and its fixed precision norm. For Dirac endpoint beliefs with fixed noise,
+`free_energy_gradient` has the same parameter derivative: the normalizer is constant
+and entropy is zero. With learned noise the two gradients differ by the normaliser
+and optional hyperprior, checked against finite differences in `test/learnable_noise.jl`.
 The ImplicitLayers AD tests check these facts with ForwardDiff and Zygote against
 `-(x' ⊗ I)`, `-I` and the precision-weighted residual gradients. The top-level suite
 also checks their finite-difference reference. Fixed `Q` precision is formed by
 `inv(Symmetric(Q))`, avoiding the mutating inverse-of-Cholesky path under Zygote.
-This does not establish AD coverage for every distributional belief/inversion path.
+`test/learnable_noise.jl` additionally covers learned-covariance local free energies
+for all four Dirac/Gaussian endpoint combinations and a Gaussian incoming belief
+on `GaussianPrior`. The learned path uses matrix inverses and matrix log determinants
+for posterior statistics to avoid mutating inverse-of-Cholesky and unsupported
+symmetric factorisation paths in Zygote. Inversion derivatives are not established.

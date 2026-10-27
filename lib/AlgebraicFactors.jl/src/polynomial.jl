@@ -18,8 +18,11 @@ relinearises at the current posterior mode (frozen-metric Gauss–Newton). The
 returned site excludes the prior; `invert` pools it with the prior once.
 Singular target precision is retained; singular residual covariance throws.
 Set `branches=HomotopyBranches()` and load HomotopyContinuation for all isolated
-roots of square systems; see [`polynomial_branches`](@ref). No game-level free
-energy is supplied. `iterations` applies only to `branches=:single`.
+roots of square systems; see [`polynomial_branches`](@ref). Exact game/free energy
+requires degree one, `branches=:single`, a square nonsingular last-channel block,
+positive-definite residual covariance and a proper pooled posterior. The last channel
+defines the normalised conditional output; nonlinear games throw (LP-009).
+`iterations` applies only to `branches=:single`.
 
 Damping is λΘΘ′, invariant under invertible row gauges. Nonorthogonal basis
 changes preserve undamped energy, but do not preserve this coefficient metric.
@@ -264,4 +267,98 @@ function LenticulumCore.invert(
 )
     msg,st = LenticulumCore.likelihood_message(lens,π,inputs,ps,st)
     return Mycelium.combine(π === nothing ? LenticulumCore.TrivialBelief() : π,msg),st
+end
+
+# Exact degree-one residual potential. It is Gaussian in r=Jz+c, not necessarily a
+# normalised joint law in z. Incoming messages must make the free coordinates proper.
+LenticulumCore.energyspace(::PolynomialFactor) = LenticulumCore.GradedEnergySpace((
+    fit=LenticulumCore.ScalarEnergySpace(), complexity=LenticulumCore.ScalarEnergySpace(),
+    negentropy=LenticulumCore.ScalarEnergySpace()))
+LenticulumCore.scalarisation(::PolynomialFactor) = LenticulumCore.GradedScalarisation((
+    fit=LenticulumCore.IdentityScalarisation(), complexity=LenticulumCore.IdentityScalarisation(),
+    negentropy=LenticulumCore.IdentityScalarisation()))
+Mycelium.uses_cavity(::PolynomialFactor) = true
+
+function _polynomial_exact_statistics(f, msgs, ps)
+    f.table.degree == 1 && f.branches === :single || throw(ArgumentError(
+        "PolynomialFactor exact games require degree one and branches=:single; a varying Sampson metric/branch solver supplies no normalised nonlinear law"))
+    N = sum(values(f.dims))
+    z0 = zeros(N)
+    c = ps.Θ*veronese(f.table,z0)
+    J = ps.Θ*veronese_jacobian(f.table,z0)
+    # Select the last declared channel as the normalised conditional output.
+    q = last(values(f.dims))
+    q == f.k || throw(ArgumentError("normalised degree-one game needs a square last-channel coefficient block"))
+    ld, sign = LinearAlgebra.logabsdet(J[:,N-q+1:N])
+    sign != 0 && isfinite(ld) || throw(ArgumentError("normalised degree-one game needs a nonsingular last-channel coefficient block"))
+    Q = f.Σ === nothing ? J*J' : J*f.Σ*J'
+    Q += f.λ*(ps.Θ*ps.Θ')
+    ev = LinearAlgebra.eigvals(LinearAlgebra.Symmetric(Q))
+    minimum(ev) > f.k*eps(eltype(ev))*maximum(ev) || throw(ArgumentError(
+        "degree-one residual covariance must be positive definite; no pseudoinverse entropy"))
+    C = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Q))
+    free = Int[]
+    η = zeros(N)
+    Λ = zeros(N,N)
+    offset = 0
+    for (name,n) in pairs(f.dims)
+        idx = offset+1:offset+n
+        b = get(msgs,name,nothing)
+        if b isa LenticulumCore.DiracBelief
+            z0[idx] = _polynomial_vector(b.value,n)
+        elseif b isa LenticulumCore.GaussianBelief
+            length(b.η) == n || throw(DimensionMismatch("degree-one Gaussian channel dimension"))
+            # Improper PSD likelihoods are allowed; the joint posterior is checked below.
+            all(isfinite,b.η) && all(isfinite,b.Λ) && LinearAlgebra.issymmetric(b.Λ) &&
+                minimum(LinearAlgebra.eigvals(LinearAlgebra.Symmetric(b.Λ))) >= 0 ||
+                throw(ArgumentError("Gaussian likelihood must have finite information and symmetric PSD precision"))
+            append!(free,idx)
+            η[idx] = b.η
+            Λ[idx,idx] = b.Λ
+        elseif b === nothing || b isa LenticulumCore.TrivialBelief
+            append!(free,idx)
+        else
+            throw(ArgumentError("degree-one polynomial games require Gaussian/Dirac/trivial channel beliefs"))
+        end
+        offset += n
+    end
+    r = J*z0+c
+    H = 0.0
+    Cr = zeros(f.k,f.k)
+    if !isempty(free)
+        B = J[:,free]
+        precision = B'*(C\B)+Λ[free,free]
+        pev = LinearAlgebra.eigvals(LinearAlgebra.Symmetric(precision))
+        minimum(pev) > length(free)*eps(eltype(pev))*maximum(pev) ||
+            throw(ArgumentError("degree-one polynomial game has an improper joint posterior; supply anchoring messages"))
+        P = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(precision))
+        S = inv(P)
+        m = P\(η[free]-B'*(C\r))
+        r += B*m
+        Cr = B*S*B'
+        H = (length(free)*(1+log(2π))-LinearAlgebra.logdet(P))/2
+    end
+    fit = (LinearAlgebra.dot(r,C\r)+LinearAlgebra.tr(C\Cr))/2
+    complexity = (f.k*log(2π)+LinearAlgebra.logdet(C))/2-ld
+    return fit,complexity,H
+end
+
+function Mycelium.local_free_energy(f::PolynomialFactor,msgs,ps,st)
+    fit,complexity,H = _polynomial_exact_statistics(f,msgs,ps)
+    return LenticulumCore.GradedEnergy((;fit,complexity,negentropy=-H)),st
+end
+function _polynomial_game_messages(f,π,y)
+    names = keys(f.dims)
+    y isa NamedTuple || throw(ArgumentError("polynomial game: π belongs to the first channel; y must name all remaining channel beliefs"))
+    keys(y) == Base.tail(names) || throw(ArgumentError("polynomial game observations must name remaining channels in channel order"))
+    return merge(NamedTuple{(first(names),)}((π,)),y)
+end
+function LenticulumCore.free_energy(f::PolynomialFactor,π,y,ps,st)
+    f.table.degree == 1 || throw(ArgumentError("nonlinear PolynomialFactor has no normalised branch law or exact game entropy"))
+    return Mycelium.local_free_energy(f,_polynomial_game_messages(f,π,y),ps,st)
+end
+function LenticulumCore.entropy(f::PolynomialFactor,π,y,ps,st)
+    f.table.degree == 1 || throw(ArgumentError("nonlinear PolynomialFactor has no normalised branch law or exact game entropy"))
+    _,_,H = _polynomial_exact_statistics(f,_polynomial_game_messages(f,π,y),ps)
+    return LenticulumCore.GradedEnergy((fit=0.0,complexity=0.0,negentropy=H)),st
 end

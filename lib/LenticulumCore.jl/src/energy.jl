@@ -488,7 +488,7 @@ DifferentiationInterface extension instead. Load that package and the backend fi
 function energy_jacobian(
     f::AbstractLenticulumFactor, x, a, y, ps, st; wrt::Symbol = :x, ε::Real = 1e-6, ad = nothing
 )
-    _check_factor_ad(ad, f)
+    _check_factor_ad(ad, f, st)
     u = wrt === :ps ? _flatten(ps) : wrt === :x ? x : wrt === :y ? y :
         throw(ArgumentError("wrt must be :x, :y or :ps; got :$wrt"))
     offs = wrt === :ps ? offset_tree(ps) : nothing
@@ -497,6 +497,7 @@ end
 
 # Optional factor/backend compatibility checks run before entering AD.
 _check_factor_ad(ad, f) = nothing
+_check_factor_ad(ad, f, st) = _check_factor_ad(ad, f)
 
 _energy_vector(r::Number) = [r]
 _energy_vector(r::AbstractArray) = vec(r)
@@ -562,7 +563,7 @@ Scalarisation and polarity keywords have exactly `scalar_energy`'s meaning, incl
 any parameter dependence of a point scalarisation. The incoming state is held fixed.
 """
 function energy_gradient(f, x, a, y, ps, st; ad = nothing, ε = 1e-6, kwargs...)
-    _check_factor_ad(ad, f)
+    _check_factor_ad(ad, f, st)
     return _parameter_gradient(ad, _scalar_energy_params, ps, f, x, a, y, st, (; kwargs...); ε)
 end
 _scalar_energy_params(ps, f, x, a, y, st, kw) = first(scalar_energy(f, x, a, y, ps, st; kw...))
@@ -576,7 +577,7 @@ energy, including expectations if that implementation differentiates them; it do
 supply an estimator for a stochastic inversion.
 """
 function free_energy_gradient(f, π, y, ps, st; ad = nothing, ε = 1e-6, kwargs...)
-    _check_factor_ad(ad, f)
+    _check_factor_ad(ad, f, st)
     return _parameter_gradient(ad, _scalar_free_energy_params, ps, f, π, y, st, (; kwargs...); ε)
 end
 _scalar_free_energy_params(ps, f, π, y, st, kw) = first(scalar_free_energy(f, π, y, ps, st; kw...))

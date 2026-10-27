@@ -136,11 +136,13 @@ absolute variance `δ*I`, giving an approximate covariance. The implementation
 note `lib/AlgebraicFactors.jl/src/plucker.md` derives the formula and explains
 this distinction from singular precision.
 
-Pointwise and graph-local energy are zero, as for `GeneratorFactor`.
+Pointwise map energy is zero. Graph-local free energy is zero for point accounting,
+and minus output entropy for the exact scalar Gaussian fragment described below.
 For named Dirac observations on both inputs, game free energy and entropy are zero,
 matching graph energy. The shared direct-message checker covers this sole forward point
 polarity at r=2 and r=4, with independent exterior-product fixtures and option-1 agreement.
-There is no assembled lens, inverse fibre belief or distributional entropy. Tests also exercise the supported interface
+There is no assembled lens or inverse fibre belief; distributional entropy is restricted
+to the exact scalar Gaussian fragment below. Tests also exercise the supported interface
 and a Mycelium DAG with two Gaussian priors, and compare moments to an independent
 second-moment expansion and seeded Monte Carlo. The 400-point Klein-quadric
 test now exercises `fit_nullspace` in monomial and Chebyshev bases.
@@ -177,8 +179,9 @@ The exact Jacobian is ΘDv for **all** data coordinates. One polarity per channe
 with the cavity once. Proper Gaussian/Dirac observed inputs are required; the
 target starts at the cavity mean, or zero. Iteration relinearises the posterior
 with A=JΣJᵀ+JₒCᵢₙJₒᵀ+λΘΘᵀ frozen per step. Target-rank deficiency retains an
-improper information-form site; singular A throws. No game free energy or
-entropy is provided (LP-009), so the full conformance checker does not apply.
+improper information-form site; singular A throws. Exact degree-one game/free energy
+and full common conformance are available under the normalised-output conditions below
+(LP-009). Nonlinear game entropy remains unsupported.
 The actual linear constraint is the degree-one oracle for every polarity.
 Circle, rank-one fibre and a three-channel graph have independent objective checks.
 ΘΘ′ damping preserves row-gauge invariance; undamped energy is
@@ -256,3 +259,20 @@ Modules = [AlgebraicFactors]
 ```@autodocs
 Modules = [AlgebraicFactors]
 ```
+
+
+## Exact game fragments (LP-009)
+
+Degree-one PolynomialFactor has exact Gaussian game/graph free energy with
+`branches=:single`, a square nonsingular last-channel coefficient block, positive-definite
+constant residual covariance and a proper pooled posterior. The last channel defines a
+normalised conditional; its log-Jacobian enters the normaliser. `π` belongs to the first
+channel and `y` names all remaining channel beliefs. Nonlinear and singular conditional
+cases throw with reasons.
+
+PluckerFactor at `r=2` has exact scalar Gaussian output entropy with one fixed nonzero
+vector and one proper Gaussian input, no output conditioning and zero covariance jitter.
+Higher-dimensional fixed-vector images are singular relative to output Lebesgue measure;
+two Gaussian inputs are generally non-Gaussian. Those distributional games still throw.
+The common checker covers both degree-one polynomial polarities and the scalar Plucker
+fragment, with closed-form fixtures in `test/game_exact.jl`.

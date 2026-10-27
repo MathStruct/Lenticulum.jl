@@ -4,7 +4,9 @@
 > residual* solved for a different variable. That is the entire reason a DEQ is worth
 > expressing as a factor.
 
-> Sources: code: `solve.jl`, `deq.jl`, `../ext/ImplicitLayersEnzymeCoreExt.jl`, `../ext/ImplicitLayersMooncakeExt.jl`, `../test/parameter_ad.jl`
+> Sources: Montoison and Orban (2023), *Krylov.jl*, p. 1 (operator products); Saad and Schultz (1986), GMRES;  code: `solve.jl`, `deq.jl`, `../ext/ImplicitLayersEnzymeCoreExt.jl`, `../ext/ImplicitLayersMooncakeExt.jl`, `../test/parameter_ad.jl`
+>
+> Bibliography: [[Bibliography#^montoison2023krylov|Montoison & Orban 2023]] · [[Bibliography#^saad1986gmres|Saad & Schultz 1986]]
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
@@ -91,11 +93,10 @@ solve report and returned Lux state are nondifferentiated bookkeeping.
 
 AD requires a converged root and a nonsingular residual Jacobian. A singular Jacobian
 means the IFT gives no local inverse; it does **not** prove nonuniqueness (for example
-$r(z)=z^3$ has a unique root and zero derivative there). The solve is dense: a reverse
+$r(z)=z^3$ has a unique root and zero derivative there). The default `DenseIFT()` solve is dense: a reverse
 backend VJP in the ChainRules rule can avoid parameter-Jacobian storage, but the
 Enzyme/Mooncake rules use a dense ForwardDiff VJP. The state Jacobian and its
-factorisation cost quadratic storage and cubic factorisation work. A matrix-free
-Krylov version remains future work. These are first-order rules; higher derivatives
+factorisation cost quadratic storage and cubic factorisation work. An opt-in `KrylovIFT()` path is described below. These are first-order rules; higher derivatives
 through the primitive, the reverse `solve_input`, GPU and additional backends are untested.
 
 The EnzymeCore extension provides native `EnzymeRules.forward`, `augmented_primal`
@@ -103,7 +104,7 @@ and `reverse` rules on `_implicit_state`. DI's default `AutoEnzyme()` Jacobian u
 batched forward mode; its scalar gradient uses reverse mode. The Mooncake extension
 registers a native reverse `rrule!!` with `@is_primitive`; it accumulates the joint
 vector cotangent in Mooncake's mutable forward data. Neither uses `@from_rrule`.
-Both extensions also require ForwardDiff to be loaded. They use `AutoForwardDiff()`
+Both extensions also require ForwardDiff to be loaded. In dense mode they use `AutoForwardDiff()`
 through DI for the residual state Jacobian, JVPs and VJPs: these evaluate only
 `_joint_residual`, never the solve primitive. `deq_sensitivity` uses this same inner
 backend for Enzyme/Mooncake. ForwardDiff VJPs here form a dense residual Jacobian;
@@ -202,3 +203,43 @@ activity extension requires only DI and EnzymeCore. The vault build passes with
 435.9 s (including tutorial execution and the vault). It reports size warnings for
 the core API page and search index. Both builds use a disposable `QUARTZ_DIR` copy
 with its checkout/clean EXIT hook removed.
+
+## Matrix-free first-order IFT (LP-002 follow-up)
+
+```julia
+using Krylov, DifferentiationInterface
+f = DEQFactor(cell, (x=200, z=200); solver=PicardSolver(tol=1e-12),
+              ift=KrylovIFT(rtol=1e-10, atol=1e-12, itmax=400, memory=20))
+z, report, stnew = solve_state(f, x, ps, st; ad)
+```
+
+The primal root solver and its convergence policy are unchanged. The IFT option
+selects only the linear solve inside the AD rules. For $r(z,u)=0$, forward rules
+solve $D_z r\,\delta z=-D_u r\,\delta u$ using residual JVPs. Reverse rules solve
+$(D_z r)^\top v=\bar z$ with residual VJPs and return $-(D_u r)^\top v$.
+ChainRules uses the supplied reverse backend; the native Enzyme and Mooncake
+rules use their own reverse backend in Krylov mode. Enzyme's inner VJPs enable
+runtime activity and a constant function annotation to handle mixed constant/active
+cell inputs; users can still select plain `AutoEnzyme()` for the outer DEQ rule. ForwardDiff remains the inner
+JVP backend for the Enzyme forward rule. Dense mode retains its existing
+ForwardDiff linearisation for native Enzyme/Mooncake rules.
+
+Krylov.jl is a weak dependency instead of the broader LinearSolve interface:
+GMRES needs only a typed `size`/`eltype`/`mul!` operator, so no operator package or
+matrix materialisation is needed. The operator has no indexing or conversion to a
+matrix. Prepared DI products are reused across GMRES iterations. Restarted GMRES
+stores `O(memory)` basis vectors (plus its small Hessenberg workspace).
+There is no preconditioner interface yet. `itmax=0` means Krylov's default, twice
+the state dimension. Nonconvergence throws `ArgumentError`, including when the
+explicit final residual exceeds `atol + rtol*norm(rhs)` despite an optimistic
+recursive estimate. Zero right-hand sides still undergo the residual check.
+
+`test/lp002_followups.jl` checks all four existing backends plus explicit Enzyme
+forward/reverse modes on the two-dimensional linear oracle, including forced
+nonconvergence. A 200-dimensional random contractive cell checks scalar gradients
+against $(I-W)^{-\top}z^*$ and overrides `_root_jacobian` to throw if called.
+This guards the state-Jacobian entry point independently of AD chunk size.
+`deq_sensitivity` and `ift_sensitivity` remain dense reference APIs; selecting
+Krylov on the factor changes differentiable `solve_state`, not those APIs.
+Broyden's primal storage is still dense; select Picard for a matrix-free primal.
+GPU, complex parameters and higher-order IFT rules are untested.

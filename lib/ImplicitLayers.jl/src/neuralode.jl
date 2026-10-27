@@ -166,7 +166,14 @@ function _lux_step(f, z, ps, st, t, h, ::RK4Integrator)
     return z .+ (h / 6) .* (k1 .+ 2 .* k2 .+ 2 .* k3 .+ k4), s4
 end
 # Adaptive SciML and divergence paths retain their existing Ref interface.
+_empty_flow_state(st::NamedTuple) = all(_empty_flow_state, values(st))
+_empty_flow_state(st::Tuple) = all(_empty_flow_state, st)
+_empty_flow_state(st) = false
+
 function _flow(f, u, ps, st, t0, t1, itg::AbstractIntegrator)
+    itg isa SciMLIntegrator && itg.sensealg !== nothing &&
+        Base.get_extension(@__MODULE__, :ImplicitLayersSciMLSensitivityExt) === nothing &&
+        throw(ArgumentError("SciMLIntegrator sensealg requires loading SciMLSensitivity"))
     vf, stref = vectorfield(f, ps, st)
     z = integrate(vf, u, t0, t1, itg)
     return z, stref[]

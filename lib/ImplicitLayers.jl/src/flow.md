@@ -4,9 +4,9 @@
 > OrdinaryDiffEq extension. Time reversal approximates the continuous inverse; only symmetric
 > methods on matching grids invert their discrete forward map.
 
-> Sources: Hairer, Lubich, Wanner, *Geometric Numerical Integration*, 2nd ed., II.3 (adjoint and symmetric methods); [OrdinaryDiffEqSDIRK solver documentation](https://docs.sciml.ai/OrdinaryDiffEq/stable/implicit/SDIRK/); code: `flow.jl`, `../ext/ImplicitLayersOrdinaryDiffEqExt.jl`, `../ext/ImplicitLayersOrdinaryDiffEqSDIRKExt.jl`, `../examples/flow_roundtrip.jl`, `../test/roundtrip.jl`, `../test/sciml.jl`
+> Sources: Rackauckas et al. (2020), *Universal Differential Equations for Scientific Machine Learning* (SciMLSensitivity software citation);  Hairer, Lubich, Wanner, *Geometric Numerical Integration*, 2nd ed., II.3 (adjoint and symmetric methods); [OrdinaryDiffEqSDIRK solver documentation](https://docs.sciml.ai/OrdinaryDiffEq/stable/implicit/SDIRK/); code: `flow.jl`, `../ext/ImplicitLayersOrdinaryDiffEqExt.jl`, `../ext/ImplicitLayersOrdinaryDiffEqSDIRKExt.jl`, `../examples/flow_roundtrip.jl`, `../test/roundtrip.jl`, `../test/sciml.jl`
 >
-> Bibliography: [[Bibliography#^hairer2006geometric|Hairer et al. 2006]]
+> Bibliography: [[Bibliography#^rackauckas2020universal|Rackauckas et al. 2020]] · [[Bibliography#^hairer2006geometric|Hairer et al. 2006]]
 >
 > Theory (CT-ML wiki): [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category)
 
@@ -122,7 +122,8 @@ accuracy. Built-in logdet quadrature is second-order even when the state uses RK
 
 ### 4.2 Lux state is evaluation state
 
-The existing `vectorfield` closure updates its `Ref` on every RHS call. Rejected adaptive
+For nonempty Lux state, the `vectorfield` closure updates its `Ref` on every RHS call,
+including when SciMLSensitivity is loaded. Rejected adaptive
 trials, nonlinear stage iterations, Jacobian evaluations and divergence probes all update it.
 Tests count the calls independently and verify the returned state. If these updates change
 the vector field, the result need not represent a deterministic ODE or a reversible flow;
@@ -136,18 +137,65 @@ checks solver completion, but cannot repair inverse conditioning. A contracting 
 with $a<0$ amplifies absolute endpoint errors by $e^{|a|T}$ when inverted. This is distinct
 from discretisation and persists even with a symmetric method. See [[neuralode]] §4.3.
 
-### 4.4 Optional endpoint gradients, pending SciML adjoints
+### 4.4 Optional endpoint sensitivities
 
-This extension adds integration, not SciMLSensitivity gradients. That is
-[[LP-002 The Jacobian side is not implemented]]. SciMLSensitivity's
-[`BacksolveAdjoint` documentation](https://docs.sciml.ai/SciMLSensitivity/stable/manual/differential_equation_sensitivities/#SciMLSensitivity.BacksolveAdjoint)
-explicitly describes backward re-integration, warns about unstable reverse solutions, and
-offers checkpointing to stabilize them. The same reverse-conditioning concern therefore
-applies; using SciML does not remove it.
+Load SciMLSensitivity alongside the solver packages to activate
+`ImplicitLayersSciMLSensitivityExt`. `SciMLIntegrator(alg; sensealg=nothing,
+kwargs...)` keeps sensitivity selection separate from solver keywords; it does
+not change `inversion_kind` or time reversal. The default resolves to
+`ForwardDiffSensitivity()`: the [SciMLSensitivity manual](https://docs.sciml.ai/SciMLSensitivity/stable/manual/differential_equation_sensitivities/#Choosing-a-Sensitivity-Algorithm)
+recommends it for small parameter counts (under roughly 100), using direct AD
+through a native Julia solver. It can supply a pullback to an outer reverse AD.
+For a continuous adjoint, choose one explicitly:
+
+```julia
+using SciMLSensitivity, OrdinaryDiffEqTsit5
+itg = SciMLIntegrator(Tsit5(); reltol=1e-10, abstol=1e-12,
+    sensealg=GaussAdjoint(autojacvec=ZygoteVJP()))
+```
+
+The extension constructs an out-of-place ODE with a flattened Lux parameter
+vector as `ODEProblem.p`. Its RHS captures only a zero-valued shape template,
+model, offsets and empty state; the learned values come exclusively from `p`.
+The sensitivity path requires recursively empty tuples/named tuples for incoming
+and returned state. With nonempty incoming state, `_flow` invokes the generic
+`AbstractIntegrator` method and preserves legacy evaluation-state threading for
+`flow_forward`, `flow_reverse` and inference, even with an explicit `sensealg`.
+`flow_logdet` retains its existing evaluation-state path too.
+
+AD with nonempty state is rejected before tracing at `energy_jacobian`,
+`energy_gradient`, `free_energy_gradient` and Mycelium's graph gradient and
+`parameter_step`. Their `_check_factor_ad(ad, f, st)` hook knows both the backend
+and incoming state; `ad=nothing` keeps reference differences available. Adaptive
+stages and rejected trials can change state, so this path does not define supported
+ODE sensitivities. BatchNorm statistics and other nonempty state remain unsupported
+for AD; there is no opt-in static-state promise yet. A layer that starts with empty
+state but returns nonempty state is rejected by the sensitivity RHS.
+An arbitrary outer DI call bypasses the factor/graph entry checks, just as it does
+for Enzyme runtime activity; callers must enforce the empty-state restriction
+themselves. Built-in Euler/RK4 keep their existing AD state threading.
+
+`test/lp002_followups.jl` checks Tsit5 endpoint parameter Jacobians, scalar energy
+and free-energy gradients with AutoForwardDiff, AutoZygote and AutoMooncake;
+Enzyme is explicitly rejected at factor/graph derivative entry points.
+`test/sciml_state.jl` runs the same CNF, CountingDynamics, reverse, inversion-label
+and inference assertions before and after SciMLSensitivity loads. The follow-up
+checks also verify that stateful factor/graph AD throws before evaluating the RHS,
+including nested nonempty state. Tests cover
+the default plus `InterpolatingAdjoint` and `GaussAdjoint` with `ZygoteVJP()`.
+ForwardDiff uses dual-number solves, independently of the selected `sensealg`.
+The scalar oracle is $D_a z(T)=Tz_0e^{aT}$ on $T=0.7$, with solver
+`abstol=1e-12,reltol=1e-10` and derivative absolute tolerance `2e-8` to allow
+accumulated primal/adjoint integration error. A two-dimensional tanh Lux model
+is compared with central differences at `3e-7` absolute tolerance. Graph learning
+fits the continuous target $e^{0.4}$ from $a=-0.2$ in 100 gradient steps of size
+0.2, using the default sensitivity algorithm for all three backends.
+
+Continuous adjoints may store/reconstruct a forward trajectory internally even
+though this wrapper returns only the endpoint. The public integration storage
+invariants still apply. BacksolveAdjoint can amplify reverse-conditioning error;
+SciML does not remove that issue. AD through `flow_logdet`, callbacks, GPU,
+non-Tsit5 sensitivities and higher derivatives have no new coverage.
 
 Related: [[neuralode]], [[solve]], [[NeuralODE as an Invertible Factor]],
 [[The Equilibrium Family]]
-
-Built-in NeuralODEFactor Euler/RK4 endpoint flows now have tested DI parameter
-derivatives with ForwardDiff and Zygote; see [[neuralode]]. CNF divergence and the
-SciML `Ref` path are outside that coverage.

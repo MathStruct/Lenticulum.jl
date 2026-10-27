@@ -52,7 +52,7 @@ e.g. $\tfrac12 r^\top Q^{-1} r$ with `SquaredNorm(Q⁻¹)`. It is **zero at a pe
 
 **Negative log-likelihood (row 3).** Row 2 plus the normaliser $\tfrac12\log\det(2\pi Q)$. The two
 differ by a constant while $Q$ is fixed and are different objectives once $Q$ is learned: row 2
-alone drives $Q \to 0$ ([[LP-005 Learning the noise covariance]]). In the graded free energy the
+alone drives $Q \to \infty$ ([[LP-005 Learning the noise covariance]]). In the graded free energy the
 two pieces are the `fit` and `complexity` summands.
 
 **Potential (row 4).** In energy-based models and in the diffusion family, "energy" means an

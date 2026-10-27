@@ -32,6 +32,32 @@ scores the solved point plus an anchor cost. Arbitrary point scoring uses `energ
 function free_energy end
 
 """
+    FreeEnergyUpperBound(value)
+
+An evaluated variational upper bound on scalar negative log evidence. This is deliberately
+neither a number nor an energy: use `.value` explicitly. It cannot enter `scalarise` or
+`scalar_free_energy` accidentally. The model and variational law belong to the producing API.
+"""
+struct FreeEnergyUpperBound{T<:Real}
+    value::T
+end
+
+"""
+    FreeEnergyBoundEstimate(value, standard_error, nsamples)
+
+A Monte Carlo estimate of a variational upper bound. The expectation is a bound;
+the sampled `value` need not lie above negative log evidence. No confidence bound is implied.
+"""
+struct FreeEnergyBoundEstimate{T<:Real,S<:Real}
+    value::T
+    standard_error::S
+    nsamples::Int
+end
+
+function free_energy_upper_bound end
+function estimate_free_energy_upper_bound end
+
+"""
     scalar_free_energy(factor, π, y, ps, st; polarity = nothing, σ) -> (Real, st)
 
 ``F^c = \\sigma_c \\circ \\mathbf{F}^c``: AutoBayes' Definition 20 loss.
@@ -88,6 +114,10 @@ The composite's parameter space is the product ``\\Phi \\times \\Theta``, realis
 `NamedTuple` `(first = ..., second = ...)` — literally the same data structure Lux uses for
 `Chain`.
 
+Lenticulum implements a pair of GaussianFactors as a collapsed endpoint game, integrating
+out the internal channel. Its energy space is that collapsed Gaussian's, distinct from
+the generic path-energy pairs of `compose_energy` / `compose_free_energy`.
+
 `coupling` reserves the choice of gradient terms to restore from Definition 29.
 Only `DiagonalCoupling()` is accepted, preserving existing behavior. All other couplings
 throw `ArgumentError` at construction (including positional and explicitly parameterized
@@ -137,7 +167,10 @@ pointwise_scalarisation(f::ComposedFactor) =
 ``c \\otimes d`` of AutoBayes Definition 25. Both energies and entropies add across
 summands, because in parallel there is no upstream/downstream.
 
-Subject to the mean-field laxness of `TensorLens`.
+Exact games accept only explicit independent products: `π` and `y` are NamedTuples keyed
+by `parts`, whose entries supply each component's complete channel game. Only declared
+exact linear-Gaussian components are supported. Correlated joint beliefs throw, so no
+mean-field projection is silently applied. Tensor graph wiring/inversion is not supplied.
 """
 struct TensorFactor{names,T<:Tuple} <: AbstractLenticulumFactor
     parts::NamedTuple{names,T}
@@ -151,6 +184,31 @@ pointwise_energyspace(f::TensorFactor{names}) where {names} =
     GradedEnergySpace(NamedTuple{names}(map(pointwise_energyspace, values(f.parts))))
 pointwise_scalarisation(f::TensorFactor{names}) where {names} =
     GradedScalarisation(NamedTuple{names}(map(pointwise_scalarisation, values(f.parts))))
+
+# Explicit products, keyed by branch, carry independence rather than discarding correlations
+# from a joint belief. These are game combinators; they do not invent graph wiring.
+function _tensor_game(op, f::TensorFactor{names}, π::NamedTuple{names}, y::NamedTuple{names}, ps, st) where {names}
+    all(exact_product_game, values(f.parts)) || throw(ArgumentError(
+        "TensorFactor requires components with a declared exact product game; currently only linear-Gaussian components are supported"))
+    results = map(names) do n
+        op(f.parts[n], π[n], y[n], ps[n], st[n])
+    end
+    return GradedEnergy(NamedTuple{names}(first.(results))), NamedTuple{names}(last.(results))
+end
+exact_product_game(::AbstractLenticulumFactor) = false
+exact_product_game(f::TensorFactor) = all(exact_product_game, values(f.parts))
+for op in (:free_energy, :entropy)
+    @eval begin
+        $op(f::TensorFactor, π::NamedTuple, y::NamedTuple, ps, st) =
+            _tensor_game($op, f, π, y, ps, st)
+        $op(::TensorFactor, π, y, ps, st) = throw(ArgumentError(
+            "TensorFactor games require independent product beliefs: NamedTuples keyed by parts for both π and y; correlated joint beliefs are unsupported"))
+        $op(::ComposedFactor, π, y, ps, st) = throw(ArgumentError(
+            "ComposedFactor games require an exact pushforward law; only the linear-Gaussian pair implemented by Lenticulum is supported"))
+    end
+end
+_tensor_game(op, f::TensorFactor, π, y, ps, st) = throw(ArgumentError(
+    "TensorFactor product keys must equal keys(parts), in order"))
 
 # --- The composite chain rule ---------------------------------------------
 

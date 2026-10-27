@@ -119,30 +119,23 @@ quadratic in $Y$ and no choice of $W$ makes it constant. Now look at what is imp
 | `DEQFactor`, `NeuralODEFactor` | $\tfrac12\|r\|^2$, `SquaredNorm` | no |
 | `GaussianFactor` | $\tfrac12\|r\|^2_{Q^{-1}} + \tfrac12\log\det 2\pi Q$ | no — **and see below** |
 
-Every one is LeCun's safe regressor. The safety is an accident of the fixed metric, not a
-property of the framework.
+With fixed metrics these regressors cannot flatten their energy surface by changing the
+noise. `GaussianFactor` can now learn that metric ([[LP-005 Learning the noise covariance]]).
 
-### The repo already has a contrastive term and calls it something else
+### The Gaussian normaliser and variance inflation (corrected 2026-10-26)
 
-`gaussian.jl` documents its `complexity` summand as:
+The `complexity` summand $\tfrac12\log\det(2\pi Q)$ penalises variance inflation.
+Without it, minimising $\tfrac12 r^\top Q^{-1}r$ drives $Q\to\infty$: the precision
+and fit energy shrink to zero. Earlier text here reversed that direction and claimed
+that the normaliser stops $Q\to0$; that claim was wrong. At an exact fit the normaliser
+itself is unbounded below as $Q\to0$, so a noise prior or floor is still necessary.
+`test/learnable_noise.jl` checks both failures and the two guards.
 
-> `complexity` — $\tfrac12\log\det(2\pi Q)$ — *the log-normaliser; **what stops $Q \to 0$***
-
-That is a contrastive term. Without it, learning $Q$ would drive it to zero, the fit term to
-zero, and the energy surface flat — **LeCun's collapse, exactly**. The repo identified the
-mechanism and named it after its probabilistic origin (the log-normaliser) rather than its
-energy-based function (the term that prevents collapse). Both names are right; only one
-generalises.
-
-> [!warning] The deferred `Q`-learning note is only half the reason
-> `gaussian.md` §3 records that learning $Q$ is deferred because it "needs a
-> positive-definite parametrisation". True, and incomplete. The other half is that
-> `DEQFactor` and `LinearConstraintFactor` have **no** $\log\det$ term, so giving either a
-> learnable noise scale would collapse it immediately — and nothing in the framework would
-> notice, because the free energy would be dutifully decreasing the whole time.
->
-> The positive-definiteness problem is a parametrisation detail. The collapse problem is
-> structural, and the tutorial is where it is explained.
+`GaussianFactor.energy` remains the residual; its scalarisation is quadratic fit only.
+Its free energy carries the normaliser and optional noise-prior density. Adding a
+learnable noise scale to a residual factor requires both positive-definite coordinates
+and the normalised objective. The constraint and DEQ factors have no learned noise
+scale in their current implementations.
 
 ## 5. Latent variables: minimise or marginalise
 

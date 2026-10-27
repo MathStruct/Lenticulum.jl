@@ -147,3 +147,14 @@ On equally weighted particles $\{0,1\}$ the posterior weights are
 $\{e/(1+e),1/(1+e)\}$ and the energy contribution is $1/(1+e)-1/2$.
 The outgoing potential, target exclusion, posterior inversion, and graph marginal with two
 ratio factors are tested separately. The three former LP-016 broken assertions now pass.
+
+## Exact-law audit (2026-10-27, LP-009)
+
+Non-Dirac game priors remain explicitly unsupported. An arbitrary discriminator and proper
+Gaussian prior do not supply an analytic normaliser or entropy of the reweighted density.
+SampleBelief supplies an empirical law, not a Lebesgue density; substituting finite-weight
+Shannon entropy would change the reference measure (LP-006). Even the test's analytic
+Gaussian ratio is an arbitrary Lux layer to the public API, with no certified quadratic
+log-potential contract. No Gaussian law is inferred from evaluations. Existing Dirac games
+and extrinsic particle graph contributions remain checked in `test/conformance.jl`; no new
+approximation is presented as exact.

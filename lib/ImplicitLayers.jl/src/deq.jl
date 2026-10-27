@@ -14,14 +14,15 @@
 
 """
     DEQFactor(cell, dims::NamedTuple; solver = BroydenSolver(), channels = (:x, :z),
-              input = default_cell_input)
+              input = default_cell_input, ift = DenseIFT())
 
 A deep equilibrium model as a **relation**: the fixed-point condition
 ``z = g_\\theta(z, x)`` presented as a residual, solvable for either channel.
 
 `cell` is any `LuxCore.AbstractLuxLayer` computing ``g_\\theta(z,x)`` — including a
 `DeepEquilibriumNetworks.jl` cell, which is exactly such a layer. `dims` gives the two
-channel dimensions. Parameters and state are the cell's, untouched.
+channel dimensions. Parameters and state are the cell's, untouched. `ift=KrylovIFT()` opts into
+matrix-free GMRES in solved-state AD rules (load Krylov and DI); dense LU is the default.
 
 ```julia
 f = DEQFactor(my_cell, (x = 4, z = 4); solver = BroydenSolver(maxiters = 200))
@@ -36,12 +37,13 @@ f = DEQFactor(my_cell, (x = 4, z = 4); solver = BroydenSolver(maxiters = 200))
 Contrast [`LuxFactor`](@ref), which wraps an *already assembled* `DeepEquilibriumNetwork` and
 gets one polarity — a Lux layer with extra steps.
 """
-struct DEQFactor{names,D<:Tuple,C,S<:AbstractRootSolver,F} <:
+struct DEQFactor{names,D<:Tuple,C,S<:AbstractRootSolver,F,K<:AbstractIFT} <:
        LenticulumCore.AbstractLenticulumFactor
     dims::NamedTuple{names,D}
     cell::C
     solver::S
     input::F
+    ift::K
 end
 
 """
@@ -58,6 +60,7 @@ function DEQFactor(
     solver::AbstractRootSolver = BroydenSolver(),
     channels::Tuple{Symbol,Symbol} = (:x, :z),
     input = default_cell_input,
+    ift::AbstractIFT = DenseIFT(),
 )
     length(dims) == 2 || throw(ArgumentError(
         "a DEQFactor has exactly two channels (input and state); got $(keys(dims))"))
@@ -65,7 +68,7 @@ function DEQFactor(
         throw(ArgumentError("channel dimensions must be positive Ints; got $dims"))
     keys(dims) == channels || throw(ArgumentError(
         "dims keys $(keys(dims)) must match channels $channels, in order"))
-    return DEQFactor(dims, cell, solver, input)
+    return DEQFactor(dims, cell, solver, input, ift)
 end
 
 inchannel(f::DEQFactor{names}) where {names} = names[1]

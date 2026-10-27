@@ -73,8 +73,22 @@ Modules = [Adversarial]
 
 Generator has zero game free energy/entropy for a Dirac latent observation `y`.
 NoiseSource has the same pair for a fixed Dirac draw `π` with `nsamples=1`, without sampling again.
-Ratio has game energy `-logratio` and zero entropy for a Dirac prior. Other belief domains
-throw `ArgumentError`; particle game entropy still needs an explicit reference measure (LP-006).
+Ratio has game energy `-logratio` and zero entropy for a Dirac prior. Its non-Dirac game
+priors remain unsupported: no exact reweighted density/entropy law is supplied.
+Particle clouds have no Lebesgue density (LP-006).
+
+`AffineGenerator(A,b)` supplies an exact Gaussian forward game with a square nonsingular
+matrix and identity input adapter: `y` is the latent Gaussian and `π` is absent/trivial.
+`pushforward_entropy` computes `H(source)+log|det A|`; `entropy` returns that value and
+`free_energy` its negative. Output conditioning, singular/rectangular maps and improper
+sources throw. The built-in standard-normal NoiseSource has exact unconditional entropy
+for `π=TrivialBelief()` and no observation, without drawing particles. Custom samplers
+supply no density contract.
+
+For a caller-certified nonlinear bijection, `InvertibleGenerator(net,logabsdet)` and
+`estimate_pushforward_entropy(...;rng,nsamples)` expose an `EntropyEstimate` with a sampling
+standard error. This estimate is separate from exact game entropy. Finite supported/Dirac
+laws do not acquire a Lebesgue entropy from a finite Jacobian expectation.
 
 Ratio emits a `LogPotentialBelief` for `logratio(x)` without reading the cavity or target
 input. `invert` and explicit `reweight` return the posterior. Mycelium pools the potential

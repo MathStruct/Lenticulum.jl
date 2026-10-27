@@ -25,8 +25,8 @@ include(joinpath(@__DIR__, "../../../test/factor_conformance.jl"))
         F = first(local_free_energy(f, inputs, ps, st))
         @test F[:clamp] ≈ 0
         @test F[:score] ≈ λ * sigma(SCHED,t)^3 * alpha(SCHED,t) * 4
-        @test !applicable(free_energy, f, π, inputs, ps, st)
-        @test !applicable(LenticulumCore.entropy, f, π, inputs, ps, st)
+        @test_throws ArgumentError free_energy(f, π, inputs, ps, st)
+        @test_throws ArgumentError LenticulumCore.entropy(f, π, inputs, ps, st)
     end
     # Remaining binary assignments, including a joint lens at (U,U).
     for p in (Polarity((x=Unobserved(),y=Latent())),

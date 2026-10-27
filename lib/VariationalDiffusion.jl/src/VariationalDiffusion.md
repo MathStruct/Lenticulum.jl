@@ -83,3 +83,10 @@ itself.
 
 Related: [[Implicit Learners]], [[The Diffusion Family]], [[ImplicitREDDiff]],
 [[Factors are Parameterized Statistical Games]], [[Channels and Polarity]]
+
+## Labelled variational bounds (2026-10-27, LP-009)
+
+The module loads [[bound]] after [[factor]]. It extends LenticulumCore's separate
+`free_energy_upper_bound` and `estimate_free_energy_upper_bound` APIs. The new normalised
+finite VP-chain likelihood includes a terminal law and Gaussian decoder; the graph's
+`(clamp,score)` expression remains a denoising surrogate, not posterior entropy or an ELBO.

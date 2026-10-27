@@ -69,7 +69,7 @@ relation with the variable's block held at level 1 (§5).
 The Bethe free energy is local and additive ([[Bethe Free Energy]]),
 
 $$
-F_{\mathrm{Bethe}} = \sum_a F_a - \sum_i (d_i - 1)\,H_i ,
+F_{\mathrm{Bethe}} = \sum_a F_a + \sum_i (d_i - 1)\,H_i ,
 $$
 
 and `factor_free_energies` returns it graded, one term per factor. So the effect of a structural
@@ -95,7 +95,14 @@ changing the graph's structure from its energy.
 general. Its locality holds only to first order: after a change the messages move, and on a
 loopy graph the effect travels. Comparing graphs with different variables needs care: a removed
 variable must be marginalised, not dropped, for the two numbers to mean the same thing, and an
-added variable brings its prior with it. None of this is implemented or measured yet.
+added variable brings its prior with it. The Gaussian structure-search example now measures
+a with/without comparison ([[Finding a Factor Graph]], 2026-10-27); dynamic graph mutation
+and a SLAM benchmark are still absent. That example also corrects the earlier minus sign in
+the displayed formula: $F_a=U_a-H_a$, so the variable entropy correction is positive. For
+**fitted** parameters, state free energy supplies no automatic parameter-count penalty;
+a normalised data likelihood needs its data-energy term as well. BIC helps in the example
+but does not remove the measured loopy normaliser bias. This differs from integrating
+parameters to obtain model evidence ([[Factor Graphs and Schemes]] §1).
 
 ## 5. Edges of learned factors
 
@@ -135,8 +142,9 @@ sets them when an edge is added or removed.
   whether warm-started belief propagation converges faster than a fresh start.
 - **Deletion**: masks in the index-array design, and marginalisation, Gaussian (Schur
   complement with fill-in control) and learned (noise blocks at level 1).
-- **The Bethe criterion** (§4): implement the with/without comparison for a candidate factor and
-  measure it as a loop-closure test against the robust-SLAM methods on a standard pose graph.
+- **The Bethe criterion** (§4): the Gaussian with/without example is implemented and measured
+  in [[Finding a Factor Graph]]; a loop-closure test against robust-SLAM methods on a standard
+  pose graph remains open.
 - **Edges as noise levels** (§5): a graph operation that adds or removes an edge of a diffusion
   factor by setting its block's level, and a test that a factor trained with all its channels
   answers correctly with some of them marginalised.

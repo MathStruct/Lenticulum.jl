@@ -305,7 +305,8 @@ model), and `scalar_energy(...; σ)` and `scalar_free_energy(...; σ)` take anot
 
 **Normalised or not.** $\rho(r) = \tfrac12 r^\top Q^{-1} r$ is zero at a perfect fit; the
 negative log-density $-\log \mathcal{N}(y; Ax+b, Q) = \rho(r) + \tfrac12\log\det(2\pi Q)$
-is not. They differ by a constant while $Q$ is fixed, which it is in every factor today. Once
+is not. They differ by a constant while $Q$ is fixed (the default). `GaussianFactor` and `GaussianPrior` now support
+opt-in covariance learning ([[LP-005 Learning the noise covariance]]). Once
 $Q$ is learned, the constant matters: $\rho$ alone decreases as $Q$ grows and drives $Q \to \infty$,
 and the normaliser, which the free energy keeps as the complexity summand, is what penalises
 that; so only the free energy is a valid objective. (At an exact fit it does not stop $Q \to 0$;

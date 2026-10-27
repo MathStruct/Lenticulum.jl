@@ -214,3 +214,43 @@ The exact packed-data Jacobian remains the `wrt=:y` path, including calls with a
 path; columns follow column-major order in `Θ`. The polynomial tests derive the
 parameter Jacobian as `v(z)' ⊗ I` and check it and its parameter pull-back by FD.
 No AD backend coverage for polynomial metric localisation is claimed here.
+
+## Exact normalised degree-one games (2026-10-27, LP-009)
+
+This section supersedes the earlier blanket absence of game/graph free energy. For degree
+one with `branches=:single`, $r(z)=Jz+c$ and
+$Q=J\Sigma_fJ^\top+\lambda\Theta\Theta^\top$ are constant. The last declared channel
+is the conditional output. Its coefficient block $D$ must be square nonsingular, and $Q$
+must be positive definite. This defines a normalised linear-Gaussian conditional with
+covariance $D^{-1}QD^{-\top}$. The residual fit remains $r^\top Q^{-1}r/2$, while its
+normaliser is
+
+$$
+\tfrac12\bigl(k\log(2\pi)+\log\det Q\bigr)-\log|\det D|.
+$$
+
+The output Jacobian is essential: normalising only in residual coordinates would give the
+wrong conditional density whenever $|\det D|\ne1$. Incoming Gaussian/Dirac/trivial messages
+are pooled with this conditional; the free-coordinate joint posterior must be proper.
+Clamped coordinates contribute no differential entropy under the existing point convention.
+`free_energy` returns `(fit,complexity,negentropy)` and `entropy` puts the joint posterior
+entropy in the last coordinate. `π` belongs to the first declared channel and `y` names
+all remaining channel beliefs in declaration order, independent of inversion polarity.
+`local_free_energy` reads all named incoming messages, and the cavity trait is now true.
+
+`../test/game_exact.jl` derives the scalar Gaussian conditional independently, tests an
+output coefficient different from one, both basis families, row gauges, damping, Gaussian
+and Dirac inputs/outputs, and both polarities with the common checker. It also compares
+against the actual GaussianFactor oracle already used by the degree-one message tests.
+Singular output blocks, improper joint posteriors, nonlinear degrees and branch mixtures
+throw with reasons. Higher degrees still have varying metric/branch normalisation gaps;
+no nonlinear game entropy is supplied. A degree-one relation with a nonsquare last block
+may have exact Gaussian sites, but this implementation does not silently choose another
+conditional output or a reference measure on a constraint manifold.
+
+Numerical properness uses the same relative eigenvalue rule for the joint posterior as
+for residual covariance: the least precision eigenvalue must exceed
+$n\,\mathrm{eps}(T)\lambda_{\max}$ on its $n$ free coordinates. Cholesky alone can
+accept a rank-deficient precision after floating-point roundoff. The unanchored two-channel
+linear relation in `../test/game_exact.jl` checks that this case throws before entropy is
+computed; no artificial jitter or pseudoinverse is introduced.

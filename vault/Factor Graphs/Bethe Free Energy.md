@@ -55,12 +55,15 @@ $$\sum_f 1 \;+\; \sum_v (1 - d_v) \;=\; |F| + |V| - |E| \;=\; \chi(g)$$
 
 since $\sum_v d_v = |E|$.
 
-> **The total counting number is the Euler characteristic of the factor graph.** It is `1`
-> exactly when the graph is a connected tree, and `1 - L` when it has `L` independent loops.
+> **The total counting number is the Euler characteristic of the factor graph.** For a
+> connected graph it is `1` exactly when the graph is a tree, and `1 - L` when it has `L`
+> independent cycles. For `c` connected components it is `c - L`.
 
-So a single integer says how badly the bookkeeping can be wrong: on a tree the counting is
-exact, and the deficit from `1` is the number of loops the approximation has to pretend are not
-there. The test suite asserts `total_counting_number(g) == euler_characteristic(g)`, because it
+This integer counts independent graph cycles for a connected graph; it does **not** measure
+the numerical error of the approximation. That error depends on the potentials as well:
+[[Finding a Factor Graph]] measures different normaliser errors with different Gaussian
+couplings. On a tree the entropy decomposition is exact for consistent exact beliefs.
+The test suite asserts `total_counting_number(g) == euler_characteristic(g)`, because it
 is the cheapest possible check that the graph and the accounting have not drifted apart.
 
 ## Exactness, and what replaces it
@@ -126,4 +129,4 @@ it is lax.
 > not the right description of it. See [[Energy-Based Factor Graphs]] §3.2.
 
 Related: [Composition of Statistical Games](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#composition-energies-add-entropies-chain-definition-22), [[Scalar and Multivariate Energy]],
-[[Loopy Message Passing]], [[free_energy]], [[Energy-Based Factor Graphs]]
+[[Loopy Message Passing]], [[free_energy]], [[Energy-Based Factor Graphs]], [[Finding a Factor Graph]]

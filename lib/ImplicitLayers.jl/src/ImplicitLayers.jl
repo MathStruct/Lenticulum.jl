@@ -55,8 +55,10 @@ rules in weak ChainRulesCore, ForwardDiff, EnzymeCore and Mooncake extensions.
 Euler/RK4 endpoint flows use functional state threading with ForwardDiff, Zygote and
 Mooncake, plus Enzyme with runtime activity enabled, for example
 `AutoEnzyme(; mode = Enzyme.set_runtime_activity(Enzyme.Reverse))` (or Forward).
-Plain `AutoEnzyme()` remains supported for DEQ and scored LuxFactor paths. SciMLSensitivity
-gradients remain a next step. Base derivative tools use
+Plain `AutoEnzyme()` remains supported for DEQ and scored LuxFactor paths. Loading
+SciMLSensitivity enables SciML endpoint derivatives with ForwardDiff/Zygote/Mooncake
+and recursively empty Lux state. `DEQFactor(...; ift=KrylovIFT())` opts into
+matrix-free first-order solves via the Krylov weak extension. Base derivative tools use
 finite differences and remain small-system tools; see `solve.md` §4.
 
 **Every inversion returns a `DiracBelief`.** A root-find and an ODE solve both produce a
@@ -100,6 +102,7 @@ include("luxfactor.jl")
 
 # --- Solvers ---------------------------------------------------------------
 export SolveReport, AbstractRootSolver, PicardSolver, BroydenSolver
+export DenseIFT, KrylovIFT
 export solve_root, fd_jacobian, ift_sensitivity
 
 # --- DEQ -------------------------------------------------------------------

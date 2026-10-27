@@ -77,9 +77,13 @@ end
 Mycelium.factor_message(f::NoiseSource, ::Symbol, _, _, _, ps, st) =
     (LenticulumCore.SampleBelief(f.dist(f.rng, f.dim, f.nsamples)), st)
 
-# A prior over a latent nobody observes charges nothing: the entropy of q(z) is a constant of
-# the model, not a function of anything being inferred.
-Mycelium.local_free_energy(::NoiseSource, _, ps, st) = (0.0, st)
+# Keep the known unconditional entropy constant; point/particle contributions retain
+# their conditional forward-accounting convention.
+function Mycelium.local_free_energy(f::NoiseSource, msgs, ps, st)
+    _get(msgs,f.channel) === nothing && f.dist === _std_normal &&
+        return LenticulumCore.free_energy(f,LenticulumCore.TrivialBelief(),nothing,ps,st)
+    return 0.0, st
+end
 
 # =========================================================================== #
 
@@ -272,9 +276,17 @@ function Mycelium.factor_message(
     return LenticulumCore.pushforward(f, _get(inputs, latentchannel(f)), ps, st)
 end
 
-Mycelium.local_free_energy(::GeneratorFactor, _, ps, st) = (0.0, st)
+function Mycelium.local_free_energy(f::GeneratorFactor, msgs, ps, st)
+    source = _get(msgs,latentchannel(f))
+    if source isa LenticulumCore.GaussianBelief
+        output = _get(msgs,samplechannel(f))
+        return LenticulumCore.free_energy(f,output,source,ps,st)
+    end
+    return 0.0, st
+end
 
-# Conditional point games only. Particle entropy cannot be recovered from these samples.
+# Conditional point games. Exact affine Gaussian games are implemented in transport.jl;
+# particle differential entropy cannot be recovered from samples.
 function LenticulumCore.free_energy(::GeneratorFactor, π, y::LenticulumCore.DiracBelief, ps, st)
     return (0.0, st)
 end
@@ -291,8 +303,8 @@ LenticulumCore.entropy(f::NoiseSource, π::LenticulumCore.DiracBelief, y, ps, st
 for op in (:free_energy, :entropy)
     @eval begin
         LenticulumCore.$op(::GeneratorFactor, π, y, ps, st) = throw(ArgumentError(
-            "GeneratorFactor game quantities require a fixed Dirac latent observation; particle entropy is unavailable"))
+            "GeneratorFactor game quantities require a fixed Dirac latent observation or the certified affine Gaussian law; particle differential entropy is unavailable"))
         LenticulumCore.$op(::NoiseSource, π, y, ps, st) = throw(ArgumentError(
-            "NoiseSource game quantities require a fixed Dirac draw as prior; the sampler supplies no density"))
+            "NoiseSource games require a fixed Dirac draw, or the unconditional built-in standard-normal law; custom samplers supply no density"))
     end
 end

@@ -145,13 +145,11 @@ LenticulumCore.islearnable(::DiffusionFactor) = true
 | summand | is | role |
 |---|---|---|
 | `clamp` | ``\\tfrac12\\|P(x_0-x)\\|^2`` | the **energy** ``\\mathbf{l}^c`` — data consistency |
-| `score` | ``\\mathbb{E}_{t,\\varepsilon}[\\omega(t)\\|\\varepsilon_\\theta - \\varepsilon\\|^2]`` | the **entropy** ``\\mathbf{H}^c`` — the learned prior |
+| `score` | ``\\mathbb{E}_{t,\\varepsilon}[\\omega(t)\\|\\varepsilon_\\theta - \\varepsilon\\|^2]`` | denoising surrogate for the learned prior |
 
-The split is not cosmetic and it is the reading `Implicit Learners.md` §"Diffusion" already
-gives: the clamp term is pointwise and depends on the data, so it is an energy; the
-score-matching term depends on the *learned distribution* rather than on the data point, so
-it is an entropy. Getting this backwards would put the prior in the energy and break the
-counting correction of `Bethe Free Energy.md`.
+The score summand is not posterior entropy or a normalised negative ELBO. Use
+`free_energy_upper_bound` for the separately specified finite-chain variational bound;
+its model and energy accounting differ from this graph surrogate (LP-009).
 """
 LenticulumCore.energyspace(::DiffusionFactor) = LenticulumCore.GradedEnergySpace((
     clamp = LenticulumCore.ScalarEnergySpace(),
@@ -448,10 +446,10 @@ Mycelium.uses_cavity(::DiffusionFactor) = true
 The factor's Bethe contribution, evaluated at the prox's own solution — i.e. at the point the
 inversion actually returned, which is the only point where the two summands are comparable.
 
-Because the variational posterior is a Dirac, its entropy is ``-\\infty`` and the
-``-H(b_c)`` term of the Bethe free energy is **not** the posterior entropy: the `score`
-summand plays that role instead, per `Implicit Learners.md`. This is the one factor in the
-project whose free energy is not a closed form, and it is Monte-Carlo noisy by construction.
+This is a denoising surrogate, not a normalised Bethe/game free energy: a continuous Dirac
+posterior has no finite Lebesgue differential entropy, and `score` does not supply it.
+REDDiff samples the score term; fixed-node solvers evaluate a deterministic quadrature.
+The separately typed finite-chain ELBO bound is available through `free_energy_upper_bound`.
 """
 function Mycelium.local_free_energy(f::DiffusionFactor{names}, msgs, ps, st) where {names}
     target = first(names)

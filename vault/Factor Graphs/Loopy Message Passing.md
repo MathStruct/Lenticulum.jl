@@ -16,14 +16,16 @@ tree, all three of these fail:
    graphs with strong couplings around short loops.
 2. **Fixed points are not unique.** Multiple fixed points can exist, and which one you reach
    depends on the initialisation and the [[Schedules|schedule]].
-3. **A fixed point is not the true marginal.** It is a stationary point of the
+3. **A fixed point need not give the true marginals.** It is a stationary point of the
    [[Bethe Free Energy|Bethe free energy]] (Yedidia–Freeman–Weiss), which equals the true free
-   energy only on a tree — the deficit being measured by the Euler characteristic
-   $\chi = 1 - L$.
+   energy on a tree, but need not off a tree. The Euler characteristic $\chi=1-L$ counts
+   independent cycles in a connected graph; it does not quantify the approximation error.
+   [[Finding a Factor Graph]] measures the error for Gaussian candidate factors.
 
-None of these is a defect of the implementation. Exact inference on a loopy graphical model is
-#P-hard; loopy BP is the price of tractability, and knowing exactly what you traded is better
-than not running it.
+General discrete exact inference is #P-hard, but the presence of a loop alone does not imply
+intractability: Gaussian integration remains a linear-algebra calculation, as the dense oracle
+in [[Finding a Factor Graph]] demonstrates. Loopy BP trades exactness for local computation;
+the trade depends on the model family and graph structure.
 
 ## The remedies, and what each actually does
 

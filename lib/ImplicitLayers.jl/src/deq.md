@@ -118,6 +118,11 @@ differences; `wrt=:ps` selects flattened parameters. Supplying an ADTypes backen
 uses DI residual derivatives. `solve_state(...; ad)` also has optional ChainRulesCore,
 ForwardDiff, EnzymeCore and Mooncake extensions implementing the IFT through the
 solved state; see [[solve]].
+`DEQFactor(...; ift=DenseIFT())` keeps dense LU as the default.
+`ift=KrylovIFT(; rtol, atol, itmax, memory)` selects matrix-free GMRES in all
+solved-state AD rules (load Krylov and DI); failure to converge throws.
+`deq_sensitivity` remains a dense reference regardless of this option. See [[solve]]
+for the operator products, storage, backend choices and 200-dimensional oracle.
 Its incoming state is fixed throughout iterations and advanced once at the root.
 
 For $z^*=(I-W)^{-1}(Ux+b)$, a perturbation obeys

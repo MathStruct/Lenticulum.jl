@@ -1239,3 +1239,9 @@ end
     @test grad.A ≈ -(f.Q\r)*x' atol = 1e-9
     @test grad.b ≈ -(f.Q\r) atol = 1e-9
 end
+
+include("learnable_noise.jl")
+
+include("game_composition.jl")
+
+include("structure_search.jl")

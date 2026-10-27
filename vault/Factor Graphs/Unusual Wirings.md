@@ -112,9 +112,13 @@ can have positive probability.
 
 **Weights.** A posterior over weights is Bayesian deep learning; Blundell et al. (2015) fit a
 Gaussian one by variational inference. In Lenticulum it is §1's exposed channel plus a
-`PriorFactor`; learning `Q` under a Wishart prior ([[LP-005 Learning the noise covariance]]) is an
-example once it is built (a Wishart prior on the precision $Q^{-1}$ is the conjugate one, an
-inverse-Wishart on $Q$ equivalently).
+`PriorFactor`. Covariance MAP learning is now available through
+`GaussianFactor(...; learn_noise=true, noise_prior=WishartPrecisionPrior(df, scale))`
+([[LP-005 Learning the noise covariance]]). This is a local parameter penalty, not an
+exposed parameter channel or a posterior belief over weights. A Wishart distribution on
+precision transforms into an inverse-Wishart on covariance; its density-coordinate
+Jacobian means their modes need not correspond under inversion. The implemented MAP
+uses density in precision coordinates; see [[noise]].
 
 **Energies.** A belief over the value of an energy is what distributional reinforcement learning
 keeps for returns (Bellemare et al. 2017). Scalarising it is then the choice of a **risk measure**

@@ -85,3 +85,68 @@ missing lens, distributional entropy or general BP law.
 
 - Polarity-dependent energies are allowed by §3 but no factor has one.
 - Optional DifferentiationInterface parameter Jacobians/gradients and parameter pull-back metrics are implemented; finite differences remain the reference. See [[LP-002 The Jacobian side is not implemented]] for tested paths and remaining scope.
+
+## Bounds and exact cases, 2026-10-27 (LP-009 amendment to §4–§5)
+
+This dated amendment supersedes the coverage statements above for the domains it names.
+The maintainer's 2026-10-26 decision is **bounds plus exact cases**. New bounds do not
+implement exact `free_energy` and must not flow through `scalar_free_energy` or `scalarise`.
+
+- `FreeEnergyUpperBound(value)` represents an analytically evaluated scalar upper bound
+  on a specified normalised model's negative log evidence. It is neither `Real` nor an
+  energy-space element; reading `.value` is explicit.
+- `FreeEnergyBoundEstimate(value,standard_error,nsamples)` is a Monte Carlo estimate of
+  that expectation. Its sampled value is not itself an upper bound. The producing API
+  specifies the model, variational law, evidence domain and reference measure.
+- `free_energy_upper_bound(f,x,ps,st;times)` and
+  `estimate_free_energy_upper_bound(f,x,ps,st;times,rng,nsamples)` are separate extension
+  points. DiffusionFactor implements a finite VP Gaussian reverse chain with terminal
+  $N(0,I)$, reverse variance $\beta_i I$ (including its decoder), the standard epsilon
+  reverse mean, and forward-chain variational law conditioned on full joint evidence.
+  Exact expectation requires its analytic single-Gaussian predictor. Arbitrary predictors
+  return estimates only. Partial evidence and exact prox/game entropy remain unsupported.
+  The existing graph surrogate is not a bound on this model; [[bound]] defines the model.
+
+Continuous entropy is relative to Lebesgue coordinates (LP-006). GeneratorFactor now has
+an exact Gaussian forward game for an `AffineGenerator` with identity input adapter and
+square nonsingular matrix: `y` is the latent Gaussian, `π` is absent/trivial, entropy is
+$H(p)+\log|\det A|$, free energy its negative. Rectangular/singular maps throw. Nonlinear
+caller-certified bijections expose only `EntropyEstimate` through
+`estimate_pushforward_entropy`; no estimated value enters exact game APIs. Dirac and finite
+supported laws are Lebesgue-singular, so an exact finite Jacobian sum does not supply their
+differential entropy. Conditional point conventions are unchanged. The built-in
+standard-normal NoiseSource has exact unconditional entropy for `π=TrivialBelief()` and
+no observation. Custom samplers supply no density law. [[transport]] states the full domain.
+
+PluckerFactor has an additional exact forward game at $r=2$ with one Dirac and one proper
+Gaussian input, positive scalar output variance, no output conditioning and zero covariance
+jitter. Two Gaussian inputs and higher-dimensional fixed-vector images remain unsupported.
+Ratio non-Dirac game priors remain unsupported: arbitrary ratio networks supply neither an
+analytic normaliser nor reweighted entropy. Empirical Shannon entropy is not substituted.
+
+PolynomialFactor has an exact degree-one, single-branch game when the last-channel
+coefficient block is square nonsingular, residual covariance is positive definite and the
+pooled joint posterior is proper. The last channel specifies the normalised conditional;
+its output log-Jacobian enters the normaliser. The game uses `π` on the first channel and
+a NamedTuple `y` for all remaining channel beliefs. Nonlinear or singular conditional
+cases throw with reasons. Game and graph quantities share the Gaussian grading.
+
+ComposedFactor of two GaussianFactors integrates out the shared channel. Its endpoint
+channels, energy space, entropy and game/graph free energy are those of the collapsed
+linear-Gaussian factor with $A=BA_1$, $b=Ba_1+b_2$ and $Q=BQ_1B^\top+Q_2$.
+This marginal game differs from the generic `compose_*` path-energy pairs. Dimensions and
+shared names must match; component noise hyperpriors are unsupported. Other compositions,
+including nested chains, throw. TensorFactor accepts independent products only: `π` and `y`
+are NamedTuples keyed by `parts`, describing each component's complete channels. It returns
+branch-graded game energies/entropies and component states; scalarisation sums contributions.
+Only declared exact linear-Gaussian components (and their independent products) are accepted.
+Correlated joint beliefs are rejected. Tensor graph wiring/inversion remains absent.
+
+Checked by `test/game_composition.jl`, `lib/VariationalDiffusion.jl/test/bound.jl`,
+`lib/Adversarial.jl/test/transport.jl`, and `lib/AlgebraicFactors.jl/test/game_exact.jl`.
+The common checker covers Gaussian composition in both directions, affine Gaussian
+forward generators, the exact scalar Plucker image and degree-one polynomial polarities.
+Bounds are tested against closed-form likelihoods, not compared with the unrelated graph
+surrogate. Tensor's product-game API and stochastic unconditional NoiseSource use separate
+closed-form checks because the wired checker's belief/inversion fixtures do not represent
+them. Historical game exemptions remain for the unsupported domains named above.

@@ -21,7 +21,7 @@ nor a root-find but a *proximal solve*.
    ``P_{in} + P_{out} + P_{latent} = \\mathrm{Id}`` become a `LenticulumCore.Polarity` and
 
    ```math
-   E(x_0, x) = \\underbrace{\\mathbb{E}_{t,\\varepsilon}\\bigl[\\omega(t)\\|\\varepsilon_\\theta(\\alpha_t x + \\sigma_t\\varepsilon,t)-\\varepsilon\\|^2\\bigr]}_{\\text{entropy } \\mathbf{H}^c}
+   E(x_0, x) = \\underbrace{\\mathbb{E}_{t,\\varepsilon}\\bigl[\\omega(t)\\|\\varepsilon_\\theta(\\alpha_t x + \\sigma_t\\varepsilon,t)-\\varepsilon\\|^2\\bigr]}_{\\text{denoising surrogate}}
    \\;+\\; \\underbrace{\\tfrac12\\|P(x_0-x)\\|^2}_{\\text{energy } \\mathbf{l}^c}
    ```
 
@@ -65,6 +65,7 @@ include("cost.jl")
 include("product.jl")
 include("proxdm.jl")
 include("factor.jl")
+include("bound.jl")
 include("implicit_factor.jl")
 include("proxdm_factor.jl")
 

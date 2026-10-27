@@ -72,6 +72,15 @@
     "Grathwohl, Will; Chen, Ricky T. Q.; Bettencourt, Jesse; Sutskever, Ilya; Duvenaud, David (2019). FFJORD: Free-form Continuous Dynamics for Scalable Reversible Generative Models. International Conference on Learning Representations (ICLR). https://arxiv.org/abs/1810.01367",
     "Greydanus, Sam; Dzamba, Misko; Yosinski, Jason (2019). Hamiltonian Neural Networks. Advances in Neural Information Processing Systems (NeurIPS). https://arxiv.org/abs/1906.01563",
     "Hansen, Jakob; Ghrist, Robert (2019). Toward a Spectral Theory of Cellular Sheaves. Journal of Applied and Computational Topology. https://doi.org/10.1007/s41468-019-00038-7",
+    "Watanabe, Sumio (2013). A Widely Applicable Bayesian Information Criterion. Journal of Machine Learning Research. https://arxiv.org/abs/1208.6338",
+    "The Stacks Project Authors (2026). The Stacks Project. https://stacks.math.columbia.edu",
+    "Singh, Gurjeet; Mémoli, Facundo; Carlsson, Gunnar (2007). Topological Methods for the Analysis of High Dimensional Data Sets and 3D Object Recognition. Eurographics Symposium on Point-Based Graphics. https://doi.org/10.2312/SPBG/SPBG07/091-100",
+    "Edelsbrunner, Herbert; Letscher, David; Zomorodian, Afra (2002). Topological Persistence and Simplification. Discrete & Computational Geometry. https://doi.org/10.1007/s00454-002-2885-2",
+    "Kalisch, Markus; Bühlmann, Peter (2007). Estimating High-Dimensional Directed Acyclic Graphs with the PC-Algorithm. Journal of Machine Learning Research. https://arxiv.org/abs/math/0510436",
+    "Chickering, David Maxwell (2002). Optimal Structure Identification With Greedy Search. Journal of Machine Learning Research. https://jmlr.org/papers/v3/chickering02b.html",
+    "Zheng, Xun; Aragam, Bryon; Ravikumar, Pradeep; Xing, Eric P. (2018). DAGs with NO TEARS: Continuous Optimization for Structure Learning. Advances in Neural Information Processing Systems. https://arxiv.org/abs/1803.01422",
+    "Friedman, Jerome; Hastie, Trevor; Tibshirani, Robert (2008). Sparse inverse covariance estimation with the graphical lasso. Biostatistics. https://doi.org/10.1093/biostatistics/kxm045",
+    "Boyd, Stephen; Parikh, Neal; Chu, Eric; Peleato, Borja; Eckstein, Jonathan (2011). Distributed Optimization and Statistical Learning via the Alternating Direction Method of Multipliers. Foundations and Trends in Machine Learning. https://doi.org/10.1561/2200000016",
     "Hinton, Geoffrey E. (2002). Training Products of Experts by Minimizing Contrastive Divergence. Neural Computation. https://doi.org/10.1162/089976602760128018",
     "Ho, Jonathan; Jain, Ajay; Abbeel, Pieter (2020). Denoising Diffusion Probabilistic Models. Advances in Neural Information Processing Systems (NeurIPS). https://arxiv.org/abs/2006.11239",
     "Ho, Jonathan; Salimans, Tim (2022). Classifier-Free Diffusion Guidance. NeurIPS 2021 Workshop on Deep Generative Models and Downstream Applications. https://arxiv.org/abs/2207.12598",
@@ -236,6 +245,8 @@
     "Chojnacki, Wojciech; Brooks, Michael J.; van den Hengel, Anton; Gawley, Darren (2000). On the fitting of surfaces to data with covariances. IEEE Transactions on Pattern Analysis and Machine Intelligence. https://doi.org/10.1109/34.888714",
     "Breiding, Paul; Timme, Sascha (2018). HomotopyContinuation.jl: A Package for Homotopy Continuation in Julia. Mathematical Software – ICMS 2018. https://doi.org/10.1007/978-3-319-96418-8_54",
     "Breiding, Paul; Rose, Kemal; Timme, Sascha (2023). Certifying Zeros of Polynomial Systems Using Interval Arithmetic. ACM Transactions on Mathematical Software. https://doi.org/10.1145/3580277",
-    "Hairer, Ernst; Lubich, Christian; Wanner, Gerhard (2006). Geometric Numerical Integration: Structure-Preserving Algorithms for Ordinary Differential Equations. https://doi.org/10.1007/3-540-30666-8"
+    "Hairer, Ernst; Lubich, Christian; Wanner, Gerhard (2006). Geometric Numerical Integration: Structure-Preserving Algorithms for Ordinary Differential Equations. https://doi.org/10.1007/3-540-30666-8",
+    "Montoison, Alexis; Orban, Dominique (2023). Krylov.jl: A Julia basket of hand-picked Krylov methods. Journal of Open Source Software. https://doi.org/10.21105/joss.05187",
+    "Rackauckas, Christopher; Ma, Yingbo; Martensen, Julius; Warner, Collin; Zubov, Kirill; Supekar, Rohit; Skinner, Dominic; Ramadhan, Ali; Edelman, Alan (2020). Universal Differential Equations for Scientific Machine Learning. https://arxiv.org/abs/2001.04385"
   ]
 }

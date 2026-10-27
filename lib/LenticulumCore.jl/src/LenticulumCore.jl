@@ -82,6 +82,7 @@ export ExactInversion, AmortisedInversion, SolverInversion, ProximalInversion, T
 # --- Games -----------------------------------------------------------------
 export ComposedFactor, TensorFactor, setup
 export free_energy, scalar_free_energy
+export FreeEnergyUpperBound, FreeEnergyBoundEstimate, free_energy_upper_bound, estimate_free_energy_upper_bound
 export compose_energy, compose_entropy, compose_free_energy, chain_rule_defect
 export DiagonalCoupling, PathwiseCoupling, ScoreFunctionCoupling, ExactCoupling
 

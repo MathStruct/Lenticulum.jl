@@ -58,3 +58,10 @@ Dependencies: `LuxCore`, `Random`, `LinearAlgebra`. No `Lux`, no AD, no training
 
 Concept notes: [[Implicit Generative Models]], [[GANs as Two Factors]],
 [[Three Senses of Implicit]].
+
+## Transport laws (2026-10-27, LP-009)
+
+The module loads [[transport]] after [[generator]], exporting `AffineGenerator`,
+`InvertibleGenerator`, `EntropyEstimate`, `pushforward_entropy` and
+`estimate_pushforward_entropy`. This adds exact Gaussian affine entropy and explicitly
+sampled nonlinear Jacobian expectations without a dependency on Lux or an AD backend.

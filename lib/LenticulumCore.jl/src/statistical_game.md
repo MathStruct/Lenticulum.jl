@@ -128,3 +128,28 @@ wiring. `test/runtests.jl`, "Container conformance scope (LP-008/009)", checks t
 Composition needs a pushforward prior and downstream inversion law; tensor needs a joint
 belief/input convention before its component laws can be evaluated. No arbitrary
 expectation or mean-field approximation is added here. Existing LP-011 guards are unchanged.
+
+## Bounds and exact container games (2026-10-27, LP-009)
+
+This section supersedes the earlier statements that all container game laws are absent.
+`FreeEnergyUpperBound(value)` carries an analytically evaluated scalar variational bound;
+`FreeEnergyBoundEstimate(value,standard_error,nsamples)` carries a sampled estimate of a
+bound's expectation. Neither is a number or accepted by the ordinary scalarisation API.
+They leave `free_energy` and `entropy` as exact-game interfaces in the new supported domains.
+The producer must define the normalised model, variational law and reference measure;
+[[bound]] supplies the finite VP-chain instance. Estimates can fall below negative log
+evidence, so a wrapper identifying only the inequality direction would be insufficient.
+
+TensorFactor now implements exact independent **product games**: `π` and `y` are
+NamedTuples keyed by `parts`, each describing that component's channels. Results retain the
+branch grading and component state updates. The exact-product trait defaults to false;
+Lenticulum enables it for its linear-Gaussian factors and supported pair composition.
+Correlated joint beliefs and undeclared components throw. Tensor graph wiring and
+inversions remain absent, hence no wired common-checker claim is made.
+
+Lenticulum implements ComposedFactor for a pair of GaussianFactors by integrating out the
+shared channel and delegating to the exact collapsed Gaussian conditional. Its energy space
+is the collapsed Gaussian grading, not the pathwise `(first,second)` grading of the generic
+container. [[composition]] records the distinction, restrictions and closed-form/common
+conformance tests in `test/game_composition.jl`. Generic composition still throws with an
+exact-pushforward reason. The value-level `compose_*` sample combinators are unchanged.

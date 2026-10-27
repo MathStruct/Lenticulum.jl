@@ -318,8 +318,8 @@ end
         @test !applicable(assemble, f, Polarity((x=Observed(),y=Unobserved())), (;), (;))
         @test isempty(supported_polarities(f))
         @test !applicable(energy, f, nothing, nothing, nothing, (;), (;))
-        @test !applicable(free_energy, f, TrivialBelief(), nothing, (;), (;))
-        @test !applicable(LenticulumCore.entropy, f, TrivialBelief(), nothing, (;), (;))
+        @test_throws ArgumentError free_energy(f, TrivialBelief(), nothing, (;), (;))
+        @test_throws ArgumentError LenticulumCore.entropy(f, TrivialBelief(), nothing, (;), (;))
     end
 end
 

@@ -2,6 +2,23 @@ module ImplicitLayersDifferentiationInterfaceExt
 using ImplicitLayers: ImplicitLayers as IL
 using LenticulumCore: LenticulumCore as LC
 using DifferentiationInterface: DifferentiationInterface as DI
+function LC._check_factor_ad(ad::DI.ADTypes.AbstractADType, f::IL.NeuralODEFactor, st)
+    if f.integrator isa IL.SciMLIntegrator && !IL._empty_flow_state(st)
+        throw(ArgumentError(
+            "SciML NeuralODE differentiation requires recursively empty Lux state; " *
+            "nonempty state uses legacy evaluation-state threading for primal evaluation, " *
+            "but adaptive/rejected stages do not define supported ODE sensitivities."))
+    end
+    return LC._check_factor_ad(ad, f)
+end
+function LC._check_factor_ad(ad::DI.ADTypes.AbstractADType, f::IL.NeuralODEFactor)
+    f.integrator isa IL.SciMLIntegrator || return nothing
+    Base.get_extension(IL, :ImplicitLayersSciMLSensitivityExt) === nothing &&
+        throw(ArgumentError("NeuralODE SciML parameter AD requires loading SciMLSensitivity"))
+    ad isa Union{DI.ADTypes.AutoForwardDiff,DI.ADTypes.AutoZygote,DI.ADTypes.AutoMooncake} ||
+        throw(ArgumentError("SciML NeuralODE sensitivities are tested only with AutoForwardDiff, AutoZygote and AutoMooncake"))
+    return nothing
+end
 function IL._solve_state(ad::DI.ADTypes.AbstractADType, f, x, ps, st, z0)
     ad isa Union{DI.ADTypes.AutoForwardDiff,DI.ADTypes.AutoZygote,
                     DI.ADTypes.AutoEnzyme,DI.ADTypes.AutoMooncake} || throw(ArgumentError(

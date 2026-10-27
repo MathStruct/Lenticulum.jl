@@ -49,7 +49,7 @@ RK4Integrator(; steps = 50) = RK4Integrator(steps)
 nsteps(i::AbstractIntegrator) = i.steps
 
 """
-    SciMLIntegrator(alg; kwargs...)
+    SciMLIntegrator(alg; sensealg = nothing, kwargs...)
 
 Optional OrdinaryDiffEq solver, loaded by `using OrdinaryDiffEqCore` and a solver package
 (e.g. `OrdinaryDiffEqTsit5` or `OrdinaryDiffEqSDIRK`). Keywords go to `solve`; only the final
@@ -57,21 +57,24 @@ state is retained. `dt` is a positive magnitude, signed automatically for revers
 
 Fixed-step `ImplicitMidpoint`/`Trapezoid` can invert their discrete map up to nonlinear-solve
 tolerance; adaptive solvers such as `Tsit5` only control integration error. See
-[`inversion_kind`](@ref) for the conservative exactness conditions. This wrapper does not
-provide SciMLSensitivity gradients (LP-002).
+[`inversion_kind`](@ref) for the conservative exactness conditions. Loading SciMLSensitivity
+enables endpoint parameter derivatives with recursively empty
+Lux state. `sensealg=nothing` selects `ForwardDiffSensitivity()` for small problems;
+pass an explicit adjoint to override it. Sensitivity options do not affect inversion labels.
 """
-struct SciMLIntegrator{A,K<:NamedTuple} <: AbstractIntegrator
+struct SciMLIntegrator{A,K<:NamedTuple,S} <: AbstractIntegrator
     alg::A
     kwargs::K
+    sensealg::S
 end
-function SciMLIntegrator(alg; kwargs...)
+function SciMLIntegrator(alg; sensealg = nothing, kwargs...)
     opts = (; kwargs...)
     if haskey(opts, :dt)
         dt = opts.dt
         (dt isa Real && isfinite(dt) && dt > 0) ||
             throw(ArgumentError("dt must be a finite positive magnitude"))
     end
-    return SciMLIntegrator(alg, opts)
+    return SciMLIntegrator(alg, opts, sensealg)
 end
 
 """

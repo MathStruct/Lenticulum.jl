@@ -256,6 +256,9 @@ using LinearAlgebra, Random, LuxCore
 using LenticulumCore: LenticulumCore, GaussianBelief, Gaussian, uninformative,
     belief_mean, belief_cov, isproper, logpartition, dimension, _chol
 using Mycelium: Mycelium
+# gaussian.jl's opt-in noise parameters live in noise.jl; only its unused Wishart
+# penalty names SpecialFunctions, so fixed-noise templates load without it.
+include(joinpath(@__DIR__, "../../../src/noise.jl"))
 include(joinpath(@__DIR__, "../../../src/gaussian.jl"))
 include(joinpath(@__DIR__, "../../../src/constraint.jl"))
 end
@@ -483,12 +486,9 @@ end
     for it in (0,-1,true)
         @test_throws ArgumentError PolynomialFactor(f.dims,tab,1;iterations=it)
     end
-    # The shared checker unconditionally requires game-level free_energy/entropy
-    # and graph-local free energy. Those are intentionally absent (LP-009).
-    # The degree-one test above checks the lens/site/posterior subset on EVERY
-    # polarity with independent fixtures; do not advertise full conformance.
-    @test !applicable(free_energy,f,TrivialBelief(),(;),(;Θ),(;))
-    @test !applicable(LenticulumCore.entropy,f,TrivialBelief(),(;),(;Θ),(;))
+    # Nonlinear games remain unsupported; degree-one exact games are checked below.
+    @test_throws ArgumentError free_energy(f,TrivialBelief(),(;),(;Θ),(;))
+    @test_throws ArgumentError LenticulumCore.entropy(f,TrivialBelief(),(;),(;Θ),(;))
 end
 
 @testset "Polynomial nonlinear covariance and row-gauge sites" begin

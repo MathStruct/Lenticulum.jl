@@ -36,7 +36,7 @@ turned out to be wrong; see `The Gaussian Factor.md` §"What this caught".
 """
 module Lenticulum
 
-using LinearAlgebra: LinearAlgebra, Diagonal, I, Symmetric, cholesky, isposdef, logdet, tr
+using LinearAlgebra: LinearAlgebra, Diagonal, I, Symmetric, cholesky, isposdef, logdet, tr, diag, isdiag, issymmetric, eigen, eigmin
 using Random: Random, AbstractRNG
 using LuxCore: LuxCore
 using LenticulumCore: LenticulumCore
@@ -46,7 +46,9 @@ using LenticulumCore: GaussianBelief, Gaussian, uninformative, belief_mean, beli
     logpartition, dimension, _chol, _improper_check
 
 include("beliefs.jl")
+include("noise.jl")
 include("gaussian.jl")
+include("composition.jl")
 include("nonlinear.jl")
 include("constraint.jl")
 include("likelihood.jl")
@@ -55,6 +57,7 @@ export GaussianBelief, Gaussian, uninformative
 export belief_mean, belief_cov, isproper, logpartition, kl_divergence
 export moment_match, reduce_mixture
 export GaussianFactor, GaussianPrior, LinearGaussianModel
+export WishartPrecisionPrior, LogNormalVariancePrior, noise_covariance
 export NonlinearFactor, NonlinearGaussianModel, Linearization, Unscented, linearize
 export LinearConstraintFactor, LinearConstraintModel
 export residual, residual_statistics

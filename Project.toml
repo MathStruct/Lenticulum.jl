@@ -16,10 +16,16 @@ LenticulumCore = {path = "lib/LenticulumCore.jl"}
 Mycelium = {path = "lib/Mycelium.jl"}
 
 [compat]
+ChainRulesCore = "1"
+ForwardDiff = "0.10, 1"
 SpecialFunctions = "2"
 julia = "1.10"
 
 [extras]
+ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
+DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 BayesBase = "b4ee3484-f114-42fe-b91c-797d54a0c67e"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 ExponentialFamily = "62312e5e-252a-4322-ace9-a5f4bf9b357b"
@@ -27,4 +33,12 @@ RxInfer = "86711068-29c9-4ff7-b620-ae75d7495b3d"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "BayesBase", "Distributions", "ExponentialFamily", "RxInfer"]
+test = ["ADTypes", "DifferentiationInterface", "ForwardDiff", "Zygote", "Test", "BayesBase", "Distributions", "ExponentialFamily", "RxInfer"]
+
+[weakdeps]
+ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+
+[extensions]
+LenticulumChainRulesCoreExt = "ChainRulesCore"
+LenticulumForwardDiffExt = "ForwardDiff"

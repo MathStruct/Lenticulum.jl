@@ -216,3 +216,37 @@ function ift_sensitivity(Jz::AbstractMatrix, Jx::AbstractMatrix)
     issuccess(F) || throw(SingularException(0))
     return F \ Jx
 end
+
+# The differentiation linear solve is independent of the primal root solver.
+abstract type AbstractIFT end
+"Dense residual Jacobian and LU (the default first-order IFT rule)."
+struct DenseIFT <: AbstractIFT end
+"""
+    KrylovIFT(; rtol=1e-10, atol=1e-12, itmax=0, memory=20)
+
+Opt-in matrix-free GMRES IFT solve. Load Krylov and DifferentiationInterface.
+`itmax=0` uses Krylov's default (twice the state dimension). Restart after `memory`
+iterations to bound basis storage. Failure to meet the residual tolerance throws.
+"""
+struct KrylovIFT <: AbstractIFT
+    rtol::Float64
+    atol::Float64
+    itmax::Int
+    memory::Int
+    function KrylovIFT(; rtol=1e-10, atol=1e-12, itmax=0, memory=20)
+        isfinite(rtol) && rtol >= 0 || throw(ArgumentError("rtol must be finite and nonnegative"))
+        isfinite(atol) && atol >= 0 || throw(ArgumentError("atol must be finite and nonnegative"))
+        itmax >= 0 || throw(ArgumentError("itmax must be nonnegative"))
+        memory > 0 || throw(ArgumentError("memory must be positive"))
+        new(rtol, atol, itmax, memory)
+    end
+end
+_ift_prepare(ad, f, u, z, like, offs, st, transposed) =
+    _ift_prepare(f.ift, ad, f, u, z, like, offs, st, transposed)
+function _ift_prepare(::DenseIFT, ad, f, u, z, like, offs, st, transposed)
+    J = _root_jacobian(ad, f, u, z, like, offs, st)
+    return lu(transposed ? J' : J)
+end
+_ift_prepare(::KrylovIFT, args...) = throw(ArgumentError(
+    "KrylovIFT requires loading Krylov and DifferentiationInterface"))
+_ift_solve(A, b) = A \ b

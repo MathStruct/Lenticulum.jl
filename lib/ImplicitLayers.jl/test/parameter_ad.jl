@@ -120,13 +120,13 @@ end
 end
 
 # Data -> endpoint cavities; model edges need only absorb for this objective.
-function ode_training_graph(a, target)
+function ode_training_graph(a, target; integrator = EulerIntegrator(5))
     b = GraphBuilder()
     variable!(b, :z0); variable!(b, :z1)
     factor!(b, :input, DataFactor(:z0, [1.0]))
     factor!(b, :target, DataFactor(:z1, [target]))
     factor!(b, :model, NeuralODEFactor(LinearDynamics(fill(a,1,1)), 1;
-        integrator = EulerIntegrator(5)))
+        integrator))
     connect!(b, :input, :z0, :z0; direction = Emitting())
     connect!(b, :target, :z1, :z1; direction = Emitting())
     connect!(b, :model, :z0, :z0; direction = Absorbing())

@@ -121,9 +121,10 @@ exact moments. Set `covariance_jitter > 0` to explicitly add that absolute varia
 to every output coordinate before constructing the belief (then covariance is approximate).
 No jitter is ever added by default. Improper Gaussians and other belief pairs throw.
 
-Pointwise energy and graph-local free energy return zero, following `GeneratorFactor`.
-Game-level quantities are zero for fixed Dirac inputs; distributional entropy and an
-assembled Bayesian lens are not supplied.
+Pointwise energy is zero. Conditional fixed-Dirac games have zero entropy/free energy.
+For r=2, one nonzero fixed vector and one proper Gaussian give an exact scalar Gaussian
+forward game (no output conditioning or covariance jitter), including graph-local entropy.
+Other distributional games throw; an assembled Bayesian lens is not supplied.
 """
 struct PluckerFactor{N,J<:Real} <: LenticulumCore.AbstractLenticulumFactor
     r::Int
@@ -154,7 +155,12 @@ LenticulumCore.supports_polarity(f::PluckerFactor, p::LenticulumCore.Polarity) =
     p[f.names[2]] isa LenticulumCore.Observed && p[f.names[3]] isa LenticulumCore.Unobserved
 LenticulumCore.energyspace(::PluckerFactor) = LenticulumCore.ScalarEnergySpace()
 LenticulumCore.energy(::PluckerFactor, x, a, y, ps, st) = (0.0, st)
-Mycelium.local_free_energy(::PluckerFactor, _, ps, st) = (0.0, st)
+function Mycelium.local_free_energy(f::PluckerFactor, msgs, ps, st)
+    inputs = map(n -> get(msgs,n,nothing),f.names[1:2])
+    any(b -> b isa LenticulumCore.GaussianBelief,inputs) || return 0.0,st
+    y = NamedTuple{f.names[1:2]}(inputs)
+    return LenticulumCore.free_energy(f,get(msgs,f.names[3],nothing),y,ps,st)
+end
 
 function _plucker_point(f, x)
     x isa AbstractVector{<:Real} || throw(ArgumentError("PluckerFactor inputs must be real vectors"))
@@ -235,11 +241,24 @@ function Mycelium.factor_message(f::PluckerFactor, target::Symbol, polarity, inp
     return LenticulumCore.pushforward(f, (inputs[f.names[1]], inputs[f.names[2]]), ps, st)
 end
 
-# Conditional deterministic game, restricted to the point inputs whose entropy is zero.
-function LenticulumCore.free_energy(f::PluckerFactor, π, y::NamedTuple, ps, st)
-    all(n -> haskey(y,n) && y[n] isa LenticulumCore.DiracBelief, f.names[1:2]) ||
-        throw(ArgumentError("PluckerFactor game quantities require Dirac observations on both input channels"))
-    return (0.0, st)
+# Conditional points, or the exact scalar Gaussian image of one fixed vector in R².
+function LenticulumCore.entropy(f::PluckerFactor, π, y::NamedTuple, ps, st)
+    all(n -> haskey(y,n), f.names[1:2]) || throw(ArgumentError("Plucker game needs both named inputs"))
+    z,w = y[f.names[1]],y[f.names[2]]
+    D,G = LenticulumCore.DiracBelief,LenticulumCore.GaussianBelief
+    z isa D && w isa D && return 0.0,st
+    π === nothing || π isa LenticulumCore.TrivialBelief || throw(ArgumentError(
+        "distributional Plucker game requires no output conditioning"))
+    f.r == 2 && ((z isa D && w isa G) || (z isa G && w isa D)) || throw(ArgumentError(
+        "exact Plucker entropy requires r=2 with one Dirac and one Gaussian input; two Gaussian inputs are non-Gaussian, and higher-dimensional fixed-vector images are Lebesgue-singular"))
+    iszero(f.covariance_jitter) || throw(ArgumentError("Plucker entropy cannot use approximate covariance_jitter"))
+    μ,S = _plucker_input_moments(f,z)
+    ν,T = _plucker_input_moments(f,w)
+    _,C = plucker_moments(μ,S,ν,T)
+    C[1,1] > 0 || throw(ArgumentError("zero fixed vector gives a singular output with no Lebesgue entropy"))
+    return log(2 * Base.MathConstants.pi * exp(1)*C[1,1])/2,st
 end
-LenticulumCore.entropy(f::PluckerFactor, π, y::NamedTuple, ps, st) =
-    LenticulumCore.free_energy(f, π, y, ps, st)
+function LenticulumCore.free_energy(f::PluckerFactor, π, y::NamedTuple, ps, st)
+    H,st = LenticulumCore.entropy(f,π,y,ps,st)
+    return -H,st
+end

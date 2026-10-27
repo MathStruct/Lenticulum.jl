@@ -67,3 +67,21 @@ broken assertions now pass. Game checks retain an explicit opt-out: the graph's 
 coordinate is a denoising surrogate, not posterior entropy, and its inferred polarity/trivial
 prior cannot preserve an explicit game's split and precisions (LP-009). These checks do not
 certify arbitrary priors, joint latent posteriors, stochastic REDDiff or learned ProxDM.
+
+
+## Labelled finite-chain ELBO bounds
+
+`LenticulumCore.free_energy_upper_bound(f,x,ps,st;times)` defines a normalised finite VP
+reverse chain on the full joint point `x`: terminal `N(0,I)`, reverse variances `βᵢ I`,
+a Gaussian decoder, and the forward-chain variational law conditioned on `x`. It includes
+all normalisers. Analytic single-Gaussian predictors return `FreeEnergyUpperBound(value)`.
+General predictors use `estimate_free_energy_upper_bound(...;times,rng,nsamples)` and
+return `FreeEnergyBoundEstimate(value,standard_error,nsamples)`. A sampled estimate is
+not itself a numerical upper bound. Access to `.value` is explicit; neither wrapper is a
+number or accepted by ordinary scalarisation. Exact game entropy and partial evidence
+remain unsupported. The graph surrogate is a different objective.
+
+```@docs
+LenticulumCore.free_energy_upper_bound
+LenticulumCore.estimate_free_energy_upper_bound
+```

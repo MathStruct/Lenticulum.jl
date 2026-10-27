@@ -233,13 +233,22 @@ Euler has $P(q)=1+q$; RK4 has $P(q)=1+q+q^2/2+q^3/6+q^4/24$.
 Tests also compare AD and FD for state-dependent stage dynamics, and fit a known
 Euler parameter through the graph's summed local free energy using each AD backend.
 
-SciMLSensitivity for `SciMLIntegrator` remains a next step; no adjoint extension is
-claimed here. It needs explicit parameters in the ODE problem and a state policy for
-adaptive/rejected stages. `flow_logdet` still uses FD divergence and has no tested AD
-path. GPU and higher-order derivatives remain untested. Mooncake coverage here is CPU
-endpoint differentiation for the built-in Euler/RK4 maps, including nonempty stage
-state and graph parameter steps. No SciML adjoint or divergence support is established
-by these tests.
+Loading SciMLSensitivity activates an endpoint extension for `SciMLIntegrator`;
+see [[flow]] for its sensitivity algorithm and state policy. The parameter vector
+is an explicit `ODEProblem.p`, rebuilt using the core's tree helpers, so adjoints
+see every Lux parameter. Empty nested Lux state is supported for sensitivities.
+Nonempty incoming state falls back to the legacy evaluation-state path for plain
+forward/reverse flows and inference, including when `sensealg` is explicit.
+Loading SciMLSensitivity preserves these primal calls. The factor derivative and
+Mycelium graph gradient/`parameter_step` entry points reject AD with nonempty state
+through `_check_factor_ad(ad, f, st)` before tracing. Reference differences
+(`ad=nothing`) remain available. An arbitrary outer DI call bypasses this check;
+its caller must enforce the empty-state restriction, as with Enzyme runtime activity.
+`test/sciml_state.jl` checks stateful primals and inference both before and after
+loading SciMLSensitivity; `test/lp002_followups.jl` checks the AD errors.
+Built-in state threading is unchanged. `flow_logdet`
+still uses FD divergence and has no tested AD path. GPU and higher-order
+sensitivities remain untested.
 
 Enzyme needs **runtime activity** for these endpoint flows:
 

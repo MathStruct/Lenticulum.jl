@@ -128,3 +128,10 @@ in `Project.toml` was `LentriculumCore` (typo); corrected to `LenticulumCore`, w
 name the module and the UUID now agree on.
 
 Related: [[Map of Content]], [[AutoBayes to Lenticulum]], [[Scalar and Multivariate Energy]]
+
+## Bound API (2026-10-27, LP-009)
+
+The module exports `FreeEnergyUpperBound`, `FreeEnergyBoundEstimate`,
+`free_energy_upper_bound` and `estimate_free_energy_upper_bound`. These are separate
+from exact-game free energy and scalarisation; [[statistical_game]] and [[bound]] document
+the wrapper distinction and the finite diffusion-chain instance.

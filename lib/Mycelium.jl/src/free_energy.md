@@ -143,8 +143,10 @@ energy and assembles a tree matching `ps`. Nonlearnable factors get zero subtree
 Messages are snapshotted outside AD. Bethe variable corrections are constant under
 this partial derivative, so the result is the parameter gradient of their sum plus
 those corrections. The same cavity edge validation as reporting applies. Each learnable factor's
-`_check_factor_ad` backend validation runs before its local derivative, so Enzyme
-Euler/RK4 reports a missing runtime-activity setting before entering AD (see [[neuralode]]).
+`_check_factor_ad(ad, factor, factor_state)` validation runs before its local derivative,
+using that factor's state subtree. It rejects SciML AD with nonempty Lux state and
+reports a missing Enzyme Euler/RK4 runtime-activity setting before entering AD
+(see [[neuralode]]). `parameter_step` uses the same graph gradient check.
 
 `parameter_step(store, g, ps, st; ad, rule, optimiser_state)` evaluates the rule's
 look-ahead parameters, obtains that gradient, and applies `rule_put` to each learnable

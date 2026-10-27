@@ -1,6 +1,6 @@
 #open-problem
 
-> **Status: open, item 1 resolved; other semantics remain (2026-10-26). The 2026-10-23 resolution listed methods that do not exist.** Related: [[L-SPEC-001 The Factor Interface]] §4–§5, [[statistical_game]], [[abstract_types]], [[factors]].
+> **Status: resolved within the agreed bounds + exact-cases scope (2026-10-27); general games outside that scope remain explicitly unsupported. The 2026-10-23 resolution listed methods that did not exist.** Related: [[L-SPEC-001 The Factor Interface]] §4–§5, [[statistical_game]], [[abstract_types]], [[factors]].
 
 **Problem.** `LenticulumCore` declares the game-level `entropy(f, π, y, ps, st)` and `free_energy(f, π, y, ps, st)` (AutoBayes Definition 20), and `abstract_types.jl` lists `entropy` among the methods a factor must provide. At the time this problem was opened, no factor implemented either. Every factor that is used in a graph implements Mycelium's `local_free_energy(f, msgs, ps, st)` instead, which takes all incoming messages because a graph has no distinguished prior/observation split. Then `scalar_free_energy(f, π, y, ...)` failed for every factor in the repository, the same kind of gap as issue #8.
 
@@ -98,3 +98,107 @@ not a keyword on `free_energy`.
 
 The problem remains open for these precise domains. No methods are claimed for fictitious
 types, and no arbitrary expectation or posterior-entropy approximation has been added.
+
+## Items 2–5: bounds plus exact cases (2026-10-27)
+
+The maintainer's decision of 2026-10-26 is implemented within the following explicit
+scope. This section supersedes the earlier remaining-item descriptions without claiming
+the general distributional games are solved.
+
+2. **Diffusion:** `free_energy_upper_bound` evaluates the negative ELBO of an explicitly
+   normalised finite VP reverse chain on full joint point evidence. Terminal $N(0,I)$,
+   all reverse Gaussian variances, decoder and normalisers are specified by the API;
+   the variational law is the forward chain conditioned on evidence. A single analytic
+   Gaussian predictor has an exact expectation and returns `FreeEnergyUpperBound(value)`.
+   General predictors use `estimate_free_energy_upper_bound`, returning a different
+   `FreeEnergyBoundEstimate(value,standard_error,nsamples)`; a sampled estimate need not
+   itself lie above negative log evidence. Neither type is a number/ordinary energy.
+   `lib/VariationalDiffusion.jl/test/bound.jl` compares with exact Gaussian likelihoods:
+   the stationary analytic score saturates the bound, and the gap decreases as a displaced
+   score approaches it. The graph `(clamp,score)` surrogate is not a normalised ELBO;
+   exact `free_energy`/`entropy` and partial-evidence bounds still throw. See [[bound]].
+3. **Generators and source:** `AffineGenerator` with a proper Gaussian latent law and a
+   square nonsingular map implements exact Lebesgue entropy
+   $H(g_*p)=H(p)+\log|\det A|$. The unconditional forward game has zero map energy and
+   free energy $-H(g_*p)$; output conditioning is rejected. `InvertibleGenerator` carries
+   a caller-certified global bijection and exact log-Jacobian callback; nonlinear
+   Gaussian-source expectations are separately labelled `EntropyEstimate`s, never exact
+   game entropies. Dirac/finite supported laws are Lebesgue-singular even if a Jacobian
+   expectation can be a finite exact sum. Non-invertible maps throw. The built-in
+   standard-normal NoiseSource has exact unconditional entropy without resampling;
+   custom samplers still supply no density law. Tests: `lib/Adversarial.jl/test/transport.jl`,
+   including Gaussian closed forms, a nonlinear bijection with analytic Jacobian expectation,
+   and common conformance for the affine Gaussian game. See [[transport]] and [[generator]].
+   **Ratio:** non-Dirac games remain unsupported: arbitrary ratio networks have no analytic
+   normaliser/reweighted entropy contract, and empirical weights are not a Lebesgue density.
+   **Plucker:** an exact distributional case does exist at $r=2$, with one fixed nonzero
+   vector and one proper Gaussian: its scalar image is Gaussian. Entropy/free energy and
+   direct-message conformance are checked in `lib/AlgebraicFactors.jl/test/game_exact.jl`.
+   Higher-dimensional fixed-vector images are singular; two Gaussian inputs are generally
+   non-Gaussian. Jitter is an approximation and is refused by the exact game. See [[plucker]].
+4. **Polynomial:** degree one with `branches=:single`, a square nonsingular last-channel
+   block, SPD constant residual covariance and a proper pooled posterior defines an exact
+   normalised linear-Gaussian conditional. Its normaliser includes the output log-Jacobian.
+   Game/graph quantities use the Gaussian grading; `π` is on the first channel and `y`
+   names all others. `lib/AlgebraicFactors.jl/test/game_exact.jl` derives the closed form,
+   checks both polarities with the common checker, and checks basis/gauge/damping cases.
+   Other degrees, branch mixtures and unsolvable normalised output blocks throw. See
+   [[polynomial]]; no local metric is promoted to a nonlinear density.
+5. **Composition and tensor:** a pair of GaussianFactors integrates out its shared channel,
+   giving $A=BA_1$, $b=Ba_1+b_2$, $Q=BQ_1B^\top+Q_2$. Endpoint messages, games, entropy
+   and graph contributions match that collapsed Gaussian factor. Both endpoint polarities
+   pass common conformance and independent posterior/entropy tests. Independent TensorFactor
+   games accept products explicitly as NamedTuples keyed by `parts`; each entry describes
+   the corresponding complete channel game. Branch-graded results scalarise to the sum.
+   Correlated joint beliefs and undeclared/nonlinear components throw. Tensor graph wiring,
+   nested composed chains and composition with noise hyperpriors remain unsupported.
+   Tests: `test/game_composition.jl`. See [[composition]] and [[statistical_game]].
+
+The interface amendment is appended to [[L-SPEC-001 The Factor Interface]], not made into
+an ADR. The original conditional point games and their conformance coverage remain in place.
+The unsupported domains above are deliberate boundaries of this resolution, not hidden
+approximations. Verification results for the seven suites and documentation builds are
+recorded below after the runs complete.
+
+### Verification, 2026-10-27
+
+All seven package suites pass with the reviewed LP-002/LP-005 work retained. Commands were
+`julia --project=<package> -e 'using Pkg; Pkg.test()'` (`--project=.` for Lenticulum), on
+Julia 1.13.1, with `OPENBLAS_NUM_THREADS=1` and `JULIA_NUM_PRECOMPILE_TASKS=2`.
+Counts sum the top-level test summaries without double-counting their nested rows.
+Elapsed times include package setup and precompilation; the top-level and Adversarial
+rows are their final reruns.
+
+| package | passing assertions | elapsed seconds |
+|---|---:|---:|
+| Lenticulum | 994 | 219.49 |
+| LenticulumCore | 316 | 46.69 |
+| Mycelium | 494 | 11.08 |
+| ImplicitLayers | 1195 | 459.73 |
+| Adversarial | 315 | 9.37 |
+| AlgebraicFactors | 15102 | 163.12 |
+| VariationalDiffusion | 1201 | 428.01 |
+
+Total: **19617 passing assertions**, no failures, errors or broken tests. The new
+LP-009 testsets contribute 100 (Gaussian composition/product games), 61 (transport),
+659 (polynomial), 44 (Plucker) and 58 (diffusion bounds) assertions, respectively.
+The first algebraic iteration exposed roundoff accepting an unanchored singular precision;
+the final eigenvalue guard is regression-tested. The first top-level iteration exposed a
+`pushforward` import collision in the new test; calls now qualify LenticulumCore's binding.
+
+`julia --project=docs docs/make.jl` passed, executing all ten Literate tutorials and producing
+26 API HTML pages, with an initial elapsed time of 450.86 seconds. Its vault build also
+passed. The standalone `docs/site/build.sh` run produced 251 HTML pages in 8.04 seconds
+(including disposable Quartz-copy setup), without KaTeX errors. Both used an explicit
+`QUARTZ_DIR` under `/tmp`, with the copy's Git restoration hook removed and its npm cache
+kept in that copy; no checkout/clean/reset/stash/commit command was run. The original
+`docs/quartz` was not used as a build target. Final rebuild timings are recorded below.
+
+`git diff --check` passes. The initial diff snapshot was compared with the final tree:
+all 38 unrelated reviewed tracked-file diffs are unchanged; overlapping loader/test/log
+files retain their existing changes. No commit, push or merge was made.
+
+Rebuilds after the API coverage corrections and verification-table update also passed:
+API documentation **379.92 seconds**, 26 HTML pages; standalone vault **7.48 seconds**,
+251 HTML pages, no KaTeX errors. Documenter reported only its page/search-index size
+warnings and skipped deployment in the local environment.

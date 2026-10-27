@@ -630,6 +630,131 @@ references:
     end: "358"
     doi: "10.1007/s41468-019-00038-7"
   - type: article
+    title: "A Widely Applicable Bayesian Information Criterion"
+    authors:
+      - family-names: "Watanabe"
+        given-names: "Sumio"
+    year: 2013
+    journal: "Journal of Machine Learning Research"
+    volume: "14"
+    start: "867"
+    end: "897"
+    url: "https://arxiv.org/abs/1208.6338"
+  - type: generic
+    title: "The Stacks Project"
+    authors:
+      - name: "The Stacks Project Authors"
+    year: 2026
+    url: "https://stacks.math.columbia.edu"
+  - type: conference-paper
+    title: "Topological Methods for the Analysis of High Dimensional Data Sets and 3D Object Recognition"
+    authors:
+      - family-names: "Singh"
+        given-names: "Gurjeet"
+      - family-names: "Mémoli"
+        given-names: "Facundo"
+      - family-names: "Carlsson"
+        given-names: "Gunnar"
+    year: 2007
+    collection-title: "Eurographics Symposium on Point-Based Graphics"
+    start: "91"
+    end: "100"
+    publisher:
+      name: "The Eurographics Association"
+    doi: "10.2312/SPBG/SPBG07/091-100"
+  - type: article
+    title: "Topological Persistence and Simplification"
+    authors:
+      - family-names: "Edelsbrunner"
+        given-names: "Herbert"
+      - family-names: "Letscher"
+        given-names: "David"
+      - family-names: "Zomorodian"
+        given-names: "Afra"
+    year: 2002
+    journal: "Discrete & Computational Geometry"
+    volume: "28"
+    issue: "4"
+    start: "511"
+    end: "533"
+    doi: "10.1007/s00454-002-2885-2"
+  - type: article
+    title: "Estimating High-Dimensional Directed Acyclic Graphs with the PC-Algorithm"
+    authors:
+      - family-names: "Kalisch"
+        given-names: "Markus"
+      - family-names: "Bühlmann"
+        given-names: "Peter"
+    year: 2007
+    journal: "Journal of Machine Learning Research"
+    volume: "8"
+    start: "613"
+    end: "636"
+    url: "https://arxiv.org/abs/math/0510436"
+  - type: article
+    title: "Optimal Structure Identification With Greedy Search"
+    authors:
+      - family-names: "Chickering"
+        given-names: "David Maxwell"
+    year: 2002
+    journal: "Journal of Machine Learning Research"
+    volume: "3"
+    start: "507"
+    end: "554"
+    url: "https://jmlr.org/papers/v3/chickering02b.html"
+  - type: conference-paper
+    title: "DAGs with NO TEARS: Continuous Optimization for Structure Learning"
+    authors:
+      - family-names: "Zheng"
+        given-names: "Xun"
+      - family-names: "Aragam"
+        given-names: "Bryon"
+      - family-names: "Ravikumar"
+        given-names: "Pradeep"
+      - family-names: "Xing"
+        given-names: "Eric P."
+    year: 2018
+    collection-title: "Advances in Neural Information Processing Systems"
+    volume: "31"
+    url: "https://arxiv.org/abs/1803.01422"
+  - type: article
+    title: "Sparse inverse covariance estimation with the graphical lasso"
+    authors:
+      - family-names: "Friedman"
+        given-names: "Jerome"
+      - family-names: "Hastie"
+        given-names: "Trevor"
+      - family-names: "Tibshirani"
+        given-names: "Robert"
+    year: 2008
+    journal: "Biostatistics"
+    volume: "9"
+    issue: "3"
+    start: "432"
+    end: "441"
+    doi: "10.1093/biostatistics/kxm045"
+    url: "https://arxiv.org/abs/0708.3517"
+  - type: article
+    title: "Distributed Optimization and Statistical Learning via the Alternating Direction Method of Multipliers"
+    authors:
+      - family-names: "Boyd"
+        given-names: "Stephen"
+      - family-names: "Parikh"
+        given-names: "Neal"
+      - family-names: "Chu"
+        given-names: "Eric"
+      - family-names: "Peleato"
+        given-names: "Borja"
+      - family-names: "Eckstein"
+        given-names: "Jonathan"
+    year: 2011
+    journal: "Foundations and Trends in Machine Learning"
+    volume: "3"
+    issue: "1"
+    start: "1"
+    end: "122"
+    doi: "10.1561/2200000016"
+  - type: article
     title: "Training Products of Experts by Minimizing Contrastive Divergence"
     authors:
       - family-names: "Hinton"
@@ -3004,3 +3129,39 @@ references:
     publisher:
       name: "Springer Berlin, Heidelberg"
     doi: "10.1007/3-540-30666-8"
+  - type: article
+    title: "Krylov.jl: A Julia basket of hand-picked Krylov methods"
+    authors:
+      - family-names: "Montoison"
+        given-names: "Alexis"
+      - family-names: "Orban"
+        given-names: "Dominique"
+    year: 2023
+    journal: "Journal of Open Source Software"
+    volume: "8"
+    issue: "89"
+    start: "5187"
+    doi: "10.21105/joss.05187"
+  - type: generic
+    title: "Universal Differential Equations for Scientific Machine Learning"
+    authors:
+      - family-names: "Rackauckas"
+        given-names: "Christopher"
+      - family-names: "Ma"
+        given-names: "Yingbo"
+      - family-names: "Martensen"
+        given-names: "Julius"
+      - family-names: "Warner"
+        given-names: "Collin"
+      - family-names: "Zubov"
+        given-names: "Kirill"
+      - family-names: "Supekar"
+        given-names: "Rohit"
+      - family-names: "Skinner"
+        given-names: "Dominic"
+      - family-names: "Ramadhan"
+        given-names: "Ali"
+      - family-names: "Edelman"
+        given-names: "Alan"
+    year: 2020
+    url: "https://arxiv.org/abs/2001.04385"

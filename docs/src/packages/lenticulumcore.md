@@ -156,8 +156,16 @@ Modules = [LenticulumCore]
 Pages = ["LenticulumCore.jl"]
 ```
 
-`ComposedFactor` and `TensorFactor` are currently parameter/energy-space containers.
-They have no channels, assembled inversion or evaluable game laws, so the shared factor
-checker does not apply. Core tests explicitly check this scope. The helpers
-`compose_energy`, `compose_entropy` and `compose_free_energy` operate on supplied values;
-they do not turn those containers into wired statistical games (LP-008/009).
+Lenticulum extends `ComposedFactor` for a pair of GaussianFactors by integrating out the
+shared channel. It exposes the endpoint channels and exact collapsed Gaussian messages,
+entropy and game/graph free energy. Other compositions throw with an exact-pushforward reason.
+`TensorFactor` combines independent linear-Gaussian games: `π` and `y` must be NamedTuples
+keyed exactly like `parts`; their entries describe each component's complete channel game.
+Results retain the branch grading and scalarise to the sum. Correlated joint beliefs and
+unsupported components throw. Tensor graph wiring/inversion remains absent.
+
+The helpers `compose_energy`, `compose_entropy` and `compose_free_energy` retain their
+value-level path-energy semantics, distinct from a collapsed Gaussian marginal game.
+`FreeEnergyUpperBound` and `FreeEnergyBoundEstimate` are separate wrappers for variational
+bounds and estimates; neither enters exact `free_energy` or `scalarise`. Diffusion supplies
+the explicitly normalised finite-chain instance ([Factors](@ref vd-factors)).
