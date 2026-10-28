@@ -5,25 +5,29 @@ using ForwardDiff: ForwardDiff as FD
 using LenticulumCore: LenticulumCore as LC
 using LinearAlgebra: dot
 IL._solve_metadata(x::AbstractVector{<:FD.Dual}) = FD.value.(x)
+IL._check_message_ad(::Nothing, ::Type{<:FD.Dual}) = throw(ArgumentError(
+    "Raw ForwardDiff DEQ message AD cannot select an IFT backend; use free_energy_gradient(...; ad=AutoForwardDiff(), schedule=...)"))
 
 function IL._implicit_state(ad, f, u::AbstractVector{FD.Dual{Tag,V,N}}, like, offs, st, z0) where {Tag,V,N}
     V <: AbstractFloat && ad isa DI.ADTypes.AutoForwardDiff || throw(ArgumentError(
         "Nested DEQ solve AD is unsupported; use deq_hvp(...; ad=AutoForwardDiff()) for second order."))
     primal = FD.value.(u)
     z, rep, stnew = IL._implicit_state(ad, f, primal, like, offs, st, FD.value.(z0))
-    Jz = IL._ift_prepare(ad, f, primal, z, like, offs, st, false)
+    Jz = IL._ift_prepare(ad, f, primal, z, like, offs, st, false, IL._solve_history(rep))
     # A residual JVP and IFT solve for each dual direction.
     dirs = ntuple(k -> map(v -> FD.partials(v)[k], u), N)
     rhs = DI.pushforward(IL._joint_residual, ad, primal, dirs, DI.Constant(f),
         DI.Constant(z), DI.Constant(like), DI.Constant(offs), DI.Constant(st))
     dz = -hcat(map(b -> IL._ift_solve(Jz, b), rhs)...)
-    dualz = map(eachindex(z)) do i
-        FD.Dual{Tag}(z[i], FD.Partials(ntuple(k -> dz[i, k], N)))
+    columns = ntuple(k -> view(dz, :, k), N)
+    dualz = broadcast(z, columns...) do zi, partials...
+        FD.Dual{Tag}(zi, FD.Partials(partials))
     end
     return dualz, rep, stnew
 end
 
 function IL._deq_hvp(::DI.ADTypes.AutoForwardDiff, loss, f, x, ps, st, direction, wrt, z0)
+    IL._check_hvp_device(x)
     θ, offs = LC._flatten_active(ps), LC.offset_tree(ps)
     u = IL._joint_vector(x, θ)
     eltype(u) <: AbstractFloat && eltype(direction) <: AbstractFloat ||

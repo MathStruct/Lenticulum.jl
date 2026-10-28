@@ -174,6 +174,9 @@ julia --project=lib/VariationalDiffusion.jl    -e 'using Pkg; Pkg.test()'
 # ... likewise for lib/LenticulumCore.jl, lib/Mycelium.jl, lib/ImplicitLayers.jl, lib/Adversarial.jl, lib/AlgebraicFactors.jl
 ```
 
+The JLArrays device tests in Mycelium and ImplicitLayers take about 17 minutes, so CI skips
+them; run them locally with `LENTICULUM_DEVICE_TESTS=true` set.
+
 Documentation, API and vault together:
 
 ```sh

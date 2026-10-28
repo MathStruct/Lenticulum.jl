@@ -1,5 +1,7 @@
 #implementation
 
+> Canonical Gaussian beliefs, their moment accessors and properness checks.
+
 > Sources: code: `gaussian_belief.jl`
 >
 > Theory: [[Gaussian Belief]] · [[Beliefs]] · [[Belief Algebra]]
@@ -42,3 +44,36 @@ Gaussian prior was silently treated as having no point. It now calls
 documented. This is tested in VariationalDiffusion's "answers as beliefs" test set.
 
 Related: [[open_model]], [[lib/Mycelium.jl/src/gaussian|gaussian]], [[messages]]
+
+
+## Device diagonal beliefs (2026-10-27)
+
+For device `Diagonal` precision/covariance, properness is an all-positive finite
+check, mean is elementwise division, covariance is reciprocal diagonal and logdet
+is the sum of logarithms. The diagonal log-partition uses typed constants and an
+elementwise quadratic form, preserving Float32 in values and both tested derivatives.
+No dense factorisation or host array copy is needed.
+Dense device Gaussian precision/covariance gives an ArgumentError rather than
+silently entering the legacy CPU `Matrix` path. CPU factorisation behavior is
+unchanged. Hardware dense Gaussian algebra is not claimed.
+
+Device mean/solve paths use elementwise operations; the covariance reverse rule
+returns structural `diag` cotangents. A dense precision cotangent conflicted with direct diagonal reads in
+Zygote when the same belief contributed moments and variance terms. The analytic
+rules are $\bar\eta=\bar\mu/\lambda$, $\bar\lambda=-\bar\eta\,\mu$ and
+$\bar\lambda=-\operatorname{diag}(\bar\Sigma)/\lambda^2$, elementwise.
+Tests in `lib/ImplicitLayers.jl/test/device_arrays.jl` compare Gaussian graph
+expectation derivatives with closed forms and CPU references. Singular diagonal
+beliefs are still valid likelihood messages, but moment/density requests reject them.
+
+
+## Batch C graph polarity check (2026-10-28)
+
+A Gaussian-consuming device factor exposed an ambiguity between GPUArrays and
+LinearAlgebra/SparseArrays when `isuninformative` reduced over the whole device-backed
+`Diagonal` wrapper. The GPUArraysCore extension now checks its stored diagonal
+and information vector directly. This is equivalent to checking the full diagonal
+matrix, and keeps CPU behavior unchanged. `Mycelium/test/graph_adjoint_devices.jl`
+checks zero/precision-only/information-only beliefs, then tree/loopy Gaussian
+schedule replay with scalar indexing disabled. Earlier terminal-only device
+Gaussian fixtures did not exercise this polarity-resolution path.

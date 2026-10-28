@@ -22,14 +22,13 @@ Tuple components may use integer indices. Missing paths throw when `ps` is suppl
 `free_energy_gradient(store,g,ps,st; ad, schedule, nsweeps=1)` retains the old
 fixed-store driver when every edge is diagonal. Otherwise it differentiates a fresh,
 empty-store replay of the specified schedule. The supplied store is not a record of
-inference history and is not replayed. Static sequential, tree and forward/backward
-schedules are supported, with no damping. A finite unroll computes the derivative of
+inference history and is not replayed. Sequential, tree, forward/backward, flooding and residual schedules are supported,
+including `damping` (the batch C contract below). A finite unroll computes the derivative of
 that iteration, including local free energies and Bethe variable corrections. It is
 not a fixed-point derivative or a guarantee of exact inference in a loopy graph.
 
 Reference differences, DI `AutoForwardDiff()` and `AutoZygote()` are supported for
-the tested scalar/array Dirac and Gaussian cases. Other schedule backends, flooding,
-residual scheduling and nonpositive sweep counts raise `ArgumentError`. The existing
+the tested scalar/array Dirac and Gaussian cases. Other schedule backends and nonpositive sweep counts raise `ArgumentError`. The existing
 diagonal driver retains its LP-002 factor backend support.
 
 ## Mixed Jacobians
@@ -115,7 +114,7 @@ for compatibility rather than calling the legacy result an EM gradient.
 
 Reverse AD through the mutable inference store caused aliased cotangent accumulation;
 replay uses an immutable store with copied message vectors. Graph structure and freeze indices are constants.
-The ordinary `infer!` reverse rule replays its realised static sweep count, ignoring
+The ordinary `infer!` reverse rule replays its realised sweep count and task choices, ignoring
 cotangents of state/reports; it does not differentiate convergence decisions. Graph descriptions (including data
 stored inside them) are fixed in the reverse rule; expose a differentiable source
 through its parameter tree. No graph/data cotangent interface is claimed. Gaussian
@@ -125,5 +124,135 @@ is retained. Gaussian joint precision assembly now preserves promoted element ty
 
 Replay copies an edge-sized vector for each message task. With K tasks and E edges,
 storage/copying can grow as O(K E), in addition to backend tapes. Forward mode also
-scales with parameter dimension. No implicit graph adjoint, GPU support, higher-order
-score rule or stochastic solver-inversion derivative is claimed.
+scales with parameter dimension. The opt-in implicit graph adjoint is documented in [[graph_adjoint]]. General
+device support, higher-order score rules and stochastic solver-inversion derivatives
+are not claimed.
+
+
+### LP-002 batch A endpoint state policy (2026-10-27)
+
+NeuralODE factors can opt into `state_policy=:fixed`: constant incoming Lux state
+per solve and one final endpoint update. The existing diagonal graph parameter
+gradient and `parameter_step` driver use the factor's policy and fixed state
+subtree. `lib/ImplicitLayers.jl/test/lp002_batch_a.jl` checks these gradients
+against a state-dependent affine closed form with ForwardDiff, Zygote, Mooncake
+and runtime-activity Enzyme reverse. Default evaluation-state threading is
+unchanged; state derivatives, schedule replay backends and graph adjoint scope
+are unchanged. [[flow]] records the solver/backend restrictions.
+
+
+## LP-002 batch B device replay (2026-10-27)
+
+`lib/ImplicitLayers.jl/test/device_arrays.jl` extends finite static replay to
+JLArrays Float32/Float64, with scalar indexing disabled, using ForwardDiff/Zygote.
+Dirac and diagonal Gaussian messages cover exact/pathwise/diagonal couplings,
+attachment detach, subset/all freezing, raw static `infer!` AD and parameter steps.
+A quadratic terminal factor has a closed Gaussian expectation: its variance term
+is included, as is the graph's Bethe variable-entropy correction. Comparing only
+the terminal expectation would omit a precision derivative in this exposed graph.
+
+Active-coordinate gathers upload host integer metadata once and use device array
+indexing. Frozen replacement gathers from concatenated old/active coordinates;
+masking and pinning broadcast. Integer metadata has no tangent. Scalar host
+comprehensions of parameter values previously broke both replay and diagonal steps.
+
+Terminal diagonal-Gaussian score tests use an explicit host RNG, bulk-copy noise
+to the device and compare gradient estimates and componentwise standard errors
+with CPU using common draws. This tests the finite estimator, not its statistical
+convergence or a native GPU RNG. Device Gaussian density/entropy use elementwise
+algebra. Dense Gaussian message factorisations, categorical score devices,
+nonterminal score rules, other schedules/backends and hardware GPUs remain outside
+this coverage. Enzyme/Mooncake replay continues to throw a backend error.
+
+Raw inference also exposed a tuple/vector cotangent mismatch when final replay
+message vectors were converted by splatting into `Any[...]`. A normal vector copy
+preserves the vector tangent representation. Device Gaussian convergence distances
+strip duals (reports are metadata) and use typed reduction initializers; Float64
+initializers could not hold a Float32 dual maximum. Pooled diagonal-Gaussian
+messages are checked against the analytic pooled mean/variance/entropy derivative.
+
+
+### Implicit messages select their derivative backend
+
+Replay now carries `ad` as a constant context into `_gradient_message`. The
+ImplicitLayers DI extension routes DEQ messages through `solve_state/solve_input`
+with that backend, so the nonzero downstream graph loss uses the IFT primitive
+rather than root-iteration AD. Ordinary inference and diagonal/fixed-cavity
+training keep their existing primal/default behavior. The raw ChainRules inference
+replayer uses the same hook with a reverse-mode sentinel selecting AutoZygote.
+
+Device tests check both DEQ and Euler-flow message directions, graph gradients and
+parameter steps against dense closed forms; raw Zygote static inference is checked
+too. Raw ForwardDiff through implicit `infer!` is not an automatic IFT interface:
+use `free_energy_gradient(...; ad=AutoForwardDiff(), schedule=...)` for explicit
+backend selection. Reverse-input DEQ replay with nonempty Lux state is rejected:
+its ordinary inversion threads evaluation state while the explicit IFT equation
+fixes it. Forward-state DEQ messages retain fixed-state solves. No general graph
+fixed-point adjoint or new native replay backend is introduced.
+
+Raw ForwardDiff DEQ messages now reject dual-valued unannotated solves with an
+ArgumentError pointing to the explicit graph gradient driver, preventing accidental
+root-iteration differentiation. Ordinary primal messages are unchanged.
+
+
+The backend-context migration also includes the top-level GaussianFactor,
+GaussianPrior and GaussianComposite specialisations. Their existing matrix-inverse
+formulas remain the replay path; omitting the new argument bypassed those rules
+and exposed inverse-of-Cholesky mutation in the first full CPU regression run.
+The existing top-level closed marginal-likelihood oracle detects this failure.
+
+
+## Batch C: realised schedules (2026-10-28)
+
+`free_energy_gradient(...; schedule, nsweeps, damping=0.0)` starts from empty
+messages and differentiates exactly that finite computation, with reference
+differences, ForwardDiff or Zygote. The all-diagonal default still uses its
+fixed-store partial derivative. `adjoint=:implicit` explicitly selects the
+converged-message equation in [[graph_adjoint]], including for all-diagonal graphs.
+
+Sequential/tree/forward-backward tasks read all preceding updates. Flooding
+captures a store at each sweep boundary: every candidate reads that snapshot,
+while functional Lux state threads in task order as in ordinary `sweep!`.
+Residual scheduling runs the actual priority executor outside AD, recording
+every committed task in order (including tie-breaking and early exit). Replay
+then executes **that fixed sequence**, with the same initial state. Probe-only
+state updates are discarded, as in ordinary residual scheduling. Factors must
+not mutate incoming state or hide randomness/side effects: replay assumes a
+deterministic functional factor evaluation. The raw ChainRules `infer!` rule
+records residual choices in its own reference pass. Its existing rule detaches
+state after every task and returns no state/report cotangents. The parameter
+driver includes functional state dependencies in its finite computation, as
+before; these two state contracts therefore differ for stateful factors.
+
+This is the derivative of the **realised schedule**, a piecewise-defined
+computation. Task choices, convergence counts, message families and polarity
+branches are fixed during differentiation. At a residual tie or stopping
+threshold it is a selected-branch derivative, not a derivative of argmax or a
+guarantee that perturbed inference picks the same tasks. Reference differences
+for residual tests freeze the recorded sequence too. Reconverged differences
+are a separate oracle for the implicit path.
+
+For each `:to_variable` update, compute the candidate, then call exactly
+`damp(candidate, old, 1-damping)` if an old message exists and damping is positive.
+Variable-to-factor pools are undamped; unsupported belief damping remains the
+ordinary inspectable no-op. Gaussian canonical parameters and numeric Diracs
+are tested. Device damping weights are cast to payload precision to avoid
+Float32 widening; CPU primal arithmetic is unchanged. Score estimators retain
+their one-undamped-static-sweep restriction.
+
+`test/graph_adjoint.jl` checks loopy and tree Gaussian replay against ordinary
+inference and fixed-sequence differences, for exact/pathwise couplings, damping
+and raw Zygote inference. `test/graph_adjoint_devices.jl` checks Float32/Float64
+diagonal Gaussian tree/loop replay with JLArrays scalar indexing disabled against
+CPU derivatives of the same recorded operations. This is emulation, not hardware
+GPU validation. The implicit coordinate adapter is CPU-only even with Krylov.
+
+Enzyme/Mooncake replay remains explicitly rejected. The standalone reproducer
+`lib/Mycelium.jl/examples/lp002_replay_backends.jl` bypasses that guard to probe
+the actual implementation with runtime-activity Enzyme modes and Mooncake.
+Mooncake succeeds on the minimal Dirac probe but fails on Gaussian Bethe
+entropy at `_improper_check`'s `try/catch`. Runtime-activity Enzyme forward
+fails in `messages_into`; reverse fails in Base's `setindex_widen_up_to`.
+The dated LP-002 section records versions and commands. The public backend
+guard is retained; no general native backend support follows from a Dirac probe
+or from factor-local endpoint rules.

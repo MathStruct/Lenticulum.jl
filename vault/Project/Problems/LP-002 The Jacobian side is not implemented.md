@@ -1,8 +1,8 @@
 #open-problem
 
-> **Status: solver numerics implemented (2026-10-27): limited-memory Broyden, preconditioned Krylov, both solve polarities with first-order ForwardDiff/Zygote/Enzyme/Mooncake rules, and a dedicated dense second-order IFT adjoint. SciML endpoint sensitivities cover ForwardDiff, Zygote and Mooncake with empty Lux state; built-in Euler/RK4 also cover runtime-activity Enzyme. Remaining scope below.** Related: [[energy]] §"Implementation difficulties" 6, [[Scalar and Multivariate Energy]] §6, [[L-ADR-0002 Energies are vectors, scalarised late]], [Fisher information metric (CT-ML wiki)](https://mathstruct.org/CategoryTheory-ML-Wiki/Fisher-Information-Metric).
+> **Status: batches A/B retained; batch C adds realised flooding/residual/damped replay and opt-in CPU message fixed-point adjoints (2026-10-28). Final batch C verification is recorded below. Native replay backends, device implicit coordinates and general divergence/metric sensitivities remain limited; full scope is in Remaining.** Related: [[energy]] §"Implementation difficulties" 6, [[Scalar and Multivariate Energy]] §6, [[L-ADR-0002 Energies are vectors, scalarised late]], [Fisher information metric (CT-ML wiki)](https://mathstruct.org/CategoryTheory-ML-Wiki/Fisher-Information-Metric).
 
-> Sources: original implementation; Montoison and Orban (2023), *Krylov.jl*, p. 1; Rackauckas et al. (2020), *Universal Differential Equations for Scientific Machine Learning* (SciMLSensitivity software citation); code: `lib/LenticulumCore.jl/src/energy.jl`, `lib/LenticulumCore.jl/test/parameter_ad.jl`, `lib/ImplicitLayers.jl/test/parameter_ad.jl`, `lib/ImplicitLayers.jl/test/lp002_followups.jl`, `lib/ImplicitLayers.jl/test/solver_numerics.jl`, `lib/Mycelium.jl/src/free_energy.jl`
+> Sources: original implementation; Montoison and Orban (2023), *Krylov.jl*, p. 1; Rackauckas et al. (2020), *Universal Differential Equations for Scientific Machine Learning* (SciMLSensitivity software citation); code: `lib/LenticulumCore.jl/src/energy.jl`, `lib/LenticulumCore.jl/test/parameter_ad.jl`, `lib/ImplicitLayers.jl/test/parameter_ad.jl`, `lib/ImplicitLayers.jl/test/lp002_followups.jl`, `lib/ImplicitLayers.jl/test/solver_numerics.jl`, `lib/Mycelium.jl/src/free_energy.jl`, `lib/ImplicitLayers.jl/test/device_arrays.jl`
 >
 > Bibliography: [[Bibliography#^montoison2023krylov|Montoison & Orban 2023]] · [[Bibliography#^rackauckas2020universal|Rackauckas et al. 2020]]
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
@@ -62,13 +62,20 @@ opts into endpoint scoring while preserving the default zero-energy wrapper.
   Outer Enzyme closures capturing arrays need constant contexts or
   an explicit constant function annotation; see [[solve]].
 
-Remaining: automatic outer-closure annotations;
-nonempty Lux state and non-Tsit5
-SciML sensitivity coverage, Enzyme SciML endpoint gradients; AD through divergence and finite-difference metric
-localisation; second-order reverse-input/Krylov rules, direct input/parameter loss dependence and arbitrary native backend nesting; GPU coverage for new
-implicit rules; broader graph schedule/backend coverage and stochastic solver inversion
-estimators (static graph replay and terminal estimators implemented in LP-011, 2026-10-27). These limits do not prevent the tested endpoint
-objectives or custom scalar losses on `solve_state` from training.
+Remaining: forward-mode Enzyme Jacobian NaNs, an upstream Enzyme defect diagnosed on
+2026-10-28 and reported as Enzyme.jl#3884 (section at the end); automatic annotations for arbitrary outer Enzyme closures (reproducer and
+explicit annotation workaround below); Kvaerno3/InterpolatingAdjoint reverse
+compatibility (guarded accuracy failure); Enzyme forward SciML endpoint AD and broader
+solver/sensealg coverage for Enzyme; general AD through CNF divergence and finite-difference
+Sampson metric localisation (precise interpretation and probes in batch C); scalable/Krylov
+second-order rules, direct input/parameter loss dependence and arbitrary native backend
+nesting; hardware GPU validation, dense device factorisation, SciML/device divergence and
+native Enzyme/Mooncake device rules; native Enzyme/Mooncake graph replay, implicit graph
+device coordinates/evolving message state/higher-order rules and stochastic solver inversion
+estimators. Flooding/residual/damped finite replay and CPU Exact/Pathwise implicit graph
+adjoints are implemented in batch C; terminal estimators remain as specified in LP-011.
+Default state-threaded SciML dynamics with nonempty state still require reference
+differences: opt-in fixed-state sensitivities solve a different, explicitly specified equation.
 
 ## Runtime-activity flow follow-up validation (2026-10-26)
 
@@ -357,9 +364,11 @@ closed-form linear Hessians including mixed input/parameter blocks, analytic
 nonlinear scalar derivatives, and finite differences of first-order IFT gradients.
 
 The remaining solver scope is relative/scaled root tolerances, globalization,
-Anderson acceleration, retained Broyden preconditioners, scalable second-order
-products, reverse-input second order and general backend nesting. GPU and complex
-implicit differentiation remain untested. The broader LP-002 Remaining list above
+Anderson acceleration, scalable second-order products and general backend nesting.
+Retained Broyden preconditioners and reverse-input dense second order are implemented
+in batch A below. GPU and complex
+implicit differentiation were untested in that run; batch B below adds a JLArrays
+first-order real subset. The broader LP-002 Remaining list above
 continues to track SciML, graph and metric work separately.
 
 
@@ -469,3 +478,789 @@ No new bibliography entry or contributor metadata is added. Source `docs/quartz`
 and `meta/` are untouched. No checkout, clean, reset, stash, commit, push or merge
 command was used. Logs are in `/tmp/lp002-numerics-clwaymbc/` (the permitted
 scratch area for this run).
+
+
+## Batch A: SciML breadth and solver leftovers (2026-10-27)
+
+Defaults remain dense Broyden, DenseIFT, and stage/evaluation Lux-state threading.
+The request's advance-once flow premise differed from the actual implementation:
+Euler/RK4 advance state at every stage. `NeuralODEFactor(...; state_policy=:fixed)`
+therefore adds the requested semantics explicitly for built-in and SciML solvers.
+Each RHS receives constant incoming state; returned state comes from one final
+endpoint/time evaluation. State is not differentiated and updates must be
+functional. Fixed-state logdet throws. Existing nonempty-state primal fallback,
+state-threaded AD errors and inversion labels remain unchanged.
+
+`test/lp002_batch_a.jl` is the reproducible evidence for state-dependent affine
+closed forms, both integration directions and tight fixed-state RK4 references.
+The solver matrix covers Tsit5, Vern7 and SDIRK Kvaerno3/KenCarp4, default sensitivity,
+InterpolatingAdjoint and GaussAdjoint (ZygoteVJP), outer ForwardDiff/Zygote/Mooncake,
+plus a fast scalar decay mode. Runtime-activity Enzyme reverse is tested on the
+default Tsit5 scalar endpoint loss path. Vector-return split reverse fails in
+Enzyme’s ABI wrapper and is explicitly rejected for energy Jacobians. Forward Enzyme fails in OrdinaryDiffEq callback
+initialization and is rejected at package derivative entry points.
+`examples/lp002_enzyme_limits.jl` preserves the direct minimal reproducer.
+
+`BroydenIFT()` retains the actual `LimitedBroydenSolver` inverse corrections per
+solve and applies them as a Krylov left inverse. Adjoint solves swap the two
+correction lists to apply the transpose. Public reports remain SolveReport; no
+global cache, extra root solve or dense Jacobian is introduced. Both solve
+polarities and all four first-order backends are checked. Other root solvers and
+`ldiv=true` throw. Warm starts may yield no history, and approximation quality can
+be poor; measured iteration counts do not establish an elapsed-time speedup.
+
+`solve_input_hvp(loss, f, z, ps, st, v; wrt=:ps, ad=AutoForwardDiff(), x₀=...)`
+reuses the dense second-order adjoint in reverse polarity. `:z` selects observed
+state and `:joint` orders state before parameters. Linear mixed blocks, analytic
+nonlinear second derivatives and finite differences of first-order IFT gradients
+are tested. Dense CPU real data and loss dependence only through the solved
+input remain required. This does not add Krylov second order or general nesting.
+
+Automatic annotations for arbitrary outer DI closures remain outside the solve
+primitive: Enzyme selects closure activity before dispatching its rule. A global
+change would intercept DI/Enzyme-owned methods and could discard intentionally
+active closure data. The reproducer raises EnzymeMutabilityException, while
+explicit `function_annotation=Enzyme.Const` gives the closed-form derivative.
+Library-owned parameter derivatives already use constant callable/context
+arguments. The failing and working outer-closure cases are tested.
+
+The diagonal Mycelium parameter driver is checked with fixed-state affine
+SciML factors on four backends. LP-011 and [[gradient_couplings]] record that this
+extends endpoint coverage, without changing schedule differentiation semantics.
+No new citation or contributor metadata is introduced.
+
+
+### Batch A solver compatibility finding
+
+The full matrix exposed an inaccurate Kvaerno3/InterpolatingAdjoint reverse
+sensitivity on the installed stack. Default direct sensitivities and GaussAdjoint
+pass with Kvaerno3; KenCarp4 passes with both continuous adjoints. Tight Newton
+convergence, finite-difference Newton Jacobians and a smaller maximum step did
+not fix the failed pair. A typed optional extension now rejects it at factor/graph
+AD entry points, preserving primals and direct ForwardDiff solves.
+`examples/lp002_sciml_adjoint_limit.jl` reproduces the discrepancy outside those
+guards. Arbitrary outer DI calls must enforce the same restriction. The failure
+is retained explicitly as an unresolved upstream compatibility item. The repository
+reproducer measures Euclidean gradient errors **3.7626557e-5** in forward time
+and **6.2473244e-5** in reverse time (abstol=1e-12, reltol=1e-11). The working
+Kvaerno3/GaussAdjoint forward-time error in the same run is **3.3312075e-10**.
+
+
+### Batch A measured solver behavior
+
+CPU, Julia 1.13.1; `test/lp002_batch_a.jl` in the final full ImplicitLayers run.
+The non-diagonal n=12 residual matrix has condition number **96.92901762**.
+It is a seeded rotated logarithmic spectrum (0.01 to 1), multiplied by a
+nonsymmetric triangular perturbation. All variants share the same forward
+limited Broyden solve: memory=60, init_scale=10, root tolerance=1e-8. GMRES uses
+memory=12, itmax=200, rtol=1e-11, atol=1e-12. Counts are the largest per-RHS
+iteration counts in the scalar parameter-gradient calculation and **include
+residual refinements**:
+
+| Outer AD | None | Jacobi | Retained Broyden |
+|---|---:|---:|---:|
+| ForwardDiff | 12 | 12 | 17 |
+| Zygote | 12 | 12 | 11 |
+| Enzyme | 12 | 12 | 11 |
+| Mooncake | 12 | 12 | 11 |
+
+The improvement in reverse mode is modest; forward mode regresses. Jacobi adds
+12 setup products; retained Broyden adds no probes, but needs the retained root
+history. No elapsed-time speedup is established. The largest relative gradient
+difference from DenseIFT is **1.4396653e-13**. A separate memory=2 case checks
+actual eviction, and nonsymmetric two-dimensional fixtures explicitly check H/H'
+and both solve polarities. Very tight root tolerances and poorly scaled retained
+histories can destabilize this unglobalized Broyden implementation; the original
+residual check is never bypassed.
+
+Reverse-input HVP errors are **1.8507996e-15** against closed-form Hessian
+products and **1.6291895e-11** against central differences of first-order
+Zygote IFT gradients (step 1e-5). These are dense CPU results with fixed state,
+not general backend nesting or scalable second-order claims.
+
+### Batch A files changed
+
+- `docs/src/packages/mycelium.md`
+- `docs/src/packages/implicitlayers.md`
+- `lib/ImplicitLayers.jl/Project.toml`
+- `lib/ImplicitLayers.jl/examples/lp002_enzyme_limits.jl`
+- `lib/ImplicitLayers.jl/examples/lp002_sciml_adjoint_limit.jl`
+- `lib/ImplicitLayers.jl/ext/ImplicitLayersChainRulesCoreExt.jl`
+- `lib/ImplicitLayers.jl/ext/ImplicitLayersDifferentiationInterfaceExt.jl`
+- `lib/ImplicitLayers.jl/ext/ImplicitLayersEnzymeCoreActivityExt.jl`
+- `lib/ImplicitLayers.jl/ext/ImplicitLayersEnzymeCoreExt.jl`
+- `lib/ImplicitLayers.jl/ext/ImplicitLayersForwardDiffExt.jl`
+- `lib/ImplicitLayers.jl/ext/ImplicitLayersKrylovExt.jl`
+- `lib/ImplicitLayers.jl/ext/ImplicitLayersMooncakeExt.jl`
+- `lib/ImplicitLayers.jl/ext/ImplicitLayersSDIRKSensitivityExt.jl`
+- `lib/ImplicitLayers.jl/ext/ImplicitLayersSciMLSensitivityExt.jl`
+- `lib/ImplicitLayers.jl/src/ImplicitLayers.jl`
+- `lib/ImplicitLayers.jl/src/ImplicitLayers.md`
+- `lib/ImplicitLayers.jl/src/deq.jl`
+- `lib/ImplicitLayers.jl/src/deq.md`
+- `lib/ImplicitLayers.jl/src/flow.jl`
+- `lib/ImplicitLayers.jl/src/flow.md`
+- `lib/ImplicitLayers.jl/src/neuralode.jl`
+- `lib/ImplicitLayers.jl/src/neuralode.md`
+- `lib/ImplicitLayers.jl/src/solve.jl`
+- `lib/ImplicitLayers.jl/src/solve.md`
+- `lib/ImplicitLayers.jl/test/Project.toml`
+- `lib/ImplicitLayers.jl/test/lp002_batch_a.jl`
+- `lib/ImplicitLayers.jl/test/runtests.jl`
+- `lib/Mycelium.jl/src/gradient_couplings.md`
+- `vault/Project/Problems/LP-002 The Jacobian side is not implemented.md`
+- `vault/Project/Problems/LP-011 Gradient couplings and isfrozen are declared but unused.md`
+- `vault/Project/Problems/Problem Log.md`
+
+
+### Full batch A verification (2026-10-27)
+
+All seven package suites pass on Julia 1.13.1, CPU. Commands are
+`julia --project=<package> -e 'using Pkg; @time Pkg.test()'` (top level:
+`--project=.`). Counts sum top-level test summaries; times are the printed
+Pkg.test wall times including subprocess startup and compilation. Processes
+for independent packages and diagnostics overlap, so these are validation
+wall times, not controlled performance benchmarks.
+
+| Package | Passed | Pkg.test wall time |
+|---|---:|---:|
+| LenticulumCore | 314 | 46.3 s |
+| Mycelium | 785 | 195.8 s |
+| Lenticulum | 1,203 | 341.8 s |
+| ImplicitLayers | 1,894 | 1203.6 s |
+| VariationalDiffusion | 1,408 | 453.6 s |
+| Adversarial | 374 | 9.4 s |
+| AlgebraicFactors | 15,985 | 172.8 s |
+
+Total: **21,963 passed** in the final passing runs, with no failures, errors or
+broken tests. ImplicitLayers has **1,894 assertions**, including **426 new batch A
+checks**: 324 solver/state sensitivities and compatibility errors, 62 retained
+history/preconditioning, 13 reverse HVP, 12 graph gradients, 2 closure annotations,
+7 nested floating-state, 2 stateless Enzyme scalar gradients and 4 stateless
+reverse-time continuous-adjoint checks. The largest Euclidean endpoint parameter
+gradient error against the supported affine closed forms is **1.8841397e-9**.
+Existing matrix-free and default state-threading regression checks pass.
+
+The implicit environment uses SciMLSensitivity 7.119.13, OrdinaryDiffEqVerner
+2.4.2, SDIRK 2.9.8, Enzyme 0.13.216, Mooncake 0.5.65 and ForwardDiff 1.4.6.
+The initial Core run produced a NaN once in its existing Enzyme endpoint Jacobian
+check. Its full rerun passes (314 assertions); ten repeated isolated Enzyme
+Jacobians are finite and exact. No Core source change was made. This transient
+failure is recorded rather than hidden by the final passing table.
+
+The vault review build passes in **8.35 s**, with **254 HTML pages** and no KaTeX
+errors. The API/vault review build (`julia --project=docs docs/make.jl`) passes in
+**113.18 s**, using cached tutorial renderings. Both use `QUARTZ_DIR` pointing at
+a disposable copy of `~/Code/MathStruct-quartz`, with the checkout/clean EXIT hook
+removed before any build. Documenter reports existing core-page/search-index
+size warnings and skips deployment locally. Both builds are refreshed after this
+evidence is written; final refresh timings are retained in the run logs.
+
+`git diff --check` passes. No new bibliography entry or contributor metadata is
+added. Source Quartz checkouts and `meta/` are untouched. No checkout, clean,
+reset, stash, commit, push or merge command was run. Logs, the machine-readable
+suite summary, diagnostics and the disposable Quartz copy are under
+`/tmp/lp002-batch-a/`; final package logs are listed in `verification.json` there.
+
+
+## Batch B: device-array coverage (2026-10-27)
+
+`lib/ImplicitLayers.jl/test/device_arrays.jl` is the reproducible evidence, using
+JLArrays with `allowscalar(false)` throughout, Float32 and Float64. No hardware
+GPU is available. GPUArraysCore weak extensions carry storage-specific behavior;
+no new public API or mandatory GPU dependency is added. CPU defaults and primal
+arithmetic remain unchanged. Device cases that previously threw now gain coverage.
+
+- DEQ roots: Picard, dense Broyden and LimitedBroyden, both solve polarities,
+  linear closed forms and CPU references. Device default guesses/storage follow
+  the observed array; damping/scales preserve its element type.
+- First-order IFT: Zygote and directional ForwardDiff with KrylovIFT, both observed
+  and parameter coordinates, both polarities, zero warm-start derivatives,
+  nonlinear references, unpreconditioned/Jacobi/retained Broyden and supplied
+  left/right operators, including left `ldiv=true`. Jacobi probes use broadcast
+  seeds/slices; ForwardDiff dual reconstruction broadcasts columns. GMRES requires
+  tolerances in the RHS real type, so the old Float64 keywords failed for Float32.
+- DenseIFT: JLArrays has no working LU with scalar indexing disabled. Both
+  backends get a clear ArgumentError recommending KrylovIFT; no dense host fallback
+  is hidden in the primitive. Hardware device factorisation success is untested.
+- NeuralODE Euler/RK4: both directions, discrete polynomial endpoints and
+  input/parameter gradients, both state policies, energy/free-energy derivatives
+  and graph parameter steps. Device time coefficients preserve Float32. The old
+  threaded `foldl` initializer lost Zygote input cotangents. A ChainRules-only stage loop
+  fixes that derivative; the original fold primal is retained for native backends,
+  and CPU primals compare bit for bit with it. Functional nonempty-state flows
+  are also compared with CPU.
+- Parameter and graph entry points: array-shaped energy_gradient,
+  free_energy_gradient, parameter_step; LP-011 exact/pathwise/diagonal boundaries,
+  detach, subset/all freezing, raw static inference AD, and terminal diagonal-
+  Gaussian score estimates/standard errors with common host RNG draws. The Gaussian
+  oracle includes its variance and exposed graph Bethe entropy correction.
+
+Active-coordinate graph operations now use device gathers and broadcast masks;
+host integer metadata has no tangent. Device GradientDescent/Momentum/Nesterov
+coefficients are cast to parameter precision, including the default learning rate.
+Diagonal Gaussian moments/precision solves/logdet use elementwise algebra and
+structural covariance cotangents. Dense Gaussian device precision/covariance is
+explicitly rejected. CPU Gaussian factorisation remains unchanged.
+
+Core's device ForwardDiff adapter uses DI pushforwards, one direction per active
+coordinate; native ForwardDiff.gradient/jacobian still scalar-index during vector
+seeding on this stack. This adapter is for small reference problems, not a scalable
+parameter-gradient claim. Device finite differences, scalar leaves in device
+parameter trees (use one-element arrays), HVPs and Enzyme/Mooncake device parameter/
+solve rules give ArgumentErrors. Enzyme/Mooncake native device internals are not
+tested or claimed. SciML device solvers, divergence, complex devices, dense Gaussian
+factorisations and native GPU RNGs remain outside this batch. [[gradient_couplings]]
+and LP-011 describe the graph subset; other schedules/backends remain open.
+
+The first full ImplicitLayers run exposed an Enzyme forward runtime-activity
+BLAS failure after replacing the general flow fold with a loop. The fix retains
+the fold primal and uses the loop only for ChainRules reverse; the existing native
+flow testset then passes unchanged (80 assertions). Gaussian diagnostics/inversion
+and raw replay also exposed typed-reduction, scalar diagonal-inverse and vector-
+cotangent failures, fixed without changing CPU primal arithmetic.
+
+No new citation or contributor metadata is introduced. The earlier batch A work
+is retained. Verification counts and measurements follow after the full runs.
+
+
+### Batch B implicit-message replay finding
+
+Reviewing replay exposed a separate wiring gap: DEQ `factor_message` did not
+receive the selected backend, so a downstream graph gradient could trace root
+iterations. A private constant backend context now reaches the ImplicitLayers
+message hook, which calls the existing IFT primitive in the selected polarity.
+Tests compare nonzero downstream DEQ/Euler message losses and parameter steps
+with closed forms in both directions and both precisions, using ForwardDiff and
+Zygote. Raw ChainRules inference also selects the IFT hook. No ordinary inference
+or diagonal-gradient default changes. Raw ForwardDiff implicit inference is not
+automatically converted to IFT; use the explicit graph gradient driver. Input-
+message replay with nonempty DEQ state throws because legacy primal state threading
+and the fixed-state IFT equation differ. [[gradient_couplings]] records the boundary.
+
+Raw ForwardDiff DEQ messages now reject dual-valued unannotated solves with an
+ArgumentError pointing to the explicit graph gradient driver, preventing accidental
+root-iteration differentiation. Ordinary primal messages are unchanged.
+
+
+### Batch B resumption review (2026-10-27)
+
+The interrupted working tree was retained, including batch A. Two further
+Float32 cases were found during review: diagonal Gaussian `logpartition` still
+used Float64 constants, and the final `:fixed` flow state evaluation still
+received the original Float64 endpoint time. Device-only partition algebra and
+the existing storage-specific time helper now cover them. Partition values and
+ForwardDiff/Zygote gradients are checked against CPU formulas. A time-dependent
+Euler/RK4 fixture asserts the time precision at every call, including the final
+state update, and compares endpoints and gradients with the stability polynomial
+of a dense augmented linear system. Non-unit root scales/damping and DenseIFT
+errors in both solve directions also have regression checks.
+
+The sandbox makes `~/.cache/lenticulum/` read-only. This resumption therefore uses
+`~/.julia/lenticulum-runs/lp002-batch-b-resume/` for logs and its disposable Quartz
+copy, on disk rather than the RAM-backed `/tmp`. Only one Julia process runs at
+a time. Full suites run by including each complete `test/runtests.jl` in its own
+test environment, with `--startup-file=no --heap-size-hint=6G`.
+Focused native-history reproductions use `--check-bounds=yes`; the final
+seven full suites use the standard automatic bounds-checking setting.
+The top-level package uses a disposable environment assembled from its declared
+test target and local package sources. The wrapper's `verification.json` records
+exact commands, counts, wall times and sampled peak RSS. No test file is filtered
+or skipped. These timings include loading and compilation, and are not GPU
+performance measurements.
+
+### Batch B files
+
+- Optional extensions: `lib/ImplicitLayers.jl/ext/ImplicitLayersGPUArraysCoreExt.jl`;
+  `lib/LenticulumCore.jl/ext/LenticulumCoreGPUArraysCoreExt.jl`,
+  `LenticulumCoreGPUArraysCoreDIExt.jl`, `LenticulumCoreGPUArraysCoreChainRulesExt.jl`;
+  `lib/Mycelium.jl/ext/MyceliumGPUArraysCoreExt.jl`.
+- Implicit primitives: `lib/ImplicitLayers.jl/src/solve.jl`, `deq.jl`, `flow.jl`,
+  `neuralode.jl`; `ext/ImplicitLayersChainRulesCoreExt.jl`,
+  `ImplicitLayersDifferentiationInterfaceExt.jl`, `ImplicitLayersForwardDiffExt.jl`,
+  `ImplicitLayersKrylovExt.jl`; corresponding implementation notes and module note.
+- Core beliefs: `lib/LenticulumCore.jl/src/gaussian_belief.jl`,
+  `gaussian_belief.md`, `energy.md`, `parameter_tree.jl`, `parameter_tree.md`.
+- Graphs: `lib/Mycelium.jl/src/free_energy.jl`, `gaussian.jl`,
+  `gradient_couplings.jl`, `graph.jl`; their notes and `factors.md`;
+  `ext/MyceliumChainRulesCoreExt.jl`.
+- Environments/tests: the three packages' `Project.toml` files;
+  `lib/ImplicitLayers.jl/test/Project.toml`, `runtests.jl`, `device_arrays.jl`.
+- Top-level replay adapters: `src/gaussian.jl`, `composition.jl` and their notes
+  thread the new constant backend context through existing Gaussian message rules.
+- `lib/VariationalDiffusion.jl/test/runtests.jl`: clarify that JLArrays emulation
+  does not establish hardware CUDA support; assertions are unchanged.
+- Documentation: `docs/src/packages/implicitlayers.md`, `lenticulumcore.md`,
+  `mycelium.md`, `lenticulum.md`; this note, LP-011 and Problem Log.
+
+
+The first resumed top-level full run failed in the existing Gaussian replay
+closed-form oracle: the new private backend argument bypassed three older
+Gaussian message specialisations (factor, prior and collapsed composite). The
+result traced ordinary Cholesky inverses into LAPACK during Zygote replay.
+All three hooks now accept/forward the context and retain their existing
+functional matrix-inverse formulas. The failing log is retained as
+`Lenticulum-initial-failure.log`; the targeted oracle and full suite are rerun.
+
+
+The first resumed ImplicitLayers full run reached the retained-history test
+with its earlier CPU solver/AD and fixed-state SciML oracles passing, then
+Enzyme rejected an abstract augmented-return type. Reading the history through
+`Ref{Any}` lost its concrete type. An explicit rule-return-contract trial fixed
+reverse mode but triggered an Enzyme LLVM assertion in batched forward mode;
+that trial was removed. The final fix returns history as a typed third result
+from the private limited-Broyden solve, preserving the existing iteration loop,
+residual count, correction vectors and public `SolveReport` return. The
+62-assertion history testset is rerun with bounds checking before the complete
+suite. `ImplicitLayers-initial-failure.log`,
+`enzyme-history-forward-failure.log` and `enzyme-history-contract-abort.log`
+retain these findings. No Enzyme device support or new public API is added.
+
+
+A subsequent empty-parameter-branch probe reproduced host scalar indexing in
+functional flattening: the empty subtree contributed a host `Float64[]` to
+`vcat`. The storage-specific flatten helper now omits empty device-tree parts
+and preserves all-empty device storage. ForwardDiff/Zygote solved-state gradients
+with empty branches match dense closed forms; the focused partition/time/tree
+regressions pass 188 assertions. This shared-helper change triggers a fresh
+sequential verification of all seven packages.
+
+
+### Batch B device measurements (2026-10-27)
+
+The final complete ImplicitLayers run passes **5,308 assertions**, including
+**3,414 device assertions** in `test/device_arrays.jl`, with scalar indexing
+disabled. This includes the retained batch A tests. Julia 1.13.1 uses JLArrays
+0.3.3, GPUArraysCore 0.2.1, Krylov 0.10.11, ForwardDiff 1.4.6 and Zygote 0.7.14.
+No hardware GPU is present. The device cases use two-dimensional systems, bounded
+root/linear iterations and eight common-random-number score draws.
+
+For each vector checked by `device_check`, the recorded error is
+`norm(Array(result) - reference) / max(1, norm(reference))`. The largest values
+in the full run are:
+
+| Element type | Maximum scaled vector error | Comparison tolerance (rtol and atol) |
+|---|---:|---:|
+| Float32 | 3.0809478630544618e-6 | 2e-5 |
+| Float64 | 2.7084487851328933e-11 | 1e-9 |
+
+Every checked vector also asserts its device storage and exact element type.
+The scalar log-partition has separate value/type assertions. References are
+closed linear/nonlinear IFT formulas, dense CPU derivatives, discrete flow
+polynomials, Gaussian expectation/entropy formulas and CPU common-draw score
+estimates. The maximum statistic includes these different vector observables;
+it is not a solver convergence norm or a hardware performance result.
+
+The full ImplicitLayers wall time is **1,712.61 s**, including loading and
+compilation; sampled peak resident memory is **6.861 GiB**. Root and integration
+default arithmetic is retained. The full suite rechecks native CPU Enzyme/Mooncake
+coverage, unchanged forward-loop semantics, limited-Broyden traces/allocation
+scaling, retained-history gradients and both dense second-order adjoints.
+
+
+### Full batch B verification (2026-10-27)
+
+All seven final package suites pass sequentially on Julia 1.13.1. Each complete
+`test/runtests.jl` runs in its package test environment (the top-level declared
+test target is resolved into the disposable environment described above), with
+`--startup-file=no --heap-size-hint=6G`, standard automatic bounds checking, one
+Julia process at a time and single-threaded BLAS. No test file or testset is
+filtered. Times include loading and compilation; they are validation timings.
+
+| Package | Passed | Full-suite wall time | Sampled peak RSS |
+|---|---:|---:|---:|
+| LenticulumCore | 314 | 44.02 s | 0.944 GiB |
+| Mycelium | 785 | 190.07 s | 0.858 GiB |
+| Lenticulum | 1,203 | 478.17 s | 1.890 GiB |
+| ImplicitLayers | 5,308 | 1712.61 s | 6.861 GiB |
+| VariationalDiffusion | 1,408 | 391.15 s | 1.982 GiB |
+| Adversarial | 374 | 9.00 s | 0.411 GiB |
+| AlgebraicFactors | 15,985 | 163.06 s | 1.590 GiB |
+
+Total: **25,377 passed**, no failures, errors or broken
+tests. The sequential suite wall times sum to **2988.07 s**;
+this excludes earlier diagnostic/failing runs and documentation. The final
+ImplicitLayers count includes all 1,894 prior assertions and the 3,414 device
+assertions above. Native history and GPU empty-tree regressions pass in the full
+run, as do the unchanged CPU and existing device checks of the other packages.
+
+`~/.julia/lenticulum-runs/lp002-batch-b-resume/verification.json` contains exact
+commands, counts and timing/RSS records; each package has its own final log.
+Earlier failing logs and focused reproductions remain alongside them. The first
+resumed failures are repaired, rather than hidden by dropping tests or backends.
+
+
+### Batch B documentation and final review
+
+Both requested documentation commands pass with Node 26.12.1 and `QUARTZ_DIR`
+pointing at the disposable disk copy of `~/Code/MathStruct-quartz`. Its
+checkout/clean EXIT hook was removed before any build. The first standalone
+`docs/site/build.sh` takes **9.90 s** and renders **254 HTML pages**, without
+KaTeX errors. After resolving the docs environment to register the optional
+extensions, `julia --project=docs docs/make.jl` passes in **443.15 s**,
+re-executing all ten Literate tutorials and building the vault. Sampled peak
+Julia RSS is **2.762 GiB**. Documenter reports its existing
+core-page/search-index size warnings and skips deployment locally.
+
+Both builds are refreshed after writing this evidence; their final refresh
+timings are retained in the run logs. The disposable Quartz copy is removed
+after the final builds. Source Quartz checkouts and `meta/` are untouched.
+`git diff --check` passes. No new citation or contributor metadata is added, and
+no checkout, clean, reset, stash, commit, push or merge command is run.
+
+Hardware GPU execution, dense device LU/Gaussian factorisation, native
+Enzyme/Mooncake device rules, SciML/device divergence, device HVPs and broader
+graph schedule/message/backend coverage remain outside the verified subset.
+ForwardDiff uses the directional device adapter; native vector seeding still
+scalar-indexes on this stack. LP-002's broader Remaining list above stays open.
+
+
+## Batch C: graph schedule adjoints (2026-10-28)
+
+The interrupted A/B/C working tree was retained on `dev-danielb`. No commit,
+checkout, clean, reset, stash, push or merge is part of this work. Logs and the
+disposable Quartz copy use `~/.julia/lenticulum-runs/lp002-batch-c-resume/`;
+`/tmp` is RAM-backed and `~/.cache` is read-only in this sandbox. Julia tests run
+one process at a time, with single-threaded BLAS and a 6 GiB heap-size hint.
+
+### Realised schedule computation
+
+`free_energy_gradient(...; schedule, nsweeps, damping=0.0)` extends the
+non-diagonal finite replay to flooding and residual schedules. Flooding reads a
+snapshot per sweep, with functional Lux state threaded in task order. Residual
+scheduling records the reference pass's committed task sequence, including ties
+and early exit, then replays it as fixed. Raw ChainRules `infer!` records its
+actual reference choices. The derivative is piecewise-defined: it differentiates
+the realised sequence, not argmax, convergence decisions or changing polarity/
+message-family branches. Pure, deterministic, functional factor evaluations are
+required. Outgoing damping is inside the update; variable-to-factor pools remain
+undamped. Score estimates retain their single undamped static sweep restriction.
+
+`test/graph_adjoint.jl` compares Gaussian tree/loop values with ordinary message
+passing and derivatives with reference differences of the same fixed computation.
+`test/graph_adjoint_devices.jl` covers Float32/Float64 diagonal Gaussians and
+Diracs with JLArrays scalar indexing disabled. Device damping coefficients retain
+payload precision; CPU/default primal arithmetic is unchanged. The old schedules
+note incorrectly claimed there was no residual executor; that statement is fixed.
+
+### Converged message adjoint
+
+`adjoint=:implicit` opts into a fresh converged reference inference, using
+`schedule`, `maxsweeps=1000`, `tol=1e-10` and `damping=0.0`. The supplied store is
+untouched, and `nsweeps` controls only finite replay. With message coordinates $m$,
+synchronous BP map $T$ and scalar Bethe objective $L$,
+
+$$
+(I-D_mT)^\top\lambda=\partial_mL,\qquad
+D_\theta L_{\mathrm{total}}=\partial_\theta L+(D_\theta T)^\top\lambda.
+$$
+
+`linear_solver=:dense` assembles the message Jacobian and uses dense LU;
+`:krylov` uses matrix-free transposed products and optional Krylov.jl GMRES.
+`linear_tol=1e-10` and `linear_maxiter=1000` control the linear solve. Every
+original adjoint residual is checked; every ordinary synchronous BP row must satisfy
+the root check, even when a tree/residual schedule found it. Detected dense
+singularity, nonconvergence, illegal/incomplete schedules and unsupported combinations throw
+`ArgumentError`. `parameter_step` forwards these keywords and retains its three
+returned entries for deterministic gradients.
+
+Exact/Pathwise, CPU real Gaussian (dense or diagonal precision), numeric Dirac
+and uninformative messages, recursively empty incoming/returned message state,
+and reference differences/ForwardDiff/Zygote are the supported domain. A diagonal
+or detached attachment fixes all legal directed update rows, imposing zero message
+variations across that boundary in the linear system. Frozen parameter coordinates
+are pinned but input-message derivatives through the factor remain. This gives
+the limit of the cut replay, rather than an ordinary uncut-objective derivative.
+Agreement with a limiting unrolled gradient additionally requires convergence
+of that differentiated replay. The map must be locally differentiable with invertible $I-D_mT$; contraction is
+sufficient. Reference convergence alone proves neither uniqueness nor invertibility.
+
+Dense storage is quadratic and factorisation cubic in message dimension. GMRES
+keeps at most 30 Krylov vectors, with an AD gradient per transposed product;
+ForwardDiff still pays forward-seed cost for that gradient. Both also pay for
+reference inference, AD workspace and functional store copies. Neither tapes the
+reference iterations. There is no ImplicitLayers dependency. Device implicit
+coordinates are explicitly rejected for both linear solvers: a Krylov solver
+alone does not supply a device coordinate adapter. Stateful/implicit-score/
+higher-order graph adjoints remain open. [[graph_adjoint]] gives the complete
+representation, cost and cut contract; [[gradient_couplings]], LP-011 and
+L-SPEC-002 record the replay extension.
+
+The tree oracle is an independently assembled dense global Gaussian negative log
+partition; loopy references reconverge the Bethe objective at every parameter
+perturbation. The tests also compare the unrolled gradient at increasing sweep
+counts. The first focused run passes 120 schedule assertions and 55 implicit
+Gaussian assertions, then exposes an inherited **test** error (`diff(::Tuple)`)
+in the monotonicity check. That assertion now materialises the tuple as a vector;
+no inference or derivative formula is changed to accommodate it. Final passing
+runs and measurements follow below.
+
+### Meaning of divergence and metric localisation
+
+The two Remaining items first occur in LP-002 commit `6e0bbbb6` (2026-10-26),
+after Sampson localisation's `b4d77ab0` implementation (2026-10-25). They are
+separate from endpoint sensitivity and from the frozen-metric Gauss–Newton API.
+
+For CNF divergence, a loss on `flow_logdet`'s correction requires derivatives of
+$\operatorname{tr}D_u f_\theta$ both directly in parameters and through the
+trajectory. The default trace mutates forward-difference probes with a
+piecewise relative step. Any successful AD differentiates that finite numerical
+program, not an exact analytic trace. Default nonempty Lux state advances at
+base/probe/stage evaluations; fixed-state logdet remains unsupported. Adaptive
+SciML's augmented-state RHS is separate from its parameter-aware endpoint path.
+
+For Sampson localisation, the total energy derivative includes the changing
+covariance $A=J\Sigma J^\top+\lambda R$, not just the residual derivative. With
+$w=A^{-1}r$,
+
+$$
+d\left(\tfrac12r^\top A^{-1}r\right)=w^\top dr-\tfrac12w^\top(dA)w.
+$$
+
+The generic localiser still uses the mutable central-difference Jacobian and
+spectral SPD validation. An outer `ad` does not replace that inner algorithm.
+Gauss–Newton intentionally freezes the metric and is unchanged. Mixed residual
+partials, a checked rank/acceptance policy and a functional/analytic localiser
+would be needed for a general AD contract. The independent probe
+`lib/ImplicitLayers.jl/examples/lp002_metric_divergence_limits.jl` uses
+$r=a y^2-b$ and $(a y^2-b)^2/(8a^2y^2)$, quadratic-field trace $2a\sum u_j$, and
+linear integrated trace $naT$. Its measured observations and backend replay
+probes are recorded with the final validation below; these items are documented
+precisely rather than declared implemented by endpoint tests.
+
+### Batch C files
+
+- Graph source/API: `lib/Mycelium.jl/src/graph_adjoint.jl`,
+  `gradient_couplings.jl`, `schedules.jl` (docstrings), `passing.jl`, `free_energy.jl`, `Mycelium.jl`;
+  `ext/MyceliumKrylovExt.jl`, `MyceliumChainRulesCoreExt.jl`,
+  `MyceliumGPUArraysCoreExt.jl`; package and test `Project.toml`.
+- Tests/reproducers: Mycelium `test/graph_adjoint.jl`, `graph_adjoint_devices.jl`,
+  `gradient_couplings.jl`, `runtests.jl`, `examples/lp002_replay_backends.jl`;
+  ImplicitLayers `examples/lp002_metric_divergence_limits.jl`.
+- Core device polarity fix: `lib/LenticulumCore.jl/ext/LenticulumCoreGPUArraysCoreExt.jl`
+  and `src/gaussian_belief.md` (reduce stored diagonal entries directly);
+  `examples/lp002_enzyme_endpoint_limit.jl` preserves the recurring endpoint probe.
+- Implementation notes: Mycelium `graph_adjoint.md`, `gradient_couplings.md`,
+  `schedules.md`, `passing.md`, `free_energy.md`, `gaussian.md`, `Mycelium.md`;
+  ImplicitLayers `flow.md`; Core `energy.md`.
+- Package docs: `mycelium.md`, `implicitlayers.md`, `lenticulumcore.md`;
+  project records: this note, LP-011, L-SPEC-002 and Problem Log.
+
+Earlier uncommitted batch A/B changes are retained alongside these files. No new
+paper citation or contributor metadata is introduced.
+
+
+### Batch C native replay and metric/divergence probes
+
+Julia 1.13.1, Enzyme 0.13.216, Mooncake 0.5.65, ForwardDiff 1.4.6,
+Zygote 0.7.14. The repository reproducer
+`lib/Mycelium.jl/examples/lp002_replay_backends.jl` deliberately bypasses the
+public backend guard. Run it with `--project=lib/ImplicitLayers.jl/test`, selecting
+`forward`, `reverse` or `mooncake`; append `gaussian` for the Gaussian case.
+Both Enzyme modes use runtime activity and `function_annotation=Enzyme.Const`.
+
+- Enzyme forward fails inside `messages_into` with `EnzymeInternalError` on all
+  three tested schedules (sequential, flooding, residual).
+- Enzyme reverse fails in Base's `setindex_widen_up_to` with `EnzymeNoTypeError`
+  on all three. Runtime activity alone does not resolve these replay type failures.
+- Mooncake returns the correct **0.7** scalar gradient for the minimal Dirac
+  computation on all three. A broader Gaussian replay probe then fails at
+  `_improper_check`: reverse mode does not support its `try/catch`. The smaller
+  repository Gaussian reproducer retains that boundary. Successful Dirac tracing
+  does not establish Gaussian Bethe or general graph support, so the public
+  native-backend guard is retained. No new backend is advertised.
+
+`lib/ImplicitLayers.jl/examples/lp002_metric_divergence_limits.jl` directly probes
+the existing numerical programs. The references differentiate independent analytic
+formulas. Euclidean parameter-gradient errors in this run are:
+
+| Probe | Primal | Analytic primal | Reference differences error | ForwardDiff error |
+|---|---:|---:|---:|---:|
+| Sampson localisation | 0.14585934669219713 | 0.14585934669725883 | 1.421683e-6 | 1.032439e-11 |
+| Quadratic field trace | 0.7000001393808741 | 0.7 | 1.360012e-4 | 1.991056e-7 |
+| Linear integrated trace | 0.8399999999057993 | 0.84 | 8.005121e-6 | 1.892910e-10 |
+
+The quadratic trace's ForwardDiff discrepancy includes the forward-probe bias;
+the nested reference differences show cancellation amplification. These are CPU
+probe measurements, not generic sensitivity guarantees. Zygote localisation fails
+at the SPD validation's `maximum(...; init=...)` rule; raw and integrated divergence
+fail on probe-array mutation. No default finite-difference, SPD, trace-quadrature
+or state policy was changed. The general Remaining items stay open with this
+precise meaning and runnable evidence.
+
+
+### Batch C resumption review findings
+
+The full Mycelium suite caught an operator `mul!` ambiguity with LinearAlgebra's
+`AbstractQ` methods; the new method now requires vector operands. The passing
+focused run has 467 assertions (194 JLArrays), in 1162.65 s, with sampled peak
+RSS 1.875 GiB. A further correlated 2D dense Gaussian oracle is included in the
+full rerun. CPU objective constants can promote a Float32 message cotangent;
+the graph operator now advertises the RHS element type to GMRES, avoiding a
+spurious operator/vector-type warning without changing message coordinates.
+The interrupted notes also contained escaped-string damage to TeX; the formulas
+are repaired and rendered by the vault build.
+
+The first full Core run in this resumption reproduces the pre-existing Enzyme
+endpoint Jacobian NaN recorded in batch A, at `parameter_ad.jl:38`. The failing
+log is retained as `LenticulumCore-initial-failure.log`. The complete rerun and
+the identity-Jacobian probe are checked separately; no assertion is removed
+or relaxed. The full rerun passes all **314** suite assertions, but the extra
+probe fails at repetition **2** of the planned 20, again with a NaN in the
+first diagonal entry. Its log is `LenticulumCore-repeated-failure.log`. This is
+a recurring backend/test nondeterminism finding. The standalone repository
+reproducer is `lib/LenticulumCore.jl/examples/lp002_enzyme_endpoint_limit.jl`;
+the original fixture is `test/parameter_ad.jl`. This is not a repaired graph-adjoint
+defect. The matrix continues with the other six packages. Final results follow
+below; a passing full-suite count does not close this additional failure.
+
+
+### Batch C graph measurements
+
+The complete Mycelium suite passes **1,265 assertions**, including **480 batch C
+assertions** (286 CPU and 194 JLArrays), in **1367.48 s** including loading and
+compilation. Sampled peak RSS is **2.019 GiB**. The new assertions cover the
+correlated 2D dense-precision oracle, dense/GMRES adjoints, realised schedules,
+cuts/freezing, parameter steps, singular/nonconverged errors and both device
+precisions with scalar indexing disabled. The full ambiguity check passes, and
+the operator/RHS type warning no longer occurs.
+
+`test/graph_adjoint.jl` prints the Euclidean error of ExactCoupling's flooding
+unroll against its converged implicit loopy Bethe gradient:
+
+| Sweeps | Gradient error |
+|---:|---:|
+| 4 | 0.17638790415117023 |
+| 8 | 0.05881271574020927 |
+| 16 | 0.0010820230975263946 |
+| 32 | 3.52011227898608e-5 |
+| 64 | 2.5264894519687794e-10 |
+
+The largest implicit-gradient error scaled by `max(1,norm(reference))` over
+Gaussian tree/loop fixtures, Exact/Pathwise, reference differences/ForwardDiff/
+Zygote and dense/GMRES is **1.3032632715663616e-9**. These references are the
+independent dense global Gaussian on the tree and fully reconverged Bethe
+finite differences on the loop. The test separately checks the correlated dense
+Gaussian against its independent global Gaussian derivative.
+
+`test/graph_adjoint_devices.jl` reports largest scaled replay-gradient errors
+**3.07626e-7** (Float32) and **7.67305e-16** (Float64) against CPU derivatives of
+the same recorded operations. The comparisons allow `3e-5` and `1e-9`,
+respectively. They cover diagonal Gaussian tree/loop and Dirac replay; these
+numbers are JLArrays emulation results, not hardware GPU performance or implicit
+device support. Both implicit linear-solver selections explicitly reject device
+coordinates. Full package/build verification follows below.
+
+
+The final source/note review also corrects two schedule descriptions: the
+forward/backward generator accepts a tree fallback with inward/outward lists,
+so only its DAG branch always has an empty backward list; flooding removes
+message-order dependence for stateless factors, while Lux state still threads
+in task order. The passing note now describes all three executors, including
+residual priority updates. These are documentation corrections to the checked
+implementation; no scheduling arithmetic changes.
+
+The replay note also makes the existing state distinction explicit: raw
+ChainRules inference detaches state after each task, whereas the parameter
+driver includes functional state dependencies in its finite replay. No state
+cotangents are returned by the raw rule. The implicit driver requires empty
+message state, as tested above.
+
+
+### Final batch C package verification (2026-10-28)
+
+All seven complete package suites have passing final runs on Julia 1.13.1.
+The interrupted ImplicitLayers run was restarted in full; no testset was
+filtered. Suites ran sequentially, one Julia process at a time, with
+`--startup-file=no --heap-size-hint=6G`, single-threaded BLAS and each package's
+test environment. The top-level declared test target uses the disposable
+`root-test` environment described in batch B. Times include loading and
+compilation and are validation timings, not performance benchmarks.
+
+| Package | Passed | Full-suite wall time | Sampled peak RSS |
+|---|---:|---:|---:|
+| LenticulumCore | 314 | 47.02 s | 0.933 GiB |
+| Mycelium | 1,265 | 1367.48 s | 2.019 GiB |
+| Lenticulum | 1,203 | 368.66 s | 1.864 GiB |
+| ImplicitLayers | 5,308 | 1808.31 s | 6.805 GiB |
+| VariationalDiffusion | 1,408 | 398.14 s | 1.909 GiB |
+| Adversarial | 374 | 9.00 s | 0.416 GiB |
+| AlgebraicFactors | 15,985 | 173.16 s | 1.606 GiB |
+
+Total: **25,857 passed**, with no failures, errors or broken tests
+in these final complete runs; summed suite wall time **4171.78 s**.
+Mycelium adds 480 batch C assertions to the retained 785. ImplicitLayers retains
+all 5,308 batch A/B assertions, including 3,414 device assertions.
+
+The final standalone Core suite passes 314 assertions, and the separate
+repository endpoint reproducer returns no failures in 20 repetitions in 5.00 s.
+This does **not** repair or invalidate the earlier NaNs: the initial complete
+suite failed, and the full rerun's appended original-fixture probe failed at
+repetition 2. No assertion or backend was removed or relaxed, and no Core CPU
+source fix was made. The recurring Enzyme endpoint issue remains open.
+`LenticulumCore-initial-failure.log` and `LenticulumCore-repeated-failure.log`
+retain the failures; `LenticulumCore-standalone.log` and
+`core-endpoint-reproducer.log` distinguish the fresh passing runs.
+
+`~/.julia/lenticulum-runs/lp002-batch-c-resume/verification.json` records the
+seven final commands, counts, timings and sampled RSS.
+`verification-with-repeat.json` preserves the earlier combined suite/diagnostic
+exit status. The interrupted log and focused/native-backend/metric-divergence
+probe logs are retained too. A Python status-reader race in the waiting wrapper
+was corrected before starting the standalone checks; it did not overlap Julia
+processes or affect a suite result. Documentation verification follows below.
+
+
+### Batch C documentation review
+
+The standalone vault review passes in **11.57 s**, rendering **255 HTML pages**
+without KaTeX errors. The first API/vault review build passes in **467.69 s**
+and regenerates all ten Literate tutorials. It exposes a newly referenced
+pre-existing docstring-placement error: `tree_schedule`'s help was attached to
+`_resolve_tree_root`. The docstring now precedes the public generator itself,
+with both function bodies unchanged. Final builds below recheck that reference.
+Documenter's core-page/search-index size warnings and local deployment skip are
+expected. Both builds use the disposable Quartz copy specified above, with its
+checkout/clean EXIT hook removed before use; source Quartz trees are untouched.
+
+The corrected API/vault build passes in **483.28 s**, re-executing
+all ten tutorials. The `tree_schedule` reference now resolves; no cross-reference
+warning remains in this run. The post-fix standalone vault build passes in
+**7.78 s**, with **255 pages** and no KaTeX errors. All API source/content is
+final at this point; the last evidence-only vault-note changes are refreshed by
+the standalone build, recorded in `vault-evidence.log`/`.json`. The disposable
+Quartz copy is removed after that final build; logs and verification records
+remain under the run directory.
+
+`git diff --check` passes. The final review confirms that schedule source outside
+docstrings is unchanged from HEAD. Batch A/B work is retained, no new paper or
+contributor metadata is added, and no checkout, clean, reset, stash, commit, push
+or merge command was run. Source Quartz checkouts and `meta/` are untouched.
+The broader Remaining list stays open with the tested domains and compatibility
+limits above; in particular, the earlier Core Enzyme NaNs are not claimed fixed.
+
+## Enzyme endpoint NaN diagnosed (2026-10-28, Claude)
+
+The intermittent NaN in `test/parameter_ad.jl` (`energy_jacobian(...; wrt = :y, ad =
+AutoEnzyme())` against the identity) is an Enzyme forward-mode defect; Lenticulum code is
+not involved. With Enzyme 0.13.216 (the newest registered release) and Julia 1.13.1,
+`Enzyme.jacobian(Forward, (u, A, x) -> u .- A*x, y, Const(A), Const(x))` returned a
+non-finite or wrong Jacobian in **139 of 2,000** calls, and the same call in reverse mode in
+**0 of 2,000** (`lib/LenticulumCore.jl/examples/lp002_enzyme_endpoint_limit.jl`). Without the
+constant product `A*x` (`u .- x`, `2u`, `copy(u)`, `u .- x .- 1`) forward mode gave
+0 failures in 2,000 calls each, so the trigger is a constant matrix product inside a
+forward-mode derivative. DI's `AutoEnzyme()` Jacobian takes the forward path, so
+`energy_jacobian` inherited it. Passing the active vector without also passing it as a
+constant context was tried first and did not help (still ~5%).
+
+The Core test now computes its Jacobians with `AutoEnzyme(; mode = Enzyme.Reverse)`;
+gradients keep `AutoEnzyme()`. In 1,500 reverse-mode `energy_jacobian` calls
+(`wrt = :x, :y, :ps`) none was non-finite. No assertion was relaxed. Users computing
+Jacobians with Enzyme should select reverse mode until this is fixed upstream.
+
+Reported upstream as [EnzymeAD/Enzyme.jl#3884](https://github.com/EnzymeAD/Enzyme.jl/issues/3884)
+(2026-10-28). A rerun for the report (scratch script, same versions, one thread) gave
+141/2000 wrong forward Jacobians, and 0/2000 with the product written out by hand (no BLAS
+call). Each wrong Jacobian had a single `NaN` where the tangent of the constant `A*x` belongs,
+which suggests an uninitialised shadow of the product, the family of Enzyme.jl#3845.
+

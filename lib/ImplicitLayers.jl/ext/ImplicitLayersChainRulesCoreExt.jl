@@ -3,6 +3,12 @@ using ImplicitLayers: ImplicitLayers as IL
 using DifferentiationInterface: DifferentiationInterface as DI
 using ChainRulesCore: ChainRulesCore as CRC
 
+CRC.@non_differentiable IL._initial_guess(x, n)
+function CRC.rrule(config::CRC.RuleConfig{>:CRC.HasReverseMode},
+                   ::typeof(IL._threaded_flow), args...)
+    return CRC.rrule_via_ad(config, IL._threaded_flow_reverse, args...)
+end
+
 function _solve_pullback(ad, fac, f, u, z, like, offs, st, dz)
     v = IL._ift_solve(fac, dz)
     return -only(DI.pullback(IL._joint_residual, ad, u, (v,), DI.Constant(f),
@@ -25,7 +31,7 @@ function CRC.rrule(::typeof(IL._implicit_state), ad, f, u, like, offs, st, z0)
     z = out[1]
     # No solver iterations on the tape. Keep either a dense LU or a residual
     # product operator; the input/parameter cotangent follows the transposed solve.
-    fac = IL._ift_prepare(ad, f, u, z, like, offs, st, true)
+    fac = IL._ift_prepare(ad, f, u, z, like, offs, st, true, IL._solve_history(out[2]))
     function back(dout)
         dout = CRC.unthunk(dout)
         dz = dout isa CRC.AbstractZero ? dout : CRC.unthunk(dout[1])

@@ -63,6 +63,9 @@ _unflatten(θ, like) = _rebuild(θ, offset_tree(like), like)
 _flatten_active(x::AbstractArray{<:Number}) = vec(copy(x))
 _flatten_active(x::Number) = [x]
 function _flatten_active(x::Union{NamedTuple,Tuple})
+    return _flatten_active_tree(_firstleaf(x), x)
+end
+function _flatten_active_tree(leaf, x)
     parts = map(_flatten_active, values(x))
     return isempty(parts) ? Float64[] : reduce(vcat, parts)
 end

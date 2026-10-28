@@ -1702,8 +1702,9 @@ end
 end
 
 @testset "a predictor on a device: every hook through device arrays" begin
-    # JLArrays is the reference GPU array, on the CPU and without scalar indexing: what passes
-    # here moves to CUDA unchanged. Time features are made on the CPU and placed beside x.
+    # JLArrays emulates device arrays on the CPU with scalar indexing disabled;
+    # hardware CUDA execution needs separate validation. Time features are made
+    # on the CPU and placed beside x.
     JLArrays.allowscalar(false)
     to(x::AbstractArray) = JLArray(Float64.(x)); to(x) = x
     tojl(ps) = Lux.fmap(a -> a isa AbstractArray ? JLArray(a) : a, ps)

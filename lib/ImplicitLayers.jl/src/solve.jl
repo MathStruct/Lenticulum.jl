@@ -137,23 +137,29 @@ function _broyden_product(a, b, scale, v)
     return out
 end
 
-function solve_root(F, u₀, s::LimitedBroydenSolver)
+function solve_root(F, u₀, s::LimitedBroydenSolver; history=nothing)
+    return _solve_limited(F, u₀, s, Val(false), history)
+end
+_limited_result(u, rep, a, b, scale, ::Val{false}) = (u, rep)
+_limited_result(u, rep, a, b, scale, ::Val{true}) = (u, rep, (; a, b, scale))
+function _solve_limited(F, u₀, s::LimitedBroydenSolver, retain, history=nothing)
     u = copy(u₀)
     r = F(u)
     n = _norm(r)
-    n <= s.tol && return (u, SolveReport(true, 0, n, 1))
-    T = promote_type(Float64, eltype(u), eltype(r))
-    a, b = Vector{T}[], Vector{T}[]
+    a, b, scale = _broyden_storage(u, r, s.init_scale)
+    history === nothing || (history[] = (; a, b, scale))
+    n <= s.tol && return _limited_result(u, SolveReport(true, 0, n, 1), a, b, scale, retain)
+    # The correction vectors belong to this solve; no cache is shared across solves.
     for k in 1:s.maxiters
-        du = -_broyden_product(a, b, s.init_scale, r)
+        du = -_broyden_product(a, b, scale, r)
         unew = u .+ du
         rnew = F(unew)
         nn = _norm(rnew)
-        isfinite(nn) || return (unew, SolveReport(false, k, nn, k+1))
-        Hdr = _broyden_product(a, b, s.init_scale, rnew .- r)
+        isfinite(nn) || return _limited_result(unew, SolveReport(false, k, nn, k+1), a, b, scale, retain)
+        Hdr = _broyden_product(a, b, scale, rnew .- r)
         denom = dot(du, Hdr)
         if abs(denom) > 1e-14
-            right = _broyden_product(b, a, s.init_scale, du)
+            right = _broyden_product(b, a, scale, du)
             left = (du .- Hdr) ./ denom
             if length(a) == s.memory
                 popfirst!(a)
@@ -163,9 +169,9 @@ function solve_root(F, u₀, s::LimitedBroydenSolver)
             push!(b, right)
         end
         u, r, n = unew, rnew, nn
-        n <= s.tol && return (u, SolveReport(true, k, n, k+1))
+        n <= s.tol && return _limited_result(u, SolveReport(true, k, n, k+1), a, b, scale, retain)
     end
-    return (u, SolveReport(false, s.maxiters, n, s.maxiters+1))
+    return _limited_result(u, SolveReport(false, s.maxiters, n, s.maxiters+1), a, b, scale, retain)
 end
 
 _norm(v) = sqrt(sum(abs2, v))
@@ -186,7 +192,7 @@ function solve_root(F, u₀, s::PicardSolver)
     n = _norm(r)
     n <= s.tol && return (u, SolveReport(true, 0, n, nfe))
     for k in 1:(s.maxiters)
-        u = u .- s.damping .* r
+        u = u .- _solver_scalar(u, s.damping) .* r
         r = F(u)
         nfe += 1
         n = _norm(r)
@@ -205,7 +211,7 @@ function solve_root(F, u₀, s::BroydenSolver)
     n = _norm(r)
     n <= s.tol && return (u, SolveReport(true, 0, n, nfe))
     m = length(u)
-    H = Matrix{Float64}(s.init_scale * I, m, m)   # approximate inverse Jacobian
+    H = _broyden_inverse(u, s.init_scale, m)   # approximate inverse Jacobian
     for k in 1:(s.maxiters)
         du = -(H * r)
         unew = u .+ du
@@ -334,12 +340,59 @@ struct JacobiIFT
         new(min_diagonal)
     end
 end
-_ift_prepare(ad, f, u, z, like, offs, st, transposed) =
-    _ift_prepare(f.ift, ad, f, u, z, like, offs, st, transposed)
-function _ift_prepare(::DenseIFT, ad, f, u, z, like, offs, st, transposed)
+
+"""
+    BroydenIFT()
+
+Opt-in `KrylovIFT(precond=BroydenIFT())` left inverse preconditioner using the
+actual forward `LimitedBroydenSolver` history. Uses its transpose for adjoint
+solves. Requires `ldiv=false`. History is owned by one AD solve, never global;
+no extra root solve or dense Jacobian is used. Warm starts may leave no secants.
+Up to two original-residual correction solves handle rescaled recursive residuals;
+iteration diagnostics include corrections, sharing any explicit `itmax` budget.
+"""
+struct BroydenIFT end
+struct _HistoryReport{R,H}
+    report::R
+    history::H
+end
+Base.getproperty(r::_HistoryReport, s::Symbol) = s in (:report, :history) ?
+    getfield(r, s) : getproperty(getfield(r, :report), s)
+_public_report(r) = r
+_public_report(r::_HistoryReport) = r.report
+_solve_history(r) = nothing
+_solve_history(r::_HistoryReport) = r.history
+function _solve_root_ift(F, z0, f)
+    if f.ift isa KrylovIFT && f.ift.precond isa BroydenIFT
+        f.solver isa LimitedBroydenSolver || throw(ArgumentError(
+            "BroydenIFT requires LimitedBroydenSolver to retain forward history"))
+        f.ift.ldiv && throw(ArgumentError("BroydenIFT supplies an inverse; use ldiv=false"))
+        z, rep, history = _solve_limited(F, z0, f.solver, Val(true))
+        return z, _HistoryReport(rep, history)
+    end
+    return solve_root(F, z0, f.solver)
+end
+_ift_prepare(ad, f, u, z, like, offs, st, transposed, history=nothing) =
+    _ift_prepare(f.ift, ad, f, u, z, like, offs, st, transposed, history)
+function _ift_prepare(::DenseIFT, ad, f, u, z, like, offs, st, transposed, history=nothing)
     J = _root_jacobian(ad, f, u, z, like, offs, st)
-    return lu(transposed ? J' : J)
+    return _ift_factorize(J, transposed)
 end
 _ift_prepare(::KrylovIFT, args...) = throw(ArgumentError(
     "KrylovIFT requires loading Krylov and DifferentiationInterface"))
 _ift_solve(A, b) = A \ b
+
+# CPU defaults preserve the original precision and allocation behavior. Device
+# specialisations live in the optional GPUArraysCore extension.
+_solver_scalar(u, x) = x
+function _broyden_storage(u, r, scale)
+    T = promote_type(Float64, eltype(u), eltype(r))
+    return Vector{T}[], Vector{T}[], scale
+end
+_broyden_inverse(u, scale, n) = Matrix{Float64}(scale * I, n, n)
+_ift_factorize(J, transposed) = lu(transposed ? J' : J)
+_initial_guess(x, n) = zeros(Float64, n)
+_flow_times(u, t0, t1) = (t0, t1)
+_check_solve_device(ad, u) = nothing
+
+_check_hvp_device(x) = nothing

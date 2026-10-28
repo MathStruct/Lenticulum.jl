@@ -156,3 +156,17 @@ the legacy fixed-cavity local-posterior derivative; the latter is not a true EM 
 Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
 are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].
+
+
+## LP-002 batch B replay context (2026-10-27)
+
+The private gradient-message hook now receives the selected AD backend as its
+first argument. GaussianFactor, GaussianPrior and GaussianComposite preserve
+their existing functional message formulas and forward that constant context.
+The first full top-level run found that leaving the old signatures in place
+bypassed these methods and traced ordinary inverse-of-Cholesky messages into
+LAPACK under Zygote. Updating all three specialisations restores the established
+matrix-inverse replay path without changing ordinary inference arithmetic.
+`test/gradient_couplings.jl` checks the Gaussian marginal-likelihood gradients
+against closed forms and exercises collapsed composites; no dense Gaussian
+device factorisation is added.

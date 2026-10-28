@@ -8,6 +8,7 @@ using EnzymeCore: EnzymeRules as ER
 IL._implicit_backend(::DI.ADTypes.AutoEnzyme) = DI.ADTypes.AutoForwardDiff()
 
 ER.inactive(::typeof(IL._solve_metadata), args...) = true
+ER.inactive(::typeof(IL._public_report), args...) = true
 
 _reverse_backend(::IL.DenseIFT) = DI.ADTypes.AutoForwardDiff()
 _reverse_backend(::IL.KrylovIFT) = DI.ADTypes.AutoEnzyme(;
@@ -24,7 +25,7 @@ function ER.forward(config::ER.FwdConfig, ::EC.Const{typeof(IL._implicit_state)}
     out = IL._implicit_state(ad.val, f.val, u.val, like.val, offs.val, st.val, z0.val)
     ER.needs_shadow(config) || return ER.needs_primal(config) ? out : nothing
     inner = DI.ADTypes.AutoForwardDiff()
-    Jz = IL._ift_prepare(inner, f.val, u.val, out[1], like.val, offs.val, st.val, false)
+    Jz = IL._ift_prepare(inner, f.val, u.val, out[1], like.val, offs.val, st.val, false, IL._solve_history(out[2]))
     rhs = DI.pushforward(IL._joint_residual, inner, u.val, _shadows(u, ER.width(config)),
         DI.Constant(f.val), DI.Constant(out[1]), DI.Constant(like.val),
         DI.Constant(offs.val), DI.Constant(st.val))
@@ -44,7 +45,7 @@ function ER.augmented_primal(config::ER.RevConfig, ::EC.Const{typeof(IL._implici
     out = IL._implicit_state(ad.val, f.val, u.val, like.val, offs.val, st.val, z0.val)
     inner = _reverse_backend(f.val.ift)
     primal, z = copy(u.val), copy(out[1])
-    fac = IL._ift_prepare(inner, f.val, primal, z, like.val, offs.val, st.val, true)
+    fac = IL._ift_prepare(inner, f.val, primal, z, like.val, offs.val, st.val, true, IL._solve_history(out[2]))
     shadows = ntuple(_ -> EC.make_zero(out), Val(ER.width(config)))
     shadow = ER.width(config) == 1 ? only(shadows) : shadows
     # Save the active values in case their storage is overwritten before reverse.

@@ -236,21 +236,24 @@ Euler parameter through the graph's summed local free energy using each AD backe
 Loading SciMLSensitivity activates an endpoint extension for `SciMLIntegrator`;
 see [[flow]] for its sensitivity algorithm and state policy. The parameter vector
 is an explicit `ODEProblem.p`, rebuilt using the core's tree helpers, so adjoints
-see every Lux parameter. Empty nested Lux state is supported for sensitivities.
-Nonempty incoming state falls back to the legacy evaluation-state path for plain
-forward/reverse flows and inference, including when `sensealg` is explicit.
-Loading SciMLSensitivity preserves these primal calls. The factor derivative and
-Mycelium graph gradient/`parameter_step` entry points reject AD with nonempty state
-through `_check_factor_ad(ad, f, st)` before tracing. Reference differences
-(`ad=nothing`) remain available. An arbitrary outer DI call bypasses this check;
-its caller must enforce the empty-state restriction, as with Enzyme runtime activity.
-`test/sciml_state.jl` checks stateful primals and inference both before and after
-loading SciMLSensitivity; `test/lp002_followups.jl` checks the AD errors.
-Built-in state threading is unchanged. `flow_logdet`
-still uses FD divergence and has no tested AD path. GPU and higher-order
-sensitivities remain untested.
+see every Lux parameter. Recursively empty state is supported with the default
+`:threaded` policy. Nonempty-state primal fallback and its AD rejection remain
+unchanged. `state_policy=:fixed` extends sensitivities to functional nonempty
+state, held constant during the solve and advanced once at the final endpoint.
+Built-in Euler/RK4 support the same opt-in policy; their default still threads
+state through every stage. This distinction corrects an ambiguity in the batch A
+request: advance-once was the DEQ contract, not the built-in flow contract.
 
-Enzyme needs **runtime activity** for these endpoint flows:
+[[flow]] records the solver/backend matrix, state semantics and limitations.
+`test/lp002_batch_a.jl` uses state that affects the field and changes on update,
+so a stage-threaded implementation cannot accidentally pass. It compares both
+time directions, endpoint input/parameter derivatives, state updates and tight
+RK4 reference flows. Fixed-state `flow_logdet` is explicitly unsupported.
+Runtime-activity Enzyme reverse is covered for default Tsit5 sensitivities;
+Enzyme forward fails in upstream callback initialization. GPU and second-order
+flow sensitivities remain untested.
+
+Enzyme needs **runtime activity** for built-in endpoint flows (SciML supports only the tested reverse configuration):
 
 ```julia
 using Enzyme, ADTypes, DifferentiationInterface
@@ -282,3 +285,30 @@ for `ADCountingDynamics` with stage-dependent state, and in graph `parameter_ste
 learning with Nesterov look-ahead. It also verifies the configuration error. DEQ IFT
 and scored LuxFactor paths retain their passing plain `AutoEnzyme()` checks; they
 do not require this runtime-activity setting.
+
+
+## Device coverage and input-gradient repair (2026-10-27)
+
+The built-in threaded flow used `foldl(...; init=(u,st))`. On the tested Zygote
+stack, the input in that initializer received no cotangent, although parameter
+closure gradients worked. A ChainRules reverse helper now performs the identical sequence of functional
+`_lux_step` calls in a plain loop and preserves the input derivative. The original
+fold remains the primal used by native backends. The test compares
+CPU primal results bit for bit with the former fold and checks input derivatives
+against the discrete linear map. Neither stage order nor state threading changes.
+
+For device states, the GPUArraysCore extension converts times and step coefficients
+to state precision, including the final fixed-policy state evaluation. A time-dependent
+fixture asserts the incoming time precision at every evaluation and compares with
+the Euler/RK4 stability polynomial of an augmented constant linear system
+($t'=1$, with an extra constant coordinate). JLArrays tests cover forward/reverse flows, Zygote and
+ForwardDiff input/parameter gradients, energy/free-energy gradients and the graph
+parameter driver, in Float32 and Float64. Functional nonempty-state stage threading and fixed-state endpoint updates are
+also checked against CPU references. SciML device solvers and divergence remain
+outside this coverage. Enzyme/Mooncake device parameter
+AD is rejected; their CPU flow support is retained. See [[flow]] and [[solve]].
+
+An initial full run exposed an Enzyme forward runtime-activity BLAS error when
+the loop was used as the general primal. Keeping the existing fold primal and
+using the loop only in ChainRules reverse preserves the previously tested native
+Enzyme/Mooncake paths; the existing 80-assertion flow testset is rerun unchanged.

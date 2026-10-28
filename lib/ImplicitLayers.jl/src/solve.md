@@ -351,3 +351,98 @@ left/right and inverse/solve preconditioner conventions, and HVPs against an
 analytic linear solution, scalar second derivatives and central differences of
 first-order IFT gradients. Measurements and full verification are recorded in
 [[LP-002 The Jacobian side is not implemented]].
+
+
+## Batch A: retained Broyden history (2026-10-27)
+
+`KrylovIFT(precond=BroydenIFT())` opts into the actual forward
+`LimitedBroydenSolver` inverse history. Each solve owns its correction vectors;
+there is no global cache and no repeat solve. A private report carries history
+across the AD primitive; the public return remains `SolveReport`. Every backend
+passes that history into linear preparation. Repeated pullbacks only read it.
+
+For `H = scale*I + sum(aᵢ*bᵢ')`, the left inverse preconditioner applies H in
+forward solves and H' in transposed solves (swap the two vector lists). This
+also handles reverse polarity: history approximates the inverse of the residual
+Jacobian in the actually solved coordinate, including its sign. It requires
+`LimitedBroydenSolver` and `ldiv=false`; unsupported choices throw. A root warm
+start may yield no secants, leaving just the initial scaled identity. Eviction
+or poor secant information can reduce quality; no speedup is guaranteed. The
+unpreconditioned final residual check remains mandatory. If the retained inverse
+causes recursive residual convergence before the original tolerance is met, up
+to two residual-correction solves refine the result. They share any explicit
+`itmax` budget; `on_solve.iterations` includes every correction iteration. Failure
+after refinement still throws. This refinement is opt-in through BroydenIFT and
+leaves other preconditioners/defaults unchanged.
+
+`test/lp002_batch_a.jl` measures GMRES counts on a rotated, nonsymmetric,
+ill-conditioned linear problem, with no preconditioner, Jacobi and retained
+Broyden. It checks gradients against DenseIFT on four backends, explicitly
+checks H/H' application, and checks both solve polarities. Counts exclude
+forward root work and Jacobi setup; they do not establish a wall-time speedup.
+
+### Outer Enzyme closure boundary
+
+`examples/lp002_enzyme_limits.jl` reproduces `EnzymeMutabilityException` for a
+DI outer closure capturing arrays, then succeeds with
+`AutoEnzyme(function_annotation=Enzyme.Const)`. The implicit rule runs only after
+Enzyme has selected the outer function's activity. It cannot retroactively
+annotate that closure. Automatically changing arbitrary DI calls would require
+intercepting methods owned by DI/Enzyme, and treating every captured array as
+constant could discard intentionally active closure data. No such global rule
+is installed. Library-owned derivatives already put their callable/context in
+`DI.Constant`; callers of arbitrary outer DI functions must choose annotation
+or explicit constant contexts themselves. This remains an upstream/API boundary,
+with the working explicit annotation tested in `test/lp002_batch_a.jl`.
+
+
+## Device arrays: LP-002 batch B (2026-10-27)
+
+The optional GPUArraysCore extension keeps primal vectors, dense Broyden's inverse,
+and limited Broyden's secant vectors on the input device. Its scales/damping are
+converted to the vector element type. CPU allocations/scales retain their previous
+behavior, including their Float64 promotion. No root algorithm or denominator guard
+changes. A missing device initial guess is allocated with `similar(observed, n)`;
+CPU defaults remain Float64 zeros. Retained history is owned by the same solve.
+
+Jacobi setup forms basis vectors by broadcast and reads diagonal slices without
+host scalar indexing. GMRES tolerances are converted to its RHS real element type:
+the previous Float64 keywords caused a type error with Float32 RHSs. User left/right
+inverse operators, left `ldiv=true`, Jacobi and retained Broyden preconditioning are
+checked on nonsymmetric two-dimensional residuals. The original residual check and
+convergence failures remain in force. Very tight default tolerances need loosening
+for Float32; the API does not silently change a user's convergence criteria.
+
+`test/device_arrays.jl` uses JLArrays with `allowscalar(false)`, Float32/Float64,
+closed-form linear roots and IFT products. Both solve polarities are covered with
+Zygote and ForwardDiff. ForwardDiff dual reconstruction broadcasts over whole
+columns instead of scalar-indexing each root component. Core's device ForwardDiff
+entry points assemble directional DI pushforwards, avoiding native vector seeding.
+This costs one direction per active coordinate and is a small-problem reference,
+not a claim of scalable forward parameter differentiation.
+
+JLArrays has no device LU on the tested stack. DenseIFT attempts the backend
+factorisation and reports an ArgumentError pointing to KrylovIFT on failure; it
+never copies a Jacobian to the CPU. DenseIFT success on hardware GPUs is untested.
+Enzyme/Mooncake device solve/parameter entry points are explicitly unsupported.
+Second-order adjoints and finite-difference reference derivatives require CPU
+arrays. No CUDA/ROCm execution or performance result is claimed.
+
+
+### Typed retained history found during batch B verification
+
+A full CPU regression run exposed an abstract inferred return type when retained
+Broyden history crossed the native Enzyme custom rule. Reading the history from
+`Ref{Any}` could leave a UnionAll for the report/preconditioner. Enzyme rejected
+that ABI contract. Explicit rule-return annotations repaired reverse mode but
+batched forward mode triggered an Enzyme LLVM assertion; those annotations were
+removed. The solver now returns the same correction vectors as a typed third
+result on its private retained-history path. Every exit uses the same result
+helper. The public solve still returns `(root, SolveReport)`, including the
+existing optional history-holder keyword; residual evaluations, update arithmetic
+and iteration counts are unchanged. No extra root or residual evaluation occurs.
+
+The existing non-diagonal history oracles in `test/lp002_batch_a.jl` check reverse
+and batched forward derivatives, both orientations, eviction and warm starts.
+The focused reproduction also uses explicit bounds checking. This adds no
+Enzyme device or nested-AD rule.

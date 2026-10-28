@@ -47,11 +47,11 @@ See [[flow]] for loading, reversibility conditions, CNF augmentation and tests.
 Optional AD now uses DifferentiationInterface with a user-supplied ADTypes backend.
 Both DEQ solve polarities have first-order IFT rules for ForwardDiff, Zygote,
 Enzyme and Mooncake, using dense LU by default or opt-in preconditioned Krylov.
-`LimitedBroydenSolver` bounds primal storage. `deq_hvp` provides a dedicated dense
-second-order adjoint using ForwardDiff residual and loss derivatives.
+`LimitedBroydenSolver` bounds primal storage. `deq_hvp` and `solve_input_hvp` provide dedicated dense
+second-order adjoints using ForwardDiff residual and loss derivatives.
 Euler/RK4 endpoint AD also supports runtime-activity Enzyme; SciMLSensitivity
-supports the tested Tsit5 endpoint algorithms with ForwardDiff/Zygote/Mooncake
-and recursively empty Lux state; see [[neuralode]]. The base
+supports tested Tsit5/Vern7/Kvaerno3/KenCarp4 endpoint algorithms with ForwardDiff/Zygote/Mooncake
+and opt-in fixed nonempty Lux state; runtime-activity Enzyme reverse covers default Tsit5; see [[neuralode]]. The base
 package still uses finite differences for derivative information:
 
 > RED-Diff's stop-gradient means the diffusion family needs **no derivative of the network at
@@ -79,3 +79,19 @@ have the tested scope above; no general device support is established for this w
 
 Related: [[Implicit Learners]], [[The Equilibrium Family]], [[Lux as a Parametric Lens]],
 [[Factors are Parameterized Statistical Games]]
+
+
+Batch A (2026-10-27) adds `BroydenIFT()` for per-solve retained inverse history,
+with explicit transpose orientation, and `state_policy=:fixed` for constant-per-solve
+flow state with one final update. Defaults remain `DenseIFT`, dense Broyden and
+stage/evaluation state threading. [[solve]], [[deq]] and [[flow]] give the tested
+scope and unsupported combinations; `test/lp002_batch_a.jl` supplies the oracles.
+
+
+## JLArrays coverage (2026-10-27)
+
+`test/device_arrays.jl` checks the device subset with scalar indexing disabled:
+both DEQ polarities with three primal solvers and opt-in KrylovIFT, and Euler/RK4
+flows/gradients. CPU defaults are retained. DenseIFT requires backend device LU,
+which JLArrays lacks. Hardware GPUs, SciML device sensitivities, device second order
+and Enzyme/Mooncake device rules are untested/unsupported; see [[solve]] and [[flow]].

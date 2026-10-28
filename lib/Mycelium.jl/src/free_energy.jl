@@ -257,7 +257,10 @@ _local_scalar(ps, factor, beliefs, st) = LenticulumCore.scalarise(
     LenticulumCore.scalarisation(factor), first(local_free_energy(factor, beliefs, ps, st)))
 
 """
-    LenticulumCore.free_energy_gradient(store, g, ps, st; ad = nothing, ε = 1e-6)
+    LenticulumCore.free_energy_gradient(store, g, ps, st; ad = nothing, ε = 1e-6,
+        schedule = nothing, nsweeps = 1, damping = 0.0, adjoint = :unrolled,
+        maxsweeps = 1000, tol = 1e-10, linear_solver = :dense,
+        linear_tol = 1e-10, linear_maxiter = 1000)
 
 Parameter gradient of the graph scalar free energy at fixed incoming messages.
 This is the sum of scalarised local free energies; Bethe variable corrections are
@@ -266,16 +269,28 @@ zeros. Frozen coordinates receive zeros too. The result has `ps`'s structure.
 Non-diagonal edges require `schedule` and finite `nsweeps` (default 1), replaying from
 empty messages rather than differentiating this store's history. Score edges also
 require `rng` and `nsamples >= 2`, returning a `GradientEstimate`. No input store or
-state is mutated. See `gradient_couplings.md` for estimator domains and mixed rules.
+state is mutated. Replay includes flooding snapshots, realised residual task choices
+and outgoing damping. `adjoint=:implicit` instead differentiates a converged synchronous
+BP fixed point, found from empty messages using `schedule`, `maxsweeps` and `tol`.
+It requires CPU Gaussian/Dirac messages, empty message state and an invertible
+`I-DT`; diagonal/detach rows are constant cuts. Dense is the reference linear solve;
+`:krylov` needs Krylov.jl. Both check their original linear residual. Reference
+differences, ForwardDiff and Zygote are supported. See `graph_adjoint.md` and
+`gradient_couplings.md` for equations, estimator domains, costs and mixed rules.
 """
 function LenticulumCore.free_energy_gradient(s::MessageStore, g::FactorGraph, ps, st;
                                             ad = nothing, ε = 1e-6,
                                             schedule = nothing, nsweeps = 1,
-                                            rng = nothing, nsamples = nothing)
+                                            rng = nothing, nsamples = nothing, damping = 0.0,
+                                            adjoint = :unrolled, maxsweeps = 1000, tol = 1e-10,
+                                            linear_solver = :dense, linear_tol = 1e-10,
+                                            linear_maxiter = 1000)
     # Keep the same cavity validation as the reporting API.
     _check_energy_edges(g)
-    if any(e -> !(e.coupling isa DiagonalCoupling), g.edges)
-        return _coupled_gradient(s, g, ps, st; ad, ε, schedule, nsweeps, rng, nsamples)
+    adjoint in (:unrolled, :implicit) || throw(ArgumentError("adjoint must be :unrolled or :implicit"))
+    if adjoint === :implicit || any(e -> !(e.coupling isa DiagonalCoupling), g.edges)
+        return _coupled_gradient(s, g, ps, st; ad, ε, schedule, nsweeps, rng, nsamples,
+            damping, adjoint, maxsweeps, tol, linear_solver, linear_tol, linear_maxiter)
     end
     names = Tuple(f.name for f in g.factors)
     grads = map(Tuple(g.factors)) do f
@@ -289,7 +304,7 @@ function LenticulumCore.free_energy_gradient(s::MessageStore, g::FactorGraph, ps
             f.factor, messages_into(s, g, f.id), _subtree(st, f.name); ε)
         indices = _active_indices(f, p)
         θ = LenticulumCore._flatten(grad)
-        return LenticulumCore._unflatten([i in indices ? θ[i] : zero(θ[i]) for i in eachindex(θ)], p)
+        return LenticulumCore._unflatten(_mask_gradient(θ, indices), p)
     end
     return NamedTuple{names}(grads)
 end
@@ -319,7 +334,7 @@ function parameter_step(s::MessageStore, g::FactorGraph, ps, st;
     fs = Tuple(f for f in g.factors if !isempty(_active_indices(f, _subtree(ps, f.name))))
     names = Tuple(f.name for f in fs)
     indices = map(f -> _active_indices(f, _subtree(ps, f.name)), fs)
-    θs = map((f, ii) -> LenticulumCore._flatten(_subtree(ps, f.name))[ii], fs, indices)
+    θs = map((f, ii) -> _gather_active(LenticulumCore._flatten(_subtree(ps, f.name)), ii), fs, indices)
     os = optimiser_state === nothing ? NamedTuple{names}(map(zero, θs)) : optimiser_state
     for (f, θ) in zip(fs, θs)
         haskey(os,f.name) && length(os[f.name]) == length(θ) || throw(ArgumentError(
@@ -329,7 +344,7 @@ function parameter_step(s::MessageStore, g::FactorGraph, ps, st;
         _replace_active(_subtree(ps, f.name), ii, rule_get(rule, os[f.name], θ))
     end
     at = merge(ps, NamedTuple{names}(look))
-    coupled = any(e -> !(e.coupling isa DiagonalCoupling), g.edges)
+    coupled = get(kwargs, :adjoint, :unrolled) === :implicit || any(e -> !(e.coupling isa DiagonalCoupling), g.edges)
     if coupled
         result, stnew = _coupled_gradient(s,g,at,st;ad,return_state=true,kwargs...)
     else
@@ -338,7 +353,7 @@ function parameter_step(s::MessageStore, g::FactorGraph, ps, st;
     end
     grad = result isa GradientEstimate ? result.value : result
     updates = map(fs, θs, indices) do f, θ, ii
-        rule_put(rule, os[f.name], θ, LenticulumCore._flatten(grad[f.name])[ii])
+        rule_put(rule, os[f.name], θ, _gather_active(LenticulumCore._flatten(grad[f.name]), ii))
     end
     newps = map(fs, updates, indices) do f, u, ii
         _replace_active(_subtree(ps, f.name), ii, u[2])
@@ -350,9 +365,7 @@ end
 
 function _replace_active(ps, indices, active)
     θ = LenticulumCore._flatten_active(ps)
-    positions = Dict(i => k for (k, i) in enumerate(indices))
-    return LenticulumCore._unflatten([haskey(positions, i) ? active[positions[i]] : θ[i]
-                                      for i in eachindex(θ)], ps)
+    return LenticulumCore._unflatten(_replace_coordinates(θ, indices, active), ps)
 end
 
 function _check_energy_edges(g)
@@ -369,3 +382,12 @@ function _check_energy_edges(g)
     end
     return nothing
 end
+
+_gather_active(θ, indices) = θ[indices]
+_mask_gradient(θ, indices) = [i in indices ? θ[i] : zero(θ[i]) for i in eachindex(θ)]
+function _replace_coordinates(θ, indices, active)
+    positions = Dict(i => k for (k, i) in enumerate(indices))
+    return [haskey(positions, i) ? active[positions[i]] : θ[i] for i in eachindex(θ)]
+end
+
+_index_metadata(θ, indices) = indices

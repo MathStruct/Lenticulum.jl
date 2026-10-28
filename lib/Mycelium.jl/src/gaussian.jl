@@ -32,8 +32,8 @@ combine(::GaussianBelief, b::LenticulumCore.DiracBelief) = b
 """
 function belief_logdensity(b::GaussianBelief, x::AbstractVector)
     C = LenticulumCore._improper_check(b, "belief_logdensity")
-    d = x .- (C \ b.η)
-    return -dimension(b) * log(2π) / 2 + logdet(C) / 2 - (d' * (b.Λ * d)) / 2
+    d = x .- LenticulumCore._precision_solve(C, b.η)
+    return -dimension(b) * log(2π) / 2 + LenticulumCore._precision_logdet(C) / 2 - (d' * (b.Λ * d)) / 2
 end
 
 """
@@ -49,7 +49,7 @@ implementing it is what exposed the sign bug recorded in `free_energy.md` §6.
 function variable_entropy(b::GaussianBelief)
     C = LenticulumCore._improper_check(b, "variable_entropy")
     n = dimension(b)
-    return n * (1 + log(2π)) / 2 - logdet(C) / 2
+    return n * (1 + log(2π)) / 2 - LenticulumCore._precision_logdet(C) / 2
 end
 
 """

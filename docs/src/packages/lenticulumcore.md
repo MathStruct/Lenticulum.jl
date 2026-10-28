@@ -173,3 +173,34 @@ value-level path-energy semantics, distinct from a collapsed Gaussian marginal g
 `FreeEnergyUpperBound` and `FreeEnergyBoundEstimate` are separate wrappers for variational
 bounds and estimates; neither enters exact `free_energy` or `scalarise`. Diffusion supplies
 the explicitly normalised finite-chain instance ([Factors](@ref vd-factors)).
+
+
+## Device parameter derivatives and beliefs
+
+The optional GPUArraysCore extensions support JLArrays Float32/Float64 parameter
+array leaves with Zygote and directional ForwardDiff through the existing
+`parameter_gradient`, `energy_gradient` and `free_energy_gradient` APIs. Direct
+ForwardDiff vector APIs retain their upstream scalar-seeding limitation. Device
+finite differences and Enzyme/Mooncake parameter AD are unsupported and throw.
+Functional device flattening preserves empty subtrees and all-empty device
+arrays without selecting host concatenation. CPU arithmetic is unchanged.
+
+`GaussianBelief(η, Diagonal(λ))` and `Gaussian(μ, Diagonal(σ²))` support diagonal
+device moment/density/entropy and log-partition operations without factorisation. Dense device
+covariance/precision is rejected explicitly. See the JLArrays tests in
+`lib/ImplicitLayers.jl/test/device_arrays.jl`; no hardware GPU support is asserted.
+
+
+## Sampson localisation derivative boundary (LP-002 batch C)
+
+The open item means differentiating the total varying-metric energy
+$\frac12r^\top A^{-1}r$, including the covariance derivative, not changing the
+frozen-metric `gauss_newton_metric`. With $w=A^{-1}r$, its differential is
+$w^\top dr-\frac12w^\top(dA)w$. Localisation still uses the default mutable
+central-difference Jacobian unless the factor overrides it; supplying `ad` to
+an outer parameter derivative does not replace that inner algorithm.
+Generic AD through finite-difference localisation remains unsupported. The
+probe `lib/ImplicitLayers.jl/examples/lp002_metric_divergence_limits.jl` uses
+$r=a y^2-b$ and its analytic scalar energy/gradient to separate reference
+cancellation error from backend failures. LP-002 records the measured results.
+No Sampson metric, rank threshold or Gauss–Newton default changes in batch C.

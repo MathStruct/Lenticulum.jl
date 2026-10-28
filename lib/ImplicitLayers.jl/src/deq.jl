@@ -172,14 +172,15 @@ loaded). In this AD path a nonconverged solve throws; reports and
 returned state are bookkeeping without tangents. `solve_input(...; ad)` supports the
 same first-order backends in the other polarity.
 """
-function solve_state(f::DEQFactor, x, ps, st; z₀ = zeros(Float64, statedim(f)), ad = nothing)
-    return _solve_state(ad, f, x, ps, st, z₀)
+function solve_state(f::DEQFactor, x, ps, st; z₀ = _initial_guess(x, statedim(f)), ad = nothing)
+    z, rep, state = _solve_state(ad, f, x, ps, st, z₀)
+    return z, _public_report(rep), state
 end
 function _solve_state(::Nothing, f, x, ps, st, z₀)
     # A root must be a root of one fixed function. Threading state across iterations
     # would change the equation with the solver trajectory.
     F(z) = first(residual(f, x, z, ps, st))
-    z, rep = solve_root(F, z₀, f.solver)
+    z, rep = _solve_root_ift(F, z₀, f)
     _, stnew = residual(f, x, z, ps, st)
     return (z, rep, stnew)
 end
@@ -230,7 +231,7 @@ With `ad`, supports the same first-order IFT backends as `solve_state`, requires
 convergence, holds incoming Lux state fixed and advances it once at the root.
 Without `ad`, retains legacy state threading across residual evaluations.
 """
-function solve_input(f::DEQFactor, z, ps, st; x₀ = zeros(Float64, indim(f)), ad=nothing)
+function solve_input(f::DEQFactor, z, ps, st; x₀ = _initial_guess(z, indim(f)), ad=nothing)
     indim(f) == statedim(f) || throw(ArgumentError(
         "solve_input needs dim($(inchannel(f))) == dim($(statechannel(f))); got \
          $(indim(f)) and $(statedim(f)). The residual is not square, so solving for \
@@ -260,7 +261,7 @@ end
 indim(p::_InputProblem) = statedim(p.factor)
 function _solve_state(::Nothing, p::_InputProblem, z, ps, st, x0)
     F(x) = first(residual(p.factor, x, z, ps, st))
-    x, rep = solve_root(F, x0, p.solver)
+    x, rep = _solve_root_ift(F, x0, p)
     _, stnew = residual(p.factor, x, z, ps, st)
     return x, rep, stnew
 end
@@ -294,6 +295,23 @@ function deq_hvp(loss, f::DEQFactor, x, ps, st, direction;
 end
 _deq_hvp(ad, args...) = throw(ArgumentError(
     "deq_hvp supports only the dedicated AutoForwardDiff second-order adjoint; load ForwardDiff and DifferentiationInterface. Backend nestings are unsupported."))
+
+"""
+    solve_input_hvp(loss, f, z, ps, st, direction; wrt=:ps, ad, x₀=zeros(indim(f)))
+
+Dense second-order IFT adjoint for `loss(x★)` in the reverse polarity.
+`wrt=:z` selects the observed state, `:ps` flattened parameters, and `:joint`
+state followed by parameters. Holds incoming Lux state fixed and advances it once
+at the root, as `solve_input(...; ad)`. The restrictions of `deq_hvp` apply.
+"""
+function solve_input_hvp(loss, f::DEQFactor, z, ps, st, direction;
+                         wrt=:ps, ad=nothing, x₀=zeros(Float64, indim(f)))
+    indim(f) == statedim(f) || throw(ArgumentError("solve_input_hvp requires a square residual"))
+    wrt in (:ps, :z, :joint) || throw(ArgumentError("solve_input_hvp wrt must be :ps, :z or :joint"))
+    f.ift isa DenseIFT || throw(ArgumentError("solve_input_hvp supports DenseIFT only"))
+    p = _InputProblem(f, f.solver, f.ift)
+    return _deq_hvp(ad, loss, p, z, ps, st, direction, wrt === :z ? :x : wrt, x₀)
+end
 
 """
     deq_sensitivity(f, x, z★, ps, st; wrt = :x, ad = nothing)
@@ -351,19 +369,21 @@ function LenticulumCore.invert(
     return (b, st)
 end
 
-function _solve_for(f::DEQFactor, target::Symbol, inputs, π, ps, st)
+function _solve_for(f::DEQFactor, target::Symbol, inputs, π, ps, st; ad=nothing)
     xc, zc = inchannel(f), statechannel(f)
     if target === zc
         x = _point(_get(inputs, xc))
         x === nothing && return (LenticulumCore.TrivialBelief(), st)
-        z₀ = something(_point(π), zeros(Float64, statedim(f)))
-        z, _, st = solve_state(f, x, ps, st; z₀ = z₀)
+        _check_message_ad(ad, promote_type(LenticulumCore._eltype(ps), eltype(x)))
+        z₀ = something(_point(π), _initial_guess(x, statedim(f)))
+        z, _, st = solve_state(f, x, ps, st; z₀ = z₀, ad)
         return (LenticulumCore.DiracBelief(z), st)
     elseif target === xc
         z = _point(_get(inputs, zc))
         z === nothing && return (LenticulumCore.TrivialBelief(), st)
-        x₀ = something(_point(π), zeros(Float64, indim(f)))
-        x, _, st = solve_input(f, z, ps, st; x₀ = x₀)
+        _check_message_ad(ad, promote_type(LenticulumCore._eltype(ps), eltype(z)))
+        x₀ = something(_point(π), _initial_guess(z, indim(f)))
+        x, _, st = solve_input(f, z, ps, st; x₀ = x₀, ad)
         return (LenticulumCore.DiracBelief(x), st)
     end
     throw(ArgumentError("channel :$target is not a channel of this DEQFactor"))
@@ -415,3 +435,5 @@ function LenticulumCore.entropy(f::DEQFactor, π, y, ps, st)
     _incoming_point_messages(f, π, y) # same supported domain as free_energy
     return (0.0, st) # ScalarEnergySpace; point-belief entropy convention
 end
+
+_check_message_ad(ad, T) = nothing

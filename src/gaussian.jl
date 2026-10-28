@@ -278,7 +278,7 @@ _get(inputs, k) = haskey(inputs, k) ? getfield(inputs, k) : nothing
 
 # Functional schedule AD avoids the mutating inverse-of-Cholesky implementation.
 # Ordinary message passing retains its established arithmetic.
-function Mycelium._gradient_message(f::GaussianFactor, target::Symbol, pol, inputs, prior, ps, st)
+function Mycelium._gradient_message(ad, f::GaussianFactor, target::Symbol, pol, inputs, prior, ps, st)
     if target === f.out_channel
         m,S=_moments(_get(inputs,f.in_channel),f.nin)
         m === nothing && return LenticulumCore.TrivialBelief(),st
@@ -528,7 +528,7 @@ end
 
 Mycelium.factor_message(f::GaussianPrior, ::Symbol, _, _, _, ps, st) =
     (Gaussian(f.μ, noise_covariance(f, ps)), st)
-function Mycelium._gradient_message(f::GaussianPrior, ::Symbol, _, _, _, ps, st)
+function Mycelium._gradient_message(ad, f::GaussianPrior, ::Symbol, _, _, _, ps, st)
     P=inv(Symmetric(noise_covariance(f,ps)))
     return GaussianBelief(P*f.μ,P),st
 end

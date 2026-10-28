@@ -91,7 +91,8 @@ Whether `Λ` is positive definite, i.e. whether the belief is a normalisable dis
 rather than a likelihood. `belief_mean`, `belief_cov`, `variable_entropy` and
 `belief_logdensity` all require this.
 """
-isproper(b::GaussianBelief) = isposdef(Symmetric(Matrix(b.Λ)))
+_precision_isproper(M) = isposdef(Symmetric(Matrix(M)))
+isproper(b::GaussianBelief) = _precision_isproper(b.Λ)
 
 """
     belief_mean(b) -> Vector
@@ -104,7 +105,7 @@ this project — see `Mycelium.md` §2.
 """
 function belief_mean(b::GaussianBelief)
     C = _improper_check(b, "belief_mean")
-    return C \ b.η
+    return _precision_solve(C, b.η)
 end
 
 """
@@ -116,8 +117,9 @@ belief_cov(b::GaussianBelief) = inv(_improper_check(b, "belief_cov"))
 
 function _improper_check(b::GaussianBelief, who)
     try
-        return cholesky(Symmetric(Matrix(b.Λ)))
-    catch
+        return _precision_factor(b.Λ)
+    catch err
+        err isa ArgumentError && rethrow()
         throw(ArgumentError(
             "$who needs a proper belief, but Λ is singular. This belief is a likelihood \
              message, not a distribution — combine it with a prior first."))
@@ -133,7 +135,7 @@ end
 function logpartition(b::GaussianBelief)
     C = _improper_check(b, "logpartition")
     n = dimension(b)
-    return (b.η' * (C \ b.η)) / 2 - logdet(C) / 2 + n * log(2π) / 2
+    return (b.η' * _precision_solve(C, b.η)) / 2 - _precision_logdet(C) / 2 + n * log(2π) / 2
 end
 
 function Base.show(io::IO, b::GaussianBelief)
@@ -148,3 +150,9 @@ function Base.show(io::IO, b::GaussianBelief)
             ", Λ=", round.(b.Λ; digits = 4), "; improper)")
     end
 end
+
+_precision_factor(M) = cholesky(Symmetric(Matrix(M)))
+
+_precision_logdet(C) = logdet(C)
+
+_precision_solve(C, η) = C \ η

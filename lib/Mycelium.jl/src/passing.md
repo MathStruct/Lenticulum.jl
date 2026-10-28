@@ -1,5 +1,8 @@
 #implementation
 
+> Executes belief schedules, with optional recording of committed residual tasks
+> for the separately defined realised-schedule derivative.
+
 > Sources: code: `passing.jl`
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
@@ -27,16 +30,20 @@ input/output split, the prior is the $\pi$ of $c'_\pi$, the inputs are the $y$, 
 `LenticulumCore`'s two interface functions. Structural factors override it directly, because
 for them the lens is trivial and building one would be ceremony.
 
-## `sweep!` has two methods, and the difference is semantic
+## `sweep!` executors have different semantics
 
 - **Generic** (sequential, tree, forward-backward): executes **in place**. Later tasks see
   earlier results *within the same sweep*, so information crosses a whole path per sweep.
 - **`FloodingSchedule`**: **double buffered**. Every task is computed with `commit = false`
   against the previous sweep's messages, and all results are written afterwards. Information
   crosses one edge per sweep.
+- **`ResidualSchedule`**: probes every legal task, commits the largest residual,
+  then repeats up to its task budget. Probe state updates are discarded; committed
+  updates advance state. Ties prefer the oldest message, then task order.
 
 The trade is not just speed. On a loopy graph the sequential order *is* a modelling choice made
-without noticing; flooding is order-independent.
+without noticing. Flooding removes message-order dependence for stateless factors;
+Lux state still threads in task order, so stateful evaluations can depend on that order.
 
 ## Implementation difficulties
 
@@ -67,8 +74,9 @@ entries without a factor — is missing and would be cheap.
 messages are never damped, which is the usual convention (they are deterministic pools of
 already-damped inputs) but is a convention, not a theorem.
 
-More importantly, damping is a **silent no-op** for every belief type except numeric-payload
-Diracs ([[messages]] §4). `propagate!` does not check `can_damp` before promising damping, so a
+Damping is implemented for numeric Diracs, Gaussian canonical parameters,
+categoricals and compatible fixed-component mixtures/samples ([[messages]]).
+It remains a **silent no-op** for unsupported belief pairs. `propagate!` does not check `can_damp` before promising damping, so a
 caller can pass `damping = 0.3` and get none.
 
 ### 4. `propagate!` special-cases `TreeSchedule` by type
@@ -94,8 +102,8 @@ avoid inventing a type before knowing what else belongs in it.
 ### 6. Cotangents are not here, deliberately
 
 Gradients with respect to parameters are **not** belief messages. They are computed
-once per parameter step by the separate [[gradient_couplings]] driver, with static
-schedule replay for non-diagonal boundaries. `optimiser_step` remains separate from
+once per parameter step by the separate [[gradient_couplings]] driver, with finite
+schedule replay or an opt-in converged-message adjoint for non-diagonal boundaries. `optimiser_step` remains separate from
 `step!`; parameters are not updated inside an inference sweep.
 
 Related: [[Messages are Inversions]], [[schedules]], [[free_energy]], [[Loopy Message Passing]]
@@ -112,3 +120,17 @@ are unimplemented is superseded by the separate parameter driver.
 Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
 are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].
+
+
+## Batch C recording and replay (2026-10-28)
+
+The optional `record` sink on residual `sweep!` and `propagate!` appends only
+committed tasks. With no sink, task choices and arithmetic are unchanged.
+The ChainRules `infer!` rule records that reference pass and replays its fixed
+choices; flooding replays double buffering and all schedules include outgoing
+damping. No report, graph or state cotangent is returned. [[gradient_couplings]]
+specifies the piecewise derivative and deterministic/functional-factor requirement.
+The separate implicit driver verifies every synchronous BP row before its adjoint
+solve, rather than trusting TreeSchedule's ordinary one-sweep report.
+
+Evidence: `test/graph_adjoint.jl`, `test/graph_adjoint_devices.jl`.

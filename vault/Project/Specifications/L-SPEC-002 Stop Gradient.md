@@ -1,6 +1,6 @@
 #design
 
-> **Status: implemented for the documented CPU/static-schedule domains (2026-10-27); unsupported combinations throw.** Related: [[L-SPEC-001 The Factor Interface]], [[Factors are Parameterized Statistical Games]] §"Parameters, and the gradient the paper asks for", [[Backward Signatures]], [[RED-Diff as a Statistical Game]] §3, [[LP-011 Gradient couplings and isfrozen are declared but unused]]. Code: `lib/LenticulumCore.jl/src/abstract_types.jl` (`AbstractGradientCoupling`), `statistical_game.jl` (`isfrozen`), `lib/Mycelium.jl/src/graph.jl` (`EdgeDirection`, `connect!`).
+> **Status: implemented for the documented replay/implicit CPU domains and JLArrays replay subset (2026-10-28); unsupported combinations throw.** Related: [[L-SPEC-001 The Factor Interface]], [[Factors are Parameterized Statistical Games]] §"Parameters, and the gradient the paper asks for", [[Backward Signatures]], [[RED-Diff as a Statistical Game]] §3, [[LP-011 Gradient couplings and isfrozen are declared but unused]]. Code: `lib/LenticulumCore.jl/src/abstract_types.jl` (`AbstractGradientCoupling`), `statistical_game.jl` (`isfrozen`), `lib/Mycelium.jl/src/graph.jl` (`EdgeDirection`, `connect!`).
 
 > Sources: code: `lib/LenticulumCore.jl/src/abstract_types.jl`, `statistical_game.jl`, `lib/Mycelium.jl/src/graph.jl`, `polarity_resolution.jl`; tests: both packages' `test/runtests.jl`, `LP-011` testsets.
 >
@@ -86,3 +86,21 @@ returns an estimate of the same endpoint derivative, including a baseline contro
 **Evidence:** `lib/Mycelium.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`; final suite counts/timings are recorded in the LP-011 note.
 No new paper citation was introduced; the ADEV wiki note was read for estimator semantics.
+
+
+## Batch C extension (2026-10-28)
+
+The finite Exact/Pathwise computation now includes flooding snapshots, outgoing
+damping and residual schedules with fixed recorded task choices. The residual
+derivative is piecewise-defined; scheduling and stopping branches are not
+differentiated. `adjoint=:implicit` is an opt-in converged BP derivative in CPU
+Gaussian/Dirac message coordinates. Diagonal/detach attachments set all legal directed update
+rows constant, imposing zero message variations there. Frozen parameters remain
+pinned while message derivatives through their factors survive. The new
+[[graph_adjoint]] note specifies the linear system, convergence/invertibility
+conditions, solver costs, empty-state restriction and unsupported cases.
+
+Evidence: `lib/Mycelium.jl/test/graph_adjoint.jl`, `graph_adjoint_devices.jl`.
+JLArrays tests cover new replay schedules; implicit device coordinates and
+native Enzyme/Mooncake replay remain unsupported. See LP-002's dated batch C
+section for measurements and reproducers. Existing defaults are unchanged.

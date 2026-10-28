@@ -189,7 +189,7 @@ activity; the built-in ODE stage fold requires an explicit runtime-activity mode
 extensions and other solve backends are rejected before solving. Pass the backend to
 `solve_state` and the outer derivative. Enzyme outer closures that capture arrays
 need DI constant contexts or `function_annotation=Enzyme.Const`; see [[solve]] for
-the limitation and reproducer. GPU remains untested. Second order uses the dedicated dense `deq_hvp` API below.
+the limitation and reproducer. Hardware GPU execution remains untested; the JLArrays subset is described below. Second order uses the dedicated dense `deq_hvp` API below.
 
 
 ## Solver numerics and the other polarity (2026-10-27)
@@ -234,11 +234,56 @@ blocks in input-then-parameter order. The result is a flat vector in the selecte
 coordinates. A dedicated second-order adjoint differentiates residuals and loss
 twice at one root; no solver trajectory is differentiated. Only dense CPU real
 ForwardDiff residual/ loss derivatives are supported, with quadratic storage in
-the combined coordinates. This does not add second-order reverse-input solves,
-Krylov HVPs or arbitrary AD nesting. Unsupported backend selections and detected
+the combined coordinates. The reverse polarity uses `solve_input_hvp` below.
+Krylov HVPs and arbitrary AD nesting remain unsupported. Unsupported backend selections and detected
 nested primitive derivatives throw `ArgumentError`; use the dedicated API.
 
 `test/solver_numerics.jl` compares reverse derivatives to the closed form above,
 a nonlinear selected branch and reference differences. HVP tests compare to the
 analytic linear solve (including mixed blocks), scalar analytic second derivatives,
 and finite differences of first-order IFT gradients. See LP-002 for run measurements.
+
+
+## Batch A: reverse-input second order (2026-10-27)
+
+`solve_input_hvp(loss, f, z, ps, st, v; wrt=:ps, ad=AutoForwardDiff(), x₀=...)`
+uses the same dense second-order adjoint through the input-problem adapter.
+`:z` selects observed state; `:joint` orders observed state before flattened
+parameters. The loss is a function of solved input only. Incoming state is fixed;
+branch selection uses `x₀`. Square dimensions, a converged root and nonsingular
+input residual Jacobian are required. Backend, dense-storage and nesting limits
+are identical to `deq_hvp`.
+
+In the derivation in [[solve]], replace the unknown by x and observed coordinate
+by z; the equations and signs are unchanged. `test/lp002_batch_a.jl` compares
+linear mixed Hessian blocks to the closed-form inverse and finite differences of
+first-order IFT gradients. For `x=sqrt(z-a*z²-b-bias)` it checks the analytic
+second state derivative and the full joint Hessian product. No root iterations
+are differentiated.
+
+
+## Device first-order rules (2026-10-27)
+
+`test/device_arrays.jl` covers Picard, dense Broyden and limited Broyden roots in
+both polarities with JLArrays scalar indexing disabled. Device default warm starts
+follow the observed array's storage and precision; explicit guesses still select
+their own storage. CPU defaults are unchanged. Both observed-channel and parameter
+IFT gradients match linear closed forms with opt-in KrylovIFT, including retained
+Broyden and Jacobi preconditioning. Active warm starts have zero derivative.
+DenseIFT has no working LU on JLArrays and gives a clear error; no host fallback
+is supplied. Enzyme/Mooncake device rules, device HVPs and complex rules are not
+supported. See [[solve]] for storage, tolerances and ForwardDiff directional costs.
+
+
+Coupled Mycelium replay passes its selected AD backend to DEQ message solves via
+the DI extension's private gradient-message hook. Both message directions now use
+IFT rules, checked against nonzero downstream linear losses on JLArrays. Raw
+ChainRules/Zygote inference replays the same primitive. Use the graph gradient
+entry point with explicit `ad` for ForwardDiff; raw implicit `infer!` is not an
+automatic backend-selection interface. Reverse-input message replay with nonempty
+Lux state throws, since legacy primal state threading and fixed-state IFT define
+different equations. Normal inference/default diagonal training are unchanged.
+
+Raw ForwardDiff DEQ messages now reject dual-valued unannotated solves with an
+ArgumentError pointing to the explicit graph gradient driver, preventing accidental
+root-iteration differentiation. Ordinary primal messages are unchanged.

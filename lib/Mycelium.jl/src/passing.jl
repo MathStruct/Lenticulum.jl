@@ -176,7 +176,7 @@ function _task_age(s::MessageStore, t::MessageTask)
 end
 
 function sweep!(s::MessageStore, g::FactorGraph, sched::ResidualSchedule, ps, st;
-                damping::Real = 0.0)
+                damping::Real = 0.0, record = nothing)
     s.iteration += 1
     ts = all_tasks(g)
     isempty(ts) && return 0.0, st
@@ -196,6 +196,7 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::ResidualSchedule, ps, st
             end
         end
         best_idx == 0 && break
+        record === nothing || push!(record, ts[best_idx])
         _, res, st = step!(s, g, ts[best_idx], ps, st; damping, commit = true)
         maxres = max(maxres, res)
         best_res == 0.0 && break
@@ -234,7 +235,8 @@ applies where [`can_damp`](@ref) is true; elsewhere it is a no-op. Callers can i
 `can_damp`; the convergence report does not automatically record unsupported damping.
 """
 function propagate!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, ps, st;
-                    maxsweeps::Int = 100, tol::Real = 1e-8, damping::Real = 0.0)
+                    maxsweeps::Int = 100, tol::Real = 1e-8, damping::Real = 0.0,
+                    record = nothing)
     0 <= damping < 1 || throw(ArgumentError("damping must be in [0, 1); got $damping"))
     if sched isa TreeSchedule
         _, st = sweep!(s, g, sched, ps, st; damping)
@@ -242,7 +244,8 @@ function propagate!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, ps
     end
     res = Inf
     for i in 1:maxsweeps
-        res, st = sweep!(s, g, sched, ps, st; damping)
+        res, st = sched isa ResidualSchedule ?
+            sweep!(s, g, sched, ps, st; damping, record) : sweep!(s, g, sched, ps, st; damping)
         if res <= tol
             return ConvergenceReport(true, i, float(res), "residual below tol"), st
         end

@@ -118,3 +118,13 @@ The construction-time rejection account above describes the 2026-10-26 option-2 
 Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
 are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].
+
+
+## Device freeze masks (2026-10-27)
+
+`_factor_parameters` delegates coordinate pinning to a storage-specific helper.
+CPU keeps its prior comprehension; GPUArraysCore uses broadcast masks and
+`stop_gradient` for frozen entries. This avoids host scalar reads during raw
+static inference AD. Freeze indices are constant metadata. JLArrays replay and
+subset/all freeze tests live in `lib/ImplicitLayers.jl/test/device_arrays.jl`;
+see [[gradient_couplings]] for coverage limits.

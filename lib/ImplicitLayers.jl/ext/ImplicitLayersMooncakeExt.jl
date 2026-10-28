@@ -15,7 +15,7 @@ function MC.rrule!!(::MC.CoDual{typeof(IL._implicit_state)}, ad::MC.CoDual,
     out = IL._implicit_state(a, model, primal, template, offsets, state, initial)
     inner = model.ift isa IL.KrylovIFT ? DI.ADTypes.AutoMooncake() : DI.ADTypes.AutoForwardDiff()
     saved, z = copy(primal), copy(out[1])
-    fac = IL._ift_prepare(inner, model, saved, z, template, offsets, state, true)
+    fac = IL._ift_prepare(inner, model, saved, z, template, offsets, state, true, IL._solve_history(out[2]))
     result = MC.zero_fcodual(out)
     dz = MC.tangent(result)[1]
     du = MC.tangent(u)

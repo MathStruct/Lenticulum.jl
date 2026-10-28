@@ -1,7 +1,7 @@
 #implementation
 
-> Belief-message schedules and their graph constraints; static parameter-gradient
-> replay is implemented separately.
+> Belief-message schedules and their graph constraints; realised-schedule
+> parameter derivatives are defined separately.
 
 > Sources: code: `schedules.jl`
 >
@@ -22,7 +22,7 @@ emits). `islegal(g, task)` is the predicate; every generator filters on it.
 |---|---|---|
 | `flooding_schedule` | nothing | all legal tasks, double-buffered |
 | `tree_schedule` | `istree` | inward (reverse BFS) + outward (BFS) |
-| `forward_backward_schedule` | `isdag` | topological sweep + reverse over bidirectional edges |
+| `forward_backward_schedule` | `isdag` or `istree` | topological sweep for a DAG; tree inward/outward sweeps otherwise |
 
 `tree_schedule` roots at a leaf, BFS to record which endpoint of each edge is the *child*, then
 emits child→parent messages in reverse BFS order and parent→child in BFS order. That ordering is
@@ -52,25 +52,27 @@ indistinguishable without the number.
 In the supervised test graph, 4 of 12 messages are pruned: two `Emitting` data edges and two
 `Absorbing` loss edges each lose one direction.
 
-### 2. `forward_backward_schedule`'s backward list is always empty
+### 2. `forward_backward_schedule`'s DAG backward list is empty
 
 `isdag` excludes any graph with a bidirectional edge, and the backward sweep only covers
-bidirectional edges. So the two conditions are mutually exclusive and `backward` is always `[]`.
+bidirectional edges. Thus the DAG branch always returns `backward = []`.
 
 That is **correct**, and it is the sharpest available statement of the Lux/Lenticulum boundary:
 a strictly unidirectional DAG has no backward *belief* flow, only cotangent flow. But it does
-mean the `backward` field is dead code in every reachable case, which looks like a bug on
-reading. Kept, with the test asserting it is empty, because the assertion documents the boundary
-better than a comment would.
+mean the DAG branch cannot use that field. The separate tree fallback wraps
+`tree_schedule(g).inward` and `.outward`, so a bidirectional tree can have a nonempty
+backward list. The previous note's claim that it was empty in every reachable case
+was stale; `forward_backward_schedule` explicitly contains this fallback.
 
-### 3. `ResidualSchedule` has no execution path
+### 3. Residual scheduling evaluates all candidates
 
-The type and its documentation exist; the priority loop does not. It would be useless without a
-working [[messages|`belief_distance`]], which returns `Inf` for most pairs — a residual
-scheduler that cannot compare messages degrades to an arbitrary order, which is what
-`flooding_schedule` already provides more honestly.
-
-Deliberately left as a documented type rather than a fake implementation.
+The previous note incorrectly said this type had no executor. `passing.jl`
+already has a priority loop: probe every legal task, commit the largest residual,
+break ties by oldest message (then task order), and stop early at zero residual.
+A sweep commits at most `min(maxtasks, length(all_tasks(g)))` tasks. This costs
+quadratic message evaluations per full sweep. Unsupported distances returning
+`Inf` prevent numerical convergence certification. Probe state updates are
+discarded; factors must use functional state.
 
 ### 4. Tree rooting is arbitrary and it matters
 
@@ -102,3 +104,19 @@ unchanged; the old statement that non-default annotations fail at construction i
 Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
 are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].
+
+
+## Batch C schedule derivatives (2026-10-28)
+
+[[gradient_couplings]] now replays flooding with an immutable sweep snapshot and
+residual schedules with recorded committed task choices. Damping is inside each
+replayed outgoing update. The residual derivative is piecewise-defined: its
+chosen sequence and stopping decisions are fixed. The implicit adjoint in
+[[graph_adjoint]] uses these schedules only to find and verify a BP fixed point.
+Tests: `test/graph_adjoint.jl`, `test/graph_adjoint_devices.jl`.
+
+The final API build exposed a misplaced docstring: the `tree_schedule` help
+block preceded `_resolve_tree_root`, so Documenter attached it to that internal
+helper and could not resolve a reference to the public generator. The block now
+precedes `tree_schedule` itself. This corrects help/API rendering without changing
+either function body.

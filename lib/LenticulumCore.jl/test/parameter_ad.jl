@@ -25,17 +25,21 @@ using DifferentiationInterface, ForwardDiff, Zygote, Enzyme
     J = -hcat(kron(x', Id), Id, ones(2))
     r = y - ps.block.A * x - ps.b .- ps.c[1]
     for ad in (nothing, AutoForwardDiff(), AutoZygote(), AutoEnzyme())
-        got = energy_jacobian(f, x, nothing, y, ps, st; wrt = :ps, ad)
+        # Jacobians use reverse-mode Enzyme: DI's default AutoEnzyme() Jacobian runs forward
+        # mode, which returns NaN in about 5% of calls on `u .- A*x` with constant A, x
+        # (Enzyme 0.13.216; examples/lp002_enzyme_endpoint_limit.jl). Gradients keep AutoEnzyme().
+        jad = ad isa AutoEnzyme ? AutoEnzyme(; mode = Enzyme.Reverse) : ad
+        got = energy_jacobian(f, x, nothing, y, ps, st; wrt = :ps, ad = jad)
         @test got ≈ J atol = 2e-9
-        @test gauss_newton_metric(f, x, nothing, y, ps, st; wrt = :ps, ad) ≈ J'J atol = 1e-8
+        @test gauss_newton_metric(f, x, nothing, y, ps, st; wrt = :ps, ad = jad) ≈ J'J atol = 1e-8
         g = energy_gradient(f, x, nothing, y, ps, st; ad)
         @test g.block.A ≈ -r * x' atol = 2e-9
         @test g.b ≈ -r atol = 2e-9
         @test g.c[1] ≈ -sum(r) atol = 2e-9
         @test g.block.empty === (;)
         @test LenticulumCore._flatten(free_energy_gradient(f, x, y, ps, st; ad)) ≈ J'r atol = 2e-9
-        @test energy_jacobian(f, x, nothing, y, ps, st; wrt = :x, ad) ≈ -ps.block.A atol = 2e-9
-        @test energy_jacobian(f, x, nothing, y, ps, st; wrt = :y, ad) ≈ Id atol = 2e-9
+        @test energy_jacobian(f, x, nothing, y, ps, st; wrt = :x, ad = jad) ≈ -ps.block.A atol = 2e-9
+        @test energy_jacobian(f, x, nothing, y, ps, st; wrt = :y, ad = jad) ≈ Id atol = 2e-9
         @test parameter_gradient(_ -> 1.0, (;); ad) === (;)
     end
     @test st.calls == 0

@@ -1,6 +1,6 @@
 #open-problem
 
-> **Status: option 1 implemented for documented CPU/static-schedule domains (2026-10-27); broader estimator/schedule/backend support remains.** Related: [[L-SPEC-002 Stop Gradient]], [[Factors are Parameterized Statistical Games]], [[The Type Discipline of a Factor Graph]] §4. Code: `abstract_types.jl`, `statistical_game.jl`, `lib/Mycelium.jl/src/graph.jl`.
+> **Status: option 1 extended to realised flooding/residual/damped replay and opt-in CPU implicit graph adjoints (2026-10-28); broader estimator/backend/device support remains.** Related: [[L-SPEC-002 Stop Gradient]], [[Factors are Parameterized Statistical Games]], [[The Type Discipline of a Factor Graph]] §4. Code: `abstract_types.jl`, `statistical_game.jl`, `lib/Mycelium.jl/src/graph.jl`.
 
 > Sources: repository audit of `src/`, `lib/` (source, extensions, tests, examples), `test/`, `docs/literate/` and `bench/` on 2026-10-26; code: `lib/LenticulumCore.jl/src/abstract_types.jl`, `statistical_game.jl`, `lib/Mycelium.jl/src/graph.jl`, `polarity_resolution.jl`; tests: both packages' `test/runtests.jl`, the `LP-011` testsets.
 >
@@ -53,7 +53,7 @@ posterior. A collapsed Gaussian composite also differs semantically from an expo
 internal graph wire; its three analytic endpoint coupling choices coincide.
 
 Remaining domains: flooding/residual replay, graph damping in reverse mode, other schedule
-AD backends, GPU, nonterminal/bidirectional score sampling, stochastic solver inversion
+AD backends, broader device message algebra, nonterminal/bidirectional score sampling, stochastic solver inversion
 estimators, and an implicit graph adjoint. Unsupported combinations raise ArgumentError;
 this implementation does not claim those capabilities.
 
@@ -140,3 +140,116 @@ The source `docs/quartz` checkout and `meta/` were untouched; no git checkout, c
 reset, stash or commit was run. The four bibliography scripts were run; no new work
 was added to refs.bib, and only generated existing-work backlinks changed.
 `git diff --check` passes.
+
+
+### LP-002 batch A endpoint state policy (2026-10-27)
+
+NeuralODE factors can opt into `state_policy=:fixed`: constant incoming Lux state
+per solve and one final endpoint update. The existing diagonal graph parameter
+gradient and `parameter_step` driver use the factor's policy and fixed state
+subtree. `lib/ImplicitLayers.jl/test/lp002_batch_a.jl` checks these gradients
+against a state-dependent affine closed form with ForwardDiff, Zygote, Mooncake
+and runtime-activity Enzyme reverse. Default evaluation-state threading is
+unchanged; state derivatives, schedule replay backends and graph adjoint scope
+are unchanged. [[flow]] records the solver/backend restrictions.
+
+
+## LP-002 batch B device subset (2026-10-27)
+
+JLArrays tests with scalar indexing disabled extend finite static replay to
+Float32/Float64 parameter arrays under ForwardDiff/Zygote. Dirac and diagonal
+Gaussian messages cover exact/pathwise/diagonal boundaries, detach, subset/all
+freezing, raw static inference AD and optimiser steps. Terminal diagonal-Gaussian
+score estimates and standard errors compare with CPU using common explicit host
+RNG draws. This adds no native GPU RNG, dense device Gaussian factorisation,
+categorical device score rule, new schedule or new replay backend.
+
+The fixes remove host scalar parameter gathers and incompatible diagonal
+cotangents, and preserve Float32 in device optimiser coefficients. The quadratic
+Gaussian oracle includes both expected variance and Bethe entropy terms.
+Evidence: `lib/ImplicitLayers.jl/test/device_arrays.jl`; details and limits are in
+[[gradient_couplings]]. CPU primal/default arithmetic is retained.
+
+
+The same batch found that DEQ replay messages lacked explicit backend selection.
+Replay now passes a constant backend context to ImplicitLayers' IFT message hook;
+nonzero downstream DEQ/ODE graph losses are checked in both message directions.
+Raw Zygote static inference uses the hook too. ForwardDiff implicit graphs should
+use the explicit graph gradient API; raw `infer!` has no automatic IFT selection.
+Nonempty-state reverse-input DEQ replay is explicitly rejected. See
+[[gradient_couplings]] for this distinction from ordinary inference.
+
+Raw ForwardDiff DEQ messages now reject dual-valued unannotated solves with an
+ArgumentError pointing to the explicit graph gradient driver, preventing accidental
+root-iteration differentiation. Ordinary primal messages are unchanged.
+
+
+The resumed batch B CPU regression found and repaired backend-context dispatch
+for GaussianFactor, GaussianPrior and GaussianComposite too. Their existing
+functional inverse formulas are retained; the old hook signatures would instead
+trace ordinary Cholesky inverses during replay. The closed-form top-level
+marginal-likelihood oracle is included in the final full-suite rerun.
+
+
+The final full ImplicitLayers run passes 5,308 assertions, including 3,414
+JLArrays assertions across implicit rules, flows and graph paths. The largest
+recorded vector errors scaled by `max(1,norm(reference))` are 3.0809478630544618e-6
+(Float32) and 2.7084487851328933e-11 (Float64), within the tests' element-type
+tolerances. These are emulator/reference measurements, with scalar indexing
+disabled; hardware execution and the broader graph domains above remain open.
+See LP-002 for full package/build verification and the measurement definition.
+
+
+Final batch B verification passes all seven complete suites sequentially:
+25,377 assertions, including the device coverage above. The full API/vault build
+re-executes all ten tutorials and passes; the standalone vault also passes with
+254 pages and no KaTeX errors. LP-002 records exact counts, timings, memory,
+repaired regressions and the disposable-Quartz/log locations.
+
+
+## LP-002 batch C: graph schedule adjoints (2026-10-28)
+
+[[gradient_couplings]] now specifies finite flooding/residual/damped replay.
+Residual task choices are recorded outside AD and replayed as a fixed sequence: a
+piecewise realised-schedule derivative. Raw Zygote inference uses its actual
+reference count/choices, including damping. The all-diagonal default is unchanged.
+
+`free_energy_gradient` and `parameter_step` accept `adjoint=:implicit` with
+reference convergence and dense/Krylov linear-solve controls. [[graph_adjoint]]
+gives the message-space IFT equation and cut-row semantics. CPU Gaussian/Dirac,
+Exact/Pathwise, empty message state, reference differences/ForwardDiff/Zygote are
+the supported subset. Tree tests compare the dense Gaussian closed form and
+converged exact unroll. Loopy tests compare reconverged Bethe differences and
+measure convergence of finite unrolls. JLArrays replay covers the new schedules;
+implicit device coordinates are explicitly rejected.
+
+Native Enzyme/Mooncake replay probes and the divergence/metric interpretation
+are recorded with reproducers in LP-002's batch C section. Terminal score and
+straight-through restrictions stay as specified above. Tests are
+`lib/Mycelium.jl/test/graph_adjoint.jl` and `graph_adjoint_devices.jl`.
+
+
+The resumed batch C Mycelium suite passes 1,265 assertions, including 480 new
+graph assertions (194 JLArrays), in 1367.48 s. The loopy unrolled-gradient error
+falls from 0.1763879042 at four flooding sweeps to 2.526489452e-10 at 64.
+Implicit gradients agree with the independent Gaussian/reconverged references
+to a largest scaled error of 1.303263272e-9. The correlated 2D dense Gaussian
+coordinate test and full ambiguity check also pass. Native Mooncake succeeds
+on the minimal Dirac probe but fails on Gaussian Bethe entropy; Enzyme fails
+with runtime activity. The public backend guard is retained. LP-002 records the
+reproducers, remaining suite/build verification and the recurring Core Enzyme
+endpoint-Jacobian NaN, which is not a repaired graph-adjoint defect.
+
+
+Final batch C package verification passes all seven complete suites sequentially:
+25,857 assertions, including Mycelium's 480 batch C checks and the retained
+ImplicitLayers device coverage. The fresh Core suite and its 20-repeat standalone
+endpoint probe pass, but earlier Enzyme NaNs remain recorded and unresolved; no
+CPU backend fix or relaxed assertion is claimed. LP-002 records per-package
+counts, timings, memory and the separate diagnostic logs.
+
+Both requested documentation commands pass; the corrected API/vault build
+regenerates all ten tutorials in 483.28 s, and the standalone vault renders
+255 pages without KaTeX errors. Final evidence-only note edits are refreshed
+in the vault before the disposable Quartz copy is removed. See LP-002 for logs,
+measurements and the full batch C file list.

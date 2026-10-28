@@ -54,6 +54,7 @@ include("free_energy.jl")
 include("factors.jl")
 include("gaussian.jl")
 include("gradient_couplings.jl")
+include("graph_adjoint.jl")
 
 # --- Graph -----------------------------------------------------------------
 export FactorGraph, GraphBuilder, VariableNode, FactorNode, Edge

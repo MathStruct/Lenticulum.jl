@@ -55,7 +55,7 @@ All four backends are checked against the linear exact solution, including a
 200-dimensional contractive example that forbids the dense state-Jacobian API.
 `deq_sensitivity` stays dense. The native Enzyme/Mooncake rules keep their existing
 inner ForwardDiff path in dense mode; in Krylov reverse mode each uses its own
-reverse backend. GPU remains untested. Dedicated dense second-order products are described below. Enzyme outer
+reverse backend. Hardware GPU execution remains untested; see the JLArrays subset below. Dedicated dense second-order products are described below. Enzyme outer
 closures capturing arrays need DI constant contexts or
 `AutoEnzyme(function_annotation=Enzyme.Const)`; see `solve.md` for a reproducer.
 
@@ -84,7 +84,14 @@ applies `ldiv!`. Operators follow Krylov.jl's protocol. `JacobiIFT()` supplies a
 inverse diagonal using n operator probes and O(n) storage; small/nonfinite diagonal
 entries throw. `on_solve=r -> ...` receives a named tuple with `iterations`,
 `residual` and `solved` for each RHS. The final original residual is checked even
-with preconditioning. The built-in inverse requires `ldiv=false`.
+with preconditioning. The built-in inverses require `ldiv=false`.
+
+`BroydenIFT()` reuses the actual `LimitedBroydenSolver` forward inverse history
+as a left preconditioner, transposed for adjoint solves. Select
+`DEQFactor(...; solver=LimitedBroydenSolver(), ift=KrylovIFT(precond=BroydenIFT()))`.
+History belongs to one solve; there is no shared cache or additional root solve.
+Other root solvers throw. A warm start may yield no secants, and limited memory
+can lose useful information; performance is problem dependent.
 
 ```julia
 using ForwardDiff, DifferentiationInterface, ADTypes
@@ -102,6 +109,11 @@ combined state/input/parameter dimension. Unsupported backend selections raise
 `ArgumentError`; arbitrary nesting of the first-order solve rules is unsupported.
 The tests compare linear products to the closed-form solve, nonlinear scalar
 second derivatives, and finite differences of first-order IFT gradients.
+
+`solve_input_hvp(loss, f, z, ps, st, v; wrt=:ps, ad=AutoForwardDiff(), x₀=...)`
+extends the same dense adjoint to `loss(xstar)`. `wrt=:z` selects observed state;
+`:joint` selects observed state followed by parameters, including mixed blocks.
+It has the same dense CPU/backend/loss restrictions as `deq_hvp`.
 
 The no-AD `solve_input` retains legacy state threading. Its AD path holds incoming
 state fixed and advances it once at the root; stateful cells can therefore produce
@@ -176,22 +188,37 @@ The default `sensealg=nothing` resolves to `ForwardDiffSensitivity()` for small
 parameter counts, as recommended by the
 [SciMLSensitivity manual](https://docs.sciml.ai/SciMLSensitivity/stable/manual/differential_equation_sensitivities/#Choosing-a-Sensitivity-Algorithm).
 Flattened Lux parameters are passed as `ODEProblem.p`, with a zero-valued shape
-template in the RHS. The sensitivity path requires recursively empty incoming and returned Lux state.
-Nonempty incoming state falls back to legacy evaluation-state threading for primal
-forward/reverse flows and inference. Factor and graph derivative entry points reject
-AD with nonempty state before tracing; reference differences remain available.
-This excludes mutable statistics whose evolution depends on adaptive/rejected stages.
-An arbitrary outer DI call bypasses the factor/graph check, so its caller must enforce
-the empty-state restriction, as with Enzyme runtime activity. Euler/RK4 state
-threading is unchanged.
+template in the RHS. With the default `state_policy=:threaded`, the sensitivity
+path requires recursively empty incoming/returned Lux state. Nonempty-state
+primal evaluation and reference differences preserve their previous threading;
+factor/graph AD rejects that combination before tracing.
 
-Tsit5 tests cover AutoForwardDiff (dual solves), AutoZygote and AutoMooncake with
-the default, `InterpolatingAdjoint` and `GaussAdjoint` (both with `ZygoteVJP()`).
-They compare with ``D_a z(T)=Tz_0e^{aT}`` and nonlinear finite differences; graph
-`parameter_step` learns the continuous-time target ``e^{0.4}`` with the default.
-Factor/graph derivative entry points explicitly reject AutoEnzyme on this SciML path.
+Opt into `NeuralODEFactor(...; state_policy=:fixed)` for functional nonempty
+state. All RHS evaluations use incoming state as a constant; after successful
+integration, a single evaluation at final endpoint/time produces returned state.
+Euler/RK4 implement the same opt-in policy, while their default continues stage
+threading. State itself is not differentiated. In-place state mutation and
+fixed-state `flow_logdet` are unsupported.
+
+Tests cover Tsit5, Vern7 (`OrdinaryDiffEqVerner`) and stiff Kvaerno3/KenCarp4
+(`OrdinaryDiffEqSDIRK`), in both directions, with default sensitivity,
+`InterpolatingAdjoint` and `GaussAdjoint` (`ZygoteVJP`). ForwardDiff, Zygote and
+Mooncake gradients are compared to affine closed forms and fixed-state RK4.
+The reverse Kvaerno3/InterpolatingAdjoint pair fails its closed-form oracle on
+the tested stack and throws at factor/graph AD entry points. Use GaussAdjoint,
+KenCarp4, or direct AutoForwardDiff instead. Primal evaluation stays available;
+`examples/lp002_sciml_adjoint_limit.jl` exposes the failing gradient directly.
+Runtime-activity Enzyme reverse scalar loss gradients are tested for default Tsit5 sensitivities:
+`AutoEnzyme(mode=Enzyme.set_runtime_activity(Enzyme.Reverse))`.
+Vector-return Enzyme split-reverse Jacobians are unsupported (`energy_jacobian`
+throws; use the other backends for Jacobians). Enzyme forward fails in OrdinaryDiffEq callback initialization on the tested
+stack and gets a configuration error at factor/graph entry points.
+`examples/lp002_enzyme_limits.jl` reproduces this and the outer-closure annotation
+boundary. No Enzyme support is claimed for other solver/sensealg combinations.
+Arbitrary outer DI calls must enforce these restrictions themselves.
+
 Sensitivity selection leaves inversion labels and reversal semantics unchanged.
-CNF/divergence AD, other solvers, callbacks, GPU and higher derivatives are untested.
+CNF/divergence AD, callbacks, GPU and higher flow derivatives are untested.
 Continuous adjoints can retain intermediate trajectories internally. Backsolve
 reverse-conditioning concerns still apply.
 
@@ -218,9 +245,9 @@ unrolling.
 ## Known gaps
 
 - Dense IFT remains the default. Jacobi setup requires one operator probe per coordinate.
-- SciML coverage is limited to the tested Tsit5 endpoint algorithms above; divergence
-  AD and nonempty-state sensitivities are not covered.
-- Second-order IFT is limited to the dedicated dense forward-polarity adjoint above.
+- SciML support is limited to the solver/backend/state-policy combinations tested above;
+  divergence AD and Enzyme forward endpoint AD remain open.
+- Second-order IFT is limited to the dedicated dense adjoints in both polarities above.
 - Built-in explicit methods have no error estimate and may diverge on coarse or stiff
   problems. The optional solvers do not remove inverse conditioning or establish GPU support.
 - Every inversion returns a `DiracBelief`.
@@ -273,4 +300,49 @@ Solved-state IFT AD accepts `AutoForwardDiff()`, `AutoZygote()`, `AutoEnzyme()` 
 extensions and other solve backends are rejected before solving. Pass the backend to
 `solve_state` and the outer derivative. Enzyme outer closures that capture arrays
 need DI constant contexts or `function_annotation=Enzyme.Const`; see the implementation note `solve.md` for
-the limitation and reproducer. GPU remains untested. Second order is limited to the dedicated dense adjoint above.
+the limitation and reproducer. Hardware GPU execution remains untested; see the JLArrays subset below. Second order is limited to the dedicated dense adjoint above.
+
+
+## Device arrays (LP-002 batch B)
+
+JLArrays tests run with scalar indexing disabled in Float32 and Float64. Picard,
+Broyden and LimitedBroyden solve both DEQ polarities. First-order ForwardDiff/Zygote
+IFT gradients use `KrylovIFT`, optionally with Jacobi, retained Broyden or supplied
+left/right preconditioners. Choose root/linear tolerances appropriate for Float32.
+Device default guesses and solver storage follow the observed array; CPU defaults
+are unchanged. DenseIFT requires device LU, unavailable on JLArrays, and gives an
+ArgumentError recommending KrylovIFT. No dense CPU fallback is hidden in that rule.
+
+Euler/RK4 forward/reverse endpoints, input/parameter derivatives and parameter
+energy/free-energy/graph entry points are tested against discrete closed forms
+and CPU. Device time coefficients preserve Float32; both Lux state policies are
+tested with empty and functionally updated state. Time-dependent fixtures check
+stage and final state-update time precision against an augmented linear-system oracle.
+A ChainRules loop helper propagates threaded-flow Zygote input cotangents
+correctly while retaining the original fold primal for native backends.
+
+Core's ForwardDiff device adapter uses DI directional pushforwards; native
+ForwardDiff vector seeding still scalar-indexes. Cost grows with active parameter
+count. Hardware GPU execution, SciML devices, divergence, device HVPs and
+Enzyme/Mooncake device rules are outside this coverage. The latter rules and
+device reference differences give explicit unsupported-combination errors.
+
+
+## Divergence sensitivity boundary (LP-002 batch C)
+
+Endpoint sensitivity does not automatically cover the CNF density correction.
+AD through `integrate_with_divergence` must differentiate the trace's explicit
+parameter dependence and its trajectory dependence. The original trace is a
+mutable, dense forward-difference computation; AD of those probes, when it
+works, gives the finite-probe derivative. Stateful probe calls also advance the
+default Lux evaluation state, while `state_policy=:fixed` still rejects logdet.
+Adaptive-SciML, device and general native-backend divergence sensitivities remain
+open. `examples/lp002_metric_divergence_limits.jl` isolates raw trace, integrated
+linear correction and Sampson metric localisation against independent closed
+forms. LP-002 records the observed backend results and remaining work.
+
+Graph-level realised-schedule and converged-message gradients are Mycelium APIs;
+see [Mycelium](@ref mycelium). The new implicit graph adjoint has no dependency
+on ImplicitLayers and currently requires empty message state and CPU numeric
+Gaussian/Dirac coordinates. Factor-level IFT and the graph fixed-point equation
+are separate differentiation problems.

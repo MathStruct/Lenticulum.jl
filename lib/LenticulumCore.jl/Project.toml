@@ -11,6 +11,7 @@ LuxCore = "bb33d45b-7691-41d6-9220-0943567d0623"
 
 
 [weakdeps]
+GPUArraysCore = "46192b85-c4d5-4398-a991-12ede77f4527"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
@@ -19,12 +20,16 @@ Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 ExponentialFamily = "62312e5e-252a-4322-ace9-a5f4bf9b357b"
 
 [extensions]
+LenticulumCoreGPUArraysCoreChainRulesExt = ["GPUArraysCore", "ChainRulesCore"]
+LenticulumCoreGPUArraysCoreExt = "GPUArraysCore"
+LenticulumCoreGPUArraysCoreDIExt = ["GPUArraysCore", "DifferentiationInterface"]
 LenticulumCoreChainRulesCoreExt = "ChainRulesCore"
 LenticulumCoreForwardDiffExt = "ForwardDiff"
 LenticulumCoreDifferentiationInterfaceExt = "DifferentiationInterface"
 LenticulumCoreExponentialFamilyExt = ["ExponentialFamily", "BayesBase", "Distributions"]
 
 [compat]
+GPUArraysCore = "0.2"
 ChainRulesCore = "1"
 ForwardDiff = "0.10, 1"
 DifferentiationInterface = "0.7"

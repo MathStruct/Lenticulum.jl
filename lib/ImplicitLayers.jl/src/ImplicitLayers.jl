@@ -102,12 +102,12 @@ include("luxfactor.jl")
 
 # --- Solvers ---------------------------------------------------------------
 export SolveReport, AbstractRootSolver, PicardSolver, BroydenSolver, LimitedBroydenSolver
-export DenseIFT, KrylovIFT, JacobiIFT
+export DenseIFT, KrylovIFT, JacobiIFT, BroydenIFT
 export solve_root, fd_jacobian, ift_sensitivity
 
 # --- DEQ -------------------------------------------------------------------
 export DEQFactor, DEQModel, default_cell_input
-export cell_value, solve_state, solve_input, deq_sensitivity, deq_hvp
+export cell_value, solve_state, solve_input, deq_sensitivity, deq_hvp, solve_input_hvp
 export inchannel, statechannel, indim, statedim
 
 # --- Flows -----------------------------------------------------------------

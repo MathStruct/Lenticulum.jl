@@ -440,3 +440,13 @@ include("parameter_ad.jl")
 include("lp002_followups.jl")
 
 include("solver_numerics.jl")
+
+include("lp002_batch_a.jl")
+
+# Device (JLArrays) coverage is slow; it runs locally with LENTICULUM_DEVICE_TESTS=true,
+# not on every CI push.
+if get(ENV, "LENTICULUM_DEVICE_TESTS", "false") == "true"
+    include("device_arrays.jl")
+else
+    @info "Skipping device tests; set LENTICULUM_DEVICE_TESTS=true to run them."
+end

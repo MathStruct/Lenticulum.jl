@@ -106,7 +106,7 @@ end
         @test grad.b.gain ≈ 0.79*1.3 atol=2e-8
     end
     g,p,st,sched=coupled_chain(ExactCoupling())
-    @test_throws ArgumentError free_energy_gradient(MessageStore(g),g,p,st;schedule=FloodingSchedule(collect(tasks(sched))))
+    @test free_energy_gradient(MessageStore(g),g,p,st;schedule=FloodingSchedule(collect(tasks(sched))),nsweeps=6).a.gain ≈ 0.1*0.7+2*1.3*0.79 atol=2e-8
     @test_throws ArgumentError free_energy_gradient(MessageStore(g),g,p,st;schedule=sched,nsweeps=0)
     @test_throws ArgumentError Mycelium._check_pathwise(CategoricalBelief([0.3,0.7]))
     for ad in (AutoEnzyme(),AutoMooncake())

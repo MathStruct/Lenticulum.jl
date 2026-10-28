@@ -122,7 +122,8 @@ accuracy. Built-in logdet quadrature is second-order even when the state uses RK
 
 ### 4.2 Lux state is evaluation state
 
-For nonempty Lux state, the `vectorfield` closure updates its `Ref` on every RHS call,
+Under the default `:threaded` policy with nonempty Lux state, the `vectorfield`
+closure updates its `Ref` on every RHS call,
 including when SciMLSensitivity is loaded. Rejected adaptive
 trials, nonlinear stage iterations, Jacobian evaluations and divergence probes all update it.
 Tests count the calls independently and verify the returned state. If these updates change
@@ -154,48 +155,112 @@ itg = SciMLIntegrator(Tsit5(); reltol=1e-10, abstol=1e-12,
     sensealg=GaussAdjoint(autojacvec=ZygoteVJP()))
 ```
 
-The extension constructs an out-of-place ODE with a flattened Lux parameter
-vector as `ODEProblem.p`. Its RHS captures only a zero-valued shape template,
-model, offsets and empty state; the learned values come exclusively from `p`.
-The sensitivity path requires recursively empty tuples/named tuples for incoming
-and returned state. With nonempty incoming state, `_flow` invokes the generic
-`AbstractIntegrator` method and preserves legacy evaluation-state threading for
-`flow_forward`, `flow_reverse` and inference, even with an explicit `sensealg`.
-`flow_logdet` retains its existing evaluation-state path too.
+The extension constructs an out-of-place ODE with flattened Lux parameters as
+`ODEProblem.p`. Its RHS captures a zero-valued shape template, model, offsets and
+constant incoming state. Learned values come exclusively from `p`.
 
-AD with nonempty state is rejected before tracing at `energy_jacobian`,
-`energy_gradient`, `free_energy_gradient` and Mycelium's graph gradient and
-`parameter_step`. Their `_check_factor_ad(ad, f, st)` hook knows both the backend
-and incoming state; `ad=nothing` keeps reference differences available. Adaptive
-stages and rejected trials can change state, so this path does not define supported
-ODE sensitivities. BatchNorm statistics and other nonempty state remain unsupported
-for AD; there is no opt-in static-state promise yet. A layer that starts with empty
-state but returns nonempty state is rejected by the sensitivity RHS.
-An arbitrary outer DI call bypasses the factor/graph entry checks, just as it does
-for Enzyme runtime activity; callers must enforce the empty-state restriction
-themselves. Built-in Euler/RK4 keep their existing AD state threading.
+The default `NeuralODEFactor(...; state_policy=:threaded)` is unchanged: Euler/RK4
+advance state at every stage, and nonempty-state SciML uses legacy evaluation-state
+threading, including rejected trials. Its SciML AD path still requires recursively
+empty incoming and returned state. Reference differences remain available.
 
-`test/lp002_followups.jl` checks Tsit5 endpoint parameter Jacobians, scalar energy
-and free-energy gradients with AutoForwardDiff, AutoZygote and AutoMooncake;
-Enzyme is explicitly rejected at factor/graph derivative entry points.
-`test/sciml_state.jl` runs the same CNF, CountingDynamics, reverse, inversion-label
-and inference assertions before and after SciMLSensitivity loads. The follow-up
-checks also verify that stateful factor/graph AD throws before evaluating the RHS,
-including nested nonempty state. Tests cover
-the default plus `InterpolatingAdjoint` and `GaussAdjoint` with `ZygoteVJP()`.
-ForwardDiff uses dual-number solves, independently of the selected `sensealg`.
-The scalar oracle is $D_a z(T)=Tz_0e^{aT}$ on $T=0.7$, with solver
-`abstol=1e-12,reltol=1e-10` and derivative absolute tolerance `2e-8` to allow
-accumulated primal/adjoint integration error. A two-dimensional tanh Lux model
-is compared with central differences at `3e-7` absolute tolerance. Graph learning
-fits the continuous target $e^{0.4}$ from $a=-0.2$ in 100 gradient steps of size
-0.2, using the default sensitivity algorithm for all three backends.
+Opt into `NeuralODEFactor(...; state_policy=:fixed)` for stateful sensitivities.
+Every RHS call receives the same incoming state and discards the returned state.
+After the successful solve, evaluate the dynamics once at the final endpoint and
+final time with incoming state to obtain the returned state. The same policy is
+available for Euler/RK4. This is a different equation from stage threading when
+state affects the field; switching policy is always explicit. Layers must treat
+incoming state functionally: in-place mutation of captured state is unsupported.
+State itself is a constant context, not a differentiated coordinate. `flow_logdet`
+rejects this policy; its divergence/state semantics need separate work.
+
+`test/lp002_batch_a.jl` compares affine, state-dependent flows in both directions
+against closed forms and fixed-state RK4. Tsit5, Vern7 and SDIRK Kvaerno3/KenCarp4 are
+covered with default `ForwardDiffSensitivity`, `InterpolatingAdjoint` and
+`GaussAdjoint` (`ZygoteVJP`), using outer ForwardDiff, Zygote and Mooncake.
+ForwardDiff uses dual solves independently of the selected sensealg. A fast
+scalar mode with coefficient -50 additionally exercises Kvaerno3.
+
+Kvaerno3 with InterpolatingAdjoint fails the affine closed-form reverse gradient
+on this stack despite tight solve tolerances. Factor/graph AD entry points reject
+that pair for reverse backends with an `ArgumentError`; direct ForwardDiff ignores
+the sensealg and remains supported. KenCarp4 with InterpolatingAdjoint and
+Kvaerno3 with GaussAdjoint pass the same oracle. Tightening Newton convergence,
+using finite-difference Newton Jacobians, and reducing `dtmax` did not repair the
+failed pair in diagnostic runs. `examples/lp002_sciml_adjoint_limit.jl` bypasses
+validation to reproduce it; arbitrary outer DI callers must enforce this limit.
+The typed guard lives in the optional SDIRK/SciMLSensitivity/DI extension and
+preserves all primal calls. This is a measured dependency-stack limit, not a
+claim that all implicit solver adjoints fail.
+
+Runtime-activity Enzyme **reverse** is tested on Tsit5's default endpoint
+sensitivity path, including fixed state and scalar loss gradients with respect
+to inputs and parameters. Vector-return split-reverse Jacobians fail in Enzyme’s
+ABI wrapper on this stack; `energy_jacobian` rejects that configuration clearly. Plain
+`AutoEnzyme()` and forward modes are rejected by factor/graph entry points with
+a configuration hint. Direct runtime forward AD fails in OrdinaryDiffEq callback
+initialization on the tested stack, before the first RHS evaluation; see
+`examples/lp002_enzyme_limits.jl`. EnzymeVJP (the inner RHS VJP choice) is distinct
+from the outer backend. No Enzyme support is claimed for other solver/sensealg
+combinations. Arbitrary outer DI calls bypass package validation.
+
+For fixed-state explicit sensitivities, and explicit sensitivities with decreasing
+time, the wrapper retains a dense forward trajectory internally. SciML’s
+endpoint-only checkpoint reconstruction failed in reverse time during batch A;
+retaining the trajectory avoids that failure. The public return is still only
+the endpoint. Default sensitivity options and primal default results are unchanged.
 
 Continuous adjoints may store/reconstruct a forward trajectory internally even
 though this wrapper returns only the endpoint. The public integration storage
 invariants still apply. BacksolveAdjoint can amplify reverse-conditioning error;
 SciML does not remove that issue. AD through `flow_logdet`, callbacks, GPU,
-non-Tsit5 sensitivities and higher derivatives have no new coverage.
+higher derivatives have no new coverage.
 
 Related: [[neuralode]], [[solve]], [[NeuralODE as an Invertible Factor]],
 [[The Equilibrium Family]]
+
+
+## Device explicit flows (2026-10-27)
+
+Euler/RK4 endpoint tests in `test/device_arrays.jl` use JLArrays with scalar indexing
+disabled, both precisions and integration directions. For a linear field they compare
+with the exact *discrete* polynomial map raised to the number of steps, and compare
+input and parameter gradients with that map. These tests exercise both Lux state
+policies, with empty state and functional state updates compared with CPU. Device times/step coefficients use the state element type,
+so a Float64 default tspan cannot widen Float32 stages. CPU times/arithmetic are
+unchanged. This batch adds no SciML device, divergence/logdet or hardware GPU coverage.
+
+
+## LP-002 batch C: what “AD through divergence” means (2026-10-28)
+
+The Remaining item first appears in LP-002 commit `6e0bbbb6` (2026-10-26).
+It concerns a loss depending on the returned density correction from
+`integrate_with_divergence` / `flow_logdet`, not the already tested endpoint-only
+residual. For a fixed deterministic vector field, the new derivative would include
+both explicit parameter dependence of $\operatorname{tr}D_u f_\theta$ and its
+trajectory dependence through $u(t)$. It therefore needs mixed derivatives of the
+vector field. Differentiating only the endpoint or detaching the divergence is a
+different objective.
+
+The default `_divergence` is a mutable forward-difference loop with
+$h_j=10^{-7}\max(1,|u_j|)$. AD of this program, when it works, differentiates the
+**finite probe computation**, including the piecewise step-size formula; it does
+not replace it with an exact analytic trace. Built-in integrators add their
+existing trapezoidal trace quadrature. SciML's augmented-state implementation uses
+its separate captured-vector-field RHS; the endpoint sensitivity extension does
+not supply a parameter-aware sensitivity rule for this density correction.
+
+`examples/lp002_metric_divergence_limits.jl` separates the raw trace from the
+integrated correction. Its nonlinear field $f_\theta(u)=a u^2$ has analytic trace
+$2a\sum_j u_j$; the linear field $f_\theta(u)=a u$ has correction $naT$. These
+closed forms distinguish probe error from an AD/backend failure. The dated LP-002
+batch C section records the actual probe results. These small deterministic CPU
+probes do not establish general CNF sensitivity support.
+
+Functional forward-difference probes or an analytic/backend trace would need a
+separate opt-in contract, validation of mixed derivatives, and a state policy.
+With default nonempty state, every base/probe/stage evaluation advances the Lux
+state; the result is an evaluation-history computation, not a fixed vector field.
+`state_policy=:fixed` still rejects `flow_logdet`. Stateful, adaptive-SciML,
+device and general native-backend divergence sensitivities remain open. No default
+trace, quadrature, sensitivity or state-threading algorithm is changed here.

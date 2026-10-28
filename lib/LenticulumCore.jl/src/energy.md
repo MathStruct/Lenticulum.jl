@@ -251,6 +251,11 @@ reject SciML AD with nonempty Lux state, while primal evaluation and reference
 differences remain available, and the backend hook to require runtime activity for Enzyme Euler/RK4;
 see [[neuralode]] and its parameter AD tests. Core's `test/parameter_ad.jl` checks both
 backends, Enzyme and finite differences against linear residual Jacobians and quadratic gradients.
+Its Enzyme Jacobians use `AutoEnzyme(; mode = Enzyme.Reverse)`: DI's default
+`AutoEnzyme()` Jacobian runs forward mode, which with Enzyme 0.13.216 returns a NaN
+entry in about 5% of calls on `u .- A*x` with constant `A`, `x`. The defect is
+upstream ([Enzyme.jl#3884](https://github.com/EnzymeAD/Enzyme.jl/issues/3884));
+`examples/lp002_enzyme_endpoint_limit.jl` reproduces it without Lenticulum.
 The top-level `test/runtests.jl` also checks GaussianFactor's parameter Jacobian,
 precision-weighted gradient and Gauss–Newton metric against their closed forms.
 
@@ -270,3 +275,59 @@ finite-difference Sampson localisation is not supported; this addition does not 
 higher-order rules for that metric. Gauss–Newton freezes the local metric as before.
 
 Related: [[Scalar and Multivariate Energy]], [[Factors are Parameterized Statistical Games]], [[statistical_game]]
+
+
+## Device parameter derivatives (2026-10-27)
+
+The GPUArraysCore/DI optional extension supports Float32/Float64 numeric array leaves
+with Zygote and ForwardDiff; evidence is `lib/ImplicitLayers.jl/test/device_arrays.jl`.
+`energy_gradient`, `free_energy_gradient` and `parameter_gradient` keep gradient
+arrays on the parameter device. ForwardDiff's native vector API scalar-indexes its
+seed arrays on JLArrays. The Core adapter instead seeds whole directional vectors
+by broadcast through `DI.pushforward`, assembling Jacobian columns or scalar-gradient
+entries without host scalar indexing. Cost is one evaluation per coordinate; this
+is intended for small reference problems. Direct `ForwardDiff.gradient/jacobian`
+on device vectors still has the upstream limitation. CPU DI dispatch is unchanged.
+
+Device finite differences and Enzyme/Mooncake parameter AD give ArgumentErrors;
+this batch does not add native device rules for those backends. Real numeric array
+leaves are tested; scalar parameter leaves in a device tree are rejected (use
+one-element device arrays). Higher-order nesting is untested.
+
+
+Device functional flattening also handles empty parameter subtrees and all-empty
+array leaves; see [[parameter_tree]]. The DEQ nested-solve tests preserve storage
+and precision through both supported backends. CPU concatenation is unchanged.
+
+
+## LP-002 batch C: differentiating localisation (2026-10-28)
+
+History: `b4d77ab0` introduced finite-difference Sampson localisation on
+2026-10-25; LP-002's `6e0bbbb6` Remaining list named its AD follow-up on
+2026-10-26. This means the **total** derivative of the pointwise scalar energy,
+including the local covariance $A=J\Sigma J^\top+\lambda R$, $J=D_u r$.
+It does not mean changing the deliberately frozen-metric Gauss–Newton pullback.
+For $M=A^{-1}$ and $w=Mr$,
+
+$$
+d\left(\tfrac12r^\top Mr\right)=w^\top dr-\tfrac12w^\top(dA)w.
+$$
+
+The second term requires mixed derivatives of $r$ and any derivative of the
+factor's damping covariance. `energy_jacobian(...; ad=...)` does not automatically
+change the Jacobian that `SampsonNorm.localise` constructs: the latter still calls
+the default central-difference reference unless the factor overrides it.
+The generic reference mutates perturbations and Jacobian columns; numerical SPD
+validation uses a spectral test before inversion. Wrapping it in outer AD is not
+a supported higher-order metric interface. A successful scalar endpoint gradient
+or `J' * M * J` test says nothing about this total derivative.
+
+`lib/ImplicitLayers.jl/examples/lp002_metric_divergence_limits.jl` reproduces the
+localisation path on $r=a y^2-b$, with $y=1.3$ and no damping. Its independent
+closed form is $(a y^2-b)^2/(8a^2y^2)$. The batch C section of LP-002 records primal,
+reference-difference and backend observations separately. Nested reference
+differences can amplify the inner Jacobian's cancellation error; they do not
+constitute an AD implementation. An opt-in functional Jacobian/metric path or
+an analytic factor-specific localisation still needs its own checked derivative
+contract, including rank/acceptance boundaries. No metric or SPD default changes
+in this batch.

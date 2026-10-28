@@ -72,8 +72,8 @@ rules `GradientDescent`, `Momentum`, `Nesterov`.
 
 `scalar_free_energy`, `bethe_free_energy`, `factor_free_energies` and
 `variable_corrections` compute the graph's objective — a sum of per-factor energies plus a
-per-variable entropy correction. For a linear-Gaussian graph this equals the exact negative
-log marginal likelihood; see the [worked example](@ref getting-started).
+per-variable entropy correction. On a converged linear-Gaussian tree this equals the exact
+negative log marginal likelihood; loopy graphs use the Bethe approximation; see the [worked example](@ref getting-started).
 
 `uses_cavity(factor)` defaults to `false`; implement it as `true` whenever
 `local_free_energy` reads incoming variable-to-factor messages. All graph free-energy entry
@@ -107,7 +107,75 @@ Only learnable factors are updated. Inference schedules and `OptimiserFactor` re
 separate; no gradient is propagated through the mutating inference schedule.
 LuxFactor requires `residual=true` to learn from endpoint scoring in this mode.
 The ImplicitLayers AD tests fit a known ODE coefficient and check Nesterov look-ahead
-updates with ForwardDiff and Zygote.
+updates with ForwardDiff and Zygote. The diagonal parameter driver also has
+closed-form state-dependent SciML endpoint tests with ForwardDiff, Zygote,
+Mooncake and runtime-activity Enzyme reverse. NeuralODE factors opt into
+`state_policy=:fixed` to hold incoming Lux state constant per solve and obtain
+returned state from one final endpoint evaluation. The factor validates its
+solver/backend combination before differentiation; see [ImplicitLayers](@ref implicitlayers) for tested solvers and the guarded Kvaerno3/InterpolatingAdjoint
+limit. This extends endpoint coverage without changing schedule derivatives.
+
+## Graph schedule adjoints (LP-002 batch C)
+
+For Exact/Pathwise edges, finite replay now supports sequential, tree,
+forward/backward, flooding and residual schedules, including `damping`:
+
+```julia
+grad = LenticulumCore.free_energy_gradient(store, g, ps, st;
+    ad=AutoForwardDiff(), schedule=flooding_schedule(g), nsweeps=20, damping=0.3)
+```
+
+Replay starts from empty messages. Flooding reads one snapshot per sweep.
+Residual replay records the chosen task sequence in a reference pass, then
+differentiates that fixed sequence. This is a derivative of the realised
+piecewise schedule; argmax, ties and convergence decisions have no derivative.
+The raw Zygote `infer!` rule also replays its actual count/choices and damping.
+Score estimates retain the one-undamped-static-sweep restriction.
+
+At a converged BP root, opt into a message-space implicit adjoint:
+
+```julia
+using Zygote
+grad = LenticulumCore.free_energy_gradient(store, g, ps, st;
+    ad=AutoZygote(), schedule=flooding_schedule(g), adjoint=:implicit,
+    maxsweeps=1000, tol=1e-10, damping=0.0,
+    linear_solver=:dense, linear_tol=1e-10, linear_maxiter=1000)
+# using Krylov; linear_solver=:krylov selects matrix-free GMRES.
+# parameter_step forwards the same keywords.
+```
+
+The reference schedule finds a root from empty messages; `nsweeps` controls only
+the unrolled driver. The implicit map is synchronous BP with outgoing damping.
+It solves `(I-DT)'λ = ∂L/∂m` and returns `∂L/∂ps + (Dps T)'λ`, including Bethe
+corrections in `L`. This requires a differentiable local root and invertible
+`I-DT`; a contraction suffices. Convergence is checked against every BP row and
+every linear solve checks its original residual. These checks do not prove
+uniqueness or conditioning.
+
+Diagonal/detach edges hold their legal directed update rows constant: their message
+variations are zero in the linear system. Frozen parameter coordinates are
+pinned while message derivatives through the factor survive. With mixed cuts,
+this agrees with the limit of cut replay when its derivatives converge.
+Exact/Pathwise only, with CPU real numeric
+Dirac or Gaussian messages (dense or diagonal precision) and recursively empty
+message state. Reference differences, ForwardDiff and Zygote are tested.
+Native Enzyme/Mooncake, implicit score sampling, device coordinates, evolving
+message state and higher-order graph adjoints are unsupported.
+
+Dense solves store a quadratic message Jacobian and have cubic factorisation
+cost. GMRES avoids that matrix, retains at most 30 Krylov vectors and uses a
+backend gradient per transposed product. With ForwardDiff that gradient still
+scales with message dimension. Both methods also pay reference inference and
+functional store-copy costs; neither differentiates the reference iterations.
+Finite replay retains its sweep-dependent tape/copy cost.
+
+`lib/Mycelium.jl/test/graph_adjoint.jl` supplies dense Gaussian tree oracles,
+reconverged loopy Bethe differences and unrolled convergence measurements.
+`graph_adjoint_devices.jl` tests the new replay with diagonal Gaussian JLArrays
+in Float32/Float64 and scalar indexing disabled; implicit device calls reject
+both linear solvers because the coordinate adapter is CPU-only. No hardware GPU
+result is claimed. LP-002 and the implementation notes record measurements and
+the native-backend and metric/divergence reproducers.
 
 ## Known gaps
 
@@ -238,3 +306,32 @@ reject other backends, including differences of the forward function.
 Modules = [Mycelium]
 Pages = ["gradient_couplings.jl"]
 ```
+
+
+## Device graph gradients
+
+JLArrays tests cover Float32/Float64 static replay with ForwardDiff/Zygote for
+Dirac and diagonal Gaussian messages: exact/pathwise/diagonal couplings, detach,
+subset/all freeze, raw static inference AD and `parameter_step`. Active-coordinate
+helpers use device gathers and broadcast masks. GradientDescent/Momentum/Nesterov
+cast configuration coefficients to device parameter precision; CPU rules stay as
+before. Terminal diagonal-Gaussian score estimates and standard errors match CPU
+with common host RNG draws bulk-copied to the device. Dense Gaussian devices,
+categorical score devices, other schedule backends and hardware GPUs remain untested.
+
+
+Implicit DEQ messages in explicit-backend replay use IFT solves, including reverse
+input messages with empty state. Both DEQ and Euler message directions have
+nonzero downstream-loss tests; raw Zygote replay also selects the implicit rule.
+For ForwardDiff implicit graphs, use the explicit `free_energy_gradient` driver
+rather than relying on raw `infer!` to select IFT. Reverse-input DEQ replay with
+nonempty Lux state is rejected because primal threading and fixed-state IFT differ.
+
+Raw ForwardDiff DEQ messages now reject dual-valued unannotated solves with an
+ArgumentError pointing to the explicit graph gradient driver, preventing accidental
+root-iteration differentiation. Ordinary primal messages are unchanged.
+
+
+The existing GaussianFactor, GaussianPrior and GaussianComposite replay adapters
+accept that backend context too, preserving their functional matrix-inverse
+formulas and closed-form CPU marginal-likelihood gradient checks.

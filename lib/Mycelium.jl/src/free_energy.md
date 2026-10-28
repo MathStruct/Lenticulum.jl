@@ -176,3 +176,34 @@ state threading, so reverse AD avoids mutating a values array.
 Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
 are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].
+
+
+## Device parameter driver (2026-10-27)
+
+The GPUArraysCore extension implements active-coordinate gathering, replacement,
+masking and pinning without host scalar reads. Default diagonal gradients and
+coupled replay use the same helpers. CPU helpers retain their original arithmetic.
+Device parameter steps cast GradientDescent/Momentum/Nesterov coefficients to
+parameter precision, preserving Float32 even with the default Float64 learning
+rate. Optimiser vectors still contain only active coordinates. Tests in
+`lib/ImplicitLayers.jl/test/device_arrays.jl` check closed-form Gaussian/Dirac
+objectives, cut/freeze behavior, score estimates and actual DEQ/ODE factor scoring.
+See [[gradient_couplings]] for the supported device subset and its limits.
+
+
+## Batch C graph parameter adjoints (2026-10-28)
+
+`free_energy_gradient` and `parameter_step` forward `damping` and support
+`adjoint=:implicit`, `maxsweeps`, `tol`, `linear_solver=:dense/:krylov`,
+`linear_tol` and `linear_maxiter`. Defaults retain fixed-cavity all-diagonal
+training and finite replay for non-diagonal graphs. The implicit opt-in starts
+reference inference from empty messages and includes both local losses and
+Bethe corrections in its adjoint RHS. The resulting tree gradient has a dense
+Gaussian negative-log-partition oracle; loopy tests reconverge the Bethe
+objective at every perturbation. See [[graph_adjoint]] for the equation, costs,
+cuts, CPU/empty-message-state restriction and residual checks.
+
+Flooding/residual/damped finite derivatives and their realised-schedule semantics
+are specified in [[gradient_couplings]] and tested in `test/graph_adjoint.jl`
+and `test/graph_adjoint_devices.jl`. Native Enzyme/Mooncake replay is still
+rejected; the reproducer and backend findings are recorded in LP-002.

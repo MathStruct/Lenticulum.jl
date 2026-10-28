@@ -78,9 +78,9 @@ function Mycelium.factor_message(f::GaussianComposite, target::Symbol, p, inputs
     result, _ = Mycelium.factor_message(g,target,p,inputs,prior,gp,(;))
     return result, st
 end
-function Mycelium._gradient_message(f::GaussianComposite, target::Symbol, p, inputs, prior, ps, st)
+function Mycelium._gradient_message(ad, f::GaussianComposite, target::Symbol, p, inputs, prior, ps, st)
     g,gp=_collapsed_gaussian(f,ps)
-    result,_=Mycelium._gradient_message(g,target,p,inputs,prior,gp,(;))
+    result,_=Mycelium._gradient_message(ad,g,target,p,inputs,prior,gp,(;))
     return result,st
 end
 function Mycelium.local_free_energy(f::GaussianComposite, msgs, ps, st)

@@ -258,8 +258,7 @@ function _factor_parameters(f::FactorNode, ps)
     indices = _active_indices(f, ps)
     length(indices) == LenticulumCore._flatlen(ps) && return ps
     θ = LenticulumCore._flatten_active(ps)
-    return LenticulumCore._unflatten([i in indices ? θ[i] : LenticulumCore.stop_gradient(θ[i])
-                                      for i in eachindex(θ)], ps)
+    return LenticulumCore._unflatten(_pin_coordinates(θ, indices), ps)
 end
 
 # --- Queries ---------------------------------------------------------------
@@ -483,3 +482,5 @@ function Base.show(io::IO, g::FactorGraph)
         nedges(g), " edges; χ=", euler_characteristic(g),
         istree(g) ? ", tree" : ", loopy", isdag(g) ? ", DAG)" : ", cyclic)")
 end
+
+_pin_coordinates(θ, indices) = [i in indices ? θ[i] : LenticulumCore.stop_gradient(θ[i]) for i in eachindex(θ)]

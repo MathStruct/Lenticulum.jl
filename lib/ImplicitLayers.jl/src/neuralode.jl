@@ -14,11 +14,16 @@
 
 """
     NeuralODEFactor(dynamics, dim; tspan = (0.0, 1.0), integrator = RK4Integrator(),
-                    channels = (:z0, :z1), input = default_dynamics_input)
+                    channels = (:z0, :z1), input = default_dynamics_input, state_policy=:threaded)
 
 A neural ODE as a **bidirectional** factor: the relation
 ``\\{(z_0,z_1) : z_1 = \\Phi_{t_0\\to t_1}(z_0)\\}`` where ``\\Phi`` is the flow of
 ``dz/dt = f_\\theta(z,t)``.
+
+`state_policy=:threaded` advances Lux state at each stage (the default).
+Opt-in `:fixed` holds incoming state constant during a solve, then advances it
+once by evaluating dynamics at the final endpoint/time. State is not a learnable
+coordinate; functional updates are required. Fixed-state logdet is unsupported.
 
 `dynamics` is any `LuxCore.AbstractLuxLayer` computing ``f_\\theta(z,t)`` — the same object
 you would hand to `DiffEqFlux.NeuralODE`. Parameters and state are its own.
@@ -45,6 +50,7 @@ struct NeuralODEFactor{names,D,I<:AbstractIntegrator,T,F} <:
     tspan::T
     input::F
     channelnames::NamedTuple{names}
+    state_policy::Symbol
 end
 
 """
@@ -60,7 +66,9 @@ function NeuralODEFactor(
     integrator::AbstractIntegrator = RK4Integrator(),
     channels::Tuple{Symbol,Symbol} = (:z0, :z1),
     input = default_dynamics_input,
+    state_policy::Symbol = :threaded,
 )
+    state_policy in (:threaded, :fixed) || throw(ArgumentError("state_policy must be :threaded or :fixed"))
     dim > 0 || throw(ArgumentError("dim must be positive; got $dim"))
     tspan[1] == tspan[2] &&
         throw(ArgumentError("tspan must have distinct endpoints; got $tspan"))
@@ -68,7 +76,7 @@ function NeuralODEFactor(
         "start and end channels must differ; got :$(channels[1]) for both"))
     names = NamedTuple{channels}((channels[1], channels[2]))
     return NeuralODEFactor(dim, dynamics, integrator, (float(tspan[1]), float(tspan[2])),
-                           input, names)
+                           input, names, state_policy)
 end
 
 startchannel(f::NeuralODEFactor{names}) where {names} = names[1]
@@ -148,12 +156,35 @@ function flow_reverse(f::NeuralODEFactor, z₁, ps, st)
     return _flow(f, z₁, ps, st, f.tspan[2], f.tspan[1], f.integrator)
 end
 function _flow(f, u, ps, st, t0, t1, itg::Union{EulerIntegrator,RK4Integrator})
+    f.state_policy === :fixed && return _fixed_flow(f, u, ps, st, t0, t1, itg)
+    t0, t1 = _flow_times(u, t0, t1)
     h = (t1 - t0) / nsteps(itg)
+    return _threaded_flow(f, u, ps, st, t0, h, itg)
+end
+function _threaded_flow(f, u, ps, st, t0, h, itg)
     return foldl(1:nsteps(itg); init = (u, st)) do (z, state), k
         _lux_step(f, z, ps, state, t0 + (k - 1) * h, h, itg)
     end
 end
+# ChainRules uses this equivalent stage loop: Zygote's foldl rule loses the
+# initializer's input cotangent. Keep the original primal for native backends.
+function _threaded_flow_reverse(f, u, ps, st, t0, h, itg)
+    z, state = u, st
+    for k in 1:nsteps(itg)
+        z, state = _lux_step(f, z, ps, state, t0 + (k - 1) * h, h, itg)
+    end
+    return z, state
+end
+function _fixed_flow(f, u, ps, st, t0, t1, itg)
+    t0, t1 = _flow_times(u, t0, t1)
+    t0 == t1 && return copy(u), st
+    rhs = (z, t) -> first(_rhs(f, z, t, ps, st))
+    z = integrate(rhs, u, t0, t1, itg)
+    return z, _endpoint_state(f, z, ps, st, t1, Val(:fixed))
+end
 _rhs(f, z, t, ps, st) = LuxCore.apply(f.dynamics, f.input(z, t), ps, st)
+_endpoint_state(f, z, ps, st, t, ::Val{:threaded}) = st
+_endpoint_state(f, z, ps, st, t, ::Val{:fixed}) = last(_rhs(f, z, t, ps, st))
 function _lux_step(f, z, ps, st, t, h, ::EulerIntegrator)
     k, st = _rhs(f, z, t, ps, st)
     return z .+ h .* k, st
@@ -174,6 +205,7 @@ function _flow(f, u, ps, st, t0, t1, itg::AbstractIntegrator)
     itg isa SciMLIntegrator && itg.sensealg !== nothing &&
         Base.get_extension(@__MODULE__, :ImplicitLayersSciMLSensitivityExt) === nothing &&
         throw(ArgumentError("SciMLIntegrator sensealg requires loading SciMLSensitivity"))
+    f.state_policy === :fixed && return _fixed_flow(f, u, ps, st, t0, t1, itg)
     vf, stref = vectorfield(f, ps, st)
     z = integrate(vf, u, t0, t1, itg)
     return z, stref[]
@@ -194,6 +226,7 @@ now reachable (in `LenticulumCore`), but a flow needs a non-Gaussian, pushforwar
 does not exist. See `neuralode.md` §4.2.
 """
 function flow_logdet(f::NeuralODEFactor, z₀, ps, st)
+    f.state_policy === :fixed && throw(ArgumentError("flow_logdet does not support state_policy=:fixed"))
     vf, stref = vectorfield(f, ps, st)
     z₁, Δ = integrate_with_divergence(vf, z₀, f.tspan[1], f.tspan[2], f.integrator)
     return (z₁, Δ, stref[])

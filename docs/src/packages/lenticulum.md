@@ -40,7 +40,11 @@ pseudo-mean.
 | `LikelihoodFactor` | ``p(y \mid x) = L(y \mid Ax + b)``, ``L`` non-Gaussian (counts, ordered categories) | two, named |
 
 `GaussianFactor` is *bidirectional*: both `(x observed, y unobserved)` and the reverse, each
-exact. Parameters are `(A, b)`; `noise` is a fixed hyperparameter, not learned.
+exact. By default parameters are `(A, b)` and `noise` is fixed. Opt-in
+`learn_noise=true` (full covariance) or `:diagonal` adds positive-precision noise
+coordinates; train them with normalised free energy, not the residual norm alone.
+GaussianPrior supports the same covariance-learning options with its mean fixed.
+`test/learnable_noise.jl` checks these parameter derivatives against references.
 
 `LinearConstraintFactor` is the **acausal** generalisation — one equation over `n` channels,
 none of them distinguished, with one supported polarity per channel. It subsumes
@@ -79,8 +83,8 @@ probabilities(p)            # P(y = 1), P(y = 2), P(y = 3)
 
 ## Known gaps
 
-- `Q` is a fixed hyperparameter everywhere; learning it needs a positive-definite
-  parametrisation, and a contrastive term to stop it collapsing to zero.
+- Covariance learning is opt-in for GaussianFactor/GaussianPrior; other factor
+  families retain their own noise restrictions.
 - A `LinearConstraintFactor` returns an uninformative message if any non-target channel is
   unconstrained, which is blunter than necessary.
 - A loopy graph of constraint factors cannot bootstrap without a weak prior on every variable.
@@ -117,3 +121,11 @@ componentwise standard errors. The baseline equal to the reference endpoint NLL 
 the posterior score noise. ForwardDiff/Zygote and reference differences support the
 analytic gradients; the score estimator uses the documented schedule-backend whitelist.
 An explicit Mycelium graph exposes internal boundaries when different cuts are needed.
+
+
+The private static-replay message adapters for GaussianFactor, GaussianPrior and
+GaussianComposite carry the selected AD backend context while retaining their
+existing functional inverse formulas. This preserves CPU ForwardDiff/Zygote
+marginal-likelihood gradients when ImplicitLayers replay selects its IFT backend.
+It adds no dense device Gaussian factorisation; the JLArrays diagonal-message
+subset is described under [Mycelium](@ref mycelium).

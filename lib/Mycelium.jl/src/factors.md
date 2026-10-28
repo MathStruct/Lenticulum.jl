@@ -148,3 +148,13 @@ pointwise and game checks. Loss uses `p = nothing` (sink) with pointwise/message
 its scalar and vector terminal games still check game/graph agreement. Fixtures use fixed
 clamps, independently normalised categorical probabilities and elementary losses. This
 checks the declared accounting conventions, not distributional entropy of a data source.
+
+
+## Device optimiser coefficients (2026-10-27)
+
+GPUArraysCore methods for GradientDescent, Momentum and Nesterov cast learning
+rate/momentum coefficients to the parameter element type. This prevents Float64
+configuration scalars from widening Float32 device parameters. CPU methods and
+all public rule signatures are unchanged. JLArrays tests compare get/put with
+the CPU formula and assert device/element-type preservation; graph tests also
+exercise the default learning rate. See `lib/ImplicitLayers.jl/test/device_arrays.jl`.

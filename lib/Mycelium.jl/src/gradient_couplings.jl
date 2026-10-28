@@ -20,14 +20,58 @@ struct _ReplayStore <: AbstractMessageStore
 end
 _ReplayStore(g::FactorGraph) = _ReplayStore(Vector{Any}(nothing,nedges(g)),Vector{Any}(nothing,nedges(g)),0)
 
+# A buffered operation reads the store at the start of its sweep. Lux state still
+# threads task by task, matching sweep!(::FloodingSchedule).
+struct _ReplayTask
+    task::MessageTask
+    buffered::Bool
+    first::Bool
+end
+_task(t::MessageTask) = t
+_task(t::_ReplayTask) = t.task
+_buffer(s, buffer, t::MessageTask) = (s, s)
+_buffer(s, buffer, t::_ReplayTask) = begin
+    saved = t.first ? s : buffer
+    (t.buffered ? saved : s, saved)
+end
+
+function _realised_tasks(g, schedule, nsweeps, ps, st; damping=0.0)
+    nsweeps isa Int && nsweeps > 0 || throw(ArgumentError("nsweeps must be a positive Int"))
+    0 <= damping < 1 || throw(ArgumentError("damping must be in [0, 1)"))
+    if schedule isa ResidualSchedule
+        schedule.maxtasks > 0 || throw(ArgumentError("ResidualSchedule.maxtasks must be positive"))
+        store = MessageStore(g)
+        chosen = MessageTask[]
+        for _ in 1:nsweeps
+            _, st = sweep!(store, g, schedule, ps, st; damping, record=chosen)
+        end
+        return chosen
+    end
+    schedule isa Union{SequentialSchedule,TreeSchedule,ForwardBackwardSchedule,FloodingSchedule} ||
+        throw(ArgumentError("unsupported gradient replay schedule $(typeof(schedule))"))
+    ts = tasks(schedule)
+    all(t -> 1 <= t.edge <= nedges(g) && t.kind in (:to_factor, :to_variable) && islegal(g,t), ts) ||
+        throw(ArgumentError("replay schedule contains an illegal message task"))
+    return [_ReplayTask(t, schedule isa FloodingSchedule, i == 1) for _ in 1:nsweeps for (i,t) in enumerate(ts)]
+end
+
+function _damped_candidate(s, g, t, ps, st, damping, ad=nothing)
+    b, state = _candidate(s, g, t, ps, st, ad)
+    old = t.kind === :to_variable ? s.to_variable[t.edge] : nothing
+    if old !== nothing && damping > 0
+        b = damp(b, old.belief, 1 - damping)
+    end
+    return b, state
+end
+
 function _check_schedule_ad(ad)
     ad === nothing && return
     nameof(typeof(ad)) in (:AutoForwardDiff, :AutoZygote) || throw(ArgumentError(
         "schedule differentiation supports reference differences, AutoForwardDiff and AutoZygote; got $(typeof(ad))"))
 end
-_gradient_message(args...) = factor_message(args...)
+_gradient_message(ad, args...) = factor_message(args...)
 
-function _candidate(s, g, t, ps, st)
+function _candidate(s, g, t, ps, st, ad=nothing)
     e = g.edges[t.edge]
     if t.kind === :to_factor
         can_absorb(g, t.edge) || throw(ArgumentError("schedule sends to an emitting-only factor port"))
@@ -41,23 +85,25 @@ function _candidate(s, g, t, ps, st)
         return LenticulumCore.TrivialBelief(), st
     end
     check_legal(g, f.id, pol)
-    b, state = _gradient_message(f.factor, e.channel, pol, _inputs(s, g, f.id, chans),
+    b, state = _gradient_message(ad, f.factor, e.channel, pol, _inputs(s, g, f.id, chans),
         excluded_marginal(s, g, e.variable, t.edge), _subtree(ps, f.name), _subtree(st, f.name))
     return b, _setsubtree(st, f.name, state)
 end
 
-function _functional_infer(g, ts, ps, st, report)
-    final_s, final_state = foldl(ts; init=(_ReplayStore(g), st)) do acc, t
-        store, state = acc
+function _functional_infer(g, ts, ps, st, report, damping=0.0)
+    final_s, final_state, _ = foldl(ts; init=(_ReplayStore(g), st, _ReplayStore(g))) do acc, op
+        store, state, buffer = acc
+        read, buffer = _buffer(store, buffer, op)
+        t = _task(op)
         e = g.edges[t.edge]
         psnames = keys(ps)
         pinned = NamedTuple{psnames}(map(name -> _factor_parameters(factornode(g,name),ps[name]), psnames))
-        b, state = _candidate(store, g, t, pinned, state)
+        b, state = _damped_candidate(read, g, t, pinned, state, damping, Val(:chainrules))
         b = e.detach ? LenticulumCore.stop_gradient(b) : b
-        return _with_message(store,t,b), LenticulumCore.stop_gradient(state)
+        return _with_message(store,t,b), LenticulumCore.stop_gradient(state), buffer
     end
     names = Tuple(v.name for v in _variable_nodes(g))
-    final_store = MessageStore(Any[final_s.to_variable...],Any[final_s.to_factor...],report.sweeps)
+    final_store = MessageStore(copy(final_s.to_variable),copy(final_s.to_factor),report.sweeps)
     return NamedTuple{names}(map(v -> marginal(final_s,g,v.id), _variable_nodes(g))), report, final_state, final_store
 end
 
@@ -76,13 +122,6 @@ function _graph_scalar(s, g, ps, st)
         counting_number(g, v.id) * variable_free_energy(marginal(s, g, v.id))
     end)
     return sum(terms) + correction
-end
-
-function _static_tasks(schedule, nsweeps)
-    schedule isa Union{SequentialSchedule,TreeSchedule,ForwardBackwardSchedule} || throw(ArgumentError(
-        "gradient replay requires a static sequential/tree/forward-backward schedule; flooding and residual schedules are unsupported"))
-    nsweeps isa Int && nsweeps > 0 || throw(ArgumentError("nsweeps must be a positive Int"))
-    return [t for _ in 1:nsweeps for t in tasks(schedule)]
 end
 
 _check_pathwise(::Union{LenticulumCore.DiracBelief,LenticulumCore.GaussianBelief,LenticulumCore.TrivialBelief}) = nothing
@@ -112,11 +151,14 @@ function _score_baseline(e)
     return b
 end
 
-function _reference_tape(g, ts, ps, st, rng)
+function _reference_tape(g, ts, ps, st, rng, damping=0.0)
     s = _ReplayStore(g)
+    buffer = s
     tape = Any[]
-    for t in ts
-        b, st = _candidate(s, g, t, ps, st)
+    for op in ts
+        read, buffer = _buffer(s, buffer, op)
+        t = _task(op)
+        b, st = _damped_candidate(read, g, t, ps, st, damping)
         e = g.edges[t.edge]
         if !e.detach && e.coupling isa LenticulumCore.PathwiseCoupling
             _check_pathwise(b)
@@ -138,7 +180,8 @@ function _reference_tape(g, ts, ps, st, rng)
         push!(tape, entry)
         s = _with_message(s, t, entry.belief)
     end
-    weighted = map(zip(ts,tape)) do (t,entry)
+    weighted = map(zip(ts,tape)) do (op,entry)
+        t = _task(op)
         e = g.edges[t.edge]
         f = g.factors[e.factor]
         loss = !e.detach && e.coupling isa LenticulumCore.ScoreFunctionCoupling ?
@@ -150,56 +193,70 @@ end
 
 # The score samples and coefficients are fixed reference contexts. Only their log
 # densities are differentiated. This is the stochastic-computation-graph identity.
-function _replay(ps, g, ts, tape, st)
-    final_s, final_state, correction = foldl(zip(ts, tape); init=(_ReplayStore(g), st, 0.0)) do acc, item
-        store, state, score = acc
-        t, ref = item
+function _replay(ps, g, ts, tape, st, ad, damping)
+    final_s, final_state, correction, _ = foldl(zip(ts, tape); init=(_ReplayStore(g), st, 0.0, _ReplayStore(g))) do acc, item
+        store, state, score, buffer = acc
+        op, ref = item
+        read, buffer = _buffer(store, buffer, op)
+        t = _task(op)
         e = g.edges[t.edge]
-        b, state = _candidate(store, g, t, ps, state)
+        b, state = _damped_candidate(read, g, t, ps, state, damping, ad)
         if e.detach || e.coupling isa DiagonalCoupling
             b = ref.belief
         elseif e.coupling isa LenticulumCore.ScoreFunctionCoupling
             score += (ref.loss - _score_baseline(e)) * (belief_logdensity(b, ref.sample) - ref.logp)
             b = ref.belief
         end
-        return _with_message(store, t, b), state, score
+        return _with_message(store, t, b), state, score, buffer
     end
     return _graph_scalar(final_s, g, ps, final_state) + correction
 end
 
-function _coupled_loss(ps, reference_ps, g, ts, tape, st)
+function _pinned_parameters(ps, reference_ps, g)
     names = keys(reference_ps)
     pinned = NamedTuple{names}(map(names) do name
         f = factornode(g, name)
         indices = _active_indices(f, reference_ps[name])
         θ = LenticulumCore._flatten_active(ps[name])
-        _replace_active(reference_ps[name], indices, θ[indices])
+        _replace_active(reference_ps[name], indices, _gather_active(θ, indices))
     end)
-    return _replay(pinned, g, ts, tape, st)
+    return pinned
+end
+
+function _coupled_loss(ps, reference_ps, g, ts, tape, st, ad, damping)
+    return _replay(_pinned_parameters(ps, reference_ps, g), g, ts, tape, st, ad, damping)
 end
 
 function _coupled_gradient(s, g, ps, st; ad=nothing, ε=1e-6, schedule=nothing,
-        nsweeps=1, rng=nothing, nsamples=nothing, return_state=false)
+        nsweeps=1, rng=nothing, nsamples=nothing, return_state=false, damping=0.0,
+        adjoint=:unrolled, maxsweeps=1000, tol=1e-10, linear_solver=:dense,
+        linear_tol=1e-10, linear_maxiter=1000)
     _check_energy_edges(g)
+    adjoint in (:unrolled, :implicit) || throw(ArgumentError("adjoint must be :unrolled or :implicit"))
+    if adjoint === :implicit
+        return _implicit_graph_gradient(g, ps, st; ad, ε, schedule, damping, maxsweeps, tol,
+            linear_solver, linear_tol, linear_maxiter, rng, nsamples, return_state)
+    end
     schedule === nothing && throw(ArgumentError(
         "non-diagonal graph gradients require schedule=... and an explicit finite nsweeps (default 1); replay starts from empty messages"))
     _check_schedule_ad(ad)
     for f in g.factors
         LenticulumCore._check_factor_ad(ad, f.factor, _subtree(st, f.name))
     end
-    ts = _static_tasks(schedule, nsweeps)
     stochastic = any(e -> !e.detach && e.coupling isa LenticulumCore.ScoreFunctionCoupling, g.edges)
     if stochastic
-        nsweeps == 1 || throw(ArgumentError("score sampling currently supports one static sweep"))
+        nsweeps == 1 && !(schedule isa Union{FloodingSchedule,ResidualSchedule}) && damping == 0 ||
+            throw(ArgumentError("score sampling currently supports one undamped static sweep"))
         rng isa AbstractRNG || throw(ArgumentError("ScoreFunctionCoupling requires an explicit rng"))
         nsamples isa Int && nsamples >= 2 || throw(ArgumentError("score gradient standard errors require nsamples >= 2"))
     else
         nsamples === nothing || throw(ArgumentError("nsamples is only used for score coupling"))
     end
+    ts = _realised_tasks(g, schedule, nsweeps, ps, st; damping)
     n = stochastic ? nsamples : 1
     results = map(1:n) do draw
-        tape, reference_store, reference_state = _reference_tape(g, ts, ps, st, rng)
-        gradient = LenticulumCore._parameter_gradient(ad, _coupled_loss, ps, ps, g, ts, tape, st; ε)
+        tape, reference_store, reference_state = _reference_tape(g, ts, ps, st, rng, damping)
+        gradient = LenticulumCore._parameter_gradient(ad, _coupled_loss, ps, ps, g, ts, tape, st, ad, damping; ε)
         state = return_state && draw == 1 ? last(factor_free_energies(reference_store,g,ps,reference_state)) : nothing
         return gradient,state
     end

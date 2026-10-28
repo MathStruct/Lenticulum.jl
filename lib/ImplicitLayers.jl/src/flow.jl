@@ -47,19 +47,20 @@ end
 RK4Integrator(; steps = 50) = RK4Integrator(steps)
 
 nsteps(i::AbstractIntegrator) = i.steps
+_check_sciml_ad(ad, itg) = nothing
 
 """
     SciMLIntegrator(alg; sensealg = nothing, kwargs...)
 
 Optional OrdinaryDiffEq solver, loaded by `using OrdinaryDiffEqCore` and a solver package
 (e.g. `OrdinaryDiffEqTsit5` or `OrdinaryDiffEqSDIRK`). Keywords go to `solve`; only the final
-state is retained. `dt` is a positive magnitude, signed automatically for reverse solves.
+state is returned (explicit adjoints may retain a trajectory internally). `dt` is a positive magnitude, signed automatically for reverse solves.
 
 Fixed-step `ImplicitMidpoint`/`Trapezoid` can invert their discrete map up to nonlinear-solve
 tolerance; adaptive solvers such as `Tsit5` only control integration error. See
 [`inversion_kind`](@ref) for the conservative exactness conditions. Loading SciMLSensitivity
-enables endpoint parameter derivatives with recursively empty
-Lux state. `sensealg=nothing` selects `ForwardDiffSensitivity()` for small problems;
+enables endpoint derivatives with recursively empty Lux state, or functional
+nonempty state under `NeuralODEFactor(...; state_policy=:fixed)`. `sensealg=nothing` selects `ForwardDiffSensitivity()` for small problems;
 pass an explicit adjoint to override it. Sensitivity options do not affect inversion labels.
 """
 struct SciMLIntegrator{A,K<:NamedTuple,S} <: AbstractIntegrator
@@ -131,6 +132,7 @@ Integrate ``du/dt = \\mathrm{vf}(u, t)`` from `t₀` to `t₁`.
 runs backwards. `vf` is called as `vf(u, t)`.
 """
 function integrate(vf, u₀, t₀, t₁, itg::EulerIntegrator)
+    t₀, t₁ = _flow_times(u₀, t₀, t₁)
     n = nsteps(itg)
     dt = (t₁ - t₀) / n
     u = copy(u₀)
@@ -143,6 +145,7 @@ function integrate(vf, u₀, t₀, t₁, itg::EulerIntegrator)
 end
 
 function integrate(vf, u₀, t₀, t₁, itg::RK4Integrator)
+    t₀, t₁ = _flow_times(u₀, t₀, t₁)
     n = nsteps(itg)
     dt = (t₁ - t₀) / n
     u = copy(u₀)

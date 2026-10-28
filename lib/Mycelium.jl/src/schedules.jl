@@ -51,8 +51,8 @@ All tasks computed from the *previous* sweep's messages and committed together
 (double-buffered). The classical parallel BP update.
 
 Slower to propagate information than a sequential sweep (one edge per sweep rather than a
-whole path), but order-independent, so the result does not depend on an arbitrary choice —
-which matters when the graph has no natural order at all.
+whole path), but message-order-independent for stateless factors. Lux state still
+threads in task order, so stateful factors can retain order dependence.
 """
 struct FloodingSchedule <: AbstractSchedule
     tasks::Vector{MessageTask}
@@ -160,15 +160,6 @@ end
 
 flooding_schedule(g::FactorGraph) = FloodingSchedule(all_tasks(g))
 
-"""
-    tree_schedule(g; root = nothing) -> TreeSchedule
-
-Root the tree (at `root`, or at the first leaf found) and produce the inward/outward sweeps.
-
-Errors unless [`istree`](@ref). The inward sweep is in reverse breadth-first order (children
-strictly before parents) and the outward sweep in breadth-first order, which is what makes
-each message computable exactly once from already-final inputs.
-"""
 function _resolve_tree_root(g::FactorGraph, root)
     if root === nothing
         lvs = leaves(g)
@@ -184,6 +175,15 @@ function _resolve_tree_root(g::FactorGraph, root)
     throw(ArgumentError("unsupported root specification: $root"))
 end
 
+"""
+    tree_schedule(g; root = nothing) -> TreeSchedule
+
+Root the tree (at `root`, or at the first leaf found) and produce the inward/outward sweeps.
+
+Errors unless [`istree`](@ref). The inward sweep is in reverse breadth-first order (children
+strictly before parents) and the outward sweep in breadth-first order, which is what makes
+each message computable exactly once from already-final inputs.
+"""
 function tree_schedule(g::FactorGraph; root = nothing)
     istree(g) || throw(ArgumentError(
         "tree_schedule requires a tree (connected, χ = 1); this graph has χ = \
@@ -238,10 +238,9 @@ end
 
 Topological belief sweep, then the reverse sweep over bidirectional edges only.
 
-Errors unless [`isdag`](@ref) — which, note, excludes any graph containing a `Bidirectional`
-edge. So in practice this schedule is for the *explicit* subset of graphs, and its
-`backward` list is always empty. It is provided because that degenerate case is exactly
-Lux.jl, and having it nameable makes the boundary between the two libraries explicit.
+Accepts a DAG or a tree. [`isdag`](@ref) excludes `Bidirectional` edges, so the DAG
+branch's `backward` list is empty. On a tree that is not a DAG, wraps the inward and
+outward lists from [`tree_schedule`](@ref). Other graphs raise `ArgumentError`.
 """
 function forward_backward_schedule(g::FactorGraph)
     if !isdag(g)

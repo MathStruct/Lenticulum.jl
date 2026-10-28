@@ -129,9 +129,10 @@ it silently. A validation pass for this is missing.
   an oversight; fixing it means deciding where to pay for joint representations.
 - **General residual diagnostics.** `ResidualSchedule` executes, but its convergence report
   measures message changes, not correctness of a loopy posterior.
-- **Implicit graph adjoints.** Finite static replay is implemented in [[gradient_couplings]];
-  an implicit fixed-point graph pullback remains open. Belief and parameter updates stay
-  separate.
+- **Graph adjoints.** Finite realised-schedule replay is implemented in [[gradient_couplings]];
+  [[graph_adjoint]] implements an opt-in CPU message fixed-point adjoint. Native
+  Enzyme/Mooncake replay and device implicit coordinates remain open. Belief and
+  parameter updates stay separate.
 
 Related: [[LenticulumCore]], [[AutoBayes to Lenticulum]], [[Factor Graphs]]
 

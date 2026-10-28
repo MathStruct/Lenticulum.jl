@@ -88,7 +88,9 @@ KaTeX, the TikZ diagrams); Obsidian's rendering differs in places. Both builds m
 - On a GPU, a `Float64` constant in a Float32 computation widens it to Float64 (and cuDNN
   rejects it); cast constants to the element type of the input.
 - Indexing a device array with an index vector inside AD scalar-indexes; use broadcasting.
-- Device code is tested with JLArrays and `JLArrays.allowscalar(false)`.
+- Device code is tested with JLArrays and `JLArrays.allowscalar(false)`. The Mycelium and
+  ImplicitLayers device files run only with `LENTICULUM_DEVICE_TESTS=true` (about 17 minutes);
+  run them before committing device-facing changes.
 - Since Julia 1.12 the main thread is in the `:interactive` pool; a busy task spawned there can
   starve it (`bench/jit_latency.jl`).
 
