@@ -7,7 +7,7 @@ Implementation notes also record what their code does not do; a problem gets an 
 | # | Problem | Status |
 |---|---|---|
 | [[LP-001 The vault build uses GNU-only sed]] | `sed -i` in `docs/site/build.sh` fails on macOS (issue #9) | closed (2026-10-23; CI guard 2026-10-25) |
-| [[LP-002 The Jacobian side is not implemented]] | DI factor/graph derivatives; DEQ dense/Krylov IFT and dense HVPs; fixed-state SciML; realised flooding/residual/damped replay and opt-in CPU message fixed-point adjoints | batch C (2026-10-28), seven suites / 25,857 assertions and both docs builds pass; measurements in LP-002; native replay/device implicit/general divergence/metric limits and recurring Core Enzyme NaNs remain |
+| [[LP-002 The Jacobian side is not implemented]] | DI factor/graph derivatives; DEQ dense/Krylov IFT and dense HVPs; fixed-state SciML; realised flooding/residual/damped replay and opt-in CPU message fixed-point adjoints | batch C (2026-10-28), seven suites / 25,857 assertions and both docs builds pass; measurements in LP-002; native replay/device implicit/general divergence/metric limits remain; Core Enzyme NaNs traced to upstream forward mode (Enzyme.jl#3884) |
 | [[LP-003 SquaredNorm does not check its metric]] | An indefinite `M` makes the Jensen gap negative, silently | closed (2026-10-25, reopened once) |
 | [[LP-004 link_sources rewrites unrelated notes]] | The bibliography linker drops links in three unrelated notes | closed (`review-argon`, 2026-10-23) |
 | [[LP-005 Learning the noise covariance]] | Opt-in full/diagonal precision parameters for `Q` and `Σ`; normalised free energy with Wishart/log-normal noise priors or an eigenvalue floor | resolved (2026-10-26; ForwardDiff/Zygote CPU paths) |
