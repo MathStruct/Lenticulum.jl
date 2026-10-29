@@ -1,7 +1,8 @@
 #definition #algorithm
 
-> The identity `Mycelium` is built on: a factor → variable message **is** a Bayesian
-> inversion $c'_\pi$, and the polarity is determined by which channel is the target.
+> The identity `Mycelium` is built on: a factor → variable message is a Bayesian inversion
+> $c'_\pi$ **with the cavity $\pi$ divided out**, i.e. the likelihood site the inversion
+> multiplies into $\pi$; and the polarity is determined by which channel is the target.
 
 > Sources: original to this vault (design and analysis; no single paper).
 >
@@ -21,22 +22,42 @@ $$
 
 then `assemble(factor, polarity)` gives a [[Inversions and Bayesian Lenses]] $(c, c')$, and
 
-$$\mu_{f \to v} \;=\; c'_\pi(y)$$
+$$
+c'_\pi(y) \;=\; \pi \odot \mu_{f \to v},
+\qquad\text{i.e.}\qquad
+\mu_{f \to v}(x) \;\propto\; \frac{c'_\pi(y)(x)}{\pi(x)} \;=\; \ell(y \mid x),
+$$
 
-where $\pi$ is the belief at $v$ **excluding** this edge, and $y$ is the tuple of incoming
-beliefs on the observed channels.
+where $\pi$ is the belief at $v$ **excluding** this edge (the cavity), $y$ is the tuple of
+incoming beliefs on the observed channels, and $\odot$ is pooling (`combine`). The message is
+the likelihood site, not the posterior: `LenticulumCore.likelihood_message` returns it, and
+`invert` returns the posterior ([[L-ADR-0006 Separate likelihood_message from invert]]). The
+variable pools its sites with its prior once; sending the posterior instead would count $\pi$
+once per edge.
+
+A worked case (`GaussianFactor` with $A = 1$, unit noise): cavity $\pi = \mathcal N(0, 1)$,
+observation $y = 2$. The outgoing message is $\mathcal N(2, 1)$ and `invert` gives
+$\mathcal N(1, \tfrac12)$; pooling the message with $\pi$ gives that posterior back, while
+pooling the posterior with $\pi$ would give $\mathcal N(\tfrac23, \tfrac13)$ (LP-019 item 11).
+
+For an approximate inversion $\pi$ is used only as a linearisation, tilting or warm-start point.
+A lens that does not override `likelihood_message` sends whatever `invert` returns, so a lens
+whose `invert` is a posterior counts $\pi$ again at every edge beyond the first.
 
 Every piece has a name in the paper:
 
 | message-passing | AutoBayes |
 |---|---|
-| the outgoing message | the inversion $c'_\pi$ |
+| the outgoing message | the inversion $c'_\pi$ with $\pi$ divided out (the likelihood site) |
+| the variable's belief after this message | the inversion $c'_\pi(y) = \pi \odot \mu_{f\to v}$ |
 | the prior it is conditioned on | $\pi \in \mathcal{P}X$ |
 | the observation it is conditioned on | $y \in Y$ |
 | the channels not involved | $\llbracket c \rrbracket$ |
 | variable → factor message | the pushforward-and-pool of upstream beliefs |
 
-**This is why `Mycelium` needs nothing from `LenticulumCore` except `assemble` and `invert`.**
+**This is why `Mycelium` needs nothing from `LenticulumCore` except `assemble` and
+`likelihood_message`** (which defaults to `invert` for lenses whose inversion is already
+extrinsic).
 The scheduler decides *which* inversion to compute and *when*; the factor decides *how*.
 
 ## Two exclusion principles, and both matter
@@ -78,7 +99,7 @@ prediction.
 Every message in `Mycelium` is an `AbstractBelief`. The **two directions of belief flow** are
 
 - **forward**: priors, propagated by pushforward $c_*\pi$;
-- **backward**: posteriors, produced by inversions $c'_\pi$.
+- **backward**: likelihood sites, the inversions $c'_\pi$ with the cavity divided out.
 
 Both are beliefs; that is what makes AutoBayes' framework a message-passing framework at all.
 
@@ -118,5 +139,5 @@ products with an arbitrary potential are refused. See [[messages]] and [[ratio]]
 > swallowed, and the swallowed version would have been a *plausible wrong answer* rather than an
 > error.
 
-Related: [[Polarity Resolution]], [[Inversions and Bayesian Lenses]], [[Schedules]], [[messages]], [[passing]],
+Related: [[Polarity Resolution]], [[L-ADR-0006 Separate likelihood_message from invert]], [[LP-019 Defects found in the review of the core packages]], [[Inversions and Bayesian Lenses]], [[Schedules]], [[messages]], [[passing]],
 [[The Type Discipline of a Factor Graph]]

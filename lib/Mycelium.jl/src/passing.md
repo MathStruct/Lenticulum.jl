@@ -23,11 +23,13 @@ belief = factor_message(factor, e.channel, pol, inputs, prior, ps, st)
 ```
 
 Five lines, and every one of them is a named thing from the paper: the polarity is the
-input/output split, the prior is the $\pi$ of $c'_\pi$, the inputs are the $y$, and
-`factor_message` is the inversion.
+input/output split, the prior is the $\pi$ of $c'_\pi$ (the cavity), the inputs are the $y$,
+and `factor_message` is the inversion **with $\pi$ divided out**: the likelihood site
+$\mu_{f\to v}$ with $c'_\pi(y) = \pi \odot \mu_{f\to v}$, not the posterior itself
+(`Messages are Inversions.md`, LP-019 item 11).
 
-`factor_message`'s generic implementation is `assemble` then `invert` — the composite of
-`LenticulumCore`'s two interface functions. Structural factors override it directly, because
+`factor_message`'s generic implementation is `assemble` then `likelihood_message`, which
+defaults to `invert` for lenses whose inversion is already extrinsic (L-ADR-0006). Structural factors override it directly, because
 for them the lens is trivial and building one would be ceremony.
 
 ## `sweep!` executors have different semantics
@@ -82,9 +84,14 @@ caller can pass `damping = 0.3` and get none.
 ### 4. `propagate!` special-cases `TreeSchedule` by type
 
 ```julia
-if sched isa TreeSchedule
+if sched isa TreeSchedule && iszero(damping)
     ... return ConvergenceReport(true, 1, 0.0, "tree schedule: one sweep is exact")
 ```
+
+With damping the shortcut is wrong even on a tree: a damped sweep keeps part of each stored
+message, so from a warm start one sweep is not the fixed point. A unary source moved from mean
+0 to 10 and swept once with `damping = 0.5` gave mean 5 and the report "exact" (LP-019
+item 5). Damped tree schedules are now iterated and checked like any other schedule.
 
 The claim "one sweep is exact" is true only if the graph really is a tree — which
 `tree_schedule` enforced at construction. So the invariant is carried by the *type*, which is

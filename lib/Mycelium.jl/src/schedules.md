@@ -120,3 +120,7 @@ block preceded `_resolve_tree_root`, so Documenter attached it to that internal
 helper and could not resolve a reference to the public generator. The block now
 precedes `tree_schedule` itself. This corrects help/API rendering without changing
 either function body.
+
+`ResidualSchedule` rejects `maxtasks < 1` (LP-019 item 9): a sweep of no tasks computes no
+message and has residual 0, which `propagate!` read as convergence, so a unary `DataFactor`
+graph returned `TrivialBelief()` with a converged report.

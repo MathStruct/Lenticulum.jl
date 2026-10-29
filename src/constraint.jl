@@ -70,7 +70,8 @@ function LinearConstraintFactor(
     m > 0 || throw(ArgumentError("the residual dimension m must be positive; got $m"))
     Q = _as_cov(noise, m)
     size(Q) == (m, m) || throw(ArgumentError("noise covariance must have size ($m, $m), matching the residual dimension"))
-    issymmetric(Q) || throw(ArgumentError("noise covariance must be symmetric"))
+    # Exact `issymmetric` rejects J S Jᵀ, which rounds asymmetrically (LP-019 follow-up).
+    LenticulumCore._nearly_symmetric(Q) || throw(ArgumentError("noise covariance must be symmetric"))
     isposdef(Symmetric(Q)) ||
         throw(ArgumentError("noise covariance Q must be positive definite"))
     return LinearConstraintFactor(dims, m, Q, init_coeff, init_constant)

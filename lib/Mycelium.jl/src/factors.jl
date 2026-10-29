@@ -284,7 +284,16 @@ function factor_message(f::RelayFactor, target::Symbol, _, inputs, _, ps, st)
     haskey(inputs, src) || return (LenticulumCore.TrivialBelief(), st)
     return (getfield(inputs, src), st)
 end
-local_free_energy(::RelayFactor, _, ps, st) = (0.0, st)
+# An equality factor: zero energy, but its Bethe belief q(a)δ(a = b), with q the pooled
+# incoming messages, has the entropy of q (relative to the measure on the diagonal). Without
+# that −H(q) the relayed variable's extra degree is left uncounted and F rises by H(q)
+# (LP-019 item 1).
+uses_cavity(::RelayFactor) = true
+function local_free_energy(f::RelayFactor, beliefs, ps, st)
+    ms = filter(!isnothing, (get(beliefs, f.a, nothing), get(beliefs, f.b, nothing)))
+    isempty(ms) && return (0.0, st)
+    return (-variable_entropy(foldl(combine, ms)), st)
+end
 
 # =========================================================================== #
 # Optimisers as reparametrisations

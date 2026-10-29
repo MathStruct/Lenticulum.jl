@@ -77,3 +77,13 @@ matrix, and keeps CPU behavior unchanged. `Mycelium/test/graph_adjoint_devices.j
 checks zero/precision-only/information-only beliefs, then tree/loopy Gaussian
 schedule replay with scalar indexing disabled. Earlier terminal-only device
 Gaussian fixtures did not exercise this polarity-resolution path.
+
+## Symmetry is checked (2026-10-29, LP-019 item 3)
+
+`Symmetric(M)` reads one triangle, so `Gaussian(μ, [1 0.2; 10 1])` was accepted as
+`[1 0.2; 0.2 1]`, and the same matrix as a precision passed `isproper` although its symmetric
+part has eigenvalues −4.1 and 6.1. `Gaussian`, the precision factorisation behind the moment
+accessors, and `isproper` now check $\max|M - M^\top| \le \sqrt{\varepsilon_{\text{Float32}}}\,\max|M|$
+first: rounding-level asymmetry, as left by $A\Lambda A^\top$, passes. `GaussianBelief(η, Λ)`
+itself still accepts any square `Λ`, since it may be a likelihood; an asymmetric one is simply
+not proper. Tested in `test/lp019.jl`.

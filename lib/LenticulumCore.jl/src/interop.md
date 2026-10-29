@@ -67,3 +67,10 @@ weights at `1e308` retain their mean rather than becoming zero through an overfl
 normaliser. All-zero particle weights are refused. Evidence: the top-level
 `test/lp018_interop.jl`, “LP-018.9 finite particle weights across interop and AD”, compares
 against the two-particle mean 2. The optional extension still has no core dependency cost.
+
+## Scalar particles (2026-10-29, LP-019 item 8)
+
+`as_belief(::SampleList)` collected every sample, which turned scalars into zero-dimensional
+arrays: `SampleBelief([1, 3])` came back as `[fill(1), fill(3)]`, and pooling it with a
+categorical belief then threw. Scalars are now unwrapped and only array samples collected.
+Tested in the top-level `test/lp019_interop.jl`.

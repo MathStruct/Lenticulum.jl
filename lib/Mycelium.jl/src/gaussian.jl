@@ -76,12 +76,30 @@ _damp(a::GaussianBelief, b::GaussianBelief, α::Real) =
     GaussianBelief(α .* a.η .+ (1 - α) .* b.η, α .* a.Λ .+ (1 - α) .* b.Λ)
 
 # Product rule for mixture components: the pooled Gaussian and the log of the overlap
-# ∫ p_c p_d = exp(A(c⊙d) − A(c) − A(d)), with A the log-partition. An improper d (a likelihood
-# message) has no A; the overlap is then taken up to the constant A(d), which is the same for
-# every component and cancels when the mixture weights are normalised.
+# ∫ p_c p_d. An improper d (a likelihood message exp(ηᵀx − xᵀΛx/2)) has no normaliser; the
+# overlap is then ∫ p_c(x) exp(ηᵀx − xᵀΛx/2) dx, which differs from the proper one by a
+# constant depending on d alone and cancels when the mixture weights are normalised.
+#
+# Neither case subtracts log-partitions: A(c⊙d) − A(c) − A(d) cancels terms of size μᵀΛμ/2,
+# and at |μ| ~ 1e8 nothing is left (LP-019 item 6). Proper pairs use the convolution
+# log N(μ_c − μ_d; 0, Σ_c + Σ_d); an improper d is expanded about μ_c.
 function combine_with_overlap(c::GaussianBelief, d::GaussianBelief)
     isproper(c) || throw(ArgumentError("combine_with_overlap requires a proper first Gaussian belief"))
     cd = combine(c, d)
-    logZ = logpartition(cd) - logpartition(c) - (isproper(d) ? logpartition(d) : 0.0)
+    n = dimension(c)
+    Cc = LenticulumCore._improper_check(c, "combine_with_overlap")
+    μc = LenticulumCore._precision_solve(Cc, c.η)
+    if isproper(d)
+        Cd = LenticulumCore._improper_check(d, "combine_with_overlap")
+        δ = μc - LenticulumCore._precision_solve(Cd, d.η)
+        CS = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Matrix(inv(Cc) + inv(Cd))))
+        logZ = -(δ' * (CS \ δ)) / 2 - logdet(CS) / 2 - n * log(2π) / 2
+    else
+        # x = μ_c + u: ∫ N(u; 0, Σ_c) exp(rᵀu − uᵀΛu/2) du with r = η − Λμ_c.
+        Ccd = LenticulumCore._improper_check(cd, "combine_with_overlap")
+        r = d.η - d.Λ * μc
+        logZ = d.η' * μc - (μc' * (d.Λ * μc)) / 2 + (r' * LenticulumCore._precision_solve(Ccd, r)) / 2 +
+               (LenticulumCore._precision_logdet(Cc) - LenticulumCore._precision_logdet(Ccd)) / 2
+    end
     return cd, logZ
 end

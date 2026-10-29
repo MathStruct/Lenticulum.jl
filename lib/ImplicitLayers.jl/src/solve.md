@@ -446,3 +446,17 @@ The existing non-diagonal history oracles in `test/lp002_batch_a.jl` check rever
 and batched forward derivatives, both orientations, eviction and warm starts.
 The focused reproduction also uses explicit bounds checking. This adds no
 Enzyme device or nested-AD rule.
+
+## Finite-difference steps and residual norms (2026-10-29, LP-019 items 4 and 10)
+
+`fd_jacobian` added $h = \varepsilon\max(1, |u_j|)$ to $u_j$ in the element type and divided by
+the unrounded $h$. In Float32 the probe $1 + 10^{-7}$ rounds to $1 + 2^{-23}$, so the identity's
+Jacobian came out as 1.1920929; in Float16 the probe vanished and the Jacobian was 0. Even in
+Float64 the identity gave $1 + 5.8\cdot10^{-10}$. The quotient now uses the increment the rounded
+probe actually makes (`_fd_step`, shared with `flow.jl`'s `_divergence`), and the default
+relative step is $\max(10^{-7}, \sqrt{\varepsilon_T})$, so Float64 keeps $10^{-7}$.
+
+`_norm` was `sqrt(sum(abs2, v))`, which underflows: a constant residual `[1e-200]` with
+`tol = 1e-210` was reported converged at iteration 0 by Picard, Broyden and limited Broyden,
+although there is no root. It is now `LinearAlgebra.norm`, which rescales. Tested in
+`test/lp019.jl`.

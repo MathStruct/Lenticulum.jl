@@ -189,6 +189,10 @@ function combine_with_overlap(c::LenticulumCore.CategoricalBelief, d::Lenticulum
     return (logZ == -Inf ? c : combine(c, d)), logZ
 end
 
+_improper_first(c, d) = false
+_improper_first(c::LenticulumCore.GaussianBelief, d::LenticulumCore.GaussianBelief) =
+    !LenticulumCore.isproper(c) && LenticulumCore.isproper(d)
+
 _parts(m::LenticulumCore.MixtureBelief) = (m.components, m.logw)
 _parts(b) = ([b], [0.0])
 
@@ -198,7 +202,9 @@ function _mixture_product(a, b)
     for (i, c) in enumerate(ca), (j, d) in enumerate(cb)
         hasmethod(combine_with_overlap, Tuple{typeof(c),typeof(d)}) || throw(ArgumentError(
             "no product rule for mixture components of types $(typeof(c)) and $(typeof(d))"))
-        cd, logZ = combine_with_overlap(c, d)
+        # The Gaussian rule needs a proper first operand; the product itself is symmetric, so
+        # put an improper site second whichever side of the product it came from (LP-019).
+        cd, logZ = _improper_first(c, d) ? combine_with_overlap(d, c) : combine_with_overlap(c, d)
         logZ == -Inf && continue                              # disjoint: this pair contributes nothing
         push!(comps, cd); push!(logw, la[i] + lb[j] + logZ)
     end

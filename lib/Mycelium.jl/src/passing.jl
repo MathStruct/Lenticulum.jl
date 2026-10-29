@@ -226,8 +226,9 @@ Base.show(io::IO, r::ConvergenceReport) = print(io,
 
 Run the schedule to convergence, or to `maxsweeps`.
 
-For a [`TreeSchedule`](@ref) one sweep is enough and is **exact**; the loop stops after one
-and says so. For loopy graphs there is no guarantee: see `Loopy Message Passing.md`.
+For a [`TreeSchedule`](@ref) without damping one sweep is enough and is **exact**; the loop
+stops after one and says so. With damping a tree schedule is iterated and checked like any
+other, since a damped sweep keeps part of each previously stored message. For loopy graphs there is no guarantee: see `Loopy Message Passing.md`.
 
 `damping ∈ [0,1)` mixes each new message with the previous one
 (`0` = none, higher = more inertia), the standard remedy for oscillation. Damping only
@@ -238,7 +239,9 @@ function propagate!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, ps
                     maxsweeps::Int = 100, tol::Real = 1e-8, damping::Real = 0.0,
                     record = nothing)
     0 <= damping < 1 || throw(ArgumentError("damping must be in [0, 1); got $damping"))
-    if sched isa TreeSchedule
+    # Undamped, one tree sweep is exact. Damping keeps part of each stored message, so from a
+    # warm start one sweep is not the fixed point: iterate and check like any schedule.
+    if sched isa TreeSchedule && iszero(damping)
         _, st = sweep!(s, g, sched, ps, st; damping)
         return ConvergenceReport(true, 1, 0.0, "tree schedule: one sweep is exact"), st
     end

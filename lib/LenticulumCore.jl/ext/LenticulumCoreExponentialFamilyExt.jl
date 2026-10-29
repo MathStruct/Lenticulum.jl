@@ -51,7 +51,12 @@ LenticulumCore.as_belief(d::Categorical) = CategoricalBelief(Distributions.probs
 LenticulumCore.as_belief(d::Bernoulli) = bernoulli(Distributions.succprob(d))
 LenticulumCore.as_belief(d::MixtureModel) =
     MixtureBelief([LenticulumCore.as_belief(c) for c in Distributions.components(d)], Distributions.probs(d))
+# Scalar samples come out of a SampleList as zero-dimensional arrays; unwrap them, or the
+# round trip turns `SampleBelief([1, 3])` into `[fill(1), fill(3)]` (LP-019 item 8).
+_sample(x::AbstractArray{<:Any,0}) = x[]
+_sample(x::Number) = x
+_sample(x) = collect(x)
 LenticulumCore.as_belief(d::SampleList) =
-    SampleBelief([collect(x) for x in BayesBase.get_samples(d)], collect(BayesBase.get_weights(d)))
+    SampleBelief([_sample(x) for x in BayesBase.get_samples(d)], collect(BayesBase.get_weights(d)))
 
 end # module

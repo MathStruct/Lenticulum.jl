@@ -112,10 +112,11 @@ That is a real difference between the families and the vault had not previously 
 ### A cross-family connection
 
 `ift_sensitivity` fails when $I - \partial_z g$ is singular, and that is not a numerical
-accident — it says the fixed point is not locally unique, i.e. **the relation branches there**.
-The algebraic family calls that locus the discriminant
-([[Branches and the Discriminant]]). Two of the three [[Implicit Learners]] families therefore
-fail in the same place, for the same reason, in different vocabulary.
+accident: there the implicit function theorem no longer guarantees a locally unique, smooth
+fixed point. It does not by itself mean the relation branches ($z^3 = x$ has a unique real root
+everywhere and is singular at $0$; [[DEQ as a Relation]] §4). The algebraic family calls the
+singular locus the discriminant ([[Branches and the Discriminant]]). Two of the three
+[[Implicit Learners]] families therefore fail at the same locus, in different vocabulary.
 
 ## 5. `GaussianBelief` was in the wrong package
 

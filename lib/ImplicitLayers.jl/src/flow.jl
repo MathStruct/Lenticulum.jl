@@ -210,13 +210,12 @@ _one_step(::RK4Integrator) = RK4Integrator(1)
 
 ``\\operatorname{tr}(\\partial \\mathrm{vf}/\\partial u)`` by forward differences.
 """
-function _divergence(vf, u, t; ε = 1e-7)
+function _divergence(vf, u, t; ε = nothing)
     f0 = vf(u, t)
     acc = 0.0
     for j in eachindex(u)
-        h = ε * max(one(eltype(u)), abs(u[j]))
         up = copy(u)
-        up[j] += h
+        up[j], h = _fd_step(u[j], ε)
         acc += (vf(up, t)[j] - f0[j]) / h
     end
     return acc

@@ -171,8 +171,10 @@ end
     end
     @test_throws ArgumentError free_energy_gradient(MessageStore(g),g,p,merge(st,(u=(counter=1,),));schedule=flooding_schedule(g),adjoint=:implicit)
     @test_throws ArgumentError free_energy_gradient(MessageStore(g),g,p,st;ad=AutoZygote(),schedule=flooding_schedule(g),adjoint=:implicit,linear_solver=:krylov,linear_maxiter=1)
+    # A zero-budget ResidualSchedule is now refused at construction (LP-019 item 9).
+    @test_throws ArgumentError ResidualSchedule(maxtasks=0)
     for sched in (SequentialSchedule([MessageTask(0,:to_factor)]),
-            SequentialSchedule([MessageTask(1,:bad)]), ResidualSchedule(maxtasks=0))
+            SequentialSchedule([MessageTask(1,:bad)]))
         for adjoint in (:unrolled,:implicit)
             @test_throws ArgumentError free_energy_gradient(MessageStore(g),g,p,st;schedule=sched,adjoint)
         end

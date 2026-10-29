@@ -302,7 +302,7 @@ end
     @test uses_cavity(prior)
     @test uses_cavity(LossFactor((:z,), identity))
     @test !uses_cavity(DataFactor(:z, 1))
-    @test !uses_cavity(RelayFactor(:in, :out))
+    @test uses_cavity(RelayFactor(:in, :out))   # its Bethe belief has entropy (LP-019 item 1)
     @test !uses_cavity(OptimiserFactor(:z, GradientDescent(0.1)))
     @test !uses_cavity(nothing)  # the public default
 
@@ -339,17 +339,25 @@ end
         end
     end
 
-    # A directed data -> relay -> loss graph: only constant-zero factors emit.
-    b = GraphBuilder()
-    variable!(b, :x); variable!(b, :y)
-    factor!(b, :data, DataFactor(:x, 2.0))
-    factor!(b, :relay, RelayFactor(:in, :out))
-    factor!(b, :loss, LossFactor((:y,), y -> (y - 5)^2 / 2))
-    connect!(b, :data, :x, :x; direction = Emitting())
-    connect!(b, :relay, :in, :x; direction = Absorbing())
-    connect!(b, :relay, :out, :y; direction = Emitting())
-    connect!(b, :loss, :y, :y; direction = Absorbing())
-    g = build(b)
+    # A data -> relay -> loss graph. Only the data factor is constant-zero; the relay's free
+    # energy is −H of its pooled incoming messages (LP-019 item 1), so a directed relay edge is
+    # refused like any cavity reader's, and the relay's edges must be bidirectional.
+    function data_relay_loss(reldir)
+        b = GraphBuilder()
+        variable!(b, :x); variable!(b, :y)
+        factor!(b, :data, DataFactor(:x, 2.0))
+        factor!(b, :relay, RelayFactor(:in, :out))
+        factor!(b, :loss, LossFactor((:y,), y -> (y - 5)^2 / 2))
+        connect!(b, :data, :x, :x; direction = Emitting())
+        connect!(b, :relay, :in, :x; direction = reldir)
+        connect!(b, :relay, :out, :y; direction = reldir == Absorbing() ? Emitting() : reldir)
+        connect!(b, :loss, :y, :y; direction = Absorbing())
+        return build(b)
+    end
+    g = data_relay_loss(Absorbing())
+    _, _, st, store = infer!(g, tree_schedule(g), nt, nt)
+    @test_throws ArgumentError scalar_free_energy(store, g, nt, st)
+    g = data_relay_loss(Bidirectional())
     _, _, st, store = infer!(g, tree_schedule(g), nt, nt)
     @test first(scalar_free_energy(store, g, nt, st)) ≈ 4.5
     B, _ = bethe_free_energy(store, g, nt, st)
@@ -595,6 +603,7 @@ include("gradient_couplings.jl")
 
 include("graph_adjoint.jl")
 include("lp018.jl")
+include("lp019.jl")
 # Device (JLArrays) coverage is slow; it runs locally with LENTICULUM_DEVICE_TESTS=true,
 # not on every CI push.
 if get(ENV, "LENTICULUM_DEVICE_TESTS", "false") == "true"

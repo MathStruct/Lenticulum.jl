@@ -109,25 +109,32 @@ the Jacobian.
 that this is a test-scale tool: $O(n)$ forward passes where a VJP would be $O(1)$. It exists
 so the IFT can be checked against $(I-W)^{-1}U$, not so it can be used.
 
-### The singular case is the discriminant
+### The singular case contains the branch points
 
 `ift_sensitivity` throws when $I - \partial_z g$ is singular. That is not a numerical edge
-case — it says the fixed point is not locally unique, i.e. the relation **branches**. The
-algebraic family has a name for that locus: [[Branches and the Discriminant]].
+case: it says the implicit function theorem's sufficient condition fails, so the theorem no
+longer guarantees a locally unique fixed point depending smoothly on $x$. It does **not** say
+the relation branches. For $g(z, x) = z - z^3 + x$ the relation is $z^3 = x$, whose real root
+$\sqrt[3]{x}$ is unique for every $x$; at $x = z = 0$, $I - \partial_z g = 3z^2 = 0$ and the IFT
+fails because the root is not differentiable there (LP-019 item 12). Branch points lie inside
+the singular locus, but the singular locus can be larger; showing a branch takes a separate
+argument, such as a second solution nearby.
 
-So two of the three [[Implicit Learners]] families fail in the same place, for the same
-reason, and had different vocabulary for it. In the algebraic case the discriminant is
-computable in advance by elimination; in the equilibrium case you find out when the linear
-solve fails.
+The algebraic family has a name for the singular locus: [[Branches and the Discriminant]]. So
+two of the three [[Implicit Learners]] families fail at the same locus, in different
+vocabulary. In the algebraic case the discriminant is computable in advance by elimination; in
+the equilibrium case you find out when the linear solve fails.
 
 ## 5. What the factor cannot do
 
 - **Return anything but a point.** The message is a `DiracBelief`. `deq_sensitivity` computes
   exactly the linearisation a covariance would be pushed through, and there is nowhere to put
   the result — see [[The Equilibrium Family]] §5.
-- **Divide out its prior.** So the message is a posterior rather than a likelihood, correct at
-  degree 1 and double-counting beyond. The same wall [[The Diffusion Factor]] §4.1 hits, for
-  the same reason: you cannot subtract a neural network.
+- **Use its prior.** The message is the fixed point $z^\ast(x)$ as a `DiracBelief`; the prior
+  on $z$ serves only as the solver's warm start. With the contractive cell $z = z/2 + x$ and
+  $x = 1$ the message is $z = 2$ for priors $\mathcal N(0, 1)$, $\mathcal N(10, 1)$ and
+  $\mathcal N(10, 0.01)$ alike (LP-019 item 11), so it is not a prior-conditioned posterior.
+  A point message cannot carry a likelihood either: pooled with anything it is a hard clamp.
 - **Contribute an entropy.** Energy only, so the Bethe correction has nothing to correct
   ([[The Equilibrium Family]] §6).
 - **Start from a learned guess.** `SkipDeepEquilibriumNetwork` exists because $z_0 = h_\phi(x)$

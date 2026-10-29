@@ -21,7 +21,7 @@ inversion), and — once parameters can be exposed as channels — of optimisers
 | `DataFactor` | `Emitting` | no | 1 | $0$ |
 | `PriorFactor` | `Bidirectional` for graph free energy | optional | 1 | $-\log p_\pi(x)$ |
 | `LossFactor` | `Absorbing` | no | **0** (a sink) | $f(\ldots)$ |
-| `RelayFactor` | `Bidirectional` | no | 2 | $0$ |
+| `RelayFactor` | `Bidirectional` for graph free energy | no | 2 | $0$ (free energy $-H(q)$) |
 | `OptimiserFactor` | `Bidirectional` | no (holds *state*) | 1 | $0$ |
 
 `LossFactor` having **zero** polarities is the third case beyond unidirectional and
@@ -158,3 +158,16 @@ configuration scalars from widening Float32 device parameters. CPU methods and
 all public rule signatures are unchanged. JLArrays tests compare get/put with
 the CPU formula and assert device/element-type preservation; graph tests also
 exercise the default learning rate. See `lib/ImplicitLayers.jl/test/device_arrays.jl`.
+
+## The relay's entropy (2026-10-29, LP-019 item 1)
+
+A relay is an equality factor. Its energy is zero, but its Bethe belief $q(a)\,\delta(a = b)$,
+with $q$ the pooled incoming messages, has the entropy of $q$ relative to the measure on the
+diagonal. The graph free energy counts the relayed variable with one more degree, and the
+relay's $-H(q)$ is what cancels it. With the zero contribution used before, a categorical
+prior `[0.3, 0.7]` relayed to a second variable gave $F = H(p) = 0.6109$ instead of $0$; a
+Gaussian prior gave its differential entropy. `local_free_energy(::RelayFactor)` now returns
+$-H(q)$ and `uses_cavity` is `true`, so graph free-energy evaluation needs its edges to carry
+variable-to-factor messages: a directed relay (`Absorbing()` in, `Emitting()` out), accepted
+before with a zero contribution, now raises the LP-014 error asking for `Bidirectional()`. The game quantities (`energy`, the identity game) are unchanged.
+Tested in `test/lp019.jl`.

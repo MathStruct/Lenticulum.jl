@@ -126,6 +126,12 @@ usable [`belief_distance`](@ref); pairs returning `Inf` are tried first.
 """
 struct ResidualSchedule <: AbstractSchedule
     maxtasks::Int
+    function ResidualSchedule(maxtasks::Int)
+        # A sweep of zero tasks computes nothing and has residual 0, which would read as
+        # convergence (LP-019 item 9).
+        maxtasks >= 1 || throw(ArgumentError("ResidualSchedule needs maxtasks ≥ 1; got $maxtasks"))
+        return new(maxtasks)
+    end
 end
 ResidualSchedule(; maxtasks::Int = 10_000) = ResidualSchedule(maxtasks)
 

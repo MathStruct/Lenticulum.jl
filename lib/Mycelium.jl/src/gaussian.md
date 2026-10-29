@@ -64,3 +64,23 @@ Float32 device messages. CPU damping arithmetic is unchanged. New realised
 flooding/residual replay tests compare Float32/Float64 diagonal Gaussian tree/loop
 messages and derivatives against CPU references with scalar indexing disabled.
 See `test/graph_adjoint_devices.jl` and [[gradient_couplings]].
+
+## Overlaps without cancellation (2026-10-29, LP-019 items 2 and 6)
+
+`combine_with_overlap` used to return $A(c \odot d) - A(c) - A(d)$. Each log-partition holds a
+term $\mu^\top\Lambda\mu/2$, and at $|\mu| \sim 10^8$ the difference loses every digit: two
+identical $\mathcal N(10^8, 1)$ gave $-4$ instead of $-\tfrac12\log 4\pi$, and a mixture's
+product weights shifted by $10^8$ became `[0.5, 0.5]` instead of `[0.5312, 0.4688]`. Proper
+pairs now use the convolution $\log\mathcal N(\mu_c - \mu_d;\, 0,\, \Sigma_c + \Sigma_d)$, which
+depends only on the difference of the means. For an improper $d$ the value is still
+$\log\int p_c(x)\exp(\eta^\top x - x^\top\Lambda x/2)\,dx$ (the convention `overlap.jl` tests),
+expanded about $\mu_c$. That value is genuinely of size $\eta^\top\mu_c$, which is harmless when
+the mixture weights are normalised.
+
+Translation invariance holds until the canonical form itself fails: beyond $|\mu| \sim 10^{12}$,
+$\mu = \Lambda^{-1}\eta$ is recovered only to $\sim 10^{-16}|\mu|$, which no overlap formula
+repairs.
+
+The rule needs a proper first argument. `_mixture_product` now puts a proper Gaussian first,
+whichever side of the product it came from, so pooling a mixture with an improper site no
+longer depends on the factor insertion order. Tested in `test/lp019.jl`.

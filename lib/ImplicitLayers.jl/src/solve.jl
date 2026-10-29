@@ -174,7 +174,8 @@ function _solve_limited(F, u₀, s::LimitedBroydenSolver, retain, history=nothin
     return _limited_result(u, SolveReport(false, s.maxiters, n, s.maxiters+1), a, b, scale, retain)
 end
 
-_norm(v) = sqrt(sum(abs2, v))
+# `LinearAlgebra.norm` rescales, so tiny residuals do not underflow to a false root (LP-019 item 10).
+_norm(v) = Float64(LinearAlgebra.norm(v))
 
 """
     solve_root(F, u₀, solver) -> (u, SolveReport)
@@ -235,7 +236,7 @@ end
 # --- Derivatives, by finite differences ------------------------------------
 
 """
-    fd_jacobian(F, u; ε = 1e-7) -> Matrix
+    fd_jacobian(F, u; ε) -> Matrix
 
 The dense Jacobian ``\\partial F/\\partial u`` by forward differences: ``n+1`` evaluations of
 `F`.
@@ -244,18 +245,32 @@ This remains a reference for small systems. Optional DI derivatives and solved-s
 IFT rules use automatic differentiation instead; see `deq_sensitivity` and
 `solve_state(...; ad)`. The root iterations themselves do not need derivatives.
 
+Column ``j`` uses the relative step `ε` (default ``\\max(10^{-7}, \\sqrt{\\varepsilon_T})`` for
+element type ``T``) and divides by the increment the rounded probe actually makes.
+
 """
-function fd_jacobian(F, u; ε = 1e-7)
+function fd_jacobian(F, u; ε = nothing)
     f0 = F(u)
     m, n = length(f0), length(u)
     J = zeros(Float64, m, n)
     for j in 1:n
-        h = ε * max(one(eltype(u)), abs(u[j]))
         up = copy(u)
-        up[j] += h
+        up[j], h = _fd_step(u[j], ε)
         J[:, j] .= (F(up) .- f0) ./ h
     end
     return J
+end
+
+# A forward-difference probe x + h in the precision of x, and the increment it actually makes.
+# The requested h is rounded when it is added, so the quotient must use the rounded one; and
+# 1e-7 is below the resolution of Float16 and close to Float32's, so the default relative step
+# is max(1e-7, √eps) for the element type (LP-019 item 4). Float64 keeps 1e-7.
+# Non-IEEE numbers (ForwardDiff duals inside a stiff SciML solver) keep the 1e-7 step.
+function _fd_step(x::Real, ε)
+    T = typeof(float(x))
+    e = ε !== nothing ? ε : T <: Base.IEEEFloat ? max(1e-7, sqrt(eps(T))) : 1e-7
+    xp = x + T(e * max(one(T), abs(x)))
+    return xp, xp - x                      # the increment the rounded probe actually makes
 end
 
 """

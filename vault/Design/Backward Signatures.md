@@ -36,7 +36,7 @@ cotangents it returns compose by the same chain rule the messages do.
 | level | forward |
 |---|---|
 | solver | `implicit_infer(m, z₀, ρ, ps, st) -> (sol, st)` |
-| factor | `factor_message(f, target, polarity, inputs, prior, ps, st) -> (belief, st)`, generically `assemble` then `invert(lens, π, y, ps, st)` |
+| factor | `factor_message(f, target, polarity, inputs, prior, ps, st) -> (belief, st)`, generically `assemble` then `likelihood_message(lens, π, y, ps, st)` (the inversion with π divided out; defaults to `invert`) |
 | graph | `infer!(g, sched, ps, st) -> (marginals, report, st, store)` |
 
 ## 3. The backward signatures

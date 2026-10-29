@@ -124,3 +124,12 @@ is evaluated as `(sum(dy)/maximum(weights))/sum(weights/maximum(weights))`. This
 an overflowing sum of finite weights and preserves cancellation for uniform cotangents.
 Evidence: the top-level `test/lp018_interop.jl`, “LP-018.9 finite particle weights across
 interop and AD”, checks the dimensionless scaled gradient at `[1e308,1e308]` against zero.
+
+## The weight-normalisation pullback (2026-10-29, LP-019 item 7)
+
+The ChainRulesCore rule for `_normalised_logweights` computed $D_j/w_j - (\sum D/m)/\sum(w/m)$
+with $m = \max w$. The second term overflows for tiny weights: at `[1e-308, 1e-308]` the
+gradient of `sum(logp)` was `[-Inf, -Inf]`, at `[1e-320, 1e-320]` NaN, though it is exactly zero.
+It is now $(D_j - p_j\sum D)/w_j$ with $p = w/\sum w$ normalised by $m$ first, so the cancelling
+numerator is formed before any division. Tested in the top-level `test/lp019_interop.jl` (the
+extension does not load in LenticulumCore's own test environment).

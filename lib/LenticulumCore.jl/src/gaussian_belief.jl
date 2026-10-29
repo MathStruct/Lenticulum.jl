@@ -78,10 +78,23 @@ isuninformative(::AbstractBelief) = false
 
 dimension(b::GaussianBelief) = length(b.η)
 
-_chol(M, name) = try
-    cholesky(Symmetric(Matrix(M)))
-catch
-    throw(ArgumentError("$name is not positive definite: $(M)"))
+# `Symmetric` reads one triangle, so an asymmetric matrix would be validated and used as its
+# upper triangle mirrored (LP-019 item 3). The tolerance admits rounding-level asymmetry, as
+# left by products like A Λ Aᵀ, and nothing larger.
+function _nearly_symmetric(M)
+    A = Matrix(M)
+    return maximum(abs, A - A'; init = 0.0) <= sqrt(eps(Float32)) * maximum(abs, A; init = 0.0)
+end
+_check_symmetric(M, name) = _nearly_symmetric(M) ||
+    throw(ArgumentError("$name is not symmetric: $(M)"))
+
+function _chol(M, name)
+    _check_symmetric(M, name)
+    return try
+        cholesky(Symmetric(Matrix(M)))
+    catch
+        throw(ArgumentError("$name is not positive definite: $(M)"))
+    end
 end
 
 """
@@ -91,7 +104,7 @@ Whether `Λ` is positive definite, i.e. whether the belief is a normalisable dis
 rather than a likelihood. `belief_mean`, `belief_cov`, `variable_entropy` and
 `belief_logdensity` all require this.
 """
-_precision_isproper(M) = isposdef(Symmetric(Matrix(M)))
+_precision_isproper(M) = _nearly_symmetric(M) && isposdef(Symmetric(Matrix(M)))
 isproper(b::GaussianBelief) = _precision_isproper(b.Λ)
 
 """
@@ -151,7 +164,10 @@ function Base.show(io::IO, b::GaussianBelief)
     end
 end
 
-_precision_factor(M) = cholesky(Symmetric(Matrix(M)))
+function _precision_factor(M)
+    _check_symmetric(M, "Λ")
+    return cholesky(Symmetric(Matrix(M)))
+end
 
 _precision_logdet(C) = logdet(C)
 

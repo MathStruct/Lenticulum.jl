@@ -4,6 +4,7 @@ using ChainRulesCore
 ChainRulesCore.@non_differentiable LenticulumCore._trainable_indices(ps, freeze)
 ChainRulesCore.@non_differentiable LenticulumCore.offset_tree(ps)
 ChainRulesCore.@non_differentiable LenticulumCore._flatlen(ps)
+ChainRulesCore.@non_differentiable LenticulumCore._nearly_symmetric(M)
 function ChainRulesCore.rrule(::typeof(LenticulumCore._normalised_logweights), weights)
     y = LenticulumCore._normalised_logweights(weights)
     function back(dy)
@@ -11,8 +12,11 @@ function ChainRulesCore.rrule(::typeof(LenticulumCore._normalised_logweights), w
         D isa AbstractZero && return NoTangent(), ZeroTangent()
         all(>(0),weights) || throw(ArgumentError(
             "normalised log-weight derivatives require strictly positive weights; support-boundary derivatives are undefined"))
+        # ∂ log(wᵢ/Σw)/∂wⱼ = δᵢⱼ/wᵢ − 1/Σw, so the pullback is (Dⱼ − pⱼ ΣD)/wⱼ with p = w/Σw.
+        # Form the cancelling numerator first: ΣD/Σw overflows for tiny w (LP-019 item 7).
         m = maximum(weights)
-        return NoTangent(), D ./ weights .- (sum(D) / m) / sum(weights ./ m)
+        p = (weights ./ m) ./ sum(weights ./ m)
+        return NoTangent(), (D .- p .* sum(D)) ./ weights
     end
     return y, back
 end
