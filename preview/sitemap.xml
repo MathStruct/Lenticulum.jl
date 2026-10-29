@@ -174,7 +174,7 @@
     <lastmod>2026-10-26T01:19:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-10-28T19:21:36.351Z</lastmod>
+    <lastmod>2026-10-29T15:14:56.819Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-10-25T22:36:28.000Z</lastmod>
@@ -228,7 +228,7 @@
     <lastmod>2026-10-12T23:07:17.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Diffusion/RED-Diff-as-a-Statistical-Game</loc>
-    <lastmod>2026-10-26T01:41:53.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Diffusion/The-Diffusion-Factor</loc>
     <lastmod>2026-10-26T12:37:22.000Z</lastmod>
@@ -240,7 +240,7 @@
     <lastmod>2026-10-26T01:41:53.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Diffusion/The-VP-SDE</loc>
-    <lastmod>2026-10-06T17:29:50.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Diffusion/Universal-Approximation-for-Implicit-Diffusion-Learners</loc>
     <lastmod>2026-10-24T23:08:41.000Z</lastmod>
@@ -324,7 +324,7 @@
     <lastmod>2026-10-24T23:08:41.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-002-The-Jacobian-side-is-not-implemented</loc>
-    <lastmod>2026-10-28T15:44:20.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:15.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-003-SquaredNorm-does-not-check-its-metric</loc>
     <lastmod>2026-10-24T23:08:41.000Z</lastmod>
@@ -371,8 +371,11 @@
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-017-DiffusionFactor-omits-supported-polarities</loc>
     <lastmod>2026-10-26T12:37:22.000Z</lastmod>
   </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-018-Defects-found-in-the-review-of-the-older-packages</loc>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
+  </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/Problem-Log</loc>
-    <lastmod>2026-10-28T19:21:06.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-001-The-Factor-Interface</loc>
     <lastmod>2026-10-27T13:51:12.000Z</lastmod>
@@ -435,7 +438,7 @@
     <lastmod>2026-10-27T10:34:02.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Adversarial.jl/ratio</loc>
-    <lastmod>2026-10-27T10:34:02.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Adversarial.jl/transport</loc>
     <lastmod>2026-10-27T10:34:02.000Z</lastmod>
@@ -504,13 +507,13 @@
     <lastmod>2026-10-28T15:44:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/interop</loc>
-    <lastmod>2026-10-07T15:33:13.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/lens</loc>
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/open_model</loc>
-    <lastmod>2026-10-27T13:51:12.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/parameter_tree</loc>
     <lastmod>2026-10-28T15:44:20.000Z</lastmod>
@@ -540,7 +543,7 @@
     <lastmod>2026-10-28T15:44:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/messages</loc>
-    <lastmod>2026-10-27T13:51:12.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/passing</loc>
     <lastmod>2026-10-28T15:44:20.000Z</lastmod>
@@ -555,7 +558,7 @@
     <lastmod>2026-10-27T10:34:02.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/VariationalDiffusion.jl/analytic</loc>
-    <lastmod>2026-10-12T16:24:20.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/VariationalDiffusion.jl/backends</loc>
     <lastmod>2026-10-13T16:27:53.000Z</lastmod>
@@ -567,10 +570,10 @@
     <lastmod>2026-10-13T19:36:59.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/VariationalDiffusion.jl/energy_network</loc>
-    <lastmod>2026-10-14T15:18:25.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/VariationalDiffusion.jl/factor</loc>
-    <lastmod>2026-10-27T10:34:02.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/VariationalDiffusion.jl/implicit</loc>
     <lastmod>2026-10-13T22:57:37.000Z</lastmod>
@@ -582,7 +585,7 @@
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/VariationalDiffusion.jl/krylov</loc>
-    <lastmod>2026-10-12T18:34:57.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/VariationalDiffusion.jl/predictor</loc>
     <lastmod>2026-10-14T12:32:53.000Z</lastmod>
@@ -591,38 +594,38 @@
     <lastmod>2026-10-14T22:28:26.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/VariationalDiffusion.jl/proxdm</loc>
-    <lastmod>2026-10-12T23:28:37.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/VariationalDiffusion.jl/reddiff</loc>
-    <lastmod>2026-10-26T01:41:53.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/VariationalDiffusion.jl/sampler</loc>
-    <lastmod>2026-10-13T19:36:59.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/VariationalDiffusion.jl/schedule</loc>
-    <lastmod>2026-09-30T21:52:28.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/src/Lenticulum</loc>
     <lastmod>2026-10-27T10:34:02.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/src/beliefs</loc>
-    <lastmod>2026-10-26T01:19:10.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/src/composition</loc>
     <lastmod>2026-10-28T15:44:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/src/constraint</loc>
-    <lastmod>2026-10-26T00:23:10.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/src/gaussian</loc>
     <lastmod>2026-10-28T15:44:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/src/likelihood</loc>
-    <lastmod>2026-10-26T00:23:10.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/src/noise</loc>
     <lastmod>2026-10-27T10:34:02.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/src/nonlinear</loc>
-    <lastmod>2026-10-26T00:23:10.000Z</lastmod>
+    <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url></urlset>
