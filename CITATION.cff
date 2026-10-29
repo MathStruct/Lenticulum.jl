@@ -3165,3 +3165,29 @@ references:
         given-names: "Alan"
     year: 2020
     url: "https://arxiv.org/abs/2001.04385"
+  - type: article
+    title: "Estimation in Parallel Randomized Experiments"
+    authors:
+      - family-names: "Rubin"
+        given-names: "Donald B."
+    year: 1981
+    journal: "Journal of Educational Statistics"
+    volume: "6"
+    issue: "4"
+    start: "377"
+    end: "401"
+    doi: "10.3102/10769986006004377"
+  - type: article
+    title: "Correctness of Belief Propagation in Gaussian Graphical Models of Arbitrary Topology"
+    authors:
+      - family-names: "Weiss"
+        given-names: "Yair"
+      - family-names: "Freeman"
+        given-names: "William T."
+    year: 2001
+    journal: "Neural Computation"
+    volume: "13"
+    issue: "10"
+    start: "2173"
+    end: "2200"
+    doi: "10.1162/089976601750541769"

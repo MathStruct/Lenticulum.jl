@@ -1246,6 +1246,8 @@ include("game_composition.jl")
 
 include("structure_search.jl")
 
+include("hierarchical_models.jl")
+
 include("gradient_couplings.jl")
 
 include("lp018.jl")
