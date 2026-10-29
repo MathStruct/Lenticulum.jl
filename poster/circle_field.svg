@@ -1,0 +1,249 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 520" font-family="Inter, Helvetica, Arial, sans-serif">
+<defs><marker id="h" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0L6,3L0,6z" fill="#9aa7b8"/></marker>
+<marker id="hq" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0L6,3L0,6z" fill="context-stroke"/></marker></defs>
+<rect width="520" height="520" fill="#f7f8fb"/>
+<line x1="25.2" y1="494.8" x2="34.1" y2="485.9" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="25.2" y1="461.3" x2="34.7" y2="453.1" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="25.2" y1="427.7" x2="35.4" y2="420.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="25.2" y1="394.2" x2="36.1" y2="388.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="25.2" y1="360.6" x2="36.7" y2="355.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="25.2" y1="327.1" x2="37.2" y2="323.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="25.2" y1="293.5" x2="37.4" y2="291.8" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="25.2" y1="260.0" x2="37.5" y2="260.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="25.2" y1="226.5" x2="37.4" y2="228.2" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="25.2" y1="192.9" x2="37.2" y2="196.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="25.2" y1="159.4" x2="36.7" y2="164.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="25.2" y1="125.8" x2="36.1" y2="132.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="25.2" y1="92.3" x2="35.4" y2="99.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="25.2" y1="58.7" x2="34.7" y2="66.9" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="25.2" y1="25.2" x2="34.1" y2="34.1" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="58.7" y1="494.8" x2="66.9" y2="485.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="58.7" y1="461.3" x2="67.6" y2="452.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="58.7" y1="427.7" x2="68.3" y2="419.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="58.7" y1="394.2" x2="69.1" y2="387.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="58.7" y1="360.6" x2="69.6" y2="355.2" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="58.7" y1="327.1" x2="69.8" y2="323.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="58.7" y1="293.5" x2="69.7" y2="291.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="58.7" y1="260.0" x2="69.6" y2="260.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="58.7" y1="226.5" x2="69.7" y2="228.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="58.7" y1="192.9" x2="69.8" y2="196.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="58.7" y1="159.4" x2="69.6" y2="164.8" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="58.7" y1="125.8" x2="69.1" y2="132.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="58.7" y1="92.3" x2="68.3" y2="100.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="58.7" y1="58.7" x2="67.6" y2="67.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="58.7" y1="25.2" x2="66.9" y2="34.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="92.3" y1="494.8" x2="99.6" y2="484.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="92.3" y1="461.3" x2="100.3" y2="451.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="92.3" y1="427.7" x2="101.0" y2="419.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="92.3" y1="394.2" x2="101.5" y2="386.8" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="92.3" y1="360.6" x2="101.1" y2="355.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="92.3" y1="327.1" x2="99.1" y2="324.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="92.3" y1="293.5" x2="96.5" y2="292.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="92.3" y1="260.0" x2="95.4" y2="260.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="92.3" y1="226.5" x2="96.5" y2="227.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="92.3" y1="192.9" x2="99.1" y2="195.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="92.3" y1="159.4" x2="101.1" y2="164.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="92.3" y1="125.8" x2="101.5" y2="133.2" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="92.3" y1="92.3" x2="101.0" y2="101.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="92.3" y1="58.7" x2="100.3" y2="68.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="92.3" y1="25.2" x2="99.6" y2="35.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="125.8" y1="494.8" x2="132.0" y2="483.9" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="125.8" y1="461.3" x2="132.7" y2="450.9" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="125.8" y1="427.7" x2="133.2" y2="418.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="125.8" y1="394.2" x2="132.4" y2="387.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="125.8" y1="360.6" x2="128.3" y2="358.8" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="125.8" y1="327.1" x2="122.5" y2="328.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="125.8" y1="293.5" x2="118.7" y2="295.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="125.8" y1="260.0" x2="117.5" y2="260.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="125.8" y1="226.5" x2="118.7" y2="224.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="125.8" y1="192.9" x2="122.5" y2="191.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="125.8" y1="159.4" x2="128.3" y2="161.2" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="125.8" y1="125.8" x2="132.4" y2="132.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="125.8" y1="92.3" x2="133.2" y2="101.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="125.8" y1="58.7" x2="132.7" y2="69.1" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="125.8" y1="25.2" x2="132.0" y2="36.1" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="159.4" y1="494.8" x2="164.3" y2="483.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="159.4" y1="461.3" x2="164.8" y2="450.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="159.4" y1="427.7" x2="164.6" y2="418.9" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="159.4" y1="394.2" x2="161.2" y2="391.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="159.4" y1="360.6" x2="155.0" y2="365.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="159.4" y1="327.1" x2="150.7" y2="332.9" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="159.4" y1="293.5" x2="148.3" y2="297.2" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="159.4" y1="260.0" x2="147.5" y2="260.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="159.4" y1="226.5" x2="148.3" y2="222.8" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="159.4" y1="192.9" x2="150.7" y2="187.1" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="159.4" y1="159.4" x2="155.0" y2="155.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="159.4" y1="125.8" x2="161.2" y2="128.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="159.4" y1="92.3" x2="164.6" y2="101.1" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="159.4" y1="58.7" x2="164.8" y2="69.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="159.4" y1="25.2" x2="164.3" y2="36.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="192.9" y1="494.8" x2="196.3" y2="482.8" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="192.9" y1="461.3" x2="196.6" y2="450.2" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="192.9" y1="427.7" x2="195.6" y2="420.9" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="192.9" y1="394.2" x2="191.3" y2="397.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="192.9" y1="360.6" x2="187.1" y2="369.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="192.9" y1="327.1" x2="184.4" y2="335.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="192.9" y1="293.5" x2="181.8" y2="299.1" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="192.9" y1="260.0" x2="180.4" y2="260.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="192.9" y1="226.5" x2="181.8" y2="220.9" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="192.9" y1="192.9" x2="184.4" y2="184.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="192.9" y1="159.4" x2="187.1" y2="150.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="192.9" y1="125.8" x2="191.3" y2="122.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="192.9" y1="92.3" x2="195.6" y2="99.1" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="192.9" y1="58.7" x2="196.6" y2="69.8" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="192.9" y1="25.2" x2="196.3" y2="37.2" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="226.5" y1="494.8" x2="228.2" y2="482.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="226.5" y1="461.3" x2="228.3" y2="450.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="226.5" y1="427.7" x2="227.3" y2="423.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="226.5" y1="394.2" x2="224.7" y2="401.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="226.5" y1="360.6" x2="222.8" y2="371.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="226.5" y1="327.1" x2="220.9" y2="338.2" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="226.5" y1="293.5" x2="217.6" y2="302.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="226.5" y1="260.0" x2="213.9" y2="260.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="226.5" y1="226.5" x2="217.6" y2="217.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="226.5" y1="192.9" x2="220.9" y2="181.8" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="226.5" y1="159.4" x2="222.8" y2="148.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="226.5" y1="125.8" x2="224.7" y2="118.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="226.5" y1="92.3" x2="227.3" y2="96.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="226.5" y1="58.7" x2="228.3" y2="69.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="226.5" y1="25.2" x2="228.2" y2="37.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="260.0" y1="494.8" x2="260.0" y2="482.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="260.0" y1="461.3" x2="260.0" y2="450.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="260.0" y1="427.7" x2="260.0" y2="424.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="260.0" y1="394.2" x2="260.0" y2="402.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="260.0" y1="360.6" x2="260.0" y2="372.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="260.0" y1="327.1" x2="260.0" y2="339.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="260.0" y1="293.5" x2="260.0" y2="306.1" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="260.0" y1="226.5" x2="260.0" y2="213.9" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="260.0" y1="192.9" x2="260.0" y2="180.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="260.0" y1="159.4" x2="260.0" y2="147.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="260.0" y1="125.8" x2="260.0" y2="117.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="260.0" y1="92.3" x2="260.0" y2="95.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="260.0" y1="58.7" x2="260.0" y2="69.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="260.0" y1="25.2" x2="260.0" y2="37.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="293.5" y1="494.8" x2="291.8" y2="482.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="293.5" y1="461.3" x2="291.7" y2="450.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="293.5" y1="427.7" x2="292.7" y2="423.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="293.5" y1="394.2" x2="295.3" y2="401.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="293.5" y1="360.6" x2="297.2" y2="371.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="293.5" y1="327.1" x2="299.1" y2="338.2" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="293.5" y1="293.5" x2="302.4" y2="302.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="293.5" y1="260.0" x2="306.1" y2="260.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="293.5" y1="226.5" x2="302.4" y2="217.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="293.5" y1="192.9" x2="299.1" y2="181.8" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="293.5" y1="159.4" x2="297.2" y2="148.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="293.5" y1="125.8" x2="295.3" y2="118.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="293.5" y1="92.3" x2="292.7" y2="96.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="293.5" y1="58.7" x2="291.7" y2="69.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="293.5" y1="25.2" x2="291.8" y2="37.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="327.1" y1="494.8" x2="323.7" y2="482.8" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="327.1" y1="461.3" x2="323.4" y2="450.2" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="327.1" y1="427.7" x2="324.4" y2="420.9" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="327.1" y1="394.2" x2="328.7" y2="397.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="327.1" y1="360.6" x2="332.9" y2="369.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="327.1" y1="327.1" x2="335.6" y2="335.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="327.1" y1="293.5" x2="338.2" y2="299.1" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="327.1" y1="260.0" x2="339.6" y2="260.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="327.1" y1="226.5" x2="338.2" y2="220.9" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="327.1" y1="192.9" x2="335.6" y2="184.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="327.1" y1="159.4" x2="332.9" y2="150.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="327.1" y1="125.8" x2="328.7" y2="122.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="327.1" y1="92.3" x2="324.4" y2="99.1" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="327.1" y1="58.7" x2="323.4" y2="69.8" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="327.1" y1="25.2" x2="323.7" y2="37.2" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="360.6" y1="494.8" x2="355.7" y2="483.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="360.6" y1="461.3" x2="355.2" y2="450.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="360.6" y1="427.7" x2="355.4" y2="418.9" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="360.6" y1="394.2" x2="358.8" y2="391.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="360.6" y1="360.6" x2="365.0" y2="365.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="360.6" y1="327.1" x2="369.3" y2="332.9" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="360.6" y1="293.5" x2="371.7" y2="297.2" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="360.6" y1="260.0" x2="372.5" y2="260.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="360.6" y1="226.5" x2="371.7" y2="222.8" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="360.6" y1="192.9" x2="369.3" y2="187.1" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="360.6" y1="159.4" x2="365.0" y2="155.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="360.6" y1="125.8" x2="358.8" y2="128.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="360.6" y1="92.3" x2="355.4" y2="101.1" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="360.6" y1="58.7" x2="355.2" y2="69.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="360.6" y1="25.2" x2="355.7" y2="36.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="394.2" y1="494.8" x2="388.0" y2="483.9" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="394.2" y1="461.3" x2="387.3" y2="450.9" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="394.2" y1="427.7" x2="386.8" y2="418.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="394.2" y1="394.2" x2="387.6" y2="387.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="394.2" y1="360.6" x2="391.7" y2="358.8" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="394.2" y1="327.1" x2="397.5" y2="328.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="394.2" y1="293.5" x2="401.3" y2="295.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="394.2" y1="260.0" x2="402.5" y2="260.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="394.2" y1="226.5" x2="401.3" y2="224.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="394.2" y1="192.9" x2="397.5" y2="191.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="394.2" y1="159.4" x2="391.7" y2="161.2" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="394.2" y1="125.8" x2="387.6" y2="132.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="394.2" y1="92.3" x2="386.8" y2="101.5" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="394.2" y1="58.7" x2="387.3" y2="69.1" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="394.2" y1="25.2" x2="388.0" y2="36.1" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="427.7" y1="494.8" x2="420.4" y2="484.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="427.7" y1="461.3" x2="419.7" y2="451.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="427.7" y1="427.7" x2="419.0" y2="419.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="427.7" y1="394.2" x2="418.5" y2="386.8" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="427.7" y1="360.6" x2="418.9" y2="355.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="427.7" y1="327.1" x2="420.9" y2="324.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="427.7" y1="293.5" x2="423.5" y2="292.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="427.7" y1="260.0" x2="424.6" y2="260.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="427.7" y1="226.5" x2="423.5" y2="227.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="427.7" y1="192.9" x2="420.9" y2="195.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="427.7" y1="159.4" x2="418.9" y2="164.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="427.7" y1="125.8" x2="418.5" y2="133.2" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="427.7" y1="92.3" x2="419.0" y2="101.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="427.7" y1="58.7" x2="419.7" y2="68.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="427.7" y1="25.2" x2="420.4" y2="35.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="461.3" y1="494.8" x2="453.1" y2="485.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="461.3" y1="461.3" x2="452.4" y2="452.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="461.3" y1="427.7" x2="451.7" y2="419.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="461.3" y1="394.2" x2="450.9" y2="387.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="461.3" y1="360.6" x2="450.4" y2="355.2" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="461.3" y1="327.1" x2="450.2" y2="323.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="461.3" y1="293.5" x2="450.3" y2="291.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="461.3" y1="260.0" x2="450.4" y2="260.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="461.3" y1="226.5" x2="450.3" y2="228.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="461.3" y1="192.9" x2="450.2" y2="196.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="461.3" y1="159.4" x2="450.4" y2="164.8" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="461.3" y1="125.8" x2="450.9" y2="132.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="461.3" y1="92.3" x2="451.7" y2="100.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="461.3" y1="58.7" x2="452.4" y2="67.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="461.3" y1="25.2" x2="453.1" y2="34.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="494.8" y1="494.8" x2="485.9" y2="485.9" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="494.8" y1="461.3" x2="485.3" y2="453.1" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="494.8" y1="427.7" x2="484.6" y2="420.4" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="494.8" y1="394.2" x2="483.9" y2="388.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="494.8" y1="360.6" x2="483.3" y2="355.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="494.8" y1="327.1" x2="482.8" y2="323.7" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="494.8" y1="293.5" x2="482.6" y2="291.8" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="494.8" y1="260.0" x2="482.5" y2="260.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="494.8" y1="226.5" x2="482.6" y2="228.2" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="494.8" y1="192.9" x2="482.8" y2="196.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="494.8" y1="159.4" x2="483.3" y2="164.3" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="494.8" y1="125.8" x2="483.9" y2="132.0" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="494.8" y1="92.3" x2="484.6" y2="99.6" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="494.8" y1="58.7" x2="485.3" y2="66.9" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<line x1="494.8" y1="25.2" x2="485.9" y2="34.1" stroke="#9aa7b8" stroke-width="1.6" marker-end="url(#h)"/>
+<circle cx="260.0" cy="260.0" r="167.7" fill="none" stroke="#1f2a44" stroke-width="3"/>
+<text x="96" y="106" font-size="20" font-style="italic" fill="#1f2a44">R</text>
+<line x1="360.6" y1="8.4" x2="360.6" y2="511.6" stroke="#d1495b" stroke-dasharray="5 5" stroke-width="1.5"/>
+<line x1="8.4" y1="159.4" x2="511.6" y2="159.4" stroke="#2e86ab" stroke-dasharray="5 5" stroke-width="1.5"/>
+<line x1="436.1" y1="8.4" x2="436.1" y2="511.6" stroke="#e09f3e" stroke-dasharray="5 5" stroke-width="1.5"/>
+<circle cx="360.6" cy="176.1" r="5" fill="white" stroke="#d1495b" stroke-width="2.5"/>
+<polyline points="360.6,176.1 360.6,162.4 360.6,152.5 360.6,146.1 360.6,142.1 360.6,139.6 360.6,138.2 360.6,137.3 360.6,136.8 360.6,136.5 360.6,136.4 360.6,136.3 360.6,136.2 360.6,136.2 360.6,136.2 360.6,136.2 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1 360.6,136.1" fill="none" stroke="#d1495b" stroke-width="3" marker-end="url(#hq)"/>
+<circle cx="360.6" cy="136.1" r="7" fill="#d1495b"/>
+<circle cx="360.6" cy="343.9" r="5" fill="white" stroke="#d1495b" stroke-width="2.5"/>
+<polyline points="360.6,343.9 360.6,357.6 360.6,367.5 360.6,373.9 360.6,377.9 360.6,380.4 360.6,381.8 360.6,382.7 360.6,383.2 360.6,383.5 360.6,383.6 360.6,383.7 360.6,383.8 360.6,383.8 360.6,383.8 360.6,383.8 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9 360.6,383.9" fill="none" stroke="#d1495b" stroke-width="3" marker-end="url(#hq)"/>
+<circle cx="360.6" cy="383.9" r="7" fill="#d1495b"/>
+<circle cx="176.1" cy="159.4" r="5" fill="white" stroke="#2e86ab" stroke-width="2.5"/>
+<polyline points="176.1,159.4 162.4,159.4 152.5,159.4 146.1,159.4 142.1,159.4 139.6,159.4 138.2,159.4 137.3,159.4 136.8,159.4 136.5,159.4 136.4,159.4 136.3,159.4 136.2,159.4 136.2,159.4 136.2,159.4 136.2,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4 136.1,159.4" fill="none" stroke="#2e86ab" stroke-width="3" marker-end="url(#hq)"/>
+<circle cx="136.1" cy="159.4" r="7" fill="#2e86ab"/>
+<circle cx="436.1" cy="176.1" r="5" fill="white" stroke="#e09f3e" stroke-width="2.5"/>
+<polyline points="436.1,176.1 436.1,187.8 436.1,196.9 436.1,204.2 436.1,210.3 436.1,215.3 436.1,219.7 436.1,223.5 436.1,226.8 436.1,229.8 436.1,232.4 436.1,234.8 436.1,236.9 436.1,238.8 436.1,240.5 436.1,242.1 436.1,243.6 436.1,244.9 436.1,246.1 436.1,247.2 436.1,248.2 436.1,249.1 436.1,250.0 436.1,250.8 436.1,251.5 436.1,252.1 436.1,252.8 436.1,253.3 436.1,253.8 436.1,254.3 436.1,254.8 436.1,255.2 436.1,255.5 436.1,255.9 436.1,256.2 436.1,256.5 436.1,256.8 436.1,257.0 436.1,257.2 436.1,257.5 436.1,257.7 436.1,257.8 436.1,258.0 436.1,258.2 436.1,258.3 436.1,258.4 436.1,258.6 436.1,258.7 436.1,258.8 436.1,258.9 436.1,258.9 436.1,259.0 436.1,259.1 436.1,259.2 436.1,259.2 436.1,259.3 436.1,259.4 436.1,259.4 436.1,259.4 436.1,259.5 436.1,259.5 436.1,259.6 436.1,259.6 436.1,259.6 436.1,259.7 436.1,259.7 436.1,259.7 436.1,259.7 436.1,259.8 436.1,259.8 436.1,259.8 436.1,259.8 436.1,259.8 436.1,259.8 436.1,259.8 436.1,259.9 436.1,259.9 436.1,259.9 436.1,259.9 436.1,259.9 436.1,259.9 436.1,259.9 436.1,259.9 436.1,259.9 436.1,259.9 436.1,259.9 436.1,259.9 436.1,259.9 436.1,260.0 436.1,260.0 436.1,260.0 436.1,260.0 436.1,260.0 436.1,260.0 436.1,260.0 436.1,260.0 436.1,260.0 436.1,260.0 436.1,260.0 436.1,260.0 436.1,260.0" fill="none" stroke="#e09f3e" stroke-width="3" marker-end="url(#hq)"/>
+<circle cx="436.1" cy="260.0" r="7" fill="#e09f3e"/>
+<text x="367" y="26" font-size="17" font-weight="600" fill="#d1495b" text-anchor="start">x = 0.6</text>
+<text x="14" y="151" font-size="17" font-weight="600" fill="#2e86ab" text-anchor="start">y = 0.6</text>
+<text x="442" y="504" font-size="17" font-weight="600" fill="#e09f3e" text-anchor="start">x = 1.05</text>
+</svg>

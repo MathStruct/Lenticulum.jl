@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lenticulum.jl Poster</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]})"></script>
+<style>
+:root{
+  --ink:#1f2a44; --muted:#5b6578; --line:#d9dee7; --bg:#ffffff; --panel:#f7f8fb;
+  --in:#d1495b; --out:#2e86ab; --lat:#e09f3e; --acc:#3d5a80; --ok:#2a9d8f; --backdrop:#e8ebf1;
+}
+/* the poster is a printed sheet: it stays light; only the backdrop around it follows the theme */
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--backdrop:#1b2130}}
+:root[data-theme="dark"]{--backdrop:#1b2130}
+*{box-sizing:border-box}
+body{margin:0;background:var(--backdrop);color:var(--ink);font:15px/1.38 Inter,"Helvetica Neue",Helvetica,Arial,sans-serif}
+.poster{width:1400px;min-height:1980px;margin:24px auto;background:var(--bg);padding:36px 40px 28px;
+  display:flex;flex-direction:column;gap:22px;box-shadow:0 2px 18px rgba(0,0,0,.08)}
+header{display:grid;grid-template-columns:1fr auto;align-items:end;gap:24px;border-bottom:4px solid var(--ink);padding-bottom:16px}
+h1{margin:0;font-size:68px;letter-spacing:-1.5px;line-height:1}
+h1 span{color:var(--acc)}
+.tag{font-size:30px;font-weight:700;margin-top:8px}
+.sub{font-size:17px;color:var(--muted);margin-top:4px;max-width:820px}
+.links{text-align:right;font-size:14px;color:var(--muted);line-height:1.6}
+.links b{color:var(--ink)}
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;flex:1}
+.col{display:flex;flex-direction:column;gap:18px}
+section{background:var(--panel);border-radius:12px;padding:14px 16px 14px}
+h2{margin:0 0 8px;font-size:21px;display:flex;align-items:center;gap:10px}
+h2 i{font-style:normal;background:var(--ink);color:#fff;border-radius:50%;width:28px;height:28px;
+  display:inline-grid;place-items:center;font-size:15px;flex:none}
+ul{margin:6px 0 0;padding-left:18px}
+li{margin:2px 0}
+p{margin:6px 0}
+.eq{background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:8px 0;text-align:center}
+.eq .katex-display{margin:4px 0}
+svg{display:block;width:100%;height:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.in{color:var(--in);font-weight:700}.out{color:var(--out);font-weight:700}.lat{color:var(--lat);font-weight:700}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:13.5px}
+.card b{display:block;font-size:15px;margin-bottom:2px}
+.small{font-size:13px;color:var(--muted)}
+.key{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin-top:4px}
+.key span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;background:currentColor;vertical-align:-1px}
+footer{border-top:2px solid var(--line);padding-top:10px;font-size:13px;color:var(--muted);display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+@page{size:841mm 1189mm;margin:0}
+@media print{body{background:var(--bg)}.poster{margin:0;box-shadow:none;zoom:2.27}}
+@media (max-width:1440px){.poster{width:auto;margin:0;min-height:0;padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .cols{grid-template-columns:1fr}header{grid-template-columns:1fr}.links{text-align:left}h1{font-size:46px}.tag{font-size:23px}}
+@media (max-width:560px){.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="poster">
+
+<header>
+  <div>
+    <h1><span>Lenticulum</span>.jl</h1>
+    <div class="tag">Learn relations, not functions.</div>
+    <div class="sub">Train once on a joint space $Z$. Each query decides which coordinates are inputs and which are outputs. One model answers every conditional.</div>
+  </div>
+  <div class="links">
+    <b>mathstruct.org/Lenticulum.jl</b> (theory vault + API)<br>
+    github.com/MathStruct/Lenticulum.jl<br>
+    DOI 10.5281/zenodo.23314723<br>
+    Julia · research prototype · LuxCore-only
+  </div>
+</header>
+
+<div class="cols">
+<!-- ============ column 1 ============ -->
+<div class="col">
+
+<section>
+  <h2><i>1</i>Function vs. relation</h2>
+  <svg viewBox="0 0 420 150" font-family="inherit" font-size="14">
+    <defs><marker id="a1" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L8,4L0,8z" fill="#1f2a44"/></marker></defs>
+    <!-- explicit -->
+    <rect x="8" y="48" width="52" height="44" rx="8" fill="#fff" stroke="#d1495b" stroke-width="2.5"/>
+    <text x="34" y="76" text-anchor="middle" font-style="italic" font-size="18">X</text>
+    <rect x="140" y="48" width="52" height="44" rx="8" fill="#fff" stroke="#2e86ab" stroke-width="2.5"/>
+    <text x="166" y="76" text-anchor="middle" font-style="italic" font-size="18">Y</text>
+    <line x1="62" y1="70" x2="136" y2="70" stroke="#1f2a44" stroke-width="2.5" marker-end="url(#a1)"/>
+    <text x="99" y="62" text-anchor="middle" font-style="italic">f<tspan font-size="10" dy="3">θ</tspan></text>
+    <text x="100" y="122" text-anchor="middle" fill="#5b6578">one direction, one answer</text>
+    <line x1="215" y1="20" x2="215" y2="135" stroke="#d9dee7" stroke-width="2"/>
+    <!-- implicit -->
+    <line x1="250" y1="120" x2="400" y2="120" stroke="#5b6578"/><line x1="250" y1="120" x2="250" y2="10" stroke="#5b6578"/>
+    <text x="404" y="124" font-style="italic" fill="#5b6578">x</text><text x="244" y="12" text-anchor="end" font-style="italic" fill="#5b6578">y</text>
+    <ellipse cx="325" cy="65" rx="48" ry="42" fill="none" stroke="#1f2a44" stroke-width="3"/>
+    <text x="376" y="30" font-style="italic" font-size="16">R<tspan font-size="10" dy="3">θ</tspan></text>
+    <line x1="350" y1="12" x2="350" y2="120" stroke="#d1495b" stroke-dasharray="4 4"/>
+    <circle cx="350" cy="30" r="5" fill="#d1495b"/><circle cx="350" cy="100" r="5" fill="#d1495b"/>
+    <text x="320" y="143" text-anchor="middle" fill="#5b6578">any direction, all branches</text>
+  </svg>
+  <div class="eq">$$R_\theta=\{\,z\in Z:\ r_\theta(z)=0\,\}$$</div>
+  <ul>
+    <li>Network: fit $f_\theta$, run forward only.</li>
+    <li>Lenticulum: fit a residual $r_\theta$; its zero set is the model.</li>
+    <li>Inputs and outputs are chosen <b>at query time</b>.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><i>2</i>One model, three queries</h2>
+  <img src="circle_field.svg" alt="Score field of a smoothed circle with three clamped queries" style="width:100%;border-radius:8px;display:block">
+  <table style="margin-top:8px">
+    <tr><th>query</th><th>clamp</th><th>answer</th></tr>
+    <tr><td class="in">x = 0.6</td><td>x</td><td>y ≈ ±0.74: two branches; the start picks one</td></tr>
+    <tr><td class="out">y = 0.6</td><td>y</td><td>x on the circle: same model, reversed</td></tr>
+    <tr><td class="lat">x = 1.05</td><td>x</td><td>off the circle: still an answer, the ridge point</td></tr>
+  </table>
+  <p class="small">Arrows: score $\nabla\log p_\sigma$ of a circle smoothed at $\sigma=0.3$ (illustration; roots move to ±0.8 as $\sigma\to0$). Drawn by <code>poster/circle_field.py</code>.</p>
+</section>
+
+<section>
+  <h2><i>3</i>A query is a precision vector</h2>
+  <svg viewBox="0 0 420 102" font-family="inherit" font-size="13">
+    <g text-anchor="middle">
+      <rect x="10"  y="10" width="70" height="50" rx="6" fill="#d1495b"/><text x="45" y="41" fill="#fff" font-size="20">∞</text>
+      <rect x="92"  y="10" width="70" height="50" rx="6" fill="#d1495b" opacity=".55"/><text x="127" y="41" fill="#fff" font-size="16">large</text>
+      <rect x="174" y="10" width="70" height="50" rx="6" fill="#e09f3e" opacity=".75"/><text x="209" y="41" fill="#fff" font-size="16">small</text>
+      <rect x="256" y="10" width="70" height="50" rx="6" fill="#2e86ab"/><text x="291" y="41" fill="#fff" font-size="20">0</text>
+      <rect x="338" y="10" width="70" height="50" rx="6" fill="#2e86ab" opacity=".55"/><text x="373" y="41" fill="#fff" font-size="20">0</text>
+      <text x="45" y="80">hard input</text><text x="45" y="96" fill="#5b6578">projection</text>
+      <text x="127" y="80">soft evidence</text><text x="127" y="96" fill="#5b6578">penalty</text>
+      <text x="209" y="80">anchored</text><text x="209" y="96" fill="#5b6578">picks branch</text>
+      <text x="291" y="80">free output</text><text x="373" y="80">latent</text>
+    </g>
+  </svg>
+  <ul>
+    <li>$\rho\in[0,\infty]^n$; polarity splits $Z=X\times Y\times U$, $P_x+P_y+P_u=\mathrm{Id}$.</li>
+    <li>One number per coordinate interpolates evidence ↔ unknown.</li>
+    <li>Precisions are differentiable too.</li>
+  </ul>
+</section>
+
+</div>
+
+<!-- ============ column 2 ============ -->
+<div class="col">
+
+<section>
+  <h2><i>4</i>Inference = root finding</h2>
+  <div class="eq">$$r(z)=g_\theta(z)+\rho^2\odot(z-z_0)$$$$r_F(z^\star)=0,\qquad z^\star_C=z_{0,C}$$</div>
+  <svg viewBox="0 0 420 92" font-family="inherit" font-size="13">
+    <defs><marker id="a4" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L8,4L0,8z" fill="#1f2a44"/></marker></defs>
+    <g text-anchor="middle">
+      <rect x="4" y="18" width="104" height="52" rx="8" fill="#fff" stroke="#d9dee7" stroke-width="2"/>
+      <text x="56" y="40">query</text><text x="56" y="58" font-style="italic">(z₀, ρ)</text>
+      <rect x="130" y="18" width="160" height="52" rx="8" fill="#3d5a80"/>
+      <text x="210" y="40" fill="#fff">solve r_F = 0</text><text x="210" y="58" fill="#cfd8e6">Newton · fixed point · prox</text>
+      <rect x="312" y="18" width="104" height="52" rx="8" fill="#fff" stroke="#d9dee7" stroke-width="2"/>
+      <text x="364" y="40">answer</text><text x="364" y="58" font-style="italic">z* ∈ R_θ</text>
+    </g>
+    <line x1="110" y1="44" x2="127" y2="44" stroke="#1f2a44" stroke-width="2" marker-end="url(#a4)"/>
+    <line x1="292" y1="44" x2="309" y2="44" stroke="#1f2a44" stroke-width="2" marker-end="url(#a4)"/>
+    <text x="210" y="88" text-anchor="middle" fill="#5b6578">evaluated like a deep equilibrium model</text>
+  </svg>
+  <ul>
+    <li>$F$: free coordinates ($\rho_i<\infty$); $C$: clamped ones.</li>
+    <li>Multi-valued: one root per branch; warm start chooses.</li>
+    <li>No root (off the relation): the closest point.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><i>5</i>Backprop = implicit function theorem</h2>
+  <svg viewBox="0 0 420 150" font-family="inherit" font-size="13">
+    <defs><marker id="a5" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L8,4L0,8z" fill="context-stroke"/></marker></defs>
+    <text x="4" y="16" font-weight="700">unrolled</text>
+    <g fill="#fff" stroke="#9aa7b8" stroke-width="1.5">
+      <rect x="4" y="24" width="36" height="26" rx="5"/><rect x="58" y="24" width="36" height="26" rx="5"/><rect x="112" y="24" width="36" height="26" rx="5"/><rect x="166" y="24" width="36" height="26" rx="5"/><rect x="240" y="24" width="36" height="26" rx="5"/>
+    </g>
+    <g stroke="#9aa7b8" stroke-width="1.5"><line x1="40" y1="37" x2="56" y2="37" marker-end="url(#a5)"/><line x1="94" y1="37" x2="110" y2="37" marker-end="url(#a5)"/><line x1="148" y1="37" x2="164" y2="37" marker-end="url(#a5)"/></g>
+    <text x="221" y="42" text-anchor="middle" fill="#9aa7b8">…</text>
+    <path d="M258,54 C258,72 22,72 22,54" fill="none" stroke="#d1495b" stroke-width="2" marker-end="url(#a5)"/>
+    <text x="300" y="42" fill="#d1495b">store K steps,</text><text x="300" y="58" fill="#d1495b">backprop all</text>
+    <text x="4" y="98" font-weight="700">implicit</text>
+    <rect x="4" y="106" width="120" height="30" rx="6" fill="#3d5a80"/><text x="64" y="126" fill="#fff" text-anchor="middle">any solver → z*</text>
+    <line x1="126" y1="121" x2="166" y2="121" stroke="#1f2a44" stroke-width="2" marker-end="url(#a5)"/>
+    <rect x="168" y="106" width="130" height="30" rx="6" fill="#2a9d8f"/><text x="233" y="126" fill="#fff" text-anchor="middle">1 adjoint solve</text>
+    <text x="306" y="118" fill="#2a9d8f">memory O(1)</text><text x="306" y="134" fill="#2a9d8f">in solver steps</text>
+  </svg>
+  <div class="eq">$$J_{FF}^{\top}\lambda=-\bar z_F$$$$\bar\theta=\lambda^{\top}\partial_\theta r_F,\quad \bar\rho=\lambda^{\top}\partial_\rho r_F,\quad \bar z_0=\lambda^{\top}\partial_{z_0} r_F$$</div>
+  <ul>
+    <li>Lagrangian $\ell(z)+\langle\lambda,r_F\rangle$: state eq. → adjoint eq. → gradient.</li>
+    <li>Gradients for parameters, inputs <b>and</b> precisions.</li>
+    <li>Noise nodes fixed: no noise stored. Checked against finite differences.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><i>6</i>The analogy: polynomials vs. varieties</h2>
+  <table>
+    <tr><th></th><th>explicit</th><th>implicit</th></tr>
+    <tr><td>model</td><td>$f_\theta:X\to Y$</td><td>$R_\theta\subseteq Z$ (variety)</td></tr>
+    <tr><td>inference</td><td>evaluate</td><td>root finding</td></tr>
+    <tr><td>backprop</td><td>reverse-mode AD</td><td>implicit function thm.</td></tr>
+    <tr><td>universality</td><td>Weierstraß</td><td>Nash–Tognoli</td></tr>
+    <tr><td>loss</td><td>$\lVert f_\theta(x)-y\rVert^2$</td><td>$\lVert r_\theta(z)\rVert^2$</td></tr>
+    <tr><td>answers</td><td>exactly one</td><td>many, or none → closest</td></tr>
+    <tr><td>cost</td><td>cheap</td><td>a solve</td></tr>
+    <tr><td>wiring</td><td>DAG</td><td>any graph</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2><i>7</i>Where residuals come from</h2>
+  <div class="cards">
+    <div class="card"><b>Diffusion</b>
+      residual from a trained denoiser: $g_\theta=\sum_k w_k\lambda_{t_k}(\varepsilon_\theta(\cdot)-\varepsilon_k)$.
+      Exact score ⇒ $g=\nabla\Phi$: RED-Diff's stop-gradient field is a gradient. Inference = proximal step. Zero noise ⇒ DEQ of Tweedie's denoiser.</div>
+    <div class="card"><b>Equilibrium</b>
+      DEQ: the layer's fixed point <i>is</i> a relation, shipped as a function. Neural ODE: an invertible factor.</div>
+    <div class="card"><b>Algebraic</b>
+      polynomial residuals → varieties. Fitting = nullspace; parameter = Grassmannian; composition = elimination. Toric models: exact discrete messages.</div>
+    <div class="card"><b>Adversarial</b>
+      implicit generators and density-ratio factors. GAN wiring = two parameter sets, three factor nodes; its objective fails by one sign.</div>
+  </div>
+</section>
+
+</div>
+
+<!-- ============ column 3 ============ -->
+<div class="col">
+
+<section>
+  <h2><i>8</i>Factor graphs: wire relations</h2>
+  <svg viewBox="0 0 420 190" font-family="inherit" font-size="14">
+    <defs><marker id="a8" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L8,4L0,8z" fill="#2a9d8f"/></marker></defs>
+    <g stroke="#9aa7b8" stroke-width="2.2">
+      <line x1="60" y1="60" x2="130" y2="60"/><line x1="130" y1="60" x2="200" y2="60"/><line x1="200" y1="60" x2="270" y2="60"/><line x1="270" y1="60" x2="340" y2="60"/>
+      <line x1="130" y1="60" x2="130" y2="130"/><line x1="270" y1="60" x2="270" y2="130"/><line x1="130" y1="130" x2="200" y2="130"/><line x1="270" y1="130" x2="200" y2="130"/>
+      <line x1="340" y1="60" x2="380" y2="120"/>
+    </g>
+    <g fill="#3d5a80"><rect x="48" y="48" width="24" height="24"/><rect x="188" y="48" width="24" height="24"/><rect x="328" y="48" width="24" height="24"/><rect x="188" y="118" width="24" height="24"/></g>
+    <g fill="#fff" stroke="#1f2a44" stroke-width="2.5"><circle cx="130" cy="60" r="15"/><circle cx="270" cy="60" r="15"/><circle cx="130" cy="130" r="13"/><circle cx="270" cy="130" r="13"/><circle cx="380" cy="120" r="13"/></g>
+    <path d="M214,52 Q235,40 252,52" fill="none" stroke="#2a9d8f" stroke-width="3" marker-end="url(#a8)"/>
+    <text x="232" y="34" text-anchor="middle" fill="#2a9d8f" font-style="italic">μ<tspan font-size="10" dy="3">f→v</tspan></text>
+        <rect x="12" y="160" width="14" height="14" fill="#3d5a80"/><text x="32" y="172">factor = relation (learned, non-Gaussian)</text>
+    <circle cx="300" cy="167" r="7" fill="#fff" stroke="#1f2a44" stroke-width="2"/><text x="312" y="172">variable</text>
+  </svg>
+  <div class="eq">$$\mu_{f\to v}=c'_\pi(y)\quad\text{(a Bayesian inversion)}$$</div>
+  <ul>
+    <li>Target channel → <span class="out">unobserved</span>; incoming → <span class="in">observed</span>; rest → <span class="lat">latent</span>.</li>
+    <li>Polarity is resolved <b>per message</b>; no step like it in Lux.</li>
+    <li>GTSAM's graphs, with learnable non-Gaussian factors.</li>
+    <li>Beliefs on edges: point, particles, Gaussian, categorical, mixture.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><i>9</i>Bethe free energy</h2>
+  <div class="eq">$$F_{\text{Bethe}}=\sum_f F_f+\sum_v(1-d_v)\,F_v$$$$\textstyle\sum\kappa=|F|+|V|-|E|=\chi(G)$$</div>
+  <svg viewBox="0 0 420 70" font-family="inherit" font-size="13">
+    <g stroke="#9aa7b8" stroke-width="2"><line x1="40" y1="30" x2="120" y2="30"/><line x1="120" y1="30" x2="200" y2="30"/><line x1="200" y1="30" x2="280" y2="30"/><line x1="280" y1="30" x2="360" y2="30"/></g>
+    <g fill="#3d5a80"><rect x="30" y="20" width="20" height="20"/><rect x="190" y="20" width="20" height="20"/><rect x="350" y="20" width="20" height="20"/></g>
+    <g fill="#fff" stroke="#1f2a44" stroke-width="2"><circle cx="120" cy="30" r="12"/><circle cx="280" cy="30" r="12"/></g>
+    <g text-anchor="middle" font-weight="700"><text x="40" y="62" fill="#3d5a80">+1</text><text x="200" y="62" fill="#3d5a80">+1</text><text x="360" y="62" fill="#3d5a80">+1</text><text x="120" y="62" fill="#d1495b">−1</text><text x="280" y="62" fill="#d1495b">−1</text></g>
+    <text x="410" y="35" text-anchor="end" fill="#5b6578">χ = 1</text>
+  </svg>
+  <ul>
+    <li>Graph version of AutoBayes' chain rule (Thm. 23): energies add, entropies overlap-corrected.</li>
+    <li>Counting numbers sum to the Euler characteristic.</li>
+    <li>Energy is graded: $E_G=\bigoplus_f E_f$ → per-factor loss attribution.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><i>10</i>Category theory, in one line</h2>
+  <svg viewBox="0 0 420 108" font-family="inherit" font-size="13">
+    <defs><marker id="a10" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L8,4L0,8z" fill="context-stroke"/></marker></defs>
+    <rect x="6" y="22" width="120" height="62" rx="8" fill="#fff" stroke="#3d5a80" stroke-width="2.5"/>
+    <text x="66" y="48" text-anchor="middle" font-weight="700">factor</text><text x="66" y="68" text-anchor="middle" fill="#5b6578">no direction</text>
+    <line x1="128" y1="53" x2="196" y2="53" stroke="#1f2a44" stroke-width="2" marker-end="url(#a10)"/>
+    <text x="162" y="45" text-anchor="middle" font-style="italic">polarity</text>
+    <rect x="200" y="10" width="214" height="88" rx="8" fill="#fff" stroke="#2a9d8f" stroke-width="2.5"/>
+    <text x="307" y="28" text-anchor="middle" font-weight="700">Bayesian lens</text>
+    <text x="226" y="54" font-style="italic">X</text><text x="384" y="54" font-style="italic">Y</text>
+    <line x1="240" y1="50" x2="374" y2="50" stroke="#1f2a44" stroke-width="2" marker-end="url(#a10)"/><text x="307" y="44" text-anchor="middle" font-style="italic">c</text>
+    <line x1="374" y1="70" x2="240" y2="70" stroke="#d1495b" stroke-width="2" marker-end="url(#a10)"/><text x="307" y="88" text-anchor="middle" font-style="italic" fill="#d1495b">c′ (inversion)</text>
+  </svg>
+  <div class="eq">$$\underbrace{\mathbf{Para}(\mathbf{Lens})}_{\text{Lux layer}}\quad\text{vs.}\quad\underbrace{\mathbf{Para}(\mathbf{StatGame})}_{\text{Lenticulum factor}}$$</div>
+  <ul>
+    <li>Factor = parameterized statistical game (AutoBayes, Def. 27).</li>
+    <li>Four choices: kernel $c$, inversion $c'$, energy $l$ (a vector), entropy $H$.</li>
+    <li>The lens is <b>assembled on demand</b>, once a polarity is chosen.</li>
+    <li>Not needed to use the code; background in the CT-ML wiki, Track E.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><i>11</i>Packages</h2>
+  <svg viewBox="0 0 420 150" font-family="inherit" font-size="11.5">
+    <defs><marker id="a11" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L8,4L0,8z" fill="#9aa7b8"/></marker></defs>
+    <g text-anchor="middle">
+      <rect x="150" y="4" width="120" height="24" rx="6" fill="#e8ebf1"/><text x="210" y="21">LuxCore</text>
+      <rect x="90" y="40" width="240" height="26" rx="6" fill="#1f2a44"/><text x="210" y="58" fill="#fff">LenticulumCore · factors, beliefs</text>
+      <rect x="90" y="78" width="240" height="26" rx="6" fill="#3d5a80"/><text x="210" y="96" fill="#fff">Mycelium · graphs, messages, free energy</text>
+      <g fill="#fff" stroke="#3d5a80" stroke-width="1.5">
+        <rect x="2" y="118" width="78" height="28" rx="6"/><rect x="86" y="118" width="80" height="28" rx="6"/><rect x="172" y="118" width="78" height="28" rx="6"/><rect x="256" y="118" width="78" height="28" rx="6"/><rect x="340" y="118" width="78" height="28" rx="6"/>
+      </g>
+      <text x="41" y="136">Lenticulum</text><text x="126" y="136">VariationalDiff.</text><text x="211" y="136">ImplicitLayers</text><text x="295" y="136">Adversarial</text><text x="379" y="136">AlgebraicFactors</text>
+    </g>
+    <g stroke="#9aa7b8" stroke-width="1.5"><line x1="210" y1="28" x2="210" y2="38" marker-end="url(#a11)"/><line x1="210" y1="66" x2="210" y2="76" marker-end="url(#a11)"/>
+      <line x1="210" y1="104" x2="41" y2="116" marker-end="url(#a11)"/><line x1="210" y1="104" x2="126" y2="116" marker-end="url(#a11)"/><line x1="210" y1="104" x2="211" y2="116" marker-end="url(#a11)"/><line x1="210" y1="104" x2="295" y2="116" marker-end="url(#a11)"/><line x1="210" y1="104" x2="379" y2="116" marker-end="url(#a11)"/></g>
+  </svg>
+  <p class="small">Any Lux model wraps as a factor. AD per model via extensions: Zygote, Enzyme, ForwardDiff, Mooncake; Reactant compiles to XLA.</p>
+</section>
+
+<section>
+  <h2><i>12</i>Status</h2>
+  <ul>
+    <li><b>Exact</b> on linear-Gaussian graphs and closed-form models; tests compare to closed forms.</li>
+    <li><b>Small nets</b> by design: a factor's space has a few coordinates.</li>
+    <li><b>Point inference</b> returns one branch; conditional sampling not yet.</li>
+    <li>Open problems are logged in the vault, not hidden.</li>
+  </ul>
+</section>
+
+</div>
+</div>
+
+<footer>
+  <span>Theory vault, derivations and open problems: mathstruct.org/Lenticulum.jl · category-theory background: mathstruct.org/CategoryTheory-ML-Wiki</span>
+  <span>Graph editor (sister project): github.com/MathStruct/Moonkale</span>
+</footer>
+
+</div>
+</body>
+</html>
