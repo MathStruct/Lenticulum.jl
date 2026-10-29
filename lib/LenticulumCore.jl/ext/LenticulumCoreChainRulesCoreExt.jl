@@ -11,7 +11,8 @@ function ChainRulesCore.rrule(::typeof(LenticulumCore._normalised_logweights), w
         D isa AbstractZero && return NoTangent(), ZeroTangent()
         all(>(0),weights) || throw(ArgumentError(
             "normalised log-weight derivatives require strictly positive weights; support-boundary derivatives are undefined"))
-        return NoTangent(), D ./ weights .- sum(D)/sum(weights)
+        m = maximum(weights)
+        return NoTangent(), D ./ weights .- (sum(D) / m) / sum(weights ./ m)
     end
     return y, back
 end

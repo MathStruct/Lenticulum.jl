@@ -594,6 +594,7 @@ end
 include("gradient_couplings.jl")
 
 include("graph_adjoint.jl")
+include("lp018.jl")
 # Device (JLArrays) coverage is slow; it runs locally with LENTICULUM_DEVICE_TESTS=true,
 # not on every CI push.
 if get(ENV, "LENTICULUM_DEVICE_TESTS", "false") == "true"

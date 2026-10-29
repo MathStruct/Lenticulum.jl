@@ -275,8 +275,10 @@ function _sample_weights(b::LenticulumCore.SampleBelief)
     n = length(_points(b))
     b.weights === nothing && return fill(1 / n, n)
     w = float.(b.weights)
-    s = sum(w)
-    return s > 0 ? w ./ s : fill(1 / n, n)
+    m = maximum(w)
+    m > 0 || return fill(1 / n, n)
+    w = w ./ m
+    return w ./ sum(w)
 end
 function belief_distance(a::LenticulumCore.SampleBelief, b::LenticulumCore.SampleBelief)
     pa, pb = _points(a), _points(b)

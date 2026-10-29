@@ -116,3 +116,11 @@ The optional ChainRules extension supplies the exact normalised log-weight pullb
 tested Zygote/Julia broadcast failure while constructing categorical score messages.
 Zero-weight changing-support derivatives throw. Primal zero-weight beliefs remain legal.
 Evidence: the categorical score estimator tests in Mycelium's `test/gradient_couplings.jl`.
+
+## LP-018 normalisation pullback (2026-10-29)
+
+The normalised log-weight pullback still has the same formula, but its shared denominator
+is evaluated as `(sum(dy)/maximum(weights))/sum(weights/maximum(weights))`. This avoids
+an overflowing sum of finite weights and preserves cancellation for uniform cotangents.
+Evidence: the top-level `test/lp018_interop.jl`, “LP-018.9 finite particle weights across
+interop and AD”, checks the dimensionless scaled gradient at `[1e308,1e308]` against zero.

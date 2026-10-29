@@ -158,3 +158,13 @@ Gaussian ratio is an arbitrary Lux layer to the public API, with no certified qu
 log-potential contract. No Gaussian law is inferred from evaluations. Existing Dirac games
 and extrinsic particle graph contributions remain checked in `test/conformance.jl`; no new
 approximation is presented as exact.
+
+## LP-018 overflowing finite particle weights (2026-10-29)
+
+Both ESS and moment/energy weights divide by the largest finite particle weight before
+summing. Equal weights `[1e308,1e308]` therefore give mean 2, covariance 1 and ESS 2
+on particles `{1,3}`. This also prevents a false disjoint-support error in ratio energy.
+Log-weight normalisation already subtracts the maximum and needed no change.
+Scaling uses non-mutating division so tuple weights remain supported as well.
+Evidence: `test/lp018.jl`, “LP-018.9 finite overflowing particle weights”, including an
+independent constant log-ratio energy of -2.

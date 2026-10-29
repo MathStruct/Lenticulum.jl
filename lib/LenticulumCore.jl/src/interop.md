@@ -59,3 +59,11 @@ add rules to RxInfer. Step 3 of [[RxInfer as a Backend]] §4, a learned relation
 node, builds on this and is not done.
 
 Related: [[gaussian_belief]], [[open_model]], [[messages]]
+
+## LP-018 finite particle weights (2026-10-29)
+
+The SampleList conversion divides weights by their maximum before summing. Finite equal
+weights at `1e308` retain their mean rather than becoming zero through an overflowing
+normaliser. All-zero particle weights are refused. Evidence: the top-level
+`test/lp018_interop.jl`, “LP-018.9 finite particle weights across interop and AD”, compares
+against the two-particle mean 2. The optional extension still has no core dependency cost.

@@ -158,8 +158,10 @@ callers can inspect this diagnostic themselves.
 function effective_sample_size(b::LenticulumCore.SampleBelief)
     b.weights === nothing && return float(length(_points(b)))
     w = float.(b.weights)
+    m = maximum(w)
+    m > 0 || return 0.0
+    w = w ./ m
     s = sum(w)
-    s > 0 || return 0.0
     w = w ./ s
     return 1 / sum(abs2, w)
 end
@@ -200,8 +202,10 @@ function _weights(b::LenticulumCore.SampleBelief)
     n = length(_points(b))
     b.weights === nothing && return fill(1 / n, n)
     w = float.(b.weights)
+    m = maximum(w)
+    m > 0 || throw(ArgumentError("all sample weights are zero"))
+    w = w ./ m
     s = sum(w)
-    s > 0 || throw(ArgumentError("all sample weights are zero"))
     return w ./ s
 end
 

@@ -236,3 +236,15 @@ avoiding differentiation through a mutating Cholesky inverse.
 Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
 are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].
+
+## LP-018 finite particle weights (2026-10-29)
+
+The particle-distance normaliser divides weights by their maximum before summing.
+Finite weights whose raw sum overflows now give the same convergence residual as
+ordinary weights in the same proportions. The existing all-zero fallback is unchanged;
+importance reweighting already normalises max-shifted log weights. Evidence:
+`test/lp018.jl`, “LP-018.9 particle distance normalises finite overflowing weights”,
+checks equal weights and the independent total variation `1/6` between `(2/3,1/3)`
+and `(1/2,1/2)`, with vector and tuple weights. Both original vector assertions
+failed in `Mycelium-final.log` before this fix. Scaling uses non-mutating division
+so immutable weight containers remain supported.

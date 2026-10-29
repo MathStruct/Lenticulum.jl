@@ -24,7 +24,10 @@ LenticulumCore.as_distribution(b::MixtureBelief; kw...) =
     MixtureModel([LenticulumCore.as_distribution(c; kw...) for c in b.components], mixture_weights(b))
 function LenticulumCore.as_distribution(b::SampleBelief; kw...)
     xs = b.samples isa AbstractMatrix ? [collect(c) for c in eachcol(b.samples)] : collect(b.samples)
-    w = b.weights === nothing ? fill(1 / length(xs), length(xs)) : collect(float.(b.weights)) ./ sum(b.weights)
+    w = b.weights === nothing ? fill(1 / length(xs), length(xs)) : collect(float.(b.weights))
+    maximum(w) > 0 || throw(ArgumentError("all sample weights are zero"))
+    w ./= maximum(w)
+    w ./= sum(w)
     return SampleList(xs, w)
 end
 LenticulumCore.as_distribution(::TrivialBelief; kw...) = throw(ArgumentError(
