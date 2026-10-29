@@ -210,3 +210,12 @@ improper priors are exactly what completes Gaussian maps into a hypergraph categ
 Related: [[ModelingToolkit as an Acausal Relation]],
 [[Acausal Composition is a Hypergraph Category]], [[Loopy Message Passing]],
 [[Channels and Polarity]], [[Implicit Learners]], [[src/gaussian|gaussian]], [[beliefs]]
+
+## LP-018 covariance validation (2026-10-29)
+
+Noise must have exactly the residual's dimensions and be symmetric before its positive
+definiteness is checked. Wrapping an unchecked matrix in `Symmetric` silently discarded
+one triangle; a short variance vector also silently changed the residual metric's size.
+Invalid shape or symmetry now raises `ArgumentError` with the required property.
+Evidence: `test/lp018.jl`, “LP-018.7 residual covariance validation”, including the
+reported asymmetric matrix and one-element noise vector, a rectangular matrix and valid SPD noise.

@@ -35,7 +35,10 @@ moment_match(b::GaussianBelief) = b
 function moment_match(s::LenticulumCore.SampleBelief)
     X = s.samples isa AbstractMatrix ? Matrix{Float64}(s.samples) : reduce(hcat, [collect(float.(x)) for x in s.samples])
     n = size(X, 2)
-    w = s.weights === nothing ? fill(1 / n, n) : collect(float.(s.weights)) ./ sum(s.weights)
+    w = s.weights === nothing ? fill(1 / n, n) : collect(float.(s.weights))
+    maximum(w) > 0 || throw(ArgumentError("all sample weights are zero"))
+    w ./= maximum(w)
+    w ./= sum(w)
     μ = X * w
     D = X .- μ
     Σ = (D .* w') * D'
@@ -62,8 +65,9 @@ than `max_components`, the pair whose merge costs least is replaced by the singl
 with their combined weight, mean and covariance. The cost is Runnalls' upper bound on the
 Kullback–Leibler divergence the merge introduces,
 ``\\tfrac12\\bigl[(w_i + w_j)\\log\\det\\Sigma_{ij} - w_i\\log\\det\\Sigma_i - w_j\\log\\det\\Sigma_j\\bigr]``.
-Merging preserves the mixture's overall mean and covariance exactly; pruning changes them by
-at most the pruned weight.
+Merging preserves the mixture's overall mean and covariance exactly. Pruning and
+renormalising changes total variation by at most the removed mass; moment changes need
+bounds on component locations and covariances and can be arbitrarily large.
 """
 function reduce_mixture(m::LenticulumCore.MixtureBelief{<:GaussianBelief}; max_components::Integer, prune::Real = 1e-8)
     max_components ≥ 1 || throw(ArgumentError("max_components must be at least 1"))

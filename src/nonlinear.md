@@ -87,3 +87,11 @@ returns (L-ADR-0006). Tested for both methods with $y = x^2$, four iterations, a
 checker.
 
 Related: [[constraint]], [[likelihood]] (non-Gaussian observations), [[Belief Algebra]], [[Sharing Types with RxInfer]]
+
+## LP-018 covariance validation (2026-10-29)
+
+As for Gaussian factors, check noise shape against `nout`, then symmetry, then positive
+definiteness. This prevents a one-dimensional metric on a two-dimensional residual and
+prevents `Symmetric(Q)` from accepting an asymmetric covariance by reading one triangle.
+Shape and symmetry failures are `ArgumentError`s with clear messages. Evidence:
+`test/lp018.jl`, “LP-018.7 residual covariance validation”, for both constraint and nonlinear constructors.

@@ -249,24 +249,61 @@ _logϕ(u) = isinf(u) ? -Inf : -u^2 / 2 - log(2π) / 2
 # log Φ(u), stable far into the lower tail
 _logΦ(u) = u == Inf ? 0.0 : u == -Inf ? -Inf :
     u < -5 ? log(SpecialFunctions.erfcx(-u / _SQRT2) / 2) - u^2 / 2 : log(SpecialFunctions.erfc(-u / _SQRT2) / 2)
-# log(Φ(a) - Φ(b)) for a > b, without cancellation in either tail
+# Narrow intervals: integrate exp(-m*u-u²/2) on [-h,h]. The omitted terms
+# are O((h*(1+abs(m)))^6); the branch keeps them below double precision.
+_narrow_interval(a, b) = isfinite(a) && isfinite(b) && (a-b) * (1 + abs(a/2+b/2)) < 1e-3
+_narrow_normal(a, b) = _narrow_normal_midpoint(a/2+b/2, a-b)
+function _narrow_normal_midpoint(m, width)
+    h = width/2
+    h2 = h*h
+    c2, c4 = (m*m-1)/6, (m^4-6m*m+3)/120
+    c = c2*h2 + c4*h2*h2
+    Z = 1 + c
+    # Derivatives of log Z in m. Derivatives in z reverse m's sign.
+    Zm = m*h2/3 + (m^3-3m)*h2*h2/30
+    Zmm = h2/3 + (m*m-1)*h2*h2/10
+    return log(width) + _logϕ(m) + log1p(c), m-Zm/Z, -1+Zmm/Z-(Zm/Z)^2
+end
+# log(Φ(a) - Φ(b)) for a > b, without cancellation in either tail.
 function _logΦdiff(a, b)
     a > b || throw(ArgumentError("need a > b"))
-    a ≤ 0 && return _logΦ(a) + log1p(-exp(_logΦ(b) - _logΦ(a)))
-    b ≥ 0 && return _logΦ(-b) + log1p(-exp(_logΦ(-a) - _logΦ(-b)))
-    return log(SpecialFunctions.erfc(-a / _SQRT2) / 2 - SpecialFunctions.erfc(-b / _SQRT2) / 2)
+    _narrow_interval(a, b) && return first(_narrow_normal(a, b))
+    a ≤ 0 && return _logΦ(a) + log(-expm1(_logΦ(b) - _logΦ(a)))
+    b ≥ 0 && return _logΦ(-b) + log(-expm1(_logΦ(-a) - _logΦ(-b)))
+    return log((SpecialFunctions.erf(a / _SQRT2) - SpecialFunctions.erf(b / _SQRT2)) / 2)
 end
 _uϕ(u, logZ) = isinf(u) ? 0.0 : u * exp(_logϕ(u) - logZ)   # u φ(u) / Z, 0 at ±∞
+
+# Compute a narrow category's width before subtracting the predictor: a tiny
+# interval about zero otherwise rounds to equal endpoints after a nonzero shift.
+function _ordinal_narrow(L, k, μ, σ)
+    lo, hi = _lower(L, k), _upper(L, k)
+    width, m = (hi-lo)/σ, (lo/2+hi/2-μ)/σ
+    if isfinite(width) && isfinite(m) && width*(1+abs(m)) < 1e-3
+        return _narrow_normal_midpoint(m, width)
+    end
+    return nothing
+end
+function _ordinal_logprob(L, k, μ, σ)
+    narrow = _ordinal_narrow(L, k, μ, σ)
+    narrow === nothing || return first(narrow)
+    return _logΦdiff((_upper(L,k)-μ)/σ, (_lower(L,k)-μ)/σ)
+end
 
 function loglikelihood(L::OrdinalProbitLikelihood, y, z)
     k = _category(L, y)
     σ = L.scale
-    return _logΦdiff((_upper(L, k) - z[1]) / σ, (_lower(L, k) - z[1]) / σ)
+    return _ordinal_logprob(L, k, z[1], σ)
 end
 function loglikelihood_derivatives(L::OrdinalProbitLikelihood, y, z)
     k = _category(L, y)
     σ = L.scale
     a, b = (_upper(L, k) - z[1]) / σ, (_lower(L, k) - z[1]) / σ
+    narrow = _ordinal_narrow(L, k, z[1], σ)
+    if narrow !== nothing
+        lZ, g, h = narrow
+        return lZ, [g / σ], fill(h / σ^2, 1, 1)
+    end
     lZ = _logΦdiff(a, b)
     ra, rb = exp(_logϕ(a) - lZ), exp(_logϕ(b) - lZ)
     g = -(ra - rb) / σ
@@ -275,7 +312,7 @@ function loglikelihood_derivatives(L::OrdinalProbitLikelihood, y, z)
 end
 outcome_logprobs(L::OrdinalProbitLikelihood, z) = _ordinal_logprobs(L, z[1], L.scale)
 _ordinal_logprobs(L, μ, t) =
-    [_logΦdiff((_upper(L, k) - μ) / t, (_lower(L, k) - μ) / t) for k in 1:(length(L.cutpoints) + 1)]
+    [_ordinal_logprob(L, k, μ, t) for k in 1:(length(L.cutpoints) + 1)]
 
 # --- The approximation methods --------------------------------------------------------
 
@@ -512,6 +549,12 @@ function _ordinal_moments(L::OrdinalProbitLikelihood, t::_Tilted, y)
     k = _category(L, y)
     μ, s², u = t.μz[1], t.D[1], t.U[1, 1]          # z = μ + u ζ, u = ±1
     τ = sqrt(L.scale^2 + s²)
+    narrow = _ordinal_narrow(L, k, μ, τ)
+    if narrow !== nothing
+        lZ, g, h = narrow
+        mz, vz = μ+s²/τ*g, s²+s²^2/τ^2*h
+        return [(mz-μ)/u], fill(vz, 1, 1), lZ
+    end
     a, b = (_upper(L, k) - μ) / τ, (_lower(L, k) - μ) / τ
     lZ = _logΦdiff(a, b)
     ra, rb = exp(_logϕ(a) - lZ), exp(_logϕ(b) - lZ)
@@ -677,36 +720,66 @@ _conditional_entropy(L::AbstractLikelihood, z) = throw(ArgumentError(
 
 const _ENTROPY_TAIL = 1e-14
 
-# H(Poisson(e^z)) by its series; the terms after the mode decay geometrically.
-function _poisson_entropy(z)
+# Past the mode p(n+k) ≤ p(n)r^k, r = λ/(n+1) < 1. For p(n) ≤ 1/e,
+# -p log p is increasing, so the geometric series bounds its entropy too.
+function _poisson_tail_bounds(p, λ, n)
+    r = λ / (n + 1)
+    r < 1 && p < exp(-1) || return (Inf, Inf)
+    iszero(p) && return (0.0, 0.0)
+    mass = p / (1 - r)
+    entropy = -mass * log(p) - p * log(r) * r / (1 - r)^2
+    return mass, entropy
+end
+
+# Mode-centred relative pmfs avoid both exp(-λ) underflow and logfactorial cancellation.
+# Normalise only after summing; termination never uses the rounded accumulated mass.
+function _poisson_entropy(z; maxterms::Int = 1_000_000)
     λ = exp(z)
     iszero(λ) && return 0.0
-    H, mass, n = 0.0, 0.0, 0
-    while true
-        lp = n * z - λ - _logfact(n)
-        p = exp(lp)
-        H -= p * lp
-        mass += p
-        n > λ && 1 - mass < _ENTROPY_TAIL && return H
-        n += 1
+    isfinite(λ) && λ < maxterms || error("Poisson entropy exceeded maxterms=$maxterms")
+    mode = floor(Int, λ)
+    terms = [1.0]
+    q = 1.0
+    for n in mode:-1:1
+        q *= n / λ
+        push!(terms, q)
     end
+    q = 1.0
+    for n in (mode + 1):(maxterms - 1)
+        q *= λ / n
+        push!(terms, q)
+        mass, entropy = _poisson_tail_bounds(q, λ, n)
+        if mass < _ENTROPY_TAIL / 10 && entropy < _ENTROPY_TAIL / 10
+            Z = sum(terms)
+            return log(Z) - sum(x -> iszero(x) ? 0.0 : x * log(x), terms) / Z
+        end
+    end
+    error("Poisson entropy exceeded maxterms=$maxterms")
 end
 _conditional_entropy(L::PoissonLikelihood, z) = sum(_poisson_entropy(z[j]) for j in 1:L.k)
 
-# The joint entropy of the common-shock pair, over a square [0, N)² that leaves out less than
-# _ENTROPY_TAIL of each marginal (y₁ ~ Poisson(λ₁ + λ₃), y₂ ~ Poisson(λ₂ + λ₃)).
-function _conditional_entropy(L::BivariatePoissonLikelihood, z)
-    μ = maximum((exp(z[1]) + exp(z[3]), exp(z[2]) + exp(z[3])))
-    N = 1
-    while true
-        lp = [n * log(μ) - μ - _logfact(n) for n in 0:(N - 1)]
-        N > μ && 1 - sum(exp, lp) < _ENTROPY_TAIL && break
-        N *= 2
+# Choose each marginal support by a geometric tail bound, never 1 - rounded mass.
+# Also bound the joint grid's size before allocating or evaluating it.
+function _poisson_support(λ; maxterms::Int)
+    isfinite(λ) && λ < maxterms || error("Poisson support exceeded maxterms=$maxterms")
+    iszero(λ) && return 1
+    for n in (floor(Int, λ) + 1):(maxterms - 1)
+        p = exp(n * log(λ) - λ - _logfact(n))
+        mass, entropy = _poisson_tail_bounds(p, λ, n)
+        mass < _ENTROPY_TAIL / 100 && entropy < _ENTROPY_TAIL / 100 && return n + 1
     end
+    error("Poisson support exceeded maxterms=$maxterms")
+end
+function _conditional_entropy(L::BivariatePoissonLikelihood, z;
+                              maxterms::Int = 1_000_000, maxcells::Int = 4_000_000)
+    λ = exp.(z)
+    N1 = _poisson_support(λ[1] + λ[3]; maxterms)
+    N2 = _poisson_support(λ[2] + λ[3]; maxterms)
+    N1 ≤ maxcells ÷ N2 || error("Bivariate Poisson entropy exceeded maxcells=$maxcells")
     return -sum(begin
         l = loglikelihood(L, (i, j), z)
         l == -Inf ? 0.0 : exp(l) * l
-    end for i in 0:(N - 1), j in 0:(N - 1))
+    end for i in 0:(N1 - 1), j in 0:(N2 - 1))
 end
 function _conditional_entropy(L::OrdinalProbitLikelihood, z)
     lp = outcome_logprobs(L, z)
@@ -727,8 +800,8 @@ site): `fit` is ``\\mathbb E_q[-\\log L(y \\mid Ax+b)]`` by Gauss–Hermite quad
 With `y` unobserved, `fit = E_x[H(L(⋅|Ax+b))]` and
 `negentropy = -fit - H(x)`. The conditional entropy sums all ordinal categories exactly;
 its expectation over a Gaussian input uses Gauss–Hermite quadrature (an approximation,
-`method.order` for EP, 20 for Laplace). The count likelihoods sum their whole support (not the
-lumped predictive grid) until less than 1e-14 of the mass is left out. Likelihoods without a
+`method.order` for EP, 20 for Laplace). The count likelihoods truncate their support (not the
+lumped predictive grid) with geometric tail bounds and hard work limits that throw. Likelihoods without a
 `_conditional_entropy` method throw.
 """
 function Mycelium.local_free_energy(f::LikelihoodFactor, msgs, ps, st)

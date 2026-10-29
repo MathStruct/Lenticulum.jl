@@ -49,7 +49,17 @@ needs:
   `isposdef(Symmetric(Σ))` and throws an `ArgumentError` rather than fabricating an arbitrary
   regulariser.
 - **Weight-prune vs. moment-preservation trade-off in `reduce_mixture`.** Pruning components with
-  $w_i < \text{prune} \cdot \max_k w_k$ before greedy merging shifts the mixture moments by at most
-  the pruned weight; setting `prune = 0.0` preserves the exact first two moments across all merges.
+  $w_i < \text{prune} \cdot \max_k w_k$ before greedy merging changes total variation by at most
+  the removed probability mass after renormalisation. It gives no moment bound without
+  bounds on component locations and covariances; setting `prune = 0.0` preserves the exact first two moments across all merges.
 
 Related: [[Gaussian Belief]], [[Mixture Belief]], [[Belief Algebra]], [[src/gaussian|gaussian]]
+
+## LP-018 projections and pruning (2026-10-29)
+
+Particle weights are divided by their maximum before summing, so `[1e308,1e308]`
+has the same moments as `[1,1]`. All-zero weights are refused explicitly. Pruning's
+removed mass bounds total variation, not moments: components at 0 and `1e12` with
+removed mass `1e-10` shift the mean by 100. Merging without pruning still preserves
+moments. Evidence: `test/lp018.jl`, “LP-018.9 finite particle weights in moment
+matching” and “LP-018.13 pruning bounds mass, not moments”.

@@ -82,6 +82,8 @@ function NonlinearFactor(f, dims::Pair{Int,Int}; noise = 0.1, channels::Tuple{Sy
                          method = Linearization(), jacobian = nothing, x0 = nothing)
     nin, nout = dims
     Q = _as_cov(noise, nout)
+    size(Q) == (nout, nout) || throw(ArgumentError("noise covariance must have size ($nout, $nout), matching the residual dimension"))
+    issymmetric(Q) || throw(ArgumentError("noise covariance must be symmetric"))
     isposdef(Symmetric(Q)) || throw(ArgumentError("noise covariance Q must be positive definite"))
     method isa Union{Linearization,Unscented} ||
         throw(ArgumentError("method must be Linearization() or Unscented(), got $(typeof(method))"))

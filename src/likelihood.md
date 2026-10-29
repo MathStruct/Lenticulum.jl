@@ -171,8 +171,33 @@ With $y$ unobserved, `local_free_energy` keeps both coordinates: `fit` $= \mathb
 `negentropy` $= -\mathbb E_x\,H(Y \mid x) - H(x)$. Their sum is $-H(x)$, as before, but a scalarisation
 other than the plain sum now sees the true fit and entropy (earlier both were set to 0 because they
 cancel). The ordinal entropy sums its categories exactly. The count likelihoods sum their whole
-support, not the lumped predictive grid, until less than $10^{-14}$ of the mass is left out. The
+support, not the lumped predictive grid, using geometric tail bounds and hard work limits
+(see the LP-018 section below). The
 expectation over a Gaussian $x$ is by Gauss–Hermite quadrature, an approximation. A likelihood without
 a `_conditional_entropy` method throws. Tested in "predictive free energy retains conditional entropy".
 
 Related: [[nonlinear]], [[constraint]], [[Belief Algebra]], [[Categorical Belief]]
+
+## LP-018: bounded entropy and stable ordinal intervals (2026-10-29)
+
+Poisson entropy uses mode-centred relative probabilities, normalised after summation.
+Past the mode, $p_{n+k}\le p_n r^k$, $r=\lambda/(n+1)<1$. Once $p_n<e^{-1}$,
+monotonicity of $-p\log p$ bounds the remaining entropy by
+$-p_n\log(p_n)/(1-r)-p_n\log(r)r/(1-r)^2$. Neither stopping rule subtracts
+rounded accumulated mass from one. `maxterms` throws instead of looping indefinitely.
+Bivariate entropy chooses each marginal's support with the same geometric bounds and
+checks `maxcells` before evaluating the joint grid; it can refuse very large grids.
+
+Ordinal probabilities use the symmetric tail and `expm1` for log differences. Narrow
+intervals integrate the normal density about the midpoint through fourth order, with
+gradient and Hessian differentiated from that same expansion. Width is computed before
+shifting by the predictor; otherwise even stable tail formulas cannot recover endpoints
+that have rounded equal. The narrow branch requires width times $(1+|m|)<10^{-3}$.
+The same derivatives give the narrow-interval EP tilted moments.
+
+Evidence: `test/lp018.jl`, “LP-018.1 bounded Poisson predictive entropy” (independent
+256-bit Poisson recurrence and bivariate convolution), and “LP-018.8 ordinal narrow
+intervals and both tails” (256-bit normal interval probabilities and derivatives,
+including the reported category and $[8,9]$, $[-9,-8]$, with zero and shifted predictors).
+The 2026-10-29 full top-level run measured maximum absolute Poisson entropy error
+`8.881784197001252e-16` over the 32 rates, and `H(500) = 4.526075748658402`.
