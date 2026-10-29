@@ -248,7 +248,7 @@ function _logdensity_columns(m::ImplicitDiffusion{<:NoisePredictor{<:EnergyNetwo
     return (L, st)
 end
 
-# times from T down to tmin, uniform in log-SNR log(α/σ): the steps crowd at low noise, where the
+# Times from T down to tmin, uniform in log(α/σ) = ½log(power SNR): the steps crowd at low noise, where the
 # density has its fine structure (a uniform grid in t gives too narrow samples there)
 function _logsnr_grid(s, T, tmin, steps)
     ℓ(t) = log(alpha(s, t) / sigma(s, t))

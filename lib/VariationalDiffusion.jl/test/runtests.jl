@@ -47,11 +47,11 @@ const V₀ = 1.0
 const PRED = NoisePredictor(AnalyticEps(SCHED, V₀), SCHED)
 const PS, ST = LuxCore.setup(Random.default_rng(), PRED)
 
-# ∫ σ_t²/(α_t² s + σ_t²) dt by the same quadrature `calibrate_lambda` uses
+# E_{t ~ U[tmin,1]} σ_t²/(α_t² s + σ_t²), by trapezoidal quadrature
 function shrink_integral(s::VPSDE, v; nodes = 20000)
     a, b, h = s.tmin, 1.0, (1.0 - s.tmin) / nodes
     f(t) = sigma(s, t)^2 / marginal_variance(s, t, v)
-    return ((f(a) + f(b)) / 2 + sum(f(a + i * h) for i in 1:(nodes - 1))) * h
+    return ((f(a) + f(b)) / 2 + sum(f(a + i * h) for i in 1:(nodes - 1))) * h / (b - a)
 end
 
 _mean(v) = sum(v) / length(v)
@@ -194,7 +194,7 @@ end
     @test_throws ArgumentError REDDiff(steps = 0)
     @test_throws ArgumentError REDDiff(samples = -1)
 
-    # λ_t = λ/SNR_t = λσ_t/α_t, and it GROWS with t — late, noisy times weigh most
+    # λ_t = λ/√SNR_t = λσ_t/α_t, and it GROWS with t — late, noisy times weigh most
     for t in (0.1, 0.5, 0.9)
         @test reddiff_weight(cfg, SCHED, t) ≈ cfg.λ * sigma(SCHED, t) / alpha(SCHED, t)
         @test reddiff_weight(cfg, SCHED, t) ≈ cfg.λ / snr(SCHED, t)
@@ -202,7 +202,7 @@ end
     @test reddiff_weight(cfg, SCHED, 0.9) > reddiff_weight(cfg, SCHED, 0.1)
 
     # For Gaussian data the expectation collapses to a linear shrinkage κx, with
-    #     κ = λ ∫ σ_t²/(α_t²v₀ + σ_t²) dt
+    #     κ = λ/(1-tmin) ∫ σ_t²/(α_t²v₀ + σ_t²) dt
     # because E_ε[ε_θ(α x + σ ε) - ε] = σ_t α_t x/D_t. Checked by heavy Monte Carlo.
     λ = 0.25
     κ = λ * shrink_integral(SCHED, V₀)
@@ -218,7 +218,7 @@ end
 
 @testset "calibrate_lambda: λ is derivable, not merely tunable" begin
     # The unique λ making RED-Diff's implied prior equal the true Gaussian prior:
-    # κ = λ∫σ²/D dt must equal 1/v₀.
+    # κ = λ/(1-tmin)∫σ²/D dt must equal 1/v₀.
     for v₀ in (0.5, 1.0, 3.0)
         λ★ = calibrate_lambda(SCHED, v₀)
         @test λ★ > 0
@@ -2063,3 +2063,5 @@ end
 include("conformance.jl")
 
 include("bound.jl")
+
+include("lp018.jl")

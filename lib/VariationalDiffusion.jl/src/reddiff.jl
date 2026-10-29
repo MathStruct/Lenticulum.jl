@@ -12,7 +12,7 @@
 #
 # and their Proposition 2, which is the whole reason this is implementable:
 #
-#     ∇_x reg(x) = E_{t,ε}[ λ_t (ε_θ(x_t, t) - ε) ],        λ_t = λ/SNR_t = λσ_t/α_t
+#     ∇_x reg(x) = E_{t,ε}[ λ_t (ε_θ(x_t, t) - ε) ],        λ_t = λ/√SNR_t = λσ_t/α_t
 #
 # with a STOP-GRADIENT on ε_θ: the denoiser's Jacobian is never formed. Only forward passes
 # through the network occur, so this file needs no automatic differentiation — see
@@ -66,12 +66,13 @@ end
 """
     reddiff_weight(cfg, s, t) -> Real
 
-``\\lambda_t = \\lambda/\\mathrm{SNR}_t = \\lambda\\,\\sigma_t/\\alpha_t``.
+``\\lambda_t = \\lambda/\\sqrt{\\mathrm{SNR}_t} = \\lambda\\,\\sigma_t/\\alpha_t``.
 
-The paper motivates this as converting the noise-space objective to signal space. Note it
-**grows without bound as ``t \\to 1``**: late, heavily-noised times get the most weight, which
-is the opposite of the ELBO weighting and is why RED-Diff is mode-seeking rather than
-distribution-matching.
+This weights the stop-gradient residual under uniform time sampling. It is finite at
+``t=1`` for the default VP schedule, with limit ``\\lambda\\sqrt{e^{10.05}-1}``;
+it diverges only if the terminal signal vanishes. Here SNR is the power ratio
+``\\alpha_t^2/\\sigma_t^2``. This field weight is not the squared-error coefficient
+in the continuous ELBO; see `schedule.md` §3 and `reddiff.md` §3.
 """
 reddiff_weight(cfg::REDDiff, s::AbstractNoiseSchedule, t) = cfg.λ * sigma(s, t) / alpha(s, t)
 
@@ -164,10 +165,10 @@ regulariser gradient collapses to a linear shrinkage:
 ```math
 \\nabla_x\\mathrm{reg}(x) \\;=\\; \\kappa\\,x,
 \\qquad
-\\kappa \\;=\\; \\lambda\\int_{t_{\\min}}^{1}\\frac{\\sigma_t^2}{\\alpha_t^2 v_0 + \\sigma_t^2}\\,dt
+\\kappa \\;=\\; \\frac{\\lambda}{1-t_{\\min}}\\int_{t_{\\min}}^{1}\\frac{\\sigma_t^2}{\\alpha_t^2 v_0 + \\sigma_t^2}\\,dt
 ```
 
-whereas the true prior gradient is ``x/v_0``. Setting ``\\kappa = 1/v_0`` gives the returned
+for ``t \\sim U[t_{\\min},1]``, whereas the true prior gradient is ``x/v_0``. Setting ``\\kappa = 1/v_0`` gives the returned
 value. Computed by the trapezoidal rule; the integrand is smooth on ``[t_{\\min},1]``.
 
 > [!important] Why this matters beyond the test suite
@@ -183,7 +184,7 @@ function calibrate_lambda(s::AbstractNoiseSchedule, v₀ = 1.0; nodes::Int = 200
     for i in 1:(nodes - 1)
         acc += f(a + i * h)
     end
-    return 1 / (v₀ * acc * h)
+    return (b - a) / (v₀ * acc * h)
 end
 
 _tmin(s::VPSDE) = s.tmin

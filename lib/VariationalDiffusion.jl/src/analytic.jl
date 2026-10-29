@@ -37,7 +37,8 @@ function GaussianMixtureEps(schedule::AbstractNoiseSchedule, μ₀::AbstractMatr
     J = size(μ₀, 2)
     w = weights === nothing ? fill(1.0, J) : float.(collect(weights))
     length(w) == J || throw(ArgumentError("need one weight per component: $(length(w)) for $J"))
-    all(≥(0), w) && sum(w) > 0 || throw(ArgumentError("weights must be non-negative and not all zero"))
+    all(isfinite, w) && all(≥(0), w) && maximum(w) > 0 || throw(ArgumentError("weights must be finite, non-negative and not all zero"))
+    w ./= maximum(w)
     return GaussianMixtureEps(schedule, float.(μ₀), float(s), log.(w ./ sum(w)))
 end
 
@@ -178,12 +179,17 @@ function epsilon_vjp_input(pred::NoisePredictor, X, t, ps, st, W)
     _ondevice(pred) && return _back(pred, epsilon_vjp_input(_local(pred), _to(pred, X), _to(pred, t), ps, st, _to(pred, W)))
     pred.ad === nothing || return _ad_vjp_input(pred.ad, pred, X, t, ps, st, W)
     X̄ = similar(float.(X))
-    for (x̄, x, w) in zip(eachcol(reshape(X̄, size(X, 1), :)), eachcol(reshape(X, size(X, 1), :)),
-                         eachcol(reshape(W, size(X, 1), :)))
-        x̄ .= epsilon_jacobian(pred, collect(x), t, ps, st)' * w
+    for (b, (x̄, x, w)) in enumerate(zip(eachcol(reshape(X̄, size(X, 1), :)), eachcol(reshape(X, size(X, 1), :)),
+                         eachcol(reshape(W, size(X, 1), :))))
+        x̄ .= epsilon_jacobian(pred, collect(x), _column_time(t, b), ps, st)' * w
     end
     return X̄
 end
+
+# Preserve block times as a single column; unblocked scalar times stay scalar.
+_column_time(t::Number, b) = t
+_column_time(t::AbstractVector, b) = t
+_column_time(t::AbstractMatrix, b) = t[:, b:b]
 
 _ad_vjp_input(ad, pred, X, t, ps, st, W) = throw(ArgumentError(
     "ad = $(ad) given, but no extension implements it: load DifferentiationInterface (and the backend package)."))
@@ -220,7 +226,7 @@ The input Jacobian-vector product ``\\dot x_b = (\\partial\\varepsilon_\\theta(x
 column by column, shaped like `X`. The matrix-free solver ([`KrylovSolve`](@ref)) needs one per
 noise level and Krylov step ([`prior_jvp`](@ref)). In forward mode through the predictor's AD
 backend when it has one; in closed form for [`GaussianMixtureEps`](@ref) and an
-[`EnergyNetwork`](@ref) (whose Jacobians are symmetric); otherwise, and for reverse-only
+[`EnergyNetwork`](@ref); otherwise, and for reverse-only
 backends such as Zygote, by one central difference along `V` (two batched forward passes,
 accurate to about ``10^{-8}`` relative).
 """

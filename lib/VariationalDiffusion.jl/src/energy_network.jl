@@ -133,10 +133,6 @@ end
 
 _sigmas(s, t) = t isa Number ? sigma(s, t) : sigma.(Ref(s), t)
 
-# σ of the coordinates `idx` (column 1); a block's columns share their times in every caller
-_sigma_rows(p::NoisePredictor, t, X, idx) = p.blocks === nothing ? sigma(p.schedule, t) :
-    Array(sigma.(Ref(p.schedule), Array(t)[p.blocks.owner[idx], 1]))
-
 function epsilon(p::NoisePredictor{<:EnergyNetwork}, x, t, ps, st)
     t = _times(p, x, t)
     _ondevice(p) && return _epsilon_device(p, x, t, ps, st)
@@ -152,20 +148,24 @@ function epsilon_jacobian(p::NoisePredictor{<:EnergyNetwork}, x, t, ps, st)
     p.ad === nothing && _need_ad()
     H = _energy_hessian(p.ad, p, x, t, ps, st)
     _hasref(p) && (H = _plus_diagonal(H, vec(1 ./ last(_ref_moments(p, x, t)))))
-    return p.blocks === nothing ? sigma(p.schedule, t) .* H : _sigma_rows(p, t, x, eachindex(x)) .* Array(H)
+    return vec(_sigmas(p, t, x) .+ zero(x)) .* Array(H)
 end
 
-# the free-coordinate block: σ times the Hessian of Σ_b w_b E(x_b + P u) in u
+# Each column has its own row scales: Σ_b w_b diag(σ_b) H_b. Scale the
+# Hessian-vector products before summing, including the reference-energy diagonal.
 function epsilon_jacobian_block(p::NoisePredictor{<:EnergyNetwork}, X, t, ps, st, idx, w)
     t = _times(p, X, t)
     _ondevice(p) && return _back(p, epsilon_jacobian_block(_local(p), _to(p, X), _to(p, t), ps, st, idx, _to(p, w)))
     p.ad === nothing && _need_ad()
-    H = _energy_hessian_block(p.ad, p, X, t, ps, st, idx, w)
-    if _hasref(p)               # Σ_b w_b / D[idx, b] on the diagonal
-        D = Array(reshape(last(_ref_moments(p, X, t)), size(X, 1), :))[idx, :]
-        H = _plus_diagonal(H, vec(sum((1 ./ D) .* reshape(Array(w), 1, :); dims = 2)))
+    n, k, T = size(X, 1), length(idx), float(eltype(X))
+    σ = _sigmas(p, t, X)
+    J = zeros(T, k, k)
+    for (a, i) in enumerate(idx)
+        V = _onlike(X, T, reshape(repeat(T.(1:n .== i), _ncols(X)), size(X)))
+        HV = σ .* _hvp(p, X, t, ps, st, V)
+        J[:, a] = Array(reshape(HV, n, :))[idx, :] * Array(w)
     end
-    return _sigma_rows(p, t, X, idx) .* H
+    return J
 end
 
 # Jᵀw = ∇²E (σ ⊙ w) and J v = σ ⊙ ∇²E v, column by column: one Hessian-vector product of the

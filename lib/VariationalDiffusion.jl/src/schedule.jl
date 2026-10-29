@@ -88,8 +88,8 @@ sigma(s::VPSDE, t) = sqrt(-expm1(-integrated_beta(s, t)))
 """
     snr(s, t) -> Real
 
-``\\mathrm{SNR}_t = \\alpha_t/\\sigma_t``. RED-Diff's weighting is
-``\\lambda_t = \\lambda/\\mathrm{SNR}_t``; see [`REDDiff`](@ref).
+The amplitude ratio ``\\alpha_t/\\sigma_t = \\sqrt{\\mathrm{SNR}_t}``, where the power SNR is ``\\alpha_t^2/\\sigma_t^2``. RED-Diff's weighting is
+``\\lambda_t = \\lambda/\\sqrt{\\mathrm{SNR}_t}``; see [`REDDiff`](@ref).
 """
 snr(s::AbstractNoiseSchedule, t) = alpha(s, t) / sigma(s, t)
 

@@ -302,3 +302,16 @@ stiffness argument applies. The 9-point task also overfits (test RMSE 0.14 at tr
 
 Related: [[implicit]], [[reddiff]], [[backends]], [[analytic]],
 [[ProxDM and Proximal Alternatives]], [[Inference Signatures]], [[Deterministic Relaxation]]
+
+## LP-018 stationary mixture maxima (2026-10-29)
+
+A small optimality residual is insufficient in a nonconvex mixture. Before accepting it,
+`MixtureProx` checks curvature; a negative eigenvalue supplies an escape direction with
+backtracking on the same objective. Iteration or line-search exhaustion throws rather
+than claiming a local minimiser. Global optimality remains outside the contract.
+Near a minimum, rounding can hide a Newton step's objective decrease before the residual
+meets tolerance. A step within objective roundoff is accepted only if its recomputed
+residual decreases; this retains the existing sampler and tight-tolerance adjoint cases.
+Evidence: `test/lp018.jl`, “LP-018.6 symmetric mixture prox escapes a maximum”, against
+the independent two-normal density and its local curvature; the existing “ProxDM: the
+exact prox, the sampler, proximal inference, the loss” tests cover the previous cases.

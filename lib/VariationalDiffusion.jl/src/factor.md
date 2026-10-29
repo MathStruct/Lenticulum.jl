@@ -195,3 +195,16 @@ Definition 20 entropy law. Exact game `entropy` and `free_energy` now throw expl
 errors directing callers to the bound APIs. Existing graph surrogate behavior and its
 common conformance exemption are retained. See `../test/bound.jl` for analytic Gaussian
 likelihood equality, upper-bound and score-convergence checks.
+
+## LP-018 hard pointwise clamps (2026-10-29)
+
+`energy` now retains `precision_vector`'s hard mask: a hard coordinate contributes zero
+when state and reference are equal, and `Inf` on violation. Finite precisions retain the
+existing squared-precision cost. This preserves the graded `(clamp,score)` pointwise
+space required by L-SPEC-001 §3, and uses the same infeasibility convention as other factors.
+The specification does not require a finite pointwise value on infeasible evidence.
+`local_free_energy` evaluates at the projected solution, so agreeing hard coordinates
+remain zero there. Evidence: `test/lp018.jl`, “LP-018.5 hard clamp pointwise energy”.
+The conformance check's finite point now agrees with hard observations; its separate
+violated-point check expects `Inf`. Previously that fixture asserted the discarded clamp
+cost and therefore codified the defect.

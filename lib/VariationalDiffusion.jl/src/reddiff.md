@@ -36,7 +36,7 @@ $$
 \;=\;
 \mathbb{E}_{t,\varepsilon}\bigl[\lambda_t\,\bigl(\underbrace{\varepsilon_\theta(x_t,t)}_{\text{stop-gradient}}-\varepsilon\bigr)\bigr],
 \qquad
-\lambda_t = \frac{\lambda}{\mathrm{SNR}_t} = \frac{\lambda\sigma_t}{\alpha_t}
+\lambda_t = \frac{\lambda}{\sqrt{\mathrm{SNR}_t}} = \frac{\lambda\sigma_t}{\alpha_t}
 $$
 
 Two different things are happening in that formula and they are worth separating:
@@ -62,17 +62,22 @@ closed-form regulariser is separate from the planned per-edge gradient machinery
 > sold as a memory optimisation; here it is the difference between a package that depends on
 > Zygote and one that does not.
 
-## 3. λ_t grows with t, and that is the mode-seeking
+## 3. The field weight and the likelihood bound
 
-$\lambda_t = \lambda\sigma_t/\alpha_t$ is **unbounded as $t\to1$**: the most heavily noised
-times get the most weight. Compare the ELBO weighting $\sigma_t^2/\alpha_t^2$ — wait, that
-grows too — but compare the *relative* emphasis: the ELBO's weight is the square of
-RED-Diff's, so RED-Diff systematically down-weights the late times relative to a proper
-likelihood bound while still leaning on them.
+RED-Diff's $\lambda_t=\lambda\sigma_t/\alpha_t=\lambda/\sqrt{\mathrm{SNR}_t}$
+grows steeply with noise, but is finite at $t=1$ for the default VP schedule:
+$\alpha_1=e^{-5.025}>0$ and $\lambda_1=\lambda\sqrt{e^{10.05}-1}$.
+Divergence requires a schedule whose terminal signal vanishes.
 
-The practical reading is the paper's own: RED-Diff is **mode-seeking**, not
-distribution-matching. It finds a point, not a posterior, and the weighting is tuned for
-reconstruction quality rather than calibration.
+With the power convention $\mathrm{SNR}_t=\alpha_t^2/\sigma_t^2$, the continuous
+ELBO squared-noise-error coefficient under $dt$ is
+$-\tfrac12(d/dt)\log\mathrm{SNR}_t=\beta(t)/(2\sigma_t^2)$ ([[schedule]] §3).
+Under $t\sim U[t_{\min},1]$ its coefficient includes $1-t_{\min}$.
+RED-Diff instead weights a stop-gradient residual field under that uniform distribution;
+it drops the denoiser Jacobian. Comparing these two quantities by squaring weights does
+not establish a likelihood bound or explain mode seeking. Its point variational family and
+tuned surrogate target reconstruction rather than posterior calibration.
+The Gaussian calibration below measures the resulting prior strength directly.
 
 ## 4. λ is derivable, not merely tunable — and one λ is not enough
 
@@ -91,7 +96,7 @@ $$
 \qquad\Longrightarrow\qquad
 \nabla_z\mathrm{reg}(z) = \kappa z,
 \quad
-\kappa = \lambda\!\int_{t_{\min}}^{1}\!\frac{\sigma_t^2}{D_t}\,dt
+\kappa = \frac{\lambda}{1-t_{\min}}\!\int_{t_{\min}}^{1}\!\frac{\sigma_t^2}{D_t}\,dt
 $$
 
 The true prior gradient is $z/v_0$. So RED-Diff's regulariser **is** a Gaussian prior, of
@@ -105,18 +110,18 @@ suite checks this to within Monte-Carlo noise and checks that the noise averages
 > Tuning $\lambda$ is not a knob on "how much regularisation feels right". It is **choosing
 > how strong the learned prior is**, and a wrong value biases every posterior by a computable
 > factor. The paper's tuned $\lambda = 0.25$ is a different quantity from
-> $\lambda^\star \approx 1.38$ for unit-variance data under the default schedule.
+> $\lambda^\star \approx 1.379826$ for unit-variance data under the default schedule.
 
 ### 4.2 For correlated data no single λ works
 
 Extend to $p_0=\mathcal{N}(0,\Sigma)$. Both $\kappa$ and $\Sigma^{-1}$ are functions of
 $\Sigma$ and are simultaneously diagonalisable, so per eigenvalue $s$ the requirement is
-$\lambda\,s\,I(s) = 1$ with $I(s) = \int\sigma_t^2/(\alpha_t^2 s+\sigma_t^2)\,dt$. That needs
+$\lambda\,s\,I(s) = 1$ with $I(s) = \frac{1}{1-t_{\min}}\int_{t_{\min}}^1\sigma_t^2/(\alpha_t^2 s+\sigma_t^2)\,dt$. That needs
 $s\,I(s)$ to be **constant in $s$**. It is not:
 
 | $s$ | 0.25 | 0.5 | 1 | 2 | 4 |
 |---|---|---|---|---|---|
-| $s\,I(s)$ | 0.207 | 0.389 | 0.724 | 1.330 | 2.415 |
+| $s\,I(s)$ | 0.206878 | 0.389614 | 0.724729 | 1.331492 | 2.417511 |
 
 A factor of ~12 across a 16× spread of eigenvalues. Calibrating at $s=1$ therefore
 
@@ -133,8 +138,8 @@ the test suite by pure quadrature, no Monte Carlo.
 
 The gradient is stochastic and does not vanish at the optimum, so constant-step-size descent
 hovers in a neighbourhood of radius $\propto \mathrm{lr}\cdot\sqrt{\mathrm{Var}}$. In the
-test suite, individual runs land within ~2% of the exact posterior mean and the *average over
-seeds* within ~0.4%. Nothing in `REDDiff` implements a decreasing step size, Polyak averaging
+test suite, individual runs land within 2.184% of the exact posterior mean and the *average over
+seeds* within 0.915%. Nothing in `REDDiff` implements a decreasing step size, Polyak averaging
 or a convergence check — `reddiff_solve` runs exactly `steps` iterations and returns.
 
 **There is no `ConvergenceReport`.** Every other inversion in this project reports whether it
@@ -172,3 +177,14 @@ answer in hundreds of steps. The default is 1, matching the paper; the tests rai
 
 Related: [[schedule]], [[predictor]], [[factor]], [[RED-Diff as a Statistical Game]],
 [[ProxDM and Proximal Alternatives]], [[ImplicitREDDiff]]
+
+## LP-018 calibration measurements (2026-10-29)
+
+Time is uniform on `[tmin,1]`; both the shrinkage and `I(s)` above include
+`1/(1-tmin)`. `examples/lp018_calibration.jl` reproduces the table (independent
+20,000-point midpoint quadrature), the default calibrated value `1.379825576009811`
+(previously `1.3812067827926036`), and the six-seed Gaussian posterior measurements.
+At clamp precisions 1 and 2, the maximum relative errors are 2.1833% and 1.4030%;
+the errors of the six-seed means are 0.9147% and 0.5028%. Settings match the existing
+Gaussian posterior regression: 1,500 steps, 64 samples, learning rate 0.1, no Adam.
+The corresponding terminal weight at unit lambda is `152.16697028394637`.

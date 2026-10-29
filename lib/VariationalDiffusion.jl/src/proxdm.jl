@@ -69,7 +69,8 @@ The **exact** proximal operator of ``-\\log p_t`` for the Gaussian-mixture data 
 the role a perfectly trained `ProxNetwork` would, so samplers and proximal inference can be
 checked against arithmetic. Uses ``\\nabla\\log p_t`` directly (not ``\\varepsilon/\\sigma_t``), so it is
 valid at ``t = 0``. Where ``-\\log p_t`` is not convex the prox can be multivalued; the solve
-returns the local minimiser reached from ``v``.
+returns the local minimiser reached from ``v``, escaping negative curvature at stationary
+points. Throws if the iteration or line search fails; no global minimum is promised.
 """
 struct MixtureProx{G<:GaussianMixtureEps,T<:Real} <: AbstractProximalPredictor
     mixture::G
@@ -94,16 +95,36 @@ function proximal(p::MixtureProx, v, t, λ, ps, st)
     for _ in 1:(p.maxiters)
         g, H = _mixture_grad_hess(l, u, t, ps.μ)
         r = u .- v .- λ .* g                                  # optimality residual
-        norm(r) ≤ p.tol * (1 + norm(u)) && break
-        K = Matrix{eltype(u)}(I, length(u), length(u)) .- λ .* H
-        d = isposdef(Symmetric((K .+ K') ./ 2)) ? -(K \ r) : -r   # Newton where convex, else gradient
+        K = Symmetric(Matrix{eltype(u)}(I, length(u), length(u)) .- λ .* H)
+        curvature = 0.0
+        if norm(r) ≤ p.tol * (1 + norm(u))
+            E = LinearAlgebra.eigen(K)
+            minimum(E.values) > 0 && return (u, st)
+            iszero(minimum(E.values)) && error("MixtureProx cannot certify a flat stationary point")
+            # A zero residual is also possible at a maximum or saddle. Take a descent
+            # direction of negative curvature instead of accepting that stationary point.
+            curvature = first(E.values)
+            d = E.vectors[:, 1]
+            dot(r, d) > 0 && (d = -d)
+        else
+            d = isposdef(K) ? -(K \ r) : -r
+        end
         η, f0 = 1.0, obj(u)
-        while obj(u .+ η .* d) > f0 - 1e-4 * η * abs(sum(r .* d)) && η > 1e-10
+        while obj(u .+ η .* d) > f0 - 1e-4 * (η * abs(dot(r, d)) + η^2 * abs(curvature))
+            # Near a minimum, objective differences can round flat before the
+            # residual reaches tolerance. Accept a Newton step within roundoff
+            # only if an independently recomputed optimality residual decreases.
+            candidate = u .+ η .* d
+            if isposdef(K) && obj(candidate) ≤ f0 + 8eps(eltype(u)) * (1 + abs(f0))
+                gc, _ = _mixture_grad_hess(l, candidate, t, ps.μ)
+                norm(candidate .- v .- λ .* gc) < norm(r) && break
+            end
             η /= 2
+            η > 1e-10 || error("MixtureProx line search failed to find a local minimiser")
         end
         u = u .+ η .* d
     end
-    return (u, st)
+    error("MixtureProx exceeded maxiters=$(p.maxiters) without a local minimiser")
 end
 
 # --- 2. the sampler: Algorithm 1 -------------------------------------------------

@@ -16,11 +16,12 @@ include(joinpath(@__DIR__, "../../../test/factor_conformance.jl"))
         site = GaussianBelief([0.0], fill(c,1,1))
         post = Gaussian([0.4/(1+c)], fill(1/(1+c),1,1))
         check_factor_conformance(f, p; π, inputs, ps, st,
-            pointwise=([1.0,2.0],p,[2.0,3.0]), msgs=inputs,
+            pointwise=([1.0,2.0],p,[1.0,2.0]), msgs=inputs,
             expected_site=site, expected_posterior=post,
             game_gap="deliberate scope: prox/score graph surrogate has no exact posterior game; finite-chain NLL bound is checked separately in bound.jl")
         E = first(LenticulumCore.energy(f, [1.0,2.0], p, [2.0,3.0], ps, st))
-        @test E[:clamp] ≈ 0.5
+        # A point that disagrees with its hard observation is infeasible (LP-018.5).
+        @test E[:clamp] == Inf
         @test E[:score] ≈ λ * sigma(SCHED,t)^3 * alpha(SCHED,t) * 5
         F = first(local_free_energy(f, inputs, ps, st))
         @test F[:clamp] ≈ 0

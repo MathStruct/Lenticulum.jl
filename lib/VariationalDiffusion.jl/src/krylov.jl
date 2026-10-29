@@ -46,7 +46,8 @@ Matrix-free linear algebra, for queries with many free coordinates (generating a
 
 Lanczos and the probes draw from `Xoshiro(seed)`, so the answers are deterministic. With at most
 `lanczos` free coordinates the stability test is exact, and with at most `probes` the log
-determinant is too (the probes are then the unit vectors). Otherwise both are estimates: the
+determinant is too (the probes are then the unit vectors, each with full Lanczos depth
+regardless of the `lanczos` setting). Otherwise both are estimates: the
 smallest Ritz value approaches ``\\lambda_{\\min}`` from above, so a barely unstable point can be
 reported stable (`krylov.md` §3).
 """
@@ -198,7 +199,7 @@ function _logdet(S, n, ls::KrylovSolve)
     probes = exact ? [(e = zeros(n); e[i] = 1; e) for i in 1:n] : [rand(rng, (-1.0, 1.0), n) for _ in 1:ls.probes]
     total = 0.0
     for v in probes
-        α, β = _lanczos(S, v, ls.lanczos)
+        α, β = _lanczos(S, v, exact ? n : ls.lanczos)
         θ, U = LinearAlgebra.eigen(LinearAlgebra.SymTridiagonal(α, β))
         all(>(0), θ) || throw(ArgumentError("log det: the symmetric part of J_FF is not positive definite"))
         total += dot(v, v) * sum(U[1, :] .^ 2 .* log.(θ))

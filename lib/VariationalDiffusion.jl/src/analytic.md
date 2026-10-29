@@ -47,3 +47,13 @@ Jacobian falls back to finite differences and the VJP raises an error that names
 the exact proximal operator ([[proxdm]]).
 
 Related: [[implicit]], [[predictor]], [[backends]], [[proxdm]], [[Implicit Diffusion Learners]]
+
+## LP-018 column times and finite weights (2026-10-29)
+
+The generic batched input VJP selects the time column with the corresponding state column,
+including scalar times expanded over noise blocks. Passing the full time matrix into each
+single-point Jacobian caused a shape error. Mixture constructor weights are scaled by their
+maximum before summation, and nonfinite weights are refused. Evidence: `test/lp018.jl`,
+“LP-018.4 generic batched VJP column times” (`epsilon = X .* T`, matrix and scalar times)
+and “LP-018.9 mixture weights avoid finite overflow”. The mixture-specific Jacobian block,
+VJP and JVP already select per-column coordinate times.

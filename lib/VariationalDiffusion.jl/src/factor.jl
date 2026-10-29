@@ -424,16 +424,17 @@ end
     LenticulumCore.energy(f::DiffusionFactor, x, a, y, ps, st)
 
 The graded energy at a point: `(clamp = ½‖P(x₀-x)‖², score = one MC sample of the
-score-matching loss)`.
+score-matching loss)`. A hard coordinate contributes zero when its state equals
+its reference value, and `Inf` otherwise.
 
 `x` is the full state vector, `y` the reference ``x_0``, and `a` the polarity (the slot
 AutoBayes reserves for ``\\llbracket c \\rrbracket``, used here to carry the thing that
 determines ``P``). That reuse is ugly and is discussed in `factor.md` §4.
 """
 function LenticulumCore.energy(f::DiffusionFactor, x, a::LenticulumCore.Polarity, y, ps, st)
-    ρ, _ = precision_vector(f, a)
+    ρ, hard = precision_vector(f, a)
     d = ρ .* (y .- x)
-    clamp_term = sum(abs2, d) / 2
+    clamp_term = any(i -> hard[i] && x[i] != y[i], eachindex(hard)) ? Inf : sum(abs2, d) / 2
     sc, st = _score_term(f.prox, f.predictor, x, ps, st)
     return (LenticulumCore.GradedEnergy((clamp = clamp_term, score = sc)), st)
 end

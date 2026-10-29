@@ -33,6 +33,8 @@ undermine the sampler's use as a check.
 - **A grid uniform in log-SNR.** A grid uniform in $t$ spends almost no steps at low noise, where
   the density has its fine structure: with 100 steps on the unit-circle mixture (data width
   0.05) the samples' radial spread was 0.034; with the log-SNR grid it is 0.047.
+  The implementation uses $\log(\alpha_t/\sigma_t)$, half the power log-SNR of
+  [[schedule]] §3. A constant factor leaves the uniform grid unchanged (LP-018.10).
 - **Batched like the field.** With `m.batched` all chains go through the network in one call per
   step; otherwise one call per chain. Both give identical draws for the same `rng`.
 

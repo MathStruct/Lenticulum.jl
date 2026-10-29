@@ -45,19 +45,40 @@ does not fit. Cold diffusion, discrete/categorical diffusion and flow matching w
 non-Gaussian path all fall outside. What *does* fit trivially is sub-VP and VE — both are
 another pair of $(\alpha_t,\sigma_t)$ formulas — and neither is implemented.
 
-## 3. Three weightings, one integrand
+## 3. Time measure and the likelihood weighting
 
-`denoising_loss` returns the **unweighted** $\|\varepsilon_\theta - \varepsilon\|^2$. That is
-not laziness: the weighting is where the objective's identity lives.
+Use the power convention $\mathrm{SNR}_t=\alpha_t^2/\sigma_t^2$ throughout this note.
+The historical `snr(s,t)` function returns the amplitude ratio $\alpha_t/\sigma_t$,
+that is, $\sqrt{\mathrm{SNR}_t}$; its API is unchanged.
 
-| $\omega(t)$ | gives |
+For a small VP step, let $a=\alpha_t/\alpha_{t-dt}$ and $b=1-a^2=\beta(t)dt+o(dt)$.
+A unit change in the predicted noise changes the reverse mean by $b/(a\sigma_t)$.
+The Gaussian KL's quadratic term, with reverse variance $b$, is therefore
+$b/(2a^2\sigma_t^2)$ times squared noise error. Dividing by $dt$ gives
+
+$$
+\omega_{\mathrm{ELBO}}(t)=-\tfrac12\frac{d}{dt}\log\mathrm{SNR}_t
+=\beta(t)/(2\sigma_t^2).
+$$
+
+Indeed $d\log\alpha_t^2/dt=-\beta(t)$ and
+$d\log\sigma_t^2/dt=\beta(t)\alpha_t^2/\sigma_t^2$, whose difference is
+$-\beta(t)/\sigma_t^2$. This is the coefficient in the continuous likelihood-bound
+integral $\int_{t_{\min}}^1\omega_{\mathrm{ELBO}}(t)\,\mathbb E\|\hat\varepsilon-\varepsilon\|^2dt$;
+endpoint/reconstruction and terminal terms must also be included for a bound.
+Written as an expectation under $t\sim U[t_{\min},1]$, the coefficient is multiplied
+by $1-t_{\min}$. `test/lp018.jl`, “LP-018.10 ELBO epsilon weight from Gaussian KL”,
+checks this limit against independent finite-step Gaussian KLs.
+
+| quantity | meaning |
 |---|---|
-| $\sigma_t^2/\alpha_t^2 = 1/\mathrm{SNR}_t^2$ | the ELBO / exact likelihood bound |
-| $1$ | DDPM's "simple" loss — the one everybody trains |
-| $\lambda/\mathrm{SNR}_t = \lambda\sigma_t/\alpha_t$ | **RED-Diff's regulariser** |
+| $\omega_{\mathrm{ELBO}}(t)$ | coefficient of squared noise error under $dt$ |
+| $1$ | unweighted squared noise error, DDPM's simple training loss |
+| $\lambda_t=\lambda\sigma_t/\alpha_t=\lambda/\sqrt{\mathrm{SNR}_t}$ | RED-Diff's stop-gradient residual field weight under uniform time sampling |
 
-So the same network, the same integrand, three different meanings. `reddiff.md` §3 is about
-what the third choice does.
+The last row weights a field, not the squared-error likelihood integrand. The missing
+denoiser Jacobian and different time measure prevent identifying it with the ELBO coefficient
+or comparing them by squaring weights; see [[reddiff]] §3.
 
 ## 4. Implementation difficulties
 
@@ -96,3 +117,10 @@ package cannot be sanity-checked by generating from the model, only by the analy
 the test suite.
 
 Related: [[The VP-SDE]], [[predictor]], [[reddiff]]
+
+## LP-018 convention correction (2026-10-29)
+
+The likelihood coefficient and time measure in §3 replace the incorrect inverse-SNR
+claim. `snr` keeps its historical amplitude-ratio return value; only the documentation
+now distinguishes it from power SNR. The finite-step Gaussian KL regression in
+`test/lp018.jl` checks the derivation without treating RED-Diff's field as that bound.

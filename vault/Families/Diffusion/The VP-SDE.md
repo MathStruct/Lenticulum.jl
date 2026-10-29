@@ -97,22 +97,25 @@ and `denoise` reproduces it to floating point. That agreement is the single most
 sanity check available on this whole family, because it is the only place a diffusion model
 has a closed form to be checked against.
 
-## 4. The weighting is where the objective's identity lives
+## 4. The weighting and the time measure
 
-The integrand $\|\varepsilon_\theta-\varepsilon\|^2$ is always the same. What $\omega(t)$
-multiplies it by decides what you are computing:
+Use $\mathrm{SNR}_t=\alpha_t^2/\sigma_t^2$ (power); the historical function `snr`
+returns its square root. The continuous likelihood-bound coefficient of squared noise error is
 
-| $\omega(t)$ | objective |
-|---|---|
-| $\sigma_t^2/\alpha_t^2 = 1/\mathrm{SNR}_t^2$ | the ELBO — an actual likelihood bound |
-| $1$ | DDPM's "simple loss" — what people train |
-| $\lambda\sigma_t/\alpha_t = \lambda/\mathrm{SNR}_t$ | **RED-Diff's regulariser** |
+$$
+-\tfrac12\frac{d}{dt}\log\mathrm{SNR}_t=\frac{\beta(t)}{2\sigma_t^2}.
+$$
 
-That the *trained* objective ($\omega=1$) is not the *likelihood* objective is well known and
-is why diffusion models are good samplers and mediocre density estimators. That the
-*inference-time* regulariser is a third weighting again is the subject of
-[[RED-Diff as a Statistical Game]] §4 — and it turns out to determine the strength of the
-implied prior.
+This multiplies $\mathbb E\|\hat\varepsilon-\varepsilon\|^2$ under $dt$, with the
+endpoint and terminal terms needed to complete the bound. Under uniform time sampling on
+$[t_{\min},1]$, multiply it by $1-t_{\min}$. [[schedule]] §3 derives the coefficient
+from a finite-step Gaussian KL; `lib/VariationalDiffusion.jl/test/lp018.jl`, testset
+“LP-018.10 ELBO epsilon weight from Gaussian KL”, checks that limit.
+
+The simple training loss instead uses unit squared-error weight. RED-Diff applies
+$\lambda_t=\lambda\sigma_t/\alpha_t=\lambda/\sqrt{\mathrm{SNR}_t}$ to a
+stop-gradient noise residual under uniform time sampling. That field weight is not the
+ELBO squared-error coefficient; [[RED-Diff as a Statistical Game]] discusses the distinction.
 
 ## 5. The floor nobody documents
 

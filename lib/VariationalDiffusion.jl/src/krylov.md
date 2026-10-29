@@ -23,8 +23,9 @@
 | $\log\det\Sigma_{FF}$ (mixture weights) | from the inverse | stochastic Lanczos quadrature |
 
 The precision diagonal $\operatorname{diag}(\rho_F^2)$ is added inside each product. For an energy
-network or a closed-form mixture the field is a gradient, so $J$ is symmetric and the symmetric
-part costs one product, not two.
+network or a closed-form mixture with a common noise time across coordinates, the field is a
+gradient, so $J$ is symmetric and the symmetric part costs one product, not two. Different
+block times can break this symmetry when the coordinates interact ([[energy_network]]).
 
 ## 2. Design decisions
 
@@ -38,7 +39,8 @@ part costs one product, not two.
   query gives the same answer, which the implicit function theorem relies on.
 - **Exact at small sizes.** With at most `lanczos` free coordinates the Lanczos space is the
   whole space and the stability test is exact; with at most `probes` the log-determinant uses
-  unit vectors and is exact too. The tests check both against dense factorisations.
+  unit vectors with full Lanczos depth (`n` steps), overriding a smaller `lanczos` setting,
+  and is exact too. Unit probes alone remove trace-sampling error, not truncation error. The tests check both against dense factorisations.
 - **JVPs without forward mode.** Zygote has no forward mode, and a JVP through reverse mode
   costs one pullback per coordinate. So reverse-only backends take one central difference along
   the direction (two batched forward passes, about $10^{-8}$ relative error), while ForwardDiff and
@@ -71,3 +73,11 @@ by noise level, Zygote, CPU, the 10 label coordinates clamped and the 784 image 
 The Krylov answer agrees with the dense one to $2\cdot10^{-15}$ (relative).
 
 Related: [[implicit]], [[backends]], [[implicit_factor]]
+
+## LP-018 exact branch depth (2026-10-29)
+
+Unit-vector probes remove sampling error but cannot remove Lanczos truncation. The exact
+branch (`n <= probes`) now takes full depth `n` even if `lanczos` was smaller; stochastic
+branches keep the requested depth. Evidence: `test/lp018.jl`, “LP-018.12 exact unit-vector
+logdet uses full depth”, with `S = [2 1; 1 2]`, `lanczos = 1`, `probes = 2`: the reference
+is `log(3)`, from the independent determinant, rather than `2log(2)`.

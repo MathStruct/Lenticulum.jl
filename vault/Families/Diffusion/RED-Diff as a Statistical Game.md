@@ -68,7 +68,7 @@ $$
 \nabla_z\,\mathrm{reg}(z)
 =\mathbb{E}_{t,\varepsilon}\bigl[\lambda_t(\,\underbrace{\varepsilon_\theta(x_t,t)}_{\text{stop-grad}}-\varepsilon)\bigr],
 \qquad
-\lambda_t=\frac{\lambda}{\mathrm{SNR}_t}=\frac{\lambda\sigma_t}{\alpha_t}
+\lambda_t=\frac{\lambda}{\sqrt{\mathrm{SNR}_t}}=\frac{\lambda\sigma_t}{\alpha_t}
 $$
 
 Two separate things happen, and conflating them is easy:
@@ -112,7 +112,7 @@ $$
 \quad\Longrightarrow\quad
 \nabla_z\mathrm{reg}(z)=\kappa z,
 \quad
-\kappa=\lambda\!\int_{t_{\min}}^{1}\!\frac{\sigma_t^2}{D_t}dt
+\kappa=\frac{\lambda}{1-t_{\min}}\!\int_{t_{\min}}^{1}\!\frac{\sigma_t^2}{D_t}dt
 $$
 
 **RED-Diff's regulariser *is* a Gaussian prior of precision $\kappa$.** The true prior
@@ -122,7 +122,7 @@ uniquely. With that λ, the fixed point $\kappa z+\rho^2(z-z_0)=0$ gives
 $$z^\star=\frac{\rho^2z_0}{1/v_0+\rho^2}$$
 
 which is **exactly** the Gaussian posterior mean. For the default schedule and $v_0=1$,
-$\lambda^\star\approx1.38$ — while the paper's tuned value is $0.25$.
+$\lambda^\star\approx1.379826$ — while the paper's tuned value is $0.25$.
 
 > Tuning λ is not adjusting "how much regularisation feels right". It is **choosing how
 > strong the learned prior is.** A wrong λ biases every posterior by a computable factor.
@@ -131,12 +131,12 @@ $\lambda^\star\approx1.38$ — while the paper's tuned value is $0.25$.
 
 Take $p_0=\mathcal{N}(0,\Sigma)$. Both $\kappa$ and $\Sigma^{-1}$ are functions of $\Sigma$,
 hence simultaneously diagonalisable, so per eigenvalue $s$ the requirement is
-$\lambda\,s\,I(s)=1$ where $I(s)=\int\sigma_t^2/(\alpha_t^2s+\sigma_t^2)dt$. That needs
+$\lambda\,s\,I(s)=1$ where $I(s)=\frac{1}{1-t_{\min}}\int_{t_{\min}}^1\sigma_t^2/(\alpha_t^2s+\sigma_t^2)dt$. That needs
 $s\,I(s)$ constant in $s$. It is not:
 
 | $s$ | 0.25 | 0.5 | 1 | 2 | 4 |
 |---|---|---|---|---|---|
-| $s\,I(s)$ | 0.207 | 0.389 | 0.724 | 1.330 | 2.415 |
+| $s\,I(s)$ | 0.206878 | 0.389614 | 0.724729 | 1.331492 | 2.417511 |
 
 A factor of ~12 across a 16× spread. Calibrating at $s=1$ therefore
 
@@ -148,14 +148,22 @@ Suppressing exactly the directions that carry the most signal variance is an
 RED-Diff is criticised for empirically. The theory predicts the known artefact, from a
 five-line calculation, on the one data family where it can be checked.
 
-## 5. Why the weighting is mode-seeking
+## 5. The field weight and the likelihood bound
 
-$\lambda_t=\lambda\sigma_t/\alpha_t$ is unbounded as $t\to1$: the most heavily corrupted times
-weigh most. Compare the ELBO's $\sigma_t^2/\alpha_t^2$, which is RED-Diff's weight *squared* —
-so relative to a genuine likelihood bound, RED-Diff systematically reweights toward the
-coarse, low-frequency end of the process. That is a reasonable thing to want from a
-reconstruction method and a bad thing to want from a posterior, and the paper is explicit that
-it is chasing the former.
+RED-Diff's $\lambda_t=\lambda\sigma_t/\alpha_t=\lambda/\sqrt{\mathrm{SNR}_t}$
+grows steeply with noise, but is finite at $t=1$ for the default VP schedule:
+$\alpha_1=e^{-5.025}>0$ and $\lambda_1=\lambda\sqrt{e^{10.05}-1}$.
+Divergence requires a schedule whose terminal signal vanishes.
+
+With the power convention $\mathrm{SNR}_t=\alpha_t^2/\sigma_t^2$, the continuous
+ELBO squared-noise-error coefficient under $dt$ is
+$-\tfrac12(d/dt)\log\mathrm{SNR}_t=\beta(t)/(2\sigma_t^2)$ ([[schedule]] §3).
+Under $t\sim U[t_{\min},1]$ its coefficient includes $1-t_{\min}$.
+RED-Diff instead weights a stop-gradient residual field under that uniform distribution;
+it drops the denoiser Jacobian. Comparing these two quantities by squaring weights does
+not establish a likelihood bound or explain mode seeking. Its point variational family and
+tuned surrogate target reconstruction rather than posterior calibration.
+The Gaussian calibration below measures the resulting prior strength directly.
 
 ## 6. What this is not
 
@@ -173,3 +181,14 @@ it is chasing the former.
 Related: [[The Diffusion Family]], [[The VP-SDE]], [[The Diffusion Factor]],
 [[ProxDM and Proximal Alternatives]], [[Factors are Parameterized Statistical Games]], [[Implicit Learners]],
 [[ImplicitREDDiff]], [[Bethe Free Energy]]
+
+## LP-018 calibration measurements (2026-10-29)
+
+Time is uniform on `[tmin,1]`; both the shrinkage and `I(s)` above include
+`1/(1-tmin)`. `examples/lp018_calibration.jl` reproduces the table (independent
+20,000-point midpoint quadrature), the default calibrated value `1.379825576009811`
+(previously `1.3812067827926036`), and the six-seed Gaussian posterior measurements.
+At clamp precisions 1 and 2, the maximum relative errors are 2.1833% and 1.4030%;
+the errors of the six-seed means are 0.9147% and 0.5028%. Settings match the existing
+Gaussian posterior regression: 1,500 steps, 64 samples, learning rate 0.1, no Adam.
+The corresponding terminal weight at unit lambda is `152.16697028394637`.

@@ -42,6 +42,11 @@ s_\theta(x, t) = -\nabla_x E_\theta(x, t),\qquad
 \partial_x\varepsilon_\theta = \sigma_t\,\nabla_x^2 E_\theta \ \text{(symmetric)}.
 $$
 
+The symmetry and scalar-field conclusions in §§1–5 assume a common noise time across
+coordinates of each point. With different block times, the noise Jacobian is
+$\operatorname{diag}(\sigma)\nabla_x^2 E$ and need not be symmetric; neither does the
+implicit field automatically have a scalar potential when its blocks interact.
+
 `EnergyNetwork` is a marker wrapped *inside* `NoisePredictor`, the same pattern as
 `NoisePredictor{<:GaussianMixtureEps}`: `epsilon`, `epsilon_jacobian` and `epsilon_vjp_params`
 specialise on it, so `ImplicitDiffusion`, `DiffusionFactor`, RED-Diff and everything else
@@ -73,7 +78,7 @@ $$
 | quantity | needed for | computed as |
 |---|---|---|
 | ``\nabla_x E`` | ``\varepsilon`` itself | `DI.gradient` with the first-order backend |
-| ``\nabla_x^2 E`` on the free coordinates | Newton steps, adjoint solve, Laplace | `DI.hessian` of ``u \mapsto \sum_b w_b E(x_b + Pu)``, ``u`` the free coordinates ([[implicit]] §6) |
+| free-coordinate noise Jacobian | Newton steps, adjoint solve, Laplace | one batched Hessian-vector product per free coordinate, scaled by each column's row-wise noise coefficients before weighting and summing ([[implicit]] §6) |
 | ``\nabla_x^2 E\, w`` | cotangent of the clamped inputs | `DI.hvp` |
 | ``\partial_\theta\langle\nabla_x E, w\rangle`` | backward pass, training | θ-block of `DI.hvp` on ``u = (x, \theta)`` in direction ``(w, 0)`` |
 
@@ -205,7 +210,7 @@ $$
 with $\alpha_i, \sigma_i$ of the coordinate's noise block. The network learns the residual. Its
 derivatives are added in closed form, outside the AD backend: $(x - \alpha\mu)/D$ to the gradient,
 $\mathrm{diag}(1/D)$ to the Hessian, $V/D$ to a Hessian-vector product, and
-$\sum_b w_b/D_{\cdot b}$ to the diagonal of a free-coordinate block. It has no parameters, so the
+$\sum_b w_b\sigma_{\cdot b}/D_{\cdot b}$ to the diagonal of the free-coordinate noise Jacobian block. It has no parameters, so the
 mixed derivative of training is unchanged.
 
 Why it helps (MNIST, [[MNIST in Both Directions]] §9): at high noise the denoiser
@@ -224,3 +229,15 @@ longer in the AD graph, the classification queries of the convolutional energy f
 
 Related: [[predictor]], [[implicit]], [[backends]], [[analytic]],
 [[Geometric Deep Learning and Physical Laws]], [[The Implicit Diffusion Factor as a Statistical Game]]
+
+## LP-018 per-column Jacobian scales (2026-10-29)
+
+The free-coordinate Jacobian is $\sum_b w_b\operatorname{diag}(\sigma_b)H_b$,
+including the reference's diagonal Hessian. Each basis direction now uses a batched
+Hessian-vector product, scales each column before summing, and restricts to the
+requested rows. Factoring out the first column's scale was only valid for common times.
+The single-point Jacobian, input JVP/VJP and mixture-specific methods were checked as well;
+the mixture methods already use each column's times. With different row scales, the noise
+Jacobian need not be symmetric even for an energy. Evidence: `test/lp018.jl`,
+“LP-018.3 energy block Jacobians weight each column”, against explicit quadratic Hessians,
+with cross terms, reference energies and reordered/subset coordinates.
