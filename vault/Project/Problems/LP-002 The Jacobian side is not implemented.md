@@ -1264,3 +1264,19 @@ Reported upstream as [EnzymeAD/Enzyme.jl#3884](https://github.com/EnzymeAD/Enzym
 call). Each wrong Jacobian had a single `NaN` where the tangent of the constant `A*x` belongs,
 which suggests an uninitialised shadow of the product, the family of Enzyme.jl#3845.
 
+
+## Device tests opt-in; review of batches A–C (2026-10-28, Claude)
+
+Since commit 29cc5bdd, `lib/Mycelium.jl/test/graph_adjoint_devices.jl` and
+`lib/ImplicitLayers.jl/test/device_arrays.jl` run only with `LENTICULUM_DEVICE_TESTS=true`.
+In the 2026-10-28 run they took about 17 minutes together. The suite counts and times above
+(25,857 assertions; Mycelium 1,265 in 1367 s) were measured with them included, so a
+default `Pkg.test()` now runs fewer assertions.
+
+A read-through of batches A–C found no defects. Checked by hand:
+- the implicit graph adjoint, $(I-D_mT)^\top\lambda=\nabla_mL$ followed by $\partial_\theta[L+\lambda^\top T]$, including its invariance under damping;
+- the limited Broyden update and its transposed history in `BroydenIFT`;
+- flooding buffering and damping order in the replay, against `step!`/`sweep!`;
+- the closed forms in `test/lp002_batch_a.jl` and in the tree/loop oracles of `test/graph_adjoint.jl`.
+
+The numbers quoted in this note and in LP-011 match the logged test output.
