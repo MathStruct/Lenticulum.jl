@@ -13,3 +13,4 @@ The log starts on 2026-10-22. Decisions taken before then and recorded retrospec
 | [[L-ADR-0005 Branches]] | `master` publishes, `dev` collects pull requests, `dev-danielb` is the maintainer's preview | accepted (retrospective) |
 | [[L-ADR-0006 Separate likelihood_message from invert]] | `likelihood_message` returns the BP likelihood; `invert` returns the AutoBayes posterior | accepted 2026-10-24 |
 | [[L-ADR-0007 Point-dependent scalarisations are localised before use]] | `localise(σ, f, x, a, y, ps, st)` turns a point-dependent scalarisation (Sampson) into an ordinary one before `scalarise` | accepted 2026-10-25 |
+| [[L-ADR-0008 A Python wrapper, if any, lives outside the Julia library]] | A Python package, if ever, is separate (`Lenticulum.py`, juliacall), never constrains the Julia library, and waits for a stable interface and demand | proposed 2026-10-29 |
