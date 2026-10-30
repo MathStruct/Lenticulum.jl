@@ -1,6 +1,6 @@
 #design
 
-> **Status: planned (2026-10-25, Daniel: "If the library is extensible in this direction one should plan for it").** Related: [[Unusual Wirings]] (the theory), [[L-SPEC-001 The Factor Interface]], [[L-SPEC-002 Stop Gradient]], [[Everything is a Factor]], [[The Inferencer and the Optimizer]] §7, [[RQ-007 Risk Scalarisations and Local Decomposition]], [[LP-005 Learning the noise covariance]]. Code: `lib/LenticulumCore.jl/src/channels.jl`, `energy.jl`, `statistical_game.jl`; `lib/Mycelium.jl/src/factors.jl` (`OptimiserFactor`, `PriorFactor`), `graph.jl`, `free_energy.jl`.
+> **Status: §1 partly implemented (2026-10-30): §1.1 generically, §1.2 exactly for `GaussianFactor` (`A`, `b`) with a point input, §1.3 by wiring; §2–§3 planned.** Planned 2026-10-25 (Daniel: "If the library is extensible in this direction one should plan for it"). Related: [[Unusual Wirings]] (the theory), [[L-SPEC-001 The Factor Interface]], [[L-SPEC-002 Stop Gradient]], [[Everything is a Factor]], [[The Inferencer and the Optimizer]] §7, [[RQ-007 Risk Scalarisations and Local Decomposition]], [[LP-005 Learning the noise covariance]]. Code: `lib/LenticulumCore.jl/src/channels.jl`, `energy.jl`, `statistical_game.jl`; `lib/Mycelium.jl/src/factors.jl` (`OptimiserFactor`, `PriorFactor`), `graph.jl`, `free_energy.jl`.
 
 ## Scope
 
@@ -38,6 +38,21 @@ blocks.
   approximation. Beliefs on both $x$ and $A$ make the factor bilinear: mean-field (VMP) or EP, stated.
 - §1.3 Two exposed channels connected to one variable share the weight; this replaces
   name-keyed `ps` for weight tying.
+
+**§1 as implemented (2026-10-30).** `Mycelium.expose(f, names)` returns an `ExposedFactor`
+(`lib/Mycelium.jl/src/exposure.jl`): a wrapper, which settles the first Open question below.
+A block must be an array; its channel carries `vec(block)`. The optional methods are
+`supports_parameter_polarity(f, polarity)`, `parameter_message(f, target, polarity, msgs, ps, st)`
+and `parameter_free_energy(f, msgs, ps, st)`, with polarities and messages keyed by `f`'s
+channels and the parameter names. Two changes from the text above: `parameter_message` also
+sends to `f`'s own channels when a block carries a belief (the posterior predictive needs it),
+and §1.2 needed a free-energy counterpart, `parameter_free_energy`, for the Bethe sum. No
+generic Laplace message is provided: without the methods, a belief on an exposed block throws.
+`GaussianFactor` implements them exactly for `A` and/or `b` with a point input ``x_0``
+(`src/exposure.jl`): ``r = y - Ax_0 - b`` is linear in ``(\operatorname{vec}A, b, y)`` through
+``x_0^\top \otimes I``; a belief on ``x`` as well is bilinear and throws. Game-level methods
+(`assemble`, `energy`, `free_energy`) are not forwarded. A clamped exposed channel should be
+wired `Absorbing()`, like data: a message back to it may be bilinear.
 
 **§2 Energy taps.** `tap(f)` returns a factor with an extra channel `:energy` in
 `pointwise_energyspace(f)`.
@@ -80,15 +95,26 @@ Changes to the current interface should not make these harder:
 
 ## Checked by
 
-Nothing yet. The first tests: §1.1 against the unexposed factor for every factor in the conformance
-checker (`test/factor_conformance.jl`); §1.2 for the linear-Gaussian factor in $A$ against the
-closed-form posterior of a Bayesian linear regression; §2.4 by a Bethe sum with a tap, compared
-with the sum without it; §3.2 against closed forms for Gaussian energies (entropic risk of
-$\mathcal N(m, s^2)$ is $m + \beta s^2/2$).
+§1, in `test/exposure.jl` (2026-10-30):
+- §1.1: clamped exposure of `GaussianFactor` (`A`, `b`, both, renamed) in both polarities, and of
+  `LinearConstraintFactor`'s constant, give the original messages and graded local free energy;
+  a whole graph gives the same marginal and Bethe free energy. Not yet run over every factor in
+  the conformance checker.
+- §1.2–§1.3: seven observations tying one exposed weight under a `GaussianPrior` give the
+  closed-form Bayesian linear regression posterior, the posterior predictive at a new input,
+  and Bethe free energy $= -\log p(y)$; a $2\times3$ weight is checked against a design matrix
+  built entry by entry; uninformative blocks give exactly `TrivialBelief()`.
+- A hierarchy over weights: random slopes ([[Hierarchical Models]] §3) rebuilt with one
+  regression factor per observation and the group weight exposed and tied agrees with the
+  dense reference (means to rtol $10^{-9}$, covariances, $-\log p(y)$ to rtol $10^{-10}$).
+
+Still to test: §2.4 by a Bethe sum with a tap, compared with the sum without it; §3.2 against
+closed forms for Gaussian energies (entropic risk of $\mathcal N(m, s^2)$ is $m + \beta s^2/2$).
 
 ## Open
 
-- Whether exposure is a wrapper (`expose(f, …)`) or a property each factor declares.
+- ~~Whether exposure is a wrapper or a property each factor declares~~: a wrapper, with optional per-factor methods (2026-10-30).
+- A generic approximate `parameter_message` (Laplace by AD) for nonlinear factors, and VMP/EP for beliefs on both inputs and weights.
 - How exposed weights meet `LuxCore`'s parameter handling and `Optimisers.jl` setups.
 - Whether energy taps need §2.3's stop-gradient to be a per-wire option, which depends on
   [[L-SPEC-002 Stop Gradient]].

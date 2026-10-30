@@ -46,7 +46,7 @@ everything below:
 |---|---|---|---|
 | **variables** (means, effects, latent states) | random intercepts; random slopes written with the weights as channels | ordinary factor graph | works; exact on trees in the linear-Gaussian fragment (§2, §3) |
 | **variances of variables** | $\theta_j \sim \mathcal N(\mu, \tau^2)$ with $\tau$ unknown | ordinary, but the factor $p(\theta_j \mid \mu, \tau)$ is not jointly Gaussian | scan $\tau$ as a parameter (§2), or a non-Gaussian belief on $\tau$ (not in LenticulumCore) |
-| **parameters `ps` of learned factors** | one network per group with a shared prior on the weights; a shared hyperprior on several factors' noise | output into a weight, beliefs on weights ([[Unusual Wirings]] §2, §4) | needs parameters exposed as channels ([[L-SPEC-003 Exposed Parameters and Energy Channels]]), not built |
+| **parameters `ps` of learned factors** | one network per group with a shared prior on the weights; a shared hyperprior on several factors' noise | output into a weight, beliefs on weights ([[Unusual Wirings]] §2, §4) | `expose` ([[L-SPEC-003 Exposed Parameters and Energy Channels]] §1): exact for linear-Gaussian weights (§3); networks and noise not yet |
 
 The third row turns into the first once the parameter is exposed: an exposed weight is a
 variable, and the hyperprior attaches to it as in the picture. Random slopes (§3) do that
@@ -116,10 +116,15 @@ $\bar\beta \to \beta_j$ attaches to it like to any variable. The graph is again 
 five groups of six points the posterior (means, $2\times2$ covariances and $-\log p(y)$) agrees
 with the dense Gaussian to $2.2\cdot10^{-10}$.
 
-For a linear model this rewrite is free. For a neural network it is the exposure that
-[[L-SPEC-003 Exposed Parameters and Energy Channels]] plans: the weights become a channel, the
-message to them is a likelihood, and it is no longer exact (a network is not linear in its
-weights; [[Unusual Wirings]] §2).
+For a linear model this rewrite is free, and since 2026-10-30 it is also unnecessary: the
+usual way round works too. `expose(GaussianFactor(2 => 1), (:A => :w,))` turns the weight of
+an ordinary one-observation regression factor into a channel; connecting every observation of
+group $j$ to one variable $\beta_j$ ties the weight, and the population factor attaches to
+$\beta_j$ as before. With the same data this graph (thirty observation factors) agrees with the
+dense reference to rtol $10^{-9}$ in the means and $10^{-10}$ in $-\log p(y)$
+(`test/exposure.jl`). For a neural network the message to the weights would no longer be exact
+(a network is not linear in its weights; [[Unusual Wirings]] §2), and no approximate one is
+implemented yet.
 
 ## 4. Crossed effects: hierarchy with loops
 
@@ -147,6 +152,6 @@ trust and uncertainties you cannot; [[Loopy Message Passing]] discusses remedies
 - Unknown variances of the hierarchy are parameters today: scan them with the free energy, or
   mix over them outside the graph.
 - A hierarchy over the parameters of learned factors needs those parameters exposed as
-  channels, which is planned but not built.
+  channels: done exactly for linear-Gaussian weights (`expose`), not yet for networks.
 
 Related: [[Unusual Wirings]], [[Everything is a Factor]], [[Bethe Free Energy]], [[Loopy Message Passing]], [[Channels and Polarity]], [[LP-005 Learning the noise covariance]]

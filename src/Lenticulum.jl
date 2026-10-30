@@ -48,6 +48,7 @@ using LenticulumCore: GaussianBelief, Gaussian, uninformative, belief_mean, beli
 include("beliefs.jl")
 include("noise.jl")
 include("gaussian.jl")
+include("exposure.jl")
 include("composition.jl")
 include("nonlinear.jl")
 include("constraint.jl")

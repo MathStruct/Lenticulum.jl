@@ -52,6 +52,7 @@ include("schedules.jl")
 include("passing.jl")
 include("free_energy.jl")
 include("factors.jl")
+include("exposure.jl")
 include("gaussian.jl")
 include("gradient_couplings.jl")
 include("graph_adjoint.jl")
@@ -92,6 +93,7 @@ export bethe_free_energy, chain_free_energy   # scalar_free_energy extends Lenti
 # --- Factors ---------------------------------------------------------------
 export local_free_energy, uses_cavity, issink, point
 export DataFactor, PriorFactor, LossFactor, RelayFactor, OptimiserFactor
+export ExposedFactor, expose, supports_parameter_polarity, parameter_message, parameter_free_energy
 export AbstractUpdateRule, GradientDescent, Momentum, Nesterov
 export rule_get, rule_put, optimiser_step, parameter_step
 export GradientEstimate, StraightThroughFactor

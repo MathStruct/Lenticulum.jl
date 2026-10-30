@@ -1248,6 +1248,8 @@ include("structure_search.jl")
 
 include("hierarchical_models.jl")
 
+include("exposure.jl")
+
 include("gradient_couplings.jl")
 
 include("lp018.jl")

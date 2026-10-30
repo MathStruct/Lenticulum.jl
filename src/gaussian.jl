@@ -407,10 +407,16 @@ is what the Bethe formula asks for, and getting it wrong is the bug recorded in
 function Mycelium.local_free_energy(f::GaussianFactor, msgs, ps, st)
     r̄, Cr, H = residual_statistics(f, msgs, ps)
     Qi, logdetQ = _noise_metrics(f.noise_learning, f.Q, ps)
+    return _graded_free_energy(f, r̄, Cr, H, Qi, logdetQ), st
+end
+
+# (fit, complexity, negentropy) from the residual's mean and covariance under the factor
+# belief and that belief's entropy; shared with the exposed-parameter rules (`exposure.jl`).
+function _graded_free_energy(f::GaussianFactor, r̄, Cr, H, Qi, logdetQ)
     fit = (r̄' * (Qi * r̄) + tr(Qi * Cr)) / 2
     complexity = f.noise_learning === nothing ? logdet(_chol(2π .* f.Q, "2πQ")) / 2 :
         (f.nout * log(2π) + logdetQ) / 2 + _noise_penalty(f.noise_learning.prior, Qi, logdetQ)
-    return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -H)), st
+    return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -H))
 end
 
 function _game_messages(f, π, y)
