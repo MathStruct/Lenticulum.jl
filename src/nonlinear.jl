@@ -85,6 +85,7 @@ function NonlinearFactor(f, dims::Pair{Int,Int}; noise = 0.1, channels::Tuple{Sy
     size(Q) == (nout, nout) || throw(ArgumentError("noise covariance must have size ($nout, $nout), matching the residual dimension"))
     # Exact `issymmetric` rejects J S Jᵀ, which rounds asymmetrically (LP-019 follow-up).
     LenticulumCore._nearly_symmetric(Q) || throw(ArgumentError("noise covariance must be symmetric"))
+    Q = Matrix(LenticulumCore._symmetric_part(Q))   # one consistent matrix from here on
     isposdef(Symmetric(Q)) || throw(ArgumentError("noise covariance Q must be positive definite"))
     method isa Union{Linearization,Unscented} ||
         throw(ArgumentError("method must be Linearization() or Unscented(), got $(typeof(method))"))

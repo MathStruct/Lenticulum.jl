@@ -79,19 +79,26 @@ isuninformative(::AbstractBelief) = false
 dimension(b::GaussianBelief) = length(b.η)
 
 # `Symmetric` reads one triangle, so an asymmetric matrix would be validated and used as its
-# upper triangle mirrored (LP-019 item 3). The tolerance admits rounding-level asymmetry, as
-# left by products like A Λ Aᵀ, and nothing larger.
+# upper triangle mirrored (LP-019 item 3). Definiteness is checked on, and factorisations use,
+# the symmetric part, so an asymmetry cannot hide an indefinite form behind a definite
+# triangle (LP-019 review). The tolerance, √eps(Float32) relative to max|M| for every element
+# type, then only refuses gross asymmetry: it admits rounding (A Λ Aᵀ) and the single-entry
+# perturbations of LP-002's finite-difference adjoints (~1e-6), and does not change under
+# ForwardDiff duals.
 function _nearly_symmetric(M)
     A = Matrix(M)
     return maximum(abs, A - A'; init = 0.0) <= sqrt(eps(Float32)) * maximum(abs, A; init = 0.0)
 end
+# A + (Aᵀ − A)/2: exact for a symmetric A (a subnormal diagonal survives, unlike A/2 + Aᵀ/2),
+# and no overflow near floatmax (unlike (A + Aᵀ)/2).
+_symmetric_part(M) = (A = Matrix(M); Symmetric(A + (A' - A) / 2))
 _check_symmetric(M, name) = _nearly_symmetric(M) ||
     throw(ArgumentError("$name is not symmetric: $(M)"))
 
 function _chol(M, name)
     _check_symmetric(M, name)
     return try
-        cholesky(Symmetric(Matrix(M)))
+        cholesky(_symmetric_part(M))
     catch
         throw(ArgumentError("$name is not positive definite: $(M)"))
     end
@@ -104,7 +111,7 @@ Whether `Λ` is positive definite, i.e. whether the belief is a normalisable dis
 rather than a likelihood. `belief_mean`, `belief_cov`, `variable_entropy` and
 `belief_logdensity` all require this.
 """
-_precision_isproper(M) = _nearly_symmetric(M) && isposdef(Symmetric(Matrix(M)))
+_precision_isproper(M) = _nearly_symmetric(M) && isposdef(_symmetric_part(M))
 isproper(b::GaussianBelief) = _precision_isproper(b.Λ)
 
 """
@@ -152,8 +159,8 @@ function logpartition(b::GaussianBelief)
 end
 
 function Base.show(io::IO, b::GaussianBelief)
-    C = cholesky(Symmetric(Matrix(b.Λ)); check = false)
-    if issuccess(C)
+    C = cholesky(_symmetric_part(b.Λ); check = false)
+    if isproper(b) && issuccess(C)
         μ = C \ b.η
         Σ = inv(C)
         print(io, "Gaussian(μ=", round.(μ; digits = 4),
@@ -166,7 +173,7 @@ end
 
 function _precision_factor(M)
     _check_symmetric(M, "Λ")
-    return cholesky(Symmetric(Matrix(M)))
+    return cholesky(_symmetric_part(M))
 end
 
 _precision_logdet(C) = logdet(C)

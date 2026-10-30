@@ -460,3 +460,8 @@ relative step is $\max(10^{-7}, \sqrt{\varepsilon_T})$, so Float64 keeps $10^{-7
 `tol = 1e-210` was reported converged at iteration 0 by Picard, Broyden and limited Broyden,
 although there is no root. It is now `LinearAlgebra.norm`, which rescales. Tested in
 `test/lp019.jl`.
+
+After review (2026-10-30): the default step uses `eps` of the element type when it is defined,
+which for a ForwardDiff dual is its primal's (Float16 duals had kept $10^{-7}$ and a zero
+increment); a step that does not change $x$ throws. `_norm` returns the norm in the residual's
+own precision: converting to Float64 underflowed a BigFloat residual of $10^{-400}$.

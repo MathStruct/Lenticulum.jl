@@ -84,3 +84,21 @@ repairs.
 The rule needs a proper first argument. `_mixture_product` now puts a proper Gaussian first,
 whichever side of the product it came from, so pooling a mixture with an improper site no
 longer depends on the factor insertion order. Tested in `test/lp019.jl`.
+
+### After review (2026-10-30)
+
+Codex's review of the fix found four gaps, now closed: the proper case called `inv` on a
+Cholesky factor (no Zygote rule) and scalar-indexed diagonal device arrays, so it now goes
+through `belief_cov` and LenticulumCore's `_precision_factor`/`_solve`/`_logdet`; finite
+covariances near floatmax overflowed when added, so $\Sigma_c + \Sigma_d$ is scaled by its
+largest diagonal entry; and an improper site far from the origin left log masses of size
+$10^{16}$, so mixture products re-centre each improper site at one reference point (the first
+proper component's mean on the other side; `_overlap(c, d, ref)`) and normalise by subtracting
+the maximum first. `combine_with_overlap(c, d)` itself keeps the unshifted convention tested in
+`overlap.jl`.
+
+Second review (2026-10-30): the proper case scales per coordinate,
+$D^{-1}(\Sigma_c + \Sigma_d)D^{-1}$ with $D = \operatorname{diag}(\sqrt{\max(\Sigma_{c,ii}, \Sigma_{d,ii})})$
+(`_scaled_sum`, diagonal-preserving, so huge and tiny variances coexist and device/Zygote
+paths broadcast); and mixture products re-centre improper sites only when the other side has
+exactly one, since the dropped constant differs between sites.

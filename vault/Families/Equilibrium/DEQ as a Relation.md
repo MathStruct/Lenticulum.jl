@@ -134,7 +134,9 @@ the equilibrium case you find out when the linear solve fails.
   on $z$ serves only as the solver's warm start. With the contractive cell $z = z/2 + x$ and
   $x = 1$ the message is $z = 2$ for priors $\mathcal N(0, 1)$, $\mathcal N(10, 1)$ and
   $\mathcal N(10, 0.01)$ alike (LP-019 item 11), so it is not a prior-conditioned posterior.
-  A point message cannot carry a likelihood either: pooled with anything it is a hard clamp.
+  A point message is the likelihood of an exact constraint, $\delta(z - z^\ast)$, and pooled
+  with any prior it gives that point; what it cannot carry is a finite-noise likelihood, whose
+  width a Dirac has no room for.
 - **Contribute an entropy.** Energy only, so the Bethe correction has nothing to correct
   ([[The Equilibrium Family]] §6).
 - **Start from a learned guess.** `SkipDeepEquilibriumNetwork` exists because $z_0 = h_\phi(x)$

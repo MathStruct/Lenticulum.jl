@@ -87,3 +87,15 @@ accessors, and `isproper` now check $\max|M - M^\top| \le \sqrt{\varepsilon_{\te
 first: rounding-level asymmetry, as left by $A\Lambda A^\top$, passes. `GaussianBelief(η, Λ)`
 itself still accepts any square `Λ`, since it may be a likelihood; an asymmetric one is simply
 not proper. Tested in `test/lp019.jl`.
+
+After review (2026-10-30): a tolerance of $\sqrt{\varepsilon_{\text{Float32}}}$ still admitted
+`[1 0.9999; 1.0002 1]`, whose upper triangle is definite and whose symmetric part is not. The
+tolerance is now $\sqrt\varepsilon$ of the element type, and definiteness is checked on, and
+factorisations use, the symmetric part $M/2 + M^\top/2$ (`_symmetric_part`; the form
+$(M + M^\top)/2$ overflowed for entries near floatmax).
+
+Second review (2026-10-30): the tolerance is again $\sqrt{\varepsilon_{\text{Float32}}}$ for every
+element type. With definiteness on the symmetric part it only refuses gross asymmetry, and a
+type-dependent tolerance had changed under ForwardDiff duals and rejected LP-002's
+finite-difference adjoint perturbations. The symmetric part is $M + (M^\top - M)/2$, exact for
+symmetric $M$ (a subnormal diagonal survives) and without overflow.

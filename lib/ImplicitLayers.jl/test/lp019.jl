@@ -24,3 +24,18 @@ end
     @test ImplicitLayers._norm([3e-200, 4e-200]) ≈ 5e-200
     @test ImplicitLayers._norm([3e200, 4e200]) ≈ 5e200   # and the other end does not overflow
 end
+
+using ForwardDiff
+@testset "LP-019 review: precision of duals and of the residual norm" begin
+    # a Float16 dual probe uses the Float16 step: the identity's divergence is exactly 1
+    u = [ForwardDiff.Dual(Float16(1), Float16(1))]
+    d = ImplicitLayers._divergence((u, t) -> u, u, Float16(0))
+    @test ForwardDiff.value(d) == 1 && ForwardDiff.partials(d)[1] == 0
+    # a step that does not change x is refused, not divided through
+    @test_throws ArgumentError fd_jacobian(identity, Float16[1]; ε = 1e-7)
+    # a BigFloat residual of 1e-400 is not a root
+    for solver in (PicardSolver(tol = 0.0), BroydenSolver(tol = 0.0), LimitedBroydenSolver(tol = 0.0))
+        _, rep = solve_root(u -> BigFloat[big"1e-400"], BigFloat[0], solver)
+        @test !rep.converged
+    end
+end

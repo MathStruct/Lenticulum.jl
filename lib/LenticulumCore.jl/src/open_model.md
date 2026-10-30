@@ -133,3 +133,7 @@ gradient of `sum(logp)` was `[-Inf, -Inf]`, at `[1e-320, 1e-320]` NaN, though it
 It is now $(D_j - p_j\sum D)/w_j$ with $p = w/\sum w$ normalised by $m$ first, so the cancelling
 numerator is formed before any division. Tested in the top-level `test/lp019_interop.jl` (the
 extension does not load in LenticulumCore's own test environment).
+
+After review (2026-10-30): where $p_j$ underflows ($w_j \ll \max w$, e.g. `[1e-200, 1e200]`) the
+numerator-first form loses $-1/\sum w$; there the rule uses $D_j/w_j - \sum D/\sum w$, which is
+safe because $\sum w \ge \max w$ is not small.

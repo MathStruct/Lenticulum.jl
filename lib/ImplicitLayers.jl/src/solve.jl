@@ -175,7 +175,9 @@ function _solve_limited(F, u₀, s::LimitedBroydenSolver, retain, history=nothin
 end
 
 # `LinearAlgebra.norm` rescales, so tiny residuals do not underflow to a false root (LP-019 item 10).
-_norm(v) = Float64(LinearAlgebra.norm(v))
+# Kept in the residual's own precision: converting to Float64 first would underflow a BigFloat
+# residual of 1e-400 to a false root again (LP-019 review).
+_norm(v) = LinearAlgebra.norm(v)
 
 """
     solve_root(F, u₀, solver) -> (u, SolveReport)
@@ -265,12 +267,16 @@ end
 # The requested h is rounded when it is added, so the quotient must use the rounded one; and
 # 1e-7 is below the resolution of Float16 and close to Float32's, so the default relative step
 # is max(1e-7, √eps) for the element type (LP-019 item 4). Float64 keeps 1e-7.
-# Non-IEEE numbers (ForwardDiff duals inside a stiff SciML solver) keep the 1e-7 step.
+# `eps` of a ForwardDiff dual is its primal's, so Float16 duals inside a stiff SciML solver get
+# the Float16 step too; types without `eps` keep 1e-7. A step too small to change x is an error,
+# not a 0/0 (LP-019 review).
 function _fd_step(x::Real, ε)
     T = typeof(float(x))
-    e = ε !== nothing ? ε : T <: Base.IEEEFloat ? max(1e-7, sqrt(eps(T))) : 1e-7
+    e = ε !== nothing ? ε : applicable(eps, T) ? max(1e-7, sqrt(Float64(eps(T)))) : 1e-7
     xp = x + T(e * max(one(T), abs(x)))
-    return xp, xp - x                      # the increment the rounded probe actually makes
+    h = xp - x                             # the increment the rounded probe actually makes
+    iszero(h) && throw(ArgumentError("finite-difference step ε = $e does not change x = $x in $T; use a larger ε"))
+    return xp, h
 end
 
 """

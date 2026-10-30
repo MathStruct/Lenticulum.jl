@@ -82,23 +82,57 @@ _damp(a::GaussianBelief, b::GaussianBelief, α::Real) =
 #
 # Neither case subtracts log-partitions: A(c⊙d) − A(c) − A(d) cancels terms of size μᵀΛμ/2,
 # and at |μ| ~ 1e8 nothing is left (LP-019 item 6). Proper pairs use the convolution
-# log N(μ_c − μ_d; 0, Σ_c + Σ_d); an improper d is expanded about μ_c.
+# log N(μ_c − μ_d; 0, Σ_c + Σ_d), with Σ_c + Σ_d scaled by its largest diagonal entry so that
+# finite covariances near floatmax do not overflow. An improper d is expanded about μ_c. The
+# helpers `_precision_factor`/`_solve`/`_logdet` keep the diagonal device and AD paths.
 function combine_with_overlap(c::GaussianBelief, d::GaussianBelief)
+    return _overlap(c, d, nothing)
+end
+
+_sym(Λ::LinearAlgebra.Diagonal) = Λ
+_sym(Λ) = LenticulumCore._symmetric_part(Λ)
+
+# D⁻¹(A + B)D⁻¹ for D = Diagonal(s). Diagonal inputs stay diagonal and use broadcasts only,
+# which keeps device arrays and Zygote off scalar indexing.
+_scaled_sum(A::LinearAlgebra.Diagonal, B::LinearAlgebra.Diagonal, s) =
+    LinearAlgebra.Diagonal(LinearAlgebra.diag(A) ./ s ./ s .+ LinearAlgebra.diag(B) ./ s ./ s)
+_scaled_sum(A, B, s) = (A ./ s) ./ s' .+ (B ./ s) ./ s'
+
+# `ref`: re-centre an improper site at this point, i.e. drop the constant ηᵀref − refᵀΛref/2,
+# which depends on the site alone. Mixture products pass one shared point per site so that
+# the log masses stay O(1) however far the components are from the origin (LP-019 review).
+function _overlap(c::GaussianBelief, d::GaussianBelief, ref)
     isproper(c) || throw(ArgumentError("combine_with_overlap requires a proper first Gaussian belief"))
     cd = combine(c, d)
     n = dimension(c)
-    Cc = LenticulumCore._improper_check(c, "combine_with_overlap")
-    μc = LenticulumCore._precision_solve(Cc, c.η)
+    μc = LenticulumCore.belief_mean(c)
     if isproper(d)
-        Cd = LenticulumCore._improper_check(d, "combine_with_overlap")
-        δ = μc - LenticulumCore._precision_solve(Cd, d.η)
-        CS = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Matrix(inv(Cc) + inv(Cd))))
-        logZ = -(δ' * (CS \ δ)) / 2 - logdet(CS) / 2 - n * log(2π) / 2
+        Σc, Σd = LenticulumCore.belief_cov(c), LenticulumCore.belief_cov(d)
+        # Congruence scaling D⁻¹(Σc + Σd)D⁻¹ with D = diag(√max(Σc_ii, Σd_ii)): every
+        # coordinate is O(1), so neither huge nor tiny variances overflow or underflow.
+        s = sqrt.(max.(LinearAlgebra.diag(Σc), LinearAlgebra.diag(Σd)))
+        # Subtract, then scale, then halve before squaring. Scaling first would round each mean
+        # separately (Float32 cancellation, LP-019 fourth review); it is kept only as the
+        # fallback when μc − μd itself overflows near ±floatmax.
+        μd = LenticulumCore.belief_mean(d)
+        δ = μc - μd
+        δh = all(isfinite, δ) ? (δ ./ s) ./ 2 : (μc ./ s .- μd ./ s) ./ 2
+        C = LenticulumCore._precision_factor(_scaled_sum(Σc, Σd, s))
+        logZ = -2 * LinearAlgebra.dot(δh, LenticulumCore._precision_solve(C, δh)) -
+               (LenticulumCore._precision_logdet(C) + 2 * sum(log, s) + n * log(2π)) / 2
     else
-        # x = μ_c + u: ∫ N(u; 0, Σ_c) exp(rᵀu − uᵀΛu/2) du with r = η − Λμ_c.
+        # x = μ_c + u: ∫ N(u; 0, Σ_c) exp(rᵀu − uᵀΛu/2) du with r = η − Λμ_c, times the site
+        # at μ_c relative to `ref`.
+        # The site's quadratic form is that of its symmetric part, which is also what the
+        # factorisations use; the raw Λ would add its skew part to r (LP-019 fourth review).
+        Λd = _sym(d.Λ)
+        Cc = LenticulumCore._improper_check(c, "combine_with_overlap")
         Ccd = LenticulumCore._improper_check(cd, "combine_with_overlap")
-        r = d.η - d.Λ * μc
-        logZ = d.η' * μc - (μc' * (d.Λ * μc)) / 2 + (r' * LenticulumCore._precision_solve(Ccd, r)) / 2 +
+        r = d.η - Λd * μc
+        u = ref === nothing ? μc : μc - ref
+        η0 = ref === nothing ? d.η : d.η - Λd * ref
+        logZ = LinearAlgebra.dot(η0, u) - LinearAlgebra.dot(u, Λd * u) / 2 +
+               LinearAlgebra.dot(r, LenticulumCore._precision_solve(Ccd, r)) / 2 +
                (LenticulumCore._precision_logdet(Cc) - LenticulumCore._precision_logdet(Ccd)) / 2
     end
     return cd, logZ

@@ -189,6 +189,11 @@ function combine_with_overlap(c::LenticulumCore.CategoricalBelief, d::Lenticulum
     return (logZ == -Inf ? c : combine(c, d)), logZ
 end
 
+# Gaussian pairs re-centre an improper second operand at the reference of the other side.
+_pair_overlap(c, d, ref) = combine_with_overlap(c, d)
+_pair_overlap(c::LenticulumCore.GaussianBelief, d::LenticulumCore.GaussianBelief, ref) =
+    _overlap(c, d, LenticulumCore.isproper(d) ? nothing : ref)
+
 _improper_first(c, d) = false
 _improper_first(c::LenticulumCore.GaussianBelief, d::LenticulumCore.GaussianBelief) =
     !LenticulumCore.isproper(c) && LenticulumCore.isproper(d)
@@ -196,21 +201,36 @@ _improper_first(c::LenticulumCore.GaussianBelief, d::LenticulumCore.GaussianBeli
 _parts(m::LenticulumCore.MixtureBelief) = (m.components, m.logw)
 _parts(b) = ([b], [0.0])
 
+# Re-centring drops ηᵀref − refᵀΛref/2, a constant of the site. It cancels in the weights only
+# when every pair shares it, i.e. when the other side is a single improper Gaussian and
+# nothing else; with several sites, or proper components beside the site, relative masses
+# would change (LP-019 reviews), so then no reference is used. The point is the mean of this
+# side's first proper component.
+_isimproper(c) = c isa LenticulumCore.GaussianBelief && !LenticulumCore.isproper(c)
+function _reference(cs, others)
+    (length(others) == 1 && _isimproper(only(others))) || return nothing
+    i = findfirst(c -> c isa LenticulumCore.GaussianBelief && LenticulumCore.isproper(c), cs)
+    return i === nothing ? nothing : LenticulumCore.belief_mean(cs[i])
+end
+
 function _mixture_product(a, b)
     (ca, la), (cb, lb) = _parts(a), _parts(b)
+    ra, rb = _reference(ca, cb), _reference(cb, ca)
     comps, logw = Any[], Float64[]
     for (i, c) in enumerate(ca), (j, d) in enumerate(cb)
         hasmethod(combine_with_overlap, Tuple{typeof(c),typeof(d)}) || throw(ArgumentError(
             "no product rule for mixture components of types $(typeof(c)) and $(typeof(d))"))
         # The Gaussian rule needs a proper first operand; the product itself is symmetric, so
         # put an improper site second whichever side of the product it came from (LP-019).
-        cd, logZ = _improper_first(c, d) ? combine_with_overlap(d, c) : combine_with_overlap(c, d)
+        cd, logZ = _improper_first(c, d) ? _pair_overlap(d, c, rb) : _pair_overlap(c, d, ra)
         logZ == -Inf && continue                              # disjoint: this pair contributes nothing
         push!(comps, cd); push!(logw, la[i] + lb[j] + logZ)
     end
     isempty(comps) && throw(ArgumentError("contradictory beliefs: every component pair has disjoint support"))
-    m = maximum(logw)
-    logw .-= m + log(sum(exp.(logw .- m)))
+    # Subtract the maximum before adding the correction: at |log w| ~ 1e16, m + log Σ… rounds
+    # back to m and the weights would not sum to one.
+    shifted = logw .- maximum(logw)
+    logw = shifted .- log(sum(exp.(shifted)))
     return LenticulumCore.MixtureBelief(Val(:log), [c for c in comps], logw)
 end
 

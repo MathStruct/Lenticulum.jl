@@ -60,7 +60,8 @@ function branch_entropy_bounds(m::LenticulumCore.MixtureBelief)
         c isa LenticulumCore.GaussianBelief && LenticulumCore.isproper(c) ||
             throw(ArgumentError("entropy bounds require proper Gaussian components"))
         q = length(c.η)
-        (q*(1+log(2π))-LinearAlgebra.logdet(LinearAlgebra.Symmetric(c.Λ)))/2
+        # Core's convention: the precision is its symmetric part (LP-019 fifth review).
+        (q*(1+log(2π))-LinearAlgebra.logdet(LenticulumCore._symmetric_part(c.Λ)))/2
     end
     lower = sum(w.*hs)
     return (label_entropy=h,lower=lower,upper=lower+h)
