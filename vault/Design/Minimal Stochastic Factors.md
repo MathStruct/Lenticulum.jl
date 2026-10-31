@@ -511,7 +511,9 @@ larger class**: $L$ binary switches give up to $2^L$ components from $O(L)$ para
 structure (with shared operators and per-switch offsets on one variable, the component means are
 sums of offsets: a product or tree structure), so a generic $2^L$-component mixture is not reachable
 this way. Which data have that structure is the
-expressivity question to test (§10, E3).
+expressivity question to test (§10, E3). **Measured (E3):** on product grids additive composition
+wins by sample efficiency, and on a ring of modes it loses. Several rank-one constraints on one shared
+variable fail even on the grids, because constraints on one node intersect rather than add.
 
 ### What a diffusion model additionally requires
 
@@ -670,6 +672,19 @@ the step size: the strong form of §8's hypothesis is **refuted** on this data. 
 also pay an estimation cost linear in $T$, so smaller steps only pay off with a shared,
 time-conditioned parameterisation (E4(a)'s 17-parameter chain). The estimation cost is an
 asymptotic estimate; the $T = 100$, $K = 3$ fits look under-optimised.
+
+**E3, measured (2026-10-31; `examples/composition_e3.jl`, `.md`).** The data are product grids of 8
+and 16 modes in two dimensions, and 8 modes on a ring. Fitted by exact maximum likelihood, additive
+composition ($z = c + \sum_l u_l + \varepsilon$, with $L$ binary switches and 14 or 17 parameters)
+comes within 0.003 and 0.005 nats of the truth on the grids at $n = 2000$. At $n = 150$ it is
+within 0.04, where the best flat mixture is 0.36 and 0.48 away. The 16-component flat mixture
+(95 parameters) overfits at $n = 150$ (0.79) and needs $n = 2000$ to reach 0.06. On the ring the
+same composition stays 0.89 nats away, worse than a flat mixture with 4 components. Rank-one
+switching constraints on a shared $z$, the graph reading's product of experts with its coupling
+normaliser $\bar Z$ (checked to integrate to one), fail on every data set by 0.6 to 0.8 nats:
+constraints on one variable intersect, while the additive wiring adds. Composition is a prior on
+how the components are arranged; it pays when that prior is right, and only with sum nodes fed
+by switches. Each setting was fitted from 16 random starts, of which 1 to 5 reached the best.
 
 Order: E1 and E4(a) first (each has an exact oracle and decides whether the building block and the
 diffusion reading are right), then E3 and E4(b) (the expressivity questions), then E2 (whether the

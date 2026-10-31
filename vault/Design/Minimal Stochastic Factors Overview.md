@@ -4,7 +4,7 @@
 > what was measured, what three external reviews changed, and what is open. The mathematics is in
 > [[Minimal Stochastic Factors]]; this note only points into it and into the experiments.
 
-> Sources: original to this vault. code: `examples/measurement_factor.jl`, `examples/switching_factor_e1.jl`, `examples/switching_reverse_chain_e4a.jl`, `examples/switching_small_steps.jl`, `examples/minimal_stochastic_factors_checks.jl`
+> Sources: original to this vault. code: `examples/measurement_factor.jl`, `examples/switching_factor_e1.jl`, `examples/switching_reverse_chain_e4a.jl`, `examples/switching_small_steps.jl`, `examples/composition_e3.jl`, `examples/minimal_stochastic_factors_checks.jl`
 
 ## The question
 
@@ -26,7 +26,9 @@ with no iterative denoising.
    form, and a closure lemma makes "smallest" precise (§2–§5). Nonlinearity comes from conditioning
    on the discrete alternatives: $\mathbb E[y \mid x]$ is a softmax-gated sum of linear maps (Proposition 3.3).
 3. **Composed, these factors give exactly the finite Gaussian mixtures**; composition buys
-   parameter efficiency, not a larger class (Proposition 7).
+   parameter efficiency, not a larger class (Proposition 7). It pays only when the data have the
+   structure the wiring imposes, and only with the right wiring. Switches feeding a sum node give
+   grids of modes; several constraints on one variable intersect instead (E3).
 4. **The quantum reading, done properly, is a Born joint** with a POVM. As a model of $p(z)$ it is
    thinner than a mixture (its marginal does not even depend on the POVM unless outcomes are
    weighted); its distinctive capacity is in queries about the outcome (§6). The spectral
@@ -47,6 +49,7 @@ with no iterative denoising.
 | **E1**: switching factor on lines 60° apart | both lines recovered (errors < 0.02°), held-out $\log p(y \mid x)$ 0.702 = true model's, 6 parameters vs a free mixture's 11; message passing in a Mycelium graph matches direct conditioning to $5\cdot10^{-15}$ | `examples/switching_factor_e1.md` |
 | **E4(a)**: reverse chain on a 3-component mixture | exact kernels reproduce $\log q_0(z_0)$ on every path to $10^{-14}$; the shared chain (17 parameters) reaches −2.123 vs the truth's −2.108; linear-Gaussian steps fail; two outcomes per small step do *not* yet suffice | `examples/switching_reverse_chain_e4a.md` |
 | **small-step test**: conditional per-step fits, $T$ = 10 to 100 | three outcomes per step match the truth up to the estimation cost of fitting $T$ kernels; two outcomes keep a gap of about 0.44 nats however small the steps, and their samples level off at 3× the energy-distance floor | `examples/switching_small_steps.md` |
+| **E3**: composition vs flat mixture on product grids (8, 16 modes) and a ring | on the grids, additive composition (14–17 parameters) is within 0.005 nats of the truth and, at 150 points, within 0.04 where the best flat mixture is 0.36–0.48 away; on the ring it is 0.89 away; rank-one constraints on a shared variable fail everywhere | `examples/composition_e3.md` |
 | checks behind the review corrections | the corrected inversion and Born claims, numerically | `examples/minimal_stochastic_factors_checks.jl` |
 
 Every experiment has a test in `test/` and runs in the top-level suite.
@@ -73,9 +76,12 @@ The full record is §13 of [[Minimal Stochastic Factors]].
 ## What is open
 
 - **Where depth could still pay.** The small-step test refuted "few outcomes per small step"
-  for flat mixture data. Whether composition across steps buys anything for data with *structure*
-  (a hierarchy or a product of factors) is the question E3 and E4(b) ask.
-- **Composition** (E3): when $L$ binary switches beat a flat mixture of $2^L$ components.
+  for flat mixture data. E3 shows that composition pays on product-structured data. Whether a
+  diffusion chain of switching steps exploits such structure, on data that are not a finite
+  mixture (two moons, a ring), is E4(b).
+- **Learning composed models.** E3's fits reach the optimum from only 1 to 5 of 16 random starts.
+  An initialisation or an EM for the additive wiring (its posterior over the $2^L$ configurations
+  is exact) would make composition usable beyond toys.
 - **The Born arm** (E2) and the density question of §6 for products of positive semidefinite
   quadratics in two or more dimensions.
 - **Learning through the graph** rather than by direct maximum likelihood, and the bias of
@@ -87,6 +93,7 @@ The full record is §13 of [[Minimal Stochastic Factors]].
 julia --project=. examples/switching_factor_e1.jl
 julia -t auto --project=. examples/switching_reverse_chain_e4a.jl   # about 9 minutes on 8 threads
 julia -t auto --project=. examples/switching_small_steps.jl         # about 57 minutes on 8 threads
+julia -t auto --project=. examples/composition_e3.jl                # about 3 minutes on 8 threads
 julia --project=. -e 'using Pkg; Pkg.test()'                       # includes the experiments' tests
 ```
 

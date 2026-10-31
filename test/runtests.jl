@@ -1258,6 +1258,8 @@ include("switching_reverse_chain_e4a.jl")
 
 include("switching_small_steps.jl")
 
+include("composition_e3.jl")
+
 include("gradient_couplings.jl")
 
 include("lp018.jl")
