@@ -75,6 +75,20 @@ references:
     start: "221"
     end: "238"
     url: "https://arxiv.org/abs/1412.0630"
+  - type: article
+    title: "On the Unification of Families of Skew-normal Distributions"
+    authors:
+      - family-names: "Arellano-Valle"
+        given-names: "Reinaldo B."
+      - family-names: "Azzalini"
+        given-names: "Adelchi"
+    year: 2006
+    journal: "Scandinavian Journal of Statistics"
+    volume: "33"
+    issue: "3"
+    start: "561"
+    end: "574"
+    doi: "10.1111/j.1467-9469.2006.00503.x"
   - type: conference-paper
     title: "Syntax and Semantics of Quantitative Type Theory"
     authors:
@@ -250,6 +264,21 @@ references:
     year: 2018
     collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
     url: "https://arxiv.org/abs/1806.07366"
+  - type: article
+    title: "Information Perspective to Probabilistic Modeling: Boltzmann Machines versus Born Machines"
+    authors:
+      - family-names: "Cheng"
+        given-names: "Song"
+      - family-names: "Chen"
+        given-names: "Jing"
+      - family-names: "Wang"
+        given-names: "Lei"
+    year: 2018
+    journal: "Entropy"
+    volume: "20"
+    issue: "8"
+    start: "583"
+    doi: "10.3390/e20080583"
   - type: conference-paper
     title: "Diffusion Posterior Sampling for General Noisy Inverse Problems"
     authors:
@@ -616,6 +645,25 @@ references:
     collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
     url: "https://arxiv.org/abs/1906.01563"
   - type: article
+    title: "Unsupervised Generative Modeling Using Matrix Product States"
+    authors:
+      - family-names: "Han"
+        given-names: "Zhao-Yu"
+      - family-names: "Wang"
+        given-names: "Jun"
+      - family-names: "Fan"
+        given-names: "Heng"
+      - family-names: "Wang"
+        given-names: "Lei"
+      - family-names: "Zhang"
+        given-names: "Pan"
+    year: 2018
+    journal: "Physical Review X"
+    volume: "8"
+    issue: "3"
+    start: "031012"
+    doi: "10.1103/PhysRevX.8.031012"
+  - type: article
     title: "Toward a Spectral Theory of Cellular Sheaves"
     authors:
       - family-names: "Hansen"
@@ -629,6 +677,98 @@ references:
     start: "315"
     end: "358"
     doi: "10.1007/s41468-019-00038-7"
+  - type: article
+    title: "Graphical Models for Associations between Variables, some of which are Qualitative and some Quantitative"
+    authors:
+      - family-names: "Lauritzen"
+        given-names: "Steffen L."
+      - family-names: "Wermuth"
+        given-names: "Nanny"
+    year: 1989
+    journal: "The Annals of Statistics"
+    volume: "17"
+    issue: "1"
+    start: "31"
+    end: "57"
+    doi: "10.1214/aos/1176347003"
+  - type: article
+    title: "Propagation of Probabilities, Means, and Variances in Mixed Graphical Association Models"
+    authors:
+      - family-names: "Lauritzen"
+        given-names: "Steffen L."
+    year: 1992
+    journal: "Journal of the American Statistical Association"
+    volume: "87"
+    issue: "420"
+    start: "1098"
+    end: "1108"
+    doi: "10.1080/01621459.1992.10476265"
+  - type: generic
+    title: "Subtractive Mixture Models via Squaring: Representation and Learning"
+    authors:
+      - family-names: "Loconte"
+        given-names: "Lorenzo"
+      - family-names: "Sladek"
+        given-names: "Aleksanteri M."
+      - family-names: "Mengel"
+        given-names: "Stefan"
+      - family-names: "Trapp"
+        given-names: "Martin"
+      - family-names: "Solin"
+        given-names: "Arno"
+      - family-names: "Gillis"
+        given-names: "Nicolas"
+      - family-names: "Vergari"
+        given-names: "Antonio"
+    year: 2023
+    url: "https://arxiv.org/abs/2310.00724"
+  - type: generic
+    title: "Non-parametric Models for Non-negative Functions"
+    authors:
+      - family-names: "Marteau-Ferey"
+        given-names: "Ulysse"
+      - family-names: "Bach"
+        given-names: "Francis"
+      - family-names: "Rudi"
+        given-names: "Alessandro"
+    year: 2020
+    url: "https://arxiv.org/abs/2007.03926"
+  - type: generic
+    title: "Learning Mixtures of Gaussians Using the DDPM Objective"
+    authors:
+      - family-names: "Shah"
+        given-names: "Kulin"
+      - family-names: "Chen"
+        given-names: "Sitan"
+      - family-names: "Klivans"
+        given-names: "Adam"
+    year: 2023
+    url: "https://arxiv.org/abs/2307.01178"
+  - type: generic
+    title: "Squared Neural Families: A New Class of Tractable Density Models"
+    authors:
+      - family-names: "Tsuchida"
+        given-names: "Russell"
+      - family-names: "Ong"
+        given-names: "Cheng Soon"
+      - family-names: "Sejdinovic"
+        given-names: "Dino"
+    year: 2023
+    url: "https://arxiv.org/abs/2305.13552"
+  - type: article
+    title: "Deep Gaussian Mixture Models"
+    authors:
+      - family-names: "Viroli"
+        given-names: "Cinzia"
+      - family-names: "McLachlan"
+        given-names: "Geoffrey J."
+    year: 2019
+    journal: "Statistics and Computing"
+    volume: "29"
+    issue: "1"
+    start: "43"
+    end: "51"
+    doi: "10.1007/s11222-017-9793-z"
   - type: article
     title: "A Widely Applicable Bayesian Information Criterion"
     authors:
