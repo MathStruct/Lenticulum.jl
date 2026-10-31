@@ -210,6 +210,18 @@ references:
     end: "236"
     doi: "10.1145/256303.256306"
   - type: article
+    title: "Nonnegative Polynomials and Sums of Squares"
+    authors:
+      - family-names: "Blekherman"
+        given-names: "Grigoriy"
+    year: 2012
+    journal: "Journal of the American Mathematical Society"
+    volume: "25"
+    issue: "3"
+    start: "617"
+    end: "635"
+    doi: "10.1090/S0894-0347-2012-00733-4"
+  - type: article
     title: "Interacting Hopf algebras"
     authors:
       - family-names: "Bonchi"
@@ -578,6 +590,20 @@ references:
     year: 2022
     collection-title: "AAAI Conference on Artificial Intelligence"
     url: "https://arxiv.org/abs/2103.12803"
+  - type: article
+    title: "Variational Learning for Switching State-Space Models"
+    authors:
+      - family-names: "Ghahramani"
+        given-names: "Zoubin"
+      - family-names: "Hinton"
+        given-names: "Geoffrey E."
+    year: 2000
+    journal: "Neural Computation"
+    volume: "12"
+    issue: "4"
+    start: "831"
+    end: "864"
+    doi: "10.1162/089976600300015619"
   - type: conference-paper
     title: "Compositional game theory"
     authors:
@@ -744,6 +770,20 @@ references:
         given-names: "Adam"
     year: 2023
     url: "https://arxiv.org/abs/2307.01178"
+  - type: article
+    title: "Recursive Bayesian Estimation Using Gaussian Sums"
+    authors:
+      - family-names: "Sorenson"
+        given-names: "H. W."
+      - family-names: "Alspach"
+        given-names: "D. L."
+    year: 1971
+    journal: "Automatica"
+    volume: "7"
+    issue: "4"
+    start: "465"
+    end: "479"
+    doi: "10.1016/0005-1098(71)90097-5"
   - type: generic
     title: "Squared Neural Families: A New Class of Tractable Density Models"
     authors:

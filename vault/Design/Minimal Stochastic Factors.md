@@ -14,9 +14,9 @@
 > switching factors with a fresh outcome per step, which is a deep Gaussian mixture (§8).
 > Branch `experiment-qm`; nothing here is in the package yet.
 
-> Sources: original to this vault (design and analysis; numerical checks in `examples/minimal_stochastic_factors_checks.jl`). Definitions from [[Scalar and Multivariate Energy]] (§3 the multivariate statistical game, §4 the chain rule, §8 the two levels); [[Bethe Free Energy]]; Yedidia, Freeman & Weiss, *Constructing free-energy approximations and generalized belief propagation algorithms*, IEEE Trans. Inf. Theory 51(7), 2005 (Bethe stationary points are BP fixed points). Conditional-Gaussian models: Lauritzen & Wermuth, *Graphical Models for Associations between Variables, some of which are Qualitative and some Quantitative*, Ann. Statist. 17(1), 1989; Lauritzen, *Propagation of Probabilities, Means, and Variances in Mixed Graphical Association Models*, JASA 87(420), 1992. Born machines: Han et al., *Unsupervised Generative Modeling Using Matrix Product States*, Phys. Rev. X 8, 2018; Cheng, Chen & Wang, *Information Perspective to Probabilistic Modeling: Boltzmann Machines versus Born Machines*, Entropy 20(8), 2018. Squared models: Loconte et al., *Subtractive Mixture Models via Squaring: Representation and Learning*, arXiv:2310.00724; Marteau-Ferey, Bach & Rudi, *Non-parametric Models for Non-negative Functions*, arXiv:2007.03926; Tsuchida, Ong & Sejdinovic, *Squared Neural Families: A New Class of Tractable Density Models*, arXiv:2305.13552. Deep mixtures: Viroli & McLachlan, *Deep Gaussian Mixture Models*, Stat. Comput. 29(1), 2019. Mixture diffusion: Shah, Chen & Klivans, *Learning Mixtures of Gaussians Using the DDPM Objective*, arXiv:2307.01178. Skew-normal closure: Arellano-Valle & Azzalini, *On the Unification of Families of Skew-normal Distributions*, Scand. J. Statist. 33(3), 2006. All of these were checked against Crossref or arXiv (2026-10-31), for existence and metadata only, not for the specific results attributed to them. Pointers **not yet checked**: Minka (2001) on expectation propagation; van den Oord & Schrauwen (2014) on deep Gaussian mixtures; Naimark's dilation theorem; Arnold, Castillo & Sarabia on conditionally specified distributions. code: `examples/measurement_factor.jl` (the spectral baseline of §7)
+> Sources: original to this vault (design and analysis; numerical checks in `examples/minimal_stochastic_factors_checks.jl`). Definitions from [[Scalar and Multivariate Energy]] (§3 the multivariate statistical game, §4 the chain rule, §8 the two levels); [[Bethe Free Energy]]; Yedidia, Freeman & Weiss, *Constructing free-energy approximations and generalized belief propagation algorithms*, IEEE Trans. Inf. Theory 51(7), 2005 (Bethe stationary points are BP fixed points). Conditional-Gaussian models: Lauritzen & Wermuth, *Graphical Models for Associations between Variables, some of which are Qualitative and some Quantitative*, Ann. Statist. 17(1), 1989; Lauritzen, *Propagation of Probabilities, Means, and Variances in Mixed Graphical Association Models*, JASA 87(420), 1992. Born machines: Han et al., *Unsupervised Generative Modeling Using Matrix Product States*, Phys. Rev. X 8, 2018; Cheng, Chen & Wang, *Information Perspective to Probabilistic Modeling: Boltzmann Machines versus Born Machines*, Entropy 20(8), 2018. Squared models: Loconte et al., *Subtractive Mixture Models via Squaring: Representation and Learning*, arXiv:2310.00724; Marteau-Ferey, Bach & Rudi, *Non-parametric Models for Non-negative Functions*, arXiv:2007.03926; Tsuchida, Ong & Sejdinovic, *Squared Neural Families: A New Class of Tractable Density Models*, arXiv:2305.13552. Deep mixtures: Viroli & McLachlan, *Deep Gaussian Mixture Models*, Stat. Comput. 29(1), 2019. Mixture diffusion: Shah, Chen & Klivans, *Learning Mixtures of Gaussians Using the DDPM Objective*, arXiv:2307.01178. Gaussian sums: Sorenson & Alspach, *Recursive Bayesian Estimation Using Gaussian Sums*, Automatica 7(4), 1971. Smoothing and switching models: Rauch, Tung & Striebel, *Maximum likelihood estimates of linear dynamic systems*, AIAA J. 3(8), 1965; Ghahramani & Hinton, *Variational Learning for Switching State-Space Models*, Neural Comput. 12(4), 2000. Sums of squares: Blekherman, *Nonnegative Polynomials and Sums of Squares*, J. Amer. Math. Soc. 25(3), 2012. Skew-normal closure: Arellano-Valle & Azzalini, *On the Unification of Families of Skew-normal Distributions*, Scand. J. Statist. 33(3), 2006. All of these were checked against Crossref or arXiv (2026-10-31), for existence and metadata only, not for the specific results attributed to them. Pointers **not yet checked**: Minka (2001) on expectation propagation; van den Oord & Schrauwen (2014) on deep Gaussian mixtures; Naimark's dilation theorem; Arnold, Castillo & Sarabia on conditionally specified distributions. code: `examples/measurement_factor.jl` (the spectral baseline of §7)
 >
-> Bibliography: [[Bibliography#^yedidia2005bethe|Yedidia et al. 2005]] · [[Bibliography#^lauritzen1989graphical|Lauritzen & Wermuth 1989]] · [[Bibliography#^lauritzen1996graphical|Lauritzen 1996]] · [[Bibliography#^lauritzen1992propagation|Lauritzen 1992]] · [[Bibliography#^han2018unsupervised|Han et al. 2018]] · [[Bibliography#^cheng2018information|Cheng et al. 2018]] · [[Bibliography#^loconte2023subtractive|Loconte et al. 2023]] · [[Bibliography#^marteauferey2020nonnegative|Marteau-Ferey et al. 2020]] · [[Bibliography#^tsuchida2023squared|Tsuchida et al. 2023]] · [[Bibliography#^viroli2019deep|Viroli & McLachlan 2019]] · [[Bibliography#^shah2023ddpm|Shah et al. 2023]] · [[Bibliography#^arellanovalle2006unification|Arellano-Valle & Azzalini 2006]] · [[Bibliography#^minka2001ep|Minka 2001]]
+> Bibliography: [[Bibliography#^yedidia2005bethe|Yedidia et al. 2005]] · [[Bibliography#^lauritzen1989graphical|Lauritzen & Wermuth 1989]] · [[Bibliography#^lauritzen1996graphical|Lauritzen 1996]] · [[Bibliography#^lauritzen1992propagation|Lauritzen 1992]] · [[Bibliography#^han2018unsupervised|Han et al. 2018]] · [[Bibliography#^cheng2018information|Cheng et al. 2018]] · [[Bibliography#^loconte2023subtractive|Loconte et al. 2023]] · [[Bibliography#^marteauferey2020nonnegative|Marteau-Ferey et al. 2020]] · [[Bibliography#^tsuchida2023squared|Tsuchida et al. 2023]] · [[Bibliography#^viroli2019deep|Viroli & McLachlan 2019]] · [[Bibliography#^shah2023ddpm|Shah et al. 2023]] · [[Bibliography#^sorenson1971recursive|Sorenson & Alspach 1971]] · [[Bibliography#^rauch1965maximum|Rauch et al. 1965]] · [[Bibliography#^ghahramani2000variational|Ghahramani & Hinton 2000]] · [[Bibliography#^blekherman2012nonnegative|Blekherman 2012]] · [[Bibliography#^arellanovalle2006unification|Arellano-Valle & Azzalini 2006]] · [[Bibliography#^minka2001ep|Minka 2001]]
 >
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Gaussian Relations](https://mathstruct.org/CategoryTheory-ML-Wiki/Gaussian-Relations) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
@@ -83,8 +83,9 @@ $\psi(z) = \mathcal N(Az; b, Q)$ times Gaussian priors on the variables. That is
 
 > **Proposition 2 (proved here; the categorical form is known: Gaussian relations).** Any factor
 > graph of linear-Gaussian potentials and Gaussian priors, in any polarity and any wiring, has a
-> Gaussian (possibly degenerate) joint. All its marginals and conditionals are Gaussian, hence
-> unimodal; no wiring, depth or choice of query creates a second mode.
+> Gaussian (possibly degenerate) joint, provided the constraints are consistent (a nonempty
+> solution set) and the product is normalisable. All its marginals and conditionals are Gaussian,
+> hence unimodal; no wiring, depth or choice of query creates a second mode.
 >
 > *Proof.* The joint density is a product of exponentials of quadratics in $z$, hence an exponential
 > of a quadratic: Gaussian when normalisable, degenerate in the hard limit. Marginals and
@@ -113,7 +114,27 @@ though compositions of several can have several modes. Candidate 6 was missing f
 version (Gemini's review, §13). Among these, discrete outcomes (1, 4) are the minimal addition
 that keeps every factor belief and every exact marginal in the finite conditional-Gaussian family,
 with no special functions; 3 needs Gamma-type beliefs, 6 needs $\Phi$. That is the precise sense of
-"minimal" here. Candidate 5 is the distinction **F** asks for: it changes how the model is fitted
+"minimal" here, made exact by the following.
+
+> **Lemma (closure, proved here).** Let a factor with a discrete channel $k$ and continuous
+> channels $z$ have potentials $\psi(k, \cdot)$. Its messages to the continuous channels, for every
+> categorical message on $k$ and every Gaussian message on the others, are finite mixtures of
+> (possibly improper, canonical) Gaussians if and only if each $\psi(k, \cdot)$ is a finite sum of
+> exponentials of (possibly degenerate) quadratics in $z$.
+>
+> *Proof.* If so, every product with Gaussians and every Gaussian integral stays in that form, and the
+> sum over $k$ is finite. Conversely, with $z$ the only continuous channel and $\kappa = \delta_k$, the
+> message is $\psi(k, \cdot)$ itself, which must then be of that form. $\square$
+
+So the switching factor, with one Gaussian site per outcome, is the general closed case up to
+splitting outcomes. Three rivals sort themselves by the lemma (Mistral's review, §13): a **folding
+factor** $\mathcal N(o;\, |a^\top z - c|, q)$ is piecewise, $\mathcal N(o; u, q)$ on one half-space of $u = a^\top z - c$
+and $\mathcal N(o; -u, q)$ on the other, so it is *not* in the family: its integrals against Gaussians
+need $\Phi$, as for half-space factors (candidate 6); the smooth symmetric version
+$\tfrac12[\mathcal N(o; u, q) + \mathcal N(o; -u, q)]$ is the switching factor with $A_2 = -A_1$, $b_2 = -b_1$; an **unnormalised log-linear gate**
+$\psi(k, z) = \exp(a_k^\top \tilde z)$ is a zero-precision Gaussian site, inside the family; a **normalised
+softmax gate** $p(k \mid z) = \operatorname{softmax}_k(a_k^\top \tilde z)$ is outside it, because of its normaliser, the
+same obstruction as Proposition 3.2. Candidate 5 is the distinction **F** asks for: it changes how the model is fitted
 and approximated, not which distributions the model contains.
 
 ## 3. The smallest candidate: measuring a linear observable
@@ -161,7 +182,8 @@ improper, as in `constraint.md` §2) and $\kappa(k)$ on $k$.
   $$
   Z_k = (2\pi)^{-m/2} \det(R_k)^{-1/2} \exp\bigl(-\tfrac12 d_k^\top R_k^{-1} d_k\bigr).
   $$
-  **The per-outcome constants $Z_k$ must be kept**: they are the relative masses of the
+  $Z_k$ depends on the **target** $t$ through $d_k$ and $R_k$, so it is recomputed per message, not
+  cached per factor. **The per-outcome constants $Z_k$ must be kept**: they are the relative masses of the
   components, and dropping them is exactly the defect LP-019's reviews found three times in
   `_mixture_product` (constants of different sites do not cancel). Normalising each component in
   $z_t$ instead would change the weights by $\det(A_{k,t}^\top R_k^{-1} A_{k,t})^{-1/2}$, which does not
@@ -172,7 +194,10 @@ improper, as in `constraint.md` §2) and $\kappa(k)$ on $k$.
   outcomes (it lies in $\ker A_{k,i}$ for every $k$, or the operators share their action on it), the
   divergence is a common factor and cancels in the weights. If it differs between outcomes, the
   relative weights $Z_k$ are undefined. So: proper incoming beliefs, or improper only in directions
-  shared by all outcomes.
+  shared by all outcomes. Separately, when $A_{k,t}$ is rank-deficient each component of the outgoing
+  message is an improper site: the message is still a well-defined function with well-defined
+  coefficients in the unnormalised canonical form, but it cannot be collapsed or given an entropy
+  until it is pooled with a proper belief on $z_t$.
 
 Both are compositions of operations Mycelium already has: Gaussian messages, `CategoricalBelief`,
 `MixtureBelief`, and overlaps (`combine_with_overlap`).
@@ -198,7 +223,7 @@ did not; ChatGPT's review, §13).
 > **Proposition 3 (proved here; item 2 corrected 2026-10-31).** In the game reading, for every
 > polarity $p = (X, Y, U)$ with $P_X(x) > 0$:
 >
-> 1. **Kernel.** $c_p(y \mid x) = \sum_k P(k \mid x)\, \mathcal N\bigl(y;\, m_{k,Y} + S_{k,YX} S_{k,XX}^{-1}(x - m_{k,X}),\, S_{k,YY} - S_{k,YX}S_{k,XX}^{-1}S_{k,XY}\bigr)$
+> 1. **Kernel** (with $S_{k,XX} \succ 0$ for every $k$ with $\beta_k > 0$). $c_p(y \mid x) = \sum_k P(k \mid x)\, \mathcal N\bigl(y;\, m_{k,Y} + S_{k,YX} S_{k,XX}^{-1}(x - m_{k,X}),\, S_{k,YY} - S_{k,YX}S_{k,XX}^{-1}S_{k,XY}\bigr)$
 >    with $P(k \mid x) \propto \beta_k\, \mathcal N(x; m_{k,X}, S_{k,XX})$ ($U$ marginalised by dropping
 >    its coordinates). If $k \in Y$ the kernel is the pair $\bigl(P(k \mid x), P(y \mid x, k)\bigr)$; if
 >    $k \in X$ it is the Gaussian $P(y \mid x, k)$.
@@ -285,6 +310,10 @@ $$
 > is $H(\beta) + \sum_k \beta_k H(\cdot \mid k)$ (chain rule of entropy). With $Z_\psi < \infty$, write
 > $-\log\psi = -\log(\psi/Z_\psi) - \log Z_\psi$ and apply Gibbs' inequality. $\square$
 
+The functional can be negative when $\psi$ is not normalisable: for $n = 2$,
+$\psi = \mathcal N(z_1; 0, 1)$ and $b = \mathcal N(0, I_2)$ it is $(\tfrac12 + \tfrac12\log 2\pi) - \log(2\pi e) \approx -1.42$
+(Mistral's review). It is a Bethe factor term, not a divergence.
+
 This is the important difference from a Gaussian-mixture *variable*: because $k$ is a channel,
 the factor belief's entropy is exact. The obstacle moves to the **variables**: a continuous
 variable whose marginal is a mixture has no closed-form entropy, and the Bethe correction needs it
@@ -306,7 +335,16 @@ biased and should be avoided where exact summation is available.
 
 **Pathwise gradients through $z$.** Given $k$, $z = m_k + L_k \varepsilon$ with
 $L_k L_k^\top = S_k$ is reparameterisable, so losses on generated samples have unbiased pathwise
-gradients in $(m_k, S_k)$ and hence in $\theta$.
+gradients in $(m_k, S_k)$ and hence in $\theta$, **conditionally on $k$**. When a loss depends on a
+sampled $k$ whose gate depends on sampled continuous variables (generation through the reverse chain
+of §8, or a $k$ driven by an upstream sample), the selection step is not reparameterisable and
+needs the score-function estimator; the learning rule of §8 avoids this by summing over $k$.
+
+**Conditions on the envelope argument.** It needs a finite, differentiable Bethe free energy at the
+fixed point: $Q_k \succ 0$ and proper beliefs (with learnable $Q_k$ and degenerate beliefs the objective
+is unbounded below at $S = 0$). On loopy graphs or with collapsed mixture beliefs, BP fixed points are
+stationary points of the approximate objective, so the gradients are exact for that objective, which
+is biased (§9.2).
 
 **Rank changes and the hard limit.** The hard constraint $Q_k \to 0$ makes $S$'s dimension, and
 the pseudo-inverse in the messages, jump when $\operatorname{rank} A_k$ changes; the free energy is
@@ -346,10 +384,17 @@ mixture cannot appears only once the Born rule is made into a joint distribution
 >    it. No finite Gaussian mixture has an exact zero. These zeros are in the **conditionals given an
 >    outcome**, not in $p(z)$.
 > 3′. A factor on the outcome, weights $w_k \ge 0$, gives $p(z) \propto \mathcal N(z)\, \tilde z^\top M \tilde z$ with
->    $M = \sum_k w_k E_k$: now the POVM matters, but only through one positive semidefinite $M$. Its zero
->    set is the affine subspace $\{z : M\tilde z = 0\}$ (a hyperplane for $M = vv^\top$, a point for
->    $M = \operatorname{diag}(0, I)$, giving a ring-shaped density with a zero at the centre), never a
->    curve such as a circle.
+>    $M = \sum_k w_k E_k$: now the POVM matters, but only through one positive semidefinite $M$. If every
+>    $w_k > 0$, then $u^\top M u \ge (\min_k w_k)\lVert u\rVert^2$ and $M \succ 0$: **no zeros**. Zeros need some
+>    outcome weights to be exactly zero (outcomes eliminated, i.e. conditioning). The zero set is then the
+>    affine subspace $\{z : M\tilde z = 0\}$ (a hyperplane for $M = vv^\top$, a point for
+>    $M = \operatorname{diag}(0, I)$, giving a ring-shaped density with a zero at the centre, empty for
+>    a generic $M$ of higher rank), never a curve such as a circle.
+>
+>    Since $\sum_k w_k E_k$ ranges over all positive semidefinite $M$ (up to scale) as the POVM and the
+>    weights vary, a weighted Born factor is, for the marginal, exactly an **unnormalised quadratic-tilt
+>    potential** $\mathcal N(z)\,\tilde z^\top M \tilde z$ with free $M \succeq 0$: the measurement reading
+>    adds nothing to $p(z)$ beyond such a tilt.
 > 4. All polarities' kernels are conditionals of $p$, so they are compatible (§1).
 >
 > *Proof.* $\sum_k \tilde z^\top E_k \tilde z = \lVert\tilde z\rVert^2$ and
@@ -361,10 +406,15 @@ mixture cannot appears only once the Born rule is made into a joint distribution
 Measured (`examples/minimal_stochastic_factors_checks.jl`): two different POVMs give the same $p(z)$ to $2\cdot10^{-16}$; with
 weights $(1, 0)$ the density at the predicted zero is $-6\cdot10^{-18}$.
 
-**What it represents.** With outcomes unobserved and uncoupled, composing Born factors gives
+**What it represents.** As a marginal generative model the Born joint is therefore *thinner* than
+the switching factor: one Gaussian times positive semidefinite quadratic tilts, unimodal or nearly
+so, against finite mixtures. Its distinctive capacity is in queries that involve the outcome:
+$p(z \mid k)$ with exact zeros, and $p(k \mid x)$. With outcomes unobserved and uncoupled, composing Born factors gives
 $\mathcal N(z)\lVert\tilde z\rVert^{2L}$, whatever the POVMs: nothing is learned about $p(z)$. The capacity
 comes from **observed, weighted or coupled outcomes**: with weights, $L$ factors on shared variables give
-$\mathcal N(z) \prod_l \tilde z^\top M_l \tilde z$, products of positive semidefinite quadratic forms, i.e.
+$\mathcal N(z) \prod_l \tilde z^\top M_l \tilde z$, products of positive semidefinite quadratic forms (with independent weights on the outcomes the sum
+over configurations factorises, $\sum_{k_1 \dots k_L} \prod_l \tilde z^\top E_{l,k_l}\tilde z\, w_{l,k_l} = \prod_l \tilde z^\top M_l \tilde z$;
+positive *sums* of products need coupled outcome weights), i.e.
 polynomials of degree $2L$ times a Gaussian, nonnegative by construction, with normalisers given by
 Gaussian moments of degree $2L$ (Isserlis), whose cost grows combinatorially in $L$. This differs from
 a Born machine, whose learned amplitudes set the data distribution itself.
@@ -401,7 +451,9 @@ outcomes gives positive sums of such products. What that class can do:
 > which meets a circle in at most two points. (3) is linearity in $E$. $\square$
 
 Whether positive sums of products of positive semidefinite quadratics are dense in $L^1(\mathbb R^n)$
-for $n \ge 2$ as the number of factors grows remains **expected, not proved**: (2) only excludes exact
+for $n \ge 2$ as the number of factors grows remains **open** (the earlier "expected" was not
+earned): known gaps between nonnegative polynomials and sums of squares in several variables
+(Blekherman 2012) are a reason for caution, though density is weaker than exact representation. (2) only excludes exact
 zeros on curves at finite size. Results on positive semidefinite models with nonlinear features
 (Marteau-Ferey, Bach & Rudi; Tsuchida, Ong & Sejdinovic) are the place to look, but they use feature
 maps, not linear amplitudes, and are not checked for this case. So the genuinely quantum ingredient,
@@ -470,10 +522,14 @@ a chain $z_0 \to z_1 \to \dots \to z_T$ with
    marginals $q(z_t \mid z_0)$ are tractable and whose end $q(z_T)$ is close to a fixed prior;
 2. a **learned reverse chain** $p_\theta(z_{t-1} \mid z_t)$ trained to match the time reversal of 1,
    by the evidence bound whose terms are per-step KL divergences (or by score matching);
-3. **small steps**, so that each true reverse conditional is close to the simple family used for
-   $p_\theta$: the true reverse conditional is nearly Gaussian but with a **mean that is nonlinear in
-   $z_t$** (it involves the score $\nabla \log q_t$);
-4. **ancestral sampling** from the prior through the reverse chain.
+3. in practice, **small steps**, so that each true reverse conditional is close to the simple family
+   used for $p_\theta$: the true reverse conditional is nearly Gaussian but with a **mean that is
+   nonlinear in $z_t$** (it involves the score $\nabla \log q_t$). This is a design guideline about the
+   tightness of the bound, not part of the definition: a few large steps are still a diffusion;
+4. **ancestral sampling** from the prior through the reverse chain;
+5. in the modern sense, **one time-conditioned model shared across steps**, not free parameters per
+   step. Without it, the construction below is a reverse-time switching linear system trained with a
+   diffusion-style bound, not a diffusion model in the parameterisation sense (Mistral's review, §13).
 
 Requirement 1 is free here: it is a chain of `GaussianFactor`s ([[The Linear Gaussian Chain]]).
 Requirement 3 is where a linear factor fails: a Gaussian reverse kernel with linear mean is exact
@@ -482,7 +538,8 @@ only for Gaussian data. Requirement 2's objective is the chain's variational fre
 process, in closed form; the Bethe variable-entropy obstacle of §4 does not arise (this is an upper
 bound, like `VariationalDiffusion`'s `FreeEnergyUpperBound`, not an exact free energy).
 
-> **Proposition 8 (proved here).** If the data are a $K$-component Gaussian mixture, every true
+> **Proposition 8 (elementary, proved here; per component it is Gaussian smoothing as in Rauch, Tung
+> & Striebel, and the mixture form is standard for switching linear models).** If the data are a $K$-component Gaussian mixture, every true
 > reverse conditional $q(z_{t-1} \mid z_t)$ of the forward process 1 is a switching linear kernel
 > with $K$ outcomes:
 > $$
@@ -499,11 +556,15 @@ bound, like `VariationalDiffusion`'s `FreeEnergyUpperBound`, not an exact free e
 > and $q(z_t \mid k) = \mathcal N(\alpha_t \mu_k, \alpha_t^2 \Sigma_k + \sigma_t^2 I)$. $\square$
 
 So the switching factor is the **exact** reverse kernel for mixture data, and its gate
-$q(k \mid z_t)$ is the measurement of §3. Two consequences, one deflating, one constructive:
+$q(k \mid z_t)$ is the measurement of §3. Its parameters are closed-form functions of
+$(\alpha_t, \sigma_t, \mu_k, \Sigma_k)$, e.g. $\operatorname{Cov}(z_{t-1}, z_t \mid k) = \alpha_{t-1}\alpha_t \Sigma_k + (\alpha_t/\alpha_{t-1})\,\sigma_{t-1}^2 I$,
+so a **shared, time-conditioned parameterisation** (learn $\pi_k, \mu_k, \Sigma_k$ once, derive every step's
+kernel from the schedule) is available for free and meets requirement 5. Two consequences, one deflating, one constructive:
 
 - **For mixture data diffusion is unnecessary.** One switching factor $k \to z_0$ is already the
-  exact model, sampled in one shot. Diffusion earns its keep only when the data are not in a
-  tractable family.
+  exact model, sampled in one shot. Diffusion earns its keep, in likelihood terms, only when the data
+  are not in a tractable family; its value for mixture data lies in optimisation and sample
+  complexity (fitting by denoising instead of EM), which this note does not measure.
 - **With a fresh outcome per step it is compositional.** Give each reverse step its own $k_t$:
   $p_\theta(z_{t-1} \mid z_t) = \sum_{k_t} p(k_t \mid z_t)\, \mathcal N(G_{k_t} z_t + h_{k_t}, C_{k_t})$.
   Sampling alternates a measurement ($k_t$ from its Born-like gate) and a linear-Gaussian update:
@@ -580,6 +641,20 @@ Order: E1 and E4(a) first (each has an exact oracle and decides whether the buil
 diffusion reading are right), then E3 and E4(b) (the expressivity questions), then E2 (whether the
 Born joint is worth a belief type), E5 and E6.
 
+Conditions for all experiments (Mistral's review, §13):
+
+- **Noise floors.** With learned $Q_k$ on noise-free data the likelihood is unbounded as $Q_k \to 0$; use
+  an eigenvalue floor or a prior on $Q_k$ ([[LP-005 Learning the noise covariance]]), else held-out
+  $\log p$ is dominated by collapsed components.
+- **Local optima.** EM for $K = 2$ can fail for optimisation, not class, reasons: several restarts,
+  or an exact grid over the line angles in E1.
+- **Controls.** E1 adds an unconstrained Gaussian-mixture EM baseline; E4 adds the ablation shared
+  time-conditioned (§8) against free per-step parameters, which is what tests the diffusion claim, and
+  uses data with many more components than $\prod_t K_t$ at matched parameter counts; E5 adds a test of
+  inversion against an external prior (Proposition 3.2).
+- **E2 metric.** Held-out $\log p$ excluding the measure-zero zero set, with near-zero behaviour
+  reported separately. E2 needs the Born belief type, so E1's Born arm waits for it too.
+
 ## 11. Proposed interface (nothing implemented)
 
 `SwitchingConstraintFactor(dims, K, m; shared = true)`: channels as `LinearConstraintFactor` plus
@@ -642,5 +717,23 @@ the KL misstatement (all corrected above), and in addition:
 Its references were checked against Crossref and arXiv before use: ten are in `refs.bib` now; two
 had wrong details (the Loconte et al. title, and the authors of *Squared Neural Families*), and the
 section and theorem numbers it quoted were not checked and are not used.
+
+**Mistral, 2026-10-31** (reviewed the first version; ran its own pure-Python checks: Monte Carlo
+and quadrature agreement to 3–4 digits on the messages, Propositions 4, 5 and 8). It found the
+inversion error, the Born-marginal degeneracy and the KL misstatement independently, and in
+addition: zeros of a weighted Born factor need some outcome weights to be exactly zero, and the
+weighted Born factor is, for the marginal, just a quadratic-tilt potential (§6); a closure criterion
+for minimality, with the folding and log-linear rivals (§2; its claim that a log-linear gate leaves
+the family holds only for the normalised softmax, and its folding factor is piecewise, so not a
+switching factor, only its symmetrised version is); $Z_k$ depends on the target (§3; its claim that
+improper components make relative weights meaningless does not hold in the unnormalised canonical
+form, only collapsing is unavailable); a negative value of the local functional (§4); the
+conditionality of pathwise gradients and of the envelope argument (§5); requirement 5, the closed-form
+time-conditioned parameterisation, and Proposition 8's provenance (§8); a caution on the
+higher-dimensional density question (§6); consistency and regularity hypotheses (Propositions 2, 3);
+and conditions and controls for the experiments (§10). Its references were checked: Sorenson &
+Alspach, Ghahramani & Hinton and Blekherman are added to `refs.bib` (Rauch, Tung & Striebel was
+already there); two of its details were wrong (Sorenson & Alspach is *Automatica* 7(4), not 7(6);
+Rauch, Tung & Striebel is *AIAA J.* 3(8), not 3(12)).
 
 Related: [[Scalar and Multivariate Energy]], [[Bethe Free Energy]], [[Hierarchical Models]], [[The Linear Gaussian Chain]], [[Depth in Implicit Learning]], [[Universal Approximation for Implicit Diffusion Learners]], [[RQ-001 One Potential, Every Polarity]], [[L-SPEC-003 Exposed Parameters and Energy Channels]], [[The Diffusion Family]]
