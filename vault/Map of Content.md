@@ -155,6 +155,7 @@ counterpart in Lux.
 - [[Everything is a Factor]] — data, priors, losses and optimisers as graph nodes, forced by Remark 24
 - [[Unusual Wirings]] — an output into a weight, an energy into an input, beliefs on weights and energies; risk measures as scalarisations
 - [[Hierarchical Models]] — a hyperprior is one more factor on a shared variable; partial pooling is two polarities; eight schools, random slopes, crossed effects
+- [[Minimal Stochastic Factors]] — the smallest stochastic building block: a linear constraint whose right-hand side is measured (switching constraint factor), a Born joint with a POVM, and diffusion as a chain of switching steps (design, branch experiment-qm)
 - [[Messages are Inversions]] — a factor → variable message **is** $c'_\pi$; both exclusion principles
 - [[Polarity Resolution]] — target + available messages → a `Polarity`; the two legality checks
 - [[Schedules]] — the schedule zoo; tree exactness; pruning by edge direction

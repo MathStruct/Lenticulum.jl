@@ -1250,6 +1250,8 @@ include("hierarchical_models.jl")
 
 include("exposure.jl")
 
+include("measurement_factor.jl")
+
 include("gradient_couplings.jl")
 
 include("lp018.jl")
