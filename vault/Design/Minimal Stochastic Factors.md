@@ -9,11 +9,12 @@
 > energy, and composed it represents exactly the finite Gaussian mixtures (§3–§5). The
 > quantum-inspired alternative that adds something mixtures cannot is a **Born joint**,
 > $p(k, z) \propto \mathcal N(z)\,\tilde z^\top E_k \tilde z$ with a POVM $\{E_k\}$: densities
-> with exact zeros and polynomial tilts (§6). Diffusion-like behaviour comes from a chain of
+> with exact zeros and polynomial tilts, but only through observed or weighted outcomes, since with
+> the outcome marginalised $p(z)$ does not depend on the POVM (§6). Diffusion-like behaviour comes from a chain of
 > switching factors with a fresh outcome per step, which is a deep Gaussian mixture (§8).
 > Branch `experiment-qm`; nothing here is in the package yet.
 
-> Sources: original to this vault (design and analysis). Definitions from [[Scalar and Multivariate Energy]] (§3 the multivariate statistical game, §4 the chain rule, §8 the two levels); [[Bethe Free Energy]]; Yedidia, Freeman & Weiss, *Constructing free-energy approximations and generalized belief propagation algorithms*, IEEE Trans. Inf. Theory 51(7), 2005 (Bethe stationary points are BP fixed points). Pointers **not yet checked** against Crossref or arXiv and not in `refs.bib`: Lauritzen & Wermuth (1989) and Lauritzen (1992) on conditional-Gaussian distributions; Minka (2001) on expectation propagation; Han et al. (2018) and Cheng et al. (2018) on Born machines; Loconte et al. on squared ("subtractive") mixtures; van den Oord & Schrauwen (2014) and Viroli & McLachlan (2019) on deep Gaussian mixtures; Naimark's dilation theorem. code: `examples/measurement_factor.jl` (the spectral baseline of §7)
+> Sources: original to this vault (design and analysis; numerical checks in `examples/minimal_stochastic_factors_checks.jl`). Definitions from [[Scalar and Multivariate Energy]] (§3 the multivariate statistical game, §4 the chain rule, §8 the two levels); [[Bethe Free Energy]]; Yedidia, Freeman & Weiss, *Constructing free-energy approximations and generalized belief propagation algorithms*, IEEE Trans. Inf. Theory 51(7), 2005 (Bethe stationary points are BP fixed points). Pointers **not yet checked** against Crossref or arXiv and not in `refs.bib`: Lauritzen & Wermuth (1989) and Lauritzen (1992) on conditional-Gaussian distributions; Minka (2001) on expectation propagation; Han et al. (2018) and Cheng et al. (2018) on Born machines; Loconte et al. on squared ("subtractive") mixtures; van den Oord & Schrauwen (2014) and Viroli & McLachlan (2019) on deep Gaussian mixtures; Naimark's dilation theorem. code: `examples/measurement_factor.jl` (the spectral baseline of §7)
 >
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Gaussian Relations](https://mathstruct.org/CategoryTheory-ML-Wiki/Gaussian-Relations) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
@@ -154,40 +155,82 @@ Both are compositions of operations Mycelium already has: Gaussian messages, `Ca
 
 ## 4. The statistical game (task B)
 
-Fix a polarity $p$ and a proper Gaussian reference on the continuous channels, so that
-$P(k, z) \propto \psi(k, z)\,\pi(z)$ is a proper conditional-Gaussian (CG) distribution: Gaussian in
-$z$ for each $k$, $P(k, z) = \beta_k \mathcal N(z; m_k, S_k)$.
+A potential admits two readings, and they have to be kept apart (the first version of this note
+did not; ChatGPT's review, §13).
 
-> **Proposition 3 (proved here).** For every polarity $p = (X, Y, U)$ with $P(x) > 0$:
+- **Graph reading.** The factor contributes $\psi$ to a product of factors, and the measure on its
+  variables comes from the rest of the graph. Messages (§3) and the local Bethe term (Proposition
+  4) are closed form. This is how `LinearConstraintFactor` works already, and it is all a graph needs.
+- **Game reading, per polarity.** [[Scalar and Multivariate Energy]] §3 asks for an open model
+  $c_p : X \multimap Y$, a normalised kernel. $\psi$ is flat along $\ker A_k$, so a kernel needs a
+  **reference measure** $\nu$ on $Y \times U$ (a Gaussian):
+  $$
+  c_p(y, u, k \mid x) \;=\; \frac{\psi(k, z)\, \nu(y, u)}{Z_\nu(x)},
+  \qquad Z_\nu(x) = \textstyle\sum_k \int \psi(k, z)\, \nu(dy, du),
+  $$
+  and $P(x, y, u, k) = P_X(x)\, c_p(y, u, k \mid x)$ is a proper conditional-Gaussian (CG) joint for
+  any Gaussian $P_X$: Gaussian in $z$ for each $k$, $P(k, z) = \beta_k \mathcal N(z; m_k, S_k)$.
+
+> **Proposition 3 (proved here; item 2 corrected 2026-10-31).** In the game reading, for every
+> polarity $p = (X, Y, U)$ with $P_X(x) > 0$:
 >
 > 1. **Kernel.** $c_p(y \mid x) = \sum_k P(k \mid x)\, \mathcal N\bigl(y;\, m_{k,Y} + S_{k,YX} S_{k,XX}^{-1}(x - m_{k,X}),\, S_{k,YY} - S_{k,YX}S_{k,XX}^{-1}S_{k,XY}\bigr)$
 >    with $P(k \mid x) \propto \beta_k\, \mathcal N(x; m_{k,X}, S_{k,XX})$ ($U$ marginalised by dropping
->    its coordinates). If $k$ is itself in $Y$, the kernel is the pair $\bigl(P(k \mid x), P(y \mid x, k)\bigr)$;
->    if $k \in X$, it is the Gaussian $P(y \mid x, k)$.
-> 2. **Inversion.** For a prior $\pi_X$ that is a Gaussian or a Gaussian mixture, the exact inversion
->    $c'_{\pi}(y)$ is again CG (a mixture over $k$ and over $\pi$'s components), in closed form.
-> 3. **Compatibility.** All kernels are conditionals of $P$, so they are compatible (§1).
+>    its coordinates). If $k \in Y$ the kernel is the pair $\bigl(P(k \mid x), P(y \mid x, k)\bigr)$; if
+>    $k \in X$ it is the Gaussian $P(y \mid x, k)$.
+> 2. **Inversion.** For a prior $\pi$ on $X$,
+>    $c'_\pi(x \mid y) \propto \pi(x)\, c_p(y \mid x) = \dfrac{\pi(x)}{P_X(x)}\, P(x, y)$.
+>    It is a CG mixture in closed form when $\pi = P_X$ (it is then $P(x \mid y)$), or when $k \in X$ and
+>    $\pi$ is Gaussian or a Gaussian mixture. **For a general Gaussian or mixture prior it is not**: the
+>    ratio $\pi / P_X$ of a Gaussian by a mixture is not a finite mixture of Gaussians.
+> 3. **Conditional mean.** $\mathbb E[y \mid x] = \sum_k P(k \mid x)\,(G_k x + h_k)$ with
+>    $P(k \mid x) = \operatorname{softmax}_k\bigl(\log\beta_k - \tfrac12\lVert x - m_{k,X}\rVert^2_{S_{k,XX}^{-1}} - \tfrac12\log\det S_{k,XX}\bigr)$:
+>    **nonlinear in $x$, although every component is linear.** With a shared $S_{XX}$ the gate is a
+>    softmax of affine functions of $x$ (multinomial logistic gating).
+> 4. **Compatibility.** All kernels are conditionals of $P$, so they are compatible (§1).
 >
-> *Proof.* For fixed $k$, $(x, y)$ is jointly Gaussian under $P(\cdot \mid k)$, so $P(y \mid x, k)$ is the
-> Gaussian conditional; $P(k \mid x) \propto P(k) P(x \mid k)$, with $P(x \mid k)$ the Gaussian marginal.
-> For (2), $\pi_X(x) P(y \mid x)$ is, for each pair (component of $\pi$, outcome $k$), a Gaussian in
-> $(x, y)$ times a constant, so conditioning on $y$ gives a mixture of Gaussians with closed-form
-> weights. (3) is by construction. $\square$
+> *Proof.* (1) For fixed $k$, $(x, y)$ is jointly Gaussian under $P(\cdot \mid k)$, so $P(y \mid x, k)$ is
+> the Gaussian conditional, and $P(k \mid x) \propto P(k) P(x \mid k)$. (2) is Bayes' rule with
+> $c_p(y \mid x) = P(x, y)/P_X(x)$; for $\pi = P_X$ the ratio is 1, and for $k \in X$ the kernel given $k$ is
+> Gaussian, so the product with a Gaussian (mixture) prior is a Gaussian (mixture). For general $\pi$,
+> $1/P_X$ with $P_X$ a mixture of two or more Gaussians is not a finite sum of exponentials of
+> quadratics. (3) is (1) with $G_k = S_{k,YX} S_{k,XX}^{-1}$, $h_k = m_{k,Y} - G_k m_{k,X}$. (4) by
+> construction. $\square$
 
-**Vector energy.** On the factor's latent $a = (u, k)$, the pointwise energy is the pair
-$$
-\mathbf l(x, a, y) \;=\; \bigl(\, r_k(z),\; -\log w_k \,\bigr) \in \mathbb R^m \oplus \mathbb R,
-\qquad r_k(z) = A_k z - b_k,
-$$
-a signed residual plus a selection cost. Its scalarisation
-$\sigma_k(r, s) = \tfrac12 r^\top Q_k^{-1} r + s$ depends on the latent outcome through $Q_k$: a
-point-dependent scalarisation, which [[L-ADR-0007 Point-dependent scalarisations are localised before use]]
-already handles (localise at the outcome, then scalarise). With a shared $Q$ it is an ordinary
-`SquaredNorm` plus a linear term. Like every residual factor, the energies do not depend on the
-polarity ([[Scalar and Multivariate Energy]] §8, "Per polarity").
+Measured (`examples/minimal_stochastic_factors_checks.jl`, 2026-10-31; a two-component
+reference in one dimension, prior $\mathcal N(0.5, 4)$, $y = 0.7$): the first version's closed form,
+which dropped $1/P_X$, is at $L^1$ distance 0.164 from the true inversion; with $\pi = P_X$ the closed
+form agrees to $10^{-17}$.
 
-**Free energy.** For a factor belief $b(k, z) = \beta_k \mathcal N(z; m_k, S_k)$ (the Bethe belief
-$b \propto \psi \prod_i \mu_{i \to f}$ has this form), graded as in `GaussianFactor`:
+**The two readings agree where it matters.** In a graph, the "prior" a factor is inverted against is
+its cavity, and the factor belief is $b \propto \psi \prod_i \mu_{i \to f}$: the potential, never the
+normalised kernel, so no $1/Z_\nu(x)$ appears and pooling a mixture prior with $\psi$'s messages is a
+closed-form mixture. The non-closure of item 2 belongs to the per-factor game reading with an
+arbitrary external prior.
+
+**Typed energies** (the two levels of [[Scalar and Multivariate Energy]] §8):
+
+| level | map | space | scalarisation |
+|---|---|---|---|
+| pointwise | $\mathbf l : X \times \llbracket c\rrbracket \times Y \to \mathbb R^m \oplus \mathbb R$, $\llbracket c\rrbracket = U \times \{1, \dots, K\}$, $\mathbf l(x, (u, k), y) = (A_k z - b_k,\; -\log w_k)$ | signed residual and selection cost | $\rho_k(r, s) = \tfrac12 r^\top Q_k^{-1} r + s \ge 0$, localised at the outcome ([[L-ADR-0007 Point-dependent scalarisations are localised before use]]) |
+| free energy | $\mathbf F : \mathcal P X \times Y \to \mathbb R^3$, graded (fit, complexity, negentropy) | as `GaussianFactor` | identity on each summand (linear, so composition is strict) |
+
+For a polarity, a prior $\pi$ and an observation $y$, with $q = c'_\pi(y)$ the selected inversion (a
+distribution on $X \times U \times \{1, \dots, K\}$):
+
+$$
+\mathbf F(\pi, y) = \Bigl(\, \mathbb E_q\bigl[\tfrac12 r_k^\top Q_k^{-1} r_k\bigr],\;\;
+\mathbb E_q\bigl[\tfrac12 \log\det(2\pi Q_k) - \log w_k\bigr],\;\; -H(q) \Bigr),
+$$
+
+so $\mathbf F$'s sum is $\mathbb E_q[\rho_k(\mathbf l)] + \mathbb E_q[\tfrac12\log\det 2\pi Q_k] - H(q)$: built
+from the scalarised pointwise energy, as for every residual factor. $H$ is relative to Lebesgue measure
+on the continuous coordinates and counting measure on $k$
+([[LP-006 Gaussian entropies are relative to Lebesgue measure]]). The energies do not depend on the
+polarity ([[Scalar and Multivariate Energy]] §8, "Per polarity"); the inversion does.
+
+**The local term.** For a CG factor belief $b(k, z) = \beta_k \mathcal N(z; m_k, S_k)$ (the Bethe belief
+has this form):
 
 $$
 \begin{aligned}
@@ -197,15 +240,19 @@ $$
 \end{aligned}
 $$
 
-> **Proposition 4 (proved here).** $\mathrm{fit} + \mathrm{complexity} + \mathrm{negentropy} =
-> \mathrm{KL}\bigl(b \,\|\, \psi\bigr) \ge -\log \sum_k \int \psi(k, z)\, dz$ when the right side is
-> finite, i.e. it is the local variational free energy of $\psi$, and every term is in closed form.
+> **Proposition 4 (proved here; statement corrected 2026-10-31).** The sum is the local variational
+> functional $\mathcal F_\psi(b) = \mathbb E_b[-\log \psi] - H(b)$, every term in closed form. It is a KL
+> divergence only when $\psi$ is normalisable: if $Z_\psi = \sum_k \int \psi\, dz < \infty$ (e.g. every
+> $A_k$ invertible), $\mathcal F_\psi(b) = \mathrm{KL}(b \,\|\, \psi / Z_\psi) - \log Z_\psi \ge -\log Z_\psi$.
+> For rank-deficient $A_k$, $Z_\psi = \infty$, $\psi$ is a potential and not a density, and
+> $\mathcal F_\psi(b)$ is finite whenever $b$ is proper with finite entropy; the normalisation then
+> comes from the graph, whose Bethe sum is $-\log Z$ of the whole (proper) model on a tree.
 >
 > *Proof.* $-\log \psi(k, z) = \tfrac12 r_k^\top Q_k^{-1} r_k + \tfrac12 \log\det(2\pi Q_k) - \log w_k$, and
 > $\mathbb E_{\mathcal N(m_k, S_k)}[\tfrac12 r_k^\top Q_k^{-1} r_k]$ is the bracket in "fit" (mean plus
-> trace term). So the sum is $\mathbb E_b[-\log \psi] - H(b)$. The entropy of a CG belief with $k$
-> explicit is $H(\beta) + \sum_k \beta_k H(\cdot \mid k)$, by the chain rule of entropy; both parts
-> are closed form. The bound is Gibbs' inequality. $\square$
+> trace). So the sum is $\mathbb E_b[-\log \psi] - H(b)$, and the entropy of a CG belief with $k$ explicit
+> is $H(\beta) + \sum_k \beta_k H(\cdot \mid k)$ (chain rule of entropy). With $Z_\psi < \infty$, write
+> $-\log\psi = -\log(\psi/Z_\psi) - \log Z_\psi$ and apply Gibbs' inequality. $\square$
 
 This is the important difference from a Gaussian-mixture *variable*: because $k$ is a channel,
 the factor belief's entropy is exact. The obstacle moves to the **variables**: a continuous
@@ -255,15 +302,23 @@ mixture cannot appears only once the Born rule is made into a joint distribution
 > \qquad \mathcal Z = 1 + \operatorname{tr}(S + m m^\top).
 > $$
 
-> **Proposition 5 (proved here).**
+> **Proposition 5 (proved here; consequence of item 1 added 2026-10-31).**
 > 1. $p(z) = \mathcal N(z)\,\lVert \tilde z \rVert^2 / \mathcal Z$ and $p(k \mid z) = \tilde z^\top E_k \tilde z / \lVert \tilde z \rVert^2$:
->    **the Born rule**, independent of $m$ and $S$.
+>    **the Born rule**, independent of $m$ and $S$. **The marginal $p(z)$ does not depend on the
+>    POVM at all**: with the outcome unobserved and uncoupled, learning $\{E_k\}$ cannot change the
+>    distribution of $z$.
 > 2. Conditioning on part of $z$: $p(k \mid x) = \mathbb E[\tilde z^\top E_k \tilde z \mid x] / \mathbb E[\lVert \tilde z\rVert^2 \mid x]$ under
 >    $\mathcal N(y \mid x)$, a ratio of closed-form quadratic moments, and $p(y \mid x, k) \propto
 >    \mathcal N(y \mid x)\, \tilde z^\top E_k \tilde z$, a Gaussian times a quadratic: **not Gaussian**.
 > 3. For a rank-one element $E_k = v v^\top$, $p(z \mid k)$ vanishes on the hyperplane
 >    $v^\top \tilde z = 0$; when the hyperplane passes near the reference mean, it is bimodal across
->    it. No finite Gaussian mixture has an exact zero.
+>    it. No finite Gaussian mixture has an exact zero. These zeros are in the **conditionals given an
+>    outcome**, not in $p(z)$.
+> 3′. A factor on the outcome, weights $w_k \ge 0$, gives $p(z) \propto \mathcal N(z)\, \tilde z^\top M \tilde z$ with
+>    $M = \sum_k w_k E_k$: now the POVM matters, but only through one positive semidefinite $M$. Its zero
+>    set is the affine subspace $\{z : M\tilde z = 0\}$ (a hyperplane for $M = vv^\top$, a point for
+>    $M = \operatorname{diag}(0, I)$, giving a ring-shaped density with a zero at the centre), never a
+>    curve such as a circle.
 > 4. All polarities' kernels are conditionals of $p$, so they are compatible (§1).
 >
 > *Proof.* $\sum_k \tilde z^\top E_k \tilde z = \lVert\tilde z\rVert^2$ and
@@ -272,10 +327,16 @@ mixture cannot appears only once the Born rule is made into a joint distribution
 > (3): $(v^\top \tilde z)^2 = 0$ exactly on the hyperplane, positive elsewhere; a Gaussian mixture is
 > positive everywhere. (4) by construction. $\square$
 
-**What it represents.** Composing $L$ Born factors on shared variables multiplies their quadratics:
-densities $\mathcal N(z) \prod_l \tilde z^\top E_{l,k_l} \tilde z$, polynomials of degree $2L$ times a
-Gaussian, nonnegative by construction (each factor is a square), with normalisers given by Gaussian
-moments of degree $2L$ (Isserlis), whose cost grows combinatorially in $L$.
+Measured (`examples/minimal_stochastic_factors_checks.jl`): two different POVMs give the same $p(z)$ to $2\cdot10^{-16}$; with
+weights $(1, 0)$ the density at the predicted zero is $-6\cdot10^{-18}$.
+
+**What it represents.** With outcomes unobserved and uncoupled, composing Born factors gives
+$\mathcal N(z)\lVert\tilde z\rVert^{2L}$, whatever the POVMs: nothing is learned about $p(z)$. The capacity
+comes from **observed, weighted or coupled outcomes**: with weights, $L$ factors on shared variables give
+$\mathcal N(z) \prod_l \tilde z^\top M_l \tilde z$, products of positive semidefinite quadratic forms, i.e.
+polynomials of degree $2L$ times a Gaussian, nonnegative by construction, with normalisers given by
+Gaussian moments of degree $2L$ (Isserlis), whose cost grows combinatorially in $L$. This differs from
+a Born machine, whose learned amplitudes set the data distribution itself.
 
 > **Proposition 6 (proved here, for amplitudes).** Densities $P(z)^2\, \mathcal N(z)/\mathcal Z$
 > with $P$ a polynomial are dense in $L^1$ among all densities on $\mathbb R^n$.
@@ -438,7 +499,7 @@ at matched parameter counts, not only accuracy on one data set.
 | | question | data | models | reference and metric |
 |---|---|---|---|---|
 | E1 | does the switching factor fix the spectral toy's failure? | lines at 0° and 60° (the toy's case 2) | spectral (toy), switching $K = 2$ (EM), Born $K = 2$ rank-one | true conditional; held-out $\log p(y \mid x)$, line angles |
-| E2 | what can only the Born joint do? | $p(z) \propto (v^\top \tilde z)^2 \mathcal N(z)$ (exact zero on a line), an annulus | Born $K = 1$; switching with growing $K$ | exact density; held-out $\log p$ vs number of parameters |
+| E2 | what can only the Born joint do? | $p(z) \propto (v^\top \tilde z)^2 \mathcal N(z)$ (exact zero on a line); $\lVert z\rVert^2\mathcal N(z)$ (a ring, zero at the centre); a zero on a circle, which needs degree 4 at the amplitude level | Born with $K = 2$ and outcome weights (not $K = 1$, where $E_1 = I$); switching with growing $K$ | exact density; held-out $\log p$ vs number of parameters |
 | E3 | where does composition beat a flat mixture? | a $2^L$ grid of modes (product structure); 8 modes on a ring (no product structure) | $L$ binary switching factors on shared $z$; one factor with $2^L$ outcomes | exact mixture likelihood; $\log p$ vs parameters |
 | E4 | do many small switching steps act like a diffusion? | (a) a Gaussian mixture; (b) two moons and a ring | reverse chain of $T$ steps, $K_t \in \{1, 2, 3\}$, trained as in §8 | (a) Proposition 8's exact kernels; (b) held-out $\log p$ by exact path sums for small $T$; vs one factor of $\prod_t K_t$ outcomes |
 | E5 | are the polarities compatible in practice? | E1 and E3 data | spectral vs switching vs Born | conditional $\log p$ in three query directions against the joint's conditionals |
@@ -467,5 +528,26 @@ experiment E4 needs no new factor beyond it. The Born joint would need a new bel
 - The learning bias of collapsed (EP) beliefs in hybrid graphs (E6).
 - Hard constraints with outcome-dependent rank: a reference measure under which entropies of
   different-dimensional solution sets compare (§5).
+
+## 13. Reviews
+
+**ChatGPT, 2026-10-31** (read the branch; could not run code). Claude checked the two main
+claims numerically (`examples/minimal_stochastic_factors_checks.jl`) and corrected the note:
+
+1. Proposition 3's inversion claim was too strong: against a prior other than the reference marginal
+   the inversion carries $\pi / P_X$ and is not a mixture ($L^1$ error 0.164 of the old closed form).
+   Corrected, with the graph reading (§4) where it does not arise.
+2. The Born marginal $p(z)$ does not depend on the POVM when the outcome is unobserved, so learning
+   the POVM alone changes nothing about $z$, and E2 with $K = 1$ ($E_1 = I$) was vacuous; an annular
+   zero set is out of reach of one positive semidefinite quadratic. Corrected in §6 and §10.
+3. §4 mixed the pointwise and free-energy levels and called $\mathbb E_b[-\log\psi] - H(b)$ a KL divergence
+   although $\psi$ is not normalisable. Retyped (table in §4) and Proposition 4 restated.
+4. Its strongest positive point, that nonlinearity arises from conditioning on discrete alternatives
+   ($\mathbb E[y \mid x]$ softmax-gated linear), is now Proposition 3.3.
+
+It also noted that the distribution family is established (conditional-Gaussian graphical models,
+switching dynamical systems): any novelty lies in arbitrary polarity, compositional statistical games,
+the multivariate free energy and efficient message passing, not in the family; and that exponential
+inference cost (§9) is the main computational risk.
 
 Related: [[Scalar and Multivariate Energy]], [[Bethe Free Energy]], [[Hierarchical Models]], [[The Linear Gaussian Chain]], [[Depth in Implicit Learning]], [[Universal Approximation for Implicit Diffusion Learners]], [[RQ-001 One Potential, Every Polarity]], [[L-SPEC-003 Exposed Parameters and Energy Channels]], [[The Diffusion Family]]
