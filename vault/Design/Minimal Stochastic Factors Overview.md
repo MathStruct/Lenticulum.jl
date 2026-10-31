@@ -4,7 +4,7 @@
 > what was measured, what three external reviews changed, and what is open. The mathematics is in
 > [[Minimal Stochastic Factors]]; this note only points into it and into the experiments.
 
-> Sources: original to this vault. code: `examples/measurement_factor.jl`, `examples/switching_factor_e1.jl`, `examples/switching_reverse_chain_e4a.jl`, `examples/minimal_stochastic_factors_checks.jl`
+> Sources: original to this vault. code: `examples/measurement_factor.jl`, `examples/switching_factor_e1.jl`, `examples/switching_reverse_chain_e4a.jl`, `examples/switching_small_steps.jl`, `examples/minimal_stochastic_factors_checks.jl`
 
 ## The question
 
@@ -34,7 +34,9 @@ with no iterative denoising.
    polarity-compatible and finds only orthogonal modes (§7).
 5. **A diffusion is a chain of directed switching kernels.** For mixture data the exact reverse
    kernels are switching kernels whose parameters follow from the noise schedule (Proposition 8),
-   so a shared, time-conditioned parameterisation comes for free (§8).
+   so a shared, time-conditioned parameterisation comes for free (§8). Small steps do **not** let
+  fewer outcomes than components suffice: each step needs one outcome per linear piece of the
+  score field (the small-step test).
 
 ## What was measured
 
@@ -44,6 +46,7 @@ with no iterative denoising.
 | the same on lines 60° apart | 30° wrong, worse than one Gaussian (−0.939 vs −0.823) | `examples/measurement_factor.md` |
 | **E1**: switching factor on lines 60° apart | both lines recovered (errors < 0.02°), held-out $\log p(y \mid x)$ 0.702 = true model's, 6 parameters vs a free mixture's 11; message passing in a Mycelium graph matches direct conditioning to $5\cdot10^{-15}$ | `examples/switching_factor_e1.md` |
 | **E4(a)**: reverse chain on a 3-component mixture | exact kernels reproduce $\log q_0(z_0)$ on every path to $10^{-14}$; the shared chain (17 parameters) reaches −2.123 vs the truth's −2.108; linear-Gaussian steps fail; two outcomes per small step do *not* yet suffice | `examples/switching_reverse_chain_e4a.md` |
+| **small-step test**: conditional per-step fits, $T$ = 10 to 100 | three outcomes per step match the truth up to the estimation cost of fitting $T$ kernels; two outcomes keep a gap of about 0.44 nats however small the steps, and their samples level off at 3× the energy-distance floor | `examples/switching_small_steps.md` |
 | checks behind the review corrections | the corrected inversion and Born claims, numerically | `examples/minimal_stochastic_factors_checks.jl` |
 
 Every experiment has a test in `test/` and runs in the top-level suite.
@@ -69,9 +72,9 @@ The full record is §13 of [[Minimal Stochastic Factors]].
 
 ## What is open
 
-- **Few outcomes per small step.** Whether $T$ small switching steps with few outcomes each can
-  replace one mixture with many components (the diffusion hypothesis of §8). E4(a)'s evidence is
-  weak and mixed; a fair test is next.
+- **Where depth could still pay.** The small-step test refuted "few outcomes per small step"
+  for flat mixture data. Whether composition across steps buys anything for data with *structure*
+  (a hierarchy or a product of factors) is the question E3 and E4(b) ask.
 - **Composition** (E3): when $L$ binary switches beat a flat mixture of $2^L$ components.
 - **The Born arm** (E2) and the density question of §6 for products of positive semidefinite
   quadratics in two or more dimensions.
@@ -83,6 +86,7 @@ The full record is §13 of [[Minimal Stochastic Factors]].
 ```sh
 julia --project=. examples/switching_factor_e1.jl
 julia -t auto --project=. examples/switching_reverse_chain_e4a.jl   # about 9 minutes on 8 threads
+julia -t auto --project=. examples/switching_small_steps.jl         # about 57 minutes on 8 threads
 julia --project=. -e 'using Pkg; Pkg.test()'                       # includes the experiments' tests
 ```
 

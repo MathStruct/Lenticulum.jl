@@ -574,7 +574,11 @@ kernel from the schedule) is available for free and meets requirement 5. Two con
   interesting, **expected, not shown**: because small steps make each reverse conditional nearly
   Gaussian with a smooth mean, few outcomes per step ($K_t = 2$ or $3$) suffice even when the data
   need many components, so $T$ steps of $K_t$ outcomes compete with one factor of
-  $\prod_t K_t$ components at a fraction of the parameters. E4(a) gives weak, mixed evidence on this (§10).
+  $\prod_t K_t$ components at a fraction of the parameters. **Tested and refuted in its strong form**
+  (§10, the small-step test): with conditional per-step fits, $K_t$ = the number of components
+  matches the truth up to estimation cost, while fewer outcomes keep a capacity gap that a tenfold
+  smaller step barely shrinks. Small steps make the conditional unimodal, but its mean (the score
+  field) still needs one linear piece per component.
 
 **Directed kernels, not potentials (Gemini's review, §13).** The reverse step must be a
 *normalised conditional*,
@@ -654,6 +658,19 @@ steps fail (−3.58) at any step size. With two outcomes per step, 100 small ste
 over 20 large ones (energy distance 0.033 → 0.019, floor 0.006) but do not reach the floor, and the
 bound worsens: the hypothesis of §8 is **not established** by this run.
 
+**The small-step test, measured (2026-10-31; `examples/switching_small_steps.jl`, `.md`).** The fair
+version of the last question: every step fitted by conditional maximum likelihood on fresh pairs
+from the true mixture, the exact prior at $T$, $T \in \{10, 25, 50, 100\}$ at the same $\alpha_T$.
+With three outcomes per step (as many as components) the gap to the truth's −2.108 is, up to
+0.003–0.012 nats for $T \le 50$, the asymptotic estimation cost $T d / 2n$ of fitting $T$ free
+kernels, and the samples are at the energy-distance floor for $T \ge 25$. With two outcomes the gap
+minus that cost is 0.476 at $T = 10$ and 0.436 at $T = 100$, and the energy distance levels off at
+about 0.02 (floor 0.006). So capacity needs one outcome per linear piece of the score field, whatever
+the step size: the strong form of §8's hypothesis is **refuted** on this data. Free per-step kernels
+also pay an estimation cost linear in $T$, so smaller steps only pay off with a shared,
+time-conditioned parameterisation (E4(a)'s 17-parameter chain). The estimation cost is an
+asymptotic estimate; the $T = 100$, $K = 3$ fits look under-optimised.
+
 Order: E1 and E4(a) first (each has an exact oracle and decides whether the building block and the
 diffusion reading are right), then E3 and E4(b) (the expressivity questions), then E2 (whether the
 Born joint is worth a belief type), E5 and E6.
@@ -689,7 +706,9 @@ switching linear kernel normalised by $Z_t(z_t)$ (§8), not this potential. The 
   in $L^1(\mathbb R^n)$ for $n \ge 2$ (§6; true for $n = 1$, Proposition 6′.1; exact zeros on curves are
   impossible, 6′.2).
 - The size of the advantage of $T$ small switching steps over one large mixture (E4(b)): a bound in
-  terms of the data's smoothness would turn the diffusion hypothesis of §8 into a theorem.
+  terms of the data's smoothness would turn the diffusion hypothesis of §8 into a theorem. Its
+  strong form (fewer outcomes than components) failed the small-step test (§10); what remains is
+  whether a shared chain's parameter count beats a flat mixture's on structured data.
 - The learning bias of collapsed (EP) beliefs in hybrid graphs (E6).
 - Hard constraints with outcome-dependent rank: a reference measure under which entropies of
   different-dimensional solution sets compare (§5).
