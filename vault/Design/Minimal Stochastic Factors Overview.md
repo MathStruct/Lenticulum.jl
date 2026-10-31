@@ -4,7 +4,7 @@
 > what was measured, what three external reviews changed, and what is open. The mathematics is in
 > [[Minimal Stochastic Factors]]; this note only points into it and into the experiments.
 
-> Sources: original to this vault. code: `examples/measurement_factor.jl`, `examples/switching_factor_e1.jl`, `examples/switching_reverse_chain_e4a.jl`, `examples/switching_small_steps.jl`, `examples/composition_e3.jl`, `examples/switching_chain_e4b.jl`, `examples/chain_objective.jl`, `examples/minimal_stochastic_factors_checks.jl`
+> Sources: original to this vault. code: `examples/measurement_factor.jl`, `examples/switching_factor_e1.jl`, `examples/switching_reverse_chain_e4a.jl`, `examples/switching_small_steps.jl`, `examples/composition_e3.jl`, `examples/switching_chain_e4b.jl`, `examples/chain_objective.jl`, `examples/hierarchy_e3b.jl`, `examples/minimal_stochastic_factors_checks.jl`
 
 ## The question
 
@@ -28,7 +28,8 @@ with no iterative denoising.
 3. **Composed, these factors give exactly the finite Gaussian mixtures**; composition buys
    parameter efficiency, not a larger class (Proposition 7). It pays only when the data have the
    structure the wiring imposes, and only with the right wiring. Switches feeding a sum node give
-   grids of modes; several constraints on one variable intersect instead (E3).
+   grids of modes; several constraints on one variable intersect instead (E3). A switch over
+   such sums gives clustered grids, and exact EM trains it (E3b).
 4. **The quantum reading, done properly, is a Born joint** with a POVM. As a model of $p(z)$ it is
    thinner than a mixture (its marginal does not even depend on the POVM unless outcomes are
    weighted); its distinctive capacity is in queries about the outcome (§6). The spectral
@@ -57,6 +58,7 @@ with no iterative denoising.
 | **E3, fitting** | exact EM for the additive wiring (closed-form M-step): monotone; fewer starts reach the optimum than with Adam, but each costs 1–2 % as much, so 256 EM starts find the same optima 4–5× faster | `examples/composition_e3.md` |
 | **E4(b)**: chains on two moons and a ring | a chain of $T \le 20$ steps with $K$ outcomes each scores like a flat $K$-component mixture (within 0.006 nats at $T = 5$, at most 0.10 better at $T = 20$); flat with 16 components (95 parameters) beats every chain (up to 1 185) | `examples/switching_chain_e4b.md` |
 | **Propositions 9, 10**: the objective, not the class | E3's additive model is a 4-step chain of 2-outcome kernels (marginal identical to $7\cdot10^{-15}$, 0.001 nats from the truth on the 16-mode grid); chains of the same kind trained by the diffusion bound score like flat mixtures with $K$ = 2 or 4 components (gaps 0.78–1.09) | `examples/chain_objective.md` |
+| **E3b**: a switch over sums, on 3 clusters of rotated 2 × 2 grids | the hierarchical wiring (29 parameters, exact EM) is 0.008 nats from the truth at 2 000 points and 0.091 at 150; a flat 12-mixture (71) is 0.016 and 0.996 away (it overfits at 150); one sum node stays 0.64–0.80 away | `examples/hierarchy_e3b.md` |
 | checks behind the review corrections | the corrected inversion and Born claims, numerically | `examples/minimal_stochastic_factors_checks.jl` |
 
 Every experiment has a test in `test/` and runs in the top-level suite.
@@ -88,7 +90,8 @@ The full record is §13 of [[Minimal Stochastic Factors]].
   posteriors; E3's EM does this for one level.
 - **Composition that scales.** E3 shows that composition pays when the data have a product
   arrangement and switches feed a sum node, and exact EM makes it cheap to fit. The next questions
-  are deeper wirings (sums of sums, hierarchies) and real data with such structure.
+  are trees wider and deeper than E3b's (where the exact posterior over $J \cdot 2^L$ states must give
+  way to messages in a graph) and real data with such structure.
 - **The Born arm** (E2) and the density question of §6 for products of positive semidefinite
   quadratics in two or more dimensions.
 - **Learning through the graph** rather than by direct maximum likelihood, and the bias of
@@ -103,6 +106,7 @@ julia -t auto --project=. examples/switching_small_steps.jl         # about 57 m
 julia -t auto --project=. examples/composition_e3.jl                # about 4 minutes on 8 threads
 julia -t auto --project=. examples/switching_chain_e4b.jl           # about 95 minutes on 8 threads
 julia -t auto --project=. examples/chain_objective.jl               # about 18 minutes on 8 threads
+julia -t auto --project=. examples/hierarchy_e3b.jl                 # under a minute on 8 threads
 julia --project=. -e 'using Pkg; Pkg.test()'                       # includes the experiments' tests
 ```
 

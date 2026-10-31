@@ -752,6 +752,15 @@ kind trained by the bound score like flat mixtures with as many components as ou
 gaps 0.780–0.786 for $K = 4$ against the flat 4-mixture's 0.778, and 1.04–1.09 for $K = 2$ against
 the flat 2-mixture's 0.976, for $T$ = 5, 10 and 20. A flat 16-mixture reaches 0.043.
 
+**E3b, a switch over sums, measured (2026-10-31; `examples/hierarchy_e3b.jl`, `.md`).** The data
+have 12 modes: 3 clusters, each a 2 × 2 grid rotated by its own angle. A top switch over 3 additive
+models ($J = 3$, $L = 2$, 29 parameters), fitted by exact EM over the $J \cdot 2^L$ joint states, is
+within 0.008 nats of the truth at $n = 2000$ and 0.091 at $n = 150$. The flat 12-component mixture
+(71 parameters) is 0.016 and 0.996 away, and a single sum node with up to 16 components 0.64–0.80.
+A quarter of the EM starts reach the optimum, and the log-likelihood never decreased. One level
+deeper, composition is still a prior on the arrangement of the components, and exact EM still
+trains it.
+
 Order: E1 and E4(a) first (each has an exact oracle and decides whether the building block and the
 diffusion reading are right), then E3 and E4(b) (the expressivity questions), then E2 (whether the
 Born joint is worth a belief type), E5 and E6.
