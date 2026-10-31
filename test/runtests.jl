@@ -1266,6 +1266,8 @@ include("chain_objective.jl")
 
 include("hierarchy_e3b.jl")
 
+include("factorial_inference.jl")
+
 include("gradient_couplings.jl")
 
 include("lp018.jl")

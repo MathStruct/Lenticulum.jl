@@ -761,6 +761,24 @@ A quarter of the EM starts reach the optimum, and the log-likelihood never decre
 deeper, composition is still a prior on the arrangement of the components, and exact EM still
 trains it.
 
+**E6 for the additive wiring, measured (2026-10-31; `examples/factorial_inference.jl`, `.md`).**
+The model is $z = c + \sum_l k_l \delta_l + \varepsilon$ in 8 dimensions with $L \in \{4, 8, 12\}$ switches. Three
+E-steps feed the same closed-form M-step:
+- exact enumeration of the $2^L$ configurations;
+- the Mycelium star graph (a `LinearConstraintFactor` sum node with a `PriorFactor` per switch,
+  the other switches' mixtures collapsed to moments; it agrees with a vectorised copy to
+  $7\cdot10^{-13}$);
+- mean field.
+
+Started at the true parameters, at $L = 4$ all three fixed points are within 0.04 nats of the truth.
+At $L = 8$ and $12$, where the offsets overlap and the bits explain each other away, the two
+factorised posteriors converge 0.60–0.92 nats away, against 0.03–0.04 for exact EM. That is worse
+even than exact EM's best of 64 random starts (0.22–0.28). Their marginal errors are 0.09–0.17. The
+graph E-step is linear in $L$: 5 s for 64 fits at $L = 12$, against 474 s for exact EM. Learning under
+factorised beliefs is therefore measurably biased once the latent causes interact. Scaling the
+additive wiring needs structured beliefs (regions over switches, EP with cavities, or exact blocks),
+not more passes.
+
 Order: E1 and E4(a) first (each has an exact oracle and decides whether the building block and the
 diffusion reading are right), then E3 and E4(b) (the expressivity questions), then E2 (whether the
 Born joint is worth a belief type), E5 and E6.

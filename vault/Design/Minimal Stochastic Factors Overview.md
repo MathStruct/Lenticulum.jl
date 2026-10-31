@@ -4,7 +4,7 @@
 > what was measured, what three external reviews changed, and what is open. The mathematics is in
 > [[Minimal Stochastic Factors]]; this note only points into it and into the experiments.
 
-> Sources: original to this vault. code: `examples/measurement_factor.jl`, `examples/switching_factor_e1.jl`, `examples/switching_reverse_chain_e4a.jl`, `examples/switching_small_steps.jl`, `examples/composition_e3.jl`, `examples/switching_chain_e4b.jl`, `examples/chain_objective.jl`, `examples/hierarchy_e3b.jl`, `examples/minimal_stochastic_factors_checks.jl`
+> Sources: original to this vault. code: `examples/measurement_factor.jl`, `examples/switching_factor_e1.jl`, `examples/switching_reverse_chain_e4a.jl`, `examples/switching_small_steps.jl`, `examples/composition_e3.jl`, `examples/switching_chain_e4b.jl`, `examples/chain_objective.jl`, `examples/hierarchy_e3b.jl`, `examples/factorial_inference.jl`, `examples/minimal_stochastic_factors_checks.jl`
 
 ## The question
 
@@ -59,6 +59,7 @@ with no iterative denoising.
 | **E4(b)**: chains on two moons and a ring | a chain of $T \le 20$ steps with $K$ outcomes each scores like a flat $K$-component mixture (within 0.006 nats at $T = 5$, at most 0.10 better at $T = 20$); flat with 16 components (95 parameters) beats every chain (up to 1 185) | `examples/switching_chain_e4b.md` |
 | **Propositions 9, 10**: the objective, not the class | E3's additive model is a 4-step chain of 2-outcome kernels (marginal identical to $7\cdot10^{-15}$, 0.001 nats from the truth on the 16-mode grid); chains of the same kind trained by the diffusion bound score like flat mixtures with $K$ = 2 or 4 components (gaps 0.78–1.09) | `examples/chain_objective.md` |
 | **E3b**: a switch over sums, on 3 clusters of rotated 2 × 2 grids | the hierarchical wiring (29 parameters, exact EM) is 0.008 nats from the truth at 2 000 points and 0.091 at 150; a flat 12-mixture (71) is 0.016 and 0.996 away (it overfits at 150); one sum node stays 0.64–0.80 away | `examples/hierarchy_e3b.md` |
+| **E6, factorial inference**: exact vs Mycelium graph (collapsed BP) vs mean field, $L$ = 4, 8, 12 switches in 8-D | with 4 switches all are within 0.04 nats of the truth; with 8–12 overlapping switches the factorised E-steps converge 0.60–0.92 away even from the truth, exact EM 0.03–0.04; the graph E-step is ~100× faster at $L = 12$ | `examples/factorial_inference.md` |
 | checks behind the review corrections | the corrected inversion and Born claims, numerically | `examples/minimal_stochastic_factors_checks.jl` |
 
 Every experiment has a test in `test/` and runs in the top-level suite.
@@ -88,6 +89,14 @@ The full record is §13 of [[Minimal Stochastic Factors]].
   (Proposition 10), but the diffusion objective pins them to $K$ components (Proposition 9). They
   need an objective that learns the inference side, a hierarchical model with exact switch
   posteriors; E3's EM does this for one level.
+- **Structured beliefs in Mycelium.** Mycelium now runs the switch-and-sum wiring (mixture
+  inputs to linear factors are collapsed to moments), but factorised posteriors are biased by
+  0.6–0.9 nats once switches overlap (E6). Region beliefs over groups of switches, EP with
+  cavities, or exact blocks are the candidates.
+- **Structure learning.** Mycelium has no rules that add or remove variables, factors or edges:
+  graphs are frozen once built ([[Dynamic Graphs]]), and the only structure search is a Gaussian
+  edge-addition example ([[Finding a Factor Graph]]). For switch wirings the natural moves are
+  adding a switch or splitting a cluster, scored exactly by EM while the posterior is small.
 - **Composition that scales.** E3 shows that composition pays when the data have a product
   arrangement and switches feed a sum node, and exact EM makes it cheap to fit. The next questions
   are trees wider and deeper than E3b's (where the exact posterior over $J \cdot 2^L$ states must give
@@ -107,6 +116,7 @@ julia -t auto --project=. examples/composition_e3.jl                # about 4 mi
 julia -t auto --project=. examples/switching_chain_e4b.jl           # about 95 minutes on 8 threads
 julia -t auto --project=. examples/chain_objective.jl               # about 18 minutes on 8 threads
 julia -t auto --project=. examples/hierarchy_e3b.jl                 # under a minute on 8 threads
+julia -t auto --project=. examples/factorial_inference.jl           # about 10 minutes on 8 threads
 julia --project=. -e 'using Pkg; Pkg.test()'                       # includes the experiments' tests
 ```
 
