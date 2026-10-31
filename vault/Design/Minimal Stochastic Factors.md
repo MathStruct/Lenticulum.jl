@@ -779,6 +779,17 @@ factorised beliefs is therefore measurably biased once the latent causes interac
 additive wiring needs structured beliefs (regions over switches, EP with cavities, or exact blocks),
 not more passes.
 
+**Structure learning for switch wirings, measured (2026-10-31; `examples/structure_switches.jl`,
+`.md`).** The structure is $(J, L)$: $J$ clusters of $L$ switches. There are four moves (add or remove a
+switch, split or merge clusters), each warm-started from the current fit, refitted by exact EM and
+scored by BIC. Greedy search from $(1, 0)$ finds the generating structure on the 8-mode grid and on the
+tree, using 12 and 18 fits against 45 for the exhaustive grid. On the 16-mode grid it stops at the
+equivalent but larger $(2, 3)$, 9 parameters more and BIC 57 worse, because no single move reaches $(1, 4)$.
+On the ring it finds $(2, 2)$, two squares rotated by 45°. That is the most compact exact representation,
+which random starts miss (BIC 13 933 against 11 299), so greedy beats the exhaustive search. Every
+greedy model is within 0.005 nats of the truth. This is the first structure-changing learning rule
+here. It rebuilds models rather than mutating a Mycelium graph, and it relies on exact scores.
+
 Order: E1 and E4(a) first (each has an exact oracle and decides whether the building block and the
 diffusion reading are right), then E3 and E4(b) (the expressivity questions), then E2 (whether the
 Born joint is worth a belief type), E5 and E6.

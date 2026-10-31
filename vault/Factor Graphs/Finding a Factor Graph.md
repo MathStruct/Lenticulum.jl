@@ -37,7 +37,9 @@
    inference; a local energy term alone does not account for changed beliefs. See
    [[Dynamic Graphs]] §4, [[Bethe Free Energy]] and [[Loopy Message Passing]]. Our example
    rebuilds immutable graphs and performs forward additions only; deletion and warm starts
-   are future work.
+   are future work for it. A second search, over switch wirings (`examples/structure_switches.jl`,
+   [[Minimal Stochastic Factors]] §10), has both: it adds and removes switches and splits and merges
+   clusters, warm-starting each candidate from the current fit.
 
 Yedidia et al. Theorem 2 relates positive BP fixed points and interior stationary points of
 the constrained Bethe free energy in their discrete setting. It is not a convergence or
