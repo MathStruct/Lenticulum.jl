@@ -17,4 +17,8 @@ isdefined(@__MODULE__, :CompositionE3) ||
     r = M.run(:ring; ntrains = (400,), ntest = 500, Ks = (8,), starts = 8, iters = 600)
     @test gap(r, "additive") > 0.5             # no product structure: it does not
     @test gap(r, "additive") > gap(r, "flat") + 0.3
+    # exact EM for the additive wiring: monotone, and cheap restarts reach the optimum
+    c = M.compare_fitting(:grid3; n = 400, ntest = 500, starts = 4, em_starts = 64, iters = 200)
+    @test c.monotone
+    @test only(r.gap for r in c.rows if startswith(r.method, "EM, 64")) < 0.1
 end

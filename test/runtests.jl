@@ -1260,6 +1260,8 @@ include("switching_small_steps.jl")
 
 include("composition_e3.jl")
 
+include("switching_chain_e4b.jl")
+
 include("gradient_couplings.jl")
 
 include("lp018.jl")

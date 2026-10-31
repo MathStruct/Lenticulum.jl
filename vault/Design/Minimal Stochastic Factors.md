@@ -572,15 +572,16 @@ kernel from the schedule) is available for free and meets requirement 5. Two con
   Sampling alternates a measurement ($k_t$ from its Born-like gate) and a linear-Gaussian update:
   iterative refinement with no network anywhere. The generated distribution is a mixture over paths
   $(k_1, \dots, k_T)$, i.e. a deep Gaussian mixture or a switching linear dynamical system run
-  backwards in time (known model classes; pointers to check). The hypothesis that makes this
-  interesting, **expected, not shown**: because small steps make each reverse conditional nearly
+  backwards in time (known model classes; pointers to check). The hypothesis that made this
+  interesting was that, because small steps make each reverse conditional nearly
   Gaussian with a smooth mean, few outcomes per step ($K_t = 2$ or $3$) suffice even when the data
-  need many components, so $T$ steps of $K_t$ outcomes compete with one factor of
-  $\prod_t K_t$ components at a fraction of the parameters. **Tested and refuted in its strong form**
-  (§10, the small-step test): with conditional per-step fits, $K_t$ = the number of components
+  need many components, and $T$ steps of $K_t$ outcomes compete with one factor of
+  $\prod_t K_t$ components at a fraction of the parameters. **Tested and refuted** (§10). In the
+  small-step test, with conditional per-step fits, $K_t$ = the number of components
   matches the truth up to estimation cost, while fewer outcomes keep a capacity gap that a tenfold
   smaller step barely shrinks. Small steps make the conditional unimodal, but its mean (the score
-  field) still needs one linear piece per component.
+  field) still needs one linear piece per component. In E4(b), on two moons and a ring, a chain
+  with $K$ outcomes per step scores like a flat $K$-component mixture whatever its depth.
 
 **Directed kernels, not potentials (Gemini's review, §13).** The reverse step must be a
 *normalised conditional*,
@@ -685,6 +686,25 @@ normaliser $\bar Z$ (checked to integrate to one), fail on every data set by 0.6
 constraints on one variable intersect, while the additive wiring adds. Composition is a prior on
 how the components are arranged; it pays when that prior is right, and only with sum nodes fed
 by switches. Each setting was fitted from 16 random starts, of which 1 to 5 reached the best.
+Under the additive wiring the configuration posterior is exact and the M-step is closed form, a
+weighted least squares (`em_additive`). Exact EM gets stuck from more starts than Adam does (6–14 %
+reach the best, against 12–31 %), but a start costs 1–2 % as much, so 256 EM starts find the same
+optima 4–5 times faster at $n = 2000$.
+
+**E4(b), measured (2026-10-31; `examples/switching_chain_e4b.jl`, `.md`).** The data are two moons
+and a ring, with exact densities by quadrature, so no finite mixture is exact. Chains of
+$T \in \{5, 10, 20\}$ conditional per-step switching kernels with $K \in \{2, 3, 4\}$ outcomes, scored by
+an importance-weighted bound with 64 paths, **score like a flat mixture with $K$ components**: within
+0.006 nats at $T = 5$, at most 0.10 better at $T = 20$, and never close to a flat mixture with a few
+more components. The best chain is 0.31–0.34 nats from the truth with 300–1 185 parameters; flat
+$K = 16$ is within 0.02 with 95. A conjectured explanation: a $K$-outcome kernel's mean is a
+softmax-gated sum of $K$ linear maps, which is the form of a $K$-component mixture's score, so small
+steps give a diffusion whose score at each time is that of a $K$-mixture. Proposition 8's exact
+reverse of the best $K$-mixture is in the family, and the per-step fits find it rather than
+exploiting time-varying gates. With the small-step test this closes the diffusion hypothesis of §8
+for this factor: depth in time does not substitute for outcomes. (A first run with 3 EM restarts
+left the flat $K = 3$ fit on moons at a local optimum and made the chains look 0.11 better; with 30
+restarts the difference vanished.)
 
 Order: E1 and E4(a) first (each has an exact oracle and decides whether the building block and the
 diffusion reading are right), then E3 and E4(b) (the expressivity questions), then E2 (whether the
@@ -722,8 +742,10 @@ switching linear kernel normalised by $Z_t(z_t)$ (§8), not this potential. The 
   impossible, 6′.2).
 - The size of the advantage of $T$ small switching steps over one large mixture (E4(b)): a bound in
   terms of the data's smoothness would turn the diffusion hypothesis of §8 into a theorem. Its
-  strong form (fewer outcomes than components) failed the small-step test (§10); what remains is
-  whether a shared chain's parameter count beats a flat mixture's on structured data.
+  strong form (fewer outcomes than components) failed the small-step test (§10), and on two moons
+  and a ring a chain with $K$ outcomes per step scores like a flat $K$-mixture (E4(b)). Open: a proof
+  of that observation (that small-step chains of $K$-outcome kernels cannot beat the best $K$-mixture
+  by more than a vanishing amount), and whether any time-varying gating escapes it.
 - The learning bias of collapsed (EP) beliefs in hybrid graphs (E6).
 - Hard constraints with outcome-dependent rank: a reference measure under which entropies of
   different-dimensional solution sets compare (§5).

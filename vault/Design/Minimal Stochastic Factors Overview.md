@@ -4,7 +4,7 @@
 > what was measured, what three external reviews changed, and what is open. The mathematics is in
 > [[Minimal Stochastic Factors]]; this note only points into it and into the experiments.
 
-> Sources: original to this vault. code: `examples/measurement_factor.jl`, `examples/switching_factor_e1.jl`, `examples/switching_reverse_chain_e4a.jl`, `examples/switching_small_steps.jl`, `examples/composition_e3.jl`, `examples/minimal_stochastic_factors_checks.jl`
+> Sources: original to this vault. code: `examples/measurement_factor.jl`, `examples/switching_factor_e1.jl`, `examples/switching_reverse_chain_e4a.jl`, `examples/switching_small_steps.jl`, `examples/composition_e3.jl`, `examples/switching_chain_e4b.jl`, `examples/minimal_stochastic_factors_checks.jl`
 
 ## The question
 
@@ -38,7 +38,9 @@ with no iterative denoising.
    kernels are switching kernels whose parameters follow from the noise schedule (Proposition 8),
    so a shared, time-conditioned parameterisation comes for free (§8). Small steps do **not** let
   fewer outcomes than components suffice: each step needs one outcome per linear piece of the
-  score field (the small-step test).
+  score field (the small-step test). On data that are not a mixture, a chain with $K$ outcomes per
+  step scores like a flat $K$-component mixture whatever its depth (E4(b)): depth in time does not
+  substitute for outcomes.
 
 ## What was measured
 
@@ -50,6 +52,8 @@ with no iterative denoising.
 | **E4(a)**: reverse chain on a 3-component mixture | exact kernels reproduce $\log q_0(z_0)$ on every path to $10^{-14}$; the shared chain (17 parameters) reaches −2.123 vs the truth's −2.108; linear-Gaussian steps fail; two outcomes per small step do *not* yet suffice | `examples/switching_reverse_chain_e4a.md` |
 | **small-step test**: conditional per-step fits, $T$ = 10 to 100 | three outcomes per step match the truth up to the estimation cost of fitting $T$ kernels; two outcomes keep a gap of about 0.44 nats however small the steps, and their samples level off at 3× the energy-distance floor | `examples/switching_small_steps.md` |
 | **E3**: composition vs flat mixture on product grids (8, 16 modes) and a ring | on the grids, additive composition (14–17 parameters) is within 0.005 nats of the truth and, at 150 points, within 0.04 where the best flat mixture is 0.36–0.48 away; on the ring it is 0.89 away; rank-one constraints on a shared variable fail everywhere | `examples/composition_e3.md` |
+| **E3, fitting** | exact EM for the additive wiring (closed-form M-step): monotone; fewer starts reach the optimum than with Adam, but each costs 1–2 % as much, so 256 EM starts find the same optima 4–5× faster | `examples/composition_e3.md` |
+| **E4(b)**: chains on two moons and a ring | a chain of $T \le 20$ steps with $K$ outcomes each scores like a flat $K$-component mixture (within 0.006 nats at $T = 5$, at most 0.10 better at $T = 20$); flat with 16 components (95 parameters) beats every chain (up to 1 185) | `examples/switching_chain_e4b.md` |
 | checks behind the review corrections | the corrected inversion and Born claims, numerically | `examples/minimal_stochastic_factors_checks.jl` |
 
 Every experiment has a test in `test/` and runs in the top-level suite.
@@ -75,13 +79,13 @@ The full record is §13 of [[Minimal Stochastic Factors]].
 
 ## What is open
 
-- **Where depth could still pay.** The small-step test refuted "few outcomes per small step"
-  for flat mixture data. E3 shows that composition pays on product-structured data. Whether a
-  diffusion chain of switching steps exploits such structure, on data that are not a finite
-  mixture (two moons, a ring), is E4(b).
-- **Learning composed models.** E3's fits reach the optimum from only 1 to 5 of 16 random starts.
-  An initialisation or an EM for the additive wiring (its posterior over the $2^L$ configurations
-  is exact) would make composition usable beyond toys.
+- **Why chains are pinned to $K$ components.** E4(b) suggests that a small-step chain of
+  $K$-outcome kernels cannot beat the best $K$-component mixture by more than a little. The
+  conjectured reason, that a $K$-outcome kernel's mean has the form of a $K$-mixture's score, is
+  not proved.
+- **Composition that scales.** E3 shows that composition pays when the data have a product
+  arrangement and switches feed a sum node, and exact EM makes it cheap to fit. The next questions
+  are deeper wirings (sums of sums, hierarchies) and real data with such structure.
 - **The Born arm** (E2) and the density question of §6 for products of positive semidefinite
   quadratics in two or more dimensions.
 - **Learning through the graph** rather than by direct maximum likelihood, and the bias of
@@ -93,7 +97,8 @@ The full record is §13 of [[Minimal Stochastic Factors]].
 julia --project=. examples/switching_factor_e1.jl
 julia -t auto --project=. examples/switching_reverse_chain_e4a.jl   # about 9 minutes on 8 threads
 julia -t auto --project=. examples/switching_small_steps.jl         # about 57 minutes on 8 threads
-julia -t auto --project=. examples/composition_e3.jl                # about 3 minutes on 8 threads
+julia -t auto --project=. examples/composition_e3.jl                # about 4 minutes on 8 threads
+julia -t auto --project=. examples/switching_chain_e4b.jl           # about 95 minutes on 8 threads
 julia --project=. -e 'using Pkg; Pkg.test()'                       # includes the experiments' tests
 ```
 

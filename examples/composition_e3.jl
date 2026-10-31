@@ -87,6 +87,76 @@ function additive_init(L, X, rng)
     return [pick(); reduce(vcat, [pick() - pick() for _ in 1:L]); zeros(L); log(s); 0.0; log(s)]
 end
 
+"""
+Exact EM for the additive model. The posterior over the 2^L configurations is exact; the means
+W φ_k (φ_k = [1; k], W = [c δ_1 … δ_L]) are linear in the parameters, so the M-step is a weighted
+least squares for W, then the shared covariance and the bit probabilities in closed form.
+Starts from θ in the parameterisation of `additive_logpdf`; returns θ and the training
+log-likelihood per iteration.
+"""
+function em_additive(L, X, θ; iters = 500, tol = 1e-9, floor = 1e-6)
+    n = size(X, 1)
+    cfgs = [digits(i; base = 2, pad = L) for i in 0:2^L-1]
+    Φ = reduce(hcat, [[1.0; k] for k in cfgs])                       # (L+1) × 2^L
+    Kc = reduce(hcat, cfgs)                                          # L × 2^L
+    W = reshape([θ[1:2]; θ[3:2L+2]], 2, L + 1)
+    p = 1 ./ (1 .+ exp.(-θ[2L+3:3L+2]))
+    l11, l21, l22 = chol2(θ[3L+3:3L+5]); Lc = [l11 0; l21 l22]; Σ = Lc * Lc'
+    Xt = Matrix(X')
+    lls = Float64[]
+    for it in 1:iters
+        M = W * Φ
+        lw = vec(log.(p)' * Kc .+ log1p.(-p)' * (1 .- Kc))
+        C = cholesky(Symmetric(Σ)); U = C.L \ Xt; V = C.L \ M
+        Lg = lw' .- (2log(2π) + logdet(C)) / 2 .- (sum(abs2, U; dims = 1)' .- 2 * (U' * V) .+ sum(abs2, V; dims = 1)) ./ 2
+        mx = maximum(Lg; dims = 2); s = sum(exp.(Lg .- mx); dims = 2)
+        push!(lls, sum(mx .+ log.(s)) / n)
+        it > 1 && lls[end] - lls[end-1] < tol && break
+        R = exp.(Lg .- mx) ./ s
+        Rk = vec(sum(R; dims = 1))
+        W = (Xt * R * Φ') / (Φ * Diagonal(Rk) * Φ')
+        M = W * Φ
+        Σ = (Xt * Xt' - M * (R' * X) - (Xt * R) * M' + M * Diagonal(Rk) * M') / n
+        Σ = Matrix(Symmetric(Σ)) + floor * I
+        p = clamp.(Kc * Rk ./ n, 1e-9, 1 - 1e-9)
+    end
+    Cf = cholesky(Symmetric(Σ)).L
+    θ = [vec(W); log.(p ./ (1 .- p)); log(Cf[1, 1]); Cf[2, 1]; log(Cf[2, 2])]
+    return θ, lls
+end
+
+"""
+Adam (the `fit` above) against exact EM. Both start from the same `starts` random starts, and EM
+also from `em_starts − starts` more, since an EM start costs a fraction of an Adam start. Reports
+how many of the shared starts reach the best training log-likelihood found by either method, the
+held-out gap of each method's best, and wall time. EM's log-likelihood must never decrease.
+"""
+function compare_fitting(name; n = 2000, ntest = 2000, starts = 16, em_starts = 256, iters = 1500, em_iters = 500, seed = 1)
+    d = DATA[name]; L = d.L
+    X = E.sample_gmm(d.π, d.μ, d.Σ, n, Xoshiro(10 + n))
+    Xte = E.sample_gmm(d.π, d.μ, d.Σ, ntest, Xoshiro(2))
+    truth = mean(flat_logpdf((d.π, d.μ, d.Σ), Xte))
+    ta = @elapsed (θa, _, lla) = fit(additive_logpdf, additive_init, L, X; starts, iters, seed)
+    inits = [additive_init(L, X, Xoshiro(seed + 1000s)) for s in 1:em_starts]   # the first `starts` are `fit`'s
+    te = @elapsed res = fetch.([Threads.@spawn em_additive(L, X, θ0; iters = em_iters) for θ0 in inits])
+    lle = [mean(additive_logpdf(r[1], L, X)) for r in res]
+    best = max(maximum(lla), maximum(lle))
+    hit(ll) = count(>(best - 1e-3), ll)
+    gap(θ) = truth - mean(additive_logpdf(θ, L, Xte))
+    monotone = all(all(diff(r[2]) .> -1e-9) for r in res)
+    its = sort(length.(getindex.(res, 2)))
+    em_best = argmax(lle)
+    rows = [(; method = "Adam, $starts starts", hit = hit(lla), of = starts, gap = gap(θa), time = ta),
+            (; method = "EM, the same $starts", hit = hit(lle[1:starts]), of = starts, gap = gap(res[argmax(lle[1:starts])][1]), time = te * starts / em_starts),
+            (; method = "EM, $em_starts starts", hit = hit(lle), of = em_starts, gap = gap(res[em_best][1]), time = te)]
+    @printf("%s, n = %d: best training log p %.4f\n", name, n, best)
+    for r in rows
+        @printf("  %-18s %3d/%-3d starts within 1e-3 of the best   held-out gap %.3f   %6.1f s\n", r.method, r.hit, r.of, r.gap, r.time)
+    end
+    @printf("  EM iterations to convergence: median %d, max %d; log-likelihood monotone: %s\n", its[cld(end, 2)], its[end], monotone)
+    return (; name, n, truth, best, rows, monotone)
+end
+
 # --- rank-one switching constraints on a shared z (product of experts) ---------------------------
 
 nrank1(L) = 5L + 5                 # effective; the vector below carries 6L + 5 (one scale per factor is free)
@@ -195,7 +265,7 @@ function rank1_mass(θ, L; h = 0.05, R = 12.0)
     return sum(exp, rank1_logpdf(θ, L, hcat(X, Y))) * h^2
 end
 
-main() = [run(name) for name in keys(DATA)]
+main() = ([run(name) for name in keys(DATA)], [compare_fitting(name; n) for name in (:grid3, :grid4) for n in (150, 2000)])
 
 end # module
 

@@ -1,6 +1,6 @@
 # E3: when composition beats a flat mixture
 
-Run `julia -t auto --project=. examples/composition_e3.jl` (about 3 minutes on 8 threads); the test is
+Run `julia -t auto --project=. examples/composition_e3.jl` (about 4 minutes on 8 threads); the test is
 `test/composition_e3.jl`. Experiment E3 of the design note
 [`Minimal Stochastic Factors`](../vault/Design/Minimal%20Stochastic%20Factors.md) (§8, §10).
 
@@ -63,6 +63,40 @@ Flat $K = 2$, omitted from the table, is worst everywhere: its gap is 0.73 to 1.
 fits reached the best training likelihood from 1 to 5 of their 16 starts, so the random-start
 landscape has many local optima.
 
+## Fitting: Adam against exact EM
+
+Under the additive wiring, the posterior over the $2^L$ configurations is exact, and the means
+$W\varphi_k$, with $\varphi_k = [1; k]$ and $W = [c\; \delta_1 \dots \delta_L]$, are linear in the parameters. So
+EM is exact and its M-step is closed form: a weighted least squares for $W$, then the shared
+covariance and the bit probabilities (`em_additive`). `compare_fitting` gives EM the same random
+starts as Adam, plus 240 more. The "EM, the same 16" time is pro-rated from the 256-start run.
+
+| data | $n$ | method | starts at the best | held-out gap | wall time |
+|---|---|---|---|---|---|
+| `grid3` | 150 | Adam, 1 500 iterations | 4/16 | 0.040 | 1.6 s |
+| | | EM, the same starts | 0/16 | 0.706 | 0.1 s |
+| | | EM | 27/256 | 0.040 | 1.3 s |
+| `grid3` | 2 000 | Adam | 5/16 | 0.003 | 11.0 s |
+| | | EM, the same starts | 4/16 | 0.003 | 0.1 s |
+| | | EM | 37/256 | 0.003 | 2.3 s |
+| `grid4` | 150 | Adam | 2/16 | 0.043 | 1.8 s |
+| | | EM, the same starts | 0/16 | 0.480 | 0.0 s |
+| | | EM | 16/256 | 0.043 | 0.5 s |
+| `grid4` | 2 000 | Adam | 3/16 | 0.005 | 26.9 s |
+| | | EM, the same starts | 1/16 | 0.005 | 0.4 s |
+| | | EM | 23/256 | 0.005 | 6.5 s |
+
+- **EM is monotone and converges fast.** The log-likelihood never decreased in any run. The
+  median start converged in 48 to 114 iterations.
+- **Per start, EM gets stuck more often than Adam.** It reaches the best optimum from 6 to 14 % of
+  starts, against 12 to 31 % for Adam.
+- **EM is still the better fitter.** A start costs 1 to 2 % of an Adam start, so 256 starts find the
+  same optimum faster (4 to 5 times faster at $n = 2000$). With EM, random restarts are a
+  workable answer to the local optima.
+- **Annealing did not help.** In exploratory runs that were not kept, deterministic annealing of
+  the E-step (Ueda and Nakano) collapsed to the symmetric fixed point where all $\delta_l$ are
+  equal, and perturbing the offsets during annealing did not reach the optimum either.
+
 ## What it shows
 
 1. **Composition wins on product structure, and the advantage is in sample size.** The additive
@@ -88,5 +122,5 @@ landscape has many local optima.
 - These are synthetic data whose structure exactly matches one model class.
 - Each setting has one seed and one draw of the data.
 - The composed models are fitted from random starts, and many starts end in local optima. The
-  table reports the best of 16, chosen on the training set.
+  table reports the best of 16, chosen on the training set. Exact EM reaches the same optima.
 - The models are fitted by direct maximum likelihood, not by message passing in a Mycelium graph.

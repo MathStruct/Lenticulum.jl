@@ -45,19 +45,24 @@ function unpack(θ, K)
 end
 cond_ll(θ, K, X) = sum(E.kernel_logpdf(unpack(θ, K), X[i, 1:2], X[i, 3:4]) for i in axes(X, 1)) / size(X, 1)
 
-"Pairs (z_{t-1}, z_t) at step t, from fresh draws of the true mixture."
-function step_pairs(sch, t, n, rng)
-    Z0 = E.sample_gmm(E.PI, E.MU, E.SIG, n, rng)
+"Pairs (z_{t-1}, z_t) at step t from data rows `Z0`, with fresh forward noise."
+function step_pairs(sch, t, Z0::AbstractMatrix, rng)
+    n = size(Z0, 1)
     a = sch.α[t]                                     # z_{t-1} = α_{t-1} z_0 + σ_{t-1} ε
     Zp = a .* Z0 .+ sqrt(1 - a^2) .* randn(rng, n, 2)
     Zt = sqrt(1 - sch.βs[t]) .* Zp .+ sqrt(sch.βs[t]) .* randn(rng, n, 2)
     return hcat(Zp, Zt)
 end
+"Pairs at step t from fresh draws of the true mixture."
+step_pairs(sch, t, n::Integer, rng) = step_pairs(sch, t, E.sample_gmm(E.PI, E.MU, E.SIG, n, rng), rng)
 
-"One step: joint EM, then conditional maximum likelihood by Adam."
-function fit_step(sch, t, K; n = 6000, iters = 120, lr = 0.02)
-    X = step_pairs(sch, t, n, Xoshiro(100t + K))
-    w, M, V = E.em_gmm(X, K; iters = 100, restarts = 2, seed = 7t)
+"""
+A directed switching kernel with `K` outcomes for the pairs `X` (rows z_{t-1}, z_t): joint EM,
+then conditional maximum likelihood by Adam. Returns the kernel and the conditional
+log-likelihood per pair before and after the refit.
+"""
+function fit_pairs(X, K; iters = 120, lr = 0.02, seed = 1)
+    w, M, V = E.em_gmm(X, K; iters = 100, restarts = 2, seed)
     θ = pack(E.kernel_from_joint(w, M, V))
     joint_ll = cond_ll(θ, K, X)
     m, v = zero(θ), zero(θ)
@@ -68,6 +73,9 @@ function fit_step(sch, t, K; n = 6000, iters = 120, lr = 0.02)
     end
     return unpack(θ, K), joint_ll, cond_ll(θ, K, X)
 end
+
+"One step on fresh pairs from the true mixture."
+fit_step(sch, t, K; n = 6000, iters = 120, lr = 0.02) = fit_pairs(step_pairs(sch, t, n, Xoshiro(100t + K)), K; iters, lr, seed = 7t)
 
 function fit_chain(sch, K; kw...)
     tasks = [Threads.@spawn fit_step(sch, t, K; kw...) for t in 1:sch.T]
