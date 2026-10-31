@@ -574,7 +574,7 @@ kernel from the schedule) is available for free and meets requirement 5. Two con
   interesting, **expected, not shown**: because small steps make each reverse conditional nearly
   Gaussian with a smooth mean, few outcomes per step ($K_t = 2$ or $3$) suffice even when the data
   need many components, so $T$ steps of $K_t$ outcomes compete with one factor of
-  $\prod_t K_t$ components at a fraction of the parameters.
+  $\prod_t K_t$ components at a fraction of the parameters. E4(a) gives weak, mixed evidence on this (§10).
 
 **Directed kernels, not potentials (Gemini's review, §13).** The reverse step must be a
 *normalised conditional*,
@@ -644,6 +644,15 @@ two-component Gaussian mixture's (with 6 parameters against 11), where the spect
 −0.939 and one Gaussian −0.823. Message passing in a Mycelium graph reproduces the direct conditional
 to $5\cdot10^{-15}$, which checks §3's messages with their per-outcome constants. Two of four starts reach
 the optimum. The easy case: the truth is in the class.
+
+**E4(a), measured (2026-10-31; `examples/switching_reverse_chain_e4a.jl`, `.md`).** On a
+three-component mixture with 20 steps, Proposition 8's exact kernels make every path's bound equal
+$\log q_0(z_0)$ to $1.6\cdot10^{-14}$; the shared, time-conditioned chain (17 parameters, trained by the
+per-step objective) reaches a held-out bound of −2.123 against the truth's −2.108 and recovers the
+mixture, where free per-step kernels with three outcomes (880 parameters) reach −2.201; linear-Gaussian
+steps fail (−3.58) at any step size. With two outcomes per step, 100 small steps improve the samples
+over 20 large ones (energy distance 0.033 → 0.019, floor 0.006) but do not reach the floor, and the
+bound worsens: the hypothesis of §8 is **not established** by this run.
 
 Order: E1 and E4(a) first (each has an exact oracle and decides whether the building block and the
 diffusion reading are right), then E3 and E4(b) (the expressivity questions), then E2 (whether the

@@ -1254,6 +1254,8 @@ include("measurement_factor.jl")
 
 include("switching_factor_e1.jl")
 
+include("switching_reverse_chain_e4a.jl")
+
 include("gradient_couplings.jl")
 
 include("lp018.jl")
