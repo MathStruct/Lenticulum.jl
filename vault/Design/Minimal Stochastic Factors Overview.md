@@ -4,7 +4,7 @@
 > what was measured, what three external reviews changed, and what is open. The mathematics is in
 > [[Minimal Stochastic Factors]]; this note only points into it and into the experiments.
 
-> Sources: original to this vault. code: `examples/measurement_factor.jl`, `examples/switching_factor_e1.jl`, `examples/switching_reverse_chain_e4a.jl`, `examples/switching_small_steps.jl`, `examples/composition_e3.jl`, `examples/switching_chain_e4b.jl`, `examples/minimal_stochastic_factors_checks.jl`
+> Sources: original to this vault. code: `examples/measurement_factor.jl`, `examples/switching_factor_e1.jl`, `examples/switching_reverse_chain_e4a.jl`, `examples/switching_small_steps.jl`, `examples/composition_e3.jl`, `examples/switching_chain_e4b.jl`, `examples/chain_objective.jl`, `examples/minimal_stochastic_factors_checks.jl`
 
 ## The question
 
@@ -37,10 +37,12 @@ with no iterative denoising.
 5. **A diffusion is a chain of directed switching kernels.** For mixture data the exact reverse
    kernels are switching kernels whose parameters follow from the noise schedule (Proposition 8),
    so a shared, time-conditioned parameterisation comes for free (§8). Small steps do **not** let
-  fewer outcomes than components suffice: each step needs one outcome per linear piece of the
-  score field (the small-step test). On data that are not a mixture, a chain with $K$ outcomes per
-  step scores like a flat $K$-component mixture whatever its depth (E4(b)): depth in time does not
-  substitute for outcomes.
+   fewer outcomes than components suffice: each step needs one outcome per linear piece of the
+   score field (the small-step test). On data that are not a mixture, a chain with $K$ outcomes per
+   step scores like a flat $K$-component mixture whatever its depth (E4(b)): depth in time does not
+   substitute for outcomes. The cause is the objective, not the class: a chain of 2-outcome
+   kernels can be E3's 16-mode grid exactly (Proposition 10), but the diffusion bound with a fixed
+   forward process makes each step follow the data's noised marginals (Proposition 9).
 
 ## What was measured
 
@@ -54,6 +56,7 @@ with no iterative denoising.
 | **E3**: composition vs flat mixture on product grids (8, 16 modes) and a ring | on the grids, additive composition (14–17 parameters) is within 0.005 nats of the truth and, at 150 points, within 0.04 where the best flat mixture is 0.36–0.48 away; on the ring it is 0.89 away; rank-one constraints on a shared variable fail everywhere | `examples/composition_e3.md` |
 | **E3, fitting** | exact EM for the additive wiring (closed-form M-step): monotone; fewer starts reach the optimum than with Adam, but each costs 1–2 % as much, so 256 EM starts find the same optima 4–5× faster | `examples/composition_e3.md` |
 | **E4(b)**: chains on two moons and a ring | a chain of $T \le 20$ steps with $K$ outcomes each scores like a flat $K$-component mixture (within 0.006 nats at $T = 5$, at most 0.10 better at $T = 20$); flat with 16 components (95 parameters) beats every chain (up to 1 185) | `examples/switching_chain_e4b.md` |
+| **Propositions 9, 10**: the objective, not the class | E3's additive model is a 4-step chain of 2-outcome kernels (marginal identical to $7\cdot10^{-15}$, 0.001 nats from the truth on the 16-mode grid); chains of the same kind trained by the diffusion bound score like flat mixtures with $K$ = 2 or 4 components (gaps 0.78–1.09) | `examples/chain_objective.md` |
 | checks behind the review corrections | the corrected inversion and Born claims, numerically | `examples/minimal_stochastic_factors_checks.jl` |
 
 Every experiment has a test in `test/` and runs in the top-level suite.
@@ -79,10 +82,10 @@ The full record is §13 of [[Minimal Stochastic Factors]].
 
 ## What is open
 
-- **Why chains are pinned to $K$ components.** E4(b) suggests that a small-step chain of
-  $K$-outcome kernels cannot beat the best $K$-component mixture by more than a little. The
-  conjectured reason, that a $K$-outcome kernel's mean has the form of a $K$-mixture's score, is
-  not proved.
+- **Training compositional chains.** Chains of few-outcome kernels can represent product grids
+  (Proposition 10), but the diffusion objective pins them to $K$ components (Proposition 9). They
+  need an objective that learns the inference side, a hierarchical model with exact switch
+  posteriors; E3's EM does this for one level.
 - **Composition that scales.** E3 shows that composition pays when the data have a product
   arrangement and switches feed a sum node, and exact EM makes it cheap to fit. The next questions
   are deeper wirings (sums of sums, hierarchies) and real data with such structure.
@@ -99,6 +102,7 @@ julia -t auto --project=. examples/switching_reverse_chain_e4a.jl   # about 9 mi
 julia -t auto --project=. examples/switching_small_steps.jl         # about 57 minutes on 8 threads
 julia -t auto --project=. examples/composition_e3.jl                # about 4 minutes on 8 threads
 julia -t auto --project=. examples/switching_chain_e4b.jl           # about 95 minutes on 8 threads
+julia -t auto --project=. examples/chain_objective.jl               # about 18 minutes on 8 threads
 julia --project=. -e 'using Pkg; Pkg.test()'                       # includes the experiments' tests
 ```
 

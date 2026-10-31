@@ -14,9 +14,9 @@
 > switching factors with a fresh outcome per step, which is a deep Gaussian mixture (§8).
 > Branch `experiment-qm`; nothing here is in the package yet.
 
-> Sources: original to this vault (design and analysis; numerical checks in `examples/minimal_stochastic_factors_checks.jl`). Definitions from [[Scalar and Multivariate Energy]] (§3 the multivariate statistical game, §4 the chain rule, §8 the two levels); [[Bethe Free Energy]]; Yedidia, Freeman & Weiss, *Constructing free-energy approximations and generalized belief propagation algorithms*, IEEE Trans. Inf. Theory 51(7), 2005 (Bethe stationary points are BP fixed points). Conditional-Gaussian models: Lauritzen & Wermuth, *Graphical Models for Associations between Variables, some of which are Qualitative and some Quantitative*, Ann. Statist. 17(1), 1989; Lauritzen, *Propagation of Probabilities, Means, and Variances in Mixed Graphical Association Models*, JASA 87(420), 1992. Born machines: Han et al., *Unsupervised Generative Modeling Using Matrix Product States*, Phys. Rev. X 8, 2018; Cheng, Chen & Wang, *Information Perspective to Probabilistic Modeling: Boltzmann Machines versus Born Machines*, Entropy 20(8), 2018. Squared models: Loconte et al., *Subtractive Mixture Models via Squaring: Representation and Learning*, arXiv:2310.00724; Marteau-Ferey, Bach & Rudi, *Non-parametric Models for Non-negative Functions*, arXiv:2007.03926; Tsuchida, Ong & Sejdinovic, *Squared Neural Families: A New Class of Tractable Density Models*, arXiv:2305.13552. Deep mixtures: Viroli & McLachlan, *Deep Gaussian Mixture Models*, Stat. Comput. 29(1), 2019. Mixture diffusion: Shah, Chen & Klivans, *Learning Mixtures of Gaussians Using the DDPM Objective*, arXiv:2307.01178. Gaussian sums: Sorenson & Alspach, *Recursive Bayesian Estimation Using Gaussian Sums*, Automatica 7(4), 1971. Smoothing and switching models: Rauch, Tung & Striebel, *Maximum likelihood estimates of linear dynamic systems*, AIAA J. 3(8), 1965; Ghahramani & Hinton, *Variational Learning for Switching State-Space Models*, Neural Comput. 12(4), 2000. Sums of squares: Blekherman, *Nonnegative Polynomials and Sums of Squares*, J. Amer. Math. Soc. 25(3), 2012. Skew-normal closure: Arellano-Valle & Azzalini, *On the Unification of Families of Skew-normal Distributions*, Scand. J. Statist. 33(3), 2006. All of these were checked against Crossref or arXiv (2026-10-31), for existence and metadata only, not for the specific results attributed to them. Pointers **not yet checked**: Minka (2001) on expectation propagation; van den Oord & Schrauwen (2014) on deep Gaussian mixtures; Naimark's dilation theorem; Arnold, Castillo & Sarabia on conditionally specified distributions. code: `examples/measurement_factor.jl` (the spectral baseline of §7)
+> Sources: original to this vault (design and analysis; numerical checks in `examples/minimal_stochastic_factors_checks.jl`). Definitions from [[Scalar and Multivariate Energy]] (§3 the multivariate statistical game, §4 the chain rule, §8 the two levels); [[Bethe Free Energy]]; Yedidia, Freeman & Weiss, *Constructing free-energy approximations and generalized belief propagation algorithms*, IEEE Trans. Inf. Theory 51(7), 2005 (Bethe stationary points are BP fixed points). Conditional-Gaussian models: Lauritzen & Wermuth, *Graphical Models for Associations between Variables, some of which are Qualitative and some Quantitative*, Ann. Statist. 17(1), 1989; Lauritzen, *Propagation of Probabilities, Means, and Variances in Mixed Graphical Association Models*, JASA 87(420), 1992. Born machines: Han et al., *Unsupervised Generative Modeling Using Matrix Product States*, Phys. Rev. X 8, 2018; Cheng, Chen & Wang, *Information Perspective to Probabilistic Modeling: Boltzmann Machines versus Born Machines*, Entropy 20(8), 2018. Squared models: Loconte et al., *Subtractive Mixture Models via Squaring: Representation and Learning*, arXiv:2310.00724; Marteau-Ferey, Bach & Rudi, *Non-parametric Models for Non-negative Functions*, arXiv:2007.03926; Tsuchida, Ong & Sejdinovic, *Squared Neural Families: A New Class of Tractable Density Models*, arXiv:2305.13552. Deep mixtures: Viroli & McLachlan, *Deep Gaussian Mixture Models*, Stat. Comput. 29(1), 2019. Mixture diffusion: Shah, Chen & Klivans, *Learning Mixtures of Gaussians Using the DDPM Objective*, arXiv:2307.01178. Gaussian sums: Sorenson & Alspach, *Recursive Bayesian Estimation Using Gaussian Sums*, Automatica 7(4), 1971. Smoothing and switching models: Rauch, Tung & Striebel, *Maximum likelihood estimates of linear dynamic systems*, AIAA J. 3(8), 1965; Ghahramani & Hinton, *Variational Learning for Switching State-Space Models*, Neural Comput. 12(4), 2000. Sums of squares: Blekherman, *Nonnegative Polynomials and Sums of Squares*, J. Amer. Math. Soc. 25(3), 2012. Skew-normal closure: Arellano-Valle & Azzalini, *On the Unification of Families of Skew-normal Distributions*, Scand. J. Statist. 33(3), 2006. All of these were checked against Crossref or arXiv (2026-10-31), for existence and metadata only, not for the specific results attributed to them. Pointers **not yet checked**: Minka (2001) on expectation propagation; van den Oord & Schrauwen (2014) on deep Gaussian mixtures; Naimark's dilation theorem; Arnold, Castillo & Sarabia on conditionally specified distributions. Diffusion evidence bound: Ho, Jain & Abbeel, *Denoising Diffusion Probabilistic Models*, NeurIPS 2020, §2 (the bound as a sum of KL divergences, there conditioned on $z_0$; Proposition 9 is the unconditioned variant). code: `examples/measurement_factor.jl` (the spectral baseline of §7)
 >
-> Bibliography: [[Bibliography#^yedidia2005bethe|Yedidia et al. 2005]] · [[Bibliography#^lauritzen1989graphical|Lauritzen & Wermuth 1989]] · [[Bibliography#^lauritzen1996graphical|Lauritzen 1996]] · [[Bibliography#^lauritzen1992propagation|Lauritzen 1992]] · [[Bibliography#^han2018unsupervised|Han et al. 2018]] · [[Bibliography#^cheng2018information|Cheng et al. 2018]] · [[Bibliography#^loconte2023subtractive|Loconte et al. 2023]] · [[Bibliography#^marteauferey2020nonnegative|Marteau-Ferey et al. 2020]] · [[Bibliography#^tsuchida2023squared|Tsuchida et al. 2023]] · [[Bibliography#^viroli2019deep|Viroli & McLachlan 2019]] · [[Bibliography#^shah2023ddpm|Shah et al. 2023]] · [[Bibliography#^sorenson1971recursive|Sorenson & Alspach 1971]] · [[Bibliography#^rauch1965maximum|Rauch et al. 1965]] · [[Bibliography#^ghahramani2000variational|Ghahramani & Hinton 2000]] · [[Bibliography#^blekherman2012nonnegative|Blekherman 2012]] · [[Bibliography#^arellanovalle2006unification|Arellano-Valle & Azzalini 2006]] · [[Bibliography#^minka2001ep|Minka 2001]]
+> Bibliography: [[Bibliography#^yedidia2005bethe|Yedidia et al. 2005]] · [[Bibliography#^lauritzen1989graphical|Lauritzen & Wermuth 1989]] · [[Bibliography#^lauritzen1996graphical|Lauritzen 1996]] · [[Bibliography#^lauritzen1992propagation|Lauritzen 1992]] · [[Bibliography#^han2018unsupervised|Han et al. 2018]] · [[Bibliography#^cheng2018information|Cheng et al. 2018]] · [[Bibliography#^loconte2023subtractive|Loconte et al. 2023]] · [[Bibliography#^marteauferey2020nonnegative|Marteau-Ferey et al. 2020]] · [[Bibliography#^tsuchida2023squared|Tsuchida et al. 2023]] · [[Bibliography#^viroli2019deep|Viroli & McLachlan 2019]] · [[Bibliography#^shah2023ddpm|Shah et al. 2023]] · [[Bibliography#^sorenson1971recursive|Sorenson & Alspach 1971]] · [[Bibliography#^rauch1965maximum|Rauch et al. 1965]] · [[Bibliography#^ghahramani2000variational|Ghahramani & Hinton 2000]] · [[Bibliography#^blekherman2012nonnegative|Blekherman 2012]] · [[Bibliography#^arellanovalle2006unification|Arellano-Valle & Azzalini 2006]] · [[Bibliography#^minka2001ep|Minka 2001]] · [[Bibliography#^ho2020ddpm|Ho et al. 2020]]
 >
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Gaussian Relations](https://mathstruct.org/CategoryTheory-ML-Wiki/Gaussian-Relations) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
@@ -605,6 +605,45 @@ needed), and evaluate the exact local term $\log \sum_{k_t} p(k_t \mid z_t)\, \m
 by log-sum-exp. Its gradient is exact per sample and unbiased over samples: denoising score matching
 with a mixture-of-linear-experts score in place of a network.
 
+### What the evidence bound rewards (added after E4(b))
+
+> **Proposition 9 (elementary; a variant of Ho, Jain & Abbeel 2020, §2).** Let $q$ be a Markov
+> forward process with marginals $q_t$ and reverse conditionals $q(z_{t-1} \mid z_t)$, and $p$ any
+> reverse chain with prior $p_T$ and kernels $p_t(z_{t-1} \mid z_t)$. Then
+> $$
+> \mathbb E_q\Bigl[\log \frac{p(z_{0:T})}{q(z_{1:T} \mid z_0)}\Bigr]
+> = \mathbb E_{q_0} \log q_0(z_0) - \mathrm{KL}(q_T \,\|\, p_T)
+> - \sum_{t=1}^T \mathbb E_{q_t(z_t)}\, \mathrm{KL}\bigl(q(\cdot \mid z_t) \,\|\, p_t(\cdot \mid z_t)\bigr).
+> $$
+>
+> *Proof.* By the Markov property, $q(z_{1:T} \mid z_0) = q(z_{0:T}) / q_0(z_0)$, and the same
+> chain read backwards is $q(z_{0:T}) = q_T(z_T) \prod_t q(z_{t-1} \mid z_t)$. Substitute both into the
+> left side and group the terms by $t$. $\square$
+
+So with a fixed forward process, maximising the bound decouples exactly into fitting the prior and
+$T$ independent conditional projections of the data's own reverse conditionals. That is what the
+per-step fits of the small-step test and E4(b) do, so those fits are the bound's optimum, up to
+estimation and optimisation. The bound reaches $\mathbb E \log q_0$ only if every kernel equals
+$q(\cdot \mid z_t)$: it rewards a chain for *following the data's noised marginals*, not for reaching
+$q_0$ by some other route.
+
+> **Proposition 10 (proved here).** A chain of $L$ kernels with two outcomes each, constant gates
+> (equal $m_k, S_k$, so $p(k_l \mid z_l) = \pi_{l, k_l}$), $G_k = I$, $h_{l,k} = k\,\delta_l$, $C_k = \varepsilon I$ and
+> prior $\mathcal N(c, \Sigma - L\varepsilon I)$ (for $\varepsilon$ small enough that this is positive definite)
+> has marginal $p(z_0) = \sum_{k \in \{0,1\}^L} \prod_l \pi_{l,k_l}\, \mathcal N(z_0;\, c + \sum_l k_l \delta_l,\, \Sigma)$:
+> exactly E3's additive model, with $2^L$ components.
+>
+> *Proof.* Given the path $k$, $z_0 = z_L + \sum_l k_l \delta_l + \sum_l \eta_l$ with independent Gaussians
+> $z_L \sim \mathcal N(c, \Sigma - L\varepsilon I)$ and $\eta_l \sim \mathcal N(0, \varepsilon I)$; the path has probability $\prod_l \pi_{l,k_l}$. $\square$
+
+So chains of $K$-outcome kernels are **not** limited to $K$ components as a model class: two outcomes
+per step give a product grid of $2^L$. E4(b)'s finding that a $K$-outcome chain scores like a flat
+$K$-component mixture is a property of the bound-trained chain (Proposition 9), not of the class. The
+additive chain does not follow the variance-preserving process's marginals, so that process's bound
+penalises it whatever its likelihood. To train it you have to fit the inference side as well, for
+example by exact EM over its configurations (E3), which is a hierarchical latent-variable model
+rather than a diffusion. `examples/chain_objective.jl` checks both propositions on E3's 16-mode grid.
+
 ## 9. What the Bethe objective contributes (task F)
 
 1. **Local credit assignment.** On a tree with exact beliefs the Bethe free energy equals
@@ -697,14 +736,21 @@ $T \in \{5, 10, 20\}$ conditional per-step switching kernels with $K \in \{2, 3,
 an importance-weighted bound with 64 paths, **score like a flat mixture with $K$ components**: within
 0.006 nats at $T = 5$, at most 0.10 better at $T = 20$, and never close to a flat mixture with a few
 more components. The best chain is 0.31–0.34 nats from the truth with 300–1 185 parameters; flat
-$K = 16$ is within 0.02 with 95. A conjectured explanation: a $K$-outcome kernel's mean is a
-softmax-gated sum of $K$ linear maps, which is the form of a $K$-component mixture's score, so small
-steps give a diffusion whose score at each time is that of a $K$-mixture. Proposition 8's exact
-reverse of the best $K$-mixture is in the family, and the per-step fits find it rather than
-exploiting time-varying gates. With the small-step test this closes the diffusion hypothesis of §8
-for this factor: depth in time does not substitute for outcomes. (A first run with 3 EM restarts
+$K = 16$ is within 0.02 with 95. The reason is the objective, not the class (Propositions 9 and 10,
+§8). Two-outcome chains contain $2^L$-component grids, but the bound with a fixed forward process makes
+every step project the data's reverse conditional onto $K$ linear pieces. With the small-step test
+this closes the diffusion hypothesis of §8 for this factor: under the diffusion objective, depth in
+time does not substitute for outcomes. (A first run with 3 EM restarts
 left the flat $K = 3$ fit on moons at a local optimum and made the chains look 0.11 better; with 30
 restarts the difference vanished.)
+
+**Propositions 9 and 10, checked (2026-10-31; `examples/chain_objective.jl`, `.md`).** On E3's
+16-mode grid, standardised, the additive model fitted by exact EM is 0.001 nats from the truth with
+17 parameters. Rewritten as a 4-step chain of 2-outcome constant-gate kernels, it has the same
+marginal: path enumeration agrees with the additive density to $7\cdot10^{-15}$. Chains of the same
+kind trained by the bound score like flat mixtures with as many components as outcomes per step:
+gaps 0.780–0.786 for $K = 4$ against the flat 4-mixture's 0.778, and 1.04–1.09 for $K = 2$ against
+the flat 2-mixture's 0.976, for $T$ = 5, 10 and 20. A flat 16-mixture reaches 0.043.
 
 Order: E1 and E4(a) first (each has an exact oracle and decides whether the building block and the
 diffusion reading are right), then E3 and E4(b) (the expressivity questions), then E2 (whether the
@@ -743,9 +789,11 @@ switching linear kernel normalised by $Z_t(z_t)$ (§8), not this potential. The 
 - The size of the advantage of $T$ small switching steps over one large mixture (E4(b)): a bound in
   terms of the data's smoothness would turn the diffusion hypothesis of §8 into a theorem. Its
   strong form (fewer outcomes than components) failed the small-step test (§10), and on two moons
-  and a ring a chain with $K$ outcomes per step scores like a flat $K$-mixture (E4(b)). Open: a proof
-  of that observation (that small-step chains of $K$-outcome kernels cannot beat the best $K$-mixture
-  by more than a vanishing amount), and whether any time-varying gating escapes it.
+  and a ring a bound-trained chain with $K$ outcomes per step scores like a flat $K$-mixture (E4(b)).
+  Propositions 9 and 10 locate the cause in the objective. Open: a proof that the per-step
+  projection onto $K$-outcome kernels behaves like the reverse of a $K$-mixture as $\beta \to 0$, and
+  a training objective for compositional chains that learns the inference side (a hierarchical
+  model with exact switch posteriors, as E3's EM is for one level).
 - The learning bias of collapsed (EP) beliefs in hybrid graphs (E6).
 - Hard constraints with outcome-dependent rank: a reference measure under which entropies of
   different-dimensional solution sets compare (§5).

@@ -82,16 +82,18 @@ local optimum with gap 0.612, which made the chains look 0.11 nats better. With 
 3. **Per parameter, the chain loses by orders of magnitude.** The best chain is 0.31 to 0.34 nats
    from the truth, with 300 parameters on moons and 1 185 on the ring. A flat mixture with 16 components gets within 0.02 with
    95 parameters.
-4. **Explanation (a conjecture, consistent with all the runs).** The mean of a $K$-outcome directed
-   switching kernel is a softmax-gated sum of $K$ linear maps of $z_t$. The score of a $K$-component
-   Gaussian mixture has exactly that form, $\sum_k \gamma_k(z)\, \Sigma_k^{-1}(\mu_k - z)$. In small steps a
-   chain whose kernels have $K$ outcomes is therefore a diffusion whose score field at each time
-   has the form of a $K$-component mixture's. By Proposition 8, the chain that reverses a
-   $K$-component mixture exactly is in the family. Per-step fits find that chain, or something
-   close to it, rather than exploiting the extra freedom of time-varying gates.
-5. **Together with the small-step test and E3: depth in time does not substitute for outcomes.**
-   Composition pays when the components have a product arrangement and the wiring adds (E3). A
-   chain in time does not create such an arrangement.
+4. **The explanation is the objective, not the class** (found after this run; Propositions 9
+   and 10 of the design note, checked in `examples/chain_objective.md`). Chains of 2-outcome
+   kernels contain $2^L$-component mixtures (Proposition 10). But with a fixed forward process the
+   evidence bound decomposes into per-step KLs to the data's own reverse conditionals
+   (Proposition 9). The per-step fits used here are therefore the bound's optimum, and they must
+   follow the data's noised marginals with $K$ linear pieces per step. The mean of a $K$-outcome
+   kernel has the form of a $K$-component mixture's score, $\sum_k \gamma_k(z)\, \Sigma_k^{-1}(\mu_k - z)$, so
+   the best such projection behaves like the reverse of a $K$-component mixture. That last step is
+   still observed rather than proved.
+5. **Together with the small-step test and E3: under the diffusion objective, depth in time does
+   not substitute for outcomes.** Composition pays when the components have a product arrangement,
+   the wiring adds, and the inference side is learned (E3).
 
 ## Caveats
 

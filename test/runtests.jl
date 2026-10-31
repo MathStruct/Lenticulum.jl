@@ -1262,6 +1262,8 @@ include("composition_e3.jl")
 
 include("switching_chain_e4b.jl")
 
+include("chain_objective.jl")
+
 include("gradient_couplings.jl")
 
 include("lp018.jl")
