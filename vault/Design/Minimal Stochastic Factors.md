@@ -637,6 +637,14 @@ at matched parameter counts, not only accuracy on one data set.
 | E5 | are the polarities compatible in practice? | E1 and E3 data | spectral vs switching vs Born | conditional $\log p$ in three query directions against the joint's conditionals |
 | E6 | how much does Bethe/EP collapsing bias learning? | small trees where exact mixture marginals are enumerable | exact sum vs collapsed beliefs vs entropy bounds | parameter error and $\log p$ gap; in particular whether learning with collapsed beliefs on a symmetric bimodal posterior merges the outcomes into one wide mode (mode covering) |
 
+**E1, measured (2026-10-31; `examples/switching_factor_e1.jl`, `.md`).** On lines at 0° and 60° the
+general-form switching factor recovers both lines (errors 0.015° and 0.001°, $q_k$ = the noise
+variance), and its held-out $\log p(y \mid x)$ is 0.702, equal to the true model's and to a free
+two-component Gaussian mixture's (with 6 parameters against 11), where the spectral measurement gets
+−0.939 and one Gaussian −0.823. Message passing in a Mycelium graph reproduces the direct conditional
+to $5\cdot10^{-15}$, which checks §3's messages with their per-outcome constants. Two of four starts reach
+the optimum. The easy case: the truth is in the class.
+
 Order: E1 and E4(a) first (each has an exact oracle and decides whether the building block and the
 diffusion reading are right), then E3 and E4(b) (the expressivity questions), then E2 (whether the
 Born joint is worth a belief type), E5 and E6.

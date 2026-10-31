@@ -1252,6 +1252,8 @@ include("exposure.jl")
 
 include("measurement_factor.jl")
 
+include("switching_factor_e1.jl")
+
 include("gradient_couplings.jl")
 
 include("lp018.jl")
