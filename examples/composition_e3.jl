@@ -4,8 +4,11 @@ of binary switching factors beat one flat mixture?
 
 Proposition 7: L binary switches give at most 2^L Gaussian components, so composition buys
 parameter efficiency, not a larger class, and only for data whose components have the structure
-the composition imposes. Three data sets in two dimensions, each with an exact density:
+the composition imposes. Four data sets in two dimensions, each with an exact density:
 
+- `grid2`: a 4-mode grid with L = n = 2 switches, the case where rank-one constraints can meet
+  every mode (the dimensional lemma of `composition_e3.md`); added after the second round of
+  reviews;
 - `grid3`, `grid4`: 2^L modes at c + Σ_l k_l δ_l (k_l ∈ {0, 1}), independent bits, one shared
   covariance: a product structure, exactly the additive composition's class;
 - `ring`: 8 equal modes on a circle, which is not of that form (8 sums of 3 offsets are the
@@ -48,6 +51,7 @@ function grid(δs, p)
     return (; π, μ, Σ = [SHARED for _ in cfgs], L)
 end
 const DATA = (
+    grid2 = grid([[2.0, 0.0], [1.0, 2.0]], [0.5, 0.35]),     # L = n = 2: rank-one can meet every mode
     grid3 = grid([[2.0, 0.0], [0.0, 2.0], [4.0, 1.0]], [0.5, 0.35, 0.6]),
     grid4 = grid([[2.0, 0.0], [0.0, 2.0], [4.0, 1.0], [1.0, 4.0]], [0.5, 0.35, 0.6, 0.7]),
     ring = (π = fill(1 / 8, 8), μ = [3 .* [cos(2π * j / 8), sin(2π * j / 8)] for j in 0:7],

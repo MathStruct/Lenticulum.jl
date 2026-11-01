@@ -14,6 +14,8 @@ isdefined(@__MODULE__, :CompositionE3) ||
     g = M.run(:grid3; ntrains = (400,), ntest = 500, Ks = (8,), starts = 8, iters = 600)
     @test gap(g, "additive") < 0.1             # product structure: the additive composition fits
     @test gap(g, "rank-one") > 0.4             # rank-one constraints on a shared z do not
+    g2 = M.run(:grid2; ntrains = (400,), ntest = 500, Ks = (4,), starts = 8, iters = 600)
+    @test gap(g2, "rank-one") < 0.1            # ... unless L ≤ n: then all strips can cross (dimensional lemma)
     r = M.run(:ring; ntrains = (400,), ntest = 500, Ks = (8,), starts = 8, iters = 600)
     @test gap(r, "additive") > 0.5             # no product structure: it does not
     @test gap(r, "additive") > gap(r, "flat") + 0.3

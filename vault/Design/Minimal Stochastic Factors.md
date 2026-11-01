@@ -520,7 +520,9 @@ sums of offsets: a product or tree structure), so a generic $2^L$-component mixt
 this way. Which data have that structure is the
 expressivity question to test (§10, E3). **Measured (E3):** on product grids additive composition
 wins by sample efficiency, and on a ring of modes it loses. Several rank-one constraints on one shared
-variable fail even on the grids, because constraints on one node intersect rather than add.
+variable fail even on the grids, because constraints on one node intersect rather than add: with
+more than $n$ switches in $\mathbb R^n$ some configurations cannot meet. With $L = n = 2$ they fit the grid
+as well as the additive model (0.004 against 0.005 nats).
 
 ### What a diffusion model additionally requires
 
@@ -726,9 +728,10 @@ independently fitted kernels, two outcomes per step keep a capacity gap however 
 That refutes the strong form of §8's hypothesis here. It is not a general lower bound. Free per-step kernels
 also pay an estimation cost linear in $T$, so smaller steps only pay off with a shared,
 time-conditioned parameterisation (E4(a)'s 17-parameter chain). The estimation cost is an
-asymptotic estimate, least reliable where the gates flatten. At $T = 100$, $K = 3$ the remainder is 0.135,
-which is under-optimisation or a failure of the regular formula; a tied parameterisation would
-separate the two.
+asymptotic estimate, least reliable where the gates flatten. At $T = 100$, $K = 3$ the remainder is 0.135. It is
+not under-optimisation: with four times the Adam steps (480) the training fit improves but the
+held-out gap grows to 0.528 (11-01), so the fits overfit and the regular formula underestimates the
+cost there.
 
 **E3, measured (2026-10-31; `examples/composition_e3.jl`, `.md`).** The data are product grids of 8
 and 16 modes in two dimensions, and 8 modes on a ring. Fitted by exact maximum likelihood, additive
@@ -948,8 +951,10 @@ Propositions 9 and 10). Claude checked every claim; the corrections are in the t
    formula. It is not meaningful for the misspecified $K = 2$ (White 1982), so that column is
    dropped, and it degrades where the gates flatten (Chen 1995). The table now reports the bound's
    gap, which Proposition 9 makes the sum of the per-step KLs and which bounds the marginal gap from
-   above. The $T = 100$ residual (0.135 with the corrected count) is either under-optimisation or a
-   failure of the formula; a tied parameterisation would separate them (Mistral; not run).
+   above. The $T = 100$ residual (0.135 with the corrected count) is not under-optimisation: with
+   480 instead of 120 Adam steps (Grok's check) the refit gain rises from 0.148 to 0.212 but the
+   held-out gap grows from 0.460 to 0.528. The per-step fits overfit, more than the regular formula
+   predicts. Mistral's tied parameterisation was not needed to decide this, and was not run.
 5. *The bound against exact likelihoods in E4(b) (ChatGPT, Gemini, Mistral).* Flat mixtures were
    scored exactly, chains by the importance-weighted bound. The gated chains cannot be enumerated
    (item 2), so `bound_sweep` checks saturation instead: from 64 to 4 096 paths the bound changes by
@@ -966,8 +971,8 @@ Propositions 9 and 10). Claude checked every claim; the corrections are in the t
    variant, checked against both papers.
 8. *E3 (Gemini, Mistral).* The product-of-experts normaliser is over tuples $k = (k_1, \dots, k_L)$.
    The rank-one failure on the grids is dimensional: with more than $n$ informative switches in
-   $\mathbb R^n$ some configurations cannot meet (lemma in `composition_e3.md`); the case $L \le n$,
-   where rank-one constraints give the grid too, was not run. The EM speed claim now states its
+   $\mathbb R^n$ some configurations cannot meet (lemma in `composition_e3.md`); in the case $L = n = 2$
+   rank-one constraints fit the grid too (run after the round). The EM speed claim now states its
    criterion (starts needed for a 1 % miss rate).
 9. *E6 names and controls (ChatGPT, Gemini, Mistral, Grok).* "Collapsed BP" was a single pass with
    prior moments, i.e. assumed-density filtering, and E6 tests moment collapse, not the Bethe
@@ -993,7 +998,11 @@ Propositions 9 and 10). Claude checked every claim; the corrections are in the t
   one step's conditional mean, not the chain's marginal. Its $T = 100$ residual (0.093) used the old
   count. Grok found no errors.
 
-**Not done.** A tied parameterisation for the $T = 100$ residual; rank-one with $L \le n$; a neural or
+**Done after the round.** Grok's optimisation check at $T = 100$ (item 4). Rank-one with $L = n = 2$ on
+a 4-mode grid: 0.004 nats from the truth at $n = 2000$, against 0.005 for the additive model, as the
+dimensional lemma predicts (`composition_e3.md`).
+
+**Not done.** A tied parameterisation (no longer needed for item 4); a neural or
 mixture-of-experts reverse kernel as a reference (Grok); structured inference inside E3b's
 hierarchy (Grok, Gemini's "E7").
 

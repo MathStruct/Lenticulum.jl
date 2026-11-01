@@ -69,10 +69,13 @@ The formula is the regular, well-specified asymptotic one:
 1. **The bound does not approach the truth as $T$ grows, and most of the growth is estimation.**
    With $K = 3$ the gap grows with $T$, and most of it is the expected cost of fitting $T$ separate
    kernels on $n$ pairs each. What remains after subtracting it is 0.015, 0.023 and 0.023 for $T$ = 10,
-   25 and 50. At $T = 100$ the remainder is 0.135. The refit gain is largest there (0.148), so the 120
-   Adam steps may not have converged. The regular cost formula is also least reliable there. The two
-   explanations are confounded. A tied (shared) parameterisation, whose cost does not grow with $T$,
-   would separate them; Mistral's review suggested it.
+   25 and 50. At $T = 100$ the remainder is 0.135. It is not under-optimisation (2026-11-01):
+   refitted with 480 Adam steps instead of 120, the training fit improves (refit gain 0.212 against
+   0.148) but the held-out gap *grows* to 0.528 (bound −2.636; energy distance 0.0057). The 120-step
+   fits were partly early-stopped, and the per-step fits overfit more than the regular formula
+   predicts. That is consistent with the formula's expected failure where the gates flatten
+   (Chen 1995), which was not checked step by step. The rerun is
+   `SwitchingSmallSteps.run(; Ts = (100,), Ks = (3,), iters = 480)` (about an hour on 8 threads).
 2. **Two outcomes per step have a capacity gap that small steps do not close.** The raw gap for
    $K = 2$ is 0.50 to 0.68 nats and does not shrink with $T$. Even the full cost estimate would
    explain at most 0.24 of it at $T = 100$. The capacity conclusion rests on the raw gaps, on this one
@@ -93,6 +96,6 @@ The formula is the regular, well-specified asymptotic one:
 - The estimation cost is an asymptotic estimate, not a measured quantity. Its first version
   overcounted the parameters by 5 per kernel.
 - The energy distance has sampling noise of the order of its floor.
-- The $T = 100$, $K = 3$ fits are probably under-optimised.
+- The $T = 100$, $K = 3$ check with 480 Adam steps is one refit, with the same pairs and seeds.
 - The run allocated heavily (47 % of its time in garbage collection): the per-step objective is
   evaluated through ForwardDiff on all 6 000 pairs.

@@ -12,12 +12,14 @@ the structure that the composition imposes. Which structure is that, and how muc
 
 ## Setup
 
-There are three data sets in two dimensions, each with an exact density. Every mode has the same
+There are four data sets in two dimensions, each with an exact density. Every mode has the same
 covariance (variances 0.12 and 0.09, correlation 0.38).
 
 - **`grid3`, `grid4`** have a product structure: $2^L$ modes at $c + \sum_l k_l \delta_l$, with independent
   bits $k_l$. The offsets are $(2,0)$, $(0,2)$, $(4,1)$ and, for `grid4`, also $(1,4)$. The modes are
   8 and 16, at least 2.0 and 1.41 apart.
+- **`grid2`** (added after the second round of reviews) is a 4-mode grid with offsets $(2, 0)$ and
+  $(1, 2)$: $L = n = 2$, the case where rank-one constraints can meet every mode.
 - **`ring`** has no product structure: 8 equal modes on a circle of radius 3. Eight sums of three
   offsets are the vertices of a projected cube, and at most 6 of them lie on the convex hull, so an
   octagon is not of that form.
@@ -129,7 +131,16 @@ starts as Adam, plus 240 more. The "EM, the same 16" time is pro-rated from the 
    $b_{l0} \ne b_{l1}$, and the column space has dimension at most $n$. So with more than $n$ informative
    switches in $\mathbb R^n$ (here $L = 3, 4 > n = 2$), some configurations must miss, and $\bar Z$ suppresses
    them: the grids are outside the rank-one class, which is misspecified rather than hard to fit.
-   With $L \le n$, rank-one constraints give the $2^L$ grid as well. That case was not run.
+   With $L \le n$, rank-one constraints give the $2^L$ grid as well. On `grid2`, a 4-mode grid with
+   $L = n = 2$ (offsets $(2, 0)$ and $(1, 2)$; truth −1.860), they do (2026-11-01):
+
+   | model | parameters | gap, $n = 150$ | gap, $n = 2000$ |
+   |---|---|---|---|
+   | additive, $L = 2$ | 11 | 0.049 | 0.005 |
+   | rank-one, shared $z$ | 15 | 0.041 | 0.004 |
+   | flat, $K = 4$ | 23 | 0.166 | 0.006 |
+
+   So the rank-one failure on `grid3` and `grid4` is the dimension, not the fitting.
 
 ## Caveats
 
