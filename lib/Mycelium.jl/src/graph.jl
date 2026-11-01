@@ -82,17 +82,48 @@ struct VariableNode{S}
 end
 
 """
+    AbstractMessageRule
+
+How a factor node computes its outgoing messages: [`BeliefPropagation`](@ref), the default,
+or [`MeanField`](@ref). Chosen per node with `factor!(b, name, f; rule)`.
+"""
+abstract type AbstractMessageRule end
+
+"""
+    BeliefPropagation()
+
+Sum-product messages: the factor is inverted against the cavity (variable → factor) messages
+of its other channels. The default rule of every factor node.
+"""
+struct BeliefPropagation <: AbstractMessageRule end
+
+"""
+    MeanField()
+
+Mean-field messages: the message to channel ``t`` is ``\\exp \\mathbb E_{\\prod_{i \\ne t} q_i}[\\log f]``, taken
+over the *current marginals* ``q_i`` of the other channels' variables rather than their cavity
+messages, computed by [`mean_field_message`](@ref). Mixing such nodes with
+[`BeliefPropagation`](@ref) nodes gives the hybrid of Riegler et al. (2013): exact within
+the BP part, factorised across the mean-field nodes. Iterate a sequential schedule to a fixed
+point; one tree sweep is not one. The graph free energy refuses such graphs (`passing.md`).
+"""
+struct MeanField <: AbstractMessageRule end
+
+"""
     FactorNode(id, name, factor)
 
-A node holding an `AbstractLenticulumFactor` — a parameterized statistical game.
+A node holding an `AbstractLenticulumFactor` — a parameterized statistical game — together with
+its frozen parameter paths and its [`AbstractMessageRule`](@ref).
 """
-struct FactorNode{F,P}
+struct FactorNode{F,P,R<:AbstractMessageRule}
     id::Int
     name::Symbol
     factor::F
     freeze::P
+    rule::R
 end
-FactorNode(id, name, factor) = FactorNode(id, name, factor, ())
+FactorNode(id, name, factor) = FactorNode(id, name, factor, (), BeliefPropagation())
+FactorNode(id, name, factor, freeze) = FactorNode(id, name, factor, freeze, BeliefPropagation())
 LenticulumCore.isfrozen(f::FactorNode) = LenticulumCore.isfrozen(f.factor) || f.freeze === :all || !isempty(LenticulumCore._freeze_paths(f.freeze))
 LenticulumCore.islearnable(f::FactorNode) = LenticulumCore.islearnable(f.factor)
 
@@ -177,17 +208,18 @@ function variable!(b::GraphBuilder, name::Symbol, space = nothing)
 end
 
 """
-    factor!(b::GraphBuilder, name::Symbol, factor; freeze = ()) -> Int
+    factor!(b::GraphBuilder, name::Symbol, factor; freeze = (), rule = BeliefPropagation()) -> Int
 
 Add a factor node wrapping an `AbstractLenticulumFactor`; returns its id.
 `freeze` is `:all`, a parameter path such as `(:encoder,)`, or a tuple of paths.
 Paths select complete subtrees and are checked against the actual parameter tree.
+`rule` is how the node computes its messages: [`BeliefPropagation`](@ref) or [`MeanField`](@ref).
 """
-function factor!(b::GraphBuilder, name::Symbol, factor; freeze = ())
+function factor!(b::GraphBuilder, name::Symbol, factor; freeze = (), rule::AbstractMessageRule = BeliefPropagation())
     haskey(b.factor_index, name) && throw(ArgumentError("duplicate factor :$name"))
     id = length(b.factors) + 1
     LenticulumCore._freeze_paths(freeze) # validate syntax; paths checked against ps at use
-    push!(b.factors, FactorNode(id, name, factor, freeze))
+    push!(b.factors, FactorNode(id, name, factor, freeze, rule))
     b.factor_index[name] = id
     return id
 end

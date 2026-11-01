@@ -32,6 +32,37 @@ function factor_message(factor, target::Symbol, polarity, inputs, prior, ps, st)
 end
 
 """
+    mean_field_message(factor, target::Symbol, polarity, beliefs::NamedTuple, ps, st)
+        -> (belief, st)
+
+The outgoing message of a [`MeanField`](@ref) node on channel `target`:
+``\\exp \\mathbb E_{\\prod_{i \\ne t} q_i}[\\log f(x)]`` as a function of ``x_t``, where `beliefs` holds the
+current marginals ``q_i`` of the other channels' variables (not their cavity messages).
+
+There is no generic implementation, because the expectation needs the factor's form; factors
+opt in by adding a method. Lenticulum implements it for `LinearConstraintFactor` and
+`SwitchingConstraintFactor`.
+"""
+function mean_field_message(factor, target, polarity, beliefs, ps, st)
+    throw(ArgumentError(
+        "$(nameof(typeof(factor))) has no mean-field message: implement `Mycelium.mean_field_message` \
+         for it, or leave its node on BeliefPropagation()"))
+end
+
+# The other channels' current marginals, for a mean-field node: informative ones only, so that
+# the rest resolve to Latent() exactly as uninformative cavities do for belief propagation.
+function _marginal_inputs(s::AbstractMessageStore, g::FactorGraph, fid::Int, skip::Int)
+    chans, vals = Symbol[], Any[]
+    for ei in g.edges_of_factor[fid]
+        ei == skip && continue
+        b = marginal(s, g, g.edges[ei].variable)
+        LenticulumCore.isuninformative(b) && continue
+        push!(chans, g.edges[ei].channel); push!(vals, b)
+    end
+    return NamedTuple{Tuple(chans)}(Tuple(vals))
+end
+
+"""
     available_channels(store, g, fid; skip = 0) -> Tuple{Vararg{Symbol}}
 
 Channels of factor `fid` that currently have an informative incoming (variable → factor)
@@ -91,15 +122,21 @@ function step!(s::MessageStore, g::FactorGraph, t::MessageTask, ps, st;
             factornode(g, e.factor).name, e.channel,
             "edge is Absorbing; a factor -> variable message is not legal here"))
         fn = factornode(g, e.factor)
+        psf = _factor_parameters(fn, _subtree(ps, fn.name))
+        stf = _subtree(st, fn.name)
         # EXCLUSION, factor side: the target channel's own incoming message must not be
         # used to compute the outgoing message on that same channel. Without this the
         # target would be resolved as both Observed and Unobserved, and even if it were
         # not, the factor would be feeding its own previous claim back to itself.
-        chans = available_channels(s, g, e.factor; skip = t.edge)
+        # A mean-field node reads the other variables' full marginals instead (`passing.md`).
+        mf = fn.rule isa MeanField
+        inputs = mf ? _marginal_inputs(s, g, e.factor, t.edge) : nothing
+        chans = mf ? keys(inputs) : available_channels(s, g, e.factor; skip = t.edge)
         pol = resolve_polarity(g, e.factor, e.channel, chans)
-        psf = _factor_parameters(fn, _subtree(ps, fn.name))
-        stf = _subtree(st, fn.name)
-        if isempty(chans) && !issink(fn.factor) && !LenticulumCore.supports_polarity(fn.factor, pol)
+        if mf
+            check_legal(g, e.factor, pol)
+            belief, stf = mean_field_message(fn.factor, e.channel, pol, inputs, psf, stf)
+        elseif isempty(chans) && !issink(fn.factor) && !LenticulumCore.supports_polarity(fn.factor, pol)
             @warn "factor :$(fn.name) has no informative inputs when emitting on :$(e.channel); sending TrivialBelief()" maxlog = 1
             belief = LenticulumCore.TrivialBelief()
         else

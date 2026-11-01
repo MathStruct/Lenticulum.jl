@@ -370,6 +370,12 @@ end
 
 function _check_energy_edges(g)
     for f in g.factors
+        f.rule isa BeliefPropagation || throw(ArgumentError(
+            "factor :$(f.name) uses $(nameof(typeof(f.rule)))() messages; the graph free energy and its \
+             gradients are implemented for belief propagation only, not for the hybrid with \
+             mean-field nodes (Riegler et al. 2013), so they are refused rather than misreported"))
+    end
+    for f in g.factors
         if uses_cavity(f.factor)
             for ei in g.edges_of_factor[f.id]
                 edge = g.edges[ei]

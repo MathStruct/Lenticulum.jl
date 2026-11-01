@@ -3,7 +3,9 @@
 > Executes belief schedules, with optional recording of committed residual tasks
 > for the separately defined realised-schedule derivative.
 
-> Sources: code: `passing.jl`
+> Sources: Riegler, Kirkelund, Manchon, Badiu & Fleury, *Merging Belief Propagation and the Mean Field Approximation: A Free Energy Approach*, IEEE Trans. Inf. Theory 59(1), 2013 (mean-field nodes). code: `passing.jl`
+>
+> Bibliography: [[Bibliography#^riegler2013merging|Riegler et al. 2013]]
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 
@@ -31,6 +33,47 @@ $\mu_{f\to v}$ with $c'_\pi(y) = \pi \odot \mu_{f\to v}$, not the posterior itse
 `factor_message`'s generic implementation is `assemble` then `likelihood_message`, which
 defaults to `invert` for lenses whose inversion is already extrinsic (L-ADR-0006). Structural factors override it directly, because
 for them the lens is trivial and building one would be ceremony.
+
+## Mean-field nodes (2026-11-01)
+
+Every factor node carries a message rule, chosen with `factor!(b, name, f; rule)`:
+`BeliefPropagation()` (the default, everything above) or `MeanField()`. For a mean-field node
+`step!` replaces the two cavity lines by the other variables' *full* marginals:
+
+```julia
+inputs = _marginal_inputs(s, g, fid, t.edge)          # marginal(s, g, v) for every other channel
+pol    = resolve_polarity(g, fid, e.channel, keys(inputs))
+belief = mean_field_message(factor, e.channel, pol, inputs, ps, st)   # exp E_q[log f]
+```
+
+Nothing else changes. Belief-propagation nodes still receive cavities, and these include the
+mean-field nodes' messages. So a graph with both kinds runs the hybrid of Riegler, Kirkelund,
+Manchon, Badiu & Fleury (*Merging Belief Propagation and the Mean Field Approximation: A Free
+Energy Approach*, IEEE Trans. Inf. Theory 59(1), 2013). Its stationary points are exact within
+the belief-propagation part and factorised across the mean-field nodes. A typical use is a dense
+coupling factor, such as a sum node over many inputs, on mean field, with structured factors on
+belief propagation around it.
+
+- **Iterate a sequential schedule.** A mean-field node's message to one neighbour changes the
+  marginals its other messages read, so one tree sweep is not a fixed point. In-place sweeps give
+  coordinate ascent.
+- **`mean_field_message` has no generic method.** The expectation needs the factor's form, so a
+  factor opts in. Lenticulum implements it for `LinearConstraintFactor` (the BP message with each
+  input at its mean, since $\log f$ is quadratic) and for `SwitchingConstraintFactor`.
+- **The graph free energy refuses such graphs.** The hybrid's free energy (Riegler et al. 2013)
+  counts entropies differently from Bethe, and it is not implemented. `factor_free_energies`,
+  `bethe_free_energy`, `scalar_free_energy`, `free_energy_gradient` and `parameter_step` all go
+  through `_check_energy_edges`, which throws for a node that is not on belief propagation.
+  Learning with mean-field nodes is therefore EM outside the graph for now
+  (`examples/switching_blocks_graph.jl`).
+- **Convergence is measured on the messages**, as for loopy BP. Mixtures of very narrow components
+  have a rounding floor in `belief_distance`, about $10^{-10}$ to $10^{-8}$ at width $10^{-8}$, so set
+  `tol` above it.
+
+Tested in `test/message_rules.jl`: the default rule; a recording factor that sees the marginal
+(prior pooled with its own earlier message), not the cavity; the free-energy refusals; and the
+missing-method error. The end-to-end check, with the hybrid reproducing E7's structured mean field,
+is in Lenticulum's `test/switching_blocks_graph.jl`.
 
 ## `sweep!` executors have different semantics
 

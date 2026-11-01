@@ -270,6 +270,47 @@ function _switch_message(f::SwitchingConstraintFactor{names}, target::Symbol, in
     return (LenticulumCore.MixtureBelief(Val(:log), comps, lk .- _logsumexp(lk)), st)
 end
 
+"""
+    Mycelium.mean_field_message(f::SwitchingConstraintFactor, target, polarity, beliefs, ps, st)
+
+The message of a `MeanField()` node, ``\\exp \\mathbb E_q[\\log f]``, over the other channels' current
+marginals. With ``\\bar s = \\sum_{i \\ne t} A_i\\, \\mathbb E_q[x_i]`` and ``q`` the outcome's marginal:
+
+- to a continuous channel: ``\\mathcal N^{-1}(A_t^\\top Q^{-1}(\\bar b - \\bar s),\\ A_t^\\top Q^{-1} A_t)`` with ``\\bar b = \\sum_k q_k b_k``;
+- to the outcome: ``P(k) \\propto w_k \\exp(-\\tfrac12 (b_k - \\bar s)^\\top Q^{-1} (b_k - \\bar s))``.
+
+Only means enter, since ``\\log f`` is quadratic in the continuous channels for each outcome and the
+covariance terms do not depend on ``x_t`` or ``k``. An outcome without a marginal yet counts with
+the factor's weights, which is where the iteration starts. Continuous channels without a proper
+marginal are handled as in `factor_message`.
+"""
+function Mycelium.mean_field_message(f::SwitchingConstraintFactor{names}, target::Symbol, polarity, beliefs, ps, st) where {names}
+    target in _allnames(f) || throw(ArgumentError(
+        "channel :$target is not a channel of this SwitchingConstraintFactor (has $(_allnames(f)))"))
+    lw = _logweights(ps)
+    sbar = zeros(f.m)
+    for n in names
+        n === target && continue
+        μ = _mf_mean(_get(beliefs, n))
+        if μ === nothing
+            target === f.switch && LinearAlgebra.rank(ps.A[n]) == f.m &&
+                return (LenticulumCore.CategoricalBelief(Val(:log), lw, nothing), st)
+            return (LenticulumCore.TrivialBelief(), st)
+        end
+        sbar = sbar .+ ps.A[n] * μ
+    end
+    CQ = _chol(f.Q, "Q")
+    if target === f.switch
+        D = ps.b .- sbar
+        l = lw .- [LinearAlgebra.dot(D[:, k], CQ \ D[:, k]) for k in 1:f.K] ./ 2
+        return (LenticulumCore.CategoricalBelief(Val(:log), l .- _logsumexp(l), nothing), st)
+    end
+    kb = _get(beliefs, f.switch)
+    q = kb === nothing || kb isa LenticulumCore.TrivialBelief ? exp.(lw) : exp.(_switch_logp(kb, f.K))
+    At = ps.A[target]
+    return (GaussianBelief(At' * (CQ \ (ps.b * q .- sbar)), At' * (CQ \ At)), st)
+end
+
 # A rank-deficient AₜᵀR⁻¹Aₜ is positive definite after rounding often enough that `isproper`
 # would call it a (very wide) distribution, and the mixture product would then weight its
 # components by ½ηᵀΛ⁻¹η, which is rounding noise. Its null-space eigenvalues are set to zero,

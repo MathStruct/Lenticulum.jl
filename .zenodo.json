@@ -272,6 +272,7 @@
     "Montoison, Alexis; Orban, Dominique (2023). Krylov.jl: A Julia basket of hand-picked Krylov methods. Journal of Open Source Software. https://doi.org/10.21105/joss.05187",
     "Rackauckas, Christopher; Ma, Yingbo; Martensen, Julius; Warner, Collin; Zubov, Kirill; Supekar, Rohit; Skinner, Dominic; Ramadhan, Ali; Edelman, Alan (2020). Universal Differential Equations for Scientific Machine Learning. https://arxiv.org/abs/2001.04385",
     "Rubin, Donald B. (1981). Estimation in Parallel Randomized Experiments. Journal of Educational Statistics. https://doi.org/10.3102/10769986006004377",
-    "Weiss, Yair; Freeman, William T. (2001). Correctness of Belief Propagation in Gaussian Graphical Models of Arbitrary Topology. Neural Computation. https://doi.org/10.1162/089976601750541769"
+    "Weiss, Yair; Freeman, William T. (2001). Correctness of Belief Propagation in Gaussian Graphical Models of Arbitrary Topology. Neural Computation. https://doi.org/10.1162/089976601750541769",
+    "Riegler, Erwin; Kirkelund, Gunvor Elisabeth; Manchon, Carles Navarro; Badiu, Mihai-Alin; Fleury, Bernard Henri (2013). Merging Belief Propagation and the Mean Field Approximation: A Free Energy Approach. IEEE Transactions on Information Theory. https://doi.org/10.1109/TIT.2012.2218573"
   ]
 }

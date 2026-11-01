@@ -260,6 +260,37 @@ function _message(f::LinearConstraintFactor{names}, target::Symbol, inputs, ps, 
     return (GaussianBelief(At' * (Ri * d), At' * Ri * At), st)
 end
 
+"""
+    Mycelium.mean_field_message(f::LinearConstraintFactor, target, polarity, beliefs, ps, st)
+
+The message of a `MeanField()` node: ``\\exp \\mathbb E_q[\\log f]`` as a function of ``x_t``, over the other
+channels' current marginals ``q_i``. ``\\log f`` is quadratic, so only their means enter, and the
+message is ``\\mathcal N^{-1}(A_t^\\top Q^{-1} \\bar d, A_t^\\top Q^{-1} A_t)`` with ``\\bar d = c - \\sum_{i \\ne t} A_i\\, \\mathbb E_q[x_i]``:
+the belief-propagation message with every input replaced by a point mass at its mean. A mixture
+marginal enters by its mean; a channel without a proper marginal makes the message
+uninformative, as in `factor_message`.
+"""
+Mycelium.mean_field_message(f::LinearConstraintFactor, target::Symbol, polarity, beliefs, ps, st) =
+    _message(f, target, _mean_points(f.dims, target, beliefs), ps, st)
+
+# Point masses at the means of the marginals in `beliefs`, for the channels in `dims` other than
+# `target` that have one.
+function _mean_points(dims::NamedTuple{names}, target, beliefs) where {names}
+    chans, pts = Symbol[], Any[]
+    for n in names
+        n === target && continue
+        μ = _mf_mean(_get(beliefs, n))
+        μ === nothing && continue
+        push!(chans, n); push!(pts, LenticulumCore.DiracBelief(μ))
+    end
+    return NamedTuple{Tuple(chans)}(Tuple(pts))
+end
+_mf_mean(b::LenticulumCore.DiracBelief) = _vec(b.value)
+_mf_mean(b::GaussianBelief) = isproper(b) ? belief_mean(b) : nothing
+_mf_mean(b::LenticulumCore.MixtureBelief{<:GaussianBelief}) =
+    all(isproper, b.components) ? belief_mean(moment_match(b)) : nothing
+_mf_mean(b) = nothing
+
 # --- The Bethe contribution ------------------------------------------------
 
 """

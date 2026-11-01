@@ -146,3 +146,37 @@ end
                                  game_prior = cavity, game_y, msgs)
     end
 end
+
+@testset "Mean-field messages of the linear and switching constraints" begin
+    rng = Xoshiro(5)
+    Q = [0.3 0.05; 0.05 0.2]
+    # LinearConstraintFactor: the BP message with every input at its mean
+    lf = LinearConstraintFactor((x = 2, y = 2, z = 2), 2; noise = Q)
+    lps = (A = (x = randn(rng, 2, 2), y = randn(rng, 2, 2), z = randn(rng, 2, 2)), c = randn(rng, 2))
+    qy = Gaussian([0.3, -0.4], [0.5 0.1; 0.1 0.4])
+    qz = MixtureBelief([Gaussian([1.0, 0.0], 0.2 * Matrix(1.0I, 2, 2)), Gaussian([-1.0, 2.0], 0.3 * Matrix(1.0I, 2, 2))], [0.3, 0.7])
+    mz = 0.3 * [1.0, 0.0] + 0.7 * [-1.0, 2.0]
+    m, _ = Mycelium.mean_field_message(lf, :x, nothing, (y = qy, z = qz), lps, NamedTuple())
+    d = lps.c - lps.A.y * [0.3, -0.4] - lps.A.z * mz
+    @test m.η ≈ lps.A.x' * (Q \ d) && m.Λ ≈ lps.A.x' * (Q \ lps.A.x)
+    # SwitchingConstraintFactor: E_q over the outcome and the other channels' means
+    K = 3
+    sf = SwitchingConstraintFactor((x = 2, y = 2), K, 2; noise = Q)
+    sps = (A = (x = randn(rng, 2, 2), y = randn(rng, 2, 2)), b = randn(rng, 2, K), logw = randn(rng, K))
+    qk = CategoricalBelief([0.2, 0.5, 0.3])
+    mx, _ = Mycelium.mean_field_message(sf, :x, nothing, (y = qy, k = qk), sps, NamedTuple())
+    bbar = sps.b * [0.2, 0.5, 0.3]
+    @test mx.η ≈ sps.A.x' * (Q \ (bbar - sps.A.y * [0.3, -0.4])) && mx.Λ ≈ sps.A.x' * (Q \ sps.A.x)
+    mk, _ = Mycelium.mean_field_message(sf, :k, nothing, (x = DiracBelief([0.1, 0.2]), y = qy), sps, NamedTuple())
+    sbar = sps.A.x * [0.1, 0.2] + sps.A.y * [0.3, -0.4]
+    @test probabilities(mk) ≈ softmax_([sps.logw[k] - dot(sps.b[:, k] - sbar, Q \ (sps.b[:, k] - sbar)) / 2 for k in 1:K])
+    # E_q[log f] as a function of x_t, by Monte Carlo over q, has the message's slope and curvature
+    xs = [randn(rng, 2) for _ in 1:3]
+    logf(x, y, k) = sps.logw[k] - dot(sps.A.x * x + sps.A.y * y - sps.b[:, k], Q \ (sps.A.x * x + sps.A.y * y - sps.b[:, k])) / 2
+    pk = [0.2, 0.5, 0.3]; Ly = cholesky(Symmetric([0.5 0.1; 0.1 0.4])).L
+    ys = [[0.3, -0.4] + Ly * randn(rng, 2) for _ in 1:20_000]
+    Elogf(x) = sum(pk[k] * sum(logf(x, y, k) for y in ys) / length(ys) for k in 1:K)
+    lm(x) = dot(mx.η, x) - dot(x, mx.Λ * x) / 2
+    @test (Elogf(xs[1]) - Elogf(xs[2])) ≈ (lm(xs[1]) - lm(xs[2])) rtol = 1e-2
+    @test (Elogf(xs[1]) - Elogf(xs[3])) ≈ (lm(xs[1]) - lm(xs[3])) rtol = 1e-2
+end

@@ -61,6 +61,13 @@ messages converged; `store` holds the messages, and is what the free-energy func
 Schedules: `tree_schedule` (exact on trees), `flooding_schedule` (general, iterative),
 `forward_backward_schedule` (chains — the Kalman/RTS smoother), `SequentialSchedule`.
 
+A factor node computes its messages by belief propagation unless it is added with
+`factor!(b, name, f; rule = MeanField())`. Such a node sends ``\exp \mathbb E_q[\log f]`` over the
+other variables' current marginals (`mean_field_message`, implemented by the factor). Mixed with
+belief-propagation nodes this is the hybrid BP/mean-field scheme of Riegler et al. (2013); iterate
+a `SequentialSchedule` to its fixed point. The graph free energy is not defined for such graphs
+and refuses them.
+
 ## Structural factors
 
 Data, priors, losses and optimisers are all factors here rather than special machinery:
@@ -187,6 +194,8 @@ the native-backend and metric/divergence reproducers.
 - Potential distances compare callable identity (otherwise `Inf`); damping potentials is
   an inspectable no-op through `can_damp`.
 - No parameter sharing between factor nodes, so weight tying is not expressible.
+- Graphs with `MeanField()` nodes have no free energy yet (the hybrid's, Riegler et al. 2013,
+  is not implemented), so `parameter_step` cannot train them.
 - Loopy message passing has no convergence guarantees, and `report.converged` means the
   *messages* stopped moving, not that the answer is right.
 

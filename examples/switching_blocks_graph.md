@@ -81,12 +81,37 @@ Means over the seeds:
    is 2.1 times closer to the truth at $L = 8$ (0.14) and 2.7 times closer at $L = 12$ (0.16). Iteration
    without blocks does not help: mean field over single switches is as biased as the one-pass
    graph (0.46–0.92). What removes the bias is exact blocks *and* the other blocks' data-dependent
-   means. The graph's sum node gives neither: it collapses the other blocks to their prior moments.
-4. **So the next piece for Mycelium is the message at the sum node, not the factor.** A sum node
-   that sends each block the residual given the other blocks' current posterior means, iterated,
-   is E7's structured mean field as message passing (a variational message schedule, as in
-   variational message passing for conjugate-exponential models). EP with block sites is the other
-   candidate. Neither is implemented.
+   means. The sum node on belief propagation gives neither: it collapses the other blocks to their
+   prior moments.
+4. **So the missing piece was the message at the sum node, not the factor.** It is now in Mycelium
+   (next section).
+
+## The hybrid graph: the sum node on mean field (added 2026-11-01)
+
+Mycelium nodes now take a message rule (`factor!(b, name, f; rule = MeanField())`, Mycelium's
+`passing.md`, "Mean-field nodes"). A mean-field node sends $\exp \mathbb E_q[\log f]$ over the other
+variables' current marginals, and Lenticulum's `LinearConstraintFactor` implements it: its
+belief-propagation message with each input at its mean. With the sum node on mean field and the
+block factors on belief propagation, the graph is the hybrid of Riegler et al. (2013). Each block's
+posterior is exact given the other blocks' current means, which is E7's structured mean field.
+`hybrid_posteriors` runs it by sequential sweeps (the sum node's message to each block in turn,
+then the blocks' outcomes) from the blocks' prior mixtures, E7's starting point.
+
+Measured on the same truths (10 held-out points per seed and $L$, the true parameters, overlap
+blocks of $\le 4$, block factors of width $10^{-8}$):
+
+- the block means and second moments agree with E7's structured mean field to at most
+  $8.9 \cdot 10^{-7}$ (seed 4, $L = 12$), and to $9 \cdot 10^{-9}$–$1.2 \cdot 10^{-7}$ on the other nine cases;
+- the iteration converges (message residual below $10^{-6}$) in 3–57 sweeps;
+- EM with the hybrid graph as its E-step (`fit_hybrid`, one graph per point) reaches the parameters
+  E7's code reaches: seed 1, $L = 8$, 300 points, 30 iterations, $|\Delta W| = 3.2 \cdot 10^{-8}$, held-out gaps
+  0.3291328 against 0.3291328. It took 28 s, against 2 s for E7's vectorised code.
+
+So the structured-mean-field numbers of the table (0.14 at $L = 8$, 0.16 at $L = 12$) are what learning
+through the Mycelium graph gives, with the generic message passing and two rules, one per factor
+type. Two things are still missing. The graph has no free energy for such hybrids, so
+`parameter_step` refuses them and the M-step is done outside. And building one graph per data point
+is slow.
 
 ## Caveats
 

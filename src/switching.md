@@ -6,7 +6,9 @@
 > form. It is the factor that [[Minimal Stochastic Factors]] arrives at (§3–§5, §11); its
 > experiments E1–E7 ran on hand-written copies of it before it existed here.
 
-> Sources: code: `switching.jl`, `constraint.jl`, `gaussian.jl`; tests: `test/switching_constraint.jl`; experiment: `examples/switching_blocks_graph.jl`
+> Sources: Riegler, Kirkelund, Manchon, Badiu & Fleury, IEEE Trans. Inf. Theory 59(1), 2013 (the hybrid BP/mean-field scheme of §4b). code: `switching.jl`, `constraint.jl`, `gaussian.jl`; tests: `test/switching_constraint.jl`; experiment: `examples/switching_blocks_graph.jl`
+>
+> Bibliography: [[Bibliography#^riegler2013merging|Riegler et al. 2013]]
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Open Model](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
@@ -83,6 +85,16 @@ marginalised under the factor's own weights. The open model is pure and its inve
 for `LinearConstraintModel`. The pointwise energy is $-\log f(x, k)$, a scalar. The factor passes
 `check_factor_conformance` in every polarity.
 
+## 4b. Mean-field messages
+
+On a `MeanField()` node (Mycelium `passing.md`, "Mean-field nodes") the factor sends
+$\exp \mathbb E_q[\log f]$ over the other channels' current marginals. For each outcome $\log f$ is quadratic in
+the continuous channels, so only means enter. With $\bar s = \sum_{i \ne t} A_i \mathbb E_q[x_i]$ and $q$ the outcome's
+marginal, the message to a continuous channel is $\mathcal N^{-1}(A_t^\top Q^{-1}(\bar b - \bar s), A_t^\top Q^{-1} A_t)$ with
+$\bar b = \sum_k q_k b_k$. The message to the outcome is $P(k) \propto w_k \exp(-\tfrac12 (b_k - \bar s)^\top Q^{-1}(b_k - \bar s))$. The
+test checks both against the formulas, and the slope and curvature of $\mathbb E_q[\log f]$ against Monte
+Carlo. `LinearConstraintFactor` has the same rule with one outcome (`constraint.jl`).
+
 ## 5. What it does not do
 
 - **Per-outcome coefficients or noise.** With $A_k$ or $Q_k$ depending on the outcome, the outcome
@@ -92,8 +104,10 @@ for `LinearConstraintModel`. The pointwise energy is $-\log f(x, k)$, a scalar. 
   $A_k$). Not implemented.
 - **Mixture inputs** are collapsed to their moments before use, in the messages and in the free
   energy, as for `LinearConstraintFactor` (`gaussian.md`, "Mixture inputs"). So a chain of
-  switching factors runs as assumed-density filtering, and E6 measured the bias that causes
-  when switches overlap.
+  switching factors on belief propagation runs as assumed-density filtering, and E6 measured the
+  bias that causes when switches overlap. Putting the sum node on `MeanField()` removes the
+  collapse to *prior* moments: it then reads the other inputs' current means
+  (`examples/switching_blocks_graph.md`).
 - **Bethe free energy with mixture marginals.** Mycelium has no entropy for a Gaussian-mixture
   variable belief, so a graph's Bethe free energy is available only when every continuous
   variable whose marginal is a mixture has degree one, or is clamped. The factor's own entropy
