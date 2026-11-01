@@ -76,21 +76,20 @@ The queries obey the averaging requirement of [[Extending Mycelium]] §6b:
 - `sample_gradient`: the weighted mean of each sample's gradient of its total at the current
   parameters.
 
-## The gradient goes through inference
+## The gradient
 
 `sample_gradient` pins each stored sample, reruns inference at the current parameters, and
-differentiates the total ($-\log p(\text{data}, \text{pins})$) *through* that inference, by central
-differences (`ad = nothing`) or an AD backend. With exact posterior weights it equals the gradient
+takes the gradient of the total ($-\log p(\text{data}, \text{pins})$) at those parameters. With exact posterior weights it equals the gradient
 of the exact $-\log p(\text{data})$ (Lenticulum's test, against finite differences of the enumerated
 likelihood). With posterior samples it is the Monte Carlo EM gradient.
 
-It differentiates through inference rather than calling `free_energy_gradient`. When it was
-written, that function's default held the incoming messages fixed, which is not the free-energy
-gradient ([[LP-020 The fixed-message parameter gradient is not the free-energy gradient]]). It now
-holds the factor beliefs fixed and is exact at a fixed point. A cheaper `sample_gradient` would
-re-run inference per sample at the current parameters and take that fixed-belief gradient, one
-inference per sample instead of one per sample and coordinate. Not done yet. The current form
-stays as the reference it is checked against.
+By default (since 2026-11-01) each sample's pinned inference is followed by
+`free_energy_gradient`, which holds the factor beliefs fixed
+([[LP-020 The fixed-message parameter gradient is not the free-energy gradient]]). That is one
+inference per sample, and exact once the inference has converged, as on a pinned tree. The first
+version differentiated through the inference instead: one inference per sample and, with
+reference differences, per parameter coordinate too. It stays as `through_inference = true`,
+needs no factor hook, and is what the default is checked against.
 
 ## Tested
 
@@ -101,7 +100,7 @@ stays as the reference it is checked against.
   - the sampler's frequencies against the enumerated posterior;
   - with every configuration at its exact weight, each total is $-\log p(x, k)$, the residual
     moments match Gaussian conditioning, and the gradient matches finite differences of
-    $-\log p(x)$ in `c`, `b` and `logw`.
+    $-\log p(x)$ in `c`, `b` and `logw`. The default and `through_inference = true` agree to $10^{-6}$.
 
 ## Not done
 

@@ -335,4 +335,7 @@ end
     @test grad.sum.c ≈ fd(c -> nlp(c, δ1, δ2, lw1, lw2), c0) rtol = 1e-4
     @test grad.sw1.b[:, 2] ≈ fd(v -> nlp(c0, v, δ2, lw1, lw2), δ1) rtol = 1e-4   # b's second column is δ₁
     @test grad.sw2.logw ≈ fd(v -> nlp(c0, δ1, δ2, lw1, v), lw2) rtol = 1e-4 atol = 1e-8
+    # the default (fixed beliefs, one inference per sample) and differentiating through inference agree
+    gi = sample_gradient(buf, sampler, ps, NamedTuple(); through_inference = true)
+    @test LenticulumCore._flatten(grad) ≈ LenticulumCore._flatten(gi) atol = 1e-6
 end

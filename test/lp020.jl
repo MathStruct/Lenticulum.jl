@@ -72,13 +72,15 @@ end
         @test graph(a, c).A_u ≈ exact(a, c).A_u rtol = 1e-6
         @test graph(a, c).c ≈ exact(a, c).c rtol = 1e-6
         @test exact(a, c).A_u ≈ 0.679 atol = 1e-3
-        # differentiating through inference (sample_gradient, nothing sampled) agrees
+        # sample_gradient with nothing sampled, both ways: at fixed beliefs and through inference
         sampler = GibbsSampler(g, ())
         buf = SampleBuffer(WindowFilter(1))
         record!(buf, sampler, NamedTuple(), ps(a, c), NamedTuple())
-        gi = sample_gradient(buf, sampler, ps(a, c), NamedTuple())
-        @test gi.lc.A.u[1] ≈ exact(a, c).A_u rtol = 1e-6
-        @test gi.lc.c[1] ≈ exact(a, c).c rtol = 1e-6
+        for through_inference in (false, true)
+            gi = sample_gradient(buf, sampler, ps(a, c), NamedTuple(); through_inference)
+            @test gi.lc.A.u[1] ≈ exact(a, c).A_u rtol = 1e-6
+            @test gi.lc.c[1] ≈ exact(a, c).c rtol = 1e-6
+        end
         # The gradient vanishes at the maximum-likelihood a, and alternating inference with it gets
         # there. Holding the messages fixed, it stopped at a = 0.754 instead of 1.179.
         aml = sqrt((z[1] - c)^2 - q)

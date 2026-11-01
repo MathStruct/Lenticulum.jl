@@ -73,7 +73,7 @@ example the discrete switches) from their exact conditionals, integrating the ot
 propagation with the drawn ones pinned (`pin!`). A `SampleBuffer` keeps the samples, weighs them by
 a `WindowFilter` or `DecayFilter`, forgets those older than a number of parameter steps
 (`advance!`), and reports per-component energy moments, each factor's residual mean and full
-covariance, and the Monte Carlo EM gradient (`sample_gradient`, differentiated through inference).
+covariance, and the Monte Carlo EM gradient (`sample_gradient`: one inference per sample, then the fixed-belief gradient).
 
 ## Structural factors
 

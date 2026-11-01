@@ -164,8 +164,8 @@ where exact inference is available.
 ## 6b. Sampling, and what an average must keep
 
 **Status: implemented (2026-11-01)** in `lib/Mycelium.jl/src/sampling.jl` ([[sampling]]): pins, the
-Gibbs sampler, the buffer with window and decay filters and a horizon, and the gradient through
-inference. Building it exposed [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]].
+Gibbs sampler, the buffer with window and decay filters and a horizon, and the Monte Carlo EM gradient
+(one inference per sample, then the fixed-belief gradient of LP-020). Building it exposed [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]].
 
 **What.** Passing points instead of beliefs: a Gibbs sampler over chosen variables. The switches are
 sampled; the continuous variables between them are integrated out exactly by belief propagation

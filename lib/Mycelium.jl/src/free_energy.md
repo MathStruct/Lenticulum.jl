@@ -220,8 +220,8 @@ re-evaluates the residual's mean and covariance under it at the current paramete
 - The fixed point must be at the parameters the gradient is evaluated at. `parameter_step` with a
   look-ahead rule evaluates at look-ahead parameters with the current messages, as before.
 - Non-diagonal couplings and `adjoint = :implicit` differentiate through inference
-  ([[gradient_couplings]], [[graph_adjoint]]) and are unchanged. So is `sample_gradient`
-  ([[sampling]]).
+  ([[gradient_couplings]], [[graph_adjoint]]) and are unchanged. `sample_gradient` uses this
+  gradient per sample by default ([[sampling]]).
 
 **Checked** in `test/lp020.jl`. On four trees (the linear constraint above; a Gaussian
 factor and a Gaussian prior, both with learnable noise; the collapsed composite; a switching

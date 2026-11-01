@@ -67,5 +67,6 @@ Checked in `test/lp020.jl`:
 - Factors without `factor_belief` (the neural, diffusion and algebraic factors, and Mycelium's `PriorFactor`) keep the
   fixed-message derivative. That is exact with point messages, and they warn once when their
   messages are not points.
-- `sample_gradient` still differentiates through inference. It could use the fixed-belief gradient
-  per sample instead ([[sampling]]).
+- `sample_gradient` now uses the fixed-belief gradient per sample by default (one inference per
+  sample); differentiating through inference stays as `through_inference = true`, and the two agree
+  to $10^{-6}$ in `test/switching_constraint.jl` ([[sampling]]).
