@@ -381,6 +381,21 @@ _collapse(b) = b
 Mycelium.uses_cavity(::SwitchingConstraintFactor) = true
 
 """
+    Mycelium.factor_residual_moments(f::SwitchingConstraintFactor, msgs, ps) -> (mean, cov)
+
+The mean and full covariance of the residual ``r = \\sum_i A_i x_i - b_k`` under the factor's belief,
+over the outcome as well: ``\\bar r = \\sum_k q_k \\bar r_k`` and
+``\\operatorname{Cov} r = \\operatorname{Cov}(r \\mid k) + \\sum_k q_k (\\bar r_k - \\bar r)(\\bar r_k - \\bar r)^\\top``, from
+[`switch_statistics`](@ref). Used by Mycelium's `SampleBuffer`.
+"""
+function Mycelium.factor_residual_moments(f::SwitchingConstraintFactor, msgs, ps)
+    q, rbar, Cr, _ = switch_statistics(f, msgs, ps)
+    μ = rbar * q
+    D = rbar .- μ
+    return μ, Cr + D * Diagonal(q) * D'
+end
+
+"""
     Mycelium.local_free_energy(f::SwitchingConstraintFactor, msgs, ps, st)
 
 ``F_c = \\mathbb E_{b_c}[-\\log f] - H(b_c)``, exact for Gaussian, Dirac and categorical messages,

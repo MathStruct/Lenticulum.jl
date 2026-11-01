@@ -263,3 +263,76 @@ end
     _, _, _, s = infer!(g, SequentialSchedule(all_tasks(g)), ps, NamedTuple(); maxsweeps = 3)
     @test_throws ArgumentError LenticulumCore.scalar_free_energy(s, g, ps, NamedTuple())
 end
+
+@testset "Gibbs sampling over switches, the sample buffer, and the Monte Carlo EM gradient" begin
+    # z = c + u₁ + u₂ + ε, each u_l a binary switch with offsets {0, δ_l} and width η; the
+    # switches overlap, so their posterior is correlated. Exact: p(x, k) = w₁(k₁) w₂(k₂) N(x; c + Σ k_l δ_l, Σ + 2ηI).
+    d, η = 2, 1e-3
+    Σ = [0.3 0.05; 0.05 0.25]; x = [1.1, 0.7]
+    I2 = Matrix(1.0I, d, d)
+    function graph()
+        b = GraphBuilder()
+        variable!(b, :z, d); variable!(b, :u1, d); variable!(b, :u2, d); variable!(b, :k1, 2); variable!(b, :k2, 2)
+        factor!(b, :data, DataFactor(:z, x))
+        factor!(b, :sum, LinearConstraintFactor((z = d, u1 = d, u2 = d), d; noise = Σ))
+        connect!(b, :data, :z, :z; direction = Emitting()); connect!(b, :sum, :z, :z; direction = Absorbing())
+        for l in 1:2
+            factor!(b, Symbol(:sw, l), SwitchingConstraintFactor((u = d,), 2, d; noise = η))
+            connect!(b, Symbol(:sw, l), :u, Symbol(:u, l)); connect!(b, :sum, Symbol(:u, l), Symbol(:u, l))
+            connect!(b, Symbol(:sw, l), :k, Symbol(:k, l))
+        end
+        return build(b)
+    end
+    g = graph()
+    params(c, δ1, δ2, lw1, lw2) = merge(LuxCore.initialparameters(Xoshiro(0), g),
+        (sum = (A = (z = I2, u1 = -I2, u2 = -I2), c = c),
+         sw1 = (A = (u = I2,), b = [zeros(d) δ1], logw = lw1), sw2 = (A = (u = I2,), b = [zeros(d) δ2], logw = lw2)))
+    c0, δ1, δ2, lw1, lw2 = [0.1, -0.2], [2.0, 0.0], [1.6, 1.2], log.([0.6, 0.4]), log.([0.5, 0.5])
+    ps = params(c0, δ1, δ2, lw1, lw2)
+    configs = [(a, b) for a in 1:2 for b in 1:2]
+    function logjoint(c, δ1, δ2, lw1, lw2, (a, b))
+        m = c + (a - 1) * δ1 + (b - 1) * δ2
+        lw1[a] - logsumexp_(lw1) + lw2[b] - logsumexp_(lw2) + lognormal(x, m, Σ + 2η * I2)
+    end
+    lj = [logjoint(c0, δ1, δ2, lw1, lw2, k) for k in configs]
+    P = softmax_(lj)
+
+    # the sampler's long-run frequencies are the exact posterior
+    sampler = GibbsSampler(g, (:k1, :k2))
+    rng = Xoshiro(11)
+    state, _ = gibbs_init(sampler, ps, NamedTuple(); rng)
+    counts = zeros(4)
+    for _ in 1:4000
+        gibbs_sweep!(state, sampler, ps, NamedTuple(); rng)
+        pt = gibbs_points(state, sampler)
+        counts[findfirst(==((pt.k1, pt.k2)), configs)] += 1
+    end
+    @test maximum(abs.(counts ./ 4000 - P)) < 0.03
+
+    # a buffer holding every configuration at its exact posterior weight
+    buf = SampleBuffer(WindowFilter(4))
+    for (k, p) in zip(configs, P)
+        record!(buf, sampler, (k1 = k[1], k2 = k[2]), ps, NamedTuple(); weight = p)
+    end
+    @test [e.total for e in buf.entries] ≈ -lj                  # each total is −log p(x, pins)
+    @test free_energy_mean(buf) ≈ -sum(P .* lj)
+    # residual moments of the sum node: law of total covariance against Gaussian conditioning
+    rmean, rcov = residual_moments(buf, :sum)
+    rs, Cs = map(configs) do (a, b)
+        sprior = (a - 1) * δ1 + (b - 1) * δ2                    # u₁ + u₂ ~ N(sprior, 2ηI) a priori
+        Λ = inv(2η * I2) + inv(Σ)
+        S = inv(Λ); ms = S * ((2η * I2) \ sprior + Σ \ (x - c0))
+        x - c0 - ms, S                                          # r = z − u₁ − u₂ − c
+    end |> v -> (first.(v), last.(v))
+    r̄ = sum(P .* rs)
+    @test rmean ≈ r̄ atol = 1e-8
+    @test rcov ≈ sum(P[i] * (Cs[i] + (rs[i] - r̄) * (rs[i] - r̄)') for i in 1:4) atol = 1e-8
+    # the gradient: with exact posterior weights it is the gradient of the exact −log p(x)
+    grad = sample_gradient(buf, sampler, ps, NamedTuple())
+    nlp(c, δ1, δ2, lw1, lw2) = -logsumexp_([logjoint(c, δ1, δ2, lw1, lw2, k) for k in configs])
+    h = 1e-6
+    fd(f, v) = [(f(v + h * e) - f(v - h * e)) / 2h for e in eachcol(Matrix(1.0I, length(v), length(v)))]
+    @test grad.sum.c ≈ fd(c -> nlp(c, δ1, δ2, lw1, lw2), c0) rtol = 1e-4
+    @test grad.sw1.b[:, 2] ≈ fd(v -> nlp(c0, v, δ2, lw1, lw2), δ1) rtol = 1e-4   # b's second column is δ₁
+    @test grad.sw2.logw ≈ fd(v -> nlp(c0, δ1, δ2, lw1, v), lw2) rtol = 1e-4 atol = 1e-8
+end

@@ -14,7 +14,9 @@
 > The first step, the message rule, is done ([[L-ADR-0009 Factor nodes carry a message rule]]). The
 > rest is proposed, ordered by what it unblocks.
 
-> Sources: original to this vault (design). Hybrid belief propagation and mean field: Riegler, Kirkelund, Manchon, Badiu & Fleury, *Merging Belief Propagation and the Mean Field Approximation: A Free Energy Approach*, IEEE Trans. Inf. Theory 59(1), 2013. Region free energies and generalised belief propagation: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE Trans. Inf. Theory 51(7), 2005. Expectation propagation: Minka, UAI 2001. Gaussian-mixture reduction: Runnalls, IEEE Trans. Aerosp. Electron. Syst. 2007. code: `lib/Mycelium.jl/src/graph.jl`, `passing.jl`, `free_energy.jl`, `schedules.jl`, `exposure.jl`
+> Sources: original to this vault (design). Hybrid belief propagation and mean field: Riegler, Kirkelund, Manchon, Badiu & Fleury, *Merging Belief Propagation and the Mean Field Approximation: A Free Energy Approach*, IEEE Trans. Inf. Theory 59(1), 2013. Region free energies and generalised belief propagation: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE Trans. Inf. Theory 51(7), 2005. Expectation propagation: Minka, UAI 2001. Gaussian-mixture reduction: Runnalls, IEEE Trans. Aerosp. Electron. Syst. 2007. Monte Carlo EM: Wei & Tanner, *A Monte Carlo Implementation of the EM Algorithm and the Poor Man's Data Augmentation Algorithms*, JASA 85(411), 1990. Stochastic-approximation EM: Delyon, Lavielle & Moulines, *Convergence of a Stochastic Approximation Version of the EM Algorithm*, Ann. Statist. 27(1), 1999. code: `lib/Mycelium.jl/src/graph.jl`, `passing.jl`, `free_energy.jl`, `schedules.jl`, `exposure.jl`
+>
+> Bibliography: [[Bibliography#^riegler2013merging|Riegler et al. 2013]] · [[Bibliography#^yedidia2005bethe|Yedidia et al. 2005]] · [[Bibliography#^minka2001ep|Minka 2001]] · [[Bibliography#^runnalls2007kl|Runnalls 2007]] · [[Bibliography#^wei1990montecarlo|Wei & Tanner 1990]] · [[Bibliography#^delyon1999saem|Delyon et al. 1999]]
 >
 > Theory (CT-ML wiki): [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion)
 
@@ -50,6 +52,9 @@ them. For belief propagation that is Bethe. For the hybrid it is the free energy
 
 The exact counting numbers are to be taken from the paper's statement before implementing; this
 sketch is not a substitute for it.
+
+**Before it: LP-020.** The existing graph gradient holds messages, not beliefs, fixed, and is not
+the gradient of the Bethe free energy either. A free energy per rule needs that fixed first.
 
 **Why first.** It turns the refusal of [[L-ADR-0009 Factor nodes carry a message rule]] into an
 answer, and with it `parameter_step` trains hybrid graphs: EM becomes coordinate descent on one
@@ -154,6 +159,58 @@ generating structures recovered), but it rebuilt models outside Mycelium, with e
 **Test.** The moves of `structure_switches.jl`, done as edits, reproduce its search paths and scores
 where exact inference is available.
 
+## 6b. Sampling, and what an average must keep
+
+**Status: implemented (2026-11-01)** in `lib/Mycelium.jl/src/sampling.jl` ([[sampling]]): pins, the
+Gibbs sampler, the buffer with window and decay filters and a horizon, and the gradient through
+inference. Building it exposed [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]].
+
+**What.** Passing points instead of beliefs: a Gibbs sampler over chosen variables. The switches are
+sampled; the continuous variables between them are integrated out exactly by belief propagation
+with the sampled ones pinned (Rao-Blackwellisation). Beliefs then never grow, each update is local,
+and learning is Monte Carlo EM (Wei & Tanner 1990): the parameter gradient is the average, over
+posterior samples, of the pinned graph's free-energy gradient. With all sampled variables pinned
+and the rest a tree, that free energy is $-\log p(\text{data}, \text{pins})$.
+
+**Requirement: averaging a structured energy.** A vector energy averaged the wrong way loses exactly
+the structure it was made to keep. Every sampling or point-passing rule, and every report built on
+samples, must satisfy the following.
+
+1. **Scalarise each sample, then average, one graded component at a time.** Never average a raw
+   residual vector across samples or outcomes before its scalarisation: residuals of different
+   samples cancel (two outcomes with right-hand sides $\pm 1$ average to a zero residual although
+   neither constraint holds). This is L-ADR-0003's two levels, applied to samples.
+2. **Report the mean and the full covariance of each factor's residual vector.** For a squared-norm
+   scalarisation they are exact sufficient statistics,
+   $\mathbb E\lVert r\rVert^2_W = \lVert \mathbb E r\rVert^2_W + \operatorname{tr}(W \operatorname{Cov} r)$,
+   so the trace term, the Jensen gap, stays visible and checkable. When a sample carries a Gaussian
+   part (Rao-Blackwellisation), the covariance is combined by the law of total covariance: the
+   average of the within-sample covariances plus the covariance of the sample means.
+3. **A diagonal covariance is a declared reduction, valid only for a diagonal weighting.** With a
+   full noise matrix the off-diagonal covariances enter the trace.
+4. **Nonlinear scalarisations need the samples themselves.** Mean and covariance are not sufficient
+   for robust or point-dependent scalarisations (L-ADR-0007), so the samples are kept.
+
+**Interface: samples are kept, filtered, and forgotten.**
+
+- A **sample buffer** keeps each sample's points, its graded local energies, the residual moments
+  of every factor that has them, and the parameter step at which it was drawn.
+- A **filter** turns the buffer into weights. A window keeps the last $n$ samples with equal
+  weight. An exponential filter weighs a sample $a$ draws old by $\lambda^a$; with a decreasing step size this
+  is stochastic-approximation EM (Delyon, Lavielle & Moulines 1999).
+- **Forgetting:** after `horizon` parameter steps a sample is dropped, since samples drawn under old
+  parameters bias the gradient.
+- Averages, residual moments and gradients are always computed from the buffer under the filter's
+  weights. The gradient re-runs belief propagation at the *current* parameters with each stored
+  sample pinned.
+
+**Test.**
+
+- The Gibbs conditional is exact (frequencies against enumeration).
+- With the buffer holding every configuration at its exact posterior weight, the gradient equals
+  the gradient of the exact $-\log p$, and the residual moments equal the enumerated ones.
+- The filters' weights and the forgetting are checked deterministically.
+
 ## 7. Factors that follow from this (Lenticulum)
 
 These belong to Lenticulum, not to Mycelium, but the plan depends on them:
@@ -170,6 +227,9 @@ These belong to Lenticulum, not to Mycelium, but the plan depends on them:
 3. Rule-aware schedules (§3). They are small, and §1's tests need them.
 4. EP and reduction rules (§4), then cluster nodes (§5). They widen what the graph can approximate.
 5. Structure edits (§6). They need §1's score.
+
+Sampling (§6b) is independent of the others and is implemented first, by Daniel's choice
+(2026-11-01): it needs no new free energy, because the pinned graph's Bethe free energy is exact.
 
 Each part gets an LP or an L-SPEC when it starts, with its tests written against the oracles named
 above.

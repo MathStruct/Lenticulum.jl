@@ -344,6 +344,18 @@ end
 Mycelium.uses_cavity(::LinearConstraintFactor) = true
 
 """
+    Mycelium.factor_residual_moments(f::LinearConstraintFactor, msgs, ps) -> (mean, cov)
+
+The mean and full covariance of the residual under the factor's belief, from
+[`residual_statistics`](@ref). Mixture messages are collapsed to their moments first. Used by
+Mycelium's `SampleBuffer`.
+"""
+function Mycelium.factor_residual_moments(f::LinearConstraintFactor, msgs, ps)
+    r̄, C, _ = residual_statistics(f, map(_collapse, msgs), ps)
+    return r̄, C
+end
+
+"""
     Mycelium.local_free_energy(f::LinearConstraintFactor, msgs, ps, st)
 
 ``F_c = U_c - H(b_c)``, graded as `(fit, complexity, negentropy)` — the same decomposition

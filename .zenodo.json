@@ -263,6 +263,8 @@
     "Lauritzen, Steffen L.; Wermuth, Nanny (1989). Graphical Models for Associations between Variables, some of which are Qualitative and some Quantitative. The Annals of Statistics. https://doi.org/10.1214/aos/1176347003",
     "Lauritzen, Steffen L. (1992). Propagation of Probabilities, Means, and Variances in Mixed Graphical Association Models. Journal of the American Statistical Association. https://doi.org/10.1080/01621459.1992.10476265",
     "Sorenson, H. W.; Alspach, D. L. (1971). Recursive Bayesian Estimation Using Gaussian Sums. Automatica. https://doi.org/10.1016/0005-1098(71)90097-5",
-    "Ghahramani, Zoubin; Hinton, Geoffrey E. (2000). Variational Learning for Switching State-Space Models. Neural Computation. https://doi.org/10.1162/089976600300015619"
+    "Ghahramani, Zoubin; Hinton, Geoffrey E. (2000). Variational Learning for Switching State-Space Models. Neural Computation. https://doi.org/10.1162/089976600300015619",
+    "Wei, Greg C. G.; Tanner, Martin A. (1990). A Monte Carlo Implementation of the EM Algorithm and the Poor Man's Data Augmentation Algorithms. Journal of the American Statistical Association. https://doi.org/10.1080/01621459.1990.10474930",
+    "Delyon, Bernard; Lavielle, Marc; Moulines, Eric (1999). Convergence of a Stochastic Approximation Version of the EM Algorithm. The Annals of Statistics. https://doi.org/10.1214/aos/1018031103"
   ]
 }

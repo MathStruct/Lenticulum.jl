@@ -34,9 +34,32 @@ mutable struct MessageStore <: AbstractMessageStore
     to_variable::Vector{Any}
     to_factor::Vector{Any}
     iteration::Int
+    pins::Dict{Int,Any}
 end
+MessageStore(to_variable, to_factor, iteration) = MessageStore(to_variable, to_factor, iteration, Dict{Int,Any}())
 MessageStore(g::FactorGraph) =
     MessageStore(Vector{Any}(nothing, nedges(g)), Vector{Any}(nothing, nedges(g)), 0)
+
+"""
+    pin!(store, g, variable::Symbol, value) -> store
+    unpin!(store, g, variable::Symbol) -> store
+
+Pin a variable to a point, or release it. A pinned variable's marginal, and every message it sends
+to a factor, is `DiracBelief(value)`, whatever the factors send it: the variable is observed for
+the time being. Pins live in the store, not the graph, so a sampler can move them between sweeps
+without rebuilding anything ([`gibbs_sweep!`](@ref)). [`reset!`](@ref) clears messages but keeps
+pins; `unpin!` releases one, `empty!(store.pins)` all.
+"""
+function pin!(s::MessageStore, g::FactorGraph, v::Symbol, value)
+    s.pins[g.variable_index[v]] = value
+    return s
+end
+function unpin!(s::MessageStore, g::FactorGraph, v::Symbol)
+    delete!(s.pins, g.variable_index[v])
+    return s
+end
+_pin(::AbstractMessageStore, vid::Int) = nothing
+_pin(s::MessageStore, vid::Int) = get(s.pins, vid, nothing)
 
 has_to_variable(s::AbstractMessageStore, ei::Int) = s.to_variable[ei] !== nothing
 has_to_factor(s::AbstractMessageStore, ei::Int) = s.to_factor[ei] !== nothing
@@ -46,7 +69,7 @@ has_to_factor(s::AbstractMessageStore, ei::Int) = s.to_factor[ei] !== nothing
 
 Clear all messages. Used between independent inference problems on the same graph.
 """
-function reset!(s::MessageStore)
+function reset!(s::MessageStore)                 # pins are kept (`pin!`)
     fill!(s.to_variable, nothing)
     fill!(s.to_factor, nothing)
     s.iteration = 0
@@ -331,6 +354,8 @@ The belief at a variable: the combination of **all** incoming factor → variabl
 This is what you read out at the end of inference.
 """
 function marginal(s::AbstractMessageStore, g::FactorGraph, vid::Int)
+    p = _pin(s, vid)
+    p === nothing || return LenticulumCore.DiracBelief(p)
     acc = LenticulumCore.TrivialBelief()
     for ei in g.edges_of_variable[vid]
         m = s.to_variable[ei]
@@ -356,6 +381,8 @@ marginal by the skipped message. Division requires densities and is numerically 
 recomputation costs `O(degree)` per message and is always defined.
 """
 function excluded_marginal(s::AbstractMessageStore, g::FactorGraph, vid::Int, skip::Int)
+    p = _pin(s, vid)
+    p === nothing || return LenticulumCore.DiracBelief(p)
     acc = LenticulumCore.TrivialBelief()
     for ei in g.edges_of_variable[vid]
         ei == skip && continue

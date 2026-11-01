@@ -56,6 +56,7 @@ include("exposure.jl")
 include("gaussian.jl")
 include("gradient_couplings.jl")
 include("graph_adjoint.jl")
+include("sampling.jl")
 
 # --- Graph -----------------------------------------------------------------
 export FactorGraph, GraphBuilder, VariableNode, FactorNode, Edge
@@ -72,7 +73,7 @@ export PolarityError, resolve_polarity, check_legal, can_emit, can_absorb
 export legal_targets, legal_sources
 
 # --- Messages --------------------------------------------------------------
-export Message, MessageStore, reset!, combine, combine_with_overlap, belief_logdensity, belief_distance
+export Message, MessageStore, reset!, pin!, unpin!, combine, combine_with_overlap, belief_logdensity, belief_distance
 export marginal, excluded_marginal, damp, can_damp
 export has_to_variable, has_to_factor
 
@@ -85,6 +86,12 @@ export flooding_schedule, tree_schedule, forward_backward_schedule
 # --- Passing ---------------------------------------------------------------
 export factor_message, mean_field_message, available_channels, step!, sweep!, propagate!, infer!
 export ConvergenceReport
+
+# --- Sampling --------------------------------------------------------------
+export sample_belief, GibbsSampler, GibbsState, gibbs_init, gibbs_sweep!, gibbs_points
+export factor_residual_moments, AbstractSampleFilter, WindowFilter, DecayFilter
+export SampleBuffer, record!, advance!, sample_weights, energy_moments, free_energy_mean
+export residual_moments, sample_gradient
 
 # --- Free energy -----------------------------------------------------------
 export counting_number, counting_numbers, total_counting_number, variable_entropy

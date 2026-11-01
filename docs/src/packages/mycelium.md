@@ -68,6 +68,13 @@ belief-propagation nodes this is the hybrid BP/mean-field scheme of Riegler et a
 a `SequentialSchedule` to its fixed point. The graph free energy is not defined for such graphs
 and refuses them.
 
+Points can be passed instead of beliefs. `GibbsSampler(g, sampled)` draws the named variables (for
+example the discrete switches) from their exact conditionals, integrating the others out by belief
+propagation with the drawn ones pinned (`pin!`). A `SampleBuffer` keeps the samples, weighs them by
+a `WindowFilter` or `DecayFilter`, forgets those older than a number of parameter steps
+(`advance!`), and reports per-component energy moments, each factor's residual mean and full
+covariance, and the Monte Carlo EM gradient (`sample_gradient`, differentiated through inference).
+
 ## Structural factors
 
 Data, priors, losses and optimisers are all factors here rather than special machinery:
@@ -194,6 +201,9 @@ the native-backend and metric/divergence reproducers.
 - Potential distances compare callable identity (otherwise `Inf`); damping potentials is
   an inspectable no-op through `can_damp`.
 - No parameter sharing between factor nodes, so weight tying is not expressible.
+- `free_energy_gradient` and `parameter_step` hold the incoming messages fixed, not the beliefs:
+  not the free-energy gradient, with biased fixed points (LP-020). `sample_gradient`
+  differentiates through inference instead.
 - Graphs with `MeanField()` nodes have no free energy yet (the hybrid's, Riegler et al. 2013,
   is not implemented), so `parameter_step` cannot train them.
 - Loopy message passing has no convergence guarantees, and `report.converged` means the
@@ -245,6 +255,13 @@ Pages = ["passing.jl"]
 ```@autodocs
 Modules = [Mycelium]
 Pages = ["free_energy.jl"]
+```
+
+### Sampling
+
+```@autodocs
+Modules = [Mycelium]
+Pages = ["sampling.jl"]
 ```
 
 ### Structural factors and optimisers

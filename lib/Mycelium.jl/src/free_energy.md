@@ -138,6 +138,13 @@ Related: [[Bethe Free Energy]], [[Scalar and Multivariate Energy]], [[energy]], 
 
 ## Parameter training at fixed beliefs (LP-002, 2026-10-26)
 
+> [!warning] Fixed messages, not fixed beliefs (LP-020, 2026-11-01)
+> The derivative below holds the *incoming messages* fixed. Each factor's belief is recomputed
+> from them and moves with the parameters, so this is not the gradient of the free energy, and its
+> fixed points are not maximum likelihood in general (on a two-variable tree: a = 0.754 against
+> 1.179). See [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]].
+> `sample_gradient` (`sampling.md`) differentiates through inference instead.
+
 `free_energy_gradient(store, g, ps, st; ad)` differentiates each scalarised local free
 energy and assembles a tree matching `ps`. Nonlearnable factors get zero subtrees.
 Messages are snapshotted outside AD. Bethe variable corrections are constant under

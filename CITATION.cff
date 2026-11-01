@@ -3396,3 +3396,33 @@ references:
     start: "831"
     end: "864"
     doi: "10.1162/089976600300015619"
+  - type: article
+    title: "A Monte Carlo Implementation of the EM Algorithm and the Poor Man's Data Augmentation Algorithms"
+    authors:
+      - family-names: "Wei"
+        given-names: "Greg C. G."
+      - family-names: "Tanner"
+        given-names: "Martin A."
+    year: 1990
+    journal: "Journal of the American Statistical Association"
+    volume: "85"
+    issue: "411"
+    start: "699"
+    end: "704"
+    doi: "10.1080/01621459.1990.10474930"
+  - type: article
+    title: "Convergence of a Stochastic Approximation Version of the EM Algorithm"
+    authors:
+      - family-names: "Delyon"
+        given-names: "Bernard"
+      - family-names: "Lavielle"
+        given-names: "Marc"
+      - family-names: "Moulines"
+        given-names: "Eric"
+    year: 1999
+    journal: "The Annals of Statistics"
+    volume: "27"
+    issue: "1"
+    start: "94"
+    end: "128"
+    doi: "10.1214/aos/1018031103"

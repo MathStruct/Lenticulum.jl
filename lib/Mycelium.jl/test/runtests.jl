@@ -555,6 +555,8 @@ include("overlap.jl")
 
 include("message_rules.jl")
 
+include("sampling.jl")
+
 include("conformance.jl")
 
 @testset "log-potential pooling (LP-016)" begin
