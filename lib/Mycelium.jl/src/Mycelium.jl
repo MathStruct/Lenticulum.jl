@@ -59,6 +59,7 @@ include("graph_adjoint.jl")
 
 # --- Graph -----------------------------------------------------------------
 export FactorGraph, GraphBuilder, VariableNode, FactorNode, Edge
+export AbstractMessageRule, BeliefPropagation, MeanField
 export variable!, factor!, connect!, build, validate
 export EdgeDirection, Bidirectional, Emitting, Absorbing, emits, absorbs
 export nvariables, nfactors, nedges, variable, factornode
@@ -82,7 +83,7 @@ export SequentialSchedule, FloodingSchedule, TreeSchedule, ForwardBackwardSchedu
 export flooding_schedule, tree_schedule, forward_backward_schedule
 
 # --- Passing ---------------------------------------------------------------
-export factor_message, available_channels, step!, sweep!, propagate!, infer!
+export factor_message, mean_field_message, available_channels, step!, sweep!, propagate!, infer!
 export ConvergenceReport
 
 # --- Free energy -----------------------------------------------------------

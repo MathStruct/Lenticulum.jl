@@ -249,6 +249,20 @@
     "Montoison, Alexis; Orban, Dominique (2023). Krylov.jl: A Julia basket of hand-picked Krylov methods. Journal of Open Source Software. https://doi.org/10.21105/joss.05187",
     "Rackauckas, Christopher; Ma, Yingbo; Martensen, Julius; Warner, Collin; Zubov, Kirill; Supekar, Rohit; Skinner, Dominic; Ramadhan, Ali; Edelman, Alan (2020). Universal Differential Equations for Scientific Machine Learning. https://arxiv.org/abs/2001.04385",
     "Rubin, Donald B. (1981). Estimation in Parallel Randomized Experiments. Journal of Educational Statistics. https://doi.org/10.3102/10769986006004377",
-    "Weiss, Yair; Freeman, William T. (2001). Correctness of Belief Propagation in Gaussian Graphical Models of Arbitrary Topology. Neural Computation. https://doi.org/10.1162/089976601750541769"
+    "Weiss, Yair; Freeman, William T. (2001). Correctness of Belief Propagation in Gaussian Graphical Models of Arbitrary Topology. Neural Computation. https://doi.org/10.1162/089976601750541769",
+    "Sohl-Dickstein, Jascha; Weiss, Eric; Maheswaranathan, Niru; Ganguli, Surya (2015). Deep Unsupervised Learning using Nonequilibrium Thermodynamics. International Conference on Machine Learning (ICML). https://arxiv.org/abs/1503.03585",
+    "Ghahramani, Zoubin; Jordan, Michael I. (1997). Factorial Hidden Markov Models. Machine Learning. https://doi.org/10.1023/A:1007425814087",
+    "Turner, Richard E.; Sahani, Maneesh (2011). Two problems with variational expectation maximisation for time series models. Bayesian Time Series Models. https://doi.org/10.1017/CBO9780511984679.006",
+    "Riegler, Erwin; Kirkelund, Gunvor Elisabeth; Manchon, Carles Navarro; Badiu, Mihai-Alin; Fleury, Bernard Henri (2013). Merging Belief Propagation and the Mean Field Approximation: A Free Energy Approach. IEEE Transactions on Information Theory. https://doi.org/10.1109/TIT.2012.2218573",
+    "Han, Zhao-Yu; Wang, Jun; Fan, Heng; Wang, Lei; Zhang, Pan (2018). Unsupervised Generative Modeling Using Matrix Product States. Physical Review X. https://doi.org/10.1103/PhysRevX.8.031012",
+    "Loconte, Lorenzo; Sladek, Aleksanteri M.; Mengel, Stefan; Trapp, Martin; Solin, Arno; Gillis, Nicolas; Vergari, Antonio (2023). Subtractive Mixture Models via Squaring: Representation and Learning. https://arxiv.org/abs/2310.00724",
+    "Jordan, Michael I.; Jacobs, Robert A. (1994). Hierarchical Mixtures of Experts and the EM Algorithm. Neural Computation. https://doi.org/10.1162/neco.1994.6.2.181",
+    "Poon, Hoifung; Domingos, Pedro (2011). Sum-Product Networks: A New Deep Architecture. Conference on Uncertainty in Artificial Intelligence (UAI). https://arxiv.org/abs/1202.3732",
+    "Chen, Jiahua (1995). Optimal Rate of Convergence for Finite Mixture Models. The Annals of Statistics. https://doi.org/10.1214/aos/1176324464",
+    "White, Halbert (1982). Maximum Likelihood Estimation of Misspecified Models. Econometrica. https://doi.org/10.2307/1912526",
+    "Lauritzen, Steffen L.; Wermuth, Nanny (1989). Graphical Models for Associations between Variables, some of which are Qualitative and some Quantitative. The Annals of Statistics. https://doi.org/10.1214/aos/1176347003",
+    "Lauritzen, Steffen L. (1992). Propagation of Probabilities, Means, and Variances in Mixed Graphical Association Models. Journal of the American Statistical Association. https://doi.org/10.1080/01621459.1992.10476265",
+    "Sorenson, H. W.; Alspach, D. L. (1971). Recursive Bayesian Estimation Using Gaussian Sums. Automatica. https://doi.org/10.1016/0005-1098(71)90097-5",
+    "Ghahramani, Zoubin; Hinton, Geoffrey E. (2000). Variational Learning for Switching State-Space Models. Neural Computation. https://doi.org/10.1162/089976600300015619"
   ]
 }

@@ -302,6 +302,10 @@ function _moments(b::GaussianBelief, n)
     all(iszero, b.Λ) && return (nothing, nothing)
     return (belief_mean(b), belief_cov(b))
 end
+# A Gaussian mixture is collapsed to its total mean and covariance (`moment_match`, the projection
+# step of assumed-density filtering). The message is then exact for the collapsed input, not for
+# the mixture: an approximation, documented in `gaussian.md` §"Mixture inputs".
+_moments(b::LenticulumCore.MixtureBelief{<:GaussianBelief}, n) = _moments(moment_match(b), n)
 _vec(v::AbstractVector) = float.(v)
 _vec(v::Real) = [float(v)]
 

@@ -3191,3 +3191,208 @@ references:
     start: "2173"
     end: "2200"
     doi: "10.1162/089976601750541769"
+  - type: conference-paper
+    title: "Deep Unsupervised Learning using Nonequilibrium Thermodynamics"
+    authors:
+      - family-names: "Sohl-Dickstein"
+        given-names: "Jascha"
+      - family-names: "Weiss"
+        given-names: "Eric"
+      - family-names: "Maheswaranathan"
+        given-names: "Niru"
+      - family-names: "Ganguli"
+        given-names: "Surya"
+    year: 2015
+    collection-title: "International Conference on Machine Learning (ICML)"
+    volume: "37"
+    start: "2256"
+    end: "2265"
+    url: "https://arxiv.org/abs/1503.03585"
+  - type: article
+    title: "Factorial Hidden Markov Models"
+    authors:
+      - family-names: "Ghahramani"
+        given-names: "Zoubin"
+      - family-names: "Jordan"
+        given-names: "Michael I."
+    year: 1997
+    journal: "Machine Learning"
+    volume: "29"
+    issue: "2–3"
+    start: "245"
+    end: "273"
+    doi: "10.1023/A:1007425814087"
+  - type: generic
+    title: "Two problems with variational expectation maximisation for time series models"
+    authors:
+      - family-names: "Turner"
+        given-names: "Richard E."
+      - family-names: "Sahani"
+        given-names: "Maneesh"
+    year: 2011
+    collection-title: "Bayesian Time Series Models"
+    start: "104"
+    end: "124"
+    publisher:
+      name: "Cambridge University Press"
+    doi: "10.1017/CBO9780511984679.006"
+  - type: article
+    title: "Merging Belief Propagation and the Mean Field Approximation: A Free Energy Approach"
+    authors:
+      - family-names: "Riegler"
+        given-names: "Erwin"
+      - family-names: "Kirkelund"
+        given-names: "Gunvor Elisabeth"
+      - family-names: "Manchon"
+        given-names: "Carles Navarro"
+      - family-names: "Badiu"
+        given-names: "Mihai-Alin"
+      - family-names: "Fleury"
+        given-names: "Bernard Henri"
+    year: 2013
+    journal: "IEEE Transactions on Information Theory"
+    volume: "59"
+    issue: "1"
+    start: "588"
+    end: "602"
+    doi: "10.1109/TIT.2012.2218573"
+  - type: article
+    title: "Unsupervised Generative Modeling Using Matrix Product States"
+    authors:
+      - family-names: "Han"
+        given-names: "Zhao-Yu"
+      - family-names: "Wang"
+        given-names: "Jun"
+      - family-names: "Fan"
+        given-names: "Heng"
+      - family-names: "Wang"
+        given-names: "Lei"
+      - family-names: "Zhang"
+        given-names: "Pan"
+    year: 2018
+    journal: "Physical Review X"
+    volume: "8"
+    issue: "3"
+    start: "031012"
+    doi: "10.1103/PhysRevX.8.031012"
+  - type: generic
+    title: "Subtractive Mixture Models via Squaring: Representation and Learning"
+    authors:
+      - family-names: "Loconte"
+        given-names: "Lorenzo"
+      - family-names: "Sladek"
+        given-names: "Aleksanteri M."
+      - family-names: "Mengel"
+        given-names: "Stefan"
+      - family-names: "Trapp"
+        given-names: "Martin"
+      - family-names: "Solin"
+        given-names: "Arno"
+      - family-names: "Gillis"
+        given-names: "Nicolas"
+      - family-names: "Vergari"
+        given-names: "Antonio"
+    year: 2023
+    url: "https://arxiv.org/abs/2310.00724"
+  - type: article
+    title: "Hierarchical Mixtures of Experts and the EM Algorithm"
+    authors:
+      - family-names: "Jordan"
+        given-names: "Michael I."
+      - family-names: "Jacobs"
+        given-names: "Robert A."
+    year: 1994
+    journal: "Neural Computation"
+    volume: "6"
+    issue: "2"
+    start: "181"
+    end: "214"
+    doi: "10.1162/neco.1994.6.2.181"
+  - type: conference-paper
+    title: "Sum-Product Networks: A New Deep Architecture"
+    authors:
+      - family-names: "Poon"
+        given-names: "Hoifung"
+      - family-names: "Domingos"
+        given-names: "Pedro"
+    year: 2011
+    collection-title: "Conference on Uncertainty in Artificial Intelligence (UAI)"
+    url: "https://arxiv.org/abs/1202.3732"
+  - type: article
+    title: "Optimal Rate of Convergence for Finite Mixture Models"
+    authors:
+      - family-names: "Chen"
+        given-names: "Jiahua"
+    year: 1995
+    journal: "The Annals of Statistics"
+    volume: "23"
+    issue: "1"
+    start: "221"
+    end: "233"
+    doi: "10.1214/aos/1176324464"
+  - type: article
+    title: "Maximum Likelihood Estimation of Misspecified Models"
+    authors:
+      - family-names: "White"
+        given-names: "Halbert"
+    year: 1982
+    journal: "Econometrica"
+    volume: "50"
+    issue: "1"
+    start: "1"
+    end: "25"
+    doi: "10.2307/1912526"
+  - type: article
+    title: "Graphical Models for Associations between Variables, some of which are Qualitative and some Quantitative"
+    authors:
+      - family-names: "Lauritzen"
+        given-names: "Steffen L."
+      - family-names: "Wermuth"
+        given-names: "Nanny"
+    year: 1989
+    journal: "The Annals of Statistics"
+    volume: "17"
+    issue: "1"
+    start: "31"
+    end: "57"
+    doi: "10.1214/aos/1176347003"
+  - type: article
+    title: "Propagation of Probabilities, Means, and Variances in Mixed Graphical Association Models"
+    authors:
+      - family-names: "Lauritzen"
+        given-names: "Steffen L."
+    year: 1992
+    journal: "Journal of the American Statistical Association"
+    volume: "87"
+    issue: "420"
+    start: "1098"
+    end: "1108"
+    doi: "10.1080/01621459.1992.10476265"
+  - type: article
+    title: "Recursive Bayesian Estimation Using Gaussian Sums"
+    authors:
+      - family-names: "Sorenson"
+        given-names: "H. W."
+      - family-names: "Alspach"
+        given-names: "D. L."
+    year: 1971
+    journal: "Automatica"
+    volume: "7"
+    issue: "4"
+    start: "465"
+    end: "479"
+    doi: "10.1016/0005-1098(71)90097-5"
+  - type: article
+    title: "Variational Learning for Switching State-Space Models"
+    authors:
+      - family-names: "Ghahramani"
+        given-names: "Zoubin"
+      - family-names: "Hinton"
+        given-names: "Geoffrey E."
+    year: 2000
+    journal: "Neural Computation"
+    volume: "12"
+    issue: "4"
+    start: "831"
+    end: "864"
+    doi: "10.1162/089976600300015619"

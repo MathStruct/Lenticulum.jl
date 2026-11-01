@@ -155,6 +155,9 @@ counterpart in Lux.
 - [[Everything is a Factor]] — data, priors, losses and optimisers as graph nodes, forced by Remark 24
 - [[Unusual Wirings]] — an output into a weight, an energy into an input, beliefs on weights and energies; risk measures as scalarisations
 - [[Hierarchical Models]] — a hyperprior is one more factor on a shared variable; partial pooling is two polarities; eight schools, random slopes, crossed effects
+- [[Switching Constraint Factors]] — a linear constraint whose right-hand side a discrete outcome chooses: the smallest factor that leaves the Gaussian class, closed form in every direction; compositions are exactly the finite mixtures; mean-field messages
+- [[Composing Stochastic Factors]] — what the experiments of the branch `experiment-qm` showed: wiring, not depth, buys expressivity; the diffusion bound pins switching chains; learning needs exact blocks and mean-field iteration
+- [[Extending Mycelium]] — the plan: a free energy per message rule, plates, rule-aware schedules, EP and mixture reduction, cluster nodes, structure edits
 - [[Messages are Inversions]] — a factor → variable message **is** $c'_\pi$; both exclusion principles
 - [[Polarity Resolution]] — target + available messages → a `Polarity`; the two legality checks
 - [[Schedules]] — the schedule zoo; tree exactness; pruning by edge direction

@@ -170,3 +170,16 @@ matrix-inverse replay path without changing ordinary inference arithmetic.
 `test/gradient_couplings.jl` checks the Gaussian marginal-likelihood gradients
 against closed forms and exercises collapsed composites; no dense Gaussian
 device factorisation is added.
+
+## Mixture inputs (2026-10-31)
+
+A message whose input is a `MixtureBelief` of Gaussians used to fail with a `MethodError`:
+`_moments` had no method for it. Now the mixture is **collapsed to its total mean and covariance**
+(`moment_match`) before the Gaussian formula runs. That covers `GaussianFactor`,
+`LinearConstraintFactor` and the linearised factors, since all of them read their inputs through
+`_moments`. This is assumed-density filtering, not exact message passing. The exact message from a
+linear factor with a $K$-component input is itself a $K$-component mixture, and with several mixture
+inputs the count multiplies. The collapsed message is exact only for the collapsed input. How much
+the approximation costs is measured in experiment E6 ([[Composing Stochastic Factors]]; [`examples/factorial_inference.md`](https://github.com/MathStruct/Lenticulum.jl/blob/experiment-qm/examples/factorial_inference.md) on the branch `experiment-qm`). The first use was
+switching factors (binary outcomes) feeding a sum node, where the exact message would have
+$2^{L-1}$ components.

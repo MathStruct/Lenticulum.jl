@@ -33,6 +33,8 @@ turned out to be wrong; see `The Gaussian Factor.md` §"What this caught".
 - `likelihood.jl` — [`LikelihoodFactor`](@ref): a Gaussian latent observed through a
   non-Gaussian likelihood (counts, ordered categories), with Laplace and EP messages and a
   predictive over discrete outcomes; see `likelihood.md`.
+- `switching.jl` — [`SwitchingConstraintFactor`](@ref): a linear constraint whose right-hand
+  side is chosen by a discrete outcome, closed form in every direction; see `switching.md`.
 """
 module Lenticulum
 
@@ -53,6 +55,7 @@ include("composition.jl")
 include("nonlinear.jl")
 include("constraint.jl")
 include("likelihood.jl")
+include("switching.jl")
 
 export GaussianBelief, Gaussian, uninformative
 export belief_mean, belief_cov, isproper, logpartition, kl_divergence
@@ -62,6 +65,7 @@ export WishartPrecisionPrior, LogNormalVariancePrior, noise_covariance
 export NonlinearFactor, NonlinearGaussianModel, Linearization, Unscented, linearize
 export LinearConstraintFactor, LinearConstraintModel
 export residual, residual_statistics
+export SwitchingConstraintFactor, SwitchingConstraintModel, switch_statistics
 export LikelihoodFactor, LikelihoodModel, Laplace, ExpectationPropagation, predictive, log_evidence
 export AbstractLikelihood, PoissonLikelihood, BivariatePoissonLikelihood, OrdinalProbitLikelihood
 export npredictors, obsdim, loglikelihood, loglikelihood_derivatives, outcomes, outcome_logprobs

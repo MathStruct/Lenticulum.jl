@@ -1,0 +1,177 @@
+#design
+
+> A plan for growing Mycelium from a belief-propagation engine into a general inference engine for
+> hybrid (discrete and continuous) factor graphs. It has seven parts:
+>
+> - per-node message rules, each with its own free energy;
+> - learning through graphs with mean-field nodes;
+> - expectation propagation and mixture reduction as rules;
+> - cluster nodes with exact inference inside;
+> - plates with shared parameters;
+> - structure edits on a live graph;
+> - schedules that know the rules.
+>
+> The first step, the message rule, is done ([[L-ADR-0009 Factor nodes carry a message rule]]). The
+> rest is proposed, ordered by what it unblocks.
+
+> Sources: original to this vault (design). Hybrid belief propagation and mean field: Riegler, Kirkelund, Manchon, Badiu & Fleury, *Merging Belief Propagation and the Mean Field Approximation: A Free Energy Approach*, IEEE Trans. Inf. Theory 59(1), 2013. Region free energies and generalised belief propagation: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE Trans. Inf. Theory 51(7), 2005. Expectation propagation: Minka, UAI 2001. Gaussian-mixture reduction: Runnalls, IEEE Trans. Aerosp. Electron. Syst. 2007. code: `lib/Mycelium.jl/src/graph.jl`, `passing.jl`, `free_energy.jl`, `schedules.jl`, `exposure.jl`
+>
+> Theory (CT-ML wiki): [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion)
+
+## Where Mycelium stands
+
+Mycelium builds a bipartite graph once (`GraphBuilder`, `build`), passes messages by a schedule
+(`step!`, `sweep!`, `propagate!`), scores the result by the Bethe free energy (`bethe_free_energy`,
+counting numbers $1 - d_v$), and trains parameters by its gradient at fixed messages (`parameter_step`),
+with schedule adjoints for coupled edges. Each factor node now carries a message rule.
+
+What the experiments behind [[Composing Stochastic Factors]] ran into, in order of cost:
+
+| gap | where it showed | consequence |
+|---|---|---|
+| only belief propagation | E6: a sum node fed by switches sees the other switches' prior moments | biased learning, 0.5–0.8 nats; fixed for one node by `MeanField()` |
+| no free energy for hybrid graphs | E7 in the graph | `parameter_step` refuses; the M-step is written by hand |
+| one graph per data point | EM through the hybrid graph | 14 times slower than the vectorised code (28 s against 2 s) |
+| no mixture entropies at variables | the Bethe sum with a mixture marginal of degree $\ge 2$ | no free energy for most hybrid graphs |
+| mixtures only collapse to moments | E6, E7 | the only policy is assumed-density filtering |
+| frozen graphs | structure search over switch wirings | structure moves rebuild models outside Mycelium |
+| blocks built by hand | E7: a block of switches is a hand-made factor with $2^B$ outcomes | each block is new code |
+
+## 1. A free energy for every rule (first)
+
+**What.** Each message rule declares the free energy it is the stationary point of, and the graph sums
+them. For belief propagation that is Bethe. For the hybrid it is the free energy of Riegler et al.
+(2013), in which:
+
+- belief-propagation factors contribute their Bethe terms;
+- mean-field factors contribute only an average energy $\mathbb E_{\prod_i q_i}[-\log f]$, with no entropy of their
+  own;
+- the variable entropies are counted from the belief-propagation neighbours.
+
+The exact counting numbers are to be taken from the paper's statement before implementing; this
+sketch is not a substitute for it.
+
+**Why first.** It turns the refusal of [[L-ADR-0009 Factor nodes carry a message rule]] into an
+answer, and with it `parameter_step` trains hybrid graphs: EM becomes coordinate descent on one
+objective, inside Mycelium.
+
+**How.**
+
+- `local_free_energy` gets a rule argument. The mean-field term needs only the factor's expected
+  energy under a product of marginals, which every residual factor can provide from means and
+  covariances.
+- `variable_corrections` counts belief-propagation degrees.
+- `_check_energy_edges` then refuses only rules without a free energy.
+
+**Test** (expected properties, each with an oracle):
+
+- with every node on belief propagation it is Bethe, unchanged;
+- with every node on mean field it is the naive mean-field free energy, checked by Monte Carlo;
+- on the block graph of E7, sequential updates never increase it;
+- at a fixed point its parameter gradient equals the closed-form M-step.
+
+## 2. Plates: one graph, many data points, shared parameters
+
+**What.** A graph template replicated over $N$ observations with tied parameters, run as one batched
+graph: beliefs with a batch dimension, messages computed for all replicas at once, and gradients
+summed over replicas.
+
+**Why.** Learning through a graph is the point of the library. Today it means $N$ graphs and a loop,
+and the docs list "no parameter sharing between factor nodes" as a gap. [[L-SPEC-003 Exposed Parameters and Energy Channels]]
+already ties parameters by exposing them as channels on a shared variable. A plate is the
+batched, structured form of the same thing.
+
+**How.**
+
+- `Plate(name, n)` in the builder, with variables and factors declared inside or outside it.
+- Factors inside see batched inputs. A factor without a batched method falls back to a loop over
+  replicas, so every existing factor works and the fast ones opt in.
+- Parameters outside the plate are shared, and their gradient is the sum over replicas (as for exposed
+  parameters).
+
+**Test.** A batched graph equals the loop of $N$ graphs to rounding, in marginals, free energy and
+gradients. Speed is measured against the vectorised E-step of E7, with the target of being within a
+small factor of hand-written code.
+
+## 3. Schedules that know the rules
+
+**What.** `hybrid_schedule(g)`: belief-propagation subtrees swept inward and outward around each
+mean-field node, and mean-field nodes updated in turn. It replaces the hand-written task lists of the
+current tests. Convergence would be measured on beliefs (marginals), not only on messages, because
+mixtures of very narrow components have a rounding floor in `belief_distance`.
+
+**Test.** It reproduces the hand-ordered hybrid of `test/switching_constraint.jl`, and the free energy
+of §1 decreases along it.
+
+## 4. Expectation propagation and mixture reduction as rules
+
+**What.** Two more rules:
+
+- `ExpectationPropagation()` projects the tilted belief (cavity times factor) onto the target's
+  family and divides the cavity out. Gaussian division is subtraction in canonical form, so it is
+  defined even for improper sites.
+- `Reduce(maxcomponents)` lets a node send mixtures reduced to a budget (Runnalls' merge,
+  `reduce_mixture` exists) instead of collapsing them to moments, which is the only policy today.
+
+**Why.**
+
+- E6 measured Gaussian EP on the additive wiring as a per-point loop: better pair moments at $L = 8$
+  (0.16–0.40 nats), unstable at $L = 12$. As a rule it can be tried on any graph, with damping.
+- Mixture reduction is the standard middle ground between exact mixtures, which grow, and
+  assumed-density filtering, which collapses.
+
+**Test.**
+
+- EP on Minka's clutter problem against the exact posterior in small cases.
+- `Reduce` on a switching linear chain against exact enumeration, as the budget grows.
+
+## 5. Cluster nodes: exact inference inside, messages outside
+
+**What.** A node that groups several factors and variables and runs exact inference inside
+(enumeration of its discrete states, Gaussian elimination of its continuous ones). Outside it looks
+like one factor, with messages and a closed-form local free energy. This is the region of
+generalised belief propagation (Yedidia, Freeman & Weiss 2005), restricted to regions small enough to
+solve exactly.
+
+**Why.** E7's remedy, exact blocks of overlapping switches, is a cluster, but today each block is a
+hand-built `SwitchingConstraintFactor` with $2^B$ outcomes. A cluster node would make "group these
+switches" a graph operation. Grouping by overlap (largest $|\cos|$ of the offsets in the noise metric)
+becomes a transformation of the graph. A cluster over $(k, z)$ also gives the closed-form entropy that
+a mixture *variable* lacks, which is the cleanest answer to the mixture-entropy gap.
+
+**Test.** A cluster of $B$ binary switches equals the hand-built block factor in messages and free
+energy. With every factor in one cluster, the graph is exact.
+
+## 6. Structure edits on a live graph
+
+**What.** Adding and removing variables, factors and edges on a built graph, keeping and
+warm-starting the messages that remain valid ([[Dynamic Graphs]] has the analysis). The free energy
+of §1 scores the edits.
+
+**Why.** Greedy structure search over switch wirings worked on the branch (four moves scored by BIC,
+generating structures recovered), but it rebuilt models outside Mycelium, with exact scores.
+
+**Test.** The moves of `structure_switches.jl`, done as edits, reproduce its search paths and scores
+where exact inference is available.
+
+## 7. Factors that follow from this (Lenticulum)
+
+These belong to Lenticulum, not to Mycelium, but the plan depends on them:
+
+- the **general switching factor** (per-outcome $A_k$, $Q_k$; [[Switching Constraint Factors]] §8);
+- the **directed switching kernel** for chains;
+- **mean-field rules** for the remaining residual factors, `GaussianFactor` and `NonlinearFactor`
+  (linearised).
+
+## Order
+
+1. The free energy of every rule (§1). It unblocks learning through hybrid graphs.
+2. Plates (§2). They make that learning affordable.
+3. Rule-aware schedules (§3). They are small, and §1's tests need them.
+4. EP and reduction rules (§4), then cluster nodes (§5). They widen what the graph can approximate.
+5. Structure edits (§6). They need §1's score.
+
+Each part gets an LP or an L-SPEC when it starts, with its tests written against the oracles named
+above.
+
+Related: [[L-ADR-0009 Factor nodes carry a message rule]], [[Composing Stochastic Factors]], [[Switching Constraint Factors]], [[Bethe Free Energy]], [[Loopy Message Passing]], [[Dynamic Graphs]], [[Schedules]]

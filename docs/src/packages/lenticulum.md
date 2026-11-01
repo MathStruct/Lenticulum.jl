@@ -36,6 +36,7 @@ pseudo-mean.
 | `GaussianFactor` | ``p(y \mid x) = \mathcal{N}(y; Ax+b, Q)`` | two, named |
 | `GaussianPrior` | ``\mathcal{N}(\mu, \Sigma)`` on one channel | one |
 | `LinearConstraintFactor` | ``0 = \sum_i A_i x_i - c + \varepsilon`` | **any number** |
+| `SwitchingConstraintFactor` | ``0 = \sum_i A_i x_i - b_k + \varepsilon``, outcome ``k`` of weight ``w_k`` | any number, plus the outcome |
 | `NonlinearFactor` | ``p(y \mid x) = \mathcal{N}(y; f(x), Q)``, ``f`` given | two, named |
 | `LikelihoodFactor` | ``p(y \mid x) = L(y \mid Ax + b)``, ``L`` non-Gaussian (counts, ordered categories) | two, named |
 
@@ -55,6 +56,23 @@ laws, balance equations and anything written as a relation rather than an assign
 # Kirchhoff's current law at a three-way node: i₁ + i₂ + i₃ = 0
 f  = LinearConstraintFactor((i1 = 1, i2 = 1, i3 = 1), 1; noise = 1e-8)
 ps = (A = (i1 = ones(1,1), i2 = ones(1,1), i3 = ones(1,1)), c = [0.0])
+```
+
+`SwitchingConstraintFactor` lets one discrete outcome choose the right-hand side: a
+measurement of the linear observable ``\sum_i A_i x_i``. It is the smallest factor that leaves
+the Gaussian class. Its message to a continuous channel is a mixture of ``K`` Gaussians, its
+message to the outcome a `CategoricalBelief`, and its local free energy is closed form. With
+`K = 1` it is a `LinearConstraintFactor`. Both constraint factors also have a mean-field message
+(`Mycelium.mean_field_message`), used when their node is added with `rule = MeanField()`. The
+tutorial [mixtures from switching factors](@ref tutorial-switching) works through both. The design
+and the experiments behind it are in
+the vault notes *Switching Constraint Factors* (the theory) and *Composing Stochastic Factors*
+(the experiments):
+
+```julia
+# a three-component mixture in the plane, z = b_k + ε
+f  = SwitchingConstraintFactor((z = 2,), 3, 2; noise = 0.1)
+ps = (A = (z = Matrix(1.0I, 2, 2),), b = [-1.0 1.0 0.0; 0.0 0.0 2.0], logw = zeros(3))
 ```
 
 `NonlinearFactor` takes a hand-written function (a measurement model, known dynamics) and
