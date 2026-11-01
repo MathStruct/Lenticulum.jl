@@ -85,11 +85,16 @@ end
 
 """
 The asymptotic estimation cost of the chain: each step's conditional maximum-likelihood fit on `n`
-pairs loses about d/(2n) nats of expected log-likelihood, d = 15K − 1 free parameters (the gate
-weights are defined up to a constant), so T steps lose T·d/(2n) (exact for a well-specified model
-as n → ∞; for K = 3 the true reverse kernel is in the family by Proposition 8).
+pairs loses about d/(2n) nats of expected log-likelihood, so T steps lose T·d/(2n). Here d = 15K − 6
+is the number of parameters the conditional likelihood identifies: 9 per affine expert, and 6 per
+gate log-odds against a reference outcome. Adding a common quadratic in z_t (6 coefficients in 2-D)
+to every gate's log-numerator leaves the softmax unchanged, so one gate's 6 parameters are not
+identified; K = 1 gives 9, an affine Gaussian conditional. (The first version counted 15K − 1; the
+second round of reviews corrected it, §13 of the design note.) The formula is the regular
+asymptotic one: exact for a well-specified model as n → ∞ (K = 3 here, by Proposition 8), not for
+the misspecified K = 2, and it degrades where the gates become nearly flat (large t).
 """
-estimation_cost(T, K, n) = T * (PER * K - 1) / (2n)
+estimation_cost(T, K, n) = T * (PER * K - 6) / (2n)
 
 function run(; Ts = (10, 25, 50, 100), Ks = (2, 3), ntest = 1000, ngen = 1500, n = 6000, iters = 120)
     αT2 = 0.8^20

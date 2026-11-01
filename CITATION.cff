@@ -99,6 +99,18 @@ references:
     start: "56"
     end: "65"
     doi: "10.1145/3209108.3209189"
+  - type: conference-paper
+    title: "Additive Quantization for Extreme Vector Compression"
+    authors:
+      - family-names: "Babenko"
+        given-names: "Artem"
+      - family-names: "Lempitsky"
+        given-names: "Victor"
+    year: 2014
+    collection-title: "IEEE Conference on Computer Vision and Pattern Recognition (CVPR)"
+    start: "931"
+    end: "938"
+    doi: "10.1109/CVPR.2014.124"
   - type: article
     title: "Structured Cospans"
     authors:
@@ -262,6 +274,18 @@ references:
     start: "577"
     end: "593"
     doi: "10.1090/s0025-5718-1965-0198670-6"
+  - type: article
+    title: "Optimal Rate of Convergence for Finite Mixture Models"
+    authors:
+      - family-names: "Chen"
+        given-names: "Jiahua"
+    year: 1995
+    journal: "The Annals of Statistics"
+    volume: "23"
+    issue: "1"
+    start: "221"
+    end: "233"
+    doi: "10.1214/aos/1176324464"
   - type: conference-paper
     title: "Neural Ordinary Differential Equations"
     authors:
@@ -591,6 +615,20 @@ references:
     collection-title: "AAAI Conference on Artificial Intelligence"
     url: "https://arxiv.org/abs/2103.12803"
   - type: article
+    title: "Factorial Hidden Markov Models"
+    authors:
+      - family-names: "Ghahramani"
+        given-names: "Zoubin"
+      - family-names: "Jordan"
+        given-names: "Michael I."
+    year: 1997
+    journal: "Machine Learning"
+    volume: "29"
+    issue: "2–3"
+    start: "245"
+    end: "273"
+    doi: "10.1023/A:1007425814087"
+  - type: article
     title: "Variational Learning for Switching State-Space Models"
     authors:
       - family-names: "Ghahramani"
@@ -703,6 +741,41 @@ references:
     start: "315"
     end: "358"
     doi: "10.1007/s41468-019-00038-7"
+  - type: conference-paper
+    title: "Expectation Propagation for approximate inference in dynamic Bayesian networks"
+    authors:
+      - family-names: "Heskes"
+        given-names: "Tom"
+      - family-names: "Zoeter"
+        given-names: "Onno"
+    year: 2002
+    collection-title: "Conference on Uncertainty in Artificial Intelligence (UAI)"
+    url: "https://arxiv.org/abs/1301.0572"
+  - type: generic
+    title: "Universality of Gaussian-Mixture Reverse Kernels in Conditional Diffusion"
+    authors:
+      - family-names: "Ishtiaque"
+        given-names: "Nafiz"
+      - family-names: "Haque"
+        given-names: "Syed Arefinul"
+      - family-names: "Alam"
+        given-names: "Kazi Ashraful"
+    year: 2026
+    url: "https://arxiv.org/abs/2604.13470"
+  - type: article
+    title: "Hierarchical Mixtures of Experts and the EM Algorithm"
+    authors:
+      - family-names: "Jordan"
+        given-names: "Michael I."
+      - family-names: "Jacobs"
+        given-names: "Robert A."
+    year: 1994
+    journal: "Neural Computation"
+    volume: "6"
+    issue: "2"
+    start: "181"
+    end: "214"
+    doi: "10.1162/neco.1994.6.2.181"
   - type: article
     title: "Graphical Models for Associations between Variables, some of which are Qualitative and some Quantitative"
     authors:
@@ -759,6 +832,16 @@ references:
         given-names: "Alessandro"
     year: 2020
     url: "https://arxiv.org/abs/2007.03926"
+  - type: conference-paper
+    title: "Sum-Product Networks: A New Deep Architecture"
+    authors:
+      - family-names: "Poon"
+        given-names: "Hoifung"
+      - family-names: "Domingos"
+        given-names: "Pedro"
+    year: 2011
+    collection-title: "Conference on Uncertainty in Artificial Intelligence (UAI)"
+    url: "https://arxiv.org/abs/1202.3732"
   - type: generic
     title: "Learning Mixtures of Gaussians Using the DDPM Objective"
     authors:
@@ -770,6 +853,23 @@ references:
         given-names: "Adam"
     year: 2023
     url: "https://arxiv.org/abs/2307.01178"
+  - type: conference-paper
+    title: "Deep Unsupervised Learning using Nonequilibrium Thermodynamics"
+    authors:
+      - family-names: "Sohl-Dickstein"
+        given-names: "Jascha"
+      - family-names: "Weiss"
+        given-names: "Eric"
+      - family-names: "Maheswaranathan"
+        given-names: "Niru"
+      - family-names: "Ganguli"
+        given-names: "Surya"
+    year: 2015
+    collection-title: "International Conference on Machine Learning (ICML)"
+    volume: "37"
+    start: "2256"
+    end: "2265"
+    url: "https://arxiv.org/abs/1503.03585"
   - type: article
     title: "Recursive Bayesian Estimation Using Gaussian Sums"
     authors:
@@ -795,6 +895,20 @@ references:
         given-names: "Dino"
     year: 2023
     url: "https://arxiv.org/abs/2305.13552"
+  - type: generic
+    title: "Two problems with variational expectation maximisation for time series models"
+    authors:
+      - family-names: "Turner"
+        given-names: "Richard E."
+      - family-names: "Sahani"
+        given-names: "Maneesh"
+    year: 2011
+    collection-title: "Bayesian Time Series Models"
+    start: "104"
+    end: "124"
+    publisher:
+      name: "Cambridge University Press"
+    doi: "10.1017/CBO9780511984679.006"
   - type: article
     title: "Deep Gaussian Mixture Models"
     authors:
@@ -1570,6 +1684,18 @@ references:
     start: "197"
     end: "221"
     doi: "10.1162/08997660460734056"
+  - type: article
+    title: "Maximum Likelihood Estimation of Misspecified Models"
+    authors:
+      - family-names: "White"
+        given-names: "Halbert"
+    year: 1982
+    journal: "Econometrica"
+    volume: "50"
+    issue: "1"
+    start: "1"
+    end: "25"
+    doi: "10.2307/1912526"
   - type: article
     title: "The Behavioral Approach to Open and Interconnected Systems"
     authors:

@@ -40,7 +40,7 @@ with no iterative denoising.
    so a shared, time-conditioned parameterisation comes for free (§8). Small steps do **not** let
    fewer outcomes than components suffice: each step needs one outcome per linear piece of the
    score field (the small-step test). On data that are not a mixture, a chain with $K$ outcomes per
-   step scores like a flat $K$-component mixture whatever its depth (E4(b)): depth in time does not
+   step scores like a flat $K$-component mixture at every depth tried, $T \le 20$ (E4(b)): depth in time does not
    substitute for outcomes. The cause is the objective, not the class: a chain of 2-outcome
    kernels can be E3's 16-mode grid exactly (Proposition 10), but the diffusion bound with a fixed
    forward process makes each step follow the data's noised marginals (Proposition 9).
@@ -53,13 +53,13 @@ with no iterative denoising.
 | the same on lines 60° apart | 30° wrong, worse than one Gaussian (−0.939 vs −0.823) | `examples/measurement_factor.md` |
 | **E1**: switching factor on lines 60° apart | both lines recovered (errors < 0.02°), held-out $\log p(y \mid x)$ 0.702 = true model's, 6 parameters vs a free mixture's 11; message passing in a Mycelium graph matches direct conditioning to $5\cdot10^{-15}$ | `examples/switching_factor_e1.md` |
 | **E4(a)**: reverse chain on a 3-component mixture | exact kernels reproduce $\log q_0(z_0)$ on every path to $10^{-14}$; the shared chain (17 parameters) reaches −2.123 vs the truth's −2.108; linear-Gaussian steps fail; two outcomes per small step do *not* yet suffice | `examples/switching_reverse_chain_e4a.md` |
-| **small-step test**: conditional per-step fits, $T$ = 10 to 100 | three outcomes per step match the truth up to the estimation cost of fitting $T$ kernels; two outcomes keep a gap of about 0.44 nats however small the steps, and their samples level off at 3× the energy-distance floor | `examples/switching_small_steps.md` |
+| **small-step test**: conditional per-step fits, $T$ = 10 to 100 | three outcomes per step match the truth up to the estimation cost of fitting $T$ kernels; two outcomes keep a gap of 0.50–0.68 nats however small the steps, and their samples level off at 3× the energy-distance floor | `examples/switching_small_steps.md` |
 | **E3**: composition vs flat mixture on product grids (8, 16 modes) and a ring | on the grids, additive composition (14–17 parameters) is within 0.005 nats of the truth and, at 150 points, within 0.04 where the best flat mixture is 0.36–0.48 away; on the ring it is 0.89 away; rank-one constraints on a shared variable fail everywhere | `examples/composition_e3.md` |
-| **E3, fitting** | exact EM for the additive wiring (closed-form M-step): monotone; fewer starts reach the optimum than with Adam, but each costs 1–2 % as much, so 256 EM starts find the same optima 4–5× faster | `examples/composition_e3.md` |
-| **E4(b)**: chains on two moons and a ring | a chain of $T \le 20$ steps with $K$ outcomes each scores like a flat $K$-component mixture (within 0.006 nats at $T = 5$, at most 0.10 better at $T = 20$); flat with 16 components (95 parameters) beats every chain (up to 1 185) | `examples/switching_chain_e4b.md` |
-| **Propositions 9, 10**: the objective, not the class | E3's additive model is a 4-step chain of 2-outcome kernels (marginal identical to $7\cdot10^{-15}$, 0.001 nats from the truth on the 16-mode grid); chains of the same kind trained by the diffusion bound score like flat mixtures with $K$ = 2 or 4 components (gaps 0.78–1.09) | `examples/chain_objective.md` |
+| **E3, fitting** | exact EM for the additive wiring (closed-form M-step): monotone; fewer starts reach the optimum than with Adam, but each is far cheaper: 256 EM starts take 2.3–6.5 s against 11.0–26.9 s for 16 Adam starts at 2 000 points, and a 1 % miss rate needs 31–75 EM or 13–37 Adam starts | `examples/composition_e3.md` |
+| **E4(b)**: chains on two moons and a ring | a chain of $T \le 20$ steps with $K$ outcomes each scores like a flat $K$-component mixture (within 0.006 nats at $T = 5$, at most 0.10 better at $T = 20$); flat with 16 components (95 parameters) beats every chain (up to 1 085) | `examples/switching_chain_e4b.md` |
+| **Propositions 9, 10**: the objective, not the class | E3's additive model is a 4-step chain of 2-outcome kernels (marginal identical to $7\cdot10^{-15}$, 0.001 nats from the truth on the 16-mode grid); chains of the same kind trained by the diffusion bound score like flat mixtures with $K$ = 2 or 4 components (gaps 0.78–1.09); in one family (constant gates), scored exactly, the bound's optimum is 0.93–1.16 nats away while exact likelihood finds a member 0.001 away | `examples/chain_objective.md` |
 | **E3b**: a switch over sums, on 3 clusters of rotated 2 × 2 grids | the hierarchical wiring (29 parameters, exact EM) is 0.008 nats from the truth at 2 000 points and 0.091 at 150; a flat 12-mixture (71) is 0.016 and 0.996 away (it overfits at 150); one sum node stays 0.64–0.80 away | `examples/hierarchy_e3b.md` |
-| **E6, factorial inference**: exact vs Mycelium graph (collapsed BP) vs mean field, $L$ = 4, 8, 12 switches in 8-D | with 4 switches all are within 0.04 nats of the truth; with 8–12 overlapping switches the factorised E-steps converge 0.60–0.92 away even from the truth, exact EM 0.03–0.04; the graph E-step is ~100× faster at $L = 12$ | `examples/factorial_inference.md` |
+| **E6, factorial inference**: exact vs Mycelium graph (one-pass ADF), mean field, linear response and EP, $L$ = 4, 8, 12 switches in 8-D, five seeds | with 8–12 overlapping switches every factorised E-step converges 0.42–1.12 nats away even from the truth, exact EM 0.01–0.05; exact marginals with factorised pair moments are nearly as biased, so the bias is in the pair moments; EP's joint Gaussian helps at $L = 8$ (0.16–0.40) but is unreliable at $L = 12$ and ~10³× slower; the graph E-step is ~100× faster than exact at $L = 12$ | `examples/factorial_inference.md` |
 | **structure learning**: greedy add/remove switch, split/merge cluster, exact EM + BIC | finds the generating structure on the 8-mode grid and the tree, a more compact exact one on the ring (two rotated squares), an equivalent larger one on the 16-mode grid; always within 0.005 nats of the truth, with 12–18 fits against 45 exhaustive | `examples/structure_switches.md` |
 | checks behind the review corrections | the corrected inversion and Born claims, numerically | `examples/minimal_stochastic_factors_checks.jl` |
 
@@ -84,16 +84,31 @@ claims from Mistral were corrected rather than adopted, and every reference the 
 was checked against Crossref or arXiv: 13 are now in the bibliography, and four had wrong details.
 The full record is §13 of [[Minimal Stochastic Factors]].
 
+A second round (ChatGPT, Gemini, Grok, Mistral; 2026-10-31) reviewed the experiments. Accepted
+after checking:
+- the game reading of §4 used two different joints;
+- chains with state-dependent gates are not finite mixtures;
+- a kernel has $15K - 6$ identified parameters, not $15K - 1$;
+- the estimation-cost subtraction is invalid for the misspecified $K = 2$;
+- the one-pass graph E-step is assumed-density filtering, not BP;
+- the rank-one failure in E3 is dimensional.
+
+It also prompted three new controls: five seeds and EP for E6, the objective control in one family,
+and a sweep of the importance-weighted bound. Refuted: that the gated chains can be scored by exact
+path enumeration, an attribution of Proposition 9, a proposed "Proposition 11", and a
+linear-response formula. Grok found no errors.
+
 ## What is open
 
 - **Training compositional chains.** Chains of few-outcome kernels can represent product grids
-  (Proposition 10), but the diffusion objective pins them to $K$ components (Proposition 9). They
-  need an objective that learns the inference side, a hierarchical model with exact switch
-  posteriors; E3's EM does this for one level.
+  (Proposition 10), but the diffusion objective with a fixed forward process pins them to $K$
+  components (Proposition 9; an objective control in one family confirms it). Exact marginal
+  likelihood trains them, but needs exact switch posteriors; a learned forward process is untested.
 - **Structured beliefs in Mycelium.** Mycelium now runs the switch-and-sum wiring (mixture
   inputs to linear factors are collapsed to moments), but factorised posteriors are biased by
-  0.6–0.9 nats once switches overlap (E6). Region beliefs over groups of switches, EP with
-  cavities, or exact blocks are the candidates.
+  0.4–1.1 nats once switches overlap (E6), and the bias is in the pair moments, not the marginals.
+  Gaussian EP helps only partly. Exact blocks of switches or region beliefs over groups of them are
+  the candidates.
 - **Structure learning.** Mycelium has no rules that add or remove variables, factors or edges:
   graphs are frozen once built ([[Dynamic Graphs]]), and the only structure search is a Gaussian
   edge-addition example ([[Finding a Factor Graph]]). For switch wirings the natural moves are

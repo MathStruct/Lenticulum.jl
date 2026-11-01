@@ -126,6 +126,114 @@ function mf_marginals(m::Model, X; sweeps = 100, tol = 1e-8)
 end
 estep_mf(m::Model, X) = factorised_stats(mf_marginals(m, X), X)
 
+"""
+Gaussian expectation propagation on the star graph, for one observation x. Each switch prior
+Σ_k π_k N(u_l; k δ_l, εI) is approximated by a Gaussian site (moment form a_l, B_l). The cavity of
+u_l is the sum node's message given the other sites (exact on this tree), the tilted distribution
+is the two-component prior times the cavity, and the new site is its moment projection divided by
+the cavity, damped in natural parameters; an update whose site precision is not positive definite,
+or whose tilted or cavity covariance fails to factorise in floating point, is skipped. Returns the
+tilted bit marginals w and the bits' second moments from the joint Gaussian over (u_1, …, u_L),
+E[k_l k_m] = δ̂_lᵀ E[u_l u_mᵀ] δ̂_m with δ̂ = δ / ‖δ‖² (l ≠ m).
+"""
+function ep_point(m::Model, x; sweeps = 30, damp = 0.5, ε = 1e-4, tol = 1e-8)
+    d, L = size(m.W, 1), length(m.p)
+    c = m.W[:, 1]; δ = [m.W[:, l+1] for l in 1:L]; Id = Matrix(1.0I, d, d)
+    a = [m.p[l] .* δ[l] for l in 1:L]
+    B = [m.p[l] * (1 - m.p[l]) .* δ[l] * δ[l]' + ε * Id for l in 1:L]
+    w = copy(m.p)
+    r = x - c
+    for _ in 1:sweeps
+        change = 0.0
+        for l in 1:L
+            μc = r - (sum(a) - a[l]); Sc = Symmetric(m.Σ + sum(B) - B[l])
+            Cc = cholesky(Sc; check = false); issuccess(Cc) || continue
+            Sci = inv(Cc)
+            lg = [log1p(-m.p[l]) + E_logN(zeros(d), μc, Sc + ε * Id), log(m.p[l]) + E_logN(δ[l], μc, Sc + ε * Id)]
+            wl = 1 / (1 + exp(lg[1] - lg[2]))
+            C = inv(Symmetric(Id ./ ε + Sci))
+            m0 = C * (Sci * μc); m1 = C * (δ[l] ./ ε + Sci * μc)
+            M = (1 - wl) .* m0 + wl .* m1
+            V = Symmetric(C + (1 - wl) .* (m0 * m0') + wl .* (m1 * m1') - M * M')
+            Cv = cholesky(V; check = false); issuccess(Cv) || continue      # rounding at ε-scale covariances
+            Vi = inv(Cv)
+            Pn = Vi - Sci; hn = Vi * M - Sci * μc
+            Po = inv(Symmetric(B[l])); ho = Po * a[l]
+            Pd = Symmetric(damp .* Pn + (1 - damp) .* Po); hd = damp .* hn + (1 - damp) .* ho
+            isposdef(Pd) || continue
+            Bn = inv(Pd); an = Bn * hd
+            change = max(change, maximum(abs.(an - a[l])), abs(wl - w[l]))
+            a[l], B[l], w[l] = an, Matrix(Symmetric(Bn)), wl
+        end
+        change < tol && break
+    end
+    # the joint Gaussian over (u_1, …, u_L): sites times the sum node's likelihood
+    Σi = inv(Symmetric(m.Σ))
+    Λ = kron(ones(L, L), Σi)
+    η = repeat(Σi * r, L)
+    for l in 1:L
+        Pl = inv(Symmetric(B[l])); idx = (l-1)*d+1:l*d
+        Λ[idx, idx] .+= Pl; η[idx] .+= Pl * a[l]
+    end
+    S = inv(Symmetric(Λ)); μ = S * η
+    Euu = S + μ * μ'
+    Kk = zeros(L, L)
+    for l in 1:L, k in 1:L
+        Kk[l, k] = l == k ? w[l] : (δ[l] / sum(abs2, δ[l]))' * Euu[(l-1)*d+1:l*d, (k-1)*d+1:k*d] * (δ[k] / sum(abs2, δ[k]))
+    end
+    return w, Kk
+end
+E_logN(z, μ, S) = (D = z - μ; C = cholesky(Symmetric(S)); -(length(z) * log(2π) + logdet(C) + D' * (C \ D)) / 2)
+
+function ep_marginals(m::Model, X)
+    Q = zeros(size(X, 1), length(m.p))
+    Threads.@threads for i in axes(X, 1)
+        Q[i, :] = first(ep_point(m, X[i, :]))
+    end
+    return Q
+end
+
+"EP's E-step: tilted marginals and pair moments from the joint Gaussian."
+function estep_ep(m::Model, X)
+    n, L = size(X, 1), length(m.p)
+    res = Vector{Any}(undef, n)
+    Threads.@threads for i in 1:n
+        res[i] = ep_point(m, X[i, :])
+    end
+    Q = reduce(vcat, [r[1]' for r in res])
+    Eφ = vcat(ones(1, n), Q')
+    Sφφ = zeros(L + 1, L + 1)
+    Sφφ[1, 1] = n; Sφφ[1, 2:end] = Sφφ[2:end, 1] = vec(sum(Q; dims = 1))
+    Sφφ[2:end, 2:end] = sum(r[2] for r in res)
+    return (; Sφφ, Sxφ = X' * Eφ', Eφ)
+end
+
+"""
+Mean field with a linear-response correction for the pair moments (Welling & Teh 2004; suggested
+by Gemini's review). At the mean-field fixed point q_l = σ(a_l − Σ_{m≠l} G_lm q_m), G = ΔᵀΣ⁻¹Δ,
+perturbing the natural parameters a gives Cov(k) ≈ ∂q/∂a = (D⁻¹ + G_off)⁻¹ with D = diag(q(1 − q))
+and G_off the off-diagonal part of G. The M-step then uses E[k_l k_m] = q_l q_m + Cov_lm.
+"""
+function estep_mf_lr(m::Model, X)
+    Q = mf_marginals(m, X)
+    n, L = size(Q)
+    Δ = m.W[:, 2:end]; G = Δ' * (Symmetric(m.Σ) \ Δ); Goff = G - Diagonal(diag(G))
+    Eφ = vcat(ones(1, n), Q')
+    Skk = zeros(L, L)
+    for i in 1:n
+        q = Q[i, :]; D = clamp.(q .* (1 .- q), 1e-12, Inf)
+        C = inv(Symmetric(Matrix(Diagonal(1 ./ D)) + Goff))
+        Skk .+= q * q' + C
+        Skk[diagind(Skk)] .+= q .- (q .^ 2 .+ diag(C))      # the diagonal is E[k_l²] = q_l exactly
+    end
+    Sφφ = zeros(L + 1, L + 1)
+    Sφφ[1, 1] = n; Sφφ[1, 2:end] = Sφφ[2:end, 1] = vec(sum(Q; dims = 1)); Sφφ[2:end, 2:end] = Skk
+    return (; Sφφ, Sxφ = X' * Eφ', Eφ)
+end
+
+"A diagnostic: the exact marginals, but the M-step's pair moments factorised as for the approximations."
+estep_exact_marginals(m::Model, X) = factorised_stats(last(exact_loglik_matrix(m, X)) * permutedims(configs(length(m.p))), X)
+
 "The closed-form M-step from sufficient statistics."
 function mstep(st, X; floor = 1e-6)
     n = size(X, 1)
@@ -188,41 +296,55 @@ end
 
 mean(v) = sum(v) / length(v)
 
-function run(; d = 8, Ls = (4, 8, 12), ntrain = 2000, ntest = 2000, starts = 64, iters = 200, ncheck = 20)
+const METHODS = (
+    ("exact", estep_exact, true),
+    ("exact marginals, factorised pairs", estep_exact_marginals, false),
+    ("graph (ADF: one pass, prior moments)", estep_bp, true),
+    ("mean field", estep_mf, true),
+    ("mean field + linear response", estep_mf_lr, true),
+    ("EP (joint Gaussian pairs)", estep_ep, false),
+)
+
+"""
+For each truth seed and L: the graph check, the bit-marginal errors at the true parameters, and
+for every E-step its EM fixed point from the true parameters. For the seeds in `random_seeds`, the
+methods marked so are also run from `starts` random starts.
+"""
+function run(; d = 8, Ls = (4, 8, 12), seeds = 1:5, random_seeds = (1,), ntrain = 2000, ntest = 2000,
+             starts = 64, iters = 200, ncheck = 20, methods = METHODS)
     rows = []
-    for L in Ls
-        tm = truth(d, L)
-        X = sample(tm, ntrain, Xoshiro(10)); Xte = sample(tm, ntest, Xoshiro(11))
+    for seed in seeds, L in Ls
+        tm = truth(d, L; seed)
+        X = sample(tm, ntrain, Xoshiro(10 + 100(seed - 1))); Xte = sample(tm, ntest, Xoshiro(11 + 100(seed - 1)))
         t_ll = exact_loglik(tm, Xte)
-        # the graph against its vectorised copy, and the posteriors against the exact ones, at the truth
         Qg = reduce(vcat, [graph_marginals(tm, Xte[i, :])' for i in 1:ncheck])
-        Qb = bp_marginals(tm, Xte[1:ncheck, :])
-        graph_err = maximum(abs.(Qg .- Qb))
-        Qe = (exact_loglik_matrix(tm, Xte)[2] * configs(L)')           # exact marginals, n × L
-        err_bp = mean(abs.(bp_marginals(tm, Xte) .- Qe)); err_mf = mean(abs.(mf_marginals(tm, Xte) .- Qe))
-        @printf("d = %d, L = %d (%d components, %d parameters): held-out log p of the truth %.3f\n",
-                d, L, 2^L, nparams(d, L), t_ll)
-        @printf("  graph (Mycelium infer!) vs its vectorised copy: max |Δq| over %d points × %d bits %.1e\n", ncheck, L, graph_err)
-        @printf("  at the true parameters, mean |q_l − exact marginal|: graph %.3f, mean field %.3f\n", err_bp, err_mf)
-        for (name, es) in (("exact", estep_exact), ("graph (collapsed BP)", estep_bp), ("mean field", estep_mf))
-            # from the true parameters: where the E-step's own fixed point lies (its bias)
+        graph_err = maximum(abs.(Qg .- bp_marginals(tm, Xte[1:ncheck, :])))
+        Qe = last(exact_loglik_matrix(tm, Xte)) * permutedims(configs(L))
+        errs = (graph = mean(abs.(bp_marginals(tm, Xte) .- Qe)), mf = mean(abs.(mf_marginals(tm, Xte) .- Qe)),
+                ep = mean(abs.(ep_marginals(tm, Xte) .- Qe)))
+        Δ = tm.W[:, 2:end]; cosmax = maximum(abs(dot(Δ[:, a], Δ[:, b])) / (norm(Δ[:, a]) * norm(Δ[:, b])) for a in 1:L for b in a+1:L)
+        @printf("seed %d, d = %d, L = %d (%d components): held-out log p of the truth %.3f; max |cos| between offsets %.2f\n",
+                seed, d, L, 2^L, t_ll, cosmax)
+        @printf("  graph (Mycelium infer!) vs its vectorised copy: max |Δq| %.1e; mean |q_l − exact| at the truth: graph %.3f, mean field %.3f, EP %.3f\n",
+                graph_err, errs.graph, errs.mf, errs.ep)
+        for (name, es, rnd) in methods
             t1 = @elapsed fixed = fit(es, tm, X; iters)
             gap_fixed = t_ll - exact_loglik(fixed, Xte)
-            # from random starts: what learning finds in practice
-            t = @elapsed fits = fetch.([Threads.@spawn fit(es, init(d, L, X, Xoshiro(s)), X; iters) for s in 1:starts])
-            trs = [exact_loglik(f, X) for f in fits]
-            best = fits[argmax(trs)]
-            te = exact_loglik(best, Xte)
-            push!(rows, (; L, method = name, gap_fixed, gap = t_ll - te, time = t, time_fixed = t1,
-                         err = name == "graph (collapsed BP)" ? err_bp : name == "mean field" ? err_mf : 0.0))
-            @printf("  %-22s from the truth: held-out gap %.3f (%.1f s)   best of %d random starts: %.3f (%.1f s)\n",
-                    name, gap_fixed, t1, starts, t_ll - te, t)
+            gap, t = NaN, NaN
+            if rnd && seed in random_seeds
+                t = @elapsed fits = fetch.([Threads.@spawn fit(es, init(d, L, X, Xoshiro(s)), X; iters) for s in 1:starts])
+                gap = t_ll - exact_loglik(fits[argmax([exact_loglik(f, X) for f in fits])], Xte)
+            end
+            push!(rows, (; seed, L, method = name, gap_fixed, gap, time = t, time_fixed = t1, cosmax, errs))
+            @printf("  %-38s from the truth: gap %.3f (%.1f s)%s\n", name, gap_fixed, t1,
+                    isnan(gap) ? "" : @sprintf("   best of %d random starts: %.3f (%.1f s)", starts, gap, t))
         end
     end
     return rows
 end
 
-main() = run()
+"The measured run: every method on seeds 1–3, every method but the slow EP on seeds 4 and 5."
+main() = vcat(run(; seeds = 1:3), run(; seeds = 4:5, methods = Base.filter(m -> !startswith(m[1], "EP"), METHODS)))
 
 end # module
 

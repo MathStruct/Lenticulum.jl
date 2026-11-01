@@ -2,16 +2,20 @@ using Test
 isdefined(@__MODULE__, :FactorialInference) ||
     include(joinpath(@__DIR__, "..", "examples", "factorial_inference.jl"))
 
-@testset "Factorial inference: exact, collapsed BP in Mycelium, mean field (examples/factorial_inference.jl)" begin
-    # a cheap version of the script's run
-    rows = FactorialInference.run(; Ls = (4, 8), ntrain = 1000, ntest = 1000, starts = 2, iters = 100, ncheck = 5)
-    r(L, m) = only(x for x in rows if x.L == L && startswith(x.method, m))
+@testset "Factorial inference: exact, ADF in Mycelium, mean field (examples/factorial_inference.jl)" begin
+    # a cheap version of the script's run: one seed, without the slow EP and linear-response fits
+    F = FactorialInference
+    methods = Base.filter(m -> m[1] in ("exact", "exact marginals, factorised pairs", "mean field") || startswith(m[1], "graph"), F.METHODS)
+    rows = F.run(; Ls = (4, 8), seeds = (1,), ntrain = 1000, ntest = 1000, starts = 2, iters = 100, ncheck = 5, methods)
+    r(L, m) = only(x for x in rows if x.L == L && (x.method == m || (m == "graph" && startswith(x.method, m))))
     # few switches: every E-step's fixed point is close to the truth
     @test all(r(4, m).gap_fixed < 0.1 for m in ("exact", "graph", "mean field"))
     # overlapping switches: the factorised posteriors are biased, exact EM is not
     @test r(8, "exact").gap_fixed < 0.1
     @test r(8, "graph").gap_fixed > r(8, "exact").gap_fixed + 0.3
     @test r(8, "mean field").gap_fixed > r(8, "exact").gap_fixed + 0.3
+    # the bias is in the pair moments: exact marginals with factorised pairs are biased too
+    @test r(8, "exact marginals, factorised pairs").gap_fixed > r(8, "exact").gap_fixed + 0.3
 end
 
 @testset "A mixture input to a linear factor is collapsed to its moments (src/gaussian.jl)" begin

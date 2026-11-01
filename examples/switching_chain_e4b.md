@@ -1,6 +1,6 @@
 # E4(b): switching chains on data that are not a mixture
 
-Run `julia -t auto --project=. examples/switching_chain_e4b.jl` (about 95 minutes on 8 threads,
+Run `julia -t auto --project=. examples/switching_chain_e4b.jl` (about two hours on 8 threads,
 most of it in the 30 EM restarts of the large flat mixtures); the test is
 `test/switching_chain_e4b.jl`. Experiment E4(b) of the design note
 [`Minimal Stochastic Factors`](../vault/Design/Minimal%20Stochastic%20Factors.md) (§8, §10).
@@ -25,7 +25,7 @@ Every model is trained on the same 4 000 points and scored on 1 000 held-out poi
 
 - **flat** ($6K - 1$ parameters): a $K$-component mixture fitted by EM with 30 restarts,
   scored by its exact log-likelihood.
-- **chain** ($T(15K - 1) + 5$ parameters): $T$ reverse steps with $\alpha_T^2 = 0.0115$, as in E4(a).
+- **chain** ($T(15K - 6) + 5$ identified parameters): $T$ reverse steps with $\alpha_T^2 = 0.0115$, as in E4(a).
   - Each step is a directed switching kernel with $K$ outcomes, fitted by conditional maximum
     likelihood (`SwitchingSmallSteps.fit_pairs`: joint EM, then 120 Adam steps).
   - Each step's pairs are built from the training points with fresh forward noise, which is the
@@ -44,11 +44,11 @@ importance-weighted bound.
 | model | parameters | moons | ring |
 |---|---|---|---|
 | flat, $K = 2$ | 11 | 0.733 | 1.034 |
-| chain, $K = 2$, $T = 5 / 10 / 20$ | 150 / 295 / 585 | 0.734 / 0.732 / 0.715 | 1.030 / 1.015 / 0.938 |
+| chain, $K = 2$, $T = 5 / 10 / 20$ | 125 / 245 / 485 | 0.734 / 0.732 / 0.715 | 1.030 / 1.015 / 0.938 |
 | flat, $K = 3$ | 17 | 0.498 | 0.621 |
-| chain, $K = 3$, $T = 5 / 10 / 20$ | 225 / 445 / 885 | 0.499 / 0.499 / 0.492 | 0.622 / 0.608 / 0.580 |
+| chain, $K = 3$, $T = 5 / 10 / 20$ | 200 / 395 / 785 | 0.499 / 0.499 / 0.492 | 0.622 / 0.608 / 0.580 |
 | flat, $K = 4$ | 23 | 0.335 | 0.318 |
-| chain, $K = 4$, $T = 5 / 10 / 20$ | 300 / 595 / 1 185 | 0.338 / 0.340 / 0.341 | 0.322 / 0.323 / 0.309 |
+| chain, $K = 4$, $T = 5 / 10 / 20$ | 275 / 545 / 1 085 | 0.338 / 0.340 / 0.341 | 0.322 / 0.323 / 0.309 |
 | flat, $K = 8$ | 47 | 0.038 | 0.048 |
 | flat, $K = 16$ | 95 | **0.013** | **0.019** |
 | flat, $K = 32$ | 191 | 0.029 | 0.024 |
@@ -66,13 +66,36 @@ Energy distances of 1 500 generated samples against the held-out data:
 At $T = 20$, the importance-weighted bound is above the plain ELBO by 0.08 to 0.25 nats, so the
 bound is still loose there. At $T = 5$ the two are within 0.06 of each other.
 
+**How loose is the bound? (2026-11-01, `bound_sweep`, after the second round of reviews.)** The
+chains' marginals are not finite mixtures (their gates depend on $z_t$), so they cannot be scored
+exactly; the next best check is whether the bound still moves as the number of paths grows. Refitted
+chains, 300 held-out points (truth −0.963 on moons, −1.787 on the ring), gap of the bound:
+
+| data | $T$, $K$ | $S = 1$ | $S = 64$ | $S = 512$ | $S = 4096$ |
+|---|---|---|---|---|---|
+| moons | 5, 2 | 0.756 | 0.741 | 0.740 | 0.739 |
+| | 5, 4 | 0.391 | 0.336 | 0.332 | 0.333 |
+| | 20, 2 | 0.764 | 0.713 | 0.719 | 0.721 |
+| | 20, 4 | 0.574 | 0.339 | 0.333 | 0.332 |
+| ring | 5, 2 | 1.005 | 0.995 | 0.993 | 0.993 |
+| | 5, 4 | 0.375 | 0.326 | 0.323 | 0.322 |
+| | 20, 2 | 1.027 | 0.885 | 0.884 | 0.886 |
+| | 20, 4 | 0.583 | 0.314 | 0.302 | 0.302 |
+
+From 64 to 4 096 paths the bound changes by at most 0.012 nats. A 64-fold increase in paths would
+normally close a large part of a remaining gap, so the bound is probably close to the marginal, but
+that is not a proof: a proposal that misses a region can saturate below it. In the constant-gate
+control of `chain_objective.md`, where the marginal *is* exact, the bound with 64 paths is within
+0.006 of it.
+
 One flat fit at first misled. With 3 EM restarts, the flat $K = 3$ mixture on moons stopped at a
 local optimum with gap 0.612, which made the chains look 0.11 nats better. With 30 restarts it reaches
 0.498, and the difference disappears. The table uses 30 restarts throughout.
 
 ## What it shows
 
-1. **A chain with $K$ outcomes per step scores like a flat mixture with $K$ components.** For
+1. **A chain with $K$ outcomes per step scores like a flat mixture with $K$ components, up to the
+   bound's looseness (saturated by $S = 64$; see above).** For
    every $K$, the chain's gap is within 0.006 of the flat $K$-mixture's at $T = 5$. At $T = 10$ it
    is within 0.005 everywhere except the ring with $K = 2$ and $K = 3$, which are 0.019 and 0.013
    better. The $K^T$ paths buy almost nothing.
@@ -80,7 +103,7 @@ local optimum with gap 0.612, which made the chains look 0.11 nats better. With 
    nats better than the flat $K$-mixture on the ring with $K = 2$, and 0.04 better with $K = 3$.
    That is still far from what a few more components give.
 3. **Per parameter, the chain loses by orders of magnitude.** The best chain is 0.31 to 0.34 nats
-   from the truth, with 300 parameters on moons and 1 185 on the ring. A flat mixture with 16 components gets within 0.02 with
+   from the truth, with 275 parameters on moons and 1 085 on the ring. A flat mixture with 16 components gets within 0.02 with
    95 parameters.
 4. **The explanation is the objective, not the class** (found after this run; Propositions 9
    and 10 of the design note, checked in `examples/chain_objective.md`). Chains of 2-outcome
@@ -97,9 +120,9 @@ local optimum with gap 0.612, which made the chains look 0.11 nats better. With 
 
 ## Caveats
 
-- The chain's score is a lower bound. With $T = 20$ it is visibly loose, so the chains could be
-  somewhat better than shown. At $T = 5$ the bound is tight, and the chains still match the flat
-  $K$-mixture there.
+- The chain's score is a lower bound. It is loose for $S = 1$ at $T = 20$, but it saturates by
+  $S = 64$ (above), and at $T = 5$ the chains still match the flat $K$-mixture. Saturation is evidence,
+  not a proof, that the bound is near the marginal.
 - The step kernels are fitted separately. A shared, time-conditioned parameterisation would have far
   fewer parameters, but by the explanation above it would face the same capacity limit.
 - One seed for each setting; 120 Adam steps per kernel.

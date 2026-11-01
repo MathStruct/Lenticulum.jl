@@ -38,32 +38,45 @@ The truth's held-out $\log q_0(z_0)$ is −2.108. The data-vs-data energy distan
 
 | $T$ | $K$ | held-out bound | gap to truth | estimation cost $T d / 2n$ | gap − cost | energy distance |
 |---|---|---|---|---|---|---|
-| 10 | 2 | −2.608 | 0.500 | 0.024 | 0.476 | 0.0414 |
-| 25 | 2 | −2.630 | 0.522 | 0.060 | 0.462 | 0.0180 |
-| 50 | 2 | −2.668 | 0.560 | 0.121 | 0.439 | 0.0205 |
-| 100 | 2 | −2.786 | 0.678 | 0.242 | 0.436 | 0.0201 |
-| 10 | 3 | −2.156 | 0.048 | 0.037 | 0.011 | 0.0088 |
-| 25 | 3 | −2.212 | 0.104 | 0.092 | 0.012 | 0.0036 |
-| 50 | 3 | −2.294 | 0.186 | 0.183 | 0.003 | 0.0034 |
-| 100 | 3 | −2.568 | 0.460 | 0.367 | 0.093 | 0.0049 |
+| 10 | 2 | −2.608 | 0.500 | — | — | 0.0414 |
+| 25 | 2 | −2.630 | 0.522 | — | — | 0.0180 |
+| 50 | 2 | −2.668 | 0.560 | — | — | 0.0205 |
+| 100 | 2 | −2.786 | 0.678 | — | — | 0.0201 |
+| 10 | 3 | −2.156 | 0.048 | 0.033 | 0.015 | 0.0088 |
+| 25 | 3 | −2.212 | 0.104 | 0.081 | 0.023 | 0.0036 |
+| 50 | 3 | −2.294 | 0.186 | 0.163 | 0.023 | 0.0034 |
+| 100 | 3 | −2.568 | 0.460 | 0.325 | 0.135 | 0.0049 |
 
-The script prints the bound, the gap and the estimation cost. The last difference column is arithmetic on
-those. The estimation cost is the asymptotic loss of maximum likelihood: about $d/(2n)$ nats per step,
-with $d = 15K - 1$ free parameters and $n = 6000$ pairs. It is exact for a well-specified model as
-$n \to \infty$. For $K = 3$ the true reverse kernel is in the family (Proposition 8); for $K = 2$ the
-formula is only indicative. The conditional refit improves on the joint EM start in every case
+The gap is the **bound's** gap. With the exact prior, Proposition 9 makes it exactly the sum of the
+$T$ per-step conditional KLs. The estimation cost is the asymptotic loss of maximum likelihood: about
+$d/(2n)$ nats per step, with $n = 6000$ pairs and $d = 15K - 6$ identified parameters. That is 9 per
+affine expert and 6 per gate log-odds against a reference outcome: a quadratic common to all gates
+cancels in the softmax.
+
+The run printed the cost with the first version's count, $15K - 1$. The second round of reviews
+corrected it (design note §13). The two cost columns above are arithmetic with the corrected count,
+which the script now uses.
+
+The formula is the regular, well-specified asymptotic one:
+- it is exact as $n \to \infty$ for $K = 3$, whose true reverse kernel is in the family (Proposition 8);
+- it degrades where the gates become nearly flat, at large $t$, where the Fisher information
+  degenerates (mixtures are not regular models; Chen 1995);
+- it is not the right first-order form for the misspecified $K = 2$, so no cost is shown there. The conditional refit improves on the joint EM start in every case
 (total gain 0.010 to 0.148).
 
 ## What it shows
 
-1. **The bound does not approach the truth as $T$ grows, but the reason is estimation, not capacity.**
-   With $K = 3$ the gap grows with $T$, and almost all of it is the expected cost of fitting $T$
-   separate kernels on $n$ pairs each: what remains after subtracting it is 0.011, 0.012 and 0.003
-   for $T$ = 10, 25 and 50. At $T = 100$ the remainder is 0.093. The refit gain is largest there
-   (0.148), which suggests the 120 Adam steps had not converged.
-2. **Two outcomes per step have a capacity gap that small steps do not close.** After subtracting the
-   estimation cost, $K = 2$ stays 0.44 to 0.48 nats below the truth. The gap shrinks only from 0.476 to
-   0.436 over a tenfold reduction in step size.
+1. **The bound does not approach the truth as $T$ grows, and most of the growth is estimation.**
+   With $K = 3$ the gap grows with $T$, and most of it is the expected cost of fitting $T$ separate
+   kernels on $n$ pairs each. What remains after subtracting it is 0.015, 0.023 and 0.023 for $T$ = 10,
+   25 and 50. At $T = 100$ the remainder is 0.135. The refit gain is largest there (0.148), so the 120
+   Adam steps may not have converged. The regular cost formula is also least reliable there. The two
+   explanations are confounded. A tied (shared) parameterisation, whose cost does not grow with $T$,
+   would separate them; Mistral's review suggested it.
+2. **Two outcomes per step have a capacity gap that small steps do not close.** The raw gap for
+   $K = 2$ is 0.50 to 0.68 nats and does not shrink with $T$. Even the full cost estimate would
+   explain at most 0.24 of it at $T = 100$. The capacity conclusion rests on the raw gaps, on this one
+   three-component data set.
 3. **The samples tell the same story.** For $T \ge 25$, $K = 3$ is at the floor (0.0034 to 0.0049
    against 0.0063). $K = 2$ levels off at about 0.02, three times the floor.
 4. **So the prediction holds on capacity:** as many outcomes as the score field has linear pieces are
@@ -77,7 +90,8 @@ formula is only indicative. The conditional refit improves on the joint EM start
 ## Caveats
 
 - One data set, one seed per step.
-- The estimation cost is an asymptotic estimate, not a measured quantity.
+- The estimation cost is an asymptotic estimate, not a measured quantity. Its first version
+  overcounted the parameters by 5 per kernel.
 - The energy distance has sampling noise of the order of its floor.
 - The $T = 100$, $K = 3$ fits are probably under-optimised.
 - The run allocated heavily (47 % of its time in garbage collection): the per-step objective is

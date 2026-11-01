@@ -11,5 +11,5 @@ isdefined(@__MODULE__, :SwitchingSmallSteps) ||
     @test k3.gain > 0                          # the conditional refit improves on the joint EM fit
     @test k3.bound > k1.bound + 0.5            # linear-Gaussian steps stay Gaussian (Proposition 2)
     @test k3.bound <= r.truth + 0.05           # a bound, up to sampling error
-    @test M.estimation_cost(100, 3, 6000) ≈ 100 * 44 / 12000
+    @test M.estimation_cost(100, 3, 6000) ≈ 100 * 39 / 12000
 end

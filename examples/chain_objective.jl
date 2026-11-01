@@ -14,7 +14,8 @@ This script checks both on a 16-mode product grid (E3's `grid4`, standardised to
 1. the additive model fitted by exact EM, rewritten as a 4-step chain of 2-outcome kernels; its
    marginal by path enumeration equals the additive density to rounding;
 2. ELBO-trained chains (E4(b)'s procedure) with K ∈ {2, 4} outcomes and T ∈ {5, 10, 20} steps,
-   scored by the importance-weighted bound, against flat K-component mixtures.
+   scored by the importance-weighted bound, against flat K-component mixtures;
+3. `objective_control`: the two objectives in one family (constant gates), both scored exactly.
 
 Run with `julia -t auto --project=. examples/chain_objective.jl`.
 """
@@ -69,6 +70,78 @@ end
 
 mean(v) = sum(v) / length(v)
 
+# --- the objective-controlled comparison (second round of reviews) --------------------------------
+
+"""
+A step with constant gates, p(z_{t-1} | z_t) = Σ_k π_k N(G_k z_t + h_k, C_k), fitted by conditional
+maximum likelihood on the pairs (rows z_{t-1}, z_t) of `X`: EM for a mixture of linear regressions
+with constant weights, from `starts` random responsibilities. This is the diffusion bound's optimum
+for that step within the constant-gate family (Proposition 9).
+"""
+function fit_constant_gate_step(X, K; iters = 300, starts = 8, seed = 1, floor = 1e-6)
+    n = size(X, 1); Y = X[:, 1:2]; Z = hcat(X[:, 3:4], ones(n))           # regressors [z_t; 1]
+    best, bestll = nothing, -Inf
+    for s in 1:starts
+        rng = Xoshiro(seed + 31s)
+        R = rand(rng, n, K); R ./= sum(R; dims = 2)
+        π, B, C = fill(1 / K, K), [zeros(3, 2) for _ in 1:K], [Matrix(1.0I, 2, 2) for _ in 1:K]
+        ll = -Inf
+        for it in 1:iters
+            for k in 1:K
+                w = R[:, k]; nk = sum(w); π[k] = max(nk / n, 1e-12)
+                B[k] = (Z' * (w .* Z) + 1e-9I) \ (Z' * (w .* Y))
+                E_ = Y - Z * B[k]
+                C[k] = Matrix(Symmetric(E_' * (w .* E_) / nk)) + floor * I
+            end
+            Lg = [log(π[k]) + E.logN(Y[i, :], B[k]' * Z[i, :], C[k]) for i in 1:n, k in 1:K]
+            mx = maximum(Lg; dims = 2); sm = sum(exp.(Lg .- mx); dims = 2)
+            lln = sum(mx .+ log.(sm)) / n
+            R = exp.(Lg .- mx) ./ sm
+            abs(lln - ll) < 1e-9 && (ll = lln; break)
+            ll = lln
+        end
+        ll > bestll && ((best, bestll) = ((copy(π), deepcopy(B), deepcopy(C)), ll))
+    end
+    π, B, C = best
+    I2 = Matrix(1.0I, 2, 2)
+    return E.Kernel(log.(π), [zeros(2) for _ in 1:K], [I2 for _ in 1:K], [Matrix(B[k][1:2, :]') for k in 1:K],
+                    [B[k][3, :] for k in 1:K], C)
+end
+
+"""
+The same generative family (constant gates), two objectives: exact marginal likelihood (the
+additive model by EM, as a chain) against the diffusion bound with the fixed forward process (one
+constant-gate projection per step). Both are scored by their exact held-out marginal, by path
+enumeration, and by the bound.
+"""
+function objective_control(; ntrain = 4000, ntest = 1000, chains = [(4, 2), (10, 2), (5, 4)], em_starts = 256, S = 64)
+    d = standard_grid(); L = d.L
+    Ztr = E.sample_gmm(d.π, d.μ, d.Σ, ntrain, Xoshiro(1))
+    Zte = E.sample_gmm(d.π, d.μ, d.Σ, ntest, Xoshiro(2))
+    truth = mean([E.gmm_logpdf(d.π, d.μ, d.Σ, Zte[i, :]) for i in axes(Zte, 1)])
+    @printf("Objective control on the standardised 16-mode grid: truth %.3f\n", truth)
+    rows = []
+    res = fetch.([Threads.@spawn C3.em_additive(L, Ztr, C3.additive_init(L, Ztr, Xoshiro(1 + 1000s))) for s in 1:em_starts])
+    θ = res[argmax([mean(C3.additive_logpdf(r[1], L, Ztr)) for r in res])][1]
+    ks, pr = additive_chain(θ, L)
+    ll = mean([constant_gate_logpdf(ks, pr, Zte[i, :]) for i in axes(Zte, 1)])
+    push!(rows, (; objective = "exact marginal likelihood (EM)", T = L, K = 2, exact = ll))
+    @printf("  %-34s T = %2d, K = %d   exact held-out gap %.3f\n", rows[end].objective, L, 2, truth - ll)
+    αT2 = 0.8^20
+    for (T, K) in chains
+        sch = E.schedule(T, 1 - αT2^(1 / T))
+        kc = fetch.([Threads.@spawn fit_constant_gate_step(B.SS.step_pairs(sch, t, Ztr, Xoshiro(100t + K)), K; seed = 7t) for t in 1:T])
+        a = sch.α[end]; ZT = a .* Ztr .+ sqrt(1 - a^2) .* randn(Xoshiro(1), size(Ztr)...)
+        pc = ([1.0], [vec(sum(ZT; dims = 1)) / size(ZT, 1)], [E.cov(ZT)])
+        ex = E.tmean(i -> constant_gate_logpdf(kc, pc, Zte[i, :]), ntest)
+        iw = E.tmean(i -> B.iw_bound(kc, pc, sch, Zte[i, :], S, Xoshiro(10i)), ntest)
+        push!(rows, (; objective = "diffusion bound (fixed forward)", T, K, exact = ex, iw))
+        @printf("  %-34s T = %2d, K = %d   exact held-out gap %.3f   IW bound (S = %d) gap %.3f\n",
+                rows[end].objective, T, K, truth - ex, S, truth - iw)
+    end
+    return (; truth, rows)
+end
+
 function run(; ntrain = 4000, ntest = 1000, chains = [(T, K) for T in (5, 10, 20) for K in (2, 4)],
              Ks_flat = (2, 4, 16), S = 64, iters = 120, em_starts = 256)
     d = standard_grid(); L = d.L
@@ -105,7 +178,7 @@ function run(; ntrain = 4000, ntest = 1000, chains = [(T, K) for T in (5, 10, 20
     return (; truth, err, rows)
 end
 
-main() = run()
+main() = (run(), objective_control())
 
 end # module
 

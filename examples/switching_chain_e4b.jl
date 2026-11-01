@@ -12,7 +12,7 @@ Models, all trained on the same 4 000 points:
 - **chain**: T reverse steps, each a directed switching kernel with K outcomes fitted by
   conditional maximum likelihood (`SwitchingSmallSteps.fit_pairs`) on pairs built from the
   training points with fresh forward noise (the usual diffusion training data); the prior at T is
-  a Gaussian fitted to the noised training points. T(15K − 1) + 5 parameters. Its marginal is a
+  a Gaussian fitted to the noised training points. T(15K − 6) + 5 identified parameters. Its marginal is a
   mixture over K^T paths with input-dependent gates, which has no closed form, so it is scored by
   the importance-weighted bound with S forward paths per test point, log (1/S) Σ_s p(z_{0:T}^s) /
   q(z_{1:T}^s | z_0): a lower bound on log p(z_0) in expectation that tightens as S grows.
@@ -80,7 +80,7 @@ function iw_bound(kernels, prior, sch, z0, S, rng)
     return E.logsumexp(ls) - log(S)
 end
 
-nchain(T, K) = T * (SS.PER * K - 1) + 5
+nchain(T, K) = T * (SS.PER * K - 6) + 5   # identified parameters (`SwitchingSmallSteps.estimation_cost`)
 mean(v) = sum(v) / length(v)
 
 function run(name; ntrain = 4000, ntest = 1000, ngen = 1500, Ks_flat = (2, 3, 4, 8, 16, 32, 64),
@@ -114,7 +114,29 @@ function run(name; ntrain = 4000, ntest = 1000, ngen = 1500, Ks_flat = (2, 3, 4,
     return (; name, truth, floor_ed, rows)
 end
 
-main() = [run(name) for name in (:moons, :ring)]
+"""
+How loose is the importance-weighted bound? For a few chains, the bound with growing numbers of
+forward paths S on the same test points. (With gates that depend on the state, the chain's marginal
+is not a finite mixture, so there is no exact path sum to compare with; the bound increases to
+log p(z_0) as S → ∞.)
+"""
+function bound_sweep(name; ntrain = 4000, ntest = 300, chains = [(5, 2), (5, 4), (20, 2), (20, 4)], Ss = (1, 64, 512, 4096), iters = 120)
+    Ztr = sample_data(name, ntrain, Xoshiro(1))
+    Zte = sample_data(name, ntest, Xoshiro(2))
+    truth = E.tmean(i -> data_logpdf(name, Zte[i, :]), ntest)
+    @printf("%s, %d test points: truth %.3f\n", name, ntest, truth)
+    rows = []
+    for (T, K) in chains
+        sch = E.schedule(T, 1 - 0.8^(20 / T))
+        ks, prior = fit_chain(Ztr, sch, K; iters)
+        gaps = [truth - E.tmean(i -> iw_bound(ks, prior, sch, Zte[i, :], S, Xoshiro(10i)), ntest) for S in Ss]
+        push!(rows, (; T, K, Ss, gaps))
+        @printf("  T = %2d, K = %d: gap of the bound for S = %s: %s\n", T, K, join(Ss, ", "), join([@sprintf("%.3f", g) for g in gaps], ", "))
+    end
+    return (; name, truth, rows)
+end
+
+main() = ([run(name) for name in (:moons, :ring)], [bound_sweep(name) for name in (:moons, :ring)])
 
 end # module
 

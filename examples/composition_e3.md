@@ -30,7 +30,9 @@ There are three models, all with exact likelihoods.
   Gaussian prior on $z$ is multiplied by $L$ rank-one switching constraints
   $\mathcal N(a_l^\top z; b_{l, k_l}, q_l)$. The bits are independent, so the density is a product of experts:
   $p(z) = \mathcal N(z; m, P) \prod_l \sum_j \pi_{lj} \mathcal N(a_l^\top z; b_{lj}, q_l) / \bar Z$. The coupling
-  normaliser $\bar Z = \sum_k \pi_k \mathcal N(b_k; A m, A P A^\top + Q)$ runs over all $2^L$ configurations.
+  normaliser $\bar Z = \sum_k \pi_k \mathcal N(b_k; A m, A P A^\top + Q)$ runs over all $2^L$ configuration
+  *tuples* $k = (k_1, \dots, k_L)$, with $\pi_k = \prod_l \pi_{l, k_l}$, $b_k = (b_{1, k_1}, \dots, b_{L, k_L})$, $A$ the
+  stacked $a_l^\top$ and $Q = \operatorname{diag}(q_l)$.
   The density integrates to one to $10^{-15}$ on a grid, which checks $\bar Z$.
 - **flat** ($6K - 1$ parameters): a $K$-component mixture with full covariances, fitted by EM
   with 5 restarts.
@@ -90,9 +92,13 @@ starts as Adam, plus 240 more. The "EM, the same 16" time is pro-rated from the 
   median start converged in 48 to 114 iterations.
 - **Per start, EM gets stuck more often than Adam.** It reaches the best optimum from 6 to 14 % of
   starts, against 12 to 31 % for Adam.
-- **EM is still the better fitter.** A start costs 1 to 2 % of an Adam start, so 256 starts find the
-  same optimum faster (4 to 5 times faster at $n = 2000$). With EM, random restarts are a
-  workable answer to the local optima.
+- **EM is still the better fitter here.** A start costs 1 to 2 % of an Adam start. At $n = 2000$,
+  256 EM starts (2.3 and 6.5 s) reached the same optimum as 16 Adam starts (11.0 and 26.9 s). At
+  $n = 150$ the two took about the same time. How large the advantage is depends on the success
+  probability one wants and on that cost ratio, as Mistral's review notes: at the measured per-start
+  success rates, a 1 % chance of missing the optimum needs 13–37 Adam starts against 31–75 EM
+  starts. At 1–2 % of the cost per start, the EM starts cost about as much as one or two Adam starts. With
+  EM, random restarts are a workable answer to the local optima.
 - **Annealing did not help.** In exploratory runs that were not kept, deterministic annealing of
   the E-step (Ueda and Nakano) collapsed to the symmetric fixed point where all $\delta_l$ are
   equal, and perturbing the offsets during annealing did not reach the optimum either.
@@ -116,6 +122,14 @@ starts as Adam, plus 240 more. The "EM, the same 16" time is pro-rated from the 
    that the $z = \sum_l u_l$ wiring introduces. So the expressive wiring is a sum node fed by
    switches, not several constraints on one node. This is the overlap penalty that §10 anticipated,
    now measured.
+
+   It is a dimensional fact, as two reviews of the second round pointed out. All $L$ strips cross
+   exactly for every configuration only if every $b_k$ lies in the column space of $A$ shifted by
+   $Am$. The $2^L$ points $b_k$ span an affine space whose dimension is the number of switches with
+   $b_{l0} \ne b_{l1}$, and the column space has dimension at most $n$. So with more than $n$ informative
+   switches in $\mathbb R^n$ (here $L = 3, 4 > n = 2$), some configurations must miss, and $\bar Z$ suppresses
+   them: the grids are outside the rank-one class, which is misspecified rather than hard to fit.
+   With $L \le n$, rank-one constraints give the $2^L$ grid as well. That case was not run.
 
 ## Caveats
 
