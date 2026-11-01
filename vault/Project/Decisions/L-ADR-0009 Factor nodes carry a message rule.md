@@ -1,6 +1,6 @@
 #design
 
-> **Status: proposed (2026-11-01, Claude, for Daniel; implemented on `experiment-qm` and ported to `dev-danielb`).** Related: [[Extending Mycelium]], [[Switching Constraint Factors]] §6, [[Composing Stochastic Factors]] §3, [[passing]], [[L-ADR-0006 Separate likelihood_message from invert]].
+> **Status: accepted (2026-11-01, Daniel: "option 2 of ADR"; proposed the same day by Claude, implemented on `experiment-qm` and ported to `dev-danielb`).** Related: [[Extending Mycelium]], [[Switching Constraint Factors]] §6, [[Composing Stochastic Factors]] §3, [[passing]], [[L-ADR-0006 Separate likelihood_message from invert]].
 
 ## Context
 
@@ -40,7 +40,7 @@ factors split into a belief-propagation set and a mean-field set, with one free 
 
 ## Decision
 
-Option 2, proposed. The rule is a property of how a node takes part in inference, not of the factor
+Option 2, accepted by Daniel. The rule is a property of how a node takes part in inference, not of the factor
 (the same `LinearConstraintFactor` is a belief-propagation node in one graph and a mean-field node in
 another), and not of the whole graph. It costs one field with a backwards-compatible default, and new
 rules are new types plus opt-in methods, with no new wrappers.
