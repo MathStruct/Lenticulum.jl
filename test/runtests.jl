@@ -1266,6 +1266,10 @@ include("chain_objective.jl")
 
 include("hierarchy_e3b.jl")
 
+include("switching_constraint.jl")
+
+include("switching_blocks_graph.jl")
+
 include("factorial_inference.jl")
 
 include("hierarchy_inference.jl")
