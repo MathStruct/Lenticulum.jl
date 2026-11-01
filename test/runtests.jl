@@ -1268,6 +1268,10 @@ include("hierarchy_e3b.jl")
 
 include("factorial_inference.jl")
 
+include("hierarchy_inference.jl")
+
+include("neural_reference.jl")
+
 include("structure_switches.jl")
 
 include("gradient_couplings.jl")

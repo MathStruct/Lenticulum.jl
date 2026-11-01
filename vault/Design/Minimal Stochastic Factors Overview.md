@@ -4,7 +4,7 @@
 > what was measured, what three external reviews changed, and what is open. The mathematics is in
 > [[Minimal Stochastic Factors]]; this note only points into it and into the experiments.
 
-> Sources: original to this vault. code: `examples/measurement_factor.jl`, `examples/switching_factor_e1.jl`, `examples/switching_reverse_chain_e4a.jl`, `examples/switching_small_steps.jl`, `examples/composition_e3.jl`, `examples/switching_chain_e4b.jl`, `examples/chain_objective.jl`, `examples/hierarchy_e3b.jl`, `examples/factorial_inference.jl`, `examples/structure_switches.jl`, `examples/minimal_stochastic_factors_checks.jl`
+> Sources: original to this vault. code: `examples/measurement_factor.jl`, `examples/switching_factor_e1.jl`, `examples/switching_reverse_chain_e4a.jl`, `examples/switching_small_steps.jl`, `examples/composition_e3.jl`, `examples/switching_chain_e4b.jl`, `examples/chain_objective.jl`, `examples/hierarchy_e3b.jl`, `examples/factorial_inference.jl`, `examples/hierarchy_inference.jl`, `examples/neural_reference.jl`, `examples/structure_switches.jl`, `examples/minimal_stochastic_factors_checks.jl`
 
 ## The question
 
@@ -57,9 +57,11 @@ with no iterative denoising.
 | **E3**: composition vs flat mixture on product grids (8, 16 modes) and a ring | on the grids, additive composition (14–17 parameters) is within 0.005 nats of the truth and, at 150 points, within 0.04 where the best flat mixture is 0.36–0.48 away; on the ring it is 0.89 away; rank-one constraints on a shared variable fail wherever there are more switches than dimensions, and match additive on a 4-mode grid with $L = n = 2$ | `examples/composition_e3.md` |
 | **E3, fitting** | exact EM for the additive wiring (closed-form M-step): monotone; fewer starts reach the optimum than with Adam, but each is far cheaper: 256 EM starts take 2.3–6.5 s against 11.0–26.9 s for 16 Adam starts at 2 000 points, and a 1 % miss rate needs 31–75 EM or 13–37 Adam starts | `examples/composition_e3.md` |
 | **E4(b)**: chains on two moons and a ring | a chain of $T \le 20$ steps with $K$ outcomes each scores like a flat $K$-component mixture (within 0.006 nats at $T = 5$, at most 0.10 better at $T = 20$); flat with 16 components (95 parameters) beats every chain (up to 1 085) | `examples/switching_chain_e4b.md` |
+| **neural reference** for E4(b): Ho et al.'s Gaussian reverse kernel with an MLP noise predictor, same bound and scores | at $T = 1000$ (20 207 parameters) 0.009 nats from the truth on the ring, better than every E4(b) model; 0.315 on moons, no better than a 4-outcome chain; worse than the chains at $T = 20$ | `examples/neural_reference.md` |
 | **Propositions 9, 10**: the objective, not the class | E3's additive model is a 4-step chain of 2-outcome kernels (marginal identical to $7\cdot10^{-15}$, 0.001 nats from the truth on the 16-mode grid); chains of the same kind trained by the diffusion bound score like flat mixtures with $K$ = 2 or 4 components (gaps 0.78–1.09); in one family (constant gates), scored exactly, the bound's optimum is 0.93–1.16 nats away while exact likelihood finds a member 0.001 away | `examples/chain_objective.md` |
 | **E3b**: a switch over sums, on 3 clusters of rotated 2 × 2 grids | the hierarchical wiring (29 parameters, exact EM) is 0.008 nats from the truth at 2 000 points and 0.091 at 150; a flat 12-mixture (71) is 0.016 and 0.996 away (it overfits at 150); one sum node stays 0.64–0.80 away | `examples/hierarchy_e3b.md` |
 | **E6, factorial inference**: exact vs Mycelium graph (one-pass ADF), mean field, linear response and EP, $L$ = 4, 8, 12 switches in 8-D, five seeds | with 8–12 overlapping switches every factorised E-step converges 0.42–1.12 nats away even from the truth, exact EM 0.01–0.05; exact marginals with factorised pair moments are nearly as biased, so the bias is in the pair moments; EP's joint Gaussian helps at $L = 8$ (0.16–0.40) but is unreliable at $L = 12$ and ~10³× slower; the graph E-step is ~100× faster than exact at $L = 12$ | `examples/factorial_inference.md` |
+| **E7, structured inference in the hierarchy**: exact top switch, exact blocks of switches, 3 clusters of 6 or 8 switches in 8-D, three seeds | mean field inside a cluster is 0.25–0.68 nats off from the truth, exact 0.03–0.06; blocks of $L/2$ switches chosen by overlap cut it to 0.03–0.33, consecutive blocks only to 0.15–0.48; from random starts every method is 0.50–0.75 off | `examples/hierarchy_inference.md` |
 | **structure learning**: greedy add/remove switch, split/merge cluster, exact EM + BIC | finds the generating structure on the 8-mode grid and the tree, a more compact exact one on the ring (two rotated squares), an equivalent larger one on the 16-mode grid; always within 0.005 nats of the truth, with 12–18 fits against 45 exhaustive | `examples/structure_switches.md` |
 | checks behind the review corrections | the corrected inversion and Born claims, numerically | `examples/minimal_stochastic_factors_checks.jl` |
 
@@ -104,11 +106,14 @@ linear-response formula. Grok found no errors.
   (Proposition 10), but the diffusion objective with a fixed forward process pins them to $K$
   components (Proposition 9; an objective control in one family confirms it). Exact marginal
   likelihood trains them, but needs exact switch posteriors; a learned forward process is untested.
+  The same bound trains a neural Gaussian kernel to the truth on the ring at $T = 1000$, so what
+  fails is the bound combined with few-outcome steps.
 - **Structured beliefs in Mycelium.** Mycelium now runs the switch-and-sum wiring (mixture
   inputs to linear factors are collapsed to moments), but factorised posteriors are biased by
   0.4–1.1 nats once switches overlap (E6), and the bias is in the pair moments, not the marginals.
-  Gaussian EP helps only partly. Exact blocks of switches or region beliefs over groups of them are
-  the candidates.
+  Gaussian EP helps only partly. Exact blocks of switches remove most of the bias when the blocks
+  keep overlapping switches together (E7), at sizes where exact inference is still possible; how to
+  choose blocks at scale, and region beliefs over groups of switches, are untested.
 - **Structure learning.** Mycelium has no rules that add or remove variables, factors or edges:
   graphs are frozen once built ([[Dynamic Graphs]]), and the only structure search is a Gaussian
   edge-addition example ([[Finding a Factor Graph]]). For switch wirings the natural moves are
@@ -134,7 +139,9 @@ julia -t auto --project=. examples/composition_e3.jl                # about 4 mi
 julia -t auto --project=. examples/switching_chain_e4b.jl           # about 95 minutes on 8 threads
 julia -t auto --project=. examples/chain_objective.jl               # about 18 minutes on 8 threads
 julia -t auto --project=. examples/hierarchy_e3b.jl                 # under a minute on 8 threads
-julia -t auto --project=. examples/factorial_inference.jl           # about 10 minutes on 8 threads
+julia -t auto --project=. examples/factorial_inference.jl           # about two hours on 8 threads, most of it EP
+julia -t auto --project=. examples/hierarchy_inference.jl           # about 75 minutes on 8 threads
+julia -t auto --project=. examples/neural_reference.jl             # about 5 minutes on 8 threads
 julia -t auto --project=. examples/structure_switches.jl            # about 14 minutes on 8 threads
 julia --project=. -e 'using Pkg; Pkg.test()'                       # includes the experiments' tests
 ```

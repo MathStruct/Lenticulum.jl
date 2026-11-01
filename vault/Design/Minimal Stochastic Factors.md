@@ -811,6 +811,31 @@ latent causes interact. Scaling the additive wiring needs correct pair moments (
 switches, or region beliefs over groups of them), not more passes. E6 tests moment collapse, not
 the Bethe free energy.
 
+**E7: structured inference inside E3b's hierarchy, measured (2026-11-01; `examples/hierarchy_inference.jl`,
+`.md`).** E3b's switch over sums in 8 dimensions, $J = 3$ clusters of $L \in \{6, 8\}$ switches, three
+seeds. The top switch is exact; $q(k \mid j)$ is a product over blocks of switches, exact within a
+block (structured mean field). From the true parameters, mean field is 0.25–0.68 nats off, against
+0.03–0.06 for exact EM: the E6 bias one level down. Blocks of $L/2$ switches chosen by overlap (largest
+$|\cos|$ of the offsets in the noise metric) cut that to 0.03–0.12 at $L = 6$ and 0.19–0.33 at $L = 8$;
+consecutive blocks of the same size help little (0.15–0.48, on one seed worse than mean field). So
+exact blocks fix the pair-moment bias where they keep the overlapping pairs together. From 16 random
+starts (one seed) every method is 0.50–0.75 nats off, overlap blocks as close as exact: at this size
+initialisation costs more than the E-step. At $L \le 8$ exact enumeration is still the cheaper
+E-step; the sizes where blocks are needed were not tested.
+
+**A neural reference for E4(b), measured (2026-11-01; `examples/neural_reference.jl`, `.md`).** The
+reverse kernel of Ho et al. (2020) is $\mathcal N(\mu_\theta, \sigma_t^2 I)$, with the mean from a time-conditioned
+MLP noise predictor trained on the simple loss, and the bound-optimal $\sigma_t^2$. It uses E4(b)'s
+data, forward process, prior and importance-weighted bound. On the ring at $T = 1000$ (20 207
+parameters) it is 0.009 nats from the truth, better than the flat 16-mixture (0.019) and every
+switching chain (0.31 at $K = 4$). On moons it reaches 0.315, no better than a 4-outcome chain and
+far from the flat mixture (0.013), still falling with $T$ and training. At $T = 20$ it is worse than
+the 4-outcome chains on both data sets. So the fixed-forward bound does train a chain well when each
+step's kernel can follow the true reverse kernel ($\beta \to 0$, a flexible mean). What pins E4(b)'s
+chains is the bound together with $K$-outcome, linearly gated steps (Proposition 9's per-step KL),
+not the bound alone. The neural kernel is a reference, not a candidate: it puts a network inside
+the factor.
+
 **Structure learning for switch wirings, measured (2026-10-31; `examples/structure_switches.jl`,
 `.md`).** The structure is $(J, L)$: $J$ clusters of $L$ switches. There are four moves (add or remove a
 switch, split or merge clusters), each warm-started from the current fit, refitted by exact EM and
@@ -864,8 +889,12 @@ switching linear kernel normalised by $Z_t(z_t)$ (§8), not this potential. The 
   projection onto $K$-outcome kernels behaves like the reverse of a $K$-mixture as $\beta \to 0$, and
   a training objective for compositional chains that scales: exact marginal likelihood works
   (E3's EM, the objective control of §10) but needs the switch posteriors exactly; whether a learned
-  forward process would do instead is untested.
-- The learning bias of collapsed (EP) beliefs in hybrid graphs (E6).
+  forward process would do instead is untested. A neural Gaussian kernel trained by the same bound
+  reaches the truth on the ring at $T = 1000$ (§10), so the bound needs per-step kernels that can
+  follow the true reverse kernel, which $K$-outcome steps cannot.
+- The learning bias of collapsed (EP) beliefs in hybrid graphs (E6). Exact blocks chosen by overlap
+  remove most of it at $L \le 8$ (E7); how to choose blocks, and whether that holds where exact
+  inference is infeasible, is open.
 - Hard constraints with outcome-dependent rank: a reference measure under which entropies of
   different-dimensional solution sets compare (§5).
 
@@ -1002,9 +1031,15 @@ Propositions 9 and 10). Claude checked every claim; the corrections are in the t
 a 4-mode grid: 0.004 nats from the truth at $n = 2000$, against 0.005 for the additive model, as the
 dimensional lemma predicts (`composition_e3.md`).
 
-**Not done.** A tied parameterisation (no longer needed for item 4); a neural or
-mixture-of-experts reverse kernel as a reference (Grok); structured inference inside E3b's
-hierarchy (Grok, Gemini's "E7").
+Structured inference inside E3b's hierarchy (Grok, Gemini's "E7"): exact blocks of overlapping
+switches remove most of the mean-field bias, blocks that ignore the overlaps do not (E7, §10).
+
+A neural reverse kernel as a reference (Grok): with $T = 1000$ it beats every E4(b) model on the ring
+(0.009 nats) but matches only a 4-outcome chain on moons (0.315); the fixed-forward bound works for a
+kernel that can follow the true reverse step (§10).
+
+**Not done.** A tied parameterisation (no longer needed for item 4); a mixture-of-experts reverse
+kernel (Grok's other reference).
 
 References checked and added: Ghahramani & Jordan 1997, Turner & Sahani 2011, Jordan & Jacobs 1994,
 Poon & Domingos 2011, Babenko & Lempitsky 2014, Heskes & Zoeter 2002, Chen 1995, White 1982,
