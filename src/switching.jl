@@ -414,6 +414,29 @@ function Mycelium.local_free_energy(f::SwitchingConstraintFactor, msgs, ps, st)
     return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -Hq - Hx)), st
 end
 
+"""
+    Mycelium.factor_belief(f::SwitchingConstraintFactor, msgs, ps, st) -> FrozenGaussianBelief
+    Mycelium.belief_free_energy(f::SwitchingConstraintFactor, b, ps, st)
+
+The factor belief ``b_c(x, k)``, held fixed: the outcome posterior `q`, one mean per outcome and
+the shared covariance. The local free energy at a fixed `b` averages ``r_k = \\sum_i A_i x_i - b_k``
+and ``-\\log w_k`` under it, so `A`, `b` and `logw` all move and the entropy ``H(q) + H(x \\mid k)``
+does not. Agrees with `local_free_energy` at the belief it was evaluated at (LP-020).
+"""
+function Mycelium.factor_belief(f::SwitchingConstraintFactor, msgs, ps, st)
+    q, _, _, _ = switch_statistics(f, msgs, ps)
+    return _affine_gaussian_belief(ps.A, -float.(ps.b), inv(_chol(f.Q, "Q")), msgs, f.dims; q)
+end
+function Mycelium.belief_free_energy(f::SwitchingConstraintFactor, b::FrozenGaussianBelief, ps, st)
+    rbar, Cr = _frozen_residual(ps.A, -ps.b, b)
+    q, CQ, lw = b.q, _chol(f.Q, "Q"), _logweights(ps)
+    trQC = tr(CQ \ Cr)
+    fit = sum(q[k] * (LinearAlgebra.dot(rbar[:, k], CQ \ rbar[:, k]) + trQC) / 2 for k in 1:f.K if q[k] > 0)
+    complexity = logdet(_chol(2π .* f.Q, "2πQ")) / 2 - sum(q[k] * lw[k] for k in 1:f.K if q[k] > 0)
+    Hq = -sum(qk * log(qk) for qk in q if qk > 0)
+    return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -Hq - b.H)), st
+end
+
 function LenticulumCore.free_energy(f::SwitchingConstraintFactor, π, y::NamedTuple, ps, st)
     missing_chans = setdiff(_allnames(f), keys(y))
     msgs = length(missing_chans) == 1 ? merge(NamedTuple{(only(missing_chans),)}((π,)), y) : y

@@ -138,12 +138,10 @@ Related: [[Bethe Free Energy]], [[Scalar and Multivariate Energy]], [[energy]], 
 
 ## Parameter training at fixed beliefs (LP-002, 2026-10-26)
 
-> [!warning] Fixed messages, not fixed beliefs (LP-020, 2026-11-01)
-> The derivative below holds the *incoming messages* fixed. Each factor's belief is recomputed
-> from them and moves with the parameters, so this is not the gradient of the free energy, and its
-> fixed points are not maximum likelihood in general (on a two-variable tree: a = 0.754 against
-> 1.179). See [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]].
-> `sample_gradient` (`sampling.md`) differentiates through inference instead.
+> [!note] Superseded in part by LP-020 (2026-11-01)
+> As first written, the derivative below held the *incoming messages* fixed. It now holds each
+> factor's **belief** fixed, for factors that implement `factor_belief`; see the section
+> [Fixed beliefs, not fixed messages](#fixed-beliefs-not-fixed-messages-lp-020-2026-11-01) below.
 
 `free_energy_gradient(store, g, ps, st; ad)` differentiates each scalarised local free
 energy and assembles a tree matching `ps`. Nonlearnable factors get zero subtrees.
@@ -171,10 +169,85 @@ of a discrete scalar ODE to its known generating value and checks the Nesterov
 look-ahead formula, with ForwardDiff, Zygote, Mooncake and runtime-activity Enzyme
 in Reverse and Forward modes.
 
+## Fixed beliefs, not fixed messages (LP-020, 2026-11-01)
+
+**The defect.** The local free energy $F_c(\theta; \mu)$ recomputes the factor's belief
+$b_c \propto f_\theta \prod_i \mu_{i \to c}$ from its incoming messages. Holding the messages fixed, the belief moves
+with $\theta$, and the derivative picks up $\partial_\theta\, \mathbb E_{b_c}[\log \prod_i \mu_i]$, which is not zero. On the
+two-variable tree of `test/lp020.jl` that derivative was $(-0.146, -0.441)$ against the true
+$(0.679, -1.383)$, and alternating inference with it stopped at $a = 0.754$ instead of the
+maximum-likelihood $1.179$. See [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]].
+
+**The fix.** The Bethe free energy is a function of beliefs and parameters,
+$F(b, \theta) = \sum_c \bigl(\mathbb E_{b_c}[-\log f_{c,\theta}] - H(b_c)\bigr) + \sum_v (d_v - 1) H(b_v)$, and belief propagation's fixed
+points are its stationary points in $b$ under the normalisation and marginal-consistency
+constraints (Yedidia–Freeman–Weiss). The constraints do not involve $\theta$, so by the envelope
+theorem the derivative of the free energy at the fixed point is the partial derivative at fixed
+beliefs:
+
+$$
+\frac{\mathrm d}{\mathrm d\theta} F(b^*(\theta), \theta) = \sum_c \mathbb E_{b^*_c}\bigl[-\partial_\theta \log f_{c,\theta}\bigr].
+$$
+
+The variable entropies drop out. Two hooks in `factors.jl` express it:
+
+- `factor_belief(factor, msgs, ps, st)` returns the factor's belief in some form of the factor's
+  choosing. The gradient evaluates it once, outside AD.
+- `belief_free_energy(factor, b, ps, st)` is $F_c(b, \theta)$ at that fixed belief, graded like
+  `local_free_energy`, and equal to it at the belief it was evaluated at.
+
+`free_energy_gradient` differentiates `belief_free_energy` at the fixed belief. On a tree at the
+fixed point this is the gradient of $-\log p$. On a loopy graph it is the gradient of the Bethe
+approximation at the loopy fixed point, which is what training against that approximation means.
+
+**Implementations.** In Lenticulum (`src/gaussian.jl`, `FrozenGaussianBelief`):
+`GaussianFactor` (with learnable noise), `GaussianPrior` (learnable noise),
+`LinearConstraintFactor`, `SwitchingConstraintFactor` (whose frozen belief includes the outcome
+posterior $q$, so $A$, $b$ and the log-weights all get the envelope gradient), and the collapsed
+Gaussian composite. Every one of these has an affine residual $r = \sum_i R_i x_i + r_0$, so one
+function builds the frozen joint Gaussian of the non-point channels. `belief_free_energy`
+re-evaluates the residual's mean and covariance under it at the current parameters.
+
+**What it does not do.**
+- A factor without `factor_belief` keeps the fixed-message derivative. That is the same thing
+  when every incoming message is a point (the belief is then a point too), and in general it is
+  not. A factor with `uses_cavity` whose messages are not all points logs a warning once. The
+  hook-less factors in the repository are the neural, diffusion and algebraic factors and `PriorFactor`,
+  whose graph uses are with point messages.
+- The argument is about the **summed** free energy. A nonlinear per-factor scalarisation changes
+  the objective that belief propagation does not minimise, and the fixed-belief derivative is then
+  not its gradient.
+- The fixed point must be at the parameters the gradient is evaluated at. `parameter_step` with a
+  look-ahead rule evaluates at look-ahead parameters with the current messages, as before.
+- Non-diagonal couplings and `adjoint = :implicit` differentiate through inference
+  ([[gradient_couplings]], [[graph_adjoint]]) and are unchanged. So is `sample_gradient`
+  ([[sampling]]).
+
+**Checked** in `test/lp020.jl`. On four trees (the linear constraint above; a Gaussian
+factor and a Gaussian prior, both with learnable noise; the collapsed composite; a switching
+constraint) the graph gradient matches central differences of the converged Bethe free energy,
+with inference re-run at every perturbed parameter, to $10^{-6}$ with reference differences,
+ForwardDiff and Zygote. `belief_free_energy` equals `local_free_energy` at the frozen belief to
+$10^{-12}$. On the linear constraint, alternating inference with gradient steps now converges to
+the maximum-likelihood $a$.
+
+**Difficulties.**
+1. The switching test first put a Gaussian prior on the latent channel. That prior then receives
+   the factor's Gaussian-mixture message, and no Gaussian factor's free energy accepts a mixture
+   (its entropy has no closed form). The test uses a degree-1 latent instead. Its belief is
+   proper because $A_x$ is invertible.
+2. Even a degree-1 variable had its marginal's entropy evaluated, and multiplied by the
+   counting number 0. That threw for the mixture marginal. Degree-1 variables are now skipped
+   (`_variable_term`).
+3. Zygote has no rule for `inv(::Cholesky)`. The constraint factor's fixed-belief energy uses
+   `inv(Symmetric(Q))`, as the Gaussian factor already did.
+4. A bounded review by Mistral (vibe) of the diff found no correctness bug. It made one change:
+   trivial and missing messages are not points, so they trigger the fallback warning.
+
 ## LP-011 implementation (2026-10-27)
 
-The all-diagonal driver retains its fixed-cavity derivative and
-now masks frozen coordinates. Other couplings use the explicit replay implementation.
+The all-diagonal driver retained its fixed-cavity derivative (replaced by the fixed-belief one,
+LP-020) and now masks frozen coordinates. Other couplings use the explicit replay implementation.
 `parameter_step` applies look-ahead and updates only active coordinates; fully pinned
 factors have no optimiser key. Score steps return their GradientEstimate as a fourth
 entry. Factor free-energy evaluation uses a functional map with the same per-factor
@@ -202,8 +275,8 @@ See [[gradient_couplings]] for the supported device subset and its limits.
 
 `free_energy_gradient` and `parameter_step` forward `damping` and support
 `adjoint=:implicit`, `maxsweeps`, `tol`, `linear_solver=:dense/:krylov`,
-`linear_tol` and `linear_maxiter`. Defaults retain fixed-cavity all-diagonal
-training and finite replay for non-diagonal graphs. The implicit opt-in starts
+`linear_tol` and `linear_maxiter`. Defaults retain local all-diagonal
+training (fixed-belief since LP-020) and finite replay for non-diagonal graphs. The implicit opt-in starts
 reference inference from empty messages and includes both local losses and
 Bethe corrections in its adjoint RHS. The resulting tree gradient has a dense
 Gaussian negative-log-partition oracle; loopy tests reconverge the Bethe

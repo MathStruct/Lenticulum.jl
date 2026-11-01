@@ -23,7 +23,7 @@ free_energy_gradient(store, g, ps, st; ad=AutoZygote(),
 three-tuple return. The input store is untouched. Reference inference starts
 from empty messages at the look-ahead parameters; `nsweeps` only controls the
 unrolled driver. The default remains `adjoint=:unrolled`, and all-diagonal
-calls without the opt-in retain their original fixed-cavity derivative.
+calls without the opt-in use the local fixed-belief derivative (fixed-cavity before LP-020).
 
 Let $m$ concatenate every legal directed message, $\theta$ the active parameters,
 and $L(m,\theta)$ the scalarised local free energies plus Bethe variable corrections.

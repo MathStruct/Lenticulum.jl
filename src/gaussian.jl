@@ -587,3 +587,110 @@ noise_covariance(f::GaussianFactor, ps) = f.noise_learning === nothing ? f.Q :
     inv(Symmetric(first(_noise_metrics(f.noise_learning, f.Q, ps))))
 noise_covariance(f::GaussianPrior, ps) = f.noise_learning === nothing ? f.Σ :
     inv(Symmetric(first(_noise_metrics(f.noise_learning, f.Σ, ps))))
+
+# --- The factor belief, held fixed for the parameter gradient (LP-020) ------------------
+
+"""
+    FrozenGaussianBelief
+
+A Gaussian-family factor's own belief ``b_c``, evaluated once and then held fixed while the
+parameters move: the point channels by value, the others as one joint Gaussian (mean `m`,
+covariance `Σ`, in the order of `free`) with entropy `H`. For the switching factor `m` has one
+column per outcome and `q` holds the outcome posterior; otherwise `q` is `nothing`.
+
+Returned by `Mycelium.factor_belief` and read by `Mycelium.belief_free_energy`, whose parameter
+derivative at a fixed `b` is the envelope gradient of the Bethe free energy.
+"""
+struct FrozenGaussianBelief{M,S,Q}
+    points::Vector{Pair{Symbol,Vector{Float64}}}
+    free::Vector{Symbol}
+    m::M
+    Σ::S
+    H::Float64
+    q::Q
+end
+
+# The belief of a factor whose residual is affine, r = Σ_i R_i x_i + r0, with weight W:
+# b ∝ exp(-½ rᵀ W r) ∏ μ_i. Point channels move into r0. `r0` may have K columns (one per
+# outcome of a switching factor), giving K means and one shared covariance.
+function _affine_gaussian_belief(blocks, r0, W, msgs, dims; q = nothing)
+    points = Pair{Symbol,Vector{Float64}}[]
+    free = Symbol[]
+    for n in keys(blocks)
+        b = _get(msgs, n)
+        if b isa LenticulumCore.DiracBelief
+            v = _vec(b.value)
+            push!(points, n => v)
+            r0 = r0 .+ blocks[n] * v
+        else
+            push!(free, n)
+        end
+    end
+    isempty(free) && return FrozenGaussianBelief(points, free, zeros(0, size(r0, 2)), zeros(0, 0), 0.0, q)
+    G = reduce(hcat, (blocks[n] for n in free))
+    canon = [_canon(_collapse(_get(msgs, n)), dims[n]) for n in free]
+    Λ = G' * W * G + _blockdiag(map(last, canon))
+    η = reduce(vcat, map(first, canon)) .- G' * (W * r0)
+    CΛ = _chol(Λ, "factor belief precision")
+    Σ = inv(CΛ)
+    H = Mycelium.variable_entropy(GaussianBelief(zeros(size(Λ, 1)), Λ))
+    return FrozenGaussianBelief(points, free, CΛ \ η, Σ, H, q)
+end
+
+# Mean (K columns if r0 has them) and covariance of the residual under a frozen belief,
+# at the current parameters `blocks` and `r0`.
+function _frozen_residual(blocks, r0, b::FrozenGaussianBelief)
+    r = r0
+    for (n, v) in b.points
+        r = r .+ blocks[n] * v
+    end
+    isempty(b.free) && return r, zeros(eltype(r), size(r, 1), size(r, 1))
+    G = reduce(hcat, (blocks[n] for n in b.free))
+    return r .+ G * b.m, G * b.Σ * G'
+end
+
+_gaussian_blocks(f::GaussianFactor, ps) = NamedTuple{(f.in_channel, f.out_channel)}(
+    (-ps.A, Matrix{eltype(ps.A)}(I, f.nout, f.nout)))
+_gaussian_dims(f::GaussianFactor) = NamedTuple{(f.in_channel, f.out_channel)}((f.nin, f.nout))
+
+"""
+    Mycelium.factor_belief(f::GaussianFactor, msgs, ps, st) -> FrozenGaussianBelief
+    Mycelium.belief_free_energy(f::GaussianFactor, b, ps, st)
+
+The factor belief, and the local free energy at a fixed one: `(fit, complexity, negentropy)` with
+the residual ``r = y - Ax - b`` averaged under the frozen `b`, so `fit` and `complexity` move with
+the parameters and `negentropy` does not. Agrees with `local_free_energy` at the belief it was
+evaluated at. See [`FrozenGaussianBelief`](@ref).
+"""
+function Mycelium.factor_belief(f::GaussianFactor, msgs, ps, st)
+    Qi, _ = _noise_metrics(f.noise_learning, f.Q, ps)
+    return _affine_gaussian_belief(_gaussian_blocks(f, ps), -ps.b, Qi, msgs, _gaussian_dims(f))
+end
+function Mycelium.belief_free_energy(f::GaussianFactor, b::FrozenGaussianBelief, ps, st)
+    r̄, Cr = _frozen_residual(_gaussian_blocks(f, ps), -ps.b, b)
+    Qi, logdetQ = _noise_metrics(f.noise_learning, f.Q, ps)
+    return _graded_free_energy(f, r̄, Cr, b.H, Qi, logdetQ), st
+end
+
+"""
+    Mycelium.factor_belief(f::GaussianPrior, msgs, ps, st) -> FrozenGaussianBelief
+    Mycelium.belief_free_energy(f::GaussianPrior, b, ps, st)
+
+As for [`GaussianFactor`](@ref), with residual ``x - \\mu``; only a learnable noise moves.
+"""
+function Mycelium.factor_belief(f::GaussianPrior, msgs, ps, st)
+    Λ0 = f.noise_learning === nothing ? _prior_precision(f.Σ) : first(_noise_metrics(f.noise_learning, f.Σ, ps))
+    n = length(f.μ)
+    return _affine_gaussian_belief(NamedTuple{(f.channel,)}((Matrix(1.0I, n, n),)), -f.μ, Λ0, msgs,
+                                   NamedTuple{(f.channel,)}((n,)))
+end
+function Mycelium.belief_free_energy(f::GaussianPrior, b::FrozenGaussianBelief, ps, st)
+    n = length(f.μ)
+    r̄, Cr = _frozen_residual(NamedTuple{(f.channel,)}((Matrix(1.0I, n, n),)), -f.μ, b)
+    Λ0, logdetQ = f.noise_learning === nothing ?
+        (_prior_precision(f.Σ), zero(eltype(f.Σ))) : _noise_metrics(f.noise_learning, f.Σ, ps)
+    complexity = f.noise_learning === nothing ? logdet(_chol(2π .* f.Σ, "2πΣ")) / 2 :
+        (n * log(2π) + logdetQ) / 2 + _noise_penalty(f.noise_learning.prior, Λ0, logdetQ)
+    fit = (r̄' * (Λ0 * r̄) + tr(Λ0 * Cr)) / 2
+    return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -b.H)), st
+end

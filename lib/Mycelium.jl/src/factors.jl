@@ -45,6 +45,35 @@ can carry one is still passed as `nothing` to `local_free_energy`.
 uses_cavity(factor) = false
 
 """
+    factor_belief(factor, msgs, ps, st) -> belief or nothing
+
+The factor's own Bethe belief ``b_c \\propto f_c \\prod_i \\mu_{i\\to c}`` from its incoming messages, in
+a form [`belief_free_energy`](@ref) accepts. The graph parameter gradient evaluates it once,
+outside automatic differentiation, and differentiates `belief_free_energy` with it held fixed
+(LP-020; `free_energy.md`, "Fixed beliefs, not fixed messages").
+
+`nothing` (the default) means the factor has no such form. Its gradient then holds the incoming
+messages fixed instead, which is the same thing when every incoming message is a point and in
+general is not.
+"""
+factor_belief(factor, msgs, ps, st) = nothing
+
+"""
+    belief_free_energy(factor, belief, ps, st) -> (𝐅, st)
+
+The factor's local free energy ``F_c(b, \\theta) = \\mathbb E_b[-\\log f_\\theta] - H(b)`` at a **given**
+belief `b`, graded like [`local_free_energy`](@ref). At `b = factor_belief(factor, msgs, ps, st)`
+the two agree. Its parameter derivative at fixed `b` is the derivative of the Bethe free energy
+at a belief-propagation fixed point, by the envelope theorem, since the Bethe free energy is
+stationary in the beliefs there.
+
+Required with [`factor_belief`](@ref); there is no default.
+"""
+function belief_free_energy end
+belief_free_energy(f, b, ps, st) = throw(ArgumentError(
+    "no `belief_free_energy` for $(typeof(f)); a factor that implements `factor_belief` must implement it too"))
+
+"""
     issink(factor) -> Bool
 
 A factor with **no** supported polarity: it contributes energy but never sends a message.

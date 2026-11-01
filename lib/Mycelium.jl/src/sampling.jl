@@ -333,9 +333,9 @@ the given AD backend. With samples from the posterior and an exact pinned graph 
 the Monte Carlo EM gradient of ``-\\log p(\\text{data})``. Samples drawn under older parameters bias
 it, which is what the buffer's `horizon` limits.
 
-It deliberately does not use `LenticulumCore.free_energy_gradient`'s default fixed-message
-derivative, which holds the incoming messages fixed but lets each factor's belief move with the
-parameters, and is not the gradient of the free energy (LP-020). Factors that are not learnable get
+It re-runs inference for each sample rather than calling `LenticulumCore.free_energy_gradient`,
+which since LP-020 holds the factor beliefs fixed and agrees at a fixed point; this form is the
+reference that one is checked against. Factors that are not learnable get
 zero gradients. The result has `ps`'s structure.
 """
 function sample_gradient(b::SampleBuffer, sampler::GibbsSampler, ps, st; ad = nothing, ε::Real = 1e-6)

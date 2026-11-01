@@ -14,7 +14,7 @@ A Gaussian game $c : M \multimap Y$ with exact inversion after a prior game on t
 
 ## Example 2 — EM is the two halves of the framework
 
-Lens $c$ and prior lens $\pi$, NLL energies, **zero entropies**: $F^{c\pi}(\ast, y) = \mathbb E_{x \sim c'_\pi(y)}[-\log p(x, y)]$. Evaluating it is the **E-step**; descending it in the parameters is the **M-step**. In a graph: run inference (a schedule) with the parameters fixed, then take an optimiser step with the messages fixed — coordinate descent on one objective, which is why it fits ([[The Two-Part Diagram]]).
+Lens $c$ and prior lens $\pi$, NLL energies, **zero entropies**: $F^{c\pi}(\ast, y) = \mathbb E_{x \sim c'_\pi(y)}[-\log p(x, y)]$. Evaluating it is the **E-step**; descending it in the parameters is the **M-step**. In a graph: run inference (a schedule) with the parameters fixed, then take an optimiser step with the factor beliefs fixed (LP-020) — coordinate descent on one objective, which is why it fits ([[The Two-Part Diagram]]).
 
 ## Example 3 — VBEM: a parameter you want a posterior over is a variable
 

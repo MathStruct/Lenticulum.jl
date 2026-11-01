@@ -369,6 +369,24 @@ function Mycelium.local_free_energy(f::LinearConstraintFactor, msgs, ps, st)
     return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -H)), st
 end
 
+"""
+    Mycelium.factor_belief(f::LinearConstraintFactor, msgs, ps, st) -> FrozenGaussianBelief
+    Mycelium.belief_free_energy(f::LinearConstraintFactor, b, ps, st)
+
+The factor belief, and the local free energy at a fixed one, with ``r = \\sum_i A_i x_i - c``
+averaged under `b`; it agrees with `local_free_energy` at the belief it was evaluated at. Its
+parameter derivative is the graph gradient's (LP-020). See [`FrozenGaussianBelief`](@ref).
+"""
+Mycelium.factor_belief(f::LinearConstraintFactor, msgs, ps, st) =
+    _affine_gaussian_belief(ps.A, -ps.c, inv(_chol(f.Q, "Q")), msgs, f.dims)
+function Mycelium.belief_free_energy(f::LinearConstraintFactor, b::FrozenGaussianBelief, ps, st)
+    r̄, Cr = _frozen_residual(ps.A, -ps.c, b)
+    Qi = inv(Symmetric(f.Q))                                   # not inv(::Cholesky): Zygote has no rule
+    fit = (r̄' * (Qi * r̄) + tr(Qi * Cr)) / 2
+    complexity = logdet(_chol(2π .* f.Q, "2πQ")) / 2
+    return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -b.H)), st
+end
+
 function LenticulumCore.free_energy(f::LinearConstraintFactor{names}, π, y::NamedTuple, ps, st) where {names}
     missing_chans = setdiff(names, keys(y))
     msgs = length(missing_chans) == 1 ? merge(NamedTuple{(only(missing_chans),)}((π,)), y) : y

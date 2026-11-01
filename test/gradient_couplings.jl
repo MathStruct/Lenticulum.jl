@@ -55,18 +55,16 @@ end
             expected_aA=dM*B*m+dV*2B^2*A*S
             expected_bA=dM*(A*m+a)+dV*2B*(A^2*S+Q)
             if c isa DiagonalCoupling
+                # Diagonal edges used to hold the cavities fixed, which is not this gradient
+                # (LP-020); they now hold the factor beliefs fixed, which is.
                 ca,cb=messages_into(s,g,2),messages_into(s,g,3)
                 oa=fixed_cavity_gradient(A,a,Q,ca.x,ca.u)
-                ob=fixed_cavity_gradient(B,b,R,cb.u,cb.y)
-                @test [only(grad.a.A),only(grad.a.b)] ≈ oa atol=2e-7
-                @test [only(grad.b.A),only(grad.b.b)] ≈ ob atol=2e-7
-                @test abs(only(grad.a.A)-expected_aA) > 0.1
-            else
-                @test only(grad.a.A) ≈ expected_aA atol=2e-7
-                @test only(grad.b.A) ≈ expected_bA atol=2e-7
-                @test only(grad.a.b) ≈ dM*B atol=2e-7
-                @test only(grad.b.b) ≈ dM atol=2e-7
+                @test abs(oa[1]-expected_aA) > 0.1
             end
+            @test only(grad.a.A) ≈ expected_aA atol=2e-7
+            @test only(grad.b.A) ≈ expected_bA atol=2e-7
+            @test only(grad.a.b) ≈ dM*B atol=2e-7
+            @test only(grad.b.b) ≈ dM atol=2e-7
             # True EM holds the full joint posterior fixed, rather than cavities.
             Λ=[1/S+A^2/Q -A/Q;-A/Q 1/Q+B^2/R]
             C=inv(Λ); mpost=C*[m/S-A*a/Q,a/Q+B*(y-b)/R]
@@ -75,6 +73,7 @@ end
             push!(gradients,grad)
         end
         @test LenticulumCore._flatten(gradients[2]) ≈ LenticulumCore._flatten(gradients[3]) atol=2e-7
+        @test LenticulumCore._flatten(gradients[1]) ≈ LenticulumCore._flatten(gradients[2]) atol=2e-7
     end
 end
 

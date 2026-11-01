@@ -1,8 +1,8 @@
 #open-problem
 
-> **Status: open (2026-11-01).** Found while building Mycelium's sampler; measured in `test/lp020.jl`. Related: [[free_energy]], [[gradient_couplings]], [[sampling]], [[Extending Mycelium]], [[LP-002 The Jacobian side is not implemented]].
+> **Status: resolved (2026-11-01), by option 1 below.** Found while building Mycelium's sampler; measured and now checked in `test/lp020.jl`. Related: [[free_energy]], [[gradient_couplings]], [[sampling]], [[Extending Mycelium]], [[LP-002 The Jacobian side is not implemented]].
 
-> Sources: original repository analysis; code: `lib/Mycelium.jl/src/free_energy.jl` (`free_energy_gradient`, `parameter_step`), `lib/Mycelium.jl/src/sampling.jl` (`sample_gradient`); test: `test/lp020.jl`
+> Sources: original repository analysis; code: `lib/Mycelium.jl/src/free_energy.jl` (`free_energy_gradient`, `parameter_step`), `lib/Mycelium.jl/src/factors.jl` (`factor_belief`, `belief_free_energy`), `src/gaussian.jl` (`FrozenGaussianBelief`), `lib/Mycelium.jl/src/sampling.jl` (`sample_gradient`); test: `test/lp020.jl`
 >
 > Theory (CT-ML wiki): [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
@@ -47,7 +47,25 @@ a tree with exact inference.
    (`gradient_couplings.md`) or as `sample_gradient`'s re-run of inference per sample. Exact on trees,
    but costs an inference per gradient evaluation (per coordinate with reference differences).
 
-**Leaning.** Option 1 as the default (exact and cheap), with option 3 kept for checking it.
-`sample_gradient` already uses option 3. The fixed-message derivative should stay available only
-under a name that says what it is. Not decided; this changes what `parameter_step` has been
-computing, so Daniel decides.
+**Resolution (2026-11-01).** Option 1, decided by Daniel ("fix LP-20"). Two hooks in Mycelium:
+`factor_belief(factor, msgs, ps, st)` returns the factor's belief, evaluated once outside AD, and
+`belief_free_energy(factor, b, ps, st)` is $\mathbb E_b[-\log f_\theta] - H(b)$ at that fixed belief. The graph
+gradient differentiates the latter. Lenticulum implements them for `GaussianFactor`,
+`GaussianPrior`, `LinearConstraintFactor`, `SwitchingConstraintFactor` and the collapsed Gaussian
+composite, through one frozen joint Gaussian of each factor's non-point channels
+(`FrozenGaussianBelief`). Theory and limits: [[free_energy]], section "Fixed beliefs, not fixed
+messages".
+
+Checked in `test/lp020.jl`:
+- on the example above the gradient is now $(0.679, -1.383)$, and alternating inference with it
+  converges to the maximum-likelihood $a = 1.179$;
+- on four trees (this one; a Gaussian factor and prior with learnable noise; the composite; a
+  switching constraint, including its log-weights) the graph gradient matches central differences
+  of the converged Bethe free energy to $10^{-6}$, with reference differences, ForwardDiff and Zygote.
+
+**What remains.**
+- Factors without `factor_belief` (the neural, diffusion and algebraic factors, and Mycelium's `PriorFactor`) keep the
+  fixed-message derivative. That is exact with point messages, and they warn once when their
+  messages are not points.
+- `sample_gradient` still differentiates through inference. It could use the fixed-belief gradient
+  per sample instead ([[sampling]]).

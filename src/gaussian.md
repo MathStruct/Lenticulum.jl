@@ -151,7 +151,8 @@ mutating inverse of Cholesky; ordinary message passing retains its arithmetic.
 Joint block precision assembly now concatenates promoted numeric blocks, permitting
 active Gaussian cavity precisions under ForwardDiff/Zygote. The gradient tests compare
 full finite-tree replay to closed marginal likelihood derivatives and separately derive
-the legacy fixed-cavity local-posterior derivative; the latter is not a true EM M-step.
+the legacy fixed-cavity local-posterior derivative; the latter is not a true EM M-step. (Since
+LP-020 the diagonal default holds the factor beliefs fixed instead, and is the true one.)
 
 Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
@@ -183,3 +184,35 @@ inputs the count multiplies. The collapsed message is exact only for the collaps
 the approximation costs is measured in experiment E6 ([[Composing Stochastic Factors]]; [`examples/factorial_inference.md`](https://github.com/MathStruct/Lenticulum.jl/blob/experiment-qm/examples/factorial_inference.md) on the branch `experiment-qm`). The first use was
 switching factors (binary outcomes) feeding a sum node, where the exact message would have
 $2^{L-1}$ components.
+
+## The factor belief, held fixed (LP-020, 2026-11-01)
+
+The graph parameter gradient differentiates each factor's free energy with the factor's
+**belief** held fixed, not its incoming messages. That is the envelope gradient of the Bethe free
+energy at a belief-propagation fixed point ([[free_energy]], "Fixed beliefs, not fixed messages";
+[[LP-020 The fixed-message parameter gradient is not the free-energy gradient]]). Mycelium asks
+for two methods, `factor_belief` and `belief_free_energy`. This file implements them for
+`GaussianFactor` and `GaussianPrior`. `constraint.jl`, `switching.jl` and `composition.jl` add them
+for their factors.
+
+**One construction for all of them.** Each of these factors has an affine residual
+$r = \sum_i R_i x_i + r_0$ with weight $W$ ($Q^{-1}$, or the prior's precision):
+
+| factor | blocks $R_i$ | $r_0$ |
+|---|---|---|
+| `GaussianFactor` | $R_x = -A$, $R_y = I$ | $-b$ |
+| `GaussianPrior` | $I$ | $-\mu$ |
+| `LinearConstraintFactor` | $A_i$ | $-c$ |
+| `SwitchingConstraintFactor` | $A_i$ | $-b_k$, one column per outcome |
+
+`_affine_gaussian_belief` moves the point channels into $r_0$ and builds the joint of the others:
+$\Lambda = G^\top W G + \operatorname{blockdiag}(\Lambda_i)$, $\eta = \operatorname{vcat}(\eta_i) - G^\top W r_0$, with $G$ the blocks of the
+non-point channels. It returns a `FrozenGaussianBelief` (points, mean, covariance, entropy, and
+for the switching factor the outcome posterior). `_frozen_residual` re-evaluates the residual's
+mean $G m + r_0$ and covariance $G \Sigma G^\top$ under it with the current parameters. Each
+`belief_free_energy` then applies its factor's own `(fit, complexity, negentropy)` formula, and
+only `negentropy` stays constant.
+
+**What it does not do.** A mixture message is collapsed to its moments, as in the factors' own
+messages, so with mixture inputs the frozen belief is the collapsed one. The prior's mean is not a
+parameter, so only a learnable noise moves.

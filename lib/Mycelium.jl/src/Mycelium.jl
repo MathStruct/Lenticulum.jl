@@ -99,7 +99,7 @@ export factor_free_energies, variable_corrections, messages_into, variable_free_
 export bethe_free_energy, chain_free_energy   # scalar_free_energy extends LenticulumCore's
 
 # --- Factors ---------------------------------------------------------------
-export local_free_energy, uses_cavity, issink, point
+export local_free_energy, uses_cavity, issink, point, factor_belief, belief_free_energy
 export DataFactor, PriorFactor, LossFactor, RelayFactor, OptimiserFactor
 export ExposedFactor, expose, supports_parameter_polarity, parameter_message, parameter_free_energy
 export AbstractUpdateRule, GradientDescent, Momentum, Nesterov

@@ -161,9 +161,15 @@ The per-variable counting terms ``c_v F_v = (1 - d_v)\\,(-H(b_v))``, graded by v
 """
 function variable_corrections(s::MessageStore, g::FactorGraph)
     names = Tuple(v.name for v in g.variables)
-    vals = Tuple(counting_number(g, v.id) * variable_free_energy(marginal(s, g, v.id))
-                 for v in g.variables)
+    vals = Tuple(_variable_term(s, g, v.id) for v in g.variables)
     return LenticulumCore.GradedEnergy(NamedTuple{names}(vals))
+end
+
+# A variable of degree 1 counts 0, so its entropy is not needed, and is not evaluated: its
+# marginal may be one with no entropy in closed form, such as a Gaussian mixture.
+function _variable_term(s, g, vid)
+    c = counting_number(g, vid)
+    return c == 0 ? 0.0 : c * variable_free_energy(marginal(s, g, vid))
 end
 
 """
@@ -246,15 +252,32 @@ function LenticulumCore.scalar_free_energy(s::MessageStore, g::FactorGraph, ps, 
         total += LenticulumCore.scalarise(σ, F[f.name])
     end
     for v in g.variables
-        total += counting_number(g, v.id) * variable_free_energy(marginal(s, g, v.id))
+        total += _variable_term(s, g, v.id)
     end
     return total, st
 end
 
-# Snapshot beliefs outside AD: training is a partial derivative at fixed messages,
-# not differentiation through the mutating inference schedule.
+# The factor belief is evaluated once, outside AD, and held fixed: the envelope gradient of the
+# Bethe free energy at a fixed point (LP-020). Factors with no `factor_belief` fall back to fixed
+# incoming messages, which agrees with it when those messages are points.
 _local_scalar(ps, factor, beliefs, st) = LenticulumCore.scalarise(
     LenticulumCore.scalarisation(factor), first(local_free_energy(factor, beliefs, ps, st)))
+_belief_scalar(ps, factor, b, st) = LenticulumCore.scalarise(
+    LenticulumCore.scalarisation(factor), first(belief_free_energy(factor, b, ps, st)))
+
+# Only a point message pins the belief; a missing or trivial one leaves it free to move.
+_point_message(::LenticulumCore.DiracBelief) = true
+_point_message(_) = false
+
+function _factor_gradient(ad, f, p, msgs, st; ε)
+    b = factor_belief(f.factor, msgs, p, st)
+    b === nothing || return LenticulumCore._parameter_gradient(ad, _belief_scalar, p, f.factor, b, st; ε)
+    uses_cavity(f.factor) && !all(_point_message, values(msgs)) && @warn(
+        "factor :$(f.name) ($(nameof(typeof(f.factor)))) has incoming messages that are not all points but no \
+         `factor_belief`, so its parameter gradient holds the messages fixed, not its belief; \
+         this is not the free-energy gradient in general (LP-020)", maxlog = 1)
+    return LenticulumCore._parameter_gradient(ad, _local_scalar, p, f.factor, msgs, st; ε)
+end
 
 """
     LenticulumCore.free_energy_gradient(store, g, ps, st; ad = nothing, ε = 1e-6,
@@ -262,9 +285,15 @@ _local_scalar(ps, factor, beliefs, st) = LenticulumCore.scalarise(
         maxsweeps = 1000, tol = 1e-10, linear_solver = :dense,
         linear_tol = 1e-10, linear_maxiter = 1000)
 
-Parameter gradient of the graph scalar free energy at fixed incoming messages.
-This is the sum of scalarised local free energies; Bethe variable corrections are
-constant with respect to parameters at fixed beliefs. Nonlearnable subtrees receive
+Parameter gradient of the graph scalar free energy with each factor's **belief** held fixed:
+``\\sum_c \\partial_\\theta F_c(b_c, \\theta)``, with ``b_c`` from [`factor_belief`](@ref) and ``F_c`` from
+[`belief_free_energy`](@ref). At a belief-propagation fixed point this is the derivative of the
+Bethe free energy (the envelope theorem), so on a tree it is the gradient of ``-\\log p`` (LP-020).
+A factor without `factor_belief` is differentiated at fixed incoming messages instead, which
+agrees when those messages are points; otherwise that is not the free-energy
+gradient, and a warning says so. Bethe variable corrections are
+constant with respect to parameters at fixed beliefs. Exact for the default linear
+scalarisations, as the envelope argument is about the summed free energy. Nonlearnable subtrees receive
 zeros. Frozen coordinates receive zeros too. The result has `ps`'s structure.
 Non-diagonal edges require `schedule` and finite `nsweeps` (default 1), replaying from
 empty messages rather than differentiating this store's history. Score edges also
@@ -300,8 +329,7 @@ function LenticulumCore.free_energy_gradient(s::MessageStore, g::FactorGraph, ps
             return LenticulumCore._unflatten(zero(θ), p)
         end
         LenticulumCore._check_factor_ad(ad, f.factor, _subtree(st, f.name))
-        grad = LenticulumCore._parameter_gradient(ad, _local_scalar, p,
-            f.factor, messages_into(s, g, f.id), _subtree(st, f.name); ε)
+        grad = _factor_gradient(ad, f, p, messages_into(s, g, f.id), _subtree(st, f.name); ε)
         indices = _active_indices(f, p)
         θ = LenticulumCore._flatten(grad)
         return LenticulumCore._unflatten(_mask_gradient(θ, indices), p)
@@ -316,7 +344,8 @@ end
 One graph free-energy parameter step with an explicit AD backend (`nothing` selects
 reference differences). Inference must populate incoming messages first. The rule's
 `get` supplies a look-ahead parameter vector per learnable factor, the gradient is
-computed at those parameters with messages fixed, and `put` applies the update.
+computed at those parameters with the factor beliefs fixed (see
+[`free_energy_gradient`](@ref LenticulumCore.free_energy_gradient)), and `put` applies the update.
 Optimiser state is a NamedTuple of vectors keyed by learnable factor name, initialised
 to zero if omitted. Pass the returned state on the next step (Momentum/Nesterov).
 Lux state advances once, by evaluating local energies at the look-ahead parameters.

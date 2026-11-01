@@ -84,12 +84,13 @@ differences (`ad = nothing`) or an AD backend. With exact posterior weights it e
 of the exact $-\log p(\text{data})$ (Lenticulum's test, against finite differences of the enumerated
 likelihood). With posterior samples it is the Monte Carlo EM gradient.
 
-It does not use `free_energy_gradient`'s default, because that default holds the incoming messages
-fixed, lets each factor's belief move with the parameters, and is therefore not the free-energy
-gradient. It also has biased fixed points ([[LP-020 The fixed-message parameter gradient is not the free-energy gradient]]).
-Going through inference is exact on trees but costs one inference per sample, and with reference
-differences one per parameter coordinate as well. That is the price until LP-020's fixed-belief
-gradient exists.
+It differentiates through inference rather than calling `free_energy_gradient`. When it was
+written, that function's default held the incoming messages fixed, which is not the free-energy
+gradient ([[LP-020 The fixed-message parameter gradient is not the free-energy gradient]]). It now
+holds the factor beliefs fixed and is exact at a fixed point. A cheaper `sample_gradient` would
+re-run inference per sample at the current parameters and take that fixed-belief gradient, one
+inference per sample instead of one per sample and coordinate. Not done yet. The current form
+stays as the reference it is checked against.
 
 ## Tested
 

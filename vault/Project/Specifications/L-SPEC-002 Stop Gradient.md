@@ -51,7 +51,8 @@ These rules supersede the historical construction guards above:
    state. Input derivatives still flow through the factor. `isfrozen=true` pins all
    parameters for this run, while `islearnable=false` removes the factor from the intrinsic
    candidate list. Frozen learnable factors remain in `learnable_factors`.
-3. **Choose gradient blocks:** diagonal preserves the existing fixed-cavity driver;
+3. **Choose gradient blocks:** diagonal is the local driver (fixed cavities until 2026-11-01, fixed
+   factor beliefs since: LP-020);
    exact differentiates a finite static inference unroll; pathwise propagates Dirac and
    analytic Gaussian moment derivatives; score supplies an explicit terminal sampling
    estimator with standard errors. Non-diagonal gradients require `schedule` and a finite
@@ -82,6 +83,12 @@ all three quantities independently. `ComposedFactor`'s Gaussian endpoint game al
 collapses its internal channel, so its legacy diagonal, analytic pathwise and exact
 endpoint gradients coincide. Its score rule samples the exact internal posterior and
 returns an estimate of the same endpoint derivative, including a baseline control variate.
+
+> [!note] Amended 2026-11-01 (LP-020)
+> The preserved fixed-cavity derivative was not the free-energy gradient, and its fixed points
+> were not maximum likelihood. The diagonal driver now holds each factor's belief fixed, which is
+> the fixed-posterior EM M-step; on the Gaussian tree of `test/gradient_couplings.jl` it agrees
+> with the exact coupling. See [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]].
 
 **Evidence:** `lib/Mycelium.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`; final suite counts/timings are recorded in the LP-011 note.

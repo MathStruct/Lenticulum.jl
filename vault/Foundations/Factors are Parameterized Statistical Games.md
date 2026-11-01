@@ -49,7 +49,7 @@ Definition 29 composes gradients block-diagonally and is therefore **lax**: it d
 
 | coupling | keeps | cost |
 |---|---|---|
-| `DiagonalCoupling()` | existing local parameter derivative at fixed cavities | cheapest; omitted coupling terms can matter |
+| `DiagonalCoupling()` | local parameter derivative at fixed factor beliefs (fixed cavities before LP-020) | cheapest; omitted coupling terms can matter |
 | `PathwiseCoupling()` | Gaussian/Dirac message derivatives, analytic moment rule | restricted message families |
 | `ScoreFunctionCoupling(; baseline)` | terminal sampled point costs plus density scores | explicit rng/samples, standard error |
 | `ExactCoupling()` | full finite static schedule derivative | unroll storage and AD cost |
@@ -62,9 +62,12 @@ crossed attachments permit it. Score sampling returns a labelled estimate with a
 error. Exact means the full finite schedule derivative, rather than restricting the factor
 family to conjugacy.
 
-The preserved default holds cavity messages fixed. Gaussian factors recompute their local
-posterior within this derivative, so calling it a true fixed-posterior EM M-step is wrong.
-The independent Gaussian oracle records the distinction in [[L-SPEC-002 Stop Gradient]].
+The default held cavity messages fixed until 2026-11-01. Gaussian factors recomputed their local
+posterior within that derivative, so it was not a fixed-posterior EM M-step, and its fixed points
+were not maximum likelihood ([[LP-020 The fixed-message parameter gradient is not the free-energy gradient]]).
+It now holds each factor's belief fixed, which is the EM M-step and, at a fixed point, the
+gradient of the Bethe free energy. The independent Gaussian oracle records the distinction in
+[[L-SPEC-002 Stop Gradient]].
 
 These name the paper's "different semantics functors" — different lax sections of the gradient fibration (Remark 30) — and [[The Type Discipline of a Factor Graph]] §4 observes that the original effect-system proposal is now realised by the boundary composition rule above.
 

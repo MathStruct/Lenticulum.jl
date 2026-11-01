@@ -127,3 +127,13 @@ Carlo. `LinearConstraintFactor` has the same rule with one outcome (`constraint.
   order of magnitude. The factor now zeroes the null-space eigenvalues of a rank-deficient
   precision, and pushes them to $-\epsilon\, \lambda_{\max}$ if the result still factorises, so the
   components stay improper. The change is at rounding level.
+
+## 7. The parameter gradient holds the belief fixed (LP-020, 2026-11-01)
+
+`Mycelium.factor_belief` freezes the whole belief $b_c(x, k)$: the outcome posterior $q$, one mean
+per outcome, and the shared covariance. `belief_free_energy` re-evaluates
+$\sum_k q_k\bigl(\tfrac12 \mathbb E\|r_k\|^2_{Q^{-1}} - \log w_k\bigr) + \tfrac12\log\det 2\pi Q$ at the current $A$, $b$ and
+log-weights, with the entropy $H(q) + H(x \mid k)$ constant. So the log-weights' gradient is
+$-(q - w)$, the EM M-step direction, and $A$ and $b$ get theirs at fixed responsibilities. This
+matches finite differences of the converged Bethe free energy in `test/lp020.jl`. Construction:
+`gaussian.md`, "The factor belief, held fixed".

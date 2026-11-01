@@ -219,3 +219,11 @@ one triangle; a short variance vector also silently changed the residual metric'
 Invalid shape or symmetry now raises `ArgumentError` with the required property.
 Evidence: `test/lp018.jl`, “LP-018.7 residual covariance validation”, including the
 reported asymmetric matrix and one-element noise vector, a rectangular matrix and valid SPD noise.
+
+## LP-020: the parameter gradient holds the belief fixed (2026-11-01)
+
+`Mycelium.factor_belief` and `belief_free_energy` are implemented here with blocks $A_i$ and
+offset $-c$ (`gaussian.md`, "The factor belief, held fixed"). The fixed-belief energy uses
+`inv(Symmetric(Q))` rather than `inv` of a Cholesky factor, for which Zygote has no rule. On the
+two-variable example of [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]]
+the gradient is now exact, and alternating training reaches maximum likelihood (`test/lp020.jl`).

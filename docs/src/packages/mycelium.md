@@ -201,9 +201,10 @@ the native-backend and metric/divergence reproducers.
 - Potential distances compare callable identity (otherwise `Inf`); damping potentials is
   an inspectable no-op through `can_damp`.
 - No parameter sharing between factor nodes, so weight tying is not expressible.
-- `free_energy_gradient` and `parameter_step` hold the incoming messages fixed, not the beliefs:
-  not the free-energy gradient, with biased fixed points (LP-020). `sample_gradient`
-  differentiates through inference instead.
+- `free_energy_gradient` and `parameter_step` hold each factor's belief fixed (the envelope
+  gradient, exact at a belief-propagation fixed point) only for factors that implement
+  `factor_belief`: Lenticulum's Gaussian, constraint and switching factors. Other factors keep the
+  fixed-message derivative, which is exact only with point messages, and warn otherwise (LP-020).
 - Graphs with `MeanField()` nodes have no free energy yet (the hybrid's, Riegler et al. 2013,
   is not implemented), so `parameter_step` cannot train them.
 - Loopy message passing has no convergence guarantees, and `report.converged` means the
@@ -298,9 +299,9 @@ grad = free_energy_gradient(store, graph, ps, st;
     ad=AutoForwardDiff(), schedule=tree_schedule(graph), nsweeps=1)
 ```
 
-The diagonal default preserves the existing derivative at fixed incoming cavity
-messages. Gaussian factors still recompute their local posterior; this is not generally
-a fixed-posterior EM derivative. Other choices replay from empty messages, with explicit
+The diagonal default holds each factor's belief fixed (LP-020): for factors with
+`factor_belief`, which include Lenticulum's Gaussian ones, it is the fixed-posterior EM
+derivative, and at a fixed point the gradient of the Bethe free energy. Other choices replay from empty messages, with explicit
 finite sweep count. A derivative path survives only if every crossed attachment permits
 it: exact/pathwise keep their local Jacobian, diagonal cuts it, and detach overrides all.
 Pathwise supports Dirac and analytic Gaussian moment propagation; other informative

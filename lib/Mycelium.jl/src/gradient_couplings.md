@@ -1,8 +1,9 @@
 #implementation
 
 > Explicit finite schedule derivatives, per-edge cuts, parameter subset freezing,
-> terminal score estimators and a separate straight-through factor. The default
-> fixed-cavity gradient is retained. Supported domains and limits are explicit below.
+> terminal score estimators and a separate straight-through factor. The diagonal default
+> holds each factor's belief fixed (since LP-020, 2026-11-01; it held the cavities fixed before).
+> Supported domains and limits are explicit below.
 
 > Sources: original implementation; AutoBayes Definition 29 and Remark 30; code:
 > `gradient_couplings.jl`, `free_energy.jl`, `graph.jl`; tests:
@@ -177,7 +178,7 @@ messages are checked against the analytic pooled mean/variance/entropy derivativ
 Replay now carries `ad` as a constant context into `_gradient_message`. The
 ImplicitLayers DI extension routes DEQ messages through `solve_state/solve_input`
 with that backend, so the nonzero downstream graph loss uses the IFT primitive
-rather than root-iteration AD. Ordinary inference and diagonal/fixed-cavity
+rather than root-iteration AD. Ordinary inference and diagonal (fixed-belief)
 training keep their existing primal/default behavior. The raw ChainRules inference
 replayer uses the same hook with a reverse-mode sentinel selecting AutoZygote.
 

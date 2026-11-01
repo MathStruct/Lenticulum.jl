@@ -167,3 +167,15 @@ function LenticulumCore._composed_parameter_gradient(c::LenticulumCore.ScoreFunc
     se=sqrt.(sum(g -> abs2.(g-μ),draws)/(nsamples*(nsamples-1)))
     return Mycelium.GradientEstimate(LenticulumCore._unflatten(μ,ps),LenticulumCore._unflatten(se,ps),nsamples)
 end
+
+# The collapsed factor's belief, held fixed for the parameter gradient (LP-020); the collapsed
+# parameters, noise included, move with `ps`.
+function Mycelium.factor_belief(f::GaussianComposite, msgs, ps, st)
+    g, gp = _collapsed_gaussian(f, ps)
+    return Mycelium.factor_belief(g, msgs, gp, (;))
+end
+function Mycelium.belief_free_energy(f::GaussianComposite, b::FrozenGaussianBelief, ps, st)
+    g, gp = _collapsed_gaussian(f, ps)
+    result, _ = Mycelium.belief_free_energy(g, b, gp, (;))
+    return result, st
+end

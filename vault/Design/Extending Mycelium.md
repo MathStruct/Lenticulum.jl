@@ -24,7 +24,7 @@
 
 Mycelium builds a bipartite graph once (`GraphBuilder`, `build`), passes messages by a schedule
 (`step!`, `sweep!`, `propagate!`), scores the result by the Bethe free energy (`bethe_free_energy`,
-counting numbers $1 - d_v$), and trains parameters by its gradient at fixed messages (`parameter_step`),
+counting numbers $1 - d_v$), and trains parameters by its gradient at fixed factor beliefs (`parameter_step`, LP-020),
 with schedule adjoints for coupled edges. Each factor node now carries a message rule.
 
 What the experiments behind [[Composing Stochastic Factors]] ran into, in order of cost:
@@ -53,8 +53,10 @@ them. For belief propagation that is Bethe. For the hybrid it is the free energy
 The exact counting numbers are to be taken from the paper's statement before implementing; this
 sketch is not a substitute for it.
 
-**Before it: LP-020.** The existing graph gradient holds messages, not beliefs, fixed, and is not
-the gradient of the Bethe free energy either. A free energy per rule needs that fixed first.
+**Before it: LP-020 (resolved 2026-11-01).** The graph gradient held messages, not beliefs, fixed,
+and was not the gradient of the Bethe free energy. It now holds the beliefs fixed
+(`factor_belief`, `belief_free_energy`). A free energy for the hybrid needs the same for its
+mean-field nodes, whose beliefs are products of marginals.
 
 **Why first.** It turns the refusal of [[L-ADR-0009 Factor nodes carry a message rule]] into an
 answer, and with it `parameter_step` trains hybrid graphs: EM becomes coordinate descent on one
