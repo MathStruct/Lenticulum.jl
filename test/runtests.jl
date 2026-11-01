@@ -600,16 +600,19 @@ end
     @test LenticulumCore.islearnable(f)
     @test map(LenticulumCore.channelname, LenticulumCore.channels(f)) == (:a, :b, :c)
 
-    # n channels ⇒ n polarities, and NONE of them is the factor's "real" direction.
-    # GaussianFactor has 2 no matter what; this is where "acausal" becomes a number.
+    # n channels ⇒ n polarities with the others observed, and NONE of them is the factor's
+    # "real" direction. GaussianFactor has 2 no matter what; this is where "acausal" becomes a
+    # number. With the others observed or latent the list has n·2ⁿ⁻¹, the set the predicate accepts.
     pols = LenticulumCore.supported_polarities(f)
-    @test length(pols) == 3
+    @test length(pols) == 3 * 2^2
     @test !LenticulumCore.isunidirectional(f)
     for p in pols
         @test LenticulumCore.supports_polarity(f, p)
         @test length(LenticulumCore.unobserved_channels(p)) == 1
     end
-    @test Set(only(LenticulumCore.unobserved_channels(p)) for p in pols) == Set((:a, :b, :c))
+    observed = [p for p in pols if length(LenticulumCore.observed_channels(p)) == 2]
+    @test length(observed) == 3
+    @test Set(only(LenticulumCore.unobserved_channels(p)) for p in observed) == Set((:a, :b, :c))
 
     # a Latent channel is a legal modelling choice (marginalise it out)...
     @test LenticulumCore.supports_polarity(f,

@@ -26,10 +26,11 @@ It is *bidirectional*, which is a weaker property than *acausal*: it can be run 
 but it still knows which way is forwards.
 
 This factor delivers it. There are $n$ channels, the equation is a sum over all of them, and
-`supported_polarities` returns $n$ polarities — one per channel — of which none is the
-factor's own. The count is the content: **"acausal" is the statement that the number of
-supported polarities equals the number of channels**, rather than being fixed at two by the
-factor's constructor.
+every channel can be the one solved for, given the others: $n$ polarities, one per channel, of
+which none is the factor's own. The count is the content: **"acausal" is the statement that the
+number of directions equals the number of channels**, rather than being fixed at two by the
+factor's constructor. (`supported_polarities` lists $n \cdot 2^{n-1}$ since 2026-11-01: each
+other channel may also be latent, and the list must match `supports_polarity`, L-SPEC-001.)
 
 See [[ModelingToolkit as an Acausal Relation]] for where this comes from, and
 [[Acausal Composition is a Hypergraph Category]] for why an improper `GaussianBelief` is what
@@ -95,29 +96,46 @@ changing it for one factor is the wrong trade. Recorded rather than fixed.
 
 ## 4. Implementation difficulties
 
-### 4.1 A latent channel makes the equation vacuous, and the code says so bluntly
+### 4.1 A latent channel is integrated out under a flat prior (fixed 2026-11-01)
 
-If any non-target channel carries no information, `_message` returns `TrivialBelief()`. The
-reasoning: with a flat prior on $x_j$, the direction $\operatorname{range}(A_j)$ of the
-residual is unconstrained, so the equation says nothing.
+Until 2026-11-01, if any non-target channel carried no information, `_message` returned
+`TrivialBelief()`. The reasoning was that with a flat prior on $x_j$ the direction
+$\operatorname{range}(A_j)$ of the residual is unconstrained, so the equation says nothing.
 
-**That is too blunt.** The sharp answer takes the limit $S_j \to \infty$ properly: $R^{-1}$
-tends to the projection onto $\operatorname{range}(A_j)^\perp$ in the $Q^{-1}$ metric, so
+**That was too blunt.** The sharp answer takes the limit $S_j \to \infty$ properly. For a prior
+$\mathcal N(0, \tau \Sigma_0)$ on the flat channels, with $G$ stacking their $A$'s,
+$(R + \tau G \Sigma_0 G^\top)^{-1}$ tends to the $R^{-1}$-orthogonal projection that removes
+$\operatorname{range}(G)$, the same limit for every $\Sigma_0 \succ 0$:
 
 $$
 \mu_{c\to t} \;=\; \mathcal{N}^{-1}\bigl(A_t^\top \Pi\, d,\ A_t^\top \Pi\, A_t\bigr),
 \qquad
-\Pi = Q^{-1} - Q^{-1}A_j (A_j^\top Q^{-1} A_j)^{+} A_j^\top Q^{-1}
+\Pi = R^{-1} - R^{-1}G (G^\top R^{-1} G)^{+} G^\top R^{-1}
 $$
 
-which is *not* zero unless $A_j$ has full row rank. Concretely: two equations, one free
-variable appearing in only one of them, and the other equation survives. The current code
-throws that information away and returns nothing.
+This is *not* zero unless $G$ has full row rank. Concretely: take two equations and one free
+variable that appears in only one of them; the other equation survives. The normaliser that
+diverges with $\tau$ does not depend on $x_t$, so the limit is a proper statement about the
+message.
 
-This is the same "marginalise a latent channel" operation the vault keeps deferring
-([[Open Models and Latent Channels]] §"marginalisation is the expensive one"), specialised to the
-linear-Gaussian case where it is a pseudo-inverse rather than an integral. It is the single
-most valuable missing piece in this file.
+The code computes $\Pi$ through a factor: `_residual_metric` returns $T = U_\perp^\top L^{-1}$
+with $R = LL^\top$ and $U_\perp$ an orthonormal basis of the complement of
+$\operatorname{range}(L^{-1}G)$, so $T^\top T = \Pi$. When $G$ has full row rank, $T$ has no
+rows and the message is `TrivialBelief()`, as before. `_projected_rank` decides whether anything
+is left of $A_t$: rounding in the projection leaves singular values of order
+$\epsilon \lVert L^{-1}A_t \rVert$, and those count as zero. With no flat channel the code is
+unchanged. The mean-field message reads the same rule with the other channels at their means.
+Several flat channels are projected out together, so their order does not matter.
+
+The test (`test/switching_constraint.jl`, "flat inputs are integrated out") compares the flat
+message with the message for a proper input of variance $10^7$, to within $10^{-5}$. The same
+helper serves the switching factor (`switching.md` §5).
+
+This is the "marginalise a latent channel" operation the vault keeps deferring
+([[Open Models and Latent Channels]] §"marginalisation is the expensive one"), here specialised to
+the linear-Gaussian case, where it is a pseudo-inverse rather than an integral. A Gaussian input
+that is improper only in some directions is still not handled this way: `_moments` needs it
+proper (or entirely flat).
 
 ### 4.2 A loopy acausal graph cannot start itself
 

@@ -80,9 +80,9 @@ Two consequences worth writing down.
 [[Energy-Based Learning]] §5 gives both readings of a latent variable, and the min version is
 the $T\to0$ limit of the marginal version.
 
-`constraint.md` §4.1 records latent-channel marginalisation as "the single most valuable
-missing piece" in that file, and `Copiers Cups and Caps` calls marginalisation "the expensive
-one". In a Dirac-valued graph the cheap alternative is not an approximation at all — it is
+`constraint.md` §4.1 recorded latent-channel marginalisation as "the single most valuable
+missing piece" in that file; for the linear-Gaussian factors it is now done, as a pseudo-inverse
+(2026-11-01). `Copiers Cups and Caps` calls marginalisation "the expensive one". In a Dirac-valued graph the cheap alternative is not an approximation at all — it is
 the correct operation for the semiring the graph is actually running in.
 
 ### 3.2 The Bethe free energy degenerates *correctly*

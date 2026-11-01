@@ -14,7 +14,7 @@ softmax_(v) = exp.(v .- logsumexp_(v))
     @test LuxCore.parameterlength(f) == 2 * 5 + 2 * 4 + 4
     @test map(LenticulumCore.channelname, LenticulumCore.channels(f)) == (:a, :b, :k)
     pols = supported_polarities(f)
-    @test length(pols) == 3
+    @test length(pols) == 3 * 2^2                              # one unobserved, the others observed or latent
     @test Set(only(unobserved_channels(p)) for p in pols) == Set((:a, :b, :k))
     @test supports_polarity(f, LenticulumCore.Polarity(; a = Unobserved(), b = Observed(), k = Latent()))
     @test !supports_polarity(f, LenticulumCore.Polarity(; a = Unobserved(), b = Unobserved(), k = Observed()))
@@ -338,4 +338,105 @@ end
     # the default (fixed beliefs, one inference per sample) and differentiating through inference agree
     gi = sample_gradient(buf, sampler, ps, NamedTuple(); through_inference = true)
     @test LenticulumCore._flatten(grad) ≈ LenticulumCore._flatten(gi) atol = 1e-6
+end
+
+# Review of 2026-11-01 (ChatGPT, Gemini, Mistral on `switching.jl`): a flat input is integrated
+# out exactly, the polarity list matches the predicate, and degenerate inputs fail loudly.
+@testset "flat inputs are integrated out: the limit of a broad prior" begin
+    nt = NamedTuple()
+    τ = 1e7
+    broad(n) = Gaussian(zeros(n), τ * Matrix(1.0I, n, n))
+    flat_k(f, ps, inputs) = probabilities(first(Mycelium.factor_message(f, :k, nothing, inputs, nothing, ps, nt)))
+    # x enters only the first equation, so the second still separates the outcomes:
+    # P(k) ∝ w_k N(b_{k,2}; 0, 1), (0.999665, 0.000335); it used to be TrivialBelief()
+    f = SwitchingConstraintFactor((x = 1,), 2, 2; noise = Matrix(1.0I, 2, 2))
+    ps = (A = (x = reshape([1.0, 0.0], 2, 1),), b = [0.0 0.0; 0.0 4.0], logw = zeros(2))
+    for flat in (nt, (x = TrivialBelief(),))
+        @test flat_k(f, ps, flat) ≈ softmax_([0.0, -8.0])
+    end
+    @test flat_k(f, ps, nt) ≈ flat_k(f, ps, (x = broad(1),)) atol = 1e-6
+    @test flat_k(f, ps, nt)[2] ≈ 0.000335 atol = 1e-6
+
+    # random factors: every message with a flat input is the τ → ∞ limit of a broad Gaussian one
+    rng = Xoshiro(11)
+    Q = [0.4 0.1 0.0; 0.1 0.3 0.05; 0.0 0.05 0.5]
+    sf = SwitchingConstraintFactor((u = 1, v = 2, w = 2), 3, 3; noise = Q)
+    sps = (A = (u = randn(rng, 3, 1), v = randn(rng, 3, 2), w = randn(rng, 3, 2)), b = randn(rng, 3, 3), logw = randn(rng, 3))
+    gw = Gaussian([0.3, -0.2], [0.5 0.1; 0.1 0.4])
+    ρ = CategoricalBelief([0.2, 0.5, 0.3])
+    # u flat (rank 1 of 3): every target still gets information
+    @test flat_k(sf, sps, (v = gw, w = gw)) ≈ flat_k(sf, sps, (u = broad(1), v = gw, w = gw)) atol = 1e-5
+    mflat, _ = Mycelium.factor_message(sf, :v, nothing, (w = gw, k = ρ), nothing, sps, nt)
+    mbroad, _ = Mycelium.factor_message(sf, :v, nothing, (u = broad(1), w = gw, k = ρ), nothing, sps, nt)
+    @test mflat isa MixtureBelief && mbroad isa MixtureBelief
+    @test mflat.logw ≈ mbroad.logw atol = 1e-5
+    for (a, b) in zip(mflat.components, mbroad.components)
+        @test a.η ≈ b.η atol = 1e-5
+        @test a.Λ ≈ b.Λ atol = 1e-5
+    end
+    # the limit does not depend on the shape of the broad prior: w flat (rank 2 of 3), against an
+    # isotropic and an anisotropic covariance
+    ux = (u = DiracBelief([0.4]), v = gw)
+    for Σ0 in (Matrix(1.0I, 2, 2), [3.0 1.0; 1.0 0.5])
+        @test flat_k(sf, sps, ux) ≈ flat_k(sf, sps, merge(ux, (w = Gaussian(zeros(2), τ * Σ0),))) atol = 1e-5
+    end
+    # u and v flat: rank 3 together, so nothing is left; the order of the channels does not matter
+    @test flat_k(sf, sps, (w = gw,)) ≈ softmax_(sps.logw)
+    @test first(Mycelium.factor_message(sf, :w, nothing, (k = ρ,), nothing, sps, nt)) isa TrivialBelief
+    sf2 = SwitchingConstraintFactor((w = 2, v = 2, u = 1), 3, 3; noise = Q)
+    sps2 = (A = (w = sps.A.w, v = sps.A.v, u = sps.A.u), b = sps.b, logw = sps.logw)
+    @test flat_k(sf2, sps2, (w = gw,)) ≈ softmax_(sps.logw)
+    @test flat_k(sf2, sps2, (v = gw, w = gw)) ≈ flat_k(sf, sps, (v = gw, w = gw))
+
+    # LinearConstraintFactor: the same limit, which constraint.md §4.1 had left open
+    lf = LinearConstraintFactor((u = 1, v = 2, w = 2), 3; noise = Q)
+    lps = (A = sps.A, c = sps.b[:, 1])
+    lflat, _ = Mycelium.factor_message(lf, :v, nothing, (w = gw,), nothing, lps, nt)
+    lbroad, _ = Mycelium.factor_message(lf, :v, nothing, (u = broad(1), w = gw), nothing, lps, nt)
+    @test lflat.η ≈ lbroad.η atol = 1e-5
+    @test lflat.Λ ≈ lbroad.Λ atol = 1e-5
+    @test first(Mycelium.factor_message(lf, :w, nothing, NamedTuple(), nothing, lps, nt)) isa TrivialBelief
+    # with K = 1 the two factors still agree, flat input included
+    s1 = SwitchingConstraintFactor((u = 1, v = 2, w = 2), 1, 3; noise = Q)
+    m1, _ = Mycelium.factor_message(s1, :v, nothing, (w = gw,), nothing, (A = sps.A, b = reshape(lps.c, 3, 1), logw = [0.0]), nt)
+    @test m1.η ≈ lflat.η && m1.Λ ≈ lflat.Λ
+
+    # mean field: a channel with no marginal yet is integrated out as in BP with the others at their means
+    mf, _ = Mycelium.mean_field_message(sf, :k, nothing, (w = gw,), sps, nt)
+    bp, _ = Mycelium.factor_message(sf, :k, nothing, (w = DiracBelief(belief_mean(gw)),), nothing, sps, nt)
+    @test probabilities(mf) ≈ probabilities(bp)
+    mfv, _ = Mycelium.mean_field_message(lf, :v, nothing, (w = gw,), lps, nt)
+    bpv, _ = Mycelium.factor_message(lf, :v, nothing, (w = DiracBelief(belief_mean(gw)),), nothing, lps, nt)
+    @test mfv.η ≈ bpv.η && mfv.Λ ≈ bpv.Λ
+end
+
+@testset "the polarity list is the set the predicate accepts" begin
+    for f in (SwitchingConstraintFactor((a = 2, b = 3), 4, 2), LinearConstraintFactor((a = 1, b = 2, c = 1), 2),
+              LinearConstraintFactor((a = 1,), 1))
+        listed = supported_polarities(f)
+        n = length(LenticulumCore.channels(f))
+        @test length(listed) == n * 2^(n - 1)
+        @test Set(listed) == Set(collect(LenticulumCore.polarities(f)))
+        @test !LenticulumCore.hasnopolarity(f)
+        @test LenticulumCore.isunidirectional(f) == (n == 1)
+    end
+    f = SwitchingConstraintFactor((a = 2, b = 3), 4, 2)
+    @test supports_polarity(f, LenticulumCore.Polarity(; k = Latent(), b = Observed(), a = Unobserved()))
+    big = LinearConstraintFactor(NamedTuple{Tuple(Symbol(:v, i) for i in 1:7)}(ntuple(_ -> 1, 7)), 1)
+    @test_throws ArgumentError supported_polarities(big)
+    @test !LenticulumCore.hasnopolarity(big) && !LenticulumCore.isunidirectional(big)
+end
+
+@testset "degenerate inputs fail loudly" begin
+    nt = NamedTuple()
+    f = SwitchingConstraintFactor((x = 1, y = 1), 2, 1; noise = 0.2)
+    ps = (A = (x = fill(-2.0, 1, 1), y = fill(1.0, 1, 1)), b = [0.0 1.5], logw = [0.0, 0.4])
+    @test_throws ArgumentError residual(f, (x = [1.0], y = [0.0], k = 1.5), ps)
+    @test_throws ArgumentError LenticulumCore.energy(f, (x = [1.0], k = 3), nothing, (y = [0.0],), ps, nt)
+    dead = CategoricalBelief(Val(:log), [-Inf, -Inf], nothing)
+    @test_throws ArgumentError switch_statistics(f, (x = DiracBelief([1.0]), y = DiracBelief([0.0]), k = dead), ps)
+    @test_throws ArgumentError Mycelium.factor_message(f, :x, nothing, (y = DiracBelief([0.0]), k = dead), nothing, ps, nt)
+    # the repaired precision of improper mixture components does not factorise
+    Λ = [1.0 1.0; 1.0 1.0] .* 1e6
+    @test !isposdef(Lenticulum._singular_precision(Λ, 1))
 end

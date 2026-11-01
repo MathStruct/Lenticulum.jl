@@ -33,7 +33,7 @@ channel and shared by the outcomes, `b` the `m × K` matrix of right-hand sides,
 unnormalised log-weights (`w = softmax(logw)`).
 
 Every channel, the outcome included, can be the target of an exact message, with the others
-observed (or, for the outcome, latent). With `K = 1` it is a `LinearConstraintFactor` with
+observed or latent. With `K = 1` it is a `LinearConstraintFactor` with
 `c = b₁`, message for message.
 
 ```julia
@@ -94,24 +94,25 @@ LenticulumCore.channels(f::SwitchingConstraintFactor{names}) where {names} =
 """
     LenticulumCore.supported_polarities(f::SwitchingConstraintFactor)
 
-One polarity per channel, the outcome included: that channel `Unobserved()`, every other
-`Observed()`.
+Every assignment with exactly one `Unobserved()` channel, the outcome included, and each other
+channel `Observed()` or `Latent()`, as for [`LinearConstraintFactor`](@ref): the set
+[`supports_polarity`](@ref LenticulumCore.supports_polarity) accepts.
 """
-function LenticulumCore.supported_polarities(f::SwitchingConstraintFactor)
-    all = _allnames(f)
-    O, U = LenticulumCore.Observed(), LenticulumCore.Unobserved()
-    return map(t -> LenticulumCore.Polarity(NamedTuple{all}(map(n -> n === t ? U : O, all))), all)
-end
+LenticulumCore.supported_polarities(f::SwitchingConstraintFactor) = _one_unobserved_polarities(_allnames(f))
+LenticulumCore.hasnopolarity(::SwitchingConstraintFactor) = false
+LenticulumCore.isunidirectional(::SwitchingConstraintFactor) = false
 
 """
     LenticulumCore.supports_polarity(f::SwitchingConstraintFactor, p)
 
-Any polarity over exactly this channel set with exactly one `Unobserved()` channel. A
-`Latent()` outcome is marginalised under the factor's own weights; a `Latent()` continuous
-channel gives the uninformative answer of [`LinearConstraintFactor`](@ref).
+Any polarity over exactly this channel set, in any order, with exactly one `Unobserved()`
+channel. A `Latent()` outcome is marginalised under the factor's own weights; a `Latent()`
+continuous channel is integrated out under a flat prior, as for [`LinearConstraintFactor`](@ref).
+Either way the channel is a graph variable the message sums or integrates over, not a latent
+space of the open model, which stays pure.
 """
 function LenticulumCore.supports_polarity(f::SwitchingConstraintFactor, p::LenticulumCore.Polarity)
-    keys(p) == _allnames(f) || return false
+    Set(keys(p)) == Set(_allnames(f)) || return false
     return length(LenticulumCore.unobserved_channels(p)) == 1
 end
 
@@ -129,6 +130,12 @@ LenticulumCore.scalarisation(::SwitchingConstraintFactor) = LenticulumCore.Grade
 ))
 
 _logweights(ps) = (l = float.(ps.logw); l .- _logsumexp(l))
+
+function _outcome(f::SwitchingConstraintFactor, v)
+    k = only(_vec(v))
+    isinteger(k) && 1 <= k <= f.K || throw(ArgumentError("an observed outcome must be an index in 1:$(f.K); got $v"))
+    return Int(k)
+end
 
 # log P(k) carried by an incoming outcome belief; `nothing` (latent, or no message) is flat.
 _switch_logp(::Nothing, K) = zeros(K)
@@ -148,7 +155,7 @@ end
 """
 function residual(f::SwitchingConstraintFactor{names}, vals::NamedTuple, ps) where {names}
     haskey(vals, f.switch) || throw(ArgumentError("residual needs the outcome :$(f.switch)"))
-    k = _vec(vals[f.switch]) |> only |> Int
+    k = _outcome(f, vals[f.switch])
     r = -float.(ps.b[:, k])
     for n in names
         haskey(vals, n) || throw(ArgumentError(
@@ -162,7 +169,7 @@ end
 function LenticulumCore.energy(f::SwitchingConstraintFactor, x, a, y, ps, st)
     vals = _channel_values(x, y)
     r = residual(f, vals, ps)
-    k = Int(only(_vec(vals[f.switch])))
+    k = _outcome(f, vals[f.switch])
     C = _chol(f.Q, "Q")
     e = LinearAlgebra.dot(r, C \ r) / 2 + logdet(C) / 2 + f.m * log(2π) / 2 - _logweights(ps)[k]
     return e, st
@@ -221,9 +228,11 @@ With ``d_k = b_k - \\sum_{i \\ne t} A_i m_i`` and ``R = Q + \\sum_{i \\ne t} A_i
 
 A Gaussian-mixture input is collapsed to its moments first, as in `LinearConstraintFactor`
 (assumed-density filtering; `gaussian.md`, "Mixture inputs"). An uninformative continuous input
-makes a continuous target uninformative; for the outcome it gives the factor's own weights when
-that channel's `A` has full row rank (the integral is then the same for every outcome), and
-`TrivialBelief()` otherwise.
+(no message, `TrivialBelief()`, `Latent()`) is integrated out under a flat prior, as in
+`LinearConstraintFactor`: ``R^{-1}`` is replaced by the limit that projects out the range of those
+channels' ``A``'s, so only the part of ``d_k`` they cannot reach separates the outcomes. When
+their ``A``'s together have full row rank nothing is left: the outcome gets the factor's own
+weights and a continuous target `TrivialBelief()`.
 """
 Mycelium.factor_message(f::SwitchingConstraintFactor, target::Symbol, polarity, inputs, prior, ps, st) =
     _switch_message(f, target, inputs, ps, st)
@@ -232,35 +241,37 @@ function _switch_message(f::SwitchingConstraintFactor{names}, target::Symbol, in
     target in _allnames(f) || throw(ArgumentError(
         "channel :$target is not a channel of this SwitchingConstraintFactor (has $(_allnames(f)))"))
     lw = _logweights(ps)
+    lpk = target === f.switch ? nothing : _switch_logp(_get(inputs, f.switch), f.K)
     d0 = zeros(f.m)
     R = float.(f.Q)
+    flat = Symbol[]
     for n in names
         n === target && continue
         m, S = _moments(_get(inputs, n), f.dims[n])
         if m === nothing
-            target === f.switch && LinearAlgebra.rank(ps.A[n]) == f.m &&
-                return (LenticulumCore.CategoricalBelief(Val(:log), lw, nothing), st)
-            return (LenticulumCore.TrivialBelief(), st)
+            push!(flat, n)
+            continue
         end
         d0 = d0 .- ps.A[n] * m
         R = R .+ ps.A[n] * S * ps.A[n]'
     end
-    C = _chol(R, "Q + Σ AᵢSᵢAᵢᵀ")
-    D = ps.b .+ d0                                            # column k is d_k
-    quad = [LinearAlgebra.dot(D[:, k], C \ D[:, k]) for k in 1:f.K]
+    T, Li = _residual_metric(R, flat, ps.A, "Q + Σ AᵢSᵢAᵢᵀ")
+    Z = T * (ps.b .+ d0)                                       # column k is T d_k
+    quad = vec(sum(abs2, Z; dims = 1))
     if target === f.switch
         l = lw .- quad ./ 2
         return (LenticulumCore.CategoricalBelief(Val(:log), l .- _logsumexp(l), nothing), st)
     end
-    l = _switch_logp(_get(inputs, f.switch), f.K) .+ lw .- quad ./ 2
-    At = ps.A[target]
-    Λ = At' * (C \ At)
-    H = C \ D
-    proper = LinearAlgebra.rank(At) == size(At, 2)
-    proper || (Λ = _singular_precision(Λ, size(At, 2) - LinearAlgebra.rank(At)))
+    l = lpk .+ lw .- quad ./ 2
     ks = [k for k in 1:f.K if l[k] > -Inf]
     isempty(ks) && throw(ArgumentError("the incoming outcome belief gives every outcome zero probability"))
-    comps = [GaussianBelief(At' * H[:, k], Λ) for k in ks]
+    At = ps.A[target]
+    Ta = T * At
+    rt = _projected_rank(Ta, Li * At)
+    rt == 0 && return (LenticulumCore.TrivialBelief(), st)
+    proper = rt == size(At, 2)
+    Λ = proper ? Ta' * Ta : _singular_precision(Ta' * Ta, size(At, 2) - rt)
+    comps = [GaussianBelief(Ta' * Z[:, k], Λ) for k in ks]
     length(ks) == 1 && return (only(comps), st)
     lk = l[ks]
     if proper                                                  # normalised components: move ½ηᵀΛ⁻¹η into the weight
@@ -281,51 +292,63 @@ marginals. With ``\\bar s = \\sum_{i \\ne t} A_i\\, \\mathbb E_q[x_i]`` and ``q`
 
 Only means enter, since ``\\log f`` is quadratic in the continuous channels for each outcome and the
 covariance terms do not depend on ``x_t`` or ``k``. An outcome without a marginal yet counts with
-the factor's weights, which is where the iteration starts. Continuous channels without a proper
-marginal are handled as in `factor_message`.
+the factor's weights, which is where the iteration starts. A continuous channel without a proper
+marginal yet is integrated out under a flat prior, as in `factor_message`, with ``Q^{-1}`` in place
+of ``R^{-1}``.
+
+The message is one Gaussian, not a mixture, so a rank-deficient precision needs no repair here:
+whether rounding leaves it proper changes no weight, as for `LinearConstraintFactor`.
 """
 function Mycelium.mean_field_message(f::SwitchingConstraintFactor{names}, target::Symbol, polarity, beliefs, ps, st) where {names}
     target in _allnames(f) || throw(ArgumentError(
         "channel :$target is not a channel of this SwitchingConstraintFactor (has $(_allnames(f)))"))
     lw = _logweights(ps)
     sbar = zeros(f.m)
+    flat = Symbol[]
     for n in names
         n === target && continue
         μ = _mf_mean(_get(beliefs, n))
         if μ === nothing
-            target === f.switch && LinearAlgebra.rank(ps.A[n]) == f.m &&
-                return (LenticulumCore.CategoricalBelief(Val(:log), lw, nothing), st)
-            return (LenticulumCore.TrivialBelief(), st)
+            push!(flat, n)
+            continue
         end
         sbar = sbar .+ ps.A[n] * μ
     end
-    CQ = _chol(f.Q, "Q")
+    T, Li = _residual_metric(f.Q, flat, ps.A, "Q")
     if target === f.switch
-        D = ps.b .- sbar
-        l = lw .- [LinearAlgebra.dot(D[:, k], CQ \ D[:, k]) for k in 1:f.K] ./ 2
+        l = lw .- vec(sum(abs2, T * (ps.b .- sbar); dims = 1)) ./ 2
         return (LenticulumCore.CategoricalBelief(Val(:log), l .- _logsumexp(l), nothing), st)
     end
     kb = _get(beliefs, f.switch)
     q = kb === nothing || kb isa LenticulumCore.TrivialBelief ? exp.(lw) : exp.(_switch_logp(kb, f.K))
     At = ps.A[target]
-    return (GaussianBelief(At' * (CQ \ (ps.b * q .- sbar)), At' * (CQ \ At)), st)
+    Ta = T * At
+    _projected_rank(Ta, Li * At) == 0 && return (LenticulumCore.TrivialBelief(), st)
+    return (GaussianBelief(Ta' * (T * (ps.b * q .- sbar)), Ta' * Ta), st)
 end
 
-# A rank-deficient AₜᵀR⁻¹Aₜ is positive definite after rounding often enough that `isproper`
-# would call it a (very wide) distribution, and the mixture product would then weight its
-# components by ½ηᵀΛ⁻¹η, which is rounding noise. Its null-space eigenvalues are set to zero,
-# and to −eps·λ_max if the result still factorises, so that the components stay improper.
+# A rank-deficient precision of mixture components is positive definite after rounding often
+# enough that `isproper` would call it a (very wide) distribution, and the mixture product would
+# then weight its components by ½ηᵀΛ⁻¹η, which is rounding noise. Its null-space eigenvalues are
+# set to zero, and pushed below zero until the result no longer factorises, starting at
+# −eps·λ_max, so that the components stay improper. The price is a precision that is indefinite
+# at rounding level, which a proper neighbour weaker than that in a null direction does not
+# outweigh (`switching.md` §6). GaussianBelief has no flag for "improper", so this is the only
+# way to say it.
 function _singular_precision(Λ, nullity)
     E = LinearAlgebra.eigen(Symmetric(Λ))
     λ = copy(E.values)
     λ[1:nullity] .= 0
-    S = E.vectors * Diagonal(λ) * E.vectors'
-    S = (S + S') / 2
-    if isposdef(S)
-        λ[1:nullity] .= -eps(maximum(abs, λ))
-        S = E.vectors * Diagonal(λ) * E.vectors'
-        S = (S + S') / 2
+    rebuild(λ) = (S = E.vectors * Diagonal(λ) * E.vectors'; (S + S') / 2)
+    S = rebuild(λ)
+    shift = eps(maximum(abs, λ))
+    for _ in 1:8
+        isposdef(S) || return S
+        λ[1:nullity] .= -shift
+        S = rebuild(λ)
+        shift *= 4
     end
+    isposdef(S) && throw(ArgumentError("could not make a rank-deficient precision improper"))
     return S
 end
 
@@ -363,14 +386,16 @@ function switch_statistics(f::SwitchingConstraintFactor{names}, msgs, ps) where 
         canon = [_canon(_collapse(_get(msgs, n)), f.dims[n]) for n in free]
         Λ = G' * (CQ \ G) + _blockdiag(map(last, canon))
         CΛ = _chol(Λ, "factor belief precision")
-        Ηs = G' * QiC .+ reduce(vcat, map(first, canon))      # column k: η_k
-        M = CΛ \ Ηs
-        logZ = logZ .+ [LinearAlgebra.dot(Ηs[:, k], M[:, k]) / 2 for k in 1:f.K]
+        etas = G' * QiC .+ reduce(vcat, map(first, canon))    # column k: η_k
+        M = CΛ \ etas
+        logZ = logZ .+ [LinearAlgebra.dot(etas[:, k], M[:, k]) / 2 for k in 1:f.K]
         rbar = G * M .- Ceff
         Cr = G * (CΛ \ G')
         Hx = Mycelium.variable_entropy(GaussianBelief(zeros(size(Λ, 1)), Λ))
     end
-    l = _switch_logp(_get(msgs, f.switch), f.K) .+ _logweights(ps) .+ logZ
+    lp = _switch_logp(_get(msgs, f.switch), f.K)
+    all(==(-Inf), lp) && throw(ArgumentError("the incoming outcome belief gives every outcome zero probability"))
+    l = lp .+ _logweights(ps) .+ logZ
     q = exp.(l .- _logsumexp(l))
     return q, rbar, Cr, Hx
 end
@@ -405,13 +430,22 @@ since ``H(b_c) = H(q) + H(x \\mid k)``. Graded as `(fit, complexity, negentropy)
 """
 function Mycelium.local_free_energy(f::SwitchingConstraintFactor, msgs, ps, st)
     q, rbar, Cr, Hx = switch_statistics(f, msgs, ps)
+    return _switch_free_energy(f, q, rbar, Cr, Hx, ps), st
+end
+
+# E_b[−log f] − H(b) for a belief with outcome posterior q, per-outcome residual means r̄ₖ, the
+# shared residual covariance and H(x | k). Outcomes with q_k = 0 are skipped (0·log 0 = 0, and
+# 0·log w_k = 0 when w_k = 0). Σ q_k = 1, so the trace term is outside the sum.
+function _switch_free_energy(f::SwitchingConstraintFactor, q, rbar, Cr, Hx, ps)
+    all(isfinite, q) || throw(ArgumentError("the outcome posterior is not finite: $q"))
     CQ = _chol(f.Q, "Q")
     lw = _logweights(ps)
-    trQC = tr(CQ \ Cr)
-    fit = sum(q[k] * (LinearAlgebra.dot(rbar[:, k], CQ \ rbar[:, k]) + trQC) / 2 for k in 1:f.K if q[k] > 0)
-    complexity = logdet(_chol(2π .* f.Q, "2πQ")) / 2 - sum(q[k] * lw[k] for k in 1:f.K if q[k] > 0)
-    Hq = -sum(qk * log(qk) for qk in q if qk > 0)
-    return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -Hq - Hx)), st
+    Qr = CQ \ rbar
+    ks = [k for k in 1:f.K if q[k] > 0]
+    fit = (tr(CQ \ Cr) + sum(q[k] * LinearAlgebra.dot(rbar[:, k], Qr[:, k]) for k in ks)) / 2
+    complexity = (f.m * log(2π) + logdet(CQ)) / 2 - sum(q[k] * lw[k] for k in ks)
+    Hq = -sum(q[k] * log(q[k]) for k in ks)
+    return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -Hq - Hx))
 end
 
 """
@@ -429,12 +463,7 @@ function Mycelium.factor_belief(f::SwitchingConstraintFactor, msgs, ps, st)
 end
 function Mycelium.belief_free_energy(f::SwitchingConstraintFactor, b::FrozenGaussianBelief, ps, st)
     rbar, Cr = _frozen_residual(ps.A, -ps.b, b)
-    q, CQ, lw = b.q, _chol(f.Q, "Q"), _logweights(ps)
-    trQC = tr(CQ \ Cr)
-    fit = sum(q[k] * (LinearAlgebra.dot(rbar[:, k], CQ \ rbar[:, k]) + trQC) / 2 for k in 1:f.K if q[k] > 0)
-    complexity = logdet(_chol(2π .* f.Q, "2πQ")) / 2 - sum(q[k] * lw[k] for k in 1:f.K if q[k] > 0)
-    Hq = -sum(qk * log(qk) for qk in q if qk > 0)
-    return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -Hq - b.H)), st
+    return _switch_free_energy(f, b.q, rbar, Cr, b.H, ps), st
 end
 
 function LenticulumCore.free_energy(f::SwitchingConstraintFactor, π, y::NamedTuple, ps, st)

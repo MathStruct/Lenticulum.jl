@@ -34,9 +34,9 @@ f(x_1,\\ldots,x_n) \\;\\propto\\; \\exp\\Bigl(-\\tfrac12 \\bigl\\|\\textstyle\\s
 number of scalar equations). `Q` is a fixed hyperparameter, exactly as in
 [`GaussianFactor`](@ref); parameters are `(A, c)`, with `A` a `NamedTuple` keyed by channel.
 
-**Acausal**: no channel is privileged. `supported_polarities` returns one polarity per
-channel — "solve this equation for `x_t`, given the others" — and every one of them is
-exact. As ``Q \\to 0`` the factor becomes the hard relation
+**Acausal**: no channel is privileged. Every channel can be solved for — "solve this
+equation for `x_t`, given the others" — and every one of these messages is exact; the others
+may also be latent (`supported_polarities`). As ``Q \\to 0`` the factor becomes the hard relation
 ``\\{x : \\sum_i A_i x_i = c\\}``; a finite `Q` is the *soft* relation, which is what makes
 it a statistical game rather than a set.
 
@@ -88,37 +88,58 @@ LuxCore.parameterlength(f::LinearConstraintFactor) = f.m * sum(values(f.dims)) +
 LenticulumCore.channels(f::LinearConstraintFactor{names}) where {names} =
     map((n, d) -> LenticulumCore.Channel(n, d), names, values(f.dims))
 
+# The polarities of a relation: one channel `Unobserved()`, each other `Observed()` or `Latent()`.
+# Each assignment is its own `Polarity` type, so the list is capped, as for exposed factors.
+const _CONSTRAINT_ENUMERATION_CAP = 6
+function _one_unobserved_polarities(names::Tuple)
+    n = length(names)
+    n <= _CONSTRAINT_ENUMERATION_CAP || throw(ArgumentError(
+        "a relation with $n channels has $(n * 2^(n - 1)) polarities; use `supports_polarity` \
+         or the lazy `LenticulumCore.polarities` instead of listing them"))
+    O, U, L = LenticulumCore.Observed(), LenticulumCore.Unobserved(), LenticulumCore.Latent()
+    pols = LenticulumCore.Polarity[]
+    for t in names, mask in 0:(2^(n - 1) - 1)
+        others = Tuple(c for c in names if c !== t)
+        role(c) = c === t ? U : (mask >> (findfirst(==(c), others) - 1)) & 1 == 1 ? L : O
+        push!(pols, LenticulumCore.Polarity(NamedTuple{names}(map(role, names))))
+    end
+    return Tuple(pols)
+end
+
 """
     LenticulumCore.supported_polarities(f::LinearConstraintFactor)
 
-One polarity per channel: that channel `Unobserved()`, every other `Observed()`.
+Every assignment with exactly one `Unobserved()` channel and each other channel `Observed()` or
+`Latent()`: ``n \\cdot 2^{n-1}`` of them, the set [`supports_polarity`](@ref LenticulumCore.supports_polarity) accepts (L-SPEC-001).
+The ``n`` with every other channel observed are the ones that matter most: one per channel, and
+**none of them is the factor's "real" direction**. The equation was never written in a
+direction. This is the enumerated form of "a relation, not a function".
 
-Contrast [`GaussianFactor`](@ref), which has exactly two regardless of anything. Here the
-count is `n`, and **none of them is the factor's "real" direction** — the equation was never
-written in a direction. This is the enumerated form of "a relation, not a function".
+Contrast [`GaussianFactor`](@ref), which has exactly two regardless of anything. Above
+$(_CONSTRAINT_ENUMERATION_CAP) channels the list throws, as the contract permits;
+`hasnopolarity` and `isunidirectional` answer without it.
 """
-function LenticulumCore.supported_polarities(f::LinearConstraintFactor{names}) where {names}
-    O, U = LenticulumCore.Observed(), LenticulumCore.Unobserved()
-    return map(names) do t
-        LenticulumCore.Polarity(NamedTuple{names}(map(n -> n === t ? U : O, names)))
-    end
-end
+LenticulumCore.supported_polarities(f::LinearConstraintFactor{names}) where {names} =
+    _one_unobserved_polarities(names)
+LenticulumCore.hasnopolarity(::LinearConstraintFactor) = false
+LenticulumCore.isunidirectional(::LinearConstraintFactor{names}) where {names} = length(names) == 1
 
 """
     LenticulumCore.supports_polarity(f::LinearConstraintFactor, p)
 
-Any polarity over exactly this channel set with **exactly one** `Unobserved()` channel.
+Any polarity over exactly this channel set, in any order, with **exactly one** `Unobserved()`
+channel.
 
-`Latent()` channels are accepted by this predicate but produce an uninformative message —
-see [`Mycelium.factor_message`](@ref) below. Accepting-then-returning-nothing rather than
-refusing is deliberate: a latent channel is a legal modelling choice (marginalise it out),
-and the answer "this equation tells you nothing about `x_t` once `x_j` is free" is a correct
-answer, not an error.
+A `Latent()` channel is integrated out under a flat prior (see
+[`Mycelium.factor_message`](@ref) below): the message keeps what the equation says in the
+directions that channel cannot reach, and is uninformative when its `A` has full row rank.
+A latent channel is a legal modelling choice, and "this equation tells you nothing more about
+``x_t`` once ``x_j`` is free" is a correct answer, not an error.
 """
 function LenticulumCore.supports_polarity(
     f::LinearConstraintFactor{names}, p::LenticulumCore.Polarity
 ) where {names}
-    keys(p) == names || return false
+    Set(keys(p)) == Set(names) || return false
     return length(LenticulumCore.unobserved_channels(p)) == 1
 end
 
@@ -234,9 +255,12 @@ constrains only the directions it can see, and with fewer equations than unknown
 (``m < \\dim x_t``) that is the normal case, not an edge case. Only the canonical form can
 say this; see `beliefs.md`.
 
-Returns `TrivialBelief()` if any non-target channel carries no information: a free variable
-elsewhere in the equation makes the whole thing vacuous. See `constraint.md` §4 for the
-sharper answer this gives up.
+A non-target channel that carries no information (no message, `TrivialBelief()`, a
+`Latent()` channel) is integrated out under a flat prior, the limit ``\\tau \\to \\infty`` of
+``\\mathcal N(0, \\tau \\Sigma_0)``: ``R^{-1}`` becomes ``R^{-1} - R^{-1} G (G^\\top R^{-1} G)^{+} G^\\top R^{-1}``,
+with ``G`` stacking those channels' ``A``'s, the same limit for every ``\\Sigma_0 \\succ 0``. The
+equation then still constrains the directions ``G`` cannot reach. The message is
+`TrivialBelief()` when nothing is left, as when ``G`` has full row rank (`constraint.md` §4.1).
 """
 Mycelium.factor_message(
     f::LinearConstraintFactor, target::Symbol, polarity, inputs, prior, ps, st
@@ -247,17 +271,52 @@ function _message(f::LinearConstraintFactor{names}, target::Symbol, inputs, ps, 
         "channel :$target is not a channel of this LinearConstraintFactor (has $names)"))
     d = float.(ps.c)
     R = float.(f.Q)
+    flat = Symbol[]
     for n in names
         n === target && continue
         m, S = _moments(_get(inputs, n), f.dims[n])
-        m === nothing && return (LenticulumCore.TrivialBelief(), st)
+        if m === nothing
+            push!(flat, n)
+            continue
+        end
         An = ps.A[n]
         d = d .- An * m
         R = R .+ An * S * An'
     end
     At = ps.A[target]
-    Ri = inv(_chol(R, "Q + Σ AᵢSᵢAᵢᵀ"))
-    return (GaussianBelief(At' * (Ri * d), At' * Ri * At), st)
+    if isempty(flat)
+        Ri = inv(_chol(R, "Q + Σ AᵢSᵢAᵢᵀ"))
+        return (GaussianBelief(At' * (Ri * d), At' * Ri * At), st)
+    end
+    T, Li = _residual_metric(R, flat, ps.A, "Q + Σ AᵢSᵢAᵢᵀ")
+    Ta = T * At
+    _projected_rank(Ta, Li * At) == 0 && return (LenticulumCore.TrivialBelief(), st)
+    return (GaussianBelief(Ta' * (T * d), Ta' * Ta), st)
+end
+
+# The residual metric with the flat channels integrated out, as a factor T with TᵀT the metric.
+# For R = LLᵀ and G the stacked coefficients of the channels in `flat`, a prior N(0, τΣ₀) on them
+# gives (R + τGΣ₀Gᵀ)⁻¹ → R⁻¹ − R⁻¹G(GᵀR⁻¹G)⁺GᵀR⁻¹ as τ → ∞, for every Σ₀ ≻ 0: the R⁻¹-orthogonal
+# projection that removes range(G). So T = U⊥ᵀL⁻¹, with U⊥ an orthonormal basis of the
+# complement of range(L⁻¹G); it has no rows when G has full row rank. The normaliser that
+# diverges with τ is the same for every value of the target, and for every outcome of a
+# switching factor. Also returns L⁻¹, the scale for `_projected_rank`.
+function _residual_metric(R, flat, A, what)
+    Li = inv(_chol(R, what).L)
+    isempty(flat) && return Li, Li
+    B = Li * reduce(hcat, (A[n] for n in flat))
+    F = LinearAlgebra.svd(B; full = true)
+    tol = maximum(size(B)) * eps(Float64) * maximum(F.S; init = 0.0)
+    r = count(>(tol), F.S)
+    return F.U[:, (r + 1):end]' * Li, Li
+end
+
+# The rank of the projected coefficient T Aₜ. Rounding in the projection leaves singular values
+# of order eps·‖L⁻¹Aₜ‖ in the directions it removed, so those count as zero.
+function _projected_rank(Ta, LiAt)
+    s = LinearAlgebra.svdvals(Ta)
+    isempty(s) && return 0
+    return count(>(maximum(size(LiAt)) * eps(Float64) * maximum(LinearAlgebra.svdvals(LiAt))), s)
 end
 
 """
@@ -267,8 +326,8 @@ The message of a `MeanField()` node: ``\\exp \\mathbb E_q[\\log f]`` as a functi
 channels' current marginals ``q_i``. ``\\log f`` is quadratic, so only their means enter, and the
 message is ``\\mathcal N^{-1}(A_t^\\top Q^{-1} \\bar d, A_t^\\top Q^{-1} A_t)`` with ``\\bar d = c - \\sum_{i \\ne t} A_i\\, \\mathbb E_q[x_i]``:
 the belief-propagation message with every input replaced by a point mass at its mean. A mixture
-marginal enters by its mean; a channel without a proper marginal makes the message
-uninformative, as in `factor_message`.
+marginal enters by its mean; a channel without a proper marginal yet is integrated out under a
+flat prior, as in `factor_message`.
 """
 Mycelium.mean_field_message(f::LinearConstraintFactor, target::Symbol, polarity, beliefs, ps, st) =
     _message(f, target, _mean_points(f.dims, target, beliefs), ps, st)

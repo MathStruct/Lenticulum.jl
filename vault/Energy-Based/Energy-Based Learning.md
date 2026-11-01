@@ -154,8 +154,9 @@ Minimise, or marginalise — and the first is the $\beta\to\infty$ limit of the 
 is to **minimise the latent out**, which is cheap, and it is the right thing whenever the
 downstream consumer is going to take an argmin anyway.
 
-`constraint.md` §4.1 records that latent-channel marginalisation is "the single most valuable
-missing piece" in that file. Minimising it out is a legitimate alternative that nobody has
+`constraint.md` §4.1 recorded latent-channel marginalisation as "the single most valuable
+missing piece" in that file; for the linear-Gaussian factors it has since been done, as a
+pseudo-inverse (2026-11-01). Outside that family, minimising it out is a legitimate alternative that nobody has
 considered, and for a Dirac-valued graph it is not even an approximation — see
 [[Energy-Based Factor Graphs]] §3.
 

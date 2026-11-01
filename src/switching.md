@@ -80,8 +80,11 @@ clamped data), the Bethe free energy equals $-\log p(z)$ of the Gaussian mixture
 
 ## 4. Polarities and the game interface
 
-One polarity per channel, the outcome included, with the others observed; a latent outcome is
-marginalised under the factor's own weights. The open model is pure and its inversion exact, as
+Any assignment with one channel unobserved, the outcome included, and the others observed or
+latent: `supported_polarities` lists all $n \cdot 2^{n-1}$ of them, the set `supports_polarity`
+accepts (L-SPEC-001), in any key order. A latent outcome is marginalised under the factor's own
+weights; a latent continuous channel is integrated out under a flat prior (§5). Both are graph
+variables summed or integrated over by the message, not a latent space of the open model. The open model is pure and its inversion exact, as
 for `LinearConstraintModel`. The pointwise energy is $-\log f(x, k)$, a scalar. The factor passes
 `check_factor_conformance` in every polarity.
 
@@ -114,9 +117,13 @@ Carlo. `LinearConstraintFactor` has the same rule with one outcome (`constraint.
   is exact.
 - **The directed variant** of §8 of the design note (a switching kernel normalised by
   $Z_t(z_t)$, with gates that depend on the state) is a different factor and is not here.
-- An uninformative continuous input gives an uninformative continuous message, as for
-  `LinearConstraintFactor`. For the outcome it gives the factor's own weights when that
-  channel's `A` has full row rank (exact), and `TrivialBelief()` otherwise.
+- **Partially improper inputs.** An uninformative continuous input (no message,
+  `TrivialBelief()`, `Latent()`) is integrated out under a flat prior, exactly: $R^{-1}$ becomes the
+  projection that removes the range of those channels' $A$'s (`constraint.md` §4.1, the same
+  helper). Only the part of $d_k$ they cannot reach then separates the outcomes. Until
+  2026-11-01 the factor returned `TrivialBelief()` here unless that channel's `A` had full row
+  rank, and it looked only at the first such channel. A Gaussian input that is improper in some
+  directions only is still not handled: `_moments` needs it proper or entirely flat.
 
 ## 6. Difficulties met
 
@@ -125,8 +132,15 @@ Carlo. `LinearConstraintFactor` has the same rule with one outcome (`constraint.
   treats the components as normalised Gaussians of enormous variance and weights them by
   $\tfrac12 \eta^\top \Lambda^{-1} \eta$, which is rounding noise. The test caught it: the pooled weights were off by an
   order of magnitude. The factor now zeroes the null-space eigenvalues of a rank-deficient
-  precision, and pushes them to $-\epsilon\, \lambda_{\max}$ if the result still factorises, so the
-  components stay improper. The change is at rounding level.
+  precision. If the result still factorises it pushes them below zero, starting at
+  $-\epsilon\, \lambda_{\max}$ and growing until it does not (it throws after eight tries). The
+  components then stay improper. The change is at rounding level, but the precision is then
+  indefinite at that level: a proper neighbour with precision below about $\epsilon\, \lambda_{\max}$ in a
+  null direction would give a posterior that does not factorise (2026-11-01 review). That needs
+  $\lambda_{\max} / \lambda_{\text{prior}} \gtrsim 10^{16}$. The clean fix is a `GaussianBelief` that
+  says it is improper instead of deriving it from `isposdef`, which is a change to
+  LenticulumCore. The mean-field message is one Gaussian, not a mixture, and gets no repair:
+  there no weight depends on properness, as for `LinearConstraintFactor`.
 
 ## 7. The parameter gradient holds the belief fixed (LP-020, 2026-11-01)
 
@@ -137,3 +151,31 @@ log-weights, with the entropy $H(q) + H(x \mid k)$ constant. So the log-weights'
 $-(q - w)$, the EM M-step direction, and $A$ and $b$ get theirs at fixed responsibilities. This
 matches finite differences of the converged Bethe free energy in `test/lp020.jl`. Construction:
 `gaussian.md`, "The factor belief, held fixed".
+
+## 8. Review of 2026-11-01
+
+ChatGPT, Gemini and Mistral reviewed `switching.jl` on `master` (601b08d9). Each claim was
+checked against the code; the fixes are tested in `test/switching_constraint.jl` (the last
+three testsets).
+
+| claim | verdict | what changed |
+|---|---|---|
+| A flat input with rank-deficient `A` discards information (ChatGPT 1, Gemini C, Mistral 2) | right; ChatGPT's example gives $P(k{=}2) = 0.000335$, not uninformative. The answer does not depend on how the flat prior is regularised, contrary to Mistral's aside | flat channels are projected out together (§5); also in `LinearConstraintFactor` |
+| The check looks only at the first flat channel (Gemini C, Mistral 2) | right | all flat channels are stacked |
+| A flat input returns before an invalid outcome belief is checked (Gemini C) | right | the outcome belief is read first |
+| The polarity list misses the latent assignments (ChatGPT 3) | right, and `LinearConstraintFactor` too | both list $n \cdot 2^{n-1}$, capped at six channels; keys compared as sets |
+| `_singular_precision` makes the precision indefinite (ChatGPT 2) | right, at rounding level | documented in §6; a flag for "improper" would need LenticulumCore |
+| `_singular_precision` can still leave it positive definite (Mistral 5) | right in principle | the shift grows until it does not, then throws |
+| The mean-field message lacks the repair (all three) | no: it is one Gaussian, so no weight depends on properness | a comment says so |
+| Latent channels and `ispure` (ChatGPT 4) | a documentation gap: they are graph variables, not the model's latent space | docstrings say so |
+| `entropy` stores $+H$ under `negentropy` (Gemini B) | no: the documented convention of `LenticulumCore.entropy`, shared by every Gaussian factor | none |
+| The factor has no tests (Mistral 1) | no: `test/switching_constraint.jl` is in `runtests.jl` | none |
+| An all-zero outcome belief gives NaN in `switch_statistics` (Mistral 4, Gemini 2.2) | right | it throws, as the message does; the free energy checks `q` is finite |
+| A non-integer outcome throws `InexactError` (Mistral) | right | `ArgumentError` with the valid range |
+| A second Cholesky of $2\pi Q$; the trace term inside the sum; two SVDs; `C \ D` solved twice (Gemini) | right | one factorisation, the trace outside, one rank, one solve; the two free energies share `_switch_free_energy` |
+| `all` shadows `Base.all`; `Ηs` is a Greek capital eta (Mistral) | right | renamed (`etas`) |
+| `factor_belief` recomputes what `switch_statistics` already has (Gemini 3) | right, a cost only | not changed |
+| `K` and `m` are adjacent positional `Int`s (Mistral 7) | a fair API point | not changed: it would break callers |
+| The pointwise energy is a scalar with the normaliser, unlike the siblings (Mistral 6) | right, and already stated in §4 | none |
+| Moment matching makes "exact" conditional (ChatGPT 5) | already stated in §5 | none |
+
