@@ -177,7 +177,7 @@ A bipartite graph of variables and factors with named, directed channel attachme
 Build one with [`GraphBuilder`](@ref); do not construct directly, since the adjacency
 indices must stay consistent with the edge list.
 """
-struct FactorGraph{V<:Tuple,F<:Tuple}
+struct FactorGraph
     variables::Vector{VariableNode}
     factors::Vector{FactorNode}
     edges::Vector{Edge}
@@ -186,8 +186,6 @@ struct FactorGraph{V<:Tuple,F<:Tuple}
     variable_index::Dict{Symbol,Int}
     factor_index::Dict{Symbol,Int}
     plates::Vector{Any}
-    _v::V
-    _f::F
 end
 
 # --- Construction ----------------------------------------------------------
@@ -205,9 +203,11 @@ mutable struct GraphBuilder
     variable_index::Dict{Symbol,Int}
     factor_index::Dict{Symbol,Int}
     plates::Vector{Any}
+    ports::Set{Tuple{Int,Symbol}}     # connected (factor, channel) pairs, for the duplicate check
 end
 GraphBuilder() = GraphBuilder(
-    VariableNode[], FactorNode[], Edge[], Dict{Symbol,Int}(), Dict{Symbol,Int}(), Any[]
+    VariableNode[], FactorNode[], Edge[], Dict{Symbol,Int}(), Dict{Symbol,Int}(), Any[],
+    Set{Tuple{Int,Symbol}}()
 )
 
 """
@@ -270,12 +270,10 @@ function connect!(
     haskey(b.variable_index, variable) || throw(ArgumentError("no variable :$variable"))
     fid = b.factor_index[factor]
     vid = b.variable_index[variable]
-    for e in b.edges
-        if e.factor == fid && e.channel == channel
-            throw(ArgumentError("channel :$channel of factor :$factor is already connected"))
-        end
-    end
+    (fid, channel) in b.ports &&
+        throw(ArgumentError("channel :$channel of factor :$factor is already connected"))
     push!(b.edges, Edge(fid, channel, vid, direction, coupling, detach))
+    push!(b.ports, (fid, channel))
     return length(b.edges)
 end
 
@@ -300,7 +298,6 @@ function build(b::GraphBuilder)
     return FactorGraph(
         copy(b.variables), copy(b.factors), copy(b.edges), eof, eov,
         copy(b.variable_index), copy(b.factor_index), copy(b.plates),
-        Tuple(v.name for v in b.variables), Tuple(f.name for f in b.factors),
     )
 end
 
@@ -349,8 +346,9 @@ end
 
 _active_indices(f::FactorNode, ps) = LenticulumCore._trainable_indices(ps,
     !LenticulumCore.islearnable(f.factor) || LenticulumCore.isfrozen(f.factor) ? :all : f.freeze)
-_factor_nodes(g) = Tuple(g.factors)
-_variable_nodes(g) = Tuple(g.variables)
+# Vectors, not tuples: a tuple of every node makes compile time grow with the graph (plates).
+_factor_nodes(g) = g.factors
+_variable_nodes(g) = g.variables
 
 function _factor_parameters(f::FactorNode, ps)
     isempty(ps) && return ps

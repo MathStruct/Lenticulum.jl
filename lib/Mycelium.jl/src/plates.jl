@@ -192,10 +192,42 @@ group of factor → variable messages is computed in one call of [`factor_messag
 the polarity resolved once: a belief-propagation node, tied replicas (one parameter key), the
 same available channels, and a different target variable for each member (a shared target
 would see the earlier members' messages in its prior). Otherwise the members run one by one.
-Build one with [`plate_schedule`](@ref).
+Build one with [`plate_schedule`](@ref), which also finds each lifted group's structure once
+(`plans`); the polarity of such a group is resolved and checked on its first member. A schedule
+built from `groups` alone checks every group at run time.
 """
 struct PlateSchedule <: AbstractSchedule
     groups::Vector{Vector{MessageTask}}
+    plans::Vector{Any}            # per group: a `_GroupPlan`, or `nothing` (checked at run time)
+end
+PlateSchedule(groups::Vector{Vector{MessageTask}}) = PlateSchedule(groups, Any[nothing for _ in groups])
+
+# What a lifted group of factor -> variable messages needs, found once when the schedule is
+# built: member i's factor `factors[i]` (tied, belief propagation, one type) and its edge on
+# channel `channels[j]` at `edges[j, i]`, the same channel layout and directions in every member,
+# the target channel's position, and distinct targets.
+struct _GroupPlan{F}
+    factors::Vector{F}
+    channels::Vector{Symbol}
+    edges::Matrix{Int}
+    target::Int
+end
+
+function _group_plan(g::FactorGraph, grp::Vector{MessageTask})
+    length(grp) > 1 && all(t -> t.kind === :to_variable && can_emit(g, t.edge), grp) || return nothing
+    nodes = [factornode(g, g.edges[t.edge].factor) for t in grp]
+    f1 = first(nodes)
+    all(h -> h.params === f1.params && h.rule isa BeliefPropagation, nodes) || return nothing
+    allunique(g.edges[t.edge].variable for t in grp) || return nothing
+    E1 = g.edges_of_factor[f1.id]
+    layout(h) = [(g.edges[e].channel, typeof(g.edges[e].direction)) for e in g.edges_of_factor[h.id]]
+    l1 = layout(f1)
+    all(h -> layout(h) == l1, nodes) || return nothing
+    target = findfirst(==(first(grp).edge), E1)
+    all(((t, h),) -> g.edges_of_factor[h.id][target] == t.edge, zip(grp, nodes)) || return nothing
+    edges = reduce(hcat, [g.edges_of_factor[h.id] for h in nodes])
+    factors = [h.factor for h in nodes]
+    return _GroupPlan(identity.(factors), first.(l1), reshape(edges, length(E1), length(nodes)), target)
 end
 tasks(s::PlateSchedule) = reduce(vcat, s.groups; init = MessageTask[])
 
@@ -227,7 +259,7 @@ function plate_schedule(g::FactorGraph, replica_tasks::AbstractVector{MessageTas
             "task on edge $(t.edge) belongs to replica $i of plate :$(pl.name); write the schedule for replica 1"))
         return [MessageTask(pl.edges[k, j], t.kind) for j in 1:pl.n]
     end
-    return PlateSchedule(groups)
+    return PlateSchedule(groups, Any[_group_plan(g, grp) for grp in groups])
 end
 plate_schedule(g::FactorGraph, sched::AbstractSchedule; plate = nothing) =
     plate_schedule(g, tasks(sched); plate)
@@ -241,6 +273,7 @@ function plate_schedule(g::FactorGraph; plate = nothing)
     end
     seen = Set{Tuple{Symbol,Int}}()
     groups = Vector{MessageTask}[]
+    plans = Any[]
     for node in vcat([(:variable, v) for v in 1:nvariables(g)], [(:factor, f) for f in 1:nfactors(g)])
         node in seen && continue
         comp = _component(g, node)
@@ -256,9 +289,9 @@ function plate_schedule(g::FactorGraph; plate = nothing)
         root = something(findfirst(c -> (c[1] === :variable ? variable_degree(g, c[2]) : factor_degree(g, c[2])) == 1, comp), 1)
         ts = _tree_sweeps(g, comp[root])
         sub = plate_schedule(g, tasks(ts); plate = pl.name)
-        append!(groups, sub.groups)
+        append!(groups, sub.groups); append!(plans, sub.plans)
     end
-    return PlateSchedule(groups)
+    return PlateSchedule(groups, plans)
 end
 
 # The nodes reachable from `node`, breadth first.
@@ -283,9 +316,10 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::PlateSchedule, ps, st; d
     0 <= damping < 1 || throw(ArgumentError("damping must be in [0, 1); got $damping"))
     s.iteration += 1
     maxres = 0.0
-    for grp in sched.groups
+    for (grp, plan) in zip(sched.groups, sched.plans)
         res, st = length(grp) == 1 ? _step_each!(s, g, grp, ps, st, damping) :
                   _to_factor_group(g, grp) ? (_step_to_factor_group!(s, g, grp), st) :
+                  plan !== nothing ? _step_planned!(s, g, grp, plan, ps, st, damping) :
                   _batchable(s, g, grp) ? _step_group!(s, g, grp, ps, st, damping) :
                   _step_each!(s, g, grp, ps, st, damping)
         maxres = max(maxres, res)
@@ -352,7 +386,7 @@ function _step_group!(s, g, grp, ps, st, damping)
     psf = _factor_parameters(fn, _subtree(ps, fn.params))
     stf = _subtree(st, fn.params)
     inputs = [_inputs(s, g, g.edges[t.edge].factor, chans) for t in grp]
-    priors = [excluded_marginal(s, g, g.edges[t.edge].variable, t.edge) for t in grp]
+    priors = _LazyPriors(s, g, grp)
     factors = [factornode(g, g.edges[t.edge].factor).factor for t in grp]
     beliefs, stf = factor_messages(factors, e1.channel, pol, inputs, priors, psf, stf)
     length(beliefs) == length(grp) || throw(ArgumentError(
@@ -369,4 +403,62 @@ function _step_group!(s, g, grp, ps, st, damping)
         s.to_variable[t.edge] = Message(belief, s.iteration)
     end
     return maxres, _setsubtree(st, fn.params, stf)
+end
+
+# The `priors` of a group, computed when a factor reads them (most ignore them). Read before
+# any member's message is committed, so they are the sequential schedule's priors.
+struct _LazyPriors{S,G} <: AbstractVector{Any}
+    s::S
+    g::G
+    grp::Vector{MessageTask}
+end
+Base.size(p::_LazyPriors) = (length(p.grp),)
+Base.getindex(p::_LazyPriors, i::Int) = excluded_marginal(p.s, p.g, p.g.edges[p.grp[i].edge].variable, p.grp[i].edge)
+
+_informative_input(s, e) = has_to_factor(s, e) && !LenticulumCore.isuninformative(s.to_factor[e].belief)
+
+# A group with a `_GroupPlan`: availability is read through the plan's edges, the polarity is
+# resolved and checked on the first member only (the plan holds one layout of channels and
+# directions, and one factor type), and the inputs are gathered without searching edges.
+function _step_planned!(s, g, grp, plan::_GroupPlan, ps, st, damping)
+    E, n, nc = plan.edges, length(grp), length(plan.channels)
+    mask = [j != plan.target && _informative_input(s, E[j, 1]) for j in 1:nc]
+    for i in 2:n, j in 1:nc
+        j == plan.target && continue
+        _informative_input(s, E[j, i]) == mask[j] || return _step_each!(s, g, grp, ps, st, damping)
+    end
+    js = findall(mask)
+    chans = Tuple(plan.channels[js])
+    e1 = g.edges[first(grp).edge]
+    fn = factornode(g, e1.factor)
+    pol = resolve_polarity(g, e1.factor, e1.channel, chans)
+    isempty(chans) && !issink(fn.factor) && !LenticulumCore.supports_polarity(fn.factor, pol) &&
+        return _step_each!(s, g, grp, ps, st, damping)
+    check_legal(g, e1.factor, pol)
+    psf = _factor_parameters(fn, _subtree(ps, fn.params))
+    stf = _subtree(st, fn.params)
+    inputs = _gather_inputs(NamedTuple{chans}, s.to_factor, E, js)
+    beliefs, stf = factor_messages(plan.factors, e1.channel, pol, inputs, _LazyPriors(s, g, grp), psf, stf)
+    length(beliefs) == n || throw(ArgumentError(
+        "factor_messages of $(nameof(typeof(fn.factor))) returned $(length(beliefs)) messages for $n replicas"))
+    return _commit_group!(s, g, grp, beliefs, damping), _setsubtree(st, fn.params, stf)
+end
+
+function _gather_inputs(::Type{NT}, tf, E, js) where {NT}
+    return [NT(Tuple(tf[E[j, i]].belief for j in js)) for i in axes(E, 2)]
+end
+
+function _commit_group!(s, g, grp, beliefs, damping)
+    maxres = 0.0
+    for (t, belief) in zip(grp, beliefs)
+        e = g.edges[t.edge]
+        old = s.to_variable[t.edge]
+        if old !== nothing && damping > 0
+            belief = damp(belief, old.belief, 1 - damping)
+        end
+        belief = e.detach ? LenticulumCore.stop_gradient(belief) : belief
+        maxres = max(maxres, belief_distance(old === nothing ? nothing : old.belief, belief))
+        s.to_variable[t.edge] = Message(belief, s.iteration)
+    end
+    return maxres
 end

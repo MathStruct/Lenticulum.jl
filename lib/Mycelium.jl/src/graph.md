@@ -58,7 +58,11 @@ cheapest possible check that the graph and the free-energy accounting have not d
 built for (factor graphs are wide, not deep) but it is an unguarded assumption; an explicit
 stack would be strictly better and is a five-line change.
 
-### 2. `FactorGraph` carries two vestigial type parameters
+### 2. `FactorGraph` carried two vestigial type parameters (removed 2026-11-02)
+
+They made the graph's type grow with the graph, so a plate of each size recompiled every method
+that took the graph (`plates.md`, "What changed after the review"); `FactorGraph` is now one
+concrete type. The original note:
 
 `_v` and `_f` hold the tuples of node names, giving `FactorGraph{V,F}` type parameters that
 nothing currently dispatches on. The intent was to make graph-wide `NamedTuple` construction
@@ -141,5 +145,6 @@ another key. The 3-, 4- and 5-argument `FactorNode` constructors set the key to 
 that builds nodes by hand is unchanged.
 
 `FactorGraph` and `GraphBuilder` also hold the graph's plates (`plates.jl`, `plates.md`).
-`show` now says "forest" for a disconnected graph whose components are trees (`_ncomponents`), the
+`connect!` checks for a duplicate port in a set (`GraphBuilder.ports`) instead of scanning the edges,
+so building is linear in the number of edges. `show` now says "forest" for a disconnected graph whose components are trees (`_ncomponents`), the
 usual shape of a plate with shared parameters only; it said "loopy" before.

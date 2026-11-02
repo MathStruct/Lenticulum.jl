@@ -311,7 +311,8 @@ function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{na
     target in names || throw(ArgumentError(
         "channel :$target is not a channel of this LinearConstraintFactor (has $names)"))
     f = first(fs)
-    partss = [[(n, _split_moments(_get(inp, n), h.dims[n])) for n in names if n !== target] for (h, inp) in zip(fs, inputs)]
+    others = _other_channels(Val(names), Val(target))
+    partss = [map(n -> (n, _split_moments(_get(inp, n), h.dims[n])), others) for (h, inp) in zip(fs, inputs)]
     p1 = first(partss)
     same(a, b) = isequal(a[2][2], b[2][2]) && isequal(a[2][3], b[2][3])
     c = float.(ps.c)
@@ -336,9 +337,19 @@ function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{na
         rt == 0 && return Any[LenticulumCore.TrivialBelief() for _ in partss], st
         K, Λ, improper = Ta' * T, Ta' * Ta, rt < size(At, 2)
     end
-    beliefs = Any[GaussianBelief(K * (c .- _input_sum(A, f.Q, p)), copy(Λ), improper) for p in partss]
-    return beliefs, st
+    # every replica at once: H = K (c 1ᵀ − Σₙ Aₙ Mₙ), with Mₙ the stacked input means; one precision
+    # shared by all the messages (beliefs are not mutated in place)
+    Mc = repeat(c, 1, length(partss))
+    for (k, (n, _)) in enumerate(p1)
+        Mc = Mc .- A[n] * reduce(hcat, [p[k][2][1] for p in partss])
+    end
+    H = K * Mc
+    return Any[GaussianBelief(H[:, i], Λ, improper) for i in axes(H, 2)], st
 end
+
+# The channels other than the target, as a tuple known to the compiler.
+@generated _other_channels(::Val{names}, ::Val{target}) where {names,target} =
+    Tuple(n for n in names if n !== target)
 
 # The non-target channels, each as (n, (m, S, N)): a Gaussian part with mean m and covariance S
 # (`nothing`: a point), flat along the columns of N (`nothing`: nowhere). Returns Σ Aₙmₙ,
@@ -353,15 +364,6 @@ function _accumulate(A, Q, parts)
         N === nothing || push!(G, A[n] * N)
     end
     return s, R, G
-end
-
-# Σ Aₙmₙ alone, as `_accumulate` sums it.
-function _input_sum(A, Q, parts)
-    s = zeros(size(Q, 1))
-    for (n, (m, _, _)) in parts
-        s = s .+ A[n] * m
-    end
-    return s
 end
 
 # The residual metric with the flat directions integrated out, as a factor T with TᵀT the metric.

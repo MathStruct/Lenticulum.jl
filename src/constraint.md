@@ -282,5 +282,7 @@ tied replicas (`lib/Mycelium.jl/src/plates.md`). When all replicas have one nois
 dimensions, and every replica's inputs have the same covariances and flat directions, the metric
 $R$, its factorisation or the residual metric $T$, and the rank test depend on the parameters only,
 so they are computed once; replica $i$'s message is then $K(c - \sum_n A_n m_{n,i})$ with the shared
-$K$ and precision. That is the case for data (points) and a shared prior. Otherwise each replica
+$K$ and precision. That is the case for data (points) and a shared prior. The input means of all
+replicas are stacked, so the messages come from one product $K(c\,\mathbf 1^\top - \sum_n A_n M_n)$,
+and they share one precision matrix (messages are never mutated in place). Otherwise each replica
 goes through `_linear_message`. `test/plates.jl` checks both paths against `factor_message`.

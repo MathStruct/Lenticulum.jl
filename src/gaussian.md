@@ -228,3 +228,11 @@ differentiated code is unchanged for proper inputs. The theory and the tolerance
 `constraint.md` §4.1. `GaussianFactor` still returns `TrivialBelief()` for a flat input and
 refuses a partially improper one (`belief_mean` throws); it is the two-channel case of `LinearConstraintFactor` and could call the same code,
 which has not been done.
+
+## Batched prior messages (2026-11-02)
+
+`Mycelium.factor_messages` for a vector of tied `GaussianPrior`s (a plate) converts the mean and
+covariance to canonical form once when the replicas share them, and gives every replica that
+message; otherwise each replica is converted on its own. The covariance is read through
+`noise_covariance(f, ps)`, so a learned covariance is handled; caching the belief in the factor
+would not be. Checked by `test/plates.jl` (the grouped sweep against the sequential one).

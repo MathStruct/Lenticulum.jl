@@ -45,7 +45,9 @@ each component's tree schedule and needs the replicas to be separate components.
 
 **§4. Batched messages.** Within a group, factor → variable messages of tied belief-propagation
 replicas with the same available channels and distinct target variables are computed by one
-call of `factor_messages(factors, target, polarity, inputs, priors, ps, st)`, which must return
+call (the structure of a lifted group, its edges by channel and its checks, is found once when the
+schedule is built; the polarity is resolved and checked on the first member, which assumes that
+tied factors of one type in one template position support the same polarities) of `factor_messages(factors, target, polarity, inputs, priors, ps, st)`, which must return
 what `factor_message` returns for each replica. The default loops; `LinearConstraintFactor`
 shares the factorisation and the rank test when its replicas' noise and input covariances agree.
 
@@ -70,13 +72,18 @@ shares the factorisation and the rank test when its replicas' noise and input co
   sum over separate graphs, and the gradient equals central differences of the converged free
   energy to $10^{-6}$.
 
-`bench/plates.jl` measures the speed (`plates.md`): the grouped plate is 2.1–2.5 times faster
-than a loop of prebuilt graphs and 430–740 times slower than the hand-written E-step.
+- each lifted factor → variable group has a plan and dispatches to the batched method of its
+  factor type; a plate of 500 replicas has the closed-form free energy to $10^{-12}$ (relative).
+
+`bench/plates.jl` measures the speed (`plates.md`): the grouped plate is about 6.3 times faster
+than a loop of prebuilt graphs and 170–240 times slower than the hand-written E-step; building and
+the free energy are linear in $N$ (0.05 s and 34 ms at $N = 3000$).
 
 ## Open
 
-- **Speed.** [[Extending Mycelium]] §2 asked for a small factor of hand-written code; the gap is
-  Mycelium's per-message overhead (polarity resolution, dynamic dispatch), not the factors.
+- **Speed.** [[Extending Mycelium]] §2 asked for a small factor of hand-written code; after the
+  review fixes the plate is 170–240 times slower, spread over untyped message storage and
+  per-message bookkeeping. A batched message representation would be the next step.
 - No nested plates, no batched message type, no stateful tied factors.
 - `adjoint = :implicit` disagrees with the default driver on graphs with diagonal couplings,
   plates or not ([[LP-021 The coupled gradient drivers cut diagonal edges at fixed messages]]).

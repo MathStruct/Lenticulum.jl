@@ -95,9 +95,9 @@ general (`factor!(...; params)`), the plate builder unrolls the template with ti
 `plate_schedule` runs each template task for all replicas at once through `factor_messages`.
 Checked against the loop of $N$ graphs (marginals, free energy, gradients with three backends) and
 closed forms, including a shared latent variable and a plate of hybrid graphs. The speed target
-was not met: for factor analysis the grouped plate is 2.1–2.5 times faster than a loop of
-prebuilt graphs and 430–740 times slower than the hand-written E-step, the rest being Mycelium's
-per-message overhead. The comparison with E7's vectorised code was not rerun (E7 lives on
+was not met: for factor analysis the grouped plate is about 6.3 times faster than a loop of
+prebuilt graphs and 170–240 times slower than the hand-written E-step, after the fixes of a
+review (graph types that grew with the graph, per-replica work in batched groups; `plates.md`). The comparison with E7's vectorised code was not rerun (E7 lives on
 `experiment-qm`). A plate is unrolled rather than batched; "factors inside see batched inputs"
 holds only through `factor_messages`.
 

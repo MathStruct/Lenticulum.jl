@@ -569,6 +569,18 @@ end
 
 Mycelium.factor_message(f::GaussianPrior, ::Symbol, _, _, _, ps, st) =
     (Gaussian(f.μ, noise_covariance(f, ps)), st)
+
+# Tied replicas (a plate): one conversion to canonical form when they share mean and covariance,
+# the same message for every replica (beliefs are not mutated in place, so it is shared).
+function Mycelium.factor_messages(fs::AbstractVector{<:GaussianPrior}, target::Symbol, polarity,
+                                  inputs::AbstractVector, priors::AbstractVector, ps, st)
+    f = first(fs)
+    Σ = noise_covariance(f, ps)
+    all(h -> h === f || (isequal(h.μ, f.μ) && isequal(noise_covariance(h, ps), Σ)), fs) ||
+        return Any[first(Mycelium.factor_message(h, target, polarity, nothing, nothing, ps, st)) for h in fs], st
+    b = Gaussian(f.μ, Σ)
+    return Any[b for _ in fs], st
+end
 function Mycelium._gradient_message(ad, f::GaussianPrior, ::Symbol, _, _, _, ps, st)
     P=inv(Symmetric(noise_covariance(f,ps)))
     return GaussianBelief(P*f.μ,P),st

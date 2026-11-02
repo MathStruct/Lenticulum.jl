@@ -6,7 +6,9 @@
 # z_i. Five ways: a graph built and run per point (as `fit_hybrid` did on `experiment-qm`), the
 # same graphs built once, one plate on a sequential schedule, the plate on its grouped schedule
 # (`plate_schedule`), and the closed form vectorised by hand: P = I + WᵀΣ⁻¹W,
-# M = P⁻¹WᵀΣ⁻¹(X − c). Each timing is the minimum over five runs after a warm-up.
+# M = P⁻¹WᵀΣ⁻¹(X − c). Each timing is the minimum over five runs after a warm-up, and times the
+# message passing only (a fresh store and one sweep); reading the posterior means out of the
+# stores is checked against the closed form outside the timings.
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, Printf
 
 const D, K, σ2 = 3, 2, 0.7
@@ -26,27 +28,28 @@ function plate_graph(X)
 end
 setparams(g, W, c) = (ps = LuxCore.initialparameters(Xoshiro(0), g);
     merge(ps, (lik = merge(ps.lik, (A = (x = Matrix(1.0I, D, D), z = -W), c = c)),)))
-zmean(s, g, name) = belief_mean(marginal(s, g, g.variable_index[name]))
+# the posterior means of every z, read through the plate record's ids (outside the timings)
+zmeans(s, g) = (pl = only(plates(g)); reduce(hcat, [belief_mean(marginal(s, g, pl.variables[1, i])) for i in 1:pl.n]))
 
 function loop_built(X, W, c)
     map(axes(X, 2)) do i
         g = plate_graph(X[:, i:i])
         s = MessageStore(g)
         sweep!(s, g, tree_schedule(g), setparams(g, W, c), NamedTuple())
-        zmean(s, g, Symbol("z[1]"))
+        s
     end
 end
 function loop_prebuilt(gs, pss, scheds)
     map(eachindex(gs)) do i
         s = MessageStore(gs[i])
         sweep!(s, gs[i], scheds[i], pss[i], NamedTuple())
-        zmean(s, gs[i], Symbol("z[1]"))
+        s
     end
 end
-function plate_run(g, ps, sched, n)
+function plate_run(g, ps, sched)
     s = MessageStore(g)
     sweep!(s, g, sched, ps, NamedTuple())
-    [zmean(s, g, replica_name(:z, i)) for i in 1:n]
+    s
 end
 function vectorised(X, W, c)
     Wt = W' / σ2
@@ -64,10 +67,25 @@ for N in (100, 300, 1000)
     g = plate_graph(X); ps = setparams(g, W, c)
     grouped = plate_schedule(g); seq = SequentialSchedule(tasks(grouped))
     M = vectorised(X, W, c)
-    Δ = maximum(abs, reduce(hcat, plate_run(g, ps, grouped, N)) .- M)
-    @assert maximum(abs, reduce(hcat, loop_prebuilt(gs, pss, scheds)) .- M) < 1e-10
+    Δ = max(maximum(abs, zmeans(plate_run(g, ps, grouped), g) .- M), maximum(abs, zmeans(plate_run(g, ps, seq), g) .- M))
+    @assert maximum(abs, reduce(hcat, [zmeans(s, gi) for (s, gi) in zip(loop_prebuilt(gs, pss, scheds), gs)]) .- M) < 1e-10
     @printf("%6d %10.2f ms %10.2f ms %10.2f ms %10.2f ms %10.4f ms %10.1e\n", N,
             1e3best(() -> loop_built(X, W, c)), 1e3best(() -> loop_prebuilt(gs, pss, scheds)),
-            1e3best(() -> plate_run(g, ps, seq, N)), 1e3best(() -> plate_run(g, ps, grouped, N)),
+            1e3best(() -> plate_run(g, ps, seq)), 1e3best(() -> plate_run(g, ps, grouped)),
             1e3best(() -> vectorised(X, W, c)), Δ)
+end
+
+# Large plates: building the graph, the first (compiling) and a later call of the scalar free
+# energy, after one grouped sweep. The first N in the loop pays the method's compilation.
+println()
+@printf("%6s %10s %16s %16s\n", "N", "build", "F, first call", "F, later call")
+for N in (100, 1000, 3000)
+    rng = Xoshiro(N)
+    X = randn(rng, D, N); W = randn(rng, D, K); c = randn(rng, D)
+    tb = @elapsed (g = plate_graph(X))
+    ps = setparams(g, W, c)
+    s = plate_run(g, ps, plate_schedule(g))
+    t1 = @elapsed LenticulumCore.scalar_free_energy(s, g, ps, NamedTuple())
+    t2 = minimum(@elapsed(LenticulumCore.scalar_free_energy(s, g, ps, NamedTuple())) for _ in 1:3)
+    @printf("%6d %8.2f s %14.3f s %13.1f ms\n", N, tb, t1, 1e3t2)
 end

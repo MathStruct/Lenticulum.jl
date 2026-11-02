@@ -154,6 +154,25 @@ pl_fa_nlp(X, W, c) = -sum(pl_lognormal(X[:, i], c, W * W' + PL_σ2 * I) for i in
         end
     end
 
+    @testset "a plate sweep takes the batched path, and large plates stay cheap" begin
+        g = pl_fa_graph(X)
+        sched = plate_schedule(g)
+        planned = [p for p in sched.plans if p !== nothing]
+        @test length(planned) == 3                     # data -> x, lik -> z, prior -> z
+        for p in planned
+            T = Tuple{typeof(p.factors),Symbol,Any,Vector{Any},Vector{Any},Any,Any}
+            @test which(Mycelium.factor_messages, T).module === (eltype(p.factors) <: DataFactor ? Mycelium : Lenticulum)
+        end
+        # 500 replicas: the free energy is a sum over node vectors, not a 1500-field NamedTuple
+        Xl = randn(rng, PL_D, 500)
+        gl = pl_fa_graph(Xl)
+        psl0 = LuxCore.initialparameters(Xoshiro(0), gl)
+        psl = merge(psl0, (lik = pl_fa_lik(psl0, W, c),))
+        sl = MessageStore(gl)
+        _, stl = propagate!(sl, gl, plate_schedule(gl), psl, LuxCore.initialstates(Xoshiro(0), gl); maxsweeps = 3)
+        @test first(LenticulumCore.scalar_free_energy(sl, gl, psl, stl)) ≈ pl_fa_nlp(Xl, W, c) rtol = 1e-12
+    end
+
     @testset "what a grouped sweep and tying refuse" begin
         # a hand-built group of tied nodes on different rules runs member by member
         b = GraphBuilder()

@@ -330,6 +330,8 @@ by several nodes it evaluates each node's term outside AD as before (its belief,
 marginals, or its messages for a factor without `factor_belief`) and differentiates the sum of
 their scalars in one AD call (`_gradient_item`, `_tied_scalar`); one node is differentiated as
 before. `parameter_step` keeps one optimiser state per key. `factor_free_energies` still reports
-one energy per node, keyed by node name, and threads state by key. Checked in `test/plates.jl`
+one energy per node, keyed by node name, and threads state by key. `scalar_free_energy` sums
+the same terms as a vector (`_factor_terms`), so it does not build a type with one field per node,
+which recompiled for every plate size (`plates.md`). Checked in `test/plates.jl`
 against the sum of separate graphs' gradients. The coupled drivers differentiate the whole of
 `ps` and sum tied entries without change.

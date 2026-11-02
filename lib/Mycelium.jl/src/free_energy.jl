@@ -119,9 +119,16 @@ its local free energy needs variable-to-factor messages. Use `Bidirectional()` o
 Missing messages on edges that can carry them remain `nothing`.
 """
 function factor_free_energies(s::AbstractMessageStore, g::FactorGraph, ps, st)
+    results, stnew = _factor_terms(s, g, ps, st)
+    names = Tuple(f.name for f in g.factors)
+    return LenticulumCore.GradedEnergy(NamedTuple{names}(Tuple(results))), stnew
+end
+
+# Each node's free energy, in node order, and the threaded state. A vector, not a NamedTuple:
+# `scalar_free_energy` sums it without a type with one field per node (`plates.md`).
+function _factor_terms(s::AbstractMessageStore, g::FactorGraph, ps, st)
     _check_energy_edges(g)
     _check_tied_state(g, st)
-    names = Tuple(f.name for f in g.factors)
     results = map(_factor_nodes(g)) do f
         psf = _factor_parameters(f, _subtree(ps, f.params))
         stf = _subtree(st, f.params)
@@ -131,7 +138,7 @@ function factor_free_energies(s::AbstractMessageStore, g::FactorGraph, ps, st)
     stnew = foldl(zip(g.factors,results); init=st) do acc, item
         _setsubtree(acc, item[1].params, item[2][2])
     end
-    return LenticulumCore.GradedEnergy(NamedTuple{names}(map(first,results))), stnew
+    return map(first, results), stnew
 end
 
 """
@@ -288,11 +295,10 @@ likelihood factor uses the identity, in the same graph. See
 Uses [`factor_free_energies`](@ref), including its cavity edge-direction check.
 """
 function LenticulumCore.scalar_free_energy(s::MessageStore, g::FactorGraph, ps, st)
-    F, st = factor_free_energies(s, g, ps, st)
+    F, st = _factor_terms(s, g, ps, st)
     total = 0.0
-    for f in g.factors
-        σ = LenticulumCore.scalarisation(f.factor)
-        total += LenticulumCore.scalarise(σ, F[f.name])
+    for (f, Ff) in zip(g.factors, F)
+        total += LenticulumCore.scalarise(LenticulumCore.scalarisation(f.factor), Ff)
     end
     for v in g.variables
         total += _variable_term(s, g, v.id)

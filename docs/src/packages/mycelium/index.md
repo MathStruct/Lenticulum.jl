@@ -232,8 +232,8 @@ through [`factor_messages`](@ref); `LinearConstraintFactor` does.
 - Potential distances compare callable identity (otherwise `Inf`); damping potentials is
   an inspectable no-op through `can_damp`.
 - Plates are unrolled, not batched: the grouped schedule removes the per-replica polarity and
-  rank work, but the per-message overhead stays (factor analysis: 2.1–2.5 times faster than a
-  loop of graphs, hundreds of times slower than the E-step written by hand; `plates.md`).
+  rank work, but the per-message overhead stays (factor analysis: about 6 times faster than a
+  loop of graphs, 170–240 times slower than the E-step written by hand; `plates.md`).
 - `adjoint = :implicit` (and the other coupled drivers) cut a diagonal edge at its fixed message,
   not its fixed belief, so with the default couplings it disagrees with the default driver
   (LP-021, open).

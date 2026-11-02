@@ -3,8 +3,8 @@
 > Plates: a template replicated over $n$ observations in one unrolled graph, with tied parameters,
 > a record of the replicas, and schedules that run the same template task for every replica in
 > one call. Equal to the loop of $n$ graphs in marginals, free energy and gradients
-> (`test/plates.jl`); 2.1 to 2.5 times faster than that loop for factor analysis
-> (`bench/plates.jl`), still 430 to 740 times slower than the same E-step written by hand.
+> (`test/plates.jl`); about 6 times faster than that loop for factor analysis
+> (`bench/plates.jl`), still 170 to 240 times slower than the same E-step written by hand.
 
 > Sources: original to this repository (design: [[Extending Mycelium]] §2). code: `plates.jl`, `graph.jl` (`parameter_key`, `parameter_keys`, `tied_factors`), `passing.jl` (`factor_messages`), `free_energy.jl` (`free_energy_gradient`, `parameter_step`), `../../../src/constraint.jl` (the batched `factor_messages`); tests: `../../../test/plates.jl`; benchmark: `../../../bench/plates.jl`
 >
@@ -84,26 +84,66 @@ $10^{-12}$ on every edge, in both directions.
 
 ## Speed
 
-`bench/plates.jl`, the E-step of factor analysis ($d = 3$, $k = 2$), minimum of five runs:
+`bench/plates.jl`, the E-step of factor analysis ($d = 3$, $k = 2$): one fresh store and one sweep,
+minimum of five runs, the posterior means checked against the closed form outside the timings:
 
 | $N$ | graph per point, built each time | graph per point, prebuilt | plate, sequential | plate, grouped | by hand |
 |---|---|---|---|---|---|
-| 100 | 2.86 ms | 1.55 ms | 1.86 ms | 0.64 ms | 0.0015 ms |
-| 300 | 8.67 ms | 4.56 ms | 7.72 ms | 1.85 ms | 0.0032 ms |
-| 1000 | 29.48 ms | 14.77 ms | 31.11 ms | 7.02 ms | 0.0095 ms |
+| 100 | 2.80 ms | 1.48 ms | 1.41 ms | 0.24 ms | 0.0014 ms |
+| 300 | 8.39 ms | 4.49 ms | 4.31 ms | 0.71 ms | 0.0038 ms |
+| 1000 | 28.30 ms | 15.04 ms | 14.22 ms | 2.39 ms | 0.0099 ms |
 
 The plate's posterior means equal the hand-written E-step to $8 \cdot 10^{-16}$. The grouped plate is
-2.1 to 2.5 times faster than a loop over prebuilt graphs and 4.2 to 4.7 times faster than building a
-graph per point; it is 430 to 740 times slower than the closed form. The plate on a sequential
-schedule is no faster than the loop (and slower at $N = 1000$; not investigated).
+about 6.3 times faster than a loop over prebuilt graphs and 12 times faster than building a graph
+per point; it is 170 to 240 times slower than the closed form. The second part of the benchmark
+times large plates: building the graph and the scalar free energy after one sweep.
 
-What is left is Mycelium's per-message overhead, not linear algebra. A profile of the sequential
-plate sweep (300 points) put about a quarter of the time in `resolve_polarity`, which builds a
-`NamedTuple` type at run time, a quarter in the factor's message (about a quarter of that in the rank
-test's SVD), and most of the rest in dynamic dispatch on the untyped node and edge vectors and in
-`available_channels`. Grouping removes the per-replica polarity and rank work; the dispatch
-remains. The target of [[Extending Mycelium]] §2, within a small factor of hand-written code, is
-not met.
+| $N$ | build | free energy, first call | later call |
+|---|---|---|---|
+| 100 | 0.00 s | 1.311 s | 1.0 ms |
+| 1000 | 0.04 s | 0.010 s | 10.3 ms |
+| 3000 | 0.05 s | 0.032 s | 33.9 ms |
+
+The first call at $N = 100$ is the method's compilation; later sizes reuse it.
+
+### What changed after the review (2026-11-02)
+
+A review of this file (outside the repository) timed each group and found the costs that were
+left. Measured before the changes, on commit 345e03f3, with the same models:
+
+- **The graph's type grew with the graph.** `FactorGraph{V,F}` carried the tuples of all node names
+  as type parameters (vestigial, `graph.md` §2), and `scalar_free_energy` went through a
+  `NamedTuple` with one field per factor. Every new size recompiled: the first free-energy call
+  took 4.1, 6.8 and 14.6 s at $N$ = 100, 1000 and 3000, later calls 13.5, 48 and 311 ms. The type
+  parameters are gone, the node lists are vectors rather than tuples, and the scalar free energy
+  sums a vector of terms (`_factor_terms`); `factor_free_energies` still returns its keyed
+  `GradedEnergy`.
+- **Building was quadratic**: `connect!` scanned every edge for a duplicate port (2.2 s at
+  $N = 3000$). The builder keeps a set of connected ports.
+- **The batched groups redid per replica what the plate fixes once.** In the likelihood group
+  (4.3 ms of 7 at $N = 1000$), building each replica's input `NamedTuple` by searching its edges
+  took 3.0 ms, the legality check 1.3 ms and the unused priors 1.2 ms. `plate_schedule` now stores
+  a `_GroupPlan` per lifted factor → variable group (each member's factor, its edges by channel,
+  one channel layout and direction pattern, distinct targets, all checked when the schedule is
+  built); the sweep reads availability through those edges, resolves and checks the polarity on
+  the first member only, and passes the priors as a lazy vector that is evaluated only if read.
+  Inside `LinearConstraintFactor`'s method, the per-replica input lists are built over a
+  compile-time tuple of channels (the filtered comprehension cost half the group), the means are
+  stacked into one matrix product, and the precision is shared.
+- **`GaussianPrior` converted its covariance for every replica.** It now has a batched method
+  that converts once when the replicas share mean and covariance (`gaussian.md`).
+- **The benchmark timed the readout too** (a `Symbol` and a dictionary lookup per replica);
+  it now times the sweep only.
+
+One claim of the review was wrong: that `_step_group!` built a `Vector{Any}` of factors and so
+never reached the batched `LinearConstraintFactor` method. Julia's comprehensions take the type
+of the elements, the vector was concrete, and the method was dispatched; `test/plates.jl` now
+checks which method each planned group dispatches to.
+
+What is left is spread out: the variable → factor groups (one `excluded_marginal` each), the
+commits, the input gathering, and the factor methods, all through untyped `Vector{Any}` message
+storage. Closing the remaining factor of about 200 needs a batched message representation, which
+plates do not have.
 
 ## What it does not do
 
