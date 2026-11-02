@@ -258,10 +258,10 @@ end
     end
     # belief propagation at the sum node is a different approximation (prior moments of the other block)
     @test maximum(maximum(maximum(abs.(bp(x)[b] - first(hybrid(x))[b])) for b in 1:2) for x in X) > 1e-3
-    # and the free energy refuses the hybrid rather than misreport it
+    # the hybrid has a free energy now, the merged one (`test/mean_field_free_energy.jl` checks it)
     g, ps = graph(X[1], MeanField())
     _, _, _, s = infer!(g, SequentialSchedule(all_tasks(g)), ps, NamedTuple(); maxsweeps = 3)
-    @test_throws ArgumentError LenticulumCore.scalar_free_energy(s, g, ps, NamedTuple())
+    @test isfinite(first(LenticulumCore.scalar_free_energy(s, g, ps, NamedTuple())))
 end
 
 @testset "Gibbs sampling over switches, the sample buffer, and the Monte Carlo EM gradient" begin

@@ -60,18 +60,18 @@ belief propagation around it.
 - **`mean_field_message` has no generic method.** The expectation needs the factor's form, so a
   factor opts in. Lenticulum implements it for `LinearConstraintFactor` (the BP message with each
   input at its mean, since $\log f$ is quadratic) and for `SwitchingConstraintFactor`.
-- **The graph free energy refuses such graphs.** The hybrid's free energy (Riegler et al. 2013)
-  counts entropies differently from Bethe, and it is not implemented. `factor_free_energies`,
-  `bethe_free_energy`, `scalar_free_energy`, `free_energy_gradient` and `parameter_step` all go
-  through `_check_energy_edges`, which throws for a node that is not on belief propagation.
-  Learning with mean-field nodes is therefore EM outside the graph for now
-  (Lenticulum's `test/switching_constraint.jl`, and E7 in [[Composing Stochastic Factors]]).
+- **The graph free energy is the merged one** (2026-11-02, [[L-SPEC-005 The Hybrid Free Energy]]).
+  Riegler et al. (2013), eq. (17): a mean-field node contributes `mean_field_energy`, its average
+  energy under the product of its variables' marginals with no entropy, and the variables'
+  counting numbers count belief-propagation neighbours only. `free_energy_gradient` and
+  `parameter_step` train such graphs at fixed beliefs and marginals. Before this the free energy
+  refused them, and learning was EM outside the graph.
 - **Convergence is measured on the messages**, as for loopy BP. Mixtures of very narrow components
   have a rounding floor in `belief_distance`, about $10^{-10}$ to $10^{-8}$ at width $10^{-8}$, so set
   `tol` above it.
 
 Tested in `test/message_rules.jl`: the default rule; a recording factor that sees the marginal
-(prior pooled with its own earlier message), not the cavity; the free-energy refusals; and the
+(prior pooled with its own earlier message), not the cavity; the refusal for a factor without `mean_field_energy`; and the
 missing-method error. The end-to-end check, a hybrid graph against an independent structured mean field,
 is in Lenticulum's `test/switching_constraint.jl`.
 

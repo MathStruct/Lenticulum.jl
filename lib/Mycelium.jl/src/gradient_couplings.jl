@@ -231,7 +231,8 @@ function _coupled_gradient(s, g, ps, st; ad=nothing, ε=1e-6, schedule=nothing,
         nsweeps=1, rng=nothing, nsamples=nothing, return_state=false, damping=0.0,
         adjoint=:unrolled, maxsweeps=1000, tol=1e-10, linear_solver=:dense,
         linear_tol=1e-10, linear_maxiter=1000)
-    _check_energy_edges(g)
+    _check_energy_edges(g; mean_field = false,
+        what = "differentiating through inference (non-diagonal couplings, adjoint = :implicit)")
     adjoint in (:unrolled, :implicit) || throw(ArgumentError("adjoint must be :unrolled or :implicit"))
     if adjoint === :implicit
         return _implicit_graph_gradient(g, ps, st; ad, ε, schedule, damping, maxsweeps, tol,

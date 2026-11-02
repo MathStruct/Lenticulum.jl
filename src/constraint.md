@@ -263,3 +263,15 @@ offset $-c$ (`gaussian.md`, "The factor belief, held fixed"). The fixed-belief e
 `inv(Symmetric(Q))` rather than `inv` of a Cholesky factor, for which Zygote has no rule. On the
 two-variable example of [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]]
 the gradient is now exact, and alternating training reaches maximum likelihood (`test/lp020.jl`).
+
+## Mean-field energy (2026-11-02)
+
+A `MeanField()` node's term in the graph free energy ([[L-SPEC-005 The Hybrid Free Energy]]) is
+`Mycelium.mean_field_energy`: the factor free energy at the product of the marginals, with the
+entropy left out. `_product_belief` builds that product as a `FrozenGaussianBelief` (points
+substituted, means stacked, covariances block diagonal, entropy zero), so the method is
+`belief_free_energy` again, and the gradient at fixed marginals reuses the LP-020 code. A
+Gaussian-mixture marginal enters by its moments, which is exact for the quadratic energy. Improper
+or trivial marginals are refused. Checked against Monte Carlo and a closed-form naive mean field
+in `test/mean_field_free_energy.jl`.
+

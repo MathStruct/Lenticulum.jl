@@ -459,6 +459,62 @@ function Mycelium.belief_free_energy(f::LinearConstraintFactor, b::FrozenGaussia
     return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -b.H)), st
 end
 
+# --- The mean-field node's average energy (Riegler et al. 2013, eq. 17) --------------------
+
+# The product of the marginals as a frozen belief with no entropy. A mean-field node's term is
+# the factor free energy at it with the entropy left out. Point marginals are substituted, as in
+# `_affine_gaussian_belief`; a mixture is collapsed to its moments, which is exact here because
+# the energy is quadratic in each channel. `K` columns of the mean for a switching factor.
+# Built from the marginals alone, so it is held fixed under differentiation (the ChainRulesCore
+# extension marks it non-differentiable).
+function _product_belief(names, dims, marginals; K = nothing, q = nothing)
+    points = Pair{Symbol,Vector{Float64}}[]
+    free = Symbol[]
+    means = Vector{Float64}[]
+    covs = Matrix{Float64}[]
+    for n in names
+        b = _collapse(_get(marginals, n))
+        if b isa LenticulumCore.DiracBelief
+            push!(points, n => _vec(b.value))
+        elseif b isa GaussianBelief && isproper(b)
+            length(b.η) == dims[n] || throw(DimensionMismatch(
+                "the marginal on :$n has dimension $(length(b.η)), the channel $(dims[n])"))
+            push!(free, n)
+            push!(means, LenticulumCore.belief_mean(b))
+            push!(covs, Matrix(LenticulumCore.belief_cov(b)))
+        else
+            throw(ArgumentError(
+                "a MeanField() node's energy needs a point or a proper Gaussian marginal on :$n, got \
+                 $(nameof(typeof(b))); run inference until every variable has one"))
+        end
+    end
+    cols = K === nothing ? 1 : K
+    m = isempty(free) ? zeros(0) : reduce(vcat, means)
+    M = K === nothing ? m : repeat(m, 1, cols)
+    Σ = isempty(free) ? zeros(0, 0) : _blockdiag(covs)
+    return FrozenGaussianBelief(points, free, isempty(free) && K !== nothing ? zeros(0, cols) : M, Σ, 0.0, q)
+end
+
+# A mean-field node contributes an average energy and no entropy of its own.
+_without_entropy(F) = LenticulumCore.GradedEnergy(
+    (fit = F[:fit], complexity = F[:complexity], negentropy = zero(F[:fit])))
+
+"""
+    Mycelium.mean_field_energy(f::LinearConstraintFactor, marginals, ps, st)
+
+The average energy of a `MeanField()` node, ``\\mathbb E_{\\prod_i q_i}[-\\log f]`` with
+``r = \\sum_i A_i x_i - c`` under independent marginals: `fit` is
+``\\tfrac12(\\bar r^\\top Q^{-1}\\bar r + \\operatorname{tr}(Q^{-1}\\sum_i A_i \\Sigma_i A_i^\\top))``,
+`complexity` the normaliser, and `negentropy` zero, since the variables' entropies are counted
+at the variables. Marginals must be points or proper Gaussians (mixtures by their moments, which
+is exact for this quadratic energy).
+"""
+function Mycelium.mean_field_energy(f::LinearConstraintFactor{names}, marginals, ps, st) where {names}
+    b = _product_belief(names, f.dims, marginals)
+    F, st = Mycelium.belief_free_energy(f, b, ps, st)
+    return _without_entropy(F), st
+end
+
 function LenticulumCore.free_energy(f::LinearConstraintFactor{names}, π, y::NamedTuple, ps, st) where {names}
     missing_chans = setdiff(names, keys(y))
     msgs = length(missing_chans) == 1 ? merge(NamedTuple{(only(missing_chans),)}((π,)), y) : y

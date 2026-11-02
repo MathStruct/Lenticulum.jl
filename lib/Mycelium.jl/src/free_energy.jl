@@ -17,13 +17,28 @@
 """
     counting_number(g, vid) -> Int
 
-The Bethe counting number ``1 - d_v`` of a variable, where ``d_v`` is its degree.
+The counting number ``1 - d_v`` of a variable, where ``d_v`` counts its edges to
+[`BeliefPropagation`](@ref) nodes. With every node on belief propagation that is the degree, and
+this is the Bethe counting number.
 
 A variable of degree 1 counts `0` (nothing to correct: only one factor mentions it). A
 variable of degree 2 counts `-1` (its entropy was counted twice, so subtract one copy). And
 so on.
+
+Edges to [`MeanField`](@ref) nodes do not count: a mean-field node contributes an average energy
+and no entropy, so the variable's own entropy is counted ``1 - |N_{BP}(v)|`` times, as in the
+merged free energy of Riegler et al. (2013), eq. (17). A variable with mean-field neighbours only
+counts `1`: its full entropy, as in naive mean field.
 """
-counting_number(g::FactorGraph, vid::Int) = 1 - variable_degree(g, vid)
+counting_number(g::FactorGraph, vid::Int) = 1 - bp_degree(g, vid)
+
+"""
+    bp_degree(g, vid) -> Int
+
+The number of edges from variable `vid` to [`BeliefPropagation`](@ref) nodes.
+"""
+bp_degree(g::FactorGraph, vid::Int) =
+    count(ei -> factornode(g, g.edges[ei].factor).rule isa BeliefPropagation, g.edges_of_variable[vid])
 
 """
     counting_numbers(g) -> NamedTuple
@@ -45,6 +60,9 @@ counting_numbers(g::FactorGraph) = NamedTuple{Tuple(v.name for v in g.variables)
 > That single integer measures how badly the Bethe bookkeeping can be wrong: on a tree the
 > counting is exact, and the deficit from `1` is the number of loops the approximation has
 > to pretend are not there.
+
+With [`MeanField`](@ref) nodes the counting numbers are those of the merged free energy
+([`counting_number`](@ref)), and this sum is no longer the Euler characteristic.
 
 Asserted against [`euler_characteristic`](@ref) in the test suite, since it is the cheapest
 possible check that the graph and the free-energy accounting agree.
@@ -92,6 +110,10 @@ This is ``E_G = \\bigoplus_f E_f`` from `Scalar and Multivariate Energy.md`, rea
 composite energy of a graph *is* the per-factor breakdown, not a number that a logger later
 decomposes.
 
+A [`BeliefPropagation`](@ref) node contributes its [`local_free_energy`](@ref) at its incoming
+messages; a [`MeanField`](@ref) node its [`mean_field_energy`](@ref) at the marginals of its
+variables, an average energy with no entropy (Riegler et al. 2013, eq. 17).
+
 Throws `ArgumentError` if a factor with [`uses_cavity`](@ref) has an `Emitting()` edge:
 its local free energy needs variable-to-factor messages. Use `Bidirectional()` on that edge.
 Missing messages on edges that can carry them remain `nothing`.
@@ -100,10 +122,10 @@ function factor_free_energies(s::AbstractMessageStore, g::FactorGraph, ps, st)
     _check_energy_edges(g)
     names = Tuple(f.name for f in g.factors)
     results = map(_factor_nodes(g)) do f
-        beliefs = messages_into(s, g, f.id)
         psf = _factor_parameters(f, _subtree(ps, f.name))
         stf = _subtree(st, f.name)
-        local_free_energy(f.factor, beliefs, psf, stf)
+        f.rule isa MeanField && return mean_field_energy(f.factor, marginals_into(s, g, f.id), psf, stf)
+        local_free_energy(f.factor, messages_into(s, g, f.id), psf, stf)
     end
     stnew = foldl(zip(names,results); init=st) do acc, item
         _setsubtree(acc, item[1], item[2][2])
@@ -138,6 +160,18 @@ function messages_into(s::AbstractMessageStore, g::FactorGraph, fid::Int)
 end
 
 """
+    marginals_into(store, g, fid) -> NamedTuple
+
+The current **marginals** of the variables a factor touches, keyed by channel: what a
+[`MeanField`](@ref) node reads, both for its messages and for its [`mean_field_energy`](@ref).
+Contrast [`messages_into`](@ref), the cavity messages a belief-propagation node reads.
+"""
+function marginals_into(s::AbstractMessageStore, g::FactorGraph, fid::Int)
+    chans = Tuple(g.edges[ei].channel for ei in g.edges_of_factor[fid])
+    return NamedTuple{chans}(Tuple(marginal(s, g, g.edges[ei].variable) for ei in g.edges_of_factor[fid]))
+end
+
+"""
     variable_free_energy(belief) -> Real
 
 ``F_v = -H(b_v)``. A variable has no energy of its own — it is a wire, not a node with a
@@ -157,7 +191,8 @@ variable_free_energy(b) = -variable_entropy(b)
 """
     variable_corrections(store, g) -> GradedEnergy
 
-The per-variable counting terms ``c_v F_v = (1 - d_v)\\,(-H(b_v))``, graded by variable name.
+The per-variable counting terms ``c_v F_v = (1 - d_v)\\,(-H(b_v))``, graded by variable name, with
+``d_v`` counting belief-propagation neighbours only ([`counting_number`](@ref)).
 """
 function variable_corrections(s::MessageStore, g::FactorGraph)
     names = Tuple(v.name for v in g.variables)
@@ -185,6 +220,13 @@ The graph free energy, graded into `(factors = …, variables = …)`:
 are exactly the fixed points of loopy belief propagation (Yedidia–Freeman–Weiss) — so running
 BP and minimising this quantity are the same activity, which is a genuinely useful thing to
 know when the two appear to disagree.
+
+**With [`MeanField`](@ref) nodes** it is the merged free energy of Riegler et al. (2013), eq. (17):
+mean-field nodes contribute [`mean_field_energy`](@ref) and the variable counting numbers
+count belief-propagation neighbours only. Its stationary points are the fixed points of the
+hybrid message passing (their Theorem 2). When the belief-propagation part is a forest and the
+mean-field nodes split it into independent clusters, it is ``\\mathrm{KL}(q \\| p) - \\log Z``
+for the factorised ``q``, an upper bound on ``-\\log Z``.
 
 Contrast [`chain_free_energy`](@ref), which follows AutoBayes Theorem 23 literally and is
 **schedule-dependent**.
@@ -264,12 +306,17 @@ _local_scalar(ps, factor, beliefs, st) = LenticulumCore.scalarise(
     LenticulumCore.scalarisation(factor), first(local_free_energy(factor, beliefs, ps, st)))
 _belief_scalar(ps, factor, b, st) = LenticulumCore.scalarise(
     LenticulumCore.scalarisation(factor), first(belief_free_energy(factor, b, ps, st)))
+_mean_field_scalar(ps, factor, marginals, st) = LenticulumCore.scalarise(
+    LenticulumCore.scalarisation(factor), first(mean_field_energy(factor, marginals, ps, st)))
 
 # Only a point message pins the belief; a missing or trivial one leaves it free to move.
 _point_message(::LenticulumCore.DiracBelief) = true
 _point_message(_) = false
 
 function _factor_gradient(ad, f, p, msgs, st; ε)
+    # A mean-field node's term is already at fixed beliefs, the marginals (`msgs` holds them).
+    f.rule isa MeanField &&
+        return LenticulumCore._parameter_gradient(ad, _mean_field_scalar, p, f.factor, msgs, st; ε)
     b = factor_belief(f.factor, msgs, p, st)
     b === nothing || return LenticulumCore._parameter_gradient(ad, _belief_scalar, p, f.factor, b, st; ε)
     uses_cavity(f.factor) && !all(_point_message, values(msgs)) && @warn(
@@ -291,7 +338,10 @@ Parameter gradient of the graph scalar free energy with each factor's **belief**
 Bethe free energy (the envelope theorem), so on a tree it is the gradient of ``-\\log p`` (LP-020).
 A factor without `factor_belief` is differentiated at fixed incoming messages instead, which
 agrees when those messages are points; otherwise that is not the free-energy
-gradient, and a warning says so. Bethe variable corrections are
+gradient, and a warning says so. A [`MeanField`](@ref) node's term is differentiated at the fixed
+marginals of its variables, which is the envelope gradient of the merged free energy at a fixed
+point of the hybrid message passing; non-diagonal couplings, `adjoint = :implicit` and
+sampling refuse such nodes. Bethe variable corrections are
 constant with respect to parameters at fixed beliefs. Exact for the default linear
 scalarisations, as the envelope argument is about the summed free energy. Nonlearnable subtrees receive
 zeros. Frozen coordinates receive zeros too. The result has `ps`'s structure.
@@ -329,7 +379,8 @@ function LenticulumCore.free_energy_gradient(s::MessageStore, g::FactorGraph, ps
             return LenticulumCore._unflatten(zero(θ), p)
         end
         LenticulumCore._check_factor_ad(ad, f.factor, _subtree(st, f.name))
-        grad = _factor_gradient(ad, f, p, messages_into(s, g, f.id), _subtree(st, f.name); ε)
+        msgs = f.rule isa MeanField ? marginals_into(s, g, f.id) : messages_into(s, g, f.id)
+        grad = _factor_gradient(ad, f, p, msgs, _subtree(st, f.name); ε)
         indices = _active_indices(f, p)
         θ = LenticulumCore._flatten(grad)
         return LenticulumCore._unflatten(_mask_gradient(θ, indices), p)
@@ -397,14 +448,16 @@ function _replace_active(ps, indices, active)
     return LenticulumCore._unflatten(_replace_coordinates(θ, indices, active), ps)
 end
 
-function _check_energy_edges(g)
+# `mean_field = false` for the paths that differentiate through inference or record residual
+# moments from cavity messages; they are written for belief propagation only.
+function _check_energy_edges(g; mean_field::Bool = true, what = "this computation")
     for f in g.factors
-        f.rule isa BeliefPropagation || throw(ArgumentError(
-            "factor :$(f.name) uses $(nameof(typeof(f.rule)))() messages; the graph free energy and its \
-             gradients are implemented for belief propagation only, not for the hybrid with \
-             mean-field nodes (Riegler et al. 2013), so they are refused rather than misreported"))
+        f.rule isa BeliefPropagation || (mean_field && f.rule isa MeanField) || throw(ArgumentError(
+            "factor :$(f.name) uses $(nameof(typeof(f.rule)))() messages; $what is implemented for \
+             belief-propagation nodes only, so it is refused rather than misreported"))
     end
     for f in g.factors
+        f.rule isa MeanField && continue      # reads marginals, which every edge direction has
         if uses_cavity(f.factor)
             for ei in g.edges_of_factor[f.id]
                 edge = g.edges[ei]

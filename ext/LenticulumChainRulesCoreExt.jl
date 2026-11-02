@@ -3,6 +3,11 @@ using Lenticulum: Lenticulum as LT
 using ChainRulesCore
 using LinearAlgebra
 
+# A mean-field node's product belief is built from the marginals, which the graph gradient holds
+# fixed; only the parameters move.
+ChainRulesCore.@non_differentiable LT._product_belief(names, dims, marginals)
+ChainRulesCore.@non_differentiable LT._switch_product_belief(f, marginals)
+
 function ChainRulesCore.rrule(::typeof(LT._prior_precision), Σ)
     P = LT._prior_precision(Σ)
     function back(dP)

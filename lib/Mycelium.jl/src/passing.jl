@@ -49,6 +49,25 @@ function mean_field_message(factor, target, polarity, beliefs, ps, st)
          for it, or leave its node on BeliefPropagation()"))
 end
 
+"""
+    mean_field_energy(factor, marginals::NamedTuple, ps, st) -> (𝐅, st)
+
+A [`MeanField`](@ref) node's term in the graph free energy: the average energy
+``\\mathbb E_{\\prod_i q_i}[-\\log f]`` under the product of its variables' current marginals
+`marginals` (keyed by channel), graded like [`local_free_energy`](@ref), with **no entropy of its
+own** (Riegler et al. 2013, eq. 17; the variables' entropies are counted at the variables,
+[`counting_number`](@ref)). Its parameter derivative at fixed marginals is the node's part of the
+graph gradient.
+
+No generic implementation; a factor with a [`mean_field_message`](@ref) should add one, and
+Lenticulum does for `LinearConstraintFactor` and `SwitchingConstraintFactor`.
+"""
+function mean_field_energy(factor, marginals, ps, st)
+    throw(ArgumentError(
+        "$(nameof(typeof(factor))) has no `Mycelium.mean_field_energy`, so a graph with it on a \
+         MeanField() node has no free energy; implement it, or leave the node on BeliefPropagation()"))
+end
+
 # The other channels' current marginals, for a mean-field node: informative ones only, so that
 # the rest resolve to Latent() exactly as uninformative cavities do for belief propagation.
 function _marginal_inputs(s::AbstractMessageStore, g::FactorGraph, fid::Int, skip::Int)

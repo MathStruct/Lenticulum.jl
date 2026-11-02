@@ -105,7 +105,8 @@ over the *current marginals* ``q_i`` of the other channels' variables rather tha
 messages, computed by [`mean_field_message`](@ref). Mixing such nodes with
 [`BeliefPropagation`](@ref) nodes gives the hybrid of Riegler et al. (2013): exact within
 the BP part, factorised across the mean-field nodes. Iterate a sequential schedule to a fixed
-point; one tree sweep is not one. The graph free energy refuses such graphs (`passing.md`).
+point; one tree sweep is not one. The graph free energy is then the merged free energy of that
+paper, eq. (17), with each mean-field node's [`mean_field_energy`](@ref) (`free_energy.md`).
 """
 struct MeanField <: AbstractMessageRule end
 

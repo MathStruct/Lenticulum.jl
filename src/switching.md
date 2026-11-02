@@ -98,6 +98,13 @@ $\bar b = \sum_k q_k b_k$. The message to the outcome is $P(k) \propto w_k \exp(
 test checks both against the formulas, and the slope and curvature of $\mathbb E_q[\log f]$ against Monte
 Carlo. `LinearConstraintFactor` has the same rule with one outcome (`constraint.jl`).
 
+**Mean-field energy (2026-11-02).** The node's term in the hybrid free energy is
+$\sum_k q_k(\tfrac12\mathbb E\lVert r_k\rVert^2_{Q^{-1}} - \log w_k)$ plus the normaliser, under
+independent marginals on the continuous channels and the outcome ($q$ from a categorical or point
+marginal), with no entropy ([[L-SPEC-005 The Hybrid Free Energy]]). It reuses `belief_free_energy`
+with the product belief (one mean column per outcome) and drops the negentropy, which would
+otherwise include $H(q)$. Checked against Monte Carlo in `test/mean_field_free_energy.jl`.
+
 ## 5. What it does not do
 
 - **Per-outcome coefficients or noise.** With $A_k$ or $Q_k$ depending on the outcome, the outcome

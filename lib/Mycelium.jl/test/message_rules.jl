@@ -42,7 +42,7 @@ end
     @test keys(beliefs) == (:a,)
     @test LenticulumCore.belief_cov(beliefs.a)[1] ≈ 1 / (1 / 4 + 1)
     @test LenticulumCore.belief_cov(beliefs.a)[1] ≈ LenticulumCore.belief_cov(marginal(s, g, g.variable_index[:x]))[1]
-    # the graph free energy is defined for belief propagation only, and refuses the hybrid
+    # the hybrid's free energy needs the node's `mean_field_energy`, which this factor lacks
     @test_throws ArgumentError bethe_free_energy(s, g, NamedTuple(), NamedTuple())
     @test_throws ArgumentError LenticulumCore.scalar_free_energy(s, g, NamedTuple(), NamedTuple())
     # a factor without a mean-field rule says so

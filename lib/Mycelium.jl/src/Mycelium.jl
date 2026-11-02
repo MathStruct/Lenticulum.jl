@@ -84,7 +84,7 @@ export SequentialSchedule, FloodingSchedule, TreeSchedule, ForwardBackwardSchedu
 export flooding_schedule, tree_schedule, forward_backward_schedule
 
 # --- Passing ---------------------------------------------------------------
-export factor_message, mean_field_message, available_channels, step!, sweep!, propagate!, infer!
+export factor_message, mean_field_message, mean_field_energy, available_channels, step!, sweep!, propagate!, infer!
 export ConvergenceReport
 
 # --- Sampling --------------------------------------------------------------
@@ -94,12 +94,12 @@ export SampleBuffer, record!, advance!, sample_weights, energy_moments, free_ene
 export residual_moments, sample_gradient
 
 # --- Free energy -----------------------------------------------------------
-export counting_number, counting_numbers, total_counting_number, variable_entropy
+export counting_number, bp_degree, counting_numbers, total_counting_number, variable_entropy
 export factor_free_energies, variable_corrections, messages_into, variable_free_energy
 export bethe_free_energy, chain_free_energy   # scalar_free_energy extends LenticulumCore's
 
 # --- Factors ---------------------------------------------------------------
-export local_free_energy, uses_cavity, issink, point, factor_belief, belief_free_energy
+export local_free_energy, marginals_into, uses_cavity, issink, point, factor_belief, belief_free_energy
 export DataFactor, PriorFactor, LossFactor, RelayFactor, OptimiserFactor
 export ExposedFactor, expose, supports_parameter_polarity, parameter_message, parameter_free_energy
 export AbstractUpdateRule, GradientDescent, Momentum, Nesterov

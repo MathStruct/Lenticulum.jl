@@ -59,6 +59,11 @@ Implemented:
   and `parameter_step` do too. The hybrid's free energy is not the Bethe free energy, and reporting
   Bethe's would be wrong.
 
+  *Update (2026-11-02):* for `MeanField()` the refusal is replaced by the hybrid's own free energy,
+  [[L-SPEC-005 The Hybrid Free Energy]], as the last consequence below anticipates ("each new rule
+  must come with its free energy, or keep the refusal"). Paths that differentiate through
+  inference still refuse mean-field nodes.
+
 Tests: Mycelium's `test/message_rules.jl` (the default; that a mean-field node sees marginals, not
 cavities; the refusals; the missing-method error) and Lenticulum's `test/switching_constraint.jl` (the
 two rules against their formulas and Monte Carlo; a hybrid graph against an independent

@@ -425,6 +425,29 @@ function Mycelium.belief_free_energy(f::SwitchingConstraintFactor, b::FrozenGaus
     return _switch_free_energy(f, b.q, rbar, Cr, b.H, ps), st
 end
 
+"""
+    Mycelium.mean_field_energy(f::SwitchingConstraintFactor, marginals, ps, st)
+
+The average energy of a `MeanField()` node under independent marginals on the continuous
+channels and the outcome ``q``: ``\\sum_k q_k \\bigl(\\tfrac12 \\mathbb E\\lVert r_k\\rVert^2_{Q^{-1}} - \\log w_k\\bigr)``
+plus the normaliser, with no entropy (Riegler et al. 2013, eq. 17). The outcome's marginal must be
+a categorical or a point; the continuous ones as for `LinearConstraintFactor`.
+"""
+function Mycelium.mean_field_energy(f::SwitchingConstraintFactor{names}, marginals, ps, st) where {names}
+    b = _switch_product_belief(f, marginals)
+    F, st = Mycelium.belief_free_energy(f, b, ps, st)
+    return _without_entropy(F), st
+end
+function _switch_product_belief(f::SwitchingConstraintFactor{names}, marginals) where {names}
+    kb = _get(marginals, f.switch)
+    kb isa Union{LenticulumCore.CategoricalBelief,LenticulumCore.DiracBelief} || throw(ArgumentError(
+        "a MeanField() switching node's energy needs a categorical or point marginal on the outcome \
+         :$(f.switch), got $(nameof(typeof(kb)))"))
+    lp = _switch_logp(kb, f.K)
+    q = exp.(lp .- _logsumexp(lp))
+    return _product_belief(names, f.dims, marginals; K = f.K, q)
+end
+
 function LenticulumCore.free_energy(f::SwitchingConstraintFactor, π, y::NamedTuple, ps, st)
     missing_chans = setdiff(_allnames(f), keys(y))
     msgs = length(missing_chans) == 1 ? merge(NamedTuple{(only(missing_chans),)}((π,)), y) : y

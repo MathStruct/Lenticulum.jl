@@ -65,8 +65,10 @@ A factor node computes its messages by belief propagation unless it is added wit
 `factor!(b, name, f; rule = MeanField())`. Such a node sends ``\exp \mathbb E_q[\log f]`` over the
 other variables' current marginals (`mean_field_message`, implemented by the factor). Mixed with
 belief-propagation nodes this is the hybrid BP/mean-field scheme of Riegler et al. (2013); iterate
-a `SequentialSchedule` to its fixed point. The graph free energy is not defined for such graphs
-and refuses them.
+a `SequentialSchedule` to its fixed point. The graph free energy is then the merged free energy of
+that paper, eq. (17): a mean-field node contributes `mean_field_energy`, its average energy under
+the product of the marginals, and the variable counting numbers count belief-propagation
+neighbours only.
 
 Points can be passed instead of beliefs. `GibbsSampler(g, sampled)` draws the named variables (for
 example the discrete switches) from their exact conditionals, integrating the others out by belief
@@ -206,8 +208,9 @@ the native-backend and metric/divergence reproducers.
   `factor_belief`: Lenticulum's Gaussian, constraint and switching factors, and AlgebraicFactors'
   toric and degree-one polynomial factors. Other factors (the neural and diffusion ones) keep the
   fixed-message derivative, which is exact only with point messages, and warn otherwise (LP-020).
-- Graphs with `MeanField()` nodes have no free energy yet (the hybrid's, Riegler et al. 2013,
-  is not implemented), so `parameter_step` cannot train them.
+- Graphs with `MeanField()` nodes have the merged free energy of Riegler et al. (2013), eq. (17)
+  (L-SPEC-005), and `parameter_step` trains them; differentiating through inference
+  (non-diagonal couplings, `adjoint = :implicit`) and the sample buffer still refuse them.
 - Loopy message passing has no convergence guarantees, and `report.converged` means the
   *messages* stopped moving, not that the answer is right.
 

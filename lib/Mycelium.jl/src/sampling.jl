@@ -220,7 +220,7 @@ _energy_record(e) = throw(ArgumentError("cannot record an energy of type $(typeo
 
 function _record!(b::SampleBuffer, s::MessageStore, g::FactorGraph, ps, st, weight)
     weight >= 0 || throw(ArgumentError("sample weights must be nonnegative"))
-    _check_energy_edges(g)
+    _check_energy_edges(g; mean_field = false, what = "recording residual moments from samples")
     F, st = factor_free_energies(s, g, ps, st)
     V = variable_corrections(s, g)
     total, st = LenticulumCore.scalar_free_energy(s, g, ps, st)

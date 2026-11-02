@@ -168,18 +168,38 @@ P = probabilities(mk)
 @printf("one block of both switches: P(k₁ = 1) %.3f, P(k₂ = 1) %.3f\n",
         sum(P[i] for (i, (a, _)) in enumerate(configs) if a == 1), sum(P[i] for (i, (_, b)) in enumerate(configs) if b == 1))
 
-# ## What the free energy does not cover yet
+# ## The free energy of the hybrid
 #
-# A graph with a mean-field node has a different free energy from Bethe (Riegler et al. 2013), and
-# Mycelium does not compute it yet. Rather than report the wrong number, it refuses:
+# A graph with a mean-field node has the merged free energy of Riegler et al. (2013), eq. (17), not
+# the Bethe free energy: the sum node contributes only its average energy under the product of the
+# marginals, and each variable's entropy is counted by its belief-propagation neighbours. Each
+# switch's part of the graph is a tree, so here it is ``\mathrm{KL}(q \| p) - \log p(x)`` for the
+# factorised ``q``, an upper bound on ``-\log p(x)``:
 
-g, gps = grid_graph(x, MeanField())
-_, _, _, s = infer!(g, SequentialSchedule(all_tasks(g)), gps, NamedTuple(); maxsweeps = 5)
-try
-    LenticulumCore.scalar_free_energy(s, g, gps, NamedTuple())
-catch err
-    println(sprint(showerror, err))
+function hybrid_store(x)
+    g, ps = grid_graph(x, MeanField())
+    T = MessageTask
+    init = [T(edge(g, :data, :z), :to_variable), T(edge(g, :sw1, :u), :to_variable), T(edge(g, :sw2, :u), :to_variable)]
+    sweep = [T(edge(g, :sum, :u1), :to_variable), T(edge(g, :sw1, :u), :to_factor), T(edge(g, :sw1, :k), :to_variable),
+             T(edge(g, :sw1, :u), :to_variable), T(edge(g, :sum, :u2), :to_variable), T(edge(g, :sw2, :u), :to_factor),
+             T(edge(g, :sw2, :k), :to_variable), T(edge(g, :sw2, :u), :to_variable)]
+    s = MessageStore(g)
+    sweep!(s, g, SequentialSchedule(init), ps, NamedTuple())
+    propagate!(s, g, SequentialSchedule(sweep), ps, NamedTuple(); maxsweeps = 500, tol = 1e-8)
+    return g, ps, s
 end
+g, gps, s = hybrid_store(x)
+F_hybrid = first(LenticulumCore.scalar_free_energy(s, g, gps, NamedTuple()))
+l = [log(p[1]^a * (1 - p[1])^(1 - a) * p[2]^b * (1 - p[2])^(1 - b)) + lognormal(x, c + a * δ[:, 1] + b * δ[:, 2], Σ)
+     for (a, b) in configs]
+nlp = -(maximum(l) + log(sum(exp.(l .- maximum(l)))))
+@printf("hybrid free energy %.4f   exact -log p(x) %.4f   gap %.4f\n", F_hybrid, nlp, F_hybrid - nlp)
 
-# The plan for that, and for the rest of Mycelium's extension, is in the vault note
+# The gap is what mean field over the two switches costs at this point. Because the free energy is
+# now defined, `free_energy_gradient` and `parameter_step` train such a graph: at a fixed point the
+# gradient holds the factor beliefs and the mean-field node's marginals fixed, which is the
+# derivative of this free energy (checked against central differences in Lenticulum's
+# `test/mean_field_free_energy.jl`).
+#
+# The plan for the rest of Mycelium's extension, is in the vault note
 # [Extending Mycelium](https://mathstruct.org/Lenticulum.jl/Design/Extending-Mycelium).

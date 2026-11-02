@@ -1257,6 +1257,8 @@ include("gradient_couplings.jl")
 
 include("switching_constraint.jl")
 
+include("mean_field_free_energy.jl")
+
 include("lp020.jl")
 
 include("lp018.jl")

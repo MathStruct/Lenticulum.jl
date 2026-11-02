@@ -11,8 +11,9 @@
 > - structure edits on a live graph;
 > - schedules that know the rules.
 >
-> The first step, the message rule, is done ([[L-ADR-0009 Factor nodes carry a message rule]]). The
-> rest is proposed, ordered by what it unblocks.
+> The first step, the message rule, is done ([[L-ADR-0009 Factor nodes carry a message rule]]), and
+> so is the free energy of the hybrid (§1, [[L-SPEC-005 The Hybrid Free Energy]]). The rest is
+> proposed, ordered by what it unblocks.
 
 > Sources: original to this vault (design). Hybrid belief propagation and mean field: Riegler, Kirkelund, Manchon, Badiu & Fleury, *Merging Belief Propagation and the Mean Field Approximation: A Free Energy Approach*, IEEE Trans. Inf. Theory 59(1), 2013. Region free energies and generalised belief propagation: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE Trans. Inf. Theory 51(7), 2005. Expectation propagation: Minka, UAI 2001. Gaussian-mixture reduction: Runnalls, IEEE Trans. Aerosp. Electron. Syst. 2007. Monte Carlo EM: Wei & Tanner, *A Monte Carlo Implementation of the EM Algorithm and the Poor Man's Data Augmentation Algorithms*, JASA 85(411), 1990. Stochastic-approximation EM: Delyon, Lavielle & Moulines, *Convergence of a Stochastic Approximation Version of the EM Algorithm*, Ann. Statist. 27(1), 1999. code: `lib/Mycelium.jl/src/graph.jl`, `passing.jl`, `free_energy.jl`, `schedules.jl`, `exposure.jl`
 >
@@ -32,7 +33,7 @@ What the experiments behind [[Composing Stochastic Factors]] ran into, in order 
 | gap | where it showed | consequence |
 |---|---|---|
 | only belief propagation | E6: a sum node fed by switches sees the other switches' prior moments | biased learning, 0.5–0.8 nats; fixed for one node by `MeanField()` |
-| no free energy for hybrid graphs | E7 in the graph | `parameter_step` refuses; the M-step is written by hand |
+| no free energy for hybrid graphs | E7 in the graph | `parameter_step` refused; the M-step was written by hand (resolved by §1, 2026-11-02) |
 | one graph per data point | EM through the hybrid graph | 14 times slower than the vectorised code (28 s against 2 s) |
 | no mixture entropies at variables | the Bethe sum with a mixture marginal of degree $\ge 2$ | no free energy for most hybrid graphs |
 | mixtures only collapse to moments | E6, E7 | the only policy is assumed-density filtering |
@@ -40,6 +41,16 @@ What the experiments behind [[Composing Stochastic Factors]] ran into, in order 
 | blocks built by hand | E7: a block of switches is a hand-made factor with $2^B$ outcomes | each block is new code |
 
 ## 1. A free energy for every rule (first)
+
+**Status: implemented for `MeanField()` (2026-11-02)**, [[L-SPEC-005 The Hybrid Free Energy]]. The
+counting numbers are those of Riegler et al. (2013), §III, eqs. (16)–(17), checked against the
+paper: $c_i = 1 - |N_{BP}(i)|$, mean-field nodes with an average energy and no entropy. The hook is
+`mean_field_energy(factor, marginals, ps, st)` rather than a rule argument to `local_free_energy`.
+Tests: naive mean field in closed form, Monte Carlo for both average energies, a bound against
+exact enumeration on a sum of switches, the gradient against central differences, and descent
+under coordinate updates for naive mean field. The E7 block-graph descent and closed-form M-step
+checks below were not run as written; the gradient is checked against central differences of the
+converged free energy instead.
 
 **What.** Each message rule declares the free energy it is the stationary point of, and the graph sums
 them. For belief propagation that is Bethe. For the hybrid it is the free energy of Riegler et al.

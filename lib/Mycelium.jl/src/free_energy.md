@@ -250,6 +250,35 @@ the maximum-likelihood $a$.
 4. A bounded review by Mistral (vibe) of the diff found no correctness bug. It made one change:
    trivial and missing messages are not points, so they trigger the fallback warning.
 
+## The merged free energy of belief propagation and mean field (2026-11-02)
+
+[[L-SPEC-005 The Hybrid Free Energy]]. A graph with `MeanField()` nodes is scored by Riegler et al.
+(2013), §III, eq. (17), checked against the paper (arXiv:1112.0467v3):
+
+$$
+F_{BP,MF} = \sum_{a \in A_{BP}} F_a(b_a) + \sum_{a \in A_{MF}} \mathbb E_{\prod_i b_i}[-\log f_a]
+ + \sum_i \bigl(|N_{BP}(i)| - 1\bigr) H(b_i).
+$$
+
+- `factor_free_energies` calls `mean_field_energy(factor, marginals_into(s, g, f), ps, st)` for a
+  mean-field node: the marginals, which are what its messages read, not the cavities.
+- `counting_number(g, v) = 1 - bp_degree(g, v)`. A variable whose neighbours are all mean-field
+  nodes counts 1, its full entropy, as in naive mean field. So `total_counting_number` is the Euler
+  characteristic only when every node is on belief propagation.
+- The gradient differentiates `mean_field_energy` at fixed marginals. At a fixed point of the
+  hybrid messages, a stationary point of $F_{BP,MF}$ (their Theorem 2), this is the derivative of
+  the converged free energy, by the same envelope argument as LP-020.
+- `_check_energy_edges(g; mean_field = false)` keeps the refusal on the paths written for
+  belief propagation: the coupled and implicit adjoints, which differentiate through inference,
+  and the sample buffer, which records residual moments from cavity messages. The cavity
+  edge-direction check (LP-014) skips mean-field nodes, which read marginals.
+
+**Difficulty.** Building the product of the marginals inside the differentiated function made
+Zygote trace `push!`. Lenticulum's ChainRulesCore extension marks the builder non-differentiable:
+it depends on the marginals only, which the gradient holds fixed.
+
+**Checked** in Lenticulum's `test/mean_field_free_energy.jl`; the numbers are in L-SPEC-005.
+
 ## LP-011 implementation (2026-10-27)
 
 The all-diagonal driver retained its fixed-cavity derivative (replaced by the fixed-belief one,
