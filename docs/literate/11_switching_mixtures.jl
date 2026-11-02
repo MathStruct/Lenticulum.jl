@@ -126,19 +126,15 @@ nothing #hide
 
 # **A mean-field sum node** (`rule = MeanField()`) reads the other switch's *current* marginal instead,
 # and the graph is iterated. The switch factors stay on belief propagation. This is the hybrid of
-# Riegler et al. (2013); its fixed point is mean field over the two switches.
+# Riegler et al. (2013); its fixed point is mean field over the two switches. `hybrid_schedule`
+# builds the iteration from the rules: each switch's belief-propagation cluster is swept, then the
+# sum node sends its messages in turn, each followed by the cluster it reached. Convergence is
+# measured on the marginals.
 
-edge(g, fac, ch) = findfirst(e -> e.factor == g.factor_index[fac] && e.channel === ch, g.edges)
 function hybrid(x)
     g, ps = grid_graph(x, MeanField())
-    T = MessageTask
-    init = [T(edge(g, :data, :z), :to_variable), T(edge(g, :sw1, :u), :to_variable), T(edge(g, :sw2, :u), :to_variable)]
-    sweep = [T(edge(g, :sum, :u1), :to_variable), T(edge(g, :sum, :u2), :to_variable),
-             T(edge(g, :sw1, :u), :to_factor), T(edge(g, :sw1, :k), :to_variable),
-             T(edge(g, :sw2, :u), :to_factor), T(edge(g, :sw2, :k), :to_variable)]
     s = MessageStore(g)
-    sweep!(s, g, SequentialSchedule(init), ps, NamedTuple())
-    report, _ = propagate!(s, g, SequentialSchedule(sweep), ps, NamedTuple(); maxsweeps = 200, tol = 1e-6)
+    report, _ = propagate!(s, g, hybrid_schedule(g), ps, NamedTuple(); maxsweeps = 200, tol = 1e-10)
     return [probabilities(marginal(s, g, g.variable_index[k]))[2] for k in (:k1, :k2)], report
 end
 nothing #hide
@@ -178,14 +174,8 @@ P = probabilities(mk)
 
 function hybrid_store(x)
     g, ps = grid_graph(x, MeanField())
-    T = MessageTask
-    init = [T(edge(g, :data, :z), :to_variable), T(edge(g, :sw1, :u), :to_variable), T(edge(g, :sw2, :u), :to_variable)]
-    sweep = [T(edge(g, :sum, :u1), :to_variable), T(edge(g, :sw1, :u), :to_factor), T(edge(g, :sw1, :k), :to_variable),
-             T(edge(g, :sw1, :u), :to_variable), T(edge(g, :sum, :u2), :to_variable), T(edge(g, :sw2, :u), :to_factor),
-             T(edge(g, :sw2, :k), :to_variable), T(edge(g, :sw2, :u), :to_variable)]
     s = MessageStore(g)
-    sweep!(s, g, SequentialSchedule(init), ps, NamedTuple())
-    propagate!(s, g, SequentialSchedule(sweep), ps, NamedTuple(); maxsweeps = 500, tol = 1e-8)
+    propagate!(s, g, hybrid_schedule(g), ps, NamedTuple(); maxsweeps = 500, tol = 1e-10)
     return g, ps, s
 end
 g, gps, s = hybrid_store(x)

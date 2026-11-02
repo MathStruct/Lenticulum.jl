@@ -256,6 +256,38 @@ end
         @test report.converged
         @test maximum(maximum(abs.(P[b] - structured(x)[b])) for b in 1:2) < 1e-6
     end
+    # `hybrid_schedule` (Extending Mycelium §3) builds the same iteration from the rules: each
+    # block's cluster swept, the sum node's messages in turn, each followed by its cluster again;
+    # it converges on the marginals' moments, so a much smaller tol holds
+    gs, _ = graph(X[1], MeanField())
+    sched = hybrid_schedule(gs)
+    @test sched isa HybridSchedule && all(t -> islegal(gs, t), tasks(sched))
+    for x in X
+        g, ps = graph(x, MeanField())
+        s = MessageStore(g)
+        report, _ = propagate!(s, g, sched, ps, NamedTuple(); maxsweeps = 500, tol = 1e-10)
+        @test report.converged
+        P = [probabilities(marginal(s, g, g.variable_index[k])) for k in (:k1, :k2)]
+        @test maximum(maximum(abs.(P[b] - structured(x)[b])) for b in 1:2) < 1e-6
+        @test maximum(maximum(abs.(P[b] - first(hybrid(x))[b])) for b in 1:2) < 1e-9
+        # the merged free energy decreases along the sweeps; with wider components, so that
+        # rounding (of the order of their precision times eps) stays below the tolerance
+        g3, ps3 = graph(x, MeanField(); ε = 1e-3)
+        s3 = MessageStore(g3)
+        Fs = map(1:30) do _
+            sweep!(s3, g3, sched, ps3, NamedTuple())
+            first(LenticulumCore.scalar_free_energy(s3, g3, ps3, NamedTuple()))
+        end
+        @test all(diff(Fs) .<= 1e-10)
+    end
+    # a belief-propagation cluster with a loop is refused
+    bl = GraphBuilder()
+    variable!(bl, :a, 1); variable!(bl, :b, 1)
+    for f in (:f1, :f2)
+        factor!(bl, f, LinearConstraintFactor((a = 1, b = 1), 1; noise = 1.0))
+        connect!(bl, f, :a, :a); connect!(bl, f, :b, :b)
+    end
+    @test_throws ArgumentError hybrid_schedule(build(bl))
     # belief propagation at the sum node is a different approximation (prior moments of the other block)
     @test maximum(maximum(maximum(abs.(bp(x)[b] - first(hybrid(x))[b])) for b in 1:2) for x in X) > 1e-3
     # the hybrid has a free energy now, the merged one (`test/mean_field_free_energy.jl` checks it)

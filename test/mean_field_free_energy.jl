@@ -102,6 +102,11 @@ end
         end
         @test all(diff(Fs) .<= 1e-12)
         @test Fs[1] - Fs[end] > 1e-6
+        # the schedule built from the rules reaches the same fixed point
+        s_h = MessageStore(g)
+        rh, _ = propagate!(s_h, g, hybrid_schedule(g), ps, NamedTuple(); maxsweeps = 20_000, tol = 1e-14)
+        @test rh.converged
+        @test first(LenticulumCore.scalar_free_energy(s_h, g, ps, NamedTuple())) ≈ F_mf atol = 1e-10
         # the graded parts: the mean-field node carries no entropy
         Fg, _ = factor_free_energies(s, g, ps, NamedTuple())
         @test Fg[:lc][:negentropy] == 0

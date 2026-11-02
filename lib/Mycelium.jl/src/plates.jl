@@ -199,8 +199,10 @@ built from `groups` alone checks every group at run time.
 struct PlateSchedule <: AbstractSchedule
     groups::Vector{Vector{MessageTask}}
     plans::Vector{Any}            # per group: a `_GroupPlan`, or `nothing` (checked at run time)
+    hybrid::Bool                  # lifted from a hybrid schedule: `propagate!` converges on marginals
 end
-PlateSchedule(groups::Vector{Vector{MessageTask}}) = PlateSchedule(groups, Any[nothing for _ in groups])
+PlateSchedule(groups::Vector{Vector{MessageTask}}) = PlateSchedule(groups, Any[nothing for _ in groups], false)
+PlateSchedule(groups, plans) = PlateSchedule(groups, plans, false)
 
 # What a lifted group of factor -> variable messages needs, found once when the schedule is
 # built: member i's factor `factors[i]` (tied, belief propagation, one type) and its edge on
@@ -240,13 +242,15 @@ Lift a schedule written for replica 1 to every replica. Each task on an edge of 
 the group of the same template task in replicas `1:n`; a task on an edge outside the plate stays
 a group of one; a task on another replica's edge throws.
 
-Without a schedule, each connected component gets its tree schedule, and replica 1's component
-is lifted. This needs the replicas to be separate components (parameters shared, no shared
-variable) and every component to be a tree; otherwise it throws. A graph with shared variables
+Without a schedule, each connected component gets its tree schedule, or its
+[`hybrid_schedule`](@ref) when it has mean-field nodes, and replica 1's component is lifted.
+This needs the replicas to be separate components (parameters shared, no shared variable) and
+every component (or, for a hybrid one, every belief-propagation cluster) to be a tree; otherwise
+it throws. A schedule lifted from a hybrid one converges on marginals in [`propagate!`](@ref). A graph with shared variables
 can use `tree_schedule(g)` directly, or a hand-written replica schedule. `plate` names the plate
 when the graph has more than one.
 """
-function plate_schedule(g::FactorGraph, replica_tasks::AbstractVector{MessageTask}; plate = nothing)
+function plate_schedule(g::FactorGraph, replica_tasks::AbstractVector{MessageTask}; plate = nothing, hybrid::Bool = false)
     pl = _plate(g, plate)
     where_ = Dict{Int,Tuple{Int,Int}}()
     for i in 1:pl.n, k in axes(pl.edges, 1)
@@ -259,10 +263,10 @@ function plate_schedule(g::FactorGraph, replica_tasks::AbstractVector{MessageTas
             "task on edge $(t.edge) belongs to replica $i of plate :$(pl.name); write the schedule for replica 1"))
         return [MessageTask(pl.edges[k, j], t.kind) for j in 1:pl.n]
     end
-    return PlateSchedule(groups, Any[_group_plan(g, grp) for grp in groups])
+    return PlateSchedule(groups, Any[_group_plan(g, grp) for grp in groups], hybrid)
 end
 plate_schedule(g::FactorGraph, sched::AbstractSchedule; plate = nothing) =
-    plate_schedule(g, tasks(sched); plate)
+    plate_schedule(g, tasks(sched); plate, hybrid = sched isa HybridSchedule)
 
 function plate_schedule(g::FactorGraph; plate = nothing)
     pl = _plate(g, plate)
@@ -274,6 +278,7 @@ function plate_schedule(g::FactorGraph; plate = nothing)
     seen = Set{Tuple{Symbol,Int}}()
     groups = Vector{MessageTask}[]
     plans = Any[]
+    hybrid = false
     for node in vcat([(:variable, v) for v in 1:nvariables(g)], [(:factor, f) for f in 1:nfactors(g)])
         node in seen && continue
         comp = _component(g, node)
@@ -282,16 +287,22 @@ function plate_schedule(g::FactorGraph; plate = nothing)
         length(reps) == 1 || throw(ArgumentError(
             "plate_schedule(g) needs plate :$(pl.name)'s replicas to be separate components, but replicas \
              $(filter(!=(0), reps)) share a variable or factor; use tree_schedule(g) or a replica schedule"))
-        ne = sum(c -> c[1] === :factor ? factor_degree(g, c[2]) : 0, comp)
-        ne == length(comp) - 1 || throw(ArgumentError(
-            "a component of the graph has a loop; plate_schedule(g) builds tree schedules only"))
         only(reps) >= 2 && continue                      # lifted from replica 1
-        root = something(findfirst(c -> (c[1] === :variable ? variable_degree(g, c[2]) : factor_degree(g, c[2])) == 1, comp), 1)
-        ts = _tree_sweeps(g, comp[root])
-        sub = plate_schedule(g, tasks(ts); plate = pl.name)
+        if any(c -> c[1] === :factor && g.factors[c[2]].rule isa MeanField, comp)
+            # a hybrid component: its belief-propagation clusters must be trees (checked there)
+            ts = _hybrid_tasks(g, [c[2] for c in comp if c[1] === :variable])
+            hybrid = true
+        else
+            ne = sum(c -> c[1] === :factor ? factor_degree(g, c[2]) : 0, comp)
+            ne == length(comp) - 1 || throw(ArgumentError(
+                "a component of the graph has a loop; plate_schedule(g) builds tree schedules only"))
+            root = something(findfirst(c -> (c[1] === :variable ? variable_degree(g, c[2]) : factor_degree(g, c[2])) == 1, comp), 1)
+            ts = tasks(_tree_sweeps(g, comp[root]))
+        end
+        sub = plate_schedule(g, ts; plate = pl.name)
         append!(groups, sub.groups); append!(plans, sub.plans)
     end
-    return PlateSchedule(groups, plans)
+    return PlateSchedule(groups, plans, hybrid)
 end
 
 # The nodes reachable from `node`, breadth first.
@@ -462,3 +473,5 @@ function _commit_group!(s, g, grp, beliefs, damping)
     end
     return maxres
 end
+
+_default_criterion(s::PlateSchedule) = s.hybrid ? :marginals : :messages

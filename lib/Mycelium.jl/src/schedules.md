@@ -130,3 +130,17 @@ graph returned `TrivialBelief()` with a converged report.
 The breadth-first inward/outward construction of `tree_schedule` is now `_tree_sweeps(g, root)`,
 which covers the component containing `root`; `tree_schedule` checks the whole graph is a tree
 and calls it. `plate_schedule(g)` (`plates.jl`) calls it per component.
+
+## Hybrid schedules (2026-11-03)
+
+`hybrid_schedule(g)` ([[L-SPEC-007 Hybrid Schedules]]): the belief-propagation clusters (components
+of the graph without its `MeanField()` nodes, found by `_cluster`) each get the inward and outward
+sweeps of `_tree_sweeps(g, root; skip)`, which now can skip factor nodes; a sweep runs every cluster,
+then each mean-field node's legal messages, each followed by its target's cluster. `_hybrid_tasks`
+builds it for a set of variables, so `plate_schedule(g)` can build it for replica 1's component.
+`HybridSchedule` sweeps like a `SequentialSchedule`; its only difference is `propagate!`'s default
+convergence criterion (`_default_criterion`).
+
+Repeating every cluster's sweep at the start of each sweep costs a pass per sweep but keeps the
+schedule stateless: the first pass on a fresh store is the start from the clusters' own factors,
+and later ones change nothing that is converged.

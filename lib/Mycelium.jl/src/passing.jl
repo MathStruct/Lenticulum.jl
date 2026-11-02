@@ -296,7 +296,8 @@ Base.show(io::IO, r::ConvergenceReport) = print(io,
     " after ", r.sweeps, " sweep(s), residual ", r.residual, "; ", r.reason, ")")
 
 """
-    propagate!(store, g, sched, ps, st; maxsweeps = 100, tol = 1e-8, damping = 0.0)
+    propagate!(store, g, sched, ps, st; maxsweeps = 100, tol = 1e-8, damping = 0.0,
+               criterion = _default_criterion(sched))
         -> (ConvergenceReport, st)
 
 Run the schedule to convergence, or to `maxsweeps`.
@@ -309,11 +310,19 @@ other, since a damped sweep keeps part of each previously stored message. For lo
 (`0` = none, higher = more inertia), the standard remedy for oscillation. Damping only
 applies where [`can_damp`](@ref) is true; elsewhere it is a no-op. Callers can inspect
 `can_damp`; the convergence report does not automatically record unsupported damping.
+
+`criterion` is what must change by at most `tol` between sweeps: `:messages` (the largest
+[`belief_distance`](@ref) of a sweep's messages to the ones they replace) or `:marginals` (the
+largest change of a variable's marginal, compared by moments: means and covariances, and the
+weights of a mixture or a categorical). Messages of mixtures with very narrow components have a
+rounding floor in natural parameters that their moments do not, so hybrid graphs default to
+`:marginals` ([`hybrid_schedule`](@ref)).
 """
 function propagate!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, ps, st;
                     maxsweeps::Int = 100, tol::Real = 1e-8, damping::Real = 0.0,
-                    record = nothing)
+                    record = nothing, criterion::Symbol = _default_criterion(sched))
     0 <= damping < 1 || throw(ArgumentError("damping must be in [0, 1); got $damping"))
+    criterion in (:messages, :marginals) || throw(ArgumentError("criterion must be :messages or :marginals"))
     # Undamped, one tree sweep is exact. Damping keeps part of each stored message, so from a
     # warm start one sweep is not the fixed point: iterate and check like any schedule.
     if sched isa TreeSchedule && iszero(damping)
@@ -321,11 +330,18 @@ function propagate!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, ps
         return ConvergenceReport(true, 1, 0.0, "tree schedule: one sweep is exact"), st
     end
     res = Inf
+    margs = criterion === :marginals ? _all_marginals(s, g) : nothing
     for i in 1:maxsweeps
         res, st = sched isa ResidualSchedule ?
             sweep!(s, g, sched, ps, st; damping, record) : sweep!(s, g, sched, ps, st; damping)
+        if criterion === :marginals
+            new = _all_marginals(s, g)
+            res = maximum(v -> _moment_distance(margs[v], new[v]), eachindex(new); init = 0.0)
+            margs = new
+        end
         if res <= tol
-            return ConvergenceReport(true, i, float(res), "residual below tol"), st
+            return ConvergenceReport(true, i, float(res),
+                criterion === :marginals ? "marginals changed by less than tol" : "residual below tol"), st
         end
     end
     reason = isfinite(res) ? "hit maxsweeps" :

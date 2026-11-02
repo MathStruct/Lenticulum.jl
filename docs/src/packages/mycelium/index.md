@@ -66,8 +66,10 @@ Schedules: `tree_schedule` (exact on trees), `flooding_schedule` (general, itera
 A factor node computes its messages by belief propagation unless it is added with
 `factor!(b, name, f; rule = MeanField())`. Such a node sends ``\exp \mathbb E_q[\log f]`` over the
 other variables' current marginals (`mean_field_message`, implemented by the factor). Mixed with
-belief-propagation nodes this is the hybrid BP/mean-field scheme of Riegler et al. (2013); iterate
-a `SequentialSchedule` to its fixed point. The graph free energy is then the merged free energy of
+belief-propagation nodes this is the hybrid BP/mean-field scheme of Riegler et al. (2013).
+[`hybrid_schedule`](@ref) builds its iteration from the rules (each belief-propagation cluster
+swept around the mean-field nodes, which are updated in turn), and `propagate!` runs it to a fixed
+point measured on the marginals; a hand-written `SequentialSchedule` works too. The graph free energy is then the merged free energy of
 that paper, eq. (17): a mean-field node contributes `mean_field_energy`, its average energy under
 the product of the marginals, and the variable counting numbers count belief-propagation
 neighbours only.
@@ -218,7 +220,8 @@ _, st = propagate!(MessageStore(g), g, sched, ps, st)
 
 Any node can be tied outside a plate too, with `factor!(b, name, f; params = key)`. Tied nodes
 need the same factor type and `freeze`. `plate_schedule(g, replica_tasks)` lifts a hand-written
-schedule for replica 1, such as the sweeps of a hybrid graph. A sweep of a plate schedule gives
+schedule for replica 1; a template with mean-field nodes gets its [`hybrid_schedule`](@ref) by
+default. A sweep of a plate schedule gives
 the messages of the same tasks run one by one. Factors can compute a group's messages together
 through [`factor_messages`](@ref); `LinearConstraintFactor` does.
 

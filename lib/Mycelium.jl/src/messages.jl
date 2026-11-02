@@ -429,3 +429,23 @@ _damp(a::LenticulumCore.MixtureBelief, b::LenticulumCore.MixtureBelief, α::Real
 can_damp(a::LenticulumCore.SampleBelief, b::LenticulumCore.SampleBelief) = a.samples == b.samples
 _damp(a::LenticulumCore.SampleBelief, b::LenticulumCore.SampleBelief, α::Real) =
     LenticulumCore.SampleBelief(a.samples, α .* _sample_weights(a) .+ (1 - α) .* _sample_weights(b))
+
+# --- Moment distances (convergence on marginals, `propagate!`) ----------------
+
+_all_marginals(s, g) = [marginal(s, g, v) for v in 1:nvariables(g)]
+
+# The largest change between two beliefs of one variable, in moments: means, covariances, and the
+# weights of a categorical or a mixture. Natural parameters of very narrow components carry
+# rounding of the order of their precision; moments do not. Other pairs use `belief_distance`.
+_moment_distance(a, b) = belief_distance(a, b)
+function _moment_distance(a::GaussianBelief, b::GaussianBelief)
+    (LenticulumCore.isproper(a) && LenticulumCore.isproper(b) && size(a.Λ) == size(b.Λ)) ||
+        return belief_distance(a, b)
+    return max(maximum(abs, LenticulumCore.belief_mean(a) .- LenticulumCore.belief_mean(b); init = 0.0),
+               maximum(abs, LenticulumCore.belief_cov(a) .- LenticulumCore.belief_cov(b); init = 0.0))
+end
+function _moment_distance(a::LenticulumCore.MixtureBelief, b::LenticulumCore.MixtureBelief)
+    length(a.components) == length(b.components) || return Inf
+    w = maximum(abs, exp.(a.logw) .- exp.(b.logw); init = 0.0)
+    return max(w, maximum(k -> _moment_distance(a.components[k], b.components[k]), eachindex(a.components); init = 0.0))
+end

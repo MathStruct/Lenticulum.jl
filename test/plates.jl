@@ -280,6 +280,14 @@ pl_fa_nlp(X, W, c) = -sum(pl_lognormal(X[:, i], c, W * W' + PL_σ2 * I) for i in
         end
         g, ps, s, report = hybrid(ys)
         @test report.converged
+        # the default plate schedule of a hybrid template is its hybrid schedule, lifted
+        hs = plate_schedule(g)
+        @test hs.hybrid
+        sh = MessageStore(g)
+        rh, _ = propagate!(sh, g, hs, ps, NamedTuple(); maxsweeps = 20_000, tol = 1e-13)
+        @test rh.converged
+        @test first(LenticulumCore.scalar_free_energy(sh, g, ps, NamedTuple())) ≈
+              first(LenticulumCore.scalar_free_energy(s, g, ps, NamedTuple())) atol = 1e-10
         F = first(LenticulumCore.scalar_free_energy(s, g, ps, NamedTuple()))
         G = LenticulumCore.free_energy_gradient(s, g, ps, NamedTuple(); ad = AutoForwardDiff())
         parts = [hybrid(ys[i:i]) for i in 1:n]

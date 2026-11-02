@@ -192,3 +192,14 @@ which is its name unless tied, so difficulty 2 above now reads "by key". `factor
 target, polarity, inputs, priors, ps, st)` is the batched form of `factor_message` for tied
 replicas; the default calls `factor_message` for each, and a plate sweep (`PlateSchedule`) calls
 it for each group it can batch.
+
+## Convergence on marginals (2026-11-03)
+
+`propagate!(...; criterion = :marginals)` compares every variable's marginal before and after a
+sweep by moments (`_moment_distance` in `messages.jl`: means and covariances of proper Gaussians,
+mixture weights and components, total variation for categoricals, `belief_distance` otherwise).
+The message residual of a mixture of components of width $10^{-8}$ stops falling near $10^{-8}$ because it
+is measured in natural parameters, whose entries are of order $10^8$; the moments have no such floor,
+so `test/switching_constraint.jl` converges its hybrid at `tol = 1e-10`. It is the default for a
+`HybridSchedule` and for plate schedules lifted from one; it costs one marginal per variable per
+sweep.

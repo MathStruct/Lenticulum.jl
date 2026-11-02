@@ -200,7 +200,7 @@ end
 
 # The inward and outward sweeps of the component containing `rootnode`, which must be a tree
 # (`tree_schedule` checks the whole graph; `plate_schedule` checks one component).
-function _tree_sweeps(g::FactorGraph, rootnode)
+function _tree_sweeps(g::FactorGraph, rootnode; skip = _ -> false)
     # breadth-first from the root, recording for each edge which endpoint is the child
     order = Tuple{Symbol,Int}[rootnode]
     seenv = falses(nvariables(g)); seenf = falses(nfactors(g))
@@ -213,7 +213,7 @@ function _tree_sweeps(g::FactorGraph, rootnode)
         if kind === :variable
             for ei in g.edges_of_variable[id]
                 f = g.edges[ei].factor
-                seenf[f] && continue
+                (seenf[f] || skip(f)) && continue
                 seenf[f] = true
                 edge_child[ei] = :factor
                 push!(edge_order, ei)
@@ -285,3 +285,92 @@ function forward_backward_schedule(g::FactorGraph)
     end
     return ForwardBackwardSchedule(forward, backward)
 end
+
+# --- Hybrid graphs (Extending Mycelium §3) ------------------------------------
+
+"""
+    HybridSchedule(tasks)
+
+A static schedule for a graph with [`MeanField`](@ref) nodes, built by [`hybrid_schedule`](@ref).
+It sweeps like a [`SequentialSchedule`](@ref) of `tasks`; [`propagate!`](@ref) measures its
+convergence on the variables' marginals by default (`criterion = :marginals`).
+"""
+struct HybridSchedule <: AbstractSchedule
+    tasks::Vector{MessageTask}
+end
+tasks(s::HybridSchedule) = s.tasks
+
+"""
+    hybrid_schedule(g) -> HybridSchedule
+
+The schedule of the hybrid message passing of Riegler et al. (2013) for a graph whose
+belief-propagation part (the graph with its [`MeanField`](@ref) nodes removed) is a forest. A
+sweep is:
+
+1. every belief-propagation cluster (a component of that forest) swept inward and outward, as
+   [`tree_schedule`](@ref) would, with the mean-field messages already at its variables held fixed;
+2. each mean-field node in turn: its message to each variable it can emit to, then that
+   variable's cluster swept again, so the next message reads the updated marginals.
+
+Within a cluster the beliefs are then exact given the mean-field messages, and each mean-field
+update is followed by the exact cluster posterior: block coordinate descent on the merged free
+energy when the mean-field node's other variables are in other clusters. On a fresh store the
+first pass of step 1 starts every cluster from its own factors (priors, data). Throws when a
+cluster has a loop. Without mean-field nodes it is the tree schedule of each component.
+"""
+hybrid_schedule(g::FactorGraph) = HybridSchedule(_hybrid_tasks(g, 1:nvariables(g)))
+
+# The hybrid sweep restricted to the variables `vars` (a union of components of the graph) and the
+# mean-field nodes on them.
+function _hybrid_tasks(g::FactorGraph, vars)
+    mf(f) = g.factors[f].rule isa MeanField
+    cluster_of = zeros(Int, nvariables(g))
+    sweeps = Vector{Vector{MessageTask}}()
+    for v in vars
+        cluster_of[v] == 0 || continue
+        nodes = _cluster(g, (:variable, v), mf)
+        nvs = [id for (kind, id) in nodes if kind === :variable]
+        nfs = [id for (kind, id) in nodes if kind === :factor]
+        ne = sum(f -> factor_degree(g, f), nfs; init = 0)
+        ne == length(nodes) - 1 || throw(ArgumentError(
+            "the belief-propagation cluster of variable :$(g.variables[v].name) has a loop; \
+             hybrid_schedule builds tree sweeps only (write a SequentialSchedule by hand)"))
+        foreach(u -> cluster_of[u] = length(sweeps) + 1, nvs)
+        deg(n) = n[1] === :variable ? count(ei -> !mf(g.edges[ei].factor), g.edges_of_variable[n[2]]) :
+                                      factor_degree(g, n[2])
+        root = nodes[something(findfirst(n -> deg(n) == 1, nodes), 1)]
+        ts = _tree_sweeps(g, root; skip = mf)
+        push!(sweeps, vcat(ts.inward, ts.outward))
+    end
+    out = reduce(vcat, sweeps; init = MessageTask[])
+    for f in g.factors
+        f.rule isa MeanField || continue
+        all(ei -> cluster_of[g.edges[ei].variable] != 0, g.edges_of_factor[f.id]) || continue
+        for ei in g.edges_of_factor[f.id]
+            t = to_variable_task(ei)
+            islegal(g, t) || continue
+            push!(out, t)
+            append!(out, sweeps[cluster_of[g.edges[ei].variable]])
+        end
+    end
+    return out
+end
+
+# The nodes reachable from `node` without passing through a factor for which `skip` holds.
+function _cluster(g::FactorGraph, node, skip)
+    out = [node]; seen = Set([node]); i = 1
+    while i <= length(out)
+        kind, id = out[i]; i += 1
+        nbrs = kind === :variable ?
+            [(:factor, g.edges[e].factor) for e in g.edges_of_variable[id] if !skip(g.edges[e].factor)] :
+            [(:variable, g.edges[e].variable) for e in g.edges_of_factor[id]]
+        for m in nbrs
+            m in seen && continue
+            push!(seen, m); push!(out, m)
+        end
+    end
+    return out
+end
+
+_default_criterion(::AbstractSchedule) = :messages
+_default_criterion(::HybridSchedule) = :marginals

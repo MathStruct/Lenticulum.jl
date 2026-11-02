@@ -169,3 +169,10 @@ plates do not have.
    on a single graph too, with the default couplings: it was recorded as
    [[LP-021 The coupled gradient drivers cut diagonal edges at fixed messages]], not a plate
    problem.
+
+## Hybrid templates (2026-11-03)
+
+`plate_schedule(g)` uses `_hybrid_tasks` for a component with mean-field nodes (only its
+belief-propagation clusters must be trees), lifts replica 1's, and marks the schedule `hybrid`, so
+`propagate!` converges on marginals. `test/plates.jl` checks it against the hand-lifted schedule of
+the same plate.

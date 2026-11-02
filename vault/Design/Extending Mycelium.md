@@ -12,8 +12,9 @@
 > - schedules that know the rules.
 >
 > The first step, the message rule, is done ([[L-ADR-0009 Factor nodes carry a message rule]]), and
-> so are the free energy of the hybrid (§1, [[L-SPEC-005 The Hybrid Free Energy]]) and plates (§2,
-> [[L-SPEC-006 Plates]]). The rest is proposed, ordered by what it unblocks.
+> so are the free energy of the hybrid (§1, [[L-SPEC-005 The Hybrid Free Energy]]), plates (§2,
+> [[L-SPEC-006 Plates]]) and rule-aware schedules (§3, [[L-SPEC-007 Hybrid Schedules]]). The rest is
+> proposed, ordered by what it unblocks.
 
 > Sources: original to this vault (design). Hybrid belief propagation and mean field: Riegler, Kirkelund, Manchon, Badiu & Fleury, *Merging Belief Propagation and the Mean Field Approximation: A Free Energy Approach*, IEEE Trans. Inf. Theory 59(1), 2013. Region free energies and generalised belief propagation: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE Trans. Inf. Theory 51(7), 2005. Expectation propagation: Minka, UAI 2001. Gaussian-mixture reduction: Runnalls, IEEE Trans. Aerosp. Electron. Syst. 2007. Monte Carlo EM: Wei & Tanner, *A Monte Carlo Implementation of the EM Algorithm and the Poor Man's Data Augmentation Algorithms*, JASA 85(411), 1990. Stochastic-approximation EM: Delyon, Lavielle & Moulines, *Convergence of a Stochastic Approximation Version of the EM Algorithm*, Ann. Statist. 27(1), 1999. code: `lib/Mycelium.jl/src/graph.jl`, `passing.jl`, `free_energy.jl`, `schedules.jl`, `exposure.jl`
 >
@@ -123,6 +124,13 @@ gradients. Speed is measured against the vectorised E-step of E7, with the targe
 small factor of hand-written code.
 
 ## 3. Schedules that know the rules
+
+**Status: implemented (2026-11-03)**, [[L-SPEC-007 Hybrid Schedules]]. `hybrid_schedule(g)` as
+described, `propagate!(...; criterion = :marginals)` comparing marginals by their moments (the
+default for hybrid schedules), and `plate_schedule(g)` for hybrid templates. It reproduces the
+hand-ordered hybrid of `test/switching_constraint.jl` to $10^{-9}$ at a tolerance of $10^{-10}$ (the hand
+schedule needed $10^{-6}$ on messages), and the free energy does not increase along it with
+components of width $10^{-3}$. Tutorial 11 uses it.
 
 **What.** `hybrid_schedule(g)`: belief-propagation subtrees swept inward and outward around each
 mean-field node, and mean-field nodes updated in turn. It replaces the hand-written task lists of the

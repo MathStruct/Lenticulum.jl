@@ -83,7 +83,7 @@ export has_to_variable, has_to_factor
 export AbstractSchedule, MessageTask, tasks, all_tasks, islegal
 export SequentialSchedule, FloodingSchedule, TreeSchedule, ForwardBackwardSchedule,
     ResidualSchedule
-export flooding_schedule, tree_schedule, forward_backward_schedule
+export flooding_schedule, tree_schedule, forward_backward_schedule, HybridSchedule, hybrid_schedule
 
 # --- Passing ---------------------------------------------------------------
 export factor_message, factor_messages, mean_field_message, mean_field_energy, available_channels, step!, sweep!, propagate!, infer!
