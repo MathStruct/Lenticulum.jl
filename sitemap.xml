@@ -120,7 +120,7 @@
     <lastmod>2026-10-27T10:34:02.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Factor-Graphs/Gaussian-Belief</loc>
-    <lastmod>2026-10-07T15:05:08.000Z</lastmod>
+    <lastmod>2026-11-02T12:42:40.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Factor-Graphs/Hierarchical-Models</loc>
     <lastmod>2026-10-30T08:37:55.000Z</lastmod>
@@ -186,7 +186,7 @@
     <lastmod>2026-10-26T01:19:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-11-01T23:07:25.434Z</lastmod>
+    <lastmod>2026-11-02T12:42:59.218Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-10-25T22:36:28.000Z</lastmod>
@@ -528,7 +528,7 @@
     <lastmod>2026-10-28T15:44:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/LenticulumCore.jl/gaussian_belief</loc>
-    <lastmod>2026-10-30T08:38:17.000Z</lastmod>
+    <lastmod>2026-11-02T12:42:40.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/LenticulumCore.jl/interop</loc>
     <lastmod>2026-10-29T20:31:05.000Z</lastmod>
@@ -558,7 +558,7 @@
     <lastmod>2026-11-01T21:37:36.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/Mycelium.jl/gaussian</loc>
-    <lastmod>2026-10-30T08:38:17.000Z</lastmod>
+    <lastmod>2026-11-02T12:42:40.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/Mycelium.jl/gradient_couplings</loc>
     <lastmod>2026-11-01T21:03:58.000Z</lastmod>
@@ -645,13 +645,13 @@
     <lastmod>2026-10-28T15:44:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/src/constraint</loc>
-    <lastmod>2026-11-01T23:07:06.000Z</lastmod>
+    <lastmod>2026-11-02T12:42:40.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/src/exposure</loc>
     <lastmod>2026-10-30T08:37:55.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/src/gaussian</loc>
-    <lastmod>2026-11-01T21:03:58.000Z</lastmod>
+    <lastmod>2026-11-02T12:42:40.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/src/likelihood</loc>
     <lastmod>2026-10-29T14:49:16.000Z</lastmod>
@@ -663,5 +663,5 @@
     <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/src/switching</loc>
-    <lastmod>2026-11-01T23:07:06.000Z</lastmod>
+    <lastmod>2026-11-02T12:42:40.000Z</lastmod>
   </url></urlset>
