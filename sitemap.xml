@@ -186,7 +186,7 @@
     <lastmod>2026-10-26T01:19:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-11-02T21:06:02.554Z</lastmod>
+    <lastmod>2026-11-02T22:41:50.715Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-10-25T22:36:28.000Z</lastmod>
@@ -399,10 +399,10 @@
     <lastmod>2026-11-02T14:37:07.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Problems/LP-021-The-coupled-gradient-drivers-cut-diagonal-edges-at-fixed-messages</loc>
-    <lastmod>2026-11-02T19:22:24.000Z</lastmod>
+    <lastmod>2026-11-02T22:41:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Problems/Problem-Log</loc>
-    <lastmod>2026-11-02T19:22:24.000Z</lastmod>
+    <lastmod>2026-11-02T22:41:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Specifications/L-SPEC-001-The-Factor-Interface</loc>
     <lastmod>2026-10-27T13:51:12.000Z</lastmod>
@@ -420,7 +420,7 @@
     <lastmod>2026-11-02T16:47:15.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Specifications/L-SPEC-006-Plates</loc>
-    <lastmod>2026-11-02T21:05:45.000Z</lastmod>
+    <lastmod>2026-11-02T22:41:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Specifications/Specifications</loc>
     <lastmod>2026-11-02T19:22:24.000Z</lastmod>
@@ -570,13 +570,13 @@
     <lastmod>2026-11-02T12:42:40.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/Mycelium.jl/gradient_couplings</loc>
-    <lastmod>2026-11-01T21:03:58.000Z</lastmod>
+    <lastmod>2026-11-02T22:41:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/Mycelium.jl/graph</loc>
     <lastmod>2026-11-02T21:05:45.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/Mycelium.jl/graph_adjoint</loc>
-    <lastmod>2026-11-01T21:03:58.000Z</lastmod>
+    <lastmod>2026-11-02T22:41:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/Mycelium.jl/messages</loc>
     <lastmod>2026-10-29T14:49:16.000Z</lastmod>
