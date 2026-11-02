@@ -86,8 +86,8 @@ function _candidate(s, g, t, ps, st, ad=nothing)
     end
     check_legal(g, f.id, pol)
     b, state = _gradient_message(ad, f.factor, e.channel, pol, _inputs(s, g, f.id, chans),
-        excluded_marginal(s, g, e.variable, t.edge), _subtree(ps, f.name), _subtree(st, f.name))
-    return b, _setsubtree(st, f.name, state)
+        excluded_marginal(s, g, e.variable, t.edge), _subtree(ps, f.params), _subtree(st, f.params))
+    return b, _setsubtree(st, f.params, state)
 end
 
 function _functional_infer(g, ts, ps, st, report, damping=0.0)
@@ -97,7 +97,7 @@ function _functional_infer(g, ts, ps, st, report, damping=0.0)
         t = _task(op)
         e = g.edges[t.edge]
         psnames = keys(ps)
-        pinned = NamedTuple{psnames}(map(name -> _factor_parameters(factornode(g,name),ps[name]), psnames))
+        pinned = NamedTuple{psnames}(map(name -> _factor_parameters(_key_node(g,name),ps[name]), psnames))
         b, state = _damped_candidate(read, g, t, pinned, state, damping, Val(:chainrules))
         b = e.detach ? LenticulumCore.stop_gradient(b) : b
         return _with_message(store,t,b), LenticulumCore.stop_gradient(state), buffer
@@ -116,7 +116,7 @@ end
 
 function _graph_scalar(s, g, ps, st)
     terms = map(_factor_nodes(g)) do f
-        _local_scalar(_subtree(ps, f.name), f.factor, messages_into(s, g, f.id), _subtree(st, f.name))
+        _local_scalar(_subtree(ps, f.params), f.factor, messages_into(s, g, f.id), _subtree(st, f.params))
     end
     correction = sum(map(_variable_nodes(g)) do v
         counting_number(g, v.id) * variable_free_energy(marginal(s, g, v.id))
@@ -185,7 +185,7 @@ function _reference_tape(g, ts, ps, st, rng, damping=0.0)
         e = g.edges[t.edge]
         f = g.factors[e.factor]
         loss = !e.detach && e.coupling isa LenticulumCore.ScoreFunctionCoupling ?
-            _local_scalar(_subtree(ps,f.name),f.factor,messages_into(s,g,f.id),_subtree(st,f.name)) : 0.0
+            _local_scalar(_subtree(ps, f.params),f.factor,messages_into(s,g,f.id),_subtree(st, f.params)) : 0.0
         merge(entry,(loss=loss,))
     end
     return weighted, s, st
@@ -215,7 +215,7 @@ end
 function _pinned_parameters(ps, reference_ps, g)
     names = keys(reference_ps)
     pinned = NamedTuple{names}(map(names) do name
-        f = factornode(g, name)
+        f = _key_node(g, name)
         indices = _active_indices(f, reference_ps[name])
         θ = LenticulumCore._flatten_active(ps[name])
         _replace_active(reference_ps[name], indices, _gather_active(θ, indices))
@@ -242,7 +242,7 @@ function _coupled_gradient(s, g, ps, st; ad=nothing, ε=1e-6, schedule=nothing,
         "non-diagonal graph gradients require schedule=... and an explicit finite nsweeps (default 1); replay starts from empty messages"))
     _check_schedule_ad(ad)
     for f in g.factors
-        LenticulumCore._check_factor_ad(ad, f.factor, _subtree(st, f.name))
+        LenticulumCore._check_factor_ad(ad, f.factor, _subtree(st, f.params))
     end
     stochastic = any(e -> !e.detach && e.coupling isa LenticulumCore.ScoreFunctionCoupling, g.edges)
     if stochastic

@@ -12,8 +12,8 @@
 > - schedules that know the rules.
 >
 > The first step, the message rule, is done ([[L-ADR-0009 Factor nodes carry a message rule]]), and
-> so is the free energy of the hybrid (§1, [[L-SPEC-005 The Hybrid Free Energy]]). The rest is
-> proposed, ordered by what it unblocks.
+> so are the free energy of the hybrid (§1, [[L-SPEC-005 The Hybrid Free Energy]]) and plates (§2,
+> [[L-SPEC-006 Plates]]). The rest is proposed, ordered by what it unblocks.
 
 > Sources: original to this vault (design). Hybrid belief propagation and mean field: Riegler, Kirkelund, Manchon, Badiu & Fleury, *Merging Belief Propagation and the Mean Field Approximation: A Free Energy Approach*, IEEE Trans. Inf. Theory 59(1), 2013. Region free energies and generalised belief propagation: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE Trans. Inf. Theory 51(7), 2005. Expectation propagation: Minka, UAI 2001. Gaussian-mixture reduction: Runnalls, IEEE Trans. Aerosp. Electron. Syst. 2007. Monte Carlo EM: Wei & Tanner, *A Monte Carlo Implementation of the EM Algorithm and the Poor Man's Data Augmentation Algorithms*, JASA 85(411), 1990. Stochastic-approximation EM: Delyon, Lavielle & Moulines, *Convergence of a Stochastic Approximation Version of the EM Algorithm*, Ann. Statist. 27(1), 1999. code: `lib/Mycelium.jl/src/graph.jl`, `passing.jl`, `free_energy.jl`, `schedules.jl`, `exposure.jl`
 >
@@ -34,7 +34,7 @@ What the experiments behind [[Composing Stochastic Factors]] ran into, in order 
 |---|---|---|
 | only belief propagation | E6: a sum node fed by switches sees the other switches' prior moments | biased learning, 0.5–0.8 nats; fixed for one node by `MeanField()` |
 | no free energy for hybrid graphs | E7 in the graph | `parameter_step` refused; the M-step was written by hand (resolved by §1, 2026-11-02) |
-| one graph per data point | EM through the hybrid graph | 14 times slower than the vectorised code (28 s against 2 s) |
+| one graph per data point | EM through the hybrid graph | 14 times slower than the vectorised code (28 s against 2 s); plates and tying added by §2 (2026-11-02), the per-message overhead remains |
 | no mixture entropies at variables | the Bethe sum with a mixture marginal of degree $\ge 2$ | no free energy for most hybrid graphs |
 | mixtures only collapse to moments | E6, E7 | the only policy is assumed-density filtering |
 | frozen graphs | structure search over switch wirings | structure moves rebuild models outside Mycelium |
@@ -89,6 +89,17 @@ objective, inside Mycelium.
 - at a fixed point its parameter gradient equals the closed-form M-step.
 
 ## 2. Plates: one graph, many data points, shared parameters
+
+**Status: implemented (2026-11-02)**, [[L-SPEC-006 Plates]], `lib/Mycelium.jl/src/plates.md`. Tying is
+general (`factor!(...; params)`), the plate builder unrolls the template with tied factors, and
+`plate_schedule` runs each template task for all replicas at once through `factor_messages`.
+Checked against the loop of $N$ graphs (marginals, free energy, gradients with three backends) and
+closed forms, including a shared latent variable and a plate of hybrid graphs. The speed target
+was not met: for factor analysis the grouped plate is 2.1–2.5 times faster than a loop of
+prebuilt graphs and 430–740 times slower than the hand-written E-step, the rest being Mycelium's
+per-message overhead. The comparison with E7's vectorised code was not rerun (E7 lives on
+`experiment-qm`). A plate is unrolled rather than batched; "factors inside see batched inputs"
+holds only through `factor_messages`.
 
 **What.** A graph template replicated over $N$ observations with tied parameters, run as one batched
 graph: beliefs with a batch dimension, messages computed for all replicas at once, and gradients

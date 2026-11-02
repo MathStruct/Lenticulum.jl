@@ -124,3 +124,9 @@ either function body.
 `ResidualSchedule` rejects `maxtasks < 1` (LP-019 item 9): a sweep of no tasks computes no
 message and has residual 0, which `propagate!` read as convergence, so a unary `DataFactor`
 graph returned `TrivialBelief()` with a converged report.
+
+## Component sweeps (2026-11-02)
+
+The breadth-first inward/outward construction of `tree_schedule` is now `_tree_sweeps(g, root)`,
+which covers the component containing `root`; `tree_schedule` checks the whole graph is a tree
+and calls it. `plate_schedule(g)` (`plates.jl`) calls it per component.

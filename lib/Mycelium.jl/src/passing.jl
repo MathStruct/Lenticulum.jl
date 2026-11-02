@@ -32,6 +32,25 @@ function factor_message(factor, target::Symbol, polarity, inputs, prior, ps, st)
 end
 
 """
+    factor_messages(factors, target, polarity, inputs, priors, ps, st) -> (beliefs, st)
+
+The factor → variable messages to channel `target` of several tied replicas at once: `factors[i]`
+is replica `i`'s factor (all of one type, with shared parameters `ps`; their other fields, such
+as data, may differ), and `inputs[i]` and `priors[i]` are what [`factor_message`](@ref) receives
+for it. `beliefs[i]` must be what `factor_message` returns. A plate sweep
+([`PlateSchedule`](@ref)) calls this for a group of tied replicas. The default calls
+`factor_message` for each in turn, threading `st`; a factor type overrides it (dispatching on
+the element type of `factors`) to share the work that depends only on the parameters.
+"""
+function factor_messages(factors::AbstractVector, target, polarity, inputs::AbstractVector, priors::AbstractVector, ps, st)
+    beliefs = Vector{Any}(undef, length(inputs))
+    for i in eachindex(factors, inputs, priors)
+        beliefs[i], st = factor_message(factors[i], target, polarity, inputs[i], priors[i], ps, st)
+    end
+    return beliefs, st
+end
+
+"""
     mean_field_message(factor, target::Symbol, polarity, beliefs::NamedTuple, ps, st)
         -> (belief, st)
 
@@ -112,7 +131,7 @@ end
 
 Execute one [`MessageTask`](@ref).
 
-`ps` and `st` are the graph-wide parameter and state trees, keyed by factor name — the same
+`ps` and `st` are the graph-wide parameter and state trees, keyed by [`parameter_key`](@ref) (the factor name unless tied) — the same
 nested `NamedTuple` shape `LuxCore.setup` produces.
 
 Returns the new belief, the [`belief_distance`](@ref) to the message it replaces (the
@@ -141,8 +160,8 @@ function step!(s::MessageStore, g::FactorGraph, t::MessageTask, ps, st;
             factornode(g, e.factor).name, e.channel,
             "edge is Absorbing; a factor -> variable message is not legal here"))
         fn = factornode(g, e.factor)
-        psf = _factor_parameters(fn, _subtree(ps, fn.name))
-        stf = _subtree(st, fn.name)
+        psf = _factor_parameters(fn, _subtree(ps, fn.params))
+        stf = _subtree(st, fn.params)
         # EXCLUSION, factor side: the target channel's own incoming message must not be
         # used to compute the outgoing message on that same channel. Without this the
         # target would be resolved as both Observed and Unobserved, and even if it were
@@ -173,7 +192,7 @@ function step!(s::MessageStore, g::FactorGraph, t::MessageTask, ps, st;
         if commit
             s.to_variable[t.edge] = Message(belief, s.iteration)
         end
-        return belief, res, _setsubtree(st, fn.name, stf)
+        return belief, res, _setsubtree(st, fn.params, stf)
     end
 end
 

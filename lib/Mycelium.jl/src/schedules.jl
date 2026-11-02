@@ -195,7 +195,12 @@ function tree_schedule(g::FactorGraph; root = nothing)
         "tree_schedule requires a tree (connected, χ = 1); this graph has χ = \
          $(euler_characteristic(g))$(isconnected(g) ? "" : " and is disconnected"). \
          Use flooding_schedule or a ResidualSchedule."))
-    rootnode = _resolve_tree_root(g, root)
+    return _tree_sweeps(g, _resolve_tree_root(g, root))
+end
+
+# The inward and outward sweeps of the component containing `rootnode`, which must be a tree
+# (`tree_schedule` checks the whole graph; `plate_schedule` checks one component).
+function _tree_sweeps(g::FactorGraph, rootnode)
     # breadth-first from the root, recording for each edge which endpoint is the child
     order = Tuple{Symbol,Int}[rootnode]
     seenv = falses(nvariables(g)); seenf = falses(nfactors(g))

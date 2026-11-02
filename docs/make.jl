@@ -137,7 +137,10 @@ makedocs(;
         "References" => "references.md",
         "Packages" => [
             "LenticulumCore" => "packages/lenticulumcore.md",
-            "Mycelium" => "packages/mycelium.md",
+            "Mycelium" => [
+                "Guide" => "packages/mycelium/index.md",
+                "API" => "packages/mycelium/api.md",
+            ],
             "Lenticulum" => "packages/lenticulum.md",
             "VariationalDiffusion" => [
                 "Overview" => "packages/variationaldiffusion/index.md",

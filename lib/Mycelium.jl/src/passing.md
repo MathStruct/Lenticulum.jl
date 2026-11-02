@@ -184,3 +184,11 @@ The separate implicit driver verifies every synchronous BP row before its adjoin
 solve, rather than trusting TreeSchedule's ordinary one-sweep report.
 
 Evidence: `test/graph_adjoint.jl`, `test/graph_adjoint_devices.jl`.
+
+## Parameter keys and batched messages (2026-11-02)
+
+`step!` reads and writes `ps[key]` and `st[key]` with the node's parameter key (`plates.md`),
+which is its name unless tied, so difficulty 2 above now reads "by key". `factor_messages(factors,
+target, polarity, inputs, priors, ps, st)` is the batched form of `factor_message` for tied
+replicas; the default calls `factor_message` for each, and a plate sweep (`PlateSchedule`) calls
+it for each group it can batch.

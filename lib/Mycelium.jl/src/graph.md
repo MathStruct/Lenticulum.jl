@@ -128,3 +128,18 @@ CPU keeps its prior comprehension; GPUArraysCore uses broadcast masks and
 static inference AD. Freeze indices are constant metadata. JLArrays replay and
 subset/all freeze tests live in `lib/ImplicitLayers.jl/test/device_arrays.jl`;
 see [[gradient_couplings]] for coverage limits.
+
+## Parameter keys and plates (2026-11-02)
+
+Each `FactorNode` now carries a parameter key, `params`, the entry of `ps` and `st` it reads: its
+name unless `factor!(...; params = key)` ties it to other nodes. `parameter_keys(g)` lists the
+distinct keys in order of first appearance; `LuxCore.initialparameters`, `initialstates` and
+`parameterlength` have one entry per key, from the first node reading it (`_key_node`).
+`tied_factors(g, key)` lists the nodes of one key. `build` calls `_check_ties`: tied nodes must
+have the same factor type and `freeze`, and a key may not be the name of a node that reads
+another key. The 3-, 4- and 5-argument `FactorNode` constructors set the key to the name, so code
+that builds nodes by hand is unchanged.
+
+`FactorGraph` and `GraphBuilder` also hold the graph's plates (`plates.jl`, `plates.md`).
+`show` now says "forest" for a disconnected graph whose components are trees (`_ncomponents`), the
+usual shape of a plate with shared parameters only; it said "loopy" before.

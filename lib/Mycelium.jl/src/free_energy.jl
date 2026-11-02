@@ -120,15 +120,16 @@ Missing messages on edges that can carry them remain `nothing`.
 """
 function factor_free_energies(s::AbstractMessageStore, g::FactorGraph, ps, st)
     _check_energy_edges(g)
+    _check_tied_state(g, st)
     names = Tuple(f.name for f in g.factors)
     results = map(_factor_nodes(g)) do f
-        psf = _factor_parameters(f, _subtree(ps, f.name))
-        stf = _subtree(st, f.name)
+        psf = _factor_parameters(f, _subtree(ps, f.params))
+        stf = _subtree(st, f.params)
         f.rule isa MeanField && return mean_field_energy(f.factor, marginals_into(s, g, f.id), psf, stf)
         local_free_energy(f.factor, messages_into(s, g, f.id), psf, stf)
     end
-    stnew = foldl(zip(names,results); init=st) do acc, item
-        _setsubtree(acc, item[1], item[2][2])
+    stnew = foldl(zip(g.factors,results); init=st) do acc, item
+        _setsubtree(acc, item[1].params, item[2][2])
     end
     return LenticulumCore.GradedEnergy(NamedTuple{names}(map(first,results))), stnew
 end
@@ -313,18 +314,22 @@ _mean_field_scalar(ps, factor, marginals, st) = LenticulumCore.scalarise(
 _point_message(::LenticulumCore.DiracBelief) = true
 _point_message(_) = false
 
-function _factor_gradient(ad, f, p, msgs, st; ε)
+# What a node's parameter gradient differentiates, as (scalar function, factor, fixed data): the
+# scalar is a function of (ps, factor, data, st). Evaluated outside AD.
+function _gradient_item(f, msgs, p, st)
     # A mean-field node's term is already at fixed beliefs, the marginals (`msgs` holds them).
-    f.rule isa MeanField &&
-        return LenticulumCore._parameter_gradient(ad, _mean_field_scalar, p, f.factor, msgs, st; ε)
+    f.rule isa MeanField && return (_mean_field_scalar, f.factor, msgs)
     b = factor_belief(f.factor, msgs, p, st)
-    b === nothing || return LenticulumCore._parameter_gradient(ad, _belief_scalar, p, f.factor, b, st; ε)
+    b === nothing || return (_belief_scalar, f.factor, b)
     uses_cavity(f.factor) && !all(_point_message, values(msgs)) && @warn(
         "factor :$(f.name) ($(nameof(typeof(f.factor)))) has incoming messages that are not all points but no \
          `factor_belief`, so its parameter gradient holds the messages fixed, not its belief; \
          this is not the free-energy gradient in general (LP-020)", maxlog = 1)
-    return LenticulumCore._parameter_gradient(ad, _local_scalar, p, f.factor, msgs, st; ε)
+    return (_local_scalar, f.factor, msgs)
 end
+
+# Tied nodes: one parameter vector, the sum of their scalars, differentiated in one call.
+_tied_scalar(ps, items, st) = sum(map(it -> it[1](ps, it[2], it[3], st), items))
 
 """
     LenticulumCore.free_energy_gradient(store, g, ps, st; ad = nothing, ε = 1e-6,
@@ -371,21 +376,27 @@ function LenticulumCore.free_energy_gradient(s::MessageStore, g::FactorGraph, ps
         return _coupled_gradient(s, g, ps, st; ad, ε, schedule, nsweeps, rng, nsamples,
             damping, adjoint, maxsweeps, tol, linear_solver, linear_tol, linear_maxiter)
     end
-    names = Tuple(f.name for f in g.factors)
-    grads = map(Tuple(g.factors)) do f
-        p = _subtree(ps, f.name)
+    keys_ = parameter_keys(g)
+    grads = map(keys_) do key
+        nodes = [g.factors[i] for i in tied_factors(g, key)]
+        f = first(nodes)
+        p = _subtree(ps, key)
         if !LenticulumCore.islearnable(f.factor)
             θ = LenticulumCore._flatten(p)
             return LenticulumCore._unflatten(zero(θ), p)
         end
-        LenticulumCore._check_factor_ad(ad, f.factor, _subtree(st, f.name))
-        msgs = f.rule isa MeanField ? marginals_into(s, g, f.id) : messages_into(s, g, f.id)
-        grad = _factor_gradient(ad, f, p, msgs, _subtree(st, f.name); ε)
+        stf = _subtree(st, key)
+        LenticulumCore._check_factor_ad(ad, f.factor, stf)
+        items = map(h -> _gradient_item(h, h.rule isa MeanField ? marginals_into(s, g, h.id) :
+                                                                  messages_into(s, g, h.id), p, stf), nodes)
+        grad = length(items) == 1 ?
+            LenticulumCore._parameter_gradient(ad, only(items)[1], p, only(items)[2], only(items)[3], stf; ε) :
+            LenticulumCore._parameter_gradient(ad, _tied_scalar, p, items, stf; ε)
         indices = _active_indices(f, p)
         θ = LenticulumCore._flatten(grad)
         return LenticulumCore._unflatten(_mask_gradient(θ, indices), p)
     end
-    return NamedTuple{names}(grads)
+    return NamedTuple{keys_}(grads)
 end
 
 """
@@ -411,17 +422,18 @@ message store or exposed OptimiserFactor wires.
 function parameter_step(s::MessageStore, g::FactorGraph, ps, st;
                         ad, rule = GradientDescent(0.01), optimiser_state = nothing,
                         kwargs...)
-    fs = Tuple(f for f in g.factors if !isempty(_active_indices(f, _subtree(ps, f.name))))
-    names = Tuple(f.name for f in fs)
-    indices = map(f -> _active_indices(f, _subtree(ps, f.name)), fs)
-    θs = map((f, ii) -> _gather_active(LenticulumCore._flatten(_subtree(ps, f.name)), ii), fs, indices)
+    fs = Tuple(f for f in map(k -> _key_node(g, k), parameter_keys(g))
+               if !isempty(_active_indices(f, _subtree(ps, f.params))))
+    names = Tuple(f.params for f in fs)
+    indices = map(f -> _active_indices(f, _subtree(ps, f.params)), fs)
+    θs = map((f, ii) -> _gather_active(LenticulumCore._flatten(_subtree(ps, f.params)), ii), fs, indices)
     os = optimiser_state === nothing ? NamedTuple{names}(map(zero, θs)) : optimiser_state
     for (f, θ) in zip(fs, θs)
-        haskey(os,f.name) && length(os[f.name]) == length(θ) || throw(ArgumentError(
-            "optimiser_state for :$(f.name) must contain exactly $(length(θ)) active coordinates; reinitialise it after changing freeze paths"))
+        haskey(os,f.params) && length(os[f.params]) == length(θ) || throw(ArgumentError(
+            "optimiser_state for :$(f.params) must contain exactly $(length(θ)) active coordinates; reinitialise it after changing freeze paths"))
     end
     look = map(fs, θs, indices) do f, θ, ii
-        _replace_active(_subtree(ps, f.name), ii, rule_get(rule, os[f.name], θ))
+        _replace_active(_subtree(ps, f.params), ii, rule_get(rule, os[f.params], θ))
     end
     at = merge(ps, NamedTuple{names}(look))
     coupled = get(kwargs, :adjoint, :unrolled) === :implicit || any(e -> !(e.coupling isa DiagonalCoupling), g.edges)
@@ -433,10 +445,10 @@ function parameter_step(s::MessageStore, g::FactorGraph, ps, st;
     end
     grad = result isa GradientEstimate ? result.value : result
     updates = map(fs, θs, indices) do f, θ, ii
-        rule_put(rule, os[f.name], θ, _gather_active(LenticulumCore._flatten(grad[f.name]), ii))
+        rule_put(rule, os[f.params], θ, _gather_active(LenticulumCore._flatten(grad[f.params]), ii))
     end
     newps = map(fs, updates, indices) do f, u, ii
-        _replace_active(_subtree(ps, f.name), ii, u[2])
+        _replace_active(_subtree(ps, f.params), ii, u[2])
     end
     output = (merge(ps, NamedTuple{names}(newps)), stnew,
               NamedTuple{names}(map(first, updates)))
@@ -446,6 +458,18 @@ end
 function _replace_active(ps, indices, active)
     θ = LenticulumCore._flatten_active(ps)
     return LenticulumCore._unflatten(_replace_coordinates(θ, indices, active), ps)
+end
+
+# Tied nodes read one state entry; with a non-empty one, which node's update is kept would depend
+# on evaluation order, so it is refused (`plates.md`).
+function _check_tied_state(g, st)
+    st isa NamedTuple || return nothing
+    for k in parameter_keys(g)
+        count(f -> f.params === k, g.factors) > 1 || continue
+        _empty_graph_state(_subtree(st, k)) || throw(ArgumentError(
+            "the factors tied to parameters :$k have a non-empty state; tied factors must be stateless"))
+    end
+    return nothing
 end
 
 # `mean_field = false` for the paths that differentiate through inference or record residual

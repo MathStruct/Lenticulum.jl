@@ -8,6 +8,8 @@ Factor **graphs** and **message passing** — how factors are wired and in what 
 talk. This is the layer with no counterpart in Lux, because in Lux the wiring is a DAG and the
 order is implied by it.
 
+The docstrings of every exported name are on the [Mycelium API](@ref mycelium-api) page.
+
 ## Building a graph
 
 ```julia
@@ -193,6 +195,33 @@ both linear solvers because the coordinate adapter is CPU-only. No hardware GPU
 result is claimed. LP-002 and the implementation notes record measurements and
 the native-backend and metric/divergence reproducers.
 
+## Plates: many observations, shared parameters
+
+A plate replicates a template over observations in one graph. Factors inside it are **tied**:
+every replica reads one entry of `ps`, and its gradient is the sum over replicas. A name the
+template does not declare is a node outside the plate, shared by every replica.
+
+```julia
+b = GraphBuilder()
+plate!(b, :obs, N) do p, i
+    variable!(p, :z, k); variable!(p, :x, d)
+    factor!(p, :prior, GaussianPrior(:z, zeros(k), Matrix(1.0I, k, k)))
+    factor!(p, :lik, LinearConstraintFactor((x = d, z = k), d; noise = 0.7))   # ps.lik, shared
+    factor!(p, :data, DataFactor(:x, X[:, i]))
+    connect!(p, :prior, :z, :z); connect!(p, :lik, :z, :z)
+    connect!(p, :lik, :x, :x; direction = Absorbing()); connect!(p, :data, :x, :x; direction = Emitting())
+end
+g = build(b)                                  # nodes :z[1], …, :z[N]; parameter_keys(g) == (:prior, :lik, :data)
+sched = plate_schedule(g)                     # each template task for all replicas at once
+_, st = propagate!(MessageStore(g), g, sched, ps, st)
+```
+
+Any node can be tied outside a plate too, with `factor!(b, name, f; params = key)`. Tied nodes
+need the same factor type and `freeze`. `plate_schedule(g, replica_tasks)` lifts a hand-written
+schedule for replica 1, such as the sweeps of a hybrid graph. A sweep of a plate schedule gives
+the messages of the same tasks run one by one. Factors can compute a group's messages together
+through [`factor_messages`](@ref); `LinearConstraintFactor` does.
+
 ## Known gaps
 
 - `combine` is partial: particles can be reweighted by a density or an
@@ -202,7 +231,12 @@ the native-backend and metric/divergence reproducers.
   rather than resample; structured belief pairs retain their explicit rules.
 - Potential distances compare callable identity (otherwise `Inf`); damping potentials is
   an inspectable no-op through `can_damp`.
-- No parameter sharing between factor nodes, so weight tying is not expressible.
+- Plates are unrolled, not batched: the grouped schedule removes the per-replica polarity and
+  rank work, but the per-message overhead stays (factor analysis: 2.1–2.5 times faster than a
+  loop of graphs, hundreds of times slower than the E-step written by hand; `plates.md`).
+- `adjoint = :implicit` (and the other coupled drivers) cut a diagonal edge at its fixed message,
+  not its fixed belief, so with the default couplings it disagrees with the default driver
+  (LP-021, open).
 - `free_energy_gradient` and `parameter_step` hold each factor's belief fixed (the envelope
   gradient, exact at a belief-propagation fixed point) only for factors that implement
   `factor_belief`: Lenticulum's Gaussian, constraint and switching factors, and AlgebraicFactors'
@@ -213,87 +247,6 @@ the native-backend and metric/divergence reproducers.
   (non-diagonal couplings, `adjoint = :implicit`) and the sample buffer still refuse them.
 - Loopy message passing has no convergence guarantees, and `report.converged` means the
   *messages* stopped moving, not that the answer is right.
-
-## API
-
-```@index
-Modules = [Mycelium]
-```
-
-### Graphs
-
-```@autodocs
-Modules = [Mycelium]
-Pages = ["graph.jl"]
-```
-
-### Polarity resolution
-
-```@autodocs
-Modules = [Mycelium]
-Pages = ["polarity_resolution.jl"]
-```
-
-### Messages and beliefs
-
-```@autodocs
-Modules = [Mycelium]
-Pages = ["messages.jl", "gaussian.jl"]
-```
-
-### Schedules
-
-```@autodocs
-Modules = [Mycelium]
-Pages = ["schedules.jl"]
-```
-
-### Running inference
-
-```@autodocs
-Modules = [Mycelium]
-Pages = ["passing.jl"]
-```
-
-### Free energy
-
-```@autodocs
-Modules = [Mycelium]
-Pages = ["free_energy.jl"]
-```
-
-### Sampling
-
-```@autodocs
-Modules = [Mycelium]
-Pages = ["sampling.jl"]
-```
-
-### Structural factors and optimisers
-
-```@autodocs
-Modules = [Mycelium]
-Pages = ["factors.jl"]
-```
-
-### Exposed parameters
-
-A parameter block of a factor can become a channel, so that a variable holds the weight, a
-prior on it is an ordinary factor, and connecting two factors' exposed channels to one variable
-ties the weight (L-SPEC-003 §1). With the channel observed as a point, any factor works; a
-belief on it needs the factor's `parameter_message` and `parameter_free_energy`.
-
-```@autodocs
-Modules = [Mycelium]
-Pages = ["exposure.jl"]
-```
-
-### Everything else
-
-```@autodocs
-Modules = [Mycelium]
-Pages = ["Mycelium.jl"]
-```
 
 ## Game quantities and conformance
 
@@ -345,10 +298,7 @@ identity input Jacobian and zero local cost. Its fixed callables take scalar/arr
 ForwardDiff and ChainRules reverse mode are supported; the graph derivative entry points
 reject other backends, including differences of the forward function.
 
-```@autodocs
-Modules = [Mycelium]
-Pages = ["gradient_couplings.jl"]
-```
+The types and functions are listed under [Gradient couplings](@ref mycelium-api-couplings) in the [API reference](@ref mycelium-api).
 
 
 ## Device graph gradients

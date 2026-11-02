@@ -119,7 +119,7 @@ function _implicit_graph_gradient(g, ps, st; ad, ε, schedule, damping, maxsweep
     isfinite(linear_tol) && linear_tol > 0 && linear_maxiter isa Int && linear_maxiter > 0 || throw(ArgumentError("linear_tol and linear_maxiter must be positive"))
     0 <= damping < 1 || throw(ArgumentError("damping must be in [0, 1)"))
     for f in g.factors
-        LenticulumCore._check_factor_ad(ad, f.factor, _subtree(st, f.name))
+        LenticulumCore._check_factor_ad(ad, f.factor, _subtree(st, f.params))
     end
     ts = all_tasks(g)
     isempty(ts) && throw(ArgumentError("implicit graph adjoints need message tasks"))

@@ -226,7 +226,7 @@ function _record!(b::SampleBuffer, s::MessageStore, g::FactorGraph, ps, st, weig
     total, st = LenticulumCore.scalar_free_energy(s, g, ps, st)
     names = Tuple(f.name for f in g.factors)
     moments = NamedTuple{names}(Tuple(
-        factor_residual_moments(f.factor, messages_into(s, g, f.id), _factor_parameters(f, _subtree(ps, f.name)))
+        factor_residual_moments(f.factor, messages_into(s, g, f.id), _factor_parameters(f, _subtree(ps, f.params)))
         for f in g.factors))
     push!(b.entries, (pins = copy(s.pins), step = b.step, weight = float(weight), total = float(total),
                       energies = (factors = _energy_record(F), variables = _energy_record(V)), moments))
@@ -381,9 +381,9 @@ function _pinned_total(ps, sampler::GibbsSampler, pins, st)
 end
 
 function _mask_unlearnable(grad, g::FactorGraph)
-    names = Tuple(f.name for f in g.factors if haskey(grad, f.name))
+    names = Tuple(k for k in parameter_keys(g) if haskey(grad, k))
     sub = map(names) do n
-        f = factornode(g, n)
+        f = _key_node(g, n)
         p = getfield(grad, n)
         θ = LenticulumCore._flatten(p)
         LenticulumCore._unflatten(_mask_gradient(θ, _active_indices(f, p)), p)

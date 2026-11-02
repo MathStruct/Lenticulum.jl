@@ -322,3 +322,14 @@ Flooding/residual/damped finite derivatives and their realised-schedule semantic
 are specified in [[gradient_couplings]] and tested in `test/graph_adjoint.jl`
 and `test/graph_adjoint_devices.jl`. Native Enzyme/Mooncake replay is still
 rejected; the reproducer and backend findings are recorded in LP-002.
+
+## Tied parameters (2026-11-02)
+
+`free_energy_gradient` returns one entry per parameter key (`parameter_keys(g)`). For a key read
+by several nodes it evaluates each node's term outside AD as before (its belief, its mean-field
+marginals, or its messages for a factor without `factor_belief`) and differentiates the sum of
+their scalars in one AD call (`_gradient_item`, `_tied_scalar`); one node is differentiated as
+before. `parameter_step` keeps one optimiser state per key. `factor_free_energies` still reports
+one energy per node, keyed by node name, and threads state by key. Checked in `test/plates.jl`
+against the sum of separate graphs' gradients. The coupled drivers differentiate the whole of
+`ps` and sum tied entries without change.

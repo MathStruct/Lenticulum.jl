@@ -50,6 +50,7 @@ include("polarity_resolution.jl")
 include("messages.jl")
 include("schedules.jl")
 include("passing.jl")
+include("plates.jl")
 include("free_energy.jl")
 include("factors.jl")
 include("exposure.jl")
@@ -66,7 +67,8 @@ export EdgeDirection, Bidirectional, Emitting, Absorbing, emits, absorbs
 export nvariables, nfactors, nedges, variable, factornode
 export edges_of_factor, edges_of_variable, variable_degree, factor_degree, channels_of
 export euler_characteristic, isconnected, istree, isdag, topological_order, leaves
-export learnable_factors
+export learnable_factors, parameter_key, parameter_keys, tied_factors
+export Plate, PlateBuilder, plate!, plates, replica_name, PlateSchedule, plate_schedule
 
 # --- Polarity --------------------------------------------------------------
 export PolarityError, resolve_polarity, check_legal, can_emit, can_absorb
@@ -84,7 +86,7 @@ export SequentialSchedule, FloodingSchedule, TreeSchedule, ForwardBackwardSchedu
 export flooding_schedule, tree_schedule, forward_backward_schedule
 
 # --- Passing ---------------------------------------------------------------
-export factor_message, mean_field_message, mean_field_energy, available_channels, step!, sweep!, propagate!, infer!
+export factor_message, factor_messages, mean_field_message, mean_field_energy, available_channels, step!, sweep!, propagate!, infer!
 export ConvergenceReport
 
 # --- Sampling --------------------------------------------------------------

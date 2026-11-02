@@ -1259,7 +1259,11 @@ include("switching_constraint.jl")
 
 include("mean_field_free_energy.jl")
 
+include("plates.jl")
+
 include("lp020.jl")
+
+include("lp021.jl")
 
 include("lp018.jl")
 

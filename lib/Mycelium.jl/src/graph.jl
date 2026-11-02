@@ -114,7 +114,9 @@ struct MeanField <: AbstractMessageRule end
     FactorNode(id, name, factor)
 
 A node holding an `AbstractLenticulumFactor` — a parameterized statistical game — together with
-its frozen parameter paths and its [`AbstractMessageRule`](@ref).
+its frozen parameter paths, its [`AbstractMessageRule`](@ref) and its **parameter key**
+`params`: the entry of the graph's parameter and state trees it reads. The key is the node's
+name unless `factor!(...; params)` ties it to other nodes ([`parameter_key`](@ref)).
 """
 struct FactorNode{F,P,R<:AbstractMessageRule}
     id::Int
@@ -122,9 +124,20 @@ struct FactorNode{F,P,R<:AbstractMessageRule}
     factor::F
     freeze::P
     rule::R
+    params::Symbol
 end
-FactorNode(id, name, factor) = FactorNode(id, name, factor, (), BeliefPropagation())
-FactorNode(id, name, factor, freeze) = FactorNode(id, name, factor, freeze, BeliefPropagation())
+FactorNode(id, name, factor) = FactorNode(id, name, factor, (), BeliefPropagation(), name)
+FactorNode(id, name, factor, freeze) = FactorNode(id, name, factor, freeze, BeliefPropagation(), name)
+FactorNode(id, name, factor, freeze, rule::AbstractMessageRule) = FactorNode(id, name, factor, freeze, rule, name)
+
+"""
+    parameter_key(node::FactorNode) -> Symbol
+
+The entry of the graph's parameter tree `ps` (and state tree `st`) this node reads. Nodes with
+the same key are **tied**: they share one parameter vector, and the graph gradient of that
+entry is the sum of their contributions ([`plate!`](@ref), `graph.md`).
+"""
+parameter_key(f::FactorNode) = f.params
 LenticulumCore.isfrozen(f::FactorNode) = LenticulumCore.isfrozen(f.factor) || f.freeze === :all || !isempty(LenticulumCore._freeze_paths(f.freeze))
 LenticulumCore.islearnable(f::FactorNode) = LenticulumCore.islearnable(f.factor)
 
@@ -172,6 +185,7 @@ struct FactorGraph{V<:Tuple,F<:Tuple}
     edges_of_variable::Vector{Vector{Int}}
     variable_index::Dict{Symbol,Int}
     factor_index::Dict{Symbol,Int}
+    plates::Vector{Any}
     _v::V
     _f::F
 end
@@ -190,9 +204,10 @@ mutable struct GraphBuilder
     edges::Vector{Edge}
     variable_index::Dict{Symbol,Int}
     factor_index::Dict{Symbol,Int}
+    plates::Vector{Any}
 end
 GraphBuilder() = GraphBuilder(
-    VariableNode[], FactorNode[], Edge[], Dict{Symbol,Int}(), Dict{Symbol,Int}()
+    VariableNode[], FactorNode[], Edge[], Dict{Symbol,Int}(), Dict{Symbol,Int}(), Any[]
 )
 
 """
@@ -209,18 +224,23 @@ function variable!(b::GraphBuilder, name::Symbol, space = nothing)
 end
 
 """
-    factor!(b::GraphBuilder, name::Symbol, factor; freeze = (), rule = BeliefPropagation()) -> Int
+    factor!(b::GraphBuilder, name::Symbol, factor; freeze = (), rule = BeliefPropagation(),
+            params = name) -> Int
 
 Add a factor node wrapping an `AbstractLenticulumFactor`; returns its id.
 `freeze` is `:all`, a parameter path such as `(:encoder,)`, or a tuple of paths.
 Paths select complete subtrees and are checked against the actual parameter tree.
 `rule` is how the node computes its messages: [`BeliefPropagation`](@ref) or [`MeanField`](@ref).
+`params` is the node's [`parameter_key`](@ref): nodes given the same key share one entry of `ps`
+and `st` (their gradients add), and must have the same factor type and `freeze`; [`build`](@ref)
+checks.
 """
-function factor!(b::GraphBuilder, name::Symbol, factor; freeze = (), rule::AbstractMessageRule = BeliefPropagation())
+function factor!(b::GraphBuilder, name::Symbol, factor; freeze = (), rule::AbstractMessageRule = BeliefPropagation(),
+                 params::Symbol = name)
     haskey(b.factor_index, name) && throw(ArgumentError("duplicate factor :$name"))
     id = length(b.factors) + 1
     LenticulumCore._freeze_paths(freeze) # validate syntax; paths checked against ps at use
-    push!(b.factors, FactorNode(id, name, factor, freeze, rule))
+    push!(b.factors, FactorNode(id, name, factor, freeze, rule, params))
     b.factor_index[name] = id
     return id
 end
@@ -266,8 +286,11 @@ Freeze the builder into an immutable graph with adjacency indices.
 
 Frozen factors are accepted. Structural [`validate`](@ref) checks remain optional;
 parameter freeze paths are checked against the parameter tree when it is supplied.
+Tied nodes (one [`parameter_key`](@ref)) must agree in factor type and `freeze`, and a key may
+not be the name of a node that reads another key; otherwise this throws.
 """
 function build(b::GraphBuilder)
+    _check_ties(b.factors)
     eof = [Int[] for _ in b.factors]
     eov = [Int[] for _ in b.variables]
     for (i, e) in enumerate(b.edges)
@@ -276,9 +299,52 @@ function build(b::GraphBuilder)
     end
     return FactorGraph(
         copy(b.variables), copy(b.factors), copy(b.edges), eof, eov,
-        copy(b.variable_index), copy(b.factor_index),
+        copy(b.variable_index), copy(b.factor_index), copy(b.plates),
         Tuple(v.name for v in b.variables), Tuple(f.name for f in b.factors),
     )
+end
+
+function _check_ties(factors)
+    first_of = Dict{Symbol,FactorNode}()
+    for f in factors
+        r = get!(first_of, f.params, f)
+        r === f && continue
+        typeof(r.factor) == typeof(f.factor) || throw(ArgumentError(
+            "factors :$(r.name) and :$(f.name) share parameters :$(f.params) but have different types \
+             ($(nameof(typeof(r.factor))) and $(nameof(typeof(f.factor))))"))
+        r.freeze == f.freeze || throw(ArgumentError(
+            "factors :$(r.name) and :$(f.name) share parameters :$(f.params) but freeze different paths"))
+    end
+    names = Dict(f.name => f for f in factors)
+    for h in factors
+        f = get(names, h.params, nothing)
+        f === nothing || f.params === h.params || throw(ArgumentError(
+            "factor :$(h.name) reads parameters :$(h.params), the name of factor :$(f.name), which reads \
+             :$(f.params); tie them or rename one"))
+    end
+    return nothing
+end
+
+"""
+    parameter_keys(g) -> Tuple{Vararg{Symbol}}
+
+The distinct [`parameter_key`](@ref)s of the factor nodes, in order of first appearance: the
+top-level keys of `LuxCore.initialparameters(rng, g)`. Without ties these are the factor names.
+"""
+parameter_keys(g::FactorGraph) = Tuple(unique(f.params for f in g.factors))
+
+"""
+    tied_factors(g, key::Symbol) -> Vector{Int}
+
+The ids of the factor nodes that read parameter entry `key`.
+"""
+tied_factors(g::FactorGraph, key::Symbol) = [f.id for f in g.factors if f.params === key]
+
+# The first node reading `key`: it stands for the tied group in freeze and learnability checks.
+function _key_node(g::FactorGraph, key::Symbol)
+    i = findfirst(f -> f.params === key, g.factors)
+    i === nothing && throw(ArgumentError("no factor reads parameters :$key"))
+    return g.factors[i]
 end
 
 _active_indices(f::FactorNode, ps) = LenticulumCore._trainable_indices(ps,
@@ -495,25 +561,39 @@ A graph of non-learnable factors is an inference graph, not a training graph.
 learnable_factors(g::FactorGraph) =
     [f.id for f in g.factors if LenticulumCore.islearnable(f.factor)]
 
+# One entry per parameter key, initialised by the first node that reads it (tied nodes share it).
 function LuxCore.initialparameters(rng::AbstractRNG, g::FactorGraph)
-    ks = Tuple(f.name for f in g.factors)
-    vs = Tuple(LuxCore.initialparameters(rng, f.factor) for f in g.factors)
+    ks = parameter_keys(g)
+    vs = Tuple(LuxCore.initialparameters(rng, _key_node(g, k).factor) for k in ks)
     return NamedTuple{ks}(vs)
 end
 
 function LuxCore.initialstates(rng::AbstractRNG, g::FactorGraph)
-    ks = Tuple(f.name for f in g.factors)
-    vs = Tuple(LuxCore.initialstates(rng, f.factor) for f in g.factors)
+    ks = parameter_keys(g)
+    vs = Tuple(LuxCore.initialstates(rng, _key_node(g, k).factor) for k in ks)
     return NamedTuple{ks}(vs)
 end
 
 LuxCore.parameterlength(g::FactorGraph) =
-    sum(f -> LuxCore.parameterlength(f.factor), g.factors; init = 0)
+    sum(k -> LuxCore.parameterlength(_key_node(g, k).factor), parameter_keys(g); init = 0)
 
 function Base.show(io::IO, g::FactorGraph)
     print(io, "FactorGraph(", nvariables(g), " variables, ", nfactors(g), " factors, ",
         nedges(g), " edges; χ=", euler_characteristic(g),
-        istree(g) ? ", tree" : ", loopy", isdag(g) ? ", DAG)" : ", cyclic)")
+        istree(g) ? ", tree" : euler_characteristic(g) == _ncomponents(g) ? ", forest" : ", loopy",
+        isdag(g) ? ", DAG)" : ", cyclic)")
+end
+
+# The number of connected components (each a tree exactly when χ equals this number).
+function _ncomponents(g::FactorGraph)
+    nv = nvariables(g)
+    parent = collect(1:(nv + nfactors(g)))
+    root(i) = (while parent[i] != i; parent[i] = parent[parent[i]]; i = parent[i]; end; i)
+    for e in g.edges
+        a, b = root(e.variable), root(nv + e.factor)
+        a == b || (parent[a] = b)
+    end
+    return count(i -> root(i) == i, eachindex(parent))
 end
 
 _pin_coordinates(θ, indices) = [i in indices ? θ[i] : LenticulumCore.stop_gradient(θ[i]) for i in eachindex(θ)]

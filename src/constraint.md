@@ -275,3 +275,12 @@ Gaussian-mixture marginal enters by its moments, which is exact for the quadrati
 or trivial marginals are refused. Checked against Monte Carlo and a closed-form naive mean field
 in `test/mean_field_free_energy.jl`.
 
+## Batched messages for plates (2026-11-02)
+
+`Mycelium.factor_messages(fs, target, polarity, inputs, priors, ps, st)` computes the messages of
+tied replicas (`lib/Mycelium.jl/src/plates.md`). When all replicas have one noise covariance and
+dimensions, and every replica's inputs have the same covariances and flat directions, the metric
+$R$, its factorisation or the residual metric $T$, and the rank test depend on the parameters only,
+so they are computed once; replica $i$'s message is then $K(c - \sum_n A_n m_{n,i})$ with the shared
+$K$ and precision. That is the case for data (points) and a shared prior. Otherwise each replica
+goes through `_linear_message`. `test/plates.jl` checks both paths against `factor_message`.

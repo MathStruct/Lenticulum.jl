@@ -296,6 +296,50 @@ function _linear_message(A, c, Q, target, parts, st)
     return (GaussianBelief(Ta' * (T * d), Ta' * Ta, rt < size(At, 2)), st)
 end
 
+"""
+    Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor}, target, polarity, inputs, priors, ps, st)
+
+The messages of tied replicas (a plate). When the replicas have one noise covariance and every
+replica's inputs have the same covariances and flat directions (points, or Gaussians of one
+covariance, as with data and a shared prior), the metric, its factorisation and the rank test
+depend on the parameters only and are computed once; each replica then costs one
+matrix-vector product. The messages are those of `factor_message`, term for term. Otherwise each
+replica is computed on its own.
+"""
+function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{names}}, target::Symbol, polarity,
+                                  inputs::AbstractVector, priors::AbstractVector, ps, st) where {names}
+    target in names || throw(ArgumentError(
+        "channel :$target is not a channel of this LinearConstraintFactor (has $names)"))
+    f = first(fs)
+    partss = [[(n, _split_moments(_get(inp, n), h.dims[n])) for n in names if n !== target] for (h, inp) in zip(fs, inputs)]
+    p1 = first(partss)
+    same(a, b) = isequal(a[2][2], b[2][2]) && isequal(a[2][3], b[2][3])
+    c = float.(ps.c)
+    if !all(h -> h === f || (isequal(h.Q, f.Q) && h.dims == f.dims), fs) ||
+       !all(p -> all(splat(same), zip(p, p1)), partss)
+        beliefs = Vector{Any}(undef, length(partss))
+        for (i, p) in enumerate(partss)
+            beliefs[i], st = _linear_message(ps.A, c, fs[i].Q, target, p, st)
+        end
+        return beliefs, st
+    end
+    A, At = ps.A, ps.A[target]
+    _, R, G = _accumulate(A, f.Q, p1)
+    if isempty(G)
+        Ri = inv(_chol(R, "Q + Σ AᵢSᵢAᵢᵀ"))
+        improper = _projected_rank(At, At) < size(At, 2)
+        K, Λ = At' * Ri, At' * Ri * At
+    else
+        T, Li = _residual_metric(R, G, "Q + Σ AᵢSᵢAᵢᵀ")
+        Ta = T * At
+        rt = _projected_rank(Ta, Li * At)
+        rt == 0 && return Any[LenticulumCore.TrivialBelief() for _ in partss], st
+        K, Λ, improper = Ta' * T, Ta' * Ta, rt < size(At, 2)
+    end
+    beliefs = Any[GaussianBelief(K * (c .- _input_sum(A, f.Q, p)), copy(Λ), improper) for p in partss]
+    return beliefs, st
+end
+
 # The non-target channels, each as (n, (m, S, N)): a Gaussian part with mean m and covariance S
 # (`nothing`: a point), flat along the columns of N (`nothing`: nowhere). Returns Σ Aₙmₙ,
 # R = Q + Σ AₙSₙAₙᵀ, and the coefficients AₙNₙ of the flat directions.
@@ -309,6 +353,15 @@ function _accumulate(A, Q, parts)
         N === nothing || push!(G, A[n] * N)
     end
     return s, R, G
+end
+
+# Σ Aₙmₙ alone, as `_accumulate` sums it.
+function _input_sum(A, Q, parts)
+    s = zeros(size(Q, 1))
+    for (n, (m, _, _)) in parts
+        s = s .+ A[n] * m
+    end
+    return s
 end
 
 # The residual metric with the flat directions integrated out, as a factor T with TᵀT the metric.
