@@ -67,7 +67,7 @@ function _graph_update(x, ps, ctx)
 end
 _graph_state_map(x, ps, ctx) = _graph_update(x, ps, ctx)
 _graph_loss(x, ps, ctx) = _graph_scalar(_coordinate_store(x, ctx), ctx.g,
-    _pinned_parameters(ps, ctx.ps, ctx.g), ctx.st)
+    _pinned_parameters(ps, ctx.ps, ctx.g), ctx.st, ctx.frozen)
 _graph_map_dot(x, ps, ctx, v) = LinearAlgebra.dot(v, _graph_update(x, ps, ctx))
 _graph_adjoint_loss(ps, ctx, λ) = _graph_loss(ctx.x, ps, ctx) +
     LinearAlgebra.dot(λ, _graph_update(ctx.x, ps, ctx))
@@ -155,7 +155,8 @@ function _implicit_graph_gradient(g, ps, st; ad, ε, schedule, damping, maxsweep
     ranges = map((i,n) -> i:i+n-1, starts, lengths)
     x = reduce(vcat, parts)
     isempty(x) && throw(ArgumentError("implicit graph message state has no numeric coordinates"))
-    ctx = (; g, ps, st, ts, beliefs, ranges, x, ad, damping, ε)
+    frozen = _frozen_beliefs(store, g, ps, st)          # LP-021: fully cut factors at fixed beliefs
+    ctx = (; g, ps, st, ts, beliefs, ranges, x, ad, damping, ε, frozen)
     # Check the full, uncut update too: a detached row must still be at a BP root.
     s = _coordinate_store(x, ctx)
     residual = maximum(ts) do t

@@ -257,3 +257,16 @@ fails in `messages_into`; reverse fails in Base's `setindex_widen_up_to`.
 The dated LP-002 section records versions and commands. The public backend
 guard is retained; no general native backend support follows from a Dirac probe
 or from factor-local endpoint rules.
+
+## Fully cut factors at fixed beliefs (LP-021, 2026-11-02)
+
+The objective of the coupled drivers (`_graph_scalar`, used by the unrolled replay and by the
+implicit adjoint's loss) evaluated every factor's local free energy at its messages. A factor
+whose edges are all diagonal or detached has constant messages, so its parameter derivative was
+the fixed-message one, which LP-020 showed is not the free-energy gradient: with default couplings
+`adjoint = :implicit` was 0.58 off on a three-variable tree, and one `ExactCoupling` edge anywhere
+switched every fully cut factor from the default driver's fixed-belief gradient to this one.
+`_frozen_beliefs` now evaluates `factor_belief` for those factors at the reference messages,
+outside AD, and `_graph_scalar` differentiates `belief_free_energy` at that belief. Factors with a
+derivative path, and factors without `factor_belief`, are unchanged. `test/lp021.jl` checks the
+all-diagonal, one-exact-edge and all-exact cases against central differences.

@@ -85,5 +85,5 @@ the free energy are linear in $N$ (0.05 s and 34 ms at $N = 3000$).
   review fixes the plate is 170–240 times slower, spread over untyped message storage and
   per-message bookkeeping. A batched message representation would be the next step.
 - No nested plates, no batched message type, no stateful tied factors.
-- `adjoint = :implicit` disagrees with the default driver on graphs with diagonal couplings,
-  plates or not ([[LP-021 The coupled gradient drivers cut diagonal edges at fixed messages]]).
+- [[LP-021 The coupled gradient drivers cut diagonal edges at fixed messages]], found here, is
+  resolved for factors whose edges are all cut; factors with mixed couplings are open.

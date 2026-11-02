@@ -234,9 +234,9 @@ through [`factor_messages`](@ref); `LinearConstraintFactor` does.
 - Plates are unrolled, not batched: the grouped schedule removes the per-replica polarity and
   rank work, but the per-message overhead stays (factor analysis: about 6 times faster than a
   loop of graphs, 170–240 times slower than the E-step written by hand; `plates.md`).
-- `adjoint = :implicit` (and the other coupled drivers) cut a diagonal edge at its fixed message,
-  not its fixed belief, so with the default couplings it disagrees with the default driver
-  (LP-021, open).
+- In the coupled drivers (`adjoint = :implicit`, non-diagonal couplings), a factor whose edges are
+  all cut is held at its fixed belief, as in the default driver (LP-021); a factor with some edges
+  cut and some not is differentiated at its messages, with the cut ones constant.
 - `free_energy_gradient` and `parameter_step` hold each factor's belief fixed (the envelope
   gradient, exact at a belief-propagation fixed point) only for factors that implement
   `factor_belief`: Lenticulum's Gaussian, constraint and switching factors, and AlgebraicFactors'

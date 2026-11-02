@@ -363,7 +363,8 @@ state is mutated. Replay includes flooding snapshots, realised residual task cho
 and outgoing damping. `adjoint=:implicit` instead differentiates a converged synchronous
 BP fixed point, found from empty messages using `schedule`, `maxsweeps` and `tol`.
 It requires CPU Gaussian/Dirac messages, empty message state and an invertible
-`I-DT`; diagonal/detach rows are constant cuts. Dense is the reference linear solve;
+`I-DT`; diagonal/detach rows are constant cuts, and a factor whose edges are all cut is held at
+its fixed belief, as in the diagonal driver (LP-021). Dense is the reference linear solve;
 `:krylov` needs Krylov.jl. Both check their original linear residual. Reference
 differences, ForwardDiff and Zygote are supported. See `graph_adjoint.md` and
 `gradient_couplings.md` for equations, estimator domains, costs and mixed rules.

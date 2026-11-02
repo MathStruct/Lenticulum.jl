@@ -114,9 +114,24 @@ function _with_message(s, t, belief)
     return _ReplayStore(tv, tf, s.iteration + 1)
 end
 
-function _graph_scalar(s, g, ps, st)
+# LP-021: a factor whose edges are all cut (diagonal or detached) has no derivative path through
+# its messages, so, as in the default driver (LP-020), its term is differentiated at its fixed
+# belief. `frozen[f]` is that belief, evaluated at the reference messages outside AD, or
+# `nothing` (a factor with a derivative path, or without `factor_belief`: fixed messages).
+_all_cut(g, f) = all(ei -> g.edges[ei].detach || g.edges[ei].coupling isa DiagonalCoupling, g.edges_of_factor[f.id])
+
+function _frozen_beliefs(s, g, ps, st)
+    return Any[f.rule isa BeliefPropagation && _all_cut(g, f) ?
+               factor_belief(f.factor, messages_into(s, g, f.id), _subtree(ps, f.params), _subtree(st, f.params)) :
+               nothing for f in g.factors]
+end
+
+function _graph_scalar(s, g, ps, st, frozen = nothing)
     terms = map(_factor_nodes(g)) do f
-        _local_scalar(_subtree(ps, f.params), f.factor, messages_into(s, g, f.id), _subtree(st, f.params))
+        b = frozen === nothing ? nothing : frozen[f.id]
+        b === nothing ?
+            _local_scalar(_subtree(ps, f.params), f.factor, messages_into(s, g, f.id), _subtree(st, f.params)) :
+            _belief_scalar(_subtree(ps, f.params), f.factor, b, _subtree(st, f.params))
     end
     correction = sum(map(_variable_nodes(g)) do v
         counting_number(g, v.id) * variable_free_energy(marginal(s, g, v.id))
@@ -193,7 +208,7 @@ end
 
 # The score samples and coefficients are fixed reference contexts. Only their log
 # densities are differentiated. This is the stochastic-computation-graph identity.
-function _replay(ps, g, ts, tape, st, ad, damping)
+function _replay(ps, g, ts, tape, st, ad, damping, frozen = nothing)
     final_s, final_state, correction, _ = foldl(zip(ts, tape); init=(_ReplayStore(g), st, 0.0, _ReplayStore(g))) do acc, item
         store, state, score, buffer = acc
         op, ref = item
@@ -209,7 +224,7 @@ function _replay(ps, g, ts, tape, st, ad, damping)
         end
         return _with_message(store, t, b), state, score, buffer
     end
-    return _graph_scalar(final_s, g, ps, final_state) + correction
+    return _graph_scalar(final_s, g, ps, final_state, frozen) + correction
 end
 
 function _pinned_parameters(ps, reference_ps, g)
@@ -223,8 +238,8 @@ function _pinned_parameters(ps, reference_ps, g)
     return pinned
 end
 
-function _coupled_loss(ps, reference_ps, g, ts, tape, st, ad, damping)
-    return _replay(_pinned_parameters(ps, reference_ps, g), g, ts, tape, st, ad, damping)
+function _coupled_loss(ps, reference_ps, g, ts, tape, st, ad, damping, frozen = nothing)
+    return _replay(_pinned_parameters(ps, reference_ps, g), g, ts, tape, st, ad, damping, frozen)
 end
 
 function _coupled_gradient(s, g, ps, st; ad=nothing, ε=1e-6, schedule=nothing,
@@ -257,7 +272,8 @@ function _coupled_gradient(s, g, ps, st; ad=nothing, ε=1e-6, schedule=nothing,
     n = stochastic ? nsamples : 1
     results = map(1:n) do draw
         tape, reference_store, reference_state = _reference_tape(g, ts, ps, st, rng, damping)
-        gradient = LenticulumCore._parameter_gradient(ad, _coupled_loss, ps, ps, g, ts, tape, st, ad, damping; ε)
+        frozen = _frozen_beliefs(reference_store, g, ps, reference_state)
+        gradient = LenticulumCore._parameter_gradient(ad, _coupled_loss, ps, ps, g, ts, tape, st, ad, damping, frozen; ε)
         state = return_state && draw == 1 ? last(factor_free_energies(reference_store,g,ps,reference_state)) : nothing
         return gradient,state
     end
