@@ -21,6 +21,7 @@
 
 """
     GaussianBelief(η, Λ)
+    GaussianBelief(η, Λ, improper::Bool)
 
 A Gaussian in canonical form: information vector `η = Λμ` and precision `Λ = Σ⁻¹`.
 
@@ -29,15 +30,22 @@ A Gaussian in canonical form: information vector `η = Λμ` and precision `Λ =
 rank-deficient precision. The moment form cannot represent this at all, which is the second
 reason for the canonical parametrisation.
 
+Whether a belief is proper is otherwise read off `Λ` ([`isproper`](@ref)), and a precision of
+rank `r < n` is positive definite after rounding often enough. A factor that knows its message
+is rank-deficient says so with `improper = true`: [`isproper`](@ref) is then `false` whatever the
+rounding, and the mixture product weights it as a likelihood. The flag survives pooling only
+with an uninformative belief, since a sum of improper sites can be proper.
+
 Use [`Gaussian`](@ref) to build one from a mean and covariance.
 """
 struct GaussianBelief{V<:AbstractVector,M<:AbstractMatrix} <: LenticulumCore.AbstractBelief
     η::V
     Λ::M
-    function GaussianBelief(η::V, Λ::M) where {V<:AbstractVector,M<:AbstractMatrix}
+    improper::Bool
+    function GaussianBelief(η::V, Λ::M, improper::Bool = false) where {V<:AbstractVector,M<:AbstractMatrix}
         size(Λ, 1) == size(Λ, 2) == length(η) ||
             throw(DimensionMismatch("η has length $(length(η)) but Λ is $(size(Λ))"))
-        return new{V,M}(η, Λ)
+        return new{V,M}(η, Λ, improper)
     end
 end
 
@@ -107,12 +115,12 @@ end
 """
     isproper(b::GaussianBelief) -> Bool
 
-Whether `Λ` is positive definite, i.e. whether the belief is a normalisable distribution
-rather than a likelihood. `belief_mean`, `belief_cov`, `variable_entropy` and
-`belief_logdensity` all require this.
+Whether the belief is a normalisable distribution rather than a likelihood: `false` if it was
+built with `improper = true`, otherwise whether `Λ` is positive definite. `belief_mean`,
+`belief_cov`, `variable_entropy` and `belief_logdensity` all require this.
 """
+isproper(b::GaussianBelief) = !b.improper && _precision_isproper(b.Λ)
 _precision_isproper(M) = _nearly_symmetric(M) && isposdef(_symmetric_part(M))
-isproper(b::GaussianBelief) = _precision_isproper(b.Λ)
 
 """
     belief_mean(b) -> Vector
@@ -136,6 +144,9 @@ end
 belief_cov(b::GaussianBelief) = inv(_improper_check(b, "belief_cov"))
 
 function _improper_check(b::GaussianBelief, who)
+    b.improper && throw(ArgumentError(
+        "$who needs a proper belief, but this one was declared improper: a likelihood message, \
+         not a distribution. Combine it with a prior first."))
     try
         return _precision_factor(b.Λ)
     catch err

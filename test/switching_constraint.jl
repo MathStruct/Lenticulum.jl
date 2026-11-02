@@ -436,7 +436,68 @@ end
     dead = CategoricalBelief(Val(:log), [-Inf, -Inf], nothing)
     @test_throws ArgumentError switch_statistics(f, (x = DiracBelief([1.0]), y = DiracBelief([0.0]), k = dead), ps)
     @test_throws ArgumentError Mycelium.factor_message(f, :x, nothing, (y = DiracBelief([0.0]), k = dead), nothing, ps, nt)
-    # the repaired precision of improper mixture components does not factorise
-    Λ = [1.0 1.0; 1.0 1.0] .* 1e6
-    @test !isposdef(Lenticulum._singular_precision(Λ, 1))
+end
+
+@testset "rank-deficient components are declared improper, so a weak prior still pools exactly" begin
+    nt = NamedTuple()
+    # one equation, a 2-D x, A_x = 10³ uᵀ: the components' precision has eigenvalues 2·10⁶ and 0,
+    # and the prior is weak along the null direction n (precision 10⁻³), so the pooled precision
+    # has condition number about 2·10⁹. (A prior weaker than eps·λ_max along n, the case raised in
+    # review, has a condition number above 1/eps: no dense Float64 precision represents it, with
+    # or without the flag.)
+    q = 0.5
+    f = SwitchingConstraintFactor((x = 2, y = 1), 2, 1; noise = q)
+    u, n = [cos(0.3), sin(0.3)], [-sin(0.3), cos(0.3)]
+    Ax = 1e3 * reshape(u, 1, 2)
+    ps = (A = (x = Ax, y = fill(1.0, 1, 1)), b = [0.0 3.0], logw = log.([0.6, 0.4]))
+    y = 1.0
+    msg, _ = Mycelium.factor_message(f, :x, nothing, (y = DiracBelief([y]),), nothing, ps, nt)
+    @test msg isa MixtureBelief && all(c -> c.improper && !isproper(c), msg.components)
+    μ0, Σ0 = 1e-3 * u + 0.2 * n, 1e-6 * u * u' + 1e3 * n * n'
+    post = Mycelium.combine(Gaussian(μ0, Σ0), msg)
+    @test all(isproper, post.components)
+    # the oracle, outcome by outcome: Ax x = b_k − y + ε
+    lj = [ps.logw[k] + lognormal([ps.b[1, k] - y], Ax * μ0, fill(q, 1, 1) + Ax * Σ0 * Ax') for k in 1:2]
+    @test exp.(post.logw) ≈ softmax_(lj) rtol = 1e-8
+    for k in 1:2
+        G = Σ0 * Ax' / (q + (Ax * Σ0 * Ax')[1])
+        μk = μ0 + vec(G) * (ps.b[1, k] - y - (Ax * μ0)[1])
+        @test belief_mean(post.components[k]) ≈ μk rtol = 1e-6
+    end
+end
+
+@testset "a partially improper input is split into a proper part and a flat part" begin
+    nt = NamedTuple()
+    rng = Xoshiro(12)
+    Q = [0.4 0.1 0.0; 0.1 0.3 0.05; 0.0 0.05 0.5]
+    sf = SwitchingConstraintFactor((u = 2, v = 2), 3, 3; noise = Q)
+    sps = (A = (u = randn(rng, 3, 2), v = randn(rng, 3, 2)), b = randn(rng, 3, 3), logw = randn(rng, 3))
+    lf = LinearConstraintFactor((u = 2, v = 2), 3; noise = Q)
+    lps = (A = sps.A, c = sps.b[:, 2])
+    # u is known along e₁ only (precision 2, mean 0.7), flat along e₂: the τ → ∞ limit of N(·, diag(½, τ))
+    site = GaussianBelief([1.4, 0.0], [2.0 0.0; 0.0 0.0])
+    limit(τ) = Gaussian([0.7, 0.0], [0.5 0.0; 0.0 τ])
+    rot = [cos(0.3) -sin(0.3); sin(0.3) cos(0.3)]                # and the same in a rotated basis
+    rsite = GaussianBelief(rot * site.η, rot * site.Λ * rot', true)
+    rlimit(τ) = Gaussian(rot * [0.7, 0.0], rot * [0.5 0.0; 0.0 τ] * rot')
+    gv = Gaussian([0.3, -0.2], [0.5 0.1; 0.1 0.4])
+    for (s, lim) in ((site, limit), (rsite, rlimit))
+        pk = probabilities(first(Mycelium.factor_message(sf, :k, nothing, (u = s, v = gv), nothing, sps, nt)))
+        @test pk ≈ probabilities(first(Mycelium.factor_message(sf, :k, nothing, (u = lim(1e7), v = gv), nothing, sps, nt))) atol = 1e-5
+        @test !(pk ≈ softmax_(sps.logw))                        # it is not the flat answer
+        a, _ = Mycelium.factor_message(lf, :v, nothing, (u = s,), nothing, lps, nt)
+        b, _ = Mycelium.factor_message(lf, :v, nothing, (u = lim(1e7),), nothing, lps, nt)
+        @test a.η ≈ b.η atol = 1e-5
+        @test a.Λ ≈ b.Λ atol = 1e-5
+        # mean field reads the proper part's mean and projects the flat direction g = A_u Nₛ out
+        mf, _ = Mycelium.mean_field_message(sf, :k, nothing, (u = s, v = gv), sps, nt)
+        g = sps.A.u * (s === site ? [0.0, 1.0] : rot * [0.0, 1.0])
+        W = inv(Q) - (Q \ g) * (g' / Q) / dot(g, Q \ g)
+        dk = [sps.b[:, k] - sps.A.u * belief_mean(lim(1.0)) - sps.A.v * belief_mean(gv) for k in 1:3]
+        @test probabilities(mf) ≈ softmax_([sps.logw[k] - dot(dk[k], W * dk[k]) / 2 for k in 1:3])
+    end
+    # an information vector outside the range of the precision is not a limit of Gaussians
+    @test_throws ArgumentError Mycelium.factor_message(lf, :v, nothing, (u = GaussianBelief([0.0, 1.0], [2.0 0.0; 0.0 0.0]),), nothing, lps, nt)
+    # nor is an indefinite precision
+    @test_throws ArgumentError Mycelium.factor_message(lf, :v, nothing, (u = GaussianBelief([0.0, 0.0], [2.0 0.0; 0.0 -1.0]),), nothing, lps, nt)
 end

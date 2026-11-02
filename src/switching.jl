@@ -223,16 +223,18 @@ With ``d_k = b_k - \\sum_{i \\ne t} A_i m_i`` and ``R = Q + \\sum_{i \\ne t} A_i
 - to a continuous channel ``t``: ``\\sum_k \\pi_k w_k\\, \\mathcal N(A_t x_t; d_k, R)``, a `MixtureBelief`
   of the canonical Gaussians ``\\mathcal N^{-1}(A_t^\\top R^{-1} d_k, A_t^\\top R^{-1} A_t)`` with the
   per-outcome constants in the weights. All components share one precision; they are improper
-  when ``A_t`` is not full column rank, and are then weighted as the unnormalised exponentials
-  that `Mycelium`'s mixture product expects. A single possible outcome gives a `GaussianBelief`.
+  when ``A_t`` is not full column rank, declared so (`GaussianBelief(η, Λ, true)`), and weighted
+  as the unnormalised exponentials that `Mycelium`'s mixture product expects. A single possible
+  outcome gives a `GaussianBelief`.
 
 A Gaussian-mixture input is collapsed to its moments first, as in `LinearConstraintFactor`
 (assumed-density filtering; `gaussian.md`, "Mixture inputs"). An uninformative continuous input
 (no message, `TrivialBelief()`, `Latent()`) is integrated out under a flat prior, as in
-`LinearConstraintFactor`: ``R^{-1}`` is replaced by the limit that projects out the range of those
-channels' ``A``'s, so only the part of ``d_k`` they cannot reach separates the outcomes. When
-their ``A``'s together have full row rank nothing is left: the outcome gets the factor's own
-weights and a continuous target `TrivialBelief()`.
+`LinearConstraintFactor`, and so is an improper Gaussian input along its null space.
+``R^{-1}`` is replaced by the limit that projects out the range of those flat directions under
+the ``A``'s, so only the part of ``d_k`` they cannot reach separates the outcomes. When they
+cover every residual direction nothing is left: the outcome gets the factor's own weights and a
+continuous target `TrivialBelief()`.
 """
 Mycelium.factor_message(f::SwitchingConstraintFactor, target::Symbol, polarity, inputs, prior, ps, st) =
     _switch_message(f, target, inputs, ps, st)
@@ -242,21 +244,10 @@ function _switch_message(f::SwitchingConstraintFactor{names}, target::Symbol, in
         "channel :$target is not a channel of this SwitchingConstraintFactor (has $(_allnames(f)))"))
     lw = _logweights(ps)
     lpk = target === f.switch ? nothing : _switch_logp(_get(inputs, f.switch), f.K)
-    d0 = zeros(f.m)
-    R = float.(f.Q)
-    flat = Symbol[]
-    for n in names
-        n === target && continue
-        m, S = _moments(_get(inputs, n), f.dims[n])
-        if m === nothing
-            push!(flat, n)
-            continue
-        end
-        d0 = d0 .- ps.A[n] * m
-        R = R .+ ps.A[n] * S * ps.A[n]'
-    end
-    T, Li = _residual_metric(R, flat, ps.A, "Q + Σ AᵢSᵢAᵢᵀ")
-    Z = T * (ps.b .+ d0)                                       # column k is T d_k
+    parts = [(n, _split_moments(_get(inputs, n), f.dims[n])) for n in names if n !== target]
+    s, R, G = _accumulate(ps.A, f.Q, parts)
+    T, Li = _residual_metric(R, G, "Q + Σ AᵢSᵢAᵢᵀ")
+    Z = T * (ps.b .- s)                                        # column k is T d_k
     quad = vec(sum(abs2, Z; dims = 1))
     if target === f.switch
         l = lw .- quad ./ 2
@@ -269,9 +260,11 @@ function _switch_message(f::SwitchingConstraintFactor{names}, target::Symbol, in
     Ta = T * At
     rt = _projected_rank(Ta, Li * At)
     rt == 0 && return (LenticulumCore.TrivialBelief(), st)
+    # Properness is decided by the rank, not by rounding, and declared on the components, so that
+    # Mycelium's mixture product weights them as likelihoods (switching.md §6).
     proper = rt == size(At, 2)
-    Λ = proper ? Ta' * Ta : _singular_precision(Ta' * Ta, size(At, 2) - rt)
-    comps = [GaussianBelief(Ta' * Z[:, k], Λ) for k in ks]
+    Λ = Ta' * Ta
+    comps = [GaussianBelief(Ta' * Z[:, k], Λ, !proper) for k in ks]
     length(ks) == 1 && return (only(comps), st)
     lk = l[ks]
     if proper                                                  # normalised components: move ½ηᵀΛ⁻¹η into the weight
@@ -294,27 +287,17 @@ Only means enter, since ``\\log f`` is quadratic in the continuous channels for 
 covariance terms do not depend on ``x_t`` or ``k``. An outcome without a marginal yet counts with
 the factor's weights, which is where the iteration starts. A continuous channel without a proper
 marginal yet is integrated out under a flat prior, as in `factor_message`, with ``Q^{-1}`` in place
-of ``R^{-1}``.
+of ``R^{-1}``; so is an improper marginal along the directions where it is flat.
 
-The message is one Gaussian, not a mixture, so a rank-deficient precision needs no repair here:
-whether rounding leaves it proper changes no weight, as for `LinearConstraintFactor`.
+A rank-deficient precision is declared improper, as in `factor_message`.
 """
 function Mycelium.mean_field_message(f::SwitchingConstraintFactor{names}, target::Symbol, polarity, beliefs, ps, st) where {names}
     target in _allnames(f) || throw(ArgumentError(
         "channel :$target is not a channel of this SwitchingConstraintFactor (has $(_allnames(f)))"))
     lw = _logweights(ps)
-    sbar = zeros(f.m)
-    flat = Symbol[]
-    for n in names
-        n === target && continue
-        μ = _mf_mean(_get(beliefs, n))
-        if μ === nothing
-            push!(flat, n)
-            continue
-        end
-        sbar = sbar .+ ps.A[n] * μ
-    end
-    T, Li = _residual_metric(f.Q, flat, ps.A, "Q")
+    parts = [(n, _mf_split(_get(beliefs, n), f.dims[n])) for n in names if n !== target]
+    sbar, _, G = _accumulate(ps.A, f.Q, parts)
+    T, Li = _residual_metric(f.Q, G, "Q")
     if target === f.switch
         l = lw .- vec(sum(abs2, T * (ps.b .- sbar); dims = 1)) ./ 2
         return (LenticulumCore.CategoricalBelief(Val(:log), l .- _logsumexp(l), nothing), st)
@@ -323,33 +306,9 @@ function Mycelium.mean_field_message(f::SwitchingConstraintFactor{names}, target
     q = kb === nothing || kb isa LenticulumCore.TrivialBelief ? exp.(lw) : exp.(_switch_logp(kb, f.K))
     At = ps.A[target]
     Ta = T * At
-    _projected_rank(Ta, Li * At) == 0 && return (LenticulumCore.TrivialBelief(), st)
-    return (GaussianBelief(Ta' * (T * (ps.b * q .- sbar)), Ta' * Ta), st)
-end
-
-# A rank-deficient precision of mixture components is positive definite after rounding often
-# enough that `isproper` would call it a (very wide) distribution, and the mixture product would
-# then weight its components by ½ηᵀΛ⁻¹η, which is rounding noise. Its null-space eigenvalues are
-# set to zero, and pushed below zero until the result no longer factorises, starting at
-# −eps·λ_max, so that the components stay improper. The price is a precision that is indefinite
-# at rounding level, which a proper neighbour weaker than that in a null direction does not
-# outweigh (`switching.md` §6). GaussianBelief has no flag for "improper", so this is the only
-# way to say it.
-function _singular_precision(Λ, nullity)
-    E = LinearAlgebra.eigen(Symmetric(Λ))
-    λ = copy(E.values)
-    λ[1:nullity] .= 0
-    rebuild(λ) = (S = E.vectors * Diagonal(λ) * E.vectors'; (S + S') / 2)
-    S = rebuild(λ)
-    shift = eps(maximum(abs, λ))
-    for _ in 1:8
-        isposdef(S) || return S
-        λ[1:nullity] .= -shift
-        S = rebuild(λ)
-        shift *= 4
-    end
-    isposdef(S) && throw(ArgumentError("could not make a rank-deficient precision improper"))
-    return S
+    rt = _projected_rank(Ta, Li * At)
+    rt == 0 && return (LenticulumCore.TrivialBelief(), st)
+    return (GaussianBelief(Ta' * (T * (ps.b * q .- sbar)), Ta' * Ta, rt < size(At, 2)), st)
 end
 
 # --- The Bethe contribution ------------------------------------------------

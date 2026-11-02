@@ -258,9 +258,15 @@ say this; see `beliefs.md`.
 A non-target channel that carries no information (no message, `TrivialBelief()`, a
 `Latent()` channel) is integrated out under a flat prior, the limit ``\\tau \\to \\infty`` of
 ``\\mathcal N(0, \\tau \\Sigma_0)``: ``R^{-1}`` becomes ``R^{-1} - R^{-1} G (G^\\top R^{-1} G)^{+} G^\\top R^{-1}``,
-with ``G`` stacking those channels' ``A``'s, the same limit for every ``\\Sigma_0 \\succ 0``. The
+with ``G`` stacking those channels' ``A``'s, the same limit for every ``\\Sigma_0 \\succ 0``. An
+improper Gaussian input splits into a proper part on the range of its precision, which enters
+``d`` and ``R``, and a flat part on its null space ``N``, which adds ``A_i N`` to ``G``. The
 equation then still constrains the directions ``G`` cannot reach. The message is
-`TrivialBelief()` when nothing is left, as when ``G`` has full row rank (`constraint.md` §4.1).
+`TrivialBelief()` when nothing is left, as when ``G`` has full row rank, and is declared improper
+(`GaussianBelief(η, Λ, true)`) whenever the (projected) ``A_t`` is rank-deficient
+(`constraint.md` §4.1). The flat case is not differentiable by ForwardDiff: the projection
+needs an SVD, which has no method for dual numbers, and it fails rather than give a derivative
+that ignores how the flat directions move.
 """
 Mycelium.factor_message(
     f::LinearConstraintFactor, target::Symbol, polarity, inputs, prior, ps, st
@@ -269,42 +275,53 @@ Mycelium.factor_message(
 function _message(f::LinearConstraintFactor{names}, target::Symbol, inputs, ps, st) where {names}
     target in names || throw(ArgumentError(
         "channel :$target is not a channel of this LinearConstraintFactor (has $names)"))
-    d = float.(ps.c)
-    R = float.(f.Q)
-    flat = Symbol[]
-    for n in names
-        n === target && continue
-        m, S = _moments(_get(inputs, n), f.dims[n])
-        if m === nothing
-            push!(flat, n)
-            continue
-        end
-        An = ps.A[n]
-        d = d .- An * m
-        R = R .+ An * S * An'
-    end
-    At = ps.A[target]
-    if isempty(flat)
-        Ri = inv(_chol(R, "Q + Σ AᵢSᵢAᵢᵀ"))
-        return (GaussianBelief(At' * (Ri * d), At' * Ri * At), st)
-    end
-    T, Li = _residual_metric(R, flat, ps.A, "Q + Σ AᵢSᵢAᵢᵀ")
-    Ta = T * At
-    _projected_rank(Ta, Li * At) == 0 && return (LenticulumCore.TrivialBelief(), st)
-    return (GaussianBelief(Ta' * (T * d), Ta' * Ta), st)
+    parts = [(n, _split_moments(_get(inputs, n), f.dims[n])) for n in names if n !== target]
+    return _linear_message(ps.A, float.(ps.c), f.Q, target, parts, st)
 end
 
-# The residual metric with the flat channels integrated out, as a factor T with TᵀT the metric.
-# For R = LLᵀ and G the stacked coefficients of the channels in `flat`, a prior N(0, τΣ₀) on them
+# The message to `target` from Σᵢ Aᵢxᵢ = c + ε, the other channels given as `parts`.
+function _linear_message(A, c, Q, target, parts, st)
+    s, R, G = _accumulate(A, Q, parts)
+    d = c .- s
+    At = A[target]
+    if isempty(G)
+        Ri = inv(_chol(R, "Q + Σ AᵢSᵢAᵢᵀ"))
+        improper = _projected_rank(At, At) < size(At, 2)          # rank(L⁻¹Aₜ) = rank(Aₜ)
+        return (GaussianBelief(At' * (Ri * d), At' * Ri * At, improper), st)
+    end
+    T, Li = _residual_metric(R, G, "Q + Σ AᵢSᵢAᵢᵀ")
+    Ta = T * At
+    rt = _projected_rank(Ta, Li * At)
+    rt == 0 && return (LenticulumCore.TrivialBelief(), st)
+    return (GaussianBelief(Ta' * (T * d), Ta' * Ta, rt < size(At, 2)), st)
+end
+
+# The non-target channels, each as (n, (m, S, N)): a Gaussian part with mean m and covariance S
+# (`nothing`: a point), flat along the columns of N (`nothing`: nowhere). Returns Σ Aₙmₙ,
+# R = Q + Σ AₙSₙAₙᵀ, and the coefficients AₙNₙ of the flat directions.
+function _accumulate(A, Q, parts)
+    s = zeros(size(Q, 1))
+    R = float.(Q)
+    G = Any[]
+    for (n, (m, S, N)) in parts
+        s = s .+ A[n] * m
+        S === nothing || (R = R .+ A[n] * S * A[n]')
+        N === nothing || push!(G, A[n] * N)
+    end
+    return s, R, G
+end
+
+# The residual metric with the flat directions integrated out, as a factor T with TᵀT the metric.
+# For R = LLᵀ and G the stacked coefficients of the flat directions, a prior N(0, τΣ₀) along them
 # gives (R + τGΣ₀Gᵀ)⁻¹ → R⁻¹ − R⁻¹G(GᵀR⁻¹G)⁺GᵀR⁻¹ as τ → ∞, for every Σ₀ ≻ 0: the R⁻¹-orthogonal
 # projection that removes range(G). So T = U⊥ᵀL⁻¹, with U⊥ an orthonormal basis of the
 # complement of range(L⁻¹G); it has no rows when G has full row rank. The normaliser that
 # diverges with τ is the same for every value of the target, and for every outcome of a
 # switching factor. Also returns L⁻¹, the scale for `_projected_rank`.
-function _residual_metric(R, flat, A, what)
+function _residual_metric(R, G, what)
     Li = inv(_chol(R, what).L)
-    isempty(flat) && return Li, Li
-    B = Li * reduce(hcat, (A[n] for n in flat))
+    isempty(G) && return Li, Li
+    B = Li * reduce(hcat, G)
     F = LinearAlgebra.svd(B; full = true)
     tol = maximum(size(B)) * eps(Float64) * maximum(F.S; init = 0.0)
     r = count(>(tol), F.S)
@@ -312,11 +329,13 @@ function _residual_metric(R, flat, A, what)
 end
 
 # The rank of the projected coefficient T Aₜ. Rounding in the projection leaves singular values
-# of order eps·‖L⁻¹Aₜ‖ in the directions it removed, so those count as zero.
+# of order eps·‖L⁻¹Aₜ‖ in the directions it removed, so those count as zero. A rank has no
+# derivative, so it is computed on values (`stop_gradient` strips ForwardDiff duals).
 function _projected_rank(Ta, LiAt)
-    s = LinearAlgebra.svdvals(Ta)
+    s = LinearAlgebra.svdvals(LenticulumCore.stop_gradient(Ta))
     isempty(s) && return 0
-    return count(>(maximum(size(LiAt)) * eps(Float64) * maximum(LinearAlgebra.svdvals(LiAt))), s)
+    scale = maximum(LinearAlgebra.svdvals(LenticulumCore.stop_gradient(LiAt)))
+    return count(>(maximum(size(LiAt)) * eps(Float64) * scale), s)
 end
 
 """
@@ -326,29 +345,23 @@ The message of a `MeanField()` node: ``\\exp \\mathbb E_q[\\log f]`` as a functi
 channels' current marginals ``q_i``. ``\\log f`` is quadratic, so only their means enter, and the
 message is ``\\mathcal N^{-1}(A_t^\\top Q^{-1} \\bar d, A_t^\\top Q^{-1} A_t)`` with ``\\bar d = c - \\sum_{i \\ne t} A_i\\, \\mathbb E_q[x_i]``:
 the belief-propagation message with every input replaced by a point mass at its mean. A mixture
-marginal enters by its mean; a channel without a proper marginal yet is integrated out under a
-flat prior, as in `factor_message`.
+marginal enters by its mean. A channel without a marginal yet is integrated out under a flat
+prior, as in `factor_message`, and so is an improper marginal along the directions where it is
+flat; its mean elsewhere enters as usual.
 """
-Mycelium.mean_field_message(f::LinearConstraintFactor, target::Symbol, polarity, beliefs, ps, st) =
-    _message(f, target, _mean_points(f.dims, target, beliefs), ps, st)
-
-# Point masses at the means of the marginals in `beliefs`, for the channels in `dims` other than
-# `target` that have one.
-function _mean_points(dims::NamedTuple{names}, target, beliefs) where {names}
-    chans, pts = Symbol[], Any[]
-    for n in names
-        n === target && continue
-        μ = _mf_mean(_get(beliefs, n))
-        μ === nothing && continue
-        push!(chans, n); push!(pts, LenticulumCore.DiracBelief(μ))
-    end
-    return NamedTuple{Tuple(chans)}(Tuple(pts))
+function Mycelium.mean_field_message(f::LinearConstraintFactor{names}, target::Symbol, polarity, beliefs, ps, st) where {names}
+    target in names || throw(ArgumentError(
+        "channel :$target is not a channel of this LinearConstraintFactor (has $names)"))
+    parts = [(n, _mf_split(_get(beliefs, n), f.dims[n])) for n in names if n !== target]
+    return _linear_message(ps.A, float.(ps.c), f.Q, target, parts, st)
 end
-_mf_mean(b::LenticulumCore.DiracBelief) = _vec(b.value)
-_mf_mean(b::GaussianBelief) = isproper(b) ? belief_mean(b) : nothing
-_mf_mean(b::LenticulumCore.MixtureBelief{<:GaussianBelief}) =
-    all(isproper, b.components) ? belief_mean(moment_match(b)) : nothing
-_mf_mean(b) = nothing
+
+# A marginal as the mean-field rule reads it: (mean, nothing, N), flat along the columns of N.
+_mf_split(b, n) = (zeros(n), nothing, Matrix(1.0LinearAlgebra.I, n, n))
+_mf_split(b::LenticulumCore.DiracBelief, n) = (_vec(b.value), nothing, nothing)
+_mf_split(b::GaussianBelief, n) = ((m, _, N) = _split_moments(b, n); (m, nothing, N))
+_mf_split(b::LenticulumCore.MixtureBelief{<:GaussianBelief}, n) =
+    all(isproper, b.components) ? (belief_mean(moment_match(b)), nothing, nothing) : _mf_split(nothing, n)
 
 # --- The Bethe contribution ------------------------------------------------
 

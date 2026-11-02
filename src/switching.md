@@ -117,13 +117,14 @@ Carlo. `LinearConstraintFactor` has the same rule with one outcome (`constraint.
   is exact.
 - **The directed variant** of §8 of the design note (a switching kernel normalised by
   $Z_t(z_t)$, with gates that depend on the state) is a different factor and is not here.
-- **Partially improper inputs.** An uninformative continuous input (no message,
-  `TrivialBelief()`, `Latent()`) is integrated out under a flat prior, exactly: $R^{-1}$ becomes the
-  projection that removes the range of those channels' $A$'s (`constraint.md` §4.1, the same
-  helper). Only the part of $d_k$ they cannot reach then separates the outcomes. Until
-  2026-11-01 the factor returned `TrivialBelief()` here unless that channel's `A` had full row
-  rank, and it looked only at the first such channel. A Gaussian input that is improper in some
-  directions only is still not handled: `_moments` needs it proper or entirely flat.
+- **Flat and improper inputs are handled, exactly** (the bullet is kept for the history). An
+  uninformative continuous input (no message, `TrivialBelief()`, `Latent()`) is integrated out
+  under a flat prior: $R^{-1}$ becomes the projection that removes the range of those channels'
+  $A$'s (`constraint.md` §4.1, the same helper). Only the part of $d_k$ they cannot reach then
+  separates the outcomes. Until 2026-11-01 the factor returned `TrivialBelief()` here unless that
+  channel's `A` had full row rank, and it looked only at the first such channel. Since
+  2026-11-02 a Gaussian input that is improper in some directions only is split, too: its
+  proper part enters $d_k$ and $R$, its null space joins the flat directions.
 
 ## 6. Difficulties met
 
@@ -131,16 +132,18 @@ Carlo. `LinearConstraintFactor` has the same rule with one outcome (`constraint.
   $A_t^\top R^{-1} A_t$ has rank one but passes `isposdef` after rounding often enough. Mycelium then
   treats the components as normalised Gaussians of enormous variance and weights them by
   $\tfrac12 \eta^\top \Lambda^{-1} \eta$, which is rounding noise. The test caught it: the pooled weights were off by an
-  order of magnitude. The factor now zeroes the null-space eigenvalues of a rank-deficient
-  precision. If the result still factorises it pushes them below zero, starting at
-  $-\epsilon\, \lambda_{\max}$ and growing until it does not (it throws after eight tries). The
-  components then stay improper. The change is at rounding level, but the precision is then
-  indefinite at that level: a proper neighbour with precision below about $\epsilon\, \lambda_{\max}$ in a
-  null direction would give a posterior that does not factorise (2026-11-01 review). That needs
-  $\lambda_{\max} / \lambda_{\text{prior}} \gtrsim 10^{16}$. The clean fix is a `GaussianBelief` that
-  says it is improper instead of deriving it from `isposdef`, which is a change to
-  LenticulumCore. The mean-field message is one Gaussian, not a mixture, and gets no repair:
-  there no weight depends on properness, as for `LinearConstraintFactor`.
+  order of magnitude. Until 2026-11-02 the factor zeroed the null-space eigenvalues of a
+  rank-deficient precision and pushed them below zero, starting at $-\epsilon\, \lambda_{\max}$, until
+  the result no longer factorised. That made the precision indefinite at rounding level, which
+  a 2026-11-01 review flagged. Now the factor decides properness by the rank of the projected
+  $A_t$ and declares it (`GaussianBelief(η, Λ, true)`, LenticulumCore `gaussian_belief.md`,
+  "Declared improper"); $\Lambda = (TA_t)^\top (TA_t)$ is passed as computed, a Gram matrix, with no
+  repair. The mean-field message and `LinearConstraintFactor`'s message with flat inputs declare
+  it the same way. The review's case, a proper neighbour with precision below $\epsilon\, \lambda_{\max}$ in
+  a null direction, turned out to need a condition number above $1/\epsilon$ in the pooled
+  precision: no dense Float64 representation holds that, flag or no flag. The test
+  ("rank-deficient components are declared improper") pools with a prior of condition number
+  about $2 \cdot 10^9$ and matches Gaussian conditioning outcome by outcome.
 
 ## 7. The parameter gradient holds the belief fixed (LP-020, 2026-11-01)
 
@@ -164,8 +167,8 @@ three testsets).
 | The check looks only at the first flat channel (Gemini C, Mistral 2) | right | all flat channels are stacked |
 | A flat input returns before an invalid outcome belief is checked (Gemini C) | right | the outcome belief is read first |
 | The polarity list misses the latent assignments (ChatGPT 3) | right, and `LinearConstraintFactor` too | both list $n \cdot 2^{n-1}$, capped at six channels; keys compared as sets |
-| `_singular_precision` makes the precision indefinite (ChatGPT 2) | right, at rounding level | documented in §6; a flag for "improper" would need LenticulumCore |
-| `_singular_precision` can still leave it positive definite (Mistral 5) | right in principle | the shift grows until it does not, then throws |
+| `_singular_precision` makes the precision indefinite (ChatGPT 2) | right, at rounding level; but the case it hurts needs a condition number above $1/\epsilon$, beyond any dense Float64 precision | 2026-11-02: replaced by a declared-improper flag on `GaussianBelief` (§6) |
+| `_singular_precision` can still leave it positive definite (Mistral 5) | right in principle | the shift grew until it did not; since 2026-11-02 gone with the flag |
 | The mean-field message lacks the repair (all three) | no: it is one Gaussian, so no weight depends on properness | a comment says so |
 | Latent channels and `ispure` (ChatGPT 4) | a documentation gap: they are graph variables, not the model's latent space | docstrings say so |
 | `entropy` stores $+H$ under `negentropy` (Gemini B) | no: the documented convention of `LenticulumCore.entropy`, shared by every Gaussian factor | none |

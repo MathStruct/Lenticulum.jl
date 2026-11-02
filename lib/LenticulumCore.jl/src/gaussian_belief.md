@@ -13,7 +13,7 @@ $\Lambda = \Sigma^{-1}$, $\eta = \Lambda\mu$, and its accessors.
 
 | name | what |
 |---|---|
-| `GaussianBelief(η, Λ)` | the type; `Λ` may be singular (a likelihood message) |
+| `GaussianBelief(η, Λ)`, `GaussianBelief(η, Λ, improper)` | the type; `Λ` may be singular (a likelihood message), and `improper = true` says so whatever rounding does to `Λ` |
 | `Gaussian(μ, Σ)` | from moments; `Σ` must be positive definite |
 | `uninformative(n)` | $\eta = 0$, $\Lambda = 0$: the identity for pooling |
 | `isproper`, `belief_mean`, `belief_cov`, `logpartition` | require a proper belief, and say so |
@@ -99,3 +99,37 @@ element type. With definiteness on the symmetric part it only refuses gross asym
 type-dependent tolerance had changed under ForwardDiff duals and rejected LP-002's
 finite-difference adjoint perturbations. The symmetric part is $M + (M^\top - M)/2$, exact for
 symmetric $M$ (a subnormal diagonal survives) and without overflow.
+
+## Declared improper (2026-11-02)
+
+`isproper` used to be `isposdef` of the symmetric part, and nothing else. A precision of rank
+$r < n$ built as $A^\top W A$ is positive definite after rounding often enough. Mycelium's mixture
+product decides from `isproper` whether a component is a distribution or a likelihood, and the
+two weightings differ by $\tfrac12 \eta^\top \Lambda^{-1} \eta$, which for a rank-deficient $\Lambda$ is rounding noise.
+The switching factor had worked around this by pushing the null-space eigenvalues of its
+components below zero (`switching.md` §6).
+
+A third field, `improper::Bool`, now carries what the producer knows. With `improper = true`,
+`isproper` is `false` and `belief_mean`, `belief_cov`, `logpartition` and the other accessors
+refuse the belief, whatever the eigenvalues. The default is `false`, and then nothing changes:
+properness is read off `Λ`, so the more than a hundred existing constructions are untouched.
+
+Where the flag survives:
+
+- `Mycelium.combine` keeps it only when the other operand has zero precision. Two improper sites
+  can sum to a proper belief (two rank-one measurements of a plane), so a sum with anything
+  informative goes back to being read off `Λ`.
+- Damping drops it, for the same reason.
+- `stop_gradient` (the ForwardDiff extension) keeps it.
+
+The flag is a `Bool` field, not a type parameter, so the type's parameters, the cotangents of
+the ChainRules extension and the device dispatch are unchanged. `isproper` is marked
+non-differentiable. The tests are in Mycelium's `test/overlap.jl` ("A declared-improper
+Gaussian is improper whatever the rounding"): the flag beats a precision that factorises after
+rounding, it survives pooling only with zero precision, and the mixture product weights a
+declared site as a likelihood, so two sites with one precision differ by the exact log ratio.
+
+What the flag does not do: it cannot make a dense Float64 precision hold a condition number
+above $1/\epsilon$. A proper prior weaker than $\epsilon\, \lambda_{\max}$ along a site's null direction (the case
+the 2026-11-01 review raised) gives such a precision when the two are pooled, and that fails with or
+without the flag.

@@ -13,7 +13,7 @@ Implements: the Mycelium belief interface for `LenticulumCore.GaussianBelief`.
 
 | function | for Gaussians |
 |---|---|
-| `combine` | addition of canonical parameters: exact, associative, total |
+| `combine` | addition of canonical parameters: exact, associative, total; keeps the `improper` flag only beside zero precision (`gaussian_belief.md`, "Declared improper") |
 | `combine` with a `DiracBelief` | the Dirac wins (the $\Lambda \to \infty$ limit) |
 | `belief_logdensity` | closed form; proper beliefs only |
 | `variable_entropy` | $\tfrac n2(1 + \log 2\pi) - \tfrac12\log\det\Lambda$, may be negative |

@@ -133,9 +133,27 @@ helper serves the switching factor (`switching.md` §5).
 
 This is the "marginalise a latent channel" operation the vault keeps deferring
 ([[Open Models and Latent Channels]] §"marginalisation is the expensive one"), here specialised to
-the linear-Gaussian case, where it is a pseudo-inverse rather than an integral. A Gaussian input
-that is improper only in some directions is still not handled this way: `_moments` needs it
-proper (or entirely flat).
+the linear-Gaussian case, where it is a pseudo-inverse rather than an integral.
+
+**Partially improper inputs (2026-11-02).** A Gaussian input $\mathcal N^{-1}(\eta_i, \Lambda_i)$ with a singular
+$\Lambda_i$ is the same limit in some directions only. `_split_moments` (`gaussian.jl`) splits it by
+the eigendecomposition of $\Lambda_i$: on its range, a proper part with mean $\Lambda_i^{+}\eta_i$ and
+covariance $\Lambda_i^{+}$, which enters $d$ and $R$ as before; along its null space $N_i$, a flat
+part, whose coefficient $A_i N_i$ joins $G$. Eigenvalues below $16 n \epsilon\, \lambda_{\max}$ count as zero,
+which also catches the rounding of a declared-improper site. Two inputs are refused, since
+neither is a limit of Gaussians: a precision with a negative eigenvalue beyond that tolerance,
+and an $\eta_i$ with a component along $N_i$ beyond $\sqrt\epsilon$ relative ($\exp(\eta^\top x)$ along a flat
+direction). The mean-field message reads the proper part's mean and treats $N_i$ the same way.
+The test ("a partially improper input is split") compares with a proper input whose variance
+along $N_i$ is $10^7$, in an axis-aligned and a rotated basis.
+
+A message whose (projected) $A_t$ is rank-deficient is declared improper
+(`GaussianBelief(η, Λ, true)`), with or without flat directions; the rank is computed on values
+(`stop_gradient`), so the derivative of the message is unchanged. With flat directions the
+projection needs an SVD, which ForwardDiff cannot differentiate: it then fails with a
+`MethodError` rather than give a derivative that ignores how the flat directions move. No
+caller differentiates through such a message today (the full test suites pass); a derivative
+would need the projection written through a full-column-rank basis of $G$.
 
 ### 4.2 A loopy acausal graph cannot start itself
 

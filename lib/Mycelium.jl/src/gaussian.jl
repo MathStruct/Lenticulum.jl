@@ -17,8 +17,12 @@ propagation is the workhorse it is.
 function combine(a::GaussianBelief, b::GaussianBelief)
     dimension(a) == dimension(b) || throw(DimensionMismatch(
         "cannot combine beliefs of dimension $(dimension(a)) and $(dimension(b))"))
-    return GaussianBelief(a.η + b.η, a.Λ + b.Λ)
+    # A declared-improper site stays declared only beside zero precision: two improper sites can
+    # sum to a proper belief, which `isproper` then reads off Λ.
+    improper = (a.improper && _zero_precision(b)) || (b.improper && _zero_precision(a))
+    return GaussianBelief(a.η + b.η, a.Λ + b.Λ, improper)
 end
+_zero_precision(b::GaussianBelief) = all(iszero, b.Λ)
 
 # A hard clamp still dominates a Gaussian: it is the Λ → ∞ limit.
 combine(a::LenticulumCore.DiracBelief, ::GaussianBelief) = a

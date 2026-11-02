@@ -306,6 +306,37 @@ end
 # step of assumed-density filtering). The message is then exact for the collapsed input, not for
 # the mixture: an approximation, documented in `gaussian.md` §"Mixture inputs".
 _moments(b::LenticulumCore.MixtureBelief{<:GaussianBelief}, n) = _moments(moment_match(b), n)
+
+# An input as a Gaussian part and a flat part, for the relation factors (`constraint.md` §4.1):
+# (mean, covariance, N), the input flat along the columns of N (`nothing`: nowhere).
+_split_moments(b, n) = (r = _moments(b, n); r[1] === nothing ? _flat_part(n) : (r[1], r[2], nothing))
+_flat_part(n) = (zeros(n), zeros(n, n), Matrix(1.0LinearAlgebra.I, n, n))
+function _split_moments(b::GaussianBelief, n)
+    all(iszero, b.Λ) && return _flat_part(n)
+    isproper(b) && return (belief_mean(b), belief_cov(b), nothing)
+    return _improper_split(b)
+end
+
+# The proper part of an improper input lives on range(Λ): mean Λ⁺η, covariance Λ⁺. Along null(Λ)
+# the input is flat, the limit of a prior that widens there. Eigenvalues below 16·n·eps·λ_max
+# count as zero, which also catches the rounding a declared-improper site carries. Λ must be
+# positive semidefinite to that tolerance, and η must lie in range(Λ) to √eps relative: a
+# component along null(Λ) is exp(ηᵀx) there, which no limit of Gaussians gives.
+function _improper_split(b::GaussianBelief)
+    n = dimension(b)
+    E = LinearAlgebra.eigen(LenticulumCore._symmetric_part(b.Λ))
+    tol = 16 * n * eps(Float64) * maximum(abs, E.values)
+    minimum(E.values) < -tol && throw(ArgumentError(
+        "an input precision must be positive semidefinite; it has the eigenvalue $(minimum(E.values))"))
+    keep = E.values .> tol
+    all(keep) && return (belief_mean(GaussianBelief(b.η, b.Λ)), belief_cov(GaussianBelief(b.η, b.Λ)), nothing)
+    V, N = E.vectors[:, keep], E.vectors[:, .!keep]
+    LinearAlgebra.norm(N' * b.η) <= sqrt(eps(Float64)) * LinearAlgebra.norm(b.η) || throw(ArgumentError(
+        "an improper input has an information vector outside the range of its precision; it is \
+         not a limit of Gaussians"))
+    S = V * LinearAlgebra.Diagonal(1 ./ E.values[keep]) * V'
+    return (S * b.η, (S + S') / 2, N)
+end
 _vec(v::AbstractVector) = float.(v)
 _vec(v::Real) = [float(v)]
 

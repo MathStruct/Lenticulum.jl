@@ -28,7 +28,9 @@ $x_1$ says nothing about $x_2$). The moment form cannot represent it at all; the
 just has zeros. Such a belief is valid as a message and becomes a distribution once combined with
 a prior that covers the remaining directions. `isproper(b)` checks $\Lambda \succ 0$, and `belief_mean`,
 `belief_cov`, `belief_logdensity` and `variable_entropy` refuse improper beliefs rather than
-return a silent pseudo-answer.
+return a silent pseudo-answer. A factor that knows its message is rank-deficient builds it as
+`GaussianBelief(η, Λ, true)`: rounding often makes such a $\Lambda$ factorise, and the flag keeps
+`isproper` false all the same (LenticulumCore `gaussian_belief.md`, "Declared improper").
 
 ## The other beliefs are its limits
 

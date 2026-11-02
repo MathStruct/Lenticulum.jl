@@ -216,3 +216,15 @@ only `negentropy` stays constant.
 **What it does not do.** A mixture message is collapsed to its moments, as in the factors' own
 messages, so with mixture inputs the frozen belief is the collapsed one. The prior's mean is not a
 parameter, so only a learnable noise moves.
+
+## Improper inputs, split (2026-11-02)
+
+`_split_moments(b, n)` returns an input as `(mean, covariance, N)`: a Gaussian part and the
+directions, the columns of `N`, along which it is flat (`nothing` if none). `_moments` is
+unchanged and still serves `GaussianFactor`, the composites and the nonlinear factors; only the
+relation factors (`LinearConstraintFactor`, `SwitchingConstraintFactor`) read the split. A
+proper Gaussian takes the same path as `_moments`, and `isproper` is non-differentiable, so the
+differentiated code is unchanged for proper inputs. The theory and the tolerances are in
+`constraint.md` §4.1. `GaussianFactor` still returns `TrivialBelief()` for a flat input and
+refuses a partially improper one (`belief_mean` throws); it is the two-channel case of `LinearConstraintFactor` and could call the same code,
+which has not been done.

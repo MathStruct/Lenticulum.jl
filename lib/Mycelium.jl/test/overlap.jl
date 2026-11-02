@@ -35,3 +35,26 @@ using LinearAlgebra
     @test_throws ArgumentError combine_with_overlap(improper,c)
     @test_throws DimensionMismatch combine_with_overlap(c,Gaussian([0.],ones(1,1)))
 end
+
+@testset "A declared-improper Gaussian is improper whatever the rounding" begin
+    # rank one in the plane, with rounding that makes it factorise
+    v = [1.0, 1e-9]
+    Λ = v * v' + 1e-14 * I
+    @test isposdef(Symmetric(Λ))
+    site = GaussianBelief(Λ * [0.3, 0.0], Λ, true)
+    @test !isproper(site) && isproper(GaussianBelief(site.η, site.Λ))
+    @test_throws ArgumentError belief_mean(site)
+    # pooling keeps the flag only beside zero precision
+    @test combine(site, uninformative(2)).improper
+    @test !combine(site, GaussianBelief(zeros(2), Matrix(1.0I, 2, 2))).improper
+    @test isproper(combine(site, Gaussian([0.0, 0.0], Matrix(1.0I, 2, 2))))
+    # the mixture product weights a declared site as a likelihood: the overlap with a proper c
+    # differs from ∫ p_c exp(ηᵀx − xᵀΛx/2) by a constant of the site alone, so the difference
+    # between two sites with the same Λ is the exact log ratio
+    c = Gaussian([0.2, -0.4], [0.8 0.1; 0.1 0.6])
+    s1, s2 = GaussianBelief(Λ * [0.3, 0.0], Λ, true), GaussianBelief(Λ * [-0.5, 0.0], Λ, true)
+    l(s) = last(combine_with_overlap(c, s))
+    μc, Σc = belief_mean(c), belief_cov(c)
+    exact(s) = (P = inv(Σc) + Λ; h = Σc \ μc + s.η; dot(h, P \ h) / 2 - logdet(P) / 2)   # up to the c-only constant
+    @test l(s1) - l(s2) ≈ exact(s1) - exact(s2) rtol = 1e-8
+end
