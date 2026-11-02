@@ -273,6 +273,18 @@ Modules = [Mycelium]
 Pages = ["factors.jl"]
 ```
 
+### Exposed parameters
+
+A parameter block of a factor can become a channel, so that a variable holds the weight, a
+prior on it is an ordinary factor, and connecting two factors' exposed channels to one variable
+ties the weight (L-SPEC-003 §1). With the channel observed as a point, any factor works; a
+belief on it needs the factor's `parameter_message` and `parameter_free_energy`.
+
+```@autodocs
+Modules = [Mycelium]
+Pages = ["exposure.jl"]
+```
+
 ### Everything else
 
 ```@autodocs
