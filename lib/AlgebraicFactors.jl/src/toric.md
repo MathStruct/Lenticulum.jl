@@ -108,6 +108,28 @@ columns, pointwise energies, all evidence kinds for every target at arities two 
 local/game quantities, tree inference and the common interface. The references compute
 ordinary products and finite sums independently of the log-domain implementation.
 
+### Parameter gradient at a fixed belief (LP-020, 2026-11-02)
+
+The graph parameter gradient differentiates each factor at its **belief** held fixed, which
+at a belief-propagation fixed point is the derivative of the Bethe free energy (the envelope
+theorem; [[free_energy]], "Fixed beliefs, not fixed messages"). `Mycelium.factor_belief`
+returns the joint table $\log b_f$ above as a `ToricBelief`, and `Mycelium.belief_free_energy`
+re-scores it at the current $\eta$:
+
+$$
+F_f(b, \eta) = \sum_x b(x)E_\eta(x) + \sum_x b(x)\log b(x),\qquad
+\partial_\eta F_f = -\mathbb E_b[a_x] + [\text{normalised}]\,\mathbb E_{p_\eta}[a_x].
+$$
+
+Before, the derivative also moved $b_f$ through its dependence on $\eta$, with the messages
+held fixed; with categorical messages that is a different number. `../test/lp020.jl` checks,
+on the five-variable tree above with two interaction rows added to each design (so $\eta$ is
+not a pure gauge), normalised or not and with $c$ clamped or not: `belief_free_energy`
+equals `local_free_energy` at the frozen belief to $10^{-12}$; the graph gradient matches
+central differences of the converged $-\log Z$ to $10^{-6}$ with reference differences,
+ForwardDiff and Zygote; and the old fixed-message derivative differs from it by more than
+$10^{-2}$ in norm.
+
 `fit_mle`, positive `inmodel` and supplied `binomial_residuals` are implemented in
 `fit.jl`; [[fit]] records the gauge, convergence/existence distinction and numerical
 limitations. No LP solver, Markov basis, manifold or polynomial inference is implemented.

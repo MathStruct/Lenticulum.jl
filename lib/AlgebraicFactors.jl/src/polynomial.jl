@@ -279,13 +279,24 @@ LenticulumCore.scalarisation(::PolynomialFactor) = LenticulumCore.GradedScalaris
     negentropy=LenticulumCore.IdentityScalarisation()))
 Mycelium.uses_cavity(::PolynomialFactor) = true
 
-function _polynomial_exact_statistics(f, msgs, ps)
+# The degree-one basis at zero: v(z) = v0 + V z exactly, so r = Θv(z) = Jz + c with c = Θv0
+# and J = ΘV. It depends on the factor alone.
+function _polynomial_basis(f)
     f.table.degree == 1 && f.branches === :single || throw(ArgumentError(
         "PolynomialFactor exact games require degree one and branches=:single; a varying Sampson metric/branch solver supplies no normalised nonlinear law"))
-    N = sum(values(f.dims))
-    z0 = zeros(N)
-    c = ps.Θ*veronese(f.table,z0)
-    J = ps.Θ*veronese_jacobian(f.table,z0)
+    z0 = zeros(sum(values(f.dims)))
+    return veronese(f.table,z0), veronese_jacobian(f.table,z0)
+end
+
+# The affine residual r = Jz + c of a degree-one factor, its residual covariance's Cholesky
+# factor and log|det J_out|. `check = false` skips the eigenvalue test, which does not run on
+# dual numbers; the frozen-belief path uses it after the value path has checked. The frozen
+# path also passes the basis, so automatic differentiation never enters `veronese`.
+function _polynomial_affine(f, ps; basis = _polynomial_basis(f), check::Bool = true)
+    v0, V = basis
+    N = size(V, 2)
+    c = ps.Θ*v0
+    J = ps.Θ*V
     # Select the last declared channel as the normalised conditional output.
     q = last(values(f.dims))
     q == f.k || throw(ArgumentError("normalised degree-one game needs a square last-channel coefficient block"))
@@ -293,10 +304,36 @@ function _polynomial_exact_statistics(f, msgs, ps)
     sign != 0 && isfinite(ld) || throw(ArgumentError("normalised degree-one game needs a nonsingular last-channel coefficient block"))
     Q = f.Σ === nothing ? J*J' : J*f.Σ*J'
     Q += f.λ*(ps.Θ*ps.Θ')
-    ev = LinearAlgebra.eigvals(LinearAlgebra.Symmetric(Q))
-    minimum(ev) > f.k*eps(eltype(ev))*maximum(ev) || throw(ArgumentError(
-        "degree-one residual covariance must be positive definite; no pseudoinverse entropy"))
-    C = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Q))
+    if check
+        ev = LinearAlgebra.eigvals(LinearAlgebra.Symmetric(Q))
+        minimum(ev) > f.k*eps(eltype(ev))*maximum(ev) || throw(ArgumentError(
+            "degree-one residual covariance must be positive definite; no pseudoinverse entropy"))
+    end
+    return c, J, LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Q)), ld
+end
+
+"""
+    PolynomialBelief(z0, free, m, S, H, basis)
+
+A frozen joint factor belief of a degree-one [`PolynomialFactor`](@ref): the Dirac channels'
+values in `z0`, and a Gaussian `N(m, S)` with entropy `H` on the coordinates `free` (indices
+into the concatenated channels). `basis` is the factor's degree-one basis `(v0, V)`, a constant
+carried along so that differentiation does not enter it. Returned by `Mycelium.factor_belief`, read by
+`Mycelium.belief_free_energy`.
+"""
+struct PolynomialBelief{V,I,M,T,B}
+    z0::V
+    free::I
+    m::V
+    S::M
+    H::T
+    basis::B
+end
+
+# The joint belief of the free coordinates: residual likelihood times the incoming messages.
+function _polynomial_belief(f, msgs, c, J, C, basis)
+    N = size(J, 2)
+    z0 = zeros(N)
     free = Int[]
     η = zeros(N)
     Λ = zeros(N,N)
@@ -322,30 +359,66 @@ function _polynomial_exact_statistics(f, msgs, ps)
         end
         offset += n
     end
+    isempty(free) && return PolynomialBelief(z0, free, zeros(0), zeros(0,0), 0.0, basis)
     r = J*z0+c
-    H = 0.0
-    Cr = zeros(f.k,f.k)
-    if !isempty(free)
-        B = J[:,free]
-        precision = B'*(C\B)+Λ[free,free]
-        pev = LinearAlgebra.eigvals(LinearAlgebra.Symmetric(precision))
-        minimum(pev) > length(free)*eps(eltype(pev))*maximum(pev) ||
-            throw(ArgumentError("degree-one polynomial game has an improper joint posterior; supply anchoring messages"))
-        P = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(precision))
-        S = inv(P)
-        m = P\(η[free]-B'*(C\r))
-        r += B*m
-        Cr = B*S*B'
-        H = (length(free)*(1+log(2π))-LinearAlgebra.logdet(P))/2
+    B = J[:,free]
+    precision = B'*(C\B)+Λ[free,free]
+    pev = LinearAlgebra.eigvals(LinearAlgebra.Symmetric(precision))
+    minimum(pev) > length(free)*eps(eltype(pev))*maximum(pev) ||
+        throw(ArgumentError("degree-one polynomial game has an improper joint posterior; supply anchoring messages"))
+    P = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(precision))
+    m = P\(η[free]-B'*(C\r))
+    H = (length(free)*(1+log(2π))-LinearAlgebra.logdet(P))/2
+    return PolynomialBelief(z0, free, m, Matrix(inv(P)), H, basis)
+end
+
+# E_b[r'Q⁻¹r]/2 and the normaliser, at the current parameters (c, J, C, ld) for a given belief.
+function _polynomial_energies(f, c, J, C, ld, b::PolynomialBelief)
+    r = J*b.z0+c
+    fit = if isempty(b.free)
+        LinearAlgebra.dot(r,C\r)/2
+    else
+        B = J[:,b.free]
+        r = r+B*b.m
+        (LinearAlgebra.dot(r,C\r)+LinearAlgebra.tr(C\(B*b.S*B')))/2
     end
-    fit = (LinearAlgebra.dot(r,C\r)+LinearAlgebra.tr(C\Cr))/2
     complexity = (f.k*log(2π)+LinearAlgebra.logdet(C))/2-ld
-    return fit,complexity,H
+    return fit, complexity
+end
+
+function _polynomial_exact_statistics(f, msgs, ps)
+    basis = _polynomial_basis(f)
+    c, J, C, ld = _polynomial_affine(f, ps; basis)
+    b = _polynomial_belief(f, msgs, c, J, C, basis)
+    fit, complexity = _polynomial_energies(f, c, J, C, ld, b)
+    return fit, complexity, b.H
 end
 
 function Mycelium.local_free_energy(f::PolynomialFactor,msgs,ps,st)
     fit,complexity,H = _polynomial_exact_statistics(f,msgs,ps)
     return LenticulumCore.GradedEnergy((;fit,complexity,negentropy=-H)),st
+end
+
+"""
+    Mycelium.factor_belief(f::PolynomialFactor, msgs, ps, st) -> PolynomialBelief
+    Mycelium.belief_free_energy(f::PolynomialFactor, b::PolynomialBelief, ps, st)
+
+The degree-one joint belief of `local_free_energy`, frozen, and the graded free energy at that
+belief for the current `Θ`: `fit = E_b[r'Q⁻¹r]/2`, `complexity` the residual normaliser minus
+`log|det J_out|`, `negentropy = -H(b)`. Its parameter derivative is the envelope gradient of the
+Bethe free energy (LP-020). Same domain as `local_free_energy`: degree one, `branches=:single`.
+"""
+function Mycelium.factor_belief(f::PolynomialFactor, msgs, ps, st)
+    basis = _polynomial_basis(f)
+    c, J, C, _ = _polynomial_affine(f, ps; basis)
+    return _polynomial_belief(f, msgs, c, J, C, basis)
+end
+function Mycelium.belief_free_energy(f::PolynomialFactor, b::PolynomialBelief, ps, st)
+    c, J, C, ld = _polynomial_affine(f, ps; basis = b.basis, check = false)
+    length(b.z0) == size(J, 2) ||
+        throw(DimensionMismatch("a PolynomialBelief needs $(size(J, 2)) coordinates"))
+    fit, complexity = _polynomial_energies(f, c, J, C, ld, b)
+    return LenticulumCore.GradedEnergy((;fit,complexity,negentropy=-b.H)),st
 end
 function _polynomial_game_messages(f,π,y)
     names = keys(f.dims)

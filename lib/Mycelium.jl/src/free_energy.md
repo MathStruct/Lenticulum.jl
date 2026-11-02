@@ -208,12 +208,18 @@ Gaussian composite. Every one of these has an affine residual $r = \sum_i R_i x_
 function builds the frozen joint Gaussian of the non-point channels. `belief_free_energy`
 re-evaluates the residual's mean and covariance under it at the current parameters.
 
+In AlgebraicFactors (2026-11-02): `ToricFactor`, whose frozen belief is the joint table over its
+states (`ToricBelief`), and the degree-one `PolynomialFactor`, whose frozen belief is the joint
+Gaussian of its free coordinates (`PolynomialBelief`); `toric.md` and `polynomial.md` give the
+formulas and the checks in `lib/AlgebraicFactors.jl/test/lp020.jl`.
+
 **What it does not do.**
 - A factor without `factor_belief` keeps the fixed-message derivative. That is the same thing
   when every incoming message is a point (the belief is then a point too), and in general it is
   not. A factor with `uses_cavity` whose messages are not all points logs a warning once. The
-  hook-less factors in the repository are the neural, diffusion and algebraic factors and `PriorFactor`,
-  whose graph uses are with point messages.
+  hook-less learnable factors in the repository are the neural and diffusion factors, whose
+  graph uses are with point messages. `PriorFactor` has no hook and needs none: neither its
+  belief nor its `nlogp` reads the parameters, so its parameter derivative is zero either way.
 - The argument is about the **summed** free energy. A nonlinear per-factor scalarisation changes
   the objective that belief propagation does not minimise, and the fixed-belief derivative is then
   not its gradient.

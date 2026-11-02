@@ -254,3 +254,28 @@ $n\,\mathrm{eps}(T)\lambda_{\max}$ on its $n$ free coordinates. Cholesky alone c
 accept a rank-deficient precision after floating-point roundoff. The unanchored two-channel
 linear relation in `../test/game_exact.jl` checks that this case throws before entropy is
 computed; no artificial jitter or pseudoinverse is introduced.
+
+## Parameter gradient at a fixed belief (LP-020, 2026-11-02)
+
+In the same domain (degree one, `branches=:single`), `Mycelium.factor_belief` freezes the joint
+belief above as a `PolynomialBelief`: the clamped coordinates $z_0$, the free coordinates'
+mean $m$, covariance $S$ and entropy $H$. `Mycelium.belief_free_energy` re-evaluates at the
+current $\Theta$, with $r = J(z_0 + Pm) + c$ for the embedding $P$ of the free coordinates,
+
+$$
+\text{fit} = \tfrac12\bigl(r^\top Q^{-1}r + \operatorname{tr}(Q^{-1}JPSP^\top J^\top)\bigr),\qquad
+\text{negentropy} = -H,
+$$
+
+and the complexity as above. Its $\Theta$-derivative is then the envelope gradient of the Bethe
+free energy. The belief also carries the basis $(v_0, V)$ with $v(z) = v_0 + Vz$, a constant of
+the factor: Zygote would otherwise differentiate through `veronese`, which mutates arrays. The
+positive-definiteness test on $Q$ uses eigenvalues, which do not run on dual numbers, so the
+frozen path skips it; the value path has checked it at the point where the belief was frozen.
+
+`../test/lp020.jl` checks a prior $x \sim N(0.2, 0.7)$, the conditional of `game_exact.jl`
+and an observed $y = 0.8$, in both bases, with and without damping. The tree's free energy
+equals $-\log p(y)$ to $10^{-10}$. The graph gradient matches central differences of it to
+$10^{-6}$, with reference differences, ForwardDiff and Zygote. The fixed-message derivative
+differs by more than $10^{-2}$. Nonlinear degrees have no local free energy and therefore no
+hook.

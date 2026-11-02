@@ -19,7 +19,7 @@ using LuxCore: LuxCore
 using LenticulumCore: LenticulumCore
 using Mycelium: Mycelium
 
-export ToricFactor, independence, hierarchical
+export ToricFactor, ToricBelief, independence, hierarchical
 export fit_mle, inmodel, binomial_residuals
 export Grassmann, project_tangent, retract, ispoint, Retracted
 
@@ -29,7 +29,7 @@ export ExponentTable, veronese, veronese_jacobian, basis_change
 export HomotopyBranches, polynomial_branches, branch_entropy_bounds
 export AbstractSampsonMethod, RiemannianGradient, FNS, RiemannianTrustRegion
 export SampsonProblem, sampson_solve
-export PolynomialFactor, PolynomialModel, fit_nullspace, fit_sampson
+export PolynomialFactor, PolynomialBelief, PolynomialModel, fit_nullspace, fit_sampson
 
 include("plucker.jl")
 include("toric.jl")

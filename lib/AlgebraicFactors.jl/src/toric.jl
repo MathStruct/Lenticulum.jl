@@ -224,13 +224,15 @@ function Mycelium.factor_message(f::ToricFactor, target::Symbol, polarity, input
     return (LenticulumCore.CategoricalBelief(Val(:log), _lognormalise(out), _outlabels(f, t)), st)
 end
 
+_energies(f, l) = f.normalised ? -_lognormalise(l) : -l
+_expected_energy(logq, energies) =
+    sum(logq[k] == -Inf ? zero(eltype(energies)) : exp(logq[k]) * energies[k] for k in eachindex(energies))
+_shannon(logq) = -sum(v == -Inf ? zero(v) : exp(v) * v for v in logq)
+
 function _factor_statistics(f, msgs, ps)
     l = _logits(f, ps)
     logq = _lognormalise(_joint_logweights(f, msgs, l))
-    energies = f.normalised ? -_lognormalise(l) : -l
-    U = sum(logq[k] == -Inf ? zero(eltype(l)) : exp(logq[k]) * energies[k] for k in eachindex(l))
-    H = -sum(v == -Inf ? zero(v) : exp(v) * v for v in logq)
-    return U, H
+    return _expected_energy(logq, _energies(f, l)), _shannon(logq)
 end
 
 Mycelium.uses_cavity(::ToricFactor) = true
@@ -247,6 +249,36 @@ Returns a scalar and the unchanged state.
 function Mycelium.local_free_energy(f::ToricFactor, msgs, ps, st)
     U, H = _factor_statistics(f, msgs, ps)
     return (U - H, st)
+end
+
+"""
+    ToricBelief(logq)
+
+A frozen joint factor belief of a [`ToricFactor`](@ref): log-probabilities over the joint
+states, in `CartesianIndices(alphabets)` order. Returned by `Mycelium.factor_belief` and read
+by `Mycelium.belief_free_energy`, which re-scores it at the current parameters.
+"""
+struct ToricBelief{V<:AbstractVector}
+    logq::V
+end
+
+"""
+    Mycelium.factor_belief(f::ToricFactor, msgs, ps, st) -> ToricBelief
+    Mycelium.belief_free_energy(f::ToricFactor, b::ToricBelief, ps, st)
+
+The joint belief `q ∝ exp(A'η) * prod(msgs)` of `local_free_energy`, frozen, and
+`E_q[energy_η] - H(q)` at that `q` for the current `η`. At the belief they were evaluated
+at the two free energies agree, and the parameter derivative of the second is the envelope
+gradient of the Bethe free energy (LP-020): `E_q[-a_x]` plus, when `normalised`,
+`E_{p_η}[a_x]`. Holding the messages fixed instead differentiates `q` too, which is not
+that gradient once the messages are not points.
+"""
+Mycelium.factor_belief(f::ToricFactor, msgs, ps, st) =
+    ToricBelief(vec(_lognormalise(_joint_logweights(f, msgs, _logits(f, ps)))))
+function Mycelium.belief_free_energy(f::ToricFactor, b::ToricBelief, ps, st)
+    length(b.logq) == size(f.A, 2) ||
+        throw(DimensionMismatch("a ToricBelief needs one entry per joint state ($(size(f.A, 2)))"))
+    return (_expected_energy(b.logq, _energies(f, _logits(f, ps))) - _shannon(b.logq), st)
 end
 
 function _game_messages(f, π, y)

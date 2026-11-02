@@ -2,7 +2,7 @@
 
 > **Status: resolved (2026-11-01), by option 1 below.** Found while building Mycelium's sampler; measured and now checked in `test/lp020.jl`. Related: [[free_energy]], [[gradient_couplings]], [[sampling]], [[Extending Mycelium]], [[LP-002 The Jacobian side is not implemented]].
 
-> Sources: original repository analysis; code: `lib/Mycelium.jl/src/free_energy.jl` (`free_energy_gradient`, `parameter_step`), `lib/Mycelium.jl/src/factors.jl` (`factor_belief`, `belief_free_energy`), `src/gaussian.jl` (`FrozenGaussianBelief`), `lib/Mycelium.jl/src/sampling.jl` (`sample_gradient`); test: `test/lp020.jl`
+> Sources: original repository analysis; code: `lib/Mycelium.jl/src/free_energy.jl` (`free_energy_gradient`, `parameter_step`), `lib/Mycelium.jl/src/factors.jl` (`factor_belief`, `belief_free_energy`), `src/gaussian.jl` (`FrozenGaussianBelief`), `lib/AlgebraicFactors.jl/src/toric.jl` (`ToricBelief`), `lib/AlgebraicFactors.jl/src/polynomial.jl` (`PolynomialBelief`), `lib/Mycelium.jl/src/sampling.jl` (`sample_gradient`); tests: `test/lp020.jl`, `lib/AlgebraicFactors.jl/test/lp020.jl`
 >
 > Theory (CT-ML wiki): [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
@@ -64,9 +64,11 @@ Checked in `test/lp020.jl`:
   of the converged Bethe free energy to $10^{-6}$, with reference differences, ForwardDiff and Zygote.
 
 **What remains.**
-- Factors without `factor_belief` (the neural, diffusion and algebraic factors, and Mycelium's `PriorFactor`) keep the
-  fixed-message derivative. That is exact with point messages, and they warn once when their
-  messages are not points.
+- Factors without `factor_belief` (the neural and diffusion factors) keep the fixed-message
+  derivative. That is exact with point messages, and they warn once when their messages are not
+  points. `ToricFactor` and the degree-one `PolynomialFactor` gained the hooks on 2026-11-02, with
+  the same check against central differences (`lib/AlgebraicFactors.jl/test/lp020.jl`).
+  `PriorFactor` needs none, since its energy does not read the parameters.
 - `sample_gradient` now uses the fixed-belief gradient per sample by default (one inference per
   sample); differentiating through inference stays as `through_inference = true`, and the two agree
   to $10^{-6}$ in `test/switching_constraint.jl` ([[sampling]]).

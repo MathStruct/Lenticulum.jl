@@ -203,7 +203,8 @@ the native-backend and metric/divergence reproducers.
 - No parameter sharing between factor nodes, so weight tying is not expressible.
 - `free_energy_gradient` and `parameter_step` hold each factor's belief fixed (the envelope
   gradient, exact at a belief-propagation fixed point) only for factors that implement
-  `factor_belief`: Lenticulum's Gaussian, constraint and switching factors. Other factors keep the
+  `factor_belief`: Lenticulum's Gaussian, constraint and switching factors, and AlgebraicFactors'
+  toric and degree-one polynomial factors. Other factors (the neural and diffusion ones) keep the
   fixed-message derivative, which is exact only with point messages, and warn otherwise (LP-020).
 - Graphs with `MeanField()` nodes have no free energy yet (the hybrid's, Riegler et al. 2013,
   is not implemented), so `parameter_step` cannot train them.
