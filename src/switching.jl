@@ -542,7 +542,9 @@ function _expanded_message(A, Q, B, lw, lpk, dims, others, target, inputs, to_sw
         Ta = T * At
         rt = _projected_rank(Ta, Li * At)
         if rt == 0                              # flat in the target: one flat component, the outcomes summed
-            push!(comps, GaussianBelief(zeros(nt), zeros(nt, nt), true)); push!(logws, _logsumexp(l))
+            any(>(-Inf), l) || continue         # no possible outcome: as `factor_message`, refused below
+            lf = _logsumexp(l)
+            push!(comps, GaussianBelief(zeros(nt), zeros(nt, nt), true)); push!(logws, lf)
             continue
         end
         proper = rt == nt
@@ -558,7 +560,7 @@ function _expanded_message(A, Q, B, lw, lpk, dims, others, target, inputs, to_sw
     end
     if to_switch
         L = reduce(hcat, lks)
-        lk = [_logsumexp(L[k, :]) for k in 1:K]
+        lk = [any(>(-Inf), view(L, k, :)) ? _logsumexp(L[k, :]) : -Inf for k in 1:K]   # an outcome of weight 0: −Inf, not NaN
         all(==(-Inf), lk) && throw(ArgumentError("every outcome has zero probability"))
         return LenticulumCore.CategoricalBelief(Val(:log), lk .- _logsumexp(lk), nothing)
     end
@@ -612,13 +614,13 @@ matrices, the free channels' joint means per outcome and replica (`M[:, k, i]`),
 the columns of `q`. Built from message blocks whose Gaussian inputs share one precision; the
 batched counterpart of the `FrozenGaussianBelief` that `factor_belief` returns.
 """
-struct FrozenSwitchingBeliefs
+struct FrozenSwitchingBeliefs{A<:AbstractArray,S<:AbstractMatrix,H<:Real,Q<:AbstractMatrix}
     points::Vector{Pair{Symbol,Matrix{Float64}}}
     free::Vector{Symbol}
-    M::Array{Float64,3}
-    Σ::Matrix{Float64}
-    H::Float64
-    q::Matrix{Float64}
+    M::A
+    Σ::S
+    H::H
+    q::Q
 end
 
 _same_switching(fs) = (f = first(fs); all(h -> h === f || (isequal(h.Q, f.Q) && h.dims == f.dims && h.K == f.K && h.switch === f.switch), fs))

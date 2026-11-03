@@ -146,6 +146,10 @@ pl_fa_nlp(X, W, c) = -sum(pl_lognormal(X[:, i], c, W * W' + PL_σ2 * I) for i in
             @test pl_flat(LenticulumCore.free_energy_gradient(s, g, ps, st; ad).lik) ≈
                   pl_flat(LenticulumCore.free_energy_gradient(se, g, ps, st; ad).lik) atol = tol
         end
+        # the free energy on blocks is differentiable in ps by ForwardDiff (the batched beliefs
+        # held Float64 fields until a 2026-11-03 review)
+        Fθ(sx, θ) = first(LenticulumCore.scalar_free_energy(sx, g, merge(ps, (lik = LenticulumCore._unflatten(θ, ps.lik),)), st))
+        @test ForwardDiff.gradient(θ -> Fθ(s, θ), pl_flat(ps.lik)) ≈ ForwardDiff.gradient(θ -> Fθ(se, θ), pl_flat(ps.lik)) atol = 1e-10
     end
 
     @testset "a grouped sweep gives the sequential schedule's messages" begin
@@ -405,6 +409,8 @@ end
             @test pl_flat(LenticulumCore.free_energy_gradient(s, g, ps, st; ad).sw) ≈
                   pl_flat(LenticulumCore.free_energy_gradient(se, g, ps, st; ad).sw) atol = tol
         end
+        Fθ(sx, θ) = first(LenticulumCore.scalar_free_energy(sx, g, merge(ps, (sw = LenticulumCore._unflatten(θ, ps.sw),)), st))
+        @test ForwardDiff.gradient(θ -> Fθ(s, θ), pl_flat(ps.sw)) ≈ ForwardDiff.gradient(θ -> Fθ(se, θ), pl_flat(ps.sw)) atol = 1e-10
     end
     # the categorical block's operations, column for column as the per-belief rules
     rng = Xoshiro(2)

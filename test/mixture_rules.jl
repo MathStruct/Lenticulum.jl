@@ -1,7 +1,7 @@
 # Extending Mycelium §4: expectation propagation and mixture reduction as message rules.
 # Every result is checked against an oracle written out here: exact enumeration, a grid-free
 # closed form, or Minka's EP loop by hand.
-using Test, Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random
+using Test, Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, ForwardDiff
 using LenticulumCore: MixtureBelief, DiracBelief, TrivialBelief, CategoricalBelief, Unobserved, Observed, Polarity
 
 mr_lognorm(y, m, v) = -(y - m)^2 / (2v) - log(2π * v) / 2
@@ -128,6 +128,8 @@ end
     s = ep_divide(Gaussian([0.0], fill(2.0, 1, 1)), Gaussian([0.0], fill(1.0, 1, 1)))
     @test s.Λ ≈ fill(-0.5, 1, 1) && !isproper(s)
     @test ep_project(MixtureBelief([GaussianBelief([0.0], zeros(1, 1), true), gb], [0.5, 0.5])) === nothing
+    # the sign test runs on values, so inference with ForwardDiff parameters does not hit eigvals of duals
+    @test ForwardDiff.derivative(t -> (Mycelium._indefinite(GaussianBelief([t], fill(-t, 1, 1))) ? 1.0 : 0.0) * t, 1.0) == 1.0
     # On a Gaussian graph the rule is belief propagation.
     function lg(rule)
         b = GraphBuilder(); variable!(b, :x, 1); variable!(b, :y, 1)
@@ -244,6 +246,15 @@ end
     # refusals: an improper mixture component, and a factor without the method
     bad = MixtureBelief([GaussianBelief(zeros(2), zeros(2, 2), true), cs[1]], [0.5, 0.5])
     @test_throws ArgumentError mixture_message(f, :x, pol, (u = bad, k = kb), nothing, ps, st)
+    # a target the factor cannot reach, with every outcome impossible: refused, as by factor_message
+    f0 = SwitchingConstraintFactor((x = 1, u = 2), 2, 2; noise = 0.5)
+    p0 = (A = (x = zeros(2, 1), u = Matrix(1.0I, 2, 2)), b = zeros(2, 2), logw = zeros(2))
+    @test_throws ArgumentError mixture_message(f0, :x, nothing, (u = umix, k = CategoricalBelief(Val(:log), [-Inf, -Inf], nothing)), nothing, p0, st)
+    @test_throws ArgumentError Mycelium.factor_message(f0, :x, nothing, (u = cs[1], k = CategoricalBelief(Val(:log), [-Inf, -Inf], nothing)), nothing, p0, st)
+    # an outcome of weight zero stays impossible (not NaN) in the message to the outcome
+    pz = merge(ps, (logw = [0.0, -Inf, 0.0],))
+    mz, _ = mixture_message(f, :k, Polarity(; x = Observed(), u = Observed(), k = Unobserved()), (x = DiracBelief(xs[1]), u = umix), nothing, pz, st)
+    @test mz.logp[2] == -Inf && all(isfinite, mz.logp[[1, 3]]) && sum(exp, mz.logp) ≈ 1
     gf = GaussianFactor(1 => 1; noise = 0.3)
     @test_throws ArgumentError mixture_message(gf, :y, nothing, (x = umix,), nothing, NamedTuple(), NamedTuple())
 end

@@ -173,10 +173,10 @@ function ep_project(m::LenticulumCore.MixtureBelief{<:GaussianBelief})
     μs = [LenticulumCore.belief_mean(c) for c in m.components]
     μ = sum(w[k] .* μs[k] for k in eachindex(w))
     Σ = sum(w[k] .* (LenticulumCore.belief_cov(m.components[k]) .+ (μs[k] .- μ) * (μs[k] .- μ)') for k in eachindex(w))
-    Σ = Matrix(LinearAlgebra.Symmetric(Σ))
-    LinearAlgebra.isposdef(Σ) || return nothing
-    Λ = Matrix(LinearAlgebra.Symmetric(inv(Σ)))
-    return GaussianBelief(Λ * μ, Λ)
+    C = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Σ); check = false)
+    LinearAlgebra.issuccess(C) || return nothing
+    Λ = Matrix(LinearAlgebra.Symmetric(inv(C)))          # from the factor the test just computed
+    return GaussianBelief(C \ μ, Λ)
 end
 
 # The site p / π: canonical parameters subtract. A site whose precision is not positive definite
@@ -189,9 +189,10 @@ function ep_divide(p::GaussianBelief, c::GaussianBelief)
 end
 ep_divide(p::GaussianBelief, ::LenticulumCore.TrivialBelief) = p
 
-# A Gaussian input with a negative direction (beyond rounding).
+# A Gaussian input with a negative direction (beyond rounding). A sign test has no derivative, so it
+# runs on values (`stop_gradient` strips ForwardDiff duals, for which `eigvals` has no method).
 function _indefinite(b::GaussianBelief)
-    Λ = LinearAlgebra.Symmetric(Matrix(b.Λ))
+    Λ = LinearAlgebra.Symmetric(Matrix(LenticulumCore.stop_gradient(b.Λ)))
     E = LinearAlgebra.eigvals(Λ)
     return isempty(E) ? false : minimum(E) < -16 * length(E) * eps(Float64) * maximum(abs, E)
 end

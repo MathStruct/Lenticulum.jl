@@ -183,3 +183,8 @@ the mixture messages cost 50 times the whole E-step.
    `sum(...; init)`, which has no rule. The ChainRulesCore extension gives `EdgeMessages(v)` an
    `rrule` that passes the wrapped vector's tangent through, and marks `_energy_rows` and
    `_has_rows` non-differentiable (they are structural, like the other graph queries there).
+4. **Batched beliefs typed `Float64`** (found in review, 2026-11-03, `switching.md` §11).
+   `FrozenGaussianBeliefs` stored its entropy as a `Float64`, so the scalar free energy on blocks
+   could not be differentiated in `ps` by ForwardDiff, though the per-edge path could and the tests
+   only differentiated `free_energy_gradient`'s items (built outside AD). The fields are
+   parametric now, and `test/plates.jl` differentiates the free energy on blocks.

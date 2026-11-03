@@ -714,12 +714,12 @@ column: the point channels as `d × n` matrices, the free channels' joint means 
 of `M`, and one covariance `Σ` and entropy `H` shared by every replica. Built from message
 blocks whose Gaussian inputs share one precision, which is what makes `Σ` shared.
 """
-struct FrozenGaussianBeliefs{M,S}
+struct FrozenGaussianBeliefs{M,S,H<:Real}
     points::Vector{Pair{Symbol,Matrix{Float64}}}
     free::Vector{Symbol}
     M::M
     Σ::S
-    H::Float64
+    H::H                       # a Real, not Float64: the free energy at blocks is differentiable in ps
 end
 
 # `_affine_gaussian_belief` for blocks: every point channel a `PointBlock`, every other channel a

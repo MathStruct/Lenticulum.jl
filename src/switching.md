@@ -247,3 +247,34 @@ against 9.7 ms edge by edge and 0.044 ms by hand, $F$ 1.1 ms against 5.1 ms, $\n
 The first version folded the point channels with `foldl(...; init)`; Zygote's pullback of that
 fails on an empty list (a plate whose continuous channels are all latent), so it is a `reduce`
 behind an emptiness check.
+
+## 11. Review of 2026-11-03 (Gemini, `agy`)
+
+Gemini 4 Argon reviewed the diff of 703850a5 (the §4 rules and §9–§10), from the diff alone. Each
+claim was checked against the code:
+
+- **Valid, fixed.** The batched beliefs held `Float64` fields, so the scalar free energy on
+  blocks could not be differentiated in `ps` with ForwardDiff (`MethodError: no method matching
+  Float64(::Dual)`), while the same messages per edge could. `FrozenSwitchingBeliefs` and
+  Lenticulum's `FrozenGaussianBeliefs` are parametric now. The second came with L-ADR-0010: the
+  factor-analysis plate failed the same way with the committed `gaussian.jl`. `free_energy_gradient`
+  was not affected (it builds the beliefs outside AD). `test/plates.jl` now compares the ForwardDiff
+  gradient of the free energy on blocks and per edge, for both plates.
+- **Valid, fixed.** `_expanded_message` with a target the factor cannot reach and every outcome
+  impossible returned `TrivialBelief()` instead of refusing, as `factor_message` does. Found
+  with it: `_logsumexp` of all `-Inf` is `NaN`, so an outcome of weight zero gave `NaN` in the
+  message to the outcome; it is `-Inf` now (tested).
+- **Valid, fixed** (Mycelium): `_indefinite` called `eigvals` on ForwardDiff duals; the sign test
+  now runs on values. `ep_project` reuses the Cholesky factor of its positivity test for the
+  precision.
+- **Not bugs.** The claimed dependence of the flat-direction normaliser on the combination (the
+  coefficients $G$ come from non-mixture inputs only, the same in every combination, and
+  $\operatorname{rank} L^{-1}G = \operatorname{rank} G$); "the batched free energy omits the incoming-message terms" (it is
+  the per-replica `local_free_energy`, term for term, which the tests compare to $10^{-12}$); the
+  re-centring shift in `_improper_overlap` (a reference point is used only when the other side
+  is a single component, so the shift is one constant); an improper first operand with a proper
+  second still throwing (documented; `_mixture_product` puts the proper one first); outcome
+  labels dropped by the outcome block (the per-replica message drops them too).
+
+Mistral (`vibe`) reviewed the same code before the commit and found the missing `switch` check in
+the outcome block method, fixed in 703850a5; its other points were not bugs (`passing.md`).
