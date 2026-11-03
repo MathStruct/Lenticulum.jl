@@ -216,6 +216,40 @@ end
     @test marginal(s, gall, gall.variable_index[:u1]) isa MixtureBelief
 end
 
+@testset "partial_sums: E7's block wiring as an edit" begin
+    rng = Xoshiro(12)
+    d, L = 3, 5
+    W = randn(rng, d, L); W[:, 3] .= W[:, 1] .+ 0.1 .* randn(rng, d)
+    Σ = Matrix(0.2I, d, d)
+    g, ps = cl_additive_W(W, Σ, 1e-3, randn(rng, d))
+    sws = [Symbol(:sw, l) for l in 1:L]
+    groups = [[1, 3], [2, 4, 5]]
+    Fx(g, ps) = (s = MessageStore(g); sweep!(s, g, SequentialSchedule(all_tasks(g)), ps, NamedTuple());
+                 first(scalar_free_energy(s, g, ps, NamedTuple())))
+    ge = cluster(g, [:all => [:sum; sws]]); F0 = Fx(ge, cluster_parameters(ge, ps))
+    ΔF = map((1e-4, 1e-6, 1e-8)) do ν
+        g2, ps2, cl = partial_sums(g, ps, :sum, sws, groups; noise = ν)
+        @test cl == [:part1_block => [:part1, :sw1, :sw3], :part2_block => [:part2, :sw2, :sw4, :sw5]]
+        @test Set(keys(g2.factors[g2.factor_index[:sum]].factor.dims)) == Set([:z, :part1, :part2])
+        @test keys(ps2.part2.A) == (:s, :u2, :u4, :u5) && ps2.part2.A.u4 == ps.sum.A.u4
+        ge2 = cluster(g2, [:all => [:sum, :part1, :part2, sws...]])
+        Fx(ge2, cluster_parameters(ge2, ps2)) - F0
+    end
+    # the model is unchanged as the partial sums' noise goes to 0 (the change is linear in it)
+    @test abs(ΔF[3]) < 1e-5 && abs(ΔF[2] / ΔF[3] - 100) < 1
+    # the returned groups cluster directly, and a singleton group is left alone
+    g3, ps3, cl3 = partial_sums(g, ps, :sum, sws, [[1, 3], [2], [4, 5]])
+    @test first.(cl3) == [:part1_block, :part3_block] && !haskey(g3.factor_index, :part2)
+    gc3 = cluster(g3, cl3); s = MessageStore(gc3)
+    for _ in 1:5; sweep!(s, gc3, SequentialSchedule(all_tasks(gc3)), cluster_parameters(gc3, ps3), NamedTuple()); end
+    # (the unclustered switch's mixture variable has no free energy, so the marginals are checked)
+    @test all(isfinite, exp.(cluster_marginal(s, gc3, :part3_block, :k4, cluster_parameters(gc3, ps3)).logp))
+    @test all(isfinite, exp.(marginal(s, gc3, gc3.variable_index[:k2]).logp))
+    @test_throws ArgumentError partial_sums(g, ps, :sum, sws, [[1, 2], [2, 3]])   # overlapping groups
+    @test_throws ArgumentError partial_sums(g, ps, :data, sws, groups)            # not a linear factor
+    @test_throws ArgumentError partial_sums(g, ps, :sum, [:sum], [[1]])           # not a switch
+end
+
 @testset "cluster: refusals" begin
     g = cl_additive()
     @test_throws ArgumentError cluster(g, :c, [:data, :sw1])            # DataFactor has no cluster_form

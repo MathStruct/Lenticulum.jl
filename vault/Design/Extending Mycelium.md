@@ -227,9 +227,12 @@ as a builder, edited by name and rebuilt; `transfer` carries the shared edges' m
 in part: the add and remove moves of the additive wiring ($J = 1$), as edits of one graph holding 200
 points as tied cluster nodes (exact scores), find the 8-mode grid's three switches by the branch's
 path (`examples/structure_edits.md`), in 734 s against the branch's 3.6–13 s with closed-form EM.
-The split and merge moves ($J > 1$) are not ported. Same day: grouping switches by overlap
+The split and merge moves ($J > 1$) followed the same day (`examples/structure_clusters.md`):
+the switch over sums as a graph needs a discrete factor tying each switch's outcome to the cluster
+label (`TableFactor`), and the cluster nodes drop the assignments it rules out. On the branch's
+tree greedy ends at $(2, 3)$, BIC 1 355.84, worse than the generating $(3, 2)$ at 1 299.15. Same day: grouping switches by overlap
 (§5, `overlap_groups`, `switch_overlaps`) cuts the error of switch posteriors from 0.092 to 0.031 on
-eight overlapping switches, but only with E7's partial sum per block, itself a structure edit.
+eight overlapping switches, but only with E7's partial sum per block, itself a structure edit (now `partial_sums`).
 
 ## 6b. Sampling, and what an average must keep
 

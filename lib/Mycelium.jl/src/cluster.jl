@@ -20,14 +20,16 @@ A factor as a cluster node reads it: the residual ``r = \\sum_c A_c x_c - C_{:,k
 ``-\\log f(x, k) = \\tfrac12 r^\\top Q^{-1} r + \\tfrac12 \\log\\det 2\\pi Q - \\log w_k``. `A` is a `NamedTuple` of
 matrices keyed by the continuous channels, `C` has one column per outcome, `logw` one entry
 per outcome, and `switch` names the discrete channel the outcome is read from (`nothing` with one
-outcome). A discrete-only factor has `m = 0` rows. Returned by [`cluster_form`](@ref).
+outcome), or a tuple of discrete channels whose joint state is the outcome (column-major: the
+first channel varies fastest, as `LinearIndices`). A discrete-only factor has `m = 0` rows.
+Returned by [`cluster_form`](@ref).
 """
 struct ClusterForm{A<:NamedTuple,C<:AbstractMatrix,Q<:AbstractMatrix,W<:AbstractVector}
     A::A
     C::C
     Q::Q
     logw::W
-    switch::Union{Symbol,Nothing}
+    switch::Union{Symbol,Nothing,Tuple{Vararg{Symbol}}}
 end
 
 """
@@ -43,10 +45,10 @@ function cluster_form(factor, ps)
     throw(ArgumentError("$(nameof(typeof(factor))) has no `Mycelium.cluster_form`, so it cannot be put in a cluster node"))
 end
 """
-    cluster_switch(factor) -> Union{Symbol,Nothing}
+    cluster_switch(factor) -> Union{Symbol,Nothing,Tuple}
 
-The discrete channel a factor switches on, read without parameters: what makes a variable
-discrete inside a [`cluster`](@ref) node. `nothing` by default.
+The discrete channel (or tuple of channels) a factor switches on, read without parameters: what
+makes a variable discrete inside a [`cluster`](@ref) node. `nothing` by default.
 """
 cluster_switch(factor) = nothing
 
@@ -61,6 +63,79 @@ function cluster_form(f::PriorFactor, ps)
         return ClusterForm(A, reshape(LenticulumCore.belief_mean(b), n, 1), Matrix(LenticulumCore.belief_cov(b)), [0.0], nothing)
     end
     throw(ArgumentError("a PriorFactor in a cluster needs a categorical or proper Gaussian belief"))
+end
+
+"""
+    TableFactor(dims::NamedTuple, logtable::AbstractArray)
+
+A fixed factor over several discrete variables: ``f(k_1, …, k_n) = \exp(\texttt{logtable}[k_1, …, k_n])``,
+with channel `c` of `dims[c]` states (`size(logtable) == values(dims)`). Entries may be `-Inf`
+(impossible combinations), so a table can tie discrete variables together, e.g. make a switch's
+outcome agree with a cluster label. Without parameters.
+
+Inside a [`cluster`](@ref) node it is a discrete term on the joint state of its channels
+([`cluster_form`](@ref) with a tuple of switch channels). Outside one it sends exact
+belief-propagation messages (sums over the other channels' incoming categorical messages, or
+their observed states); it has no free energy of its own outside a cluster.
+"""
+struct TableFactor{names,T<:AbstractArray{<:Real}} <: LenticulumCore.AbstractLenticulumFactor
+    dims::NamedTuple{names}
+    logtable::T
+    function TableFactor(dims::NamedTuple{names}, logtable::AbstractArray{<:Real}) where {names}
+        isempty(dims) && throw(ArgumentError("TableFactor: needs at least one channel"))
+        all(d -> d isa Integer && d >= 1, values(dims)) || throw(ArgumentError("TableFactor: dimensions must be positive Ints; got $dims"))
+        size(logtable) == Tuple(values(dims)) || throw(DimensionMismatch(
+            "TableFactor: the table has size $(size(logtable)), the channels $(Tuple(values(dims)))"))
+        any(isnan, logtable) && throw(ArgumentError("TableFactor: the table has NaN entries"))
+        all(==(-Inf), logtable) && throw(ArgumentError("TableFactor: every combination is impossible"))
+        return new{names,typeof(logtable)}(dims, logtable)
+    end
+end
+LenticulumCore.channels(f::TableFactor{names}) where {names} =
+    Tuple(LenticulumCore.Channel(n, Int(f.dims[n])) for n in names)
+function LenticulumCore.supported_polarities(f::TableFactor{names}) where {names}
+    out = LenticulumCore.Polarity[]
+    for t in eachindex(names), rest in Iterators.product(ntuple(_ -> (LenticulumCore.Observed(), LenticulumCore.Latent()), length(names) - 1)...)
+        vals = Any[rest...]
+        insert!(vals, t, LenticulumCore.Unobserved())
+        push!(out, _polarity(names, Tuple(vals)))
+    end
+    return Tuple(out)
+end
+LenticulumCore.supports_polarity(f::TableFactor{names}, p::LenticulumCore.Polarity) where {names} =
+    Set(keys(p)) == Set(names) && length(LenticulumCore.unobserved_channels(p)) == 1
+LenticulumCore.islearnable(::TableFactor) = false
+LuxCore.initialparameters(::AbstractRNG, ::TableFactor) = NamedTuple()
+LuxCore.initialstates(::AbstractRNG, ::TableFactor) = NamedTuple()
+cluster_switch(::TableFactor{names}) where {names} = names
+cluster_form(f::TableFactor{names}, ps) where {names} =
+    ClusterForm(NamedTuple(), zeros(0, length(f.logtable)), zeros(0, 0), vec(collect(Float64, f.logtable)), names)
+
+# the log-weights a channel's incoming message puts on its states (an observed state is one-hot)
+function _table_input(b, K::Int, name)
+    b === nothing && return zeros(K)
+    b isa LenticulumCore.TrivialBelief && return zeros(K)
+    b isa LenticulumCore.CategoricalBelief && length(b.logp) == K && return collect(Float64, b.logp)
+    if b isa LenticulumCore.DiracBelief
+        v = b.value isa AbstractArray ? only(b.value) : b.value
+        v isa Integer && 1 <= v <= K || throw(ArgumentError("TableFactor: an observed :$name must be a state in 1:$K; got $v"))
+        l = fill(-Inf, K); l[v] = 0.0
+        return l
+    end
+    throw(ArgumentError("TableFactor: the message into :$name must be categorical with $K states; got $(typeof(b))"))
+end
+function factor_message(f::TableFactor{names}, target::Symbol, _, inputs, _, ps, st) where {names}
+    t = findfirst(==(target), names)
+    t === nothing && throw(ArgumentError("TableFactor: no channel :$target"))
+    T = collect(Float64, f.logtable)
+    for (j, n) in enumerate(names)
+        j == t && continue
+        l = _table_input(haskey(inputs, n) ? getfield(inputs, n) : nothing, Int(f.dims[n]), n)
+        T = T .+ reshape(l, ntuple(i -> i == j ? length(l) : 1, length(names)))
+    end
+    lk = [_lse(vec(selectdim(T, t, k))) for k in 1:Int(f.dims[target])]
+    all(==(-Inf), lk) && throw(ArgumentError("TableFactor: every state of :$target has zero probability"))
+    return LenticulumCore.CategoricalBelief(Val(:log), lk .- _lse(lk), nothing), st
 end
 
 """
@@ -236,10 +311,12 @@ function _cluster_node(g, fids, inside, union_, tied)
     wiring = [[g.edges[ei].channel => g.variables[g.edges[ei].variable].name for ei in g.edges_of_factor[fid]] for fid in fids]
     discrete = Symbol[]
     for (fid, w) in zip(fids, wiring)
-        sw = cluster_switch(g.factors[fid].factor)
-        sw === nothing && continue
-        k = findfirst(p -> p.first === sw, w)
-        k === nothing || push!(discrete, w[k].second)
+        sws = cluster_switch(g.factors[fid].factor)
+        sws === nothing && continue
+        for sw in (sws isa Symbol ? (sws,) : sws)
+            k = findfirst(p -> p.first === sw, w)
+            k === nothing || push!(discrete, w[k].second)
+        end
     end
     discrete = unique(discrete)
     continuous = [v for v in vnames if !(v in discrete)]
@@ -305,6 +382,19 @@ function overlap_groups(C::AbstractMatrix, maxsize::Integer)
     return groups
 end
 
+# The outcome column each assignment reads: the state of the factor's switch channel, or the
+# column-major index of the joint state of its switch channels.
+function _switch_columns(c::ClusterFactor, F::ClusterForm, w, assignments)
+    F.switch === nothing && return fill(1, length(assignments))
+    if F.switch isa Symbol
+        j = findfirst(==(w[F.switch]), c.discrete)
+        return [a[j] for a in assignments]
+    end
+    js = [findfirst(==(w[ch]), c.discrete) for ch in F.switch]
+    L = LinearIndices(Tuple(c.dims[w[ch]] for ch in F.switch))
+    return [L[(a[j] for j in js)...] for a in assignments]
+end
+
 # --- Exact inference inside -----------------------------------------------------
 
 # The cluster's joint in canonical form, given its incoming messages (`msgs`, keyed by boundary
@@ -359,6 +449,19 @@ function _cluster_joint(c::ClusterFactor, msgs, ps, skip)
     nA <= 2^16 || throw(ArgumentError("cluster: $nA joint discrete states; at most 2^16 are enumerated"))
     assignments = [[states[j][ix[j]] for j in eachindex(states)] for ix in combos]
     cst = [sum(lps[j][ix[j]] for j in eachindex(states); init = 0.0) for ix in combos]
+    forms = [cluster_form(f, _subtree(ps, c.keys[i])) for (i, f) in enumerate(c.factors)]
+    wirings = [Dict(w) for w in c.wiring]
+    for (F, w) in zip(forms, wirings)
+        cst .+= F.logw[_switch_columns(c, F, w, assignments)]
+    end
+    # assignments of weight zero (a -Inf log-weight, e.g. a `TableFactor` tying discrete variables)
+    # are dropped before the Gaussian part, which is the expensive one
+    keep = findall(>(-Inf), cst)
+    isempty(keep) && throw(ArgumentError("cluster: every joint discrete state has zero probability"))
+    if length(keep) < length(cst)
+        assignments, cst = assignments[keep], cst[keep]
+    end
+    nA = length(assignments)
     J = zeros(n, n); H = zeros(n, nA)
     # incoming Gaussian messages on free boundary variables
     for v in free
@@ -368,13 +471,10 @@ function _cluster_joint(c::ClusterFactor, msgs, ps, skip)
         J[o, o] .+= b.Λ
         H[o, :] .+= b.η
     end
-    for (i, f) in enumerate(c.factors)
-        F = cluster_form(f, _subtree(ps, c.keys[i]))
-        w = Dict(c.wiring[i])
+    for (F, w) in zip(forms, wirings)
         m = size(F.C, 1)
-        kcol = F.switch === nothing ? fill(1, nA) : (j = findfirst(==(w[F.switch]), c.discrete); [a[j] for a in assignments])
-        cst .+= F.logw[kcol]
         m == 0 && continue
+        kcol = _switch_columns(c, F, w, assignments)
         G = zeros(m, n)
         shift = zeros(m)
         for (ch, Ach) in pairs(F.A)
@@ -509,19 +609,22 @@ local_free_energy(c::ClusterFactor, msgs, ps, st) = belief_free_energy(c, factor
 # ChainRulesCore extension).
 function _cluster_layout(c::ClusterFactor, i::Int, F::ClusterForm, b::FrozenClusterBelief)
     w = Dict(c.wiring[i])
-    kcol = F.switch === nothing ? fill(1, length(b.q)) :
-        (j = findfirst(==(w[F.switch]), c.discrete); [a[j] for a in b.assignments])
+    kcol = _switch_columns(c, F, w, b.assignments)
     feeds = [[ch for ch in keys(F.A) if w[ch] === v] for v in b.free]
     pts = [(ch, b.points[w[ch]]) for ch in keys(F.A) if haskey(b.points, w[ch])]
     return kcol, feeds, pts
 end
+
+_finite_logw(lw) = map(x -> x == -Inf ? zero(x) : x, lw)
 
 function belief_free_energy(c::ClusterFactor, b::FrozenClusterBelief, ps, st)
     n = size(b.M, 1)
     terms = map(eachindex(c.factors)) do i
         F = cluster_form(c.factors[i], _subtree(ps, c.keys[i]))
         kcol, feeds, pts = _cluster_layout(c, i, F, b)
-        cx = -sum(b.q .* F.logw[kcol])
+        # an impossible outcome (log-weight -Inf) has q = 0 exactly, and its 0·log 0 term is 0; the
+        # entry is replaced before the product so that no AD backend meets 0 · (-Inf)
+        cx = -sum(b.q .* _finite_logw(F.logw[kcol]))
         m = size(F.C, 1)
         m == 0 && return (0.0, cx)
         R = -F.C[:, kcol]

@@ -826,3 +826,80 @@ function switch_overlaps(g::Mycelium.FactorGraph, ps, sum::Symbol, switches)
     end
     return O
 end
+
+"""
+    partial_sums(g, ps, sum::Symbol, switches, groups; noise = 1e-6, prefix = :part)
+        -> (g′, ps′, clusters)
+
+E7's block wiring as an edit of `g`. `sum` is a `LinearConstraintFactor` (residual
+``\\sum_c A_c x_c + c``) fed by the switching factors `switches`; `groups` lists groups of
+indices into `switches`, as `Mycelium.overlap_groups(switch_overlaps(g, ps, sum, switches), B)`
+returns them. For each group of two or more switches, their channels of `sum` are moved to a new
+`LinearConstraintFactor` `:<prefix>j` with residual ``\\sum_{l \\in b} A_l u_l - s_j`` and noise
+`noise·I` (the coefficients ``A_l`` copied from `ps`), and `sum` reads the partial sum ``s_j``
+(variable `:<prefix>j_sum`) with coefficient ``I`` instead. As `noise → 0` the model is unchanged.
+
+Returns the edited graph, its parameters (the new factors' entries added, `sum`'s replaced), and
+the groups `:<prefix>j_block => [:<prefix>j, switches...]` to pass to `Mycelium.cluster`.
+Singleton groups are left as they are. A `sum` whose parameters are tied to another node is
+refused: its coefficients would change for both.
+"""
+function partial_sums(g::Mycelium.FactorGraph, ps, sum::Symbol, switches, groups; noise = 1e-6, prefix::Symbol = :part)
+    haskey(g.factor_index, sum) || throw(ArgumentError("partial_sums: no factor :$sum"))
+    snode = Mycelium.factornode(g, g.factor_index[sum])
+    f = snode.factor
+    f isa LinearConstraintFactor || throw(ArgumentError("partial_sums: :$sum is not a LinearConstraintFactor"))
+    count(x -> x.params === snode.params, g.factors) == 1 ||
+        throw(ArgumentError("partial_sums: :$sum's parameters :$(snode.params) are tied to other nodes"))
+    allunique(reduce(vcat, collect.(groups); init = Int[])) || throw(ArgumentError("partial_sums: the groups overlap"))
+    psum = Mycelium._subtree(ps, snode.params)
+    m = f.m
+    sum_edges = Dict(g.edges[ei].channel => g.edges[ei] for ei in g.edges_of_factor[snode.id])
+    # the channel of `sum` each switch feeds
+    chan = map(switches) do name
+        haskey(g.factor_index, name) || throw(ArgumentError("partial_sums: no factor :$name"))
+        node = Mycelium.factornode(g, g.factor_index[name])
+        node.factor isa SwitchingConstraintFactor && length(node.factor.dims) == 1 || throw(ArgumentError(
+            "partial_sums: :$name must be a SwitchingConstraintFactor with one continuous channel"))
+        uch = only(keys(node.factor.dims))
+        v = g.edges[only(ei for ei in g.edges_of_factor[node.id] if g.edges[ei].channel === uch)].variable
+        cs = [c for (c, e) in sum_edges if e.variable == v]
+        length(cs) == 1 || throw(ArgumentError("partial_sums: :$name's channel does not feed :$sum once"))
+        only(cs)
+    end
+    b = Mycelium.GraphBuilder(g)
+    moved = Set{Symbol}()
+    added = Pair{Symbol,Any}[]
+    snew = Symbol[]
+    clusters = Pair{Symbol,Vector{Symbol}}[]
+    for (j, gr) in enumerate(groups)
+        length(gr) >= 2 || continue
+        p, s = Symbol(prefix, j), Symbol(prefix, j, :_sum)
+        (haskey(g.factor_index, p) || haskey(g.variable_index, s) || p in keys(ps) || p in keys(f.dims)) &&
+            throw(ArgumentError("partial_sums: the name :$p or :$s is taken"))
+        chs = chan[collect(gr)]
+        pd = NamedTuple{(:s, chs...)}((m, (f.dims[c] for c in chs)...))
+        Mycelium.variable!(b, s, m)
+        Mycelium.factor!(b, p, LinearConstraintFactor(pd, m; noise = noise))
+        Mycelium.connect!(b, p, :s, s)
+        for c in chs
+            e = sum_edges[c]
+            Mycelium.connect!(b, p, c, g.variables[e.variable].name;
+                              direction = e.direction, coupling = e.coupling, detach = e.detach)
+            push!(moved, c)
+        end
+        push!(added, p => (A = NamedTuple{keys(pd)}((-Matrix{Float64}(I, m, m), (psum.A[c] for c in chs)...)), c = zeros(m)))
+        push!(snew, p)
+        push!(clusters, Symbol(prefix, j, :_block) => [p; collect(switches[collect(gr)])])
+    end
+    kept = Tuple(c for c in keys(f.dims) if !(c in moved))
+    names = (kept..., snew...)
+    dims = NamedTuple{names}(((f.dims[c] for c in kept)..., (m for _ in snew)...))
+    Mycelium.replace_factor!(b, sum, LinearConstraintFactor(dims, m, f.Q, f.init_coeff, f.init_constant))
+    for p in snew
+        Mycelium.connect!(b, sum, p, Symbol(p, :_sum))
+    end
+    A = NamedTuple{names}(((psum.A[c] for c in kept)..., (Matrix{Float64}(I, m, m) for _ in snew)...))
+    ps′ = merge(ps, NamedTuple{(snode.params,)}((merge(psum, (A = A,)),)), NamedTuple(added))
+    return Mycelium.build(b), ps′, clusters
+end

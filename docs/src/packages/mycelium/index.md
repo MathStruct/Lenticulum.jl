@@ -94,7 +94,11 @@ parameters and [`cluster_marginal`](@ref) reads its internal variables. A whole 
 cluster is exact (its free energy is ``-\log p`` of the data), and clustering a mixture variable
 with its switches gives it the free energy plain belief propagation lacks. Several clusters are
 made in one call, tied with `params` (one per data point of one model);
-[`overlap_groups`](@ref) groups switches by Lenticulum's `switch_overlaps`, as E7 did.
+[`overlap_groups`](@ref) groups switches by Lenticulum's `switch_overlaps`, as E7 did, and
+Lenticulum's `partial_sums` adds E7's partial sum per group as an edit.
+[`TableFactor`](@ref) is a fixed factor over several discrete variables; its `-Inf` entries tie
+them together (a switch's outcome to a cluster label), and a cluster node drops the assignments
+they rule out before its Gaussian part.
 
 A built graph is edited by opening it as a builder: `GraphBuilder(g)`, then `variable!`,
 `factor!`, `connect!`, [`remove_factor!`](@ref), [`remove_variable!`](@ref), [`disconnect!`](@ref) and

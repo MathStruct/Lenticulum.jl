@@ -1,0 +1,94 @@
+# Structure search with split and merge moves, as edits of one graph
+
+Run `julia -t auto --project=docs examples/structure_clusters.jl` (about 40 minutes, the greedy search 39 of them; `STRUCTURE_GREEDY=false` runs the reference alone; the docs environment
+has ForwardDiff). This extends [`structure_edits.md`](structure_edits.md) from one sum node ($J = 1$) to
+E3b's switch over sums, and belongs to [`Extending Mycelium`](../vault/Design/Extending%20Mycelium.md)
+§6 and [L-SPEC-010](../vault/Project/Specifications/L-SPEC-010%20Structure%20Edits.md).
+
+## Question
+
+`structure_edits.jl` ported the add and remove moves of `experiment-qm`'s
+`examples/structure_switches.jl` to edits of one Mycelium graph. The branch has two more, split and
+merge a cluster, for the switch over sums with $J$ clusters. Can those run on the graph too, scored
+exactly?
+
+## Setup
+
+- **Model.** $z = c_j + \sum_l k_l W_{jl} + \varepsilon$ in 2-d, $j \sim \pi$, $k_l \mid j \sim \mathrm{Bernoulli}(p_{jl})$, noise variance 0.1
+  (fixed), switch noise $10^{-3}$. It has $p = J(3L + 3) - 1$ free parameters.
+- **As a graph**, per point: the label $j$ ($J$ states), read by a switch that sets $u_0 = c_j$ (log-weights
+  $\log \pi$); per switch $l$ an outcome $q_l = (\text{bit}, j)$ with $2J$ states, read by a switch setting
+  $u_l \in \{0, W_{jl}\}$ with log-weights $\log p(\text{bit} \mid j) - \log J$; a `TableFactor` over $(j, q_l)$
+  that is $\log J$ where $q_l$ belongs to cluster $j$ and $-\infty$ elsewhere; the sum $z - u_0 - \sum_l u_l$; the
+  data. The table ties each $q_l$ to $j$, and with its $\log J$ the joint is exactly the model's.
+- **Exact scores.** Each point is one cluster node, tied (`params = :mix`), so the graph's free energy
+  is $-\sum_i \log p(z_i)$. A cluster enumerates $J(2J)^L$ joint states and keeps the $J 2^L$ the tables allow
+  (`lib/Mycelium.jl/src/cluster.md`).
+- **Moves**, each an edit of the unclustered graph (`GraphBuilder(g)`), with the branch's warm starts:
+
+  | move | edit | warm start |
+  |---|---|---|
+  | add a switch | every sum node gains a channel (`replace_factor!`); a switch, a table and their variables are added | every cluster gains an offset $2\sigma\,\mathcal N(0, I)$, $p = 1/2$ (4 draws) |
+  | remove a switch | its factors and variables are removed; the sum nodes lose the channel | the least used switch (mean $\min(p, 1 - p)$) is dropped |
+  | split a cluster | $j$ and every $q_l$ are re-added with more states, their switches and tables replaced | the heaviest cluster is duplicated, centres perturbed by $\sigma\,\mathcal N(0, I)$ (4 draws) |
+  | merge two clusters | the same with fewer states | the two closest centres are averaged by weight |
+
+  Switches are named by a running id, so removing one renames nothing. `transfer` carries the
+  messages of the unchanged edges (a cluster node's edge to its $z$).
+- **Fit.** 300 Momentum steps ($\eta = 0.02$, $\gamma = 0.9$) of the free-energy gradient at the exact beliefs
+  (ForwardDiff), in $\log \pi$, $c$, $W$ and the logits of $p$ (the chain rule through the log-weights by hand).
+- **Score.** $\mathrm{BIC} = 2F + p \log N$. **Search:** greedy from $(1, 0)$, the best improving move until none
+  improves, $J \le 4$, $L \le 3$.
+- **Data.** 200 points of the branch's tree (`hierarchy_e3b.jl`'s `tree_data`): 3 clusters of rotated
+  2 × 2 grids, so the generating structure is $(3, 2)$; covariance $[0.12\ 0.04;\ 0.04\ 0.09]$, `Xoshiro(5)`.
+
+Checked before the run (a scratch script, not in the repository): the graph reached by edits
+(two adds, two splits) has the same nodes and edges as one built directly at $(3, 2)$; its free
+energy equals $-\sum_i \log p(z_i)$ from the mixture formula to $9 \cdot 10^{-13}$; the gradient in $\theta$ agrees
+with central differences of the re-converged free energy to $1.8 \cdot 10^{-6}$ (gradients of size $10^3$).
+
+## Measured (2026-11-03)
+
+| step | move | $(J, L)$ | BIC | time |
+|---|---|---|---|---|
+| start | | (1, 0) | 46 415.38 | |
+| 1 | add a switch | (1, 1) | 17 218.10 | 197 s |
+| 2 | split a cluster | (2, 1) | 2 637.50 | 489 s |
+| 3 | add a switch | (2, 2) | 1 659.24 | 749 s |
+| 4 | add a switch | (2, 3) | 1 355.84 | 1 512 s |
+| stop | no split, merge or removal improves; $L \le 3$ | (2, 3) | | 2 314 s, 44 fits |
+
+The final fit has weights 0.594 and 0.406 and centres $(1.86, 4.99)$ and $(4.23, -2.76)$: one cluster
+holds two of the three generating clusters, its switches spanning both.
+
+Reference, the generating structure $(3, 2)$ (graph built by the same edits; run with
+`STRUCTURE_GREEDY=false`, so its random starts draw from another state of the generator than in
+the full run):
+
+| start | BIC |
+|---|---|
+| the generating parameters | **1 299.15** |
+| random start 1 | 1 334.57 |
+| random starts 2–4 | 2 156.73, 1 953.30, 2 224.20 |
+
+## What it shows
+
+1. **All four moves run on one graph.** Splits and merges change the number of states of the
+   label and of every switch outcome; they are edits (re-added variables, replaced factors) like
+   adding a switch, and each candidate is scored by the exact free energy of the edited graph.
+   The search took the moves one expects at first: a switch, a split, then switches.
+2. **It stops at a worse structure.** Greedy ends at $(2, 3)$, BIC 1 355.84, while $(3, 2)$ reaches
+   1 299.15 from the generating parameters and 1 334.57 from the best of four random starts: both
+   better. From $(2, 3)$ no single move reaches $(3, 2)$ (it needs a split and a removal), and the split
+   to $(3, 3)$ pays for 9 more parameters. This is the branch's finding on the 16-mode grid, where
+   greedy also ended at an equivalent but larger $(2, 3)$; here $(2, 3)$ is not even equivalent. A
+   combined move or a second pass would be needed, as the branch noted.
+3. **It is slow**: 2 314 s for 44 fits, against the branch's 3.6–13 s with closed-form EM and random
+   restarts. Fitting dominates (300 gradient steps through 200 cluster nodes per candidate).
+
+## Caveats
+
+- One data set, one seed, 200 points (the branch used 2 000, and found $(3, 2)$ on this tree), and no
+  random restarts per candidate (the branch added 32). Either may explain the different path. The noise covariance is fixed at $0.1 I$, not learned.
+- $L$ is shared by the clusters, as on the branch.
+- The impossible assignments are still enumerated before they are dropped; $J(2J)^L$ grows fast.

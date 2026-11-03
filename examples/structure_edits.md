@@ -62,7 +62,7 @@ $L = 0, \dots, 4$. The greedy search took 734 s.
 ## Caveats
 
 - One family (additive wiring, $J = 1$), one data set. The branch's split and merge moves (the switch
-  over sums, $J > 1$) are not ported.
+  over sums, $J > 1$) are in [`structure_clusters.md`](structure_clusters.md).
 - The sum node's coefficients are held fixed by hand in the fitting loop. A cluster node cannot
   carry frozen parameter paths (`cluster.md`).
 - How much `transfer` saves is not measured here: each component's tree is solved again in two

@@ -48,8 +48,16 @@ appear in the graph's counting numbers.
 one entry (tied), and a key shared between groups is allowed only then. `overlap_groups(C,
 maxsize)` is E7's greedy grouping; Lenticulum's `switch_overlaps(g, ps, sum, switches)` gives the
 switches' overlaps as they feed one linear factor (largest $|\cos|$ of their offset directions in the
-sum's total-noise metric). Grouping does not rewire: E7's partial sum per block is the caller's
-edit, and without it a cluster of switches meeting only at the sum gains nothing (`cluster.md`).
+sum's total-noise metric). Grouping does not rewire by itself: without E7's partial sum per block a
+cluster of switches meeting only at the sum gains nothing (`cluster.md`). Lenticulum's
+`partial_sums(g, ps, sum, switches, groups; noise)` makes that edit (added 2026-11-03,
+`switching.md` §14) and returns the groups to cluster.
+
+**§7. Joint outcomes and discrete tables** (added 2026-11-03). A `ClusterForm`'s `switch` may be a
+tuple of discrete channels, the outcome their joint state in column-major order. `TableFactor(dims,
+logtable)` is a fixed factor over discrete variables with such a form; its `-Inf` entries tie
+variables together. The node drops the assignments of weight zero before its Gaussian part, and a
+zero-weight outcome contributes nothing to the free energy ($0 \log 0 = 0$).
 
 **§5. Parameters and marginals.** The node's parameters are keyed by the clustered factors'
 parameter keys; `cluster_parameters(gc, name, ps)` converts a parameter tree of the original graph.
@@ -67,8 +75,12 @@ the same on Mycelium's own prior factors.
 
 Grouping (`test/cluster.jl`, `bench/cluster_overlap.jl`): `switch_overlaps` equals E7's normalised
 Gram to $10^{-12}$ and `overlap_groups` E7's `overlap_blocks` for block sizes 2–4; on eight switches in
-overlapping pairs, blocks of 4 by overlap (with partial sums) cut the mean error of the switch
+overlapping pairs, blocks of 4 by overlap (with partial sums, made by `partial_sums`) cut the mean error of the switch
 posteriors from 0.092 to 0.031, blocks in index order to 0.092.
+
+Tables (`lib/Mycelium.jl/test/cluster.jl`): three categorical variables and two tables with $-\infty$
+entries in one cluster against enumeration ($F = -\log Z$ and marginals to $10^{-12}$), and belief
+propagation through the tables on the same tree.
 
 ## Open
 

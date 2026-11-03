@@ -105,6 +105,32 @@ the sum node. Clustering the switches alone changes nothing, to four digits: the
 sum node, which collapses each $u_l$'s mixture to its moments separately, so the cluster's joint
 over its switches never reaches the coupling. Blocks that ignore overlap help as little.
 
+## Discrete tables, joint outcomes and impossible assignments (2026-11-03)
+
+A `ClusterForm`'s `switch` may be a tuple of discrete channels; the outcome is then their joint
+state, in column-major order (the first channel fastest, `LinearIndices`). `TableFactor(dims,
+logtable)` uses this: a fixed factor $f(k_1, \dots, k_n) = \exp(\texttt{logtable}[k_1, \dots, k_n])$ over
+discrete variables, a discrete-only term ($m = 0$) inside a cluster. Outside one it sends exact
+belief-propagation messages (the table summed against the other channels' categorical messages,
+or sliced at an observed state); it has no local free energy there.
+
+Its entries may be $-\infty$, so a table can tie discrete variables together. That is how
+`examples/structure_clusters.jl` writes E3b's switch over sums: each switch reads an outcome
+$q_l = (\text{bit}, j)$ with $2J$ states, and a table over $(j, q_l)$ allows only the $q_l$ of cluster $j$.
+Enumerating every joint state would cost $J (2J)^L$ assignments where $J 2^L$ are possible, so
+`_cluster_joint` now adds every factor's log-weights first and drops the assignments of weight
+zero before the Gaussian part (the precisions and solves). The beliefs keep the surviving
+assignments only. In `belief_free_energy` a $-\infty$ log-weight met a weight of exactly 0 and
+gave `0 · (-Inf) = NaN`; such entries are set to 0 before the product (`_finite_logw`), which is the
+$0 \log 0 = 0$ convention, and no AD backend sees the infinity.
+
+Tests (`test/cluster.jl`): three categorical variables with two tables (one $-\infty$ entry each) in
+one cluster give $F = -\log Z$ and the marginals of enumeration to $10^{-12}$, and belief propagation
+through the tables (the graph is a tree) the same marginals; the observed-state message and the
+column order. In Lenticulum, the switch over sums with $J = 2$, $L = 2$ in one cluster gives
+$F = -\log p(z)$ to $10^{-14}$ (a scratch check), and the example checks it at $(3, 2)$ on 200 points
+($9 \cdot 10^{-13}$) along with the gradient against central differences (`examples/structure_clusters.md`).
+
 ## What it does not do
 
 - **Factors outside the conditionally linear-Gaussian class.** A factor needs `cluster_form`, and
@@ -122,7 +148,9 @@ over its switches never reaches the coupling. Blocks that ignore overlap help as
   itself is a belief-propagation node; differentiating through inference (`adjoint = :implicit`)
   is not tested with it.
 - **Grouping rewires nothing.** `overlap_groups` chooses the groups; putting a partial sum per
-  group into the graph, which is what makes the groups pay (below), is the caller's edit.
+  group into the graph, which is what makes the groups pay (below), is an edit of the graph. For
+  switches feeding a Lenticulum linear factor, Lenticulum's `partial_sums` makes it
+  (`src/switching.md` §14); Mycelium itself knows no sum factor.
 
 ## Difficulties
 

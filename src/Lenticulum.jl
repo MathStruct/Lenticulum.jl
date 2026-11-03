@@ -65,7 +65,7 @@ export WishartPrecisionPrior, LogNormalVariancePrior, noise_covariance
 export NonlinearFactor, NonlinearGaussianModel, Linearization, Unscented, linearize
 export LinearConstraintFactor, LinearConstraintModel
 export residual, residual_statistics
-export SwitchingConstraintFactor, SwitchingConstraintModel, switch_statistics, switch_overlaps
+export SwitchingConstraintFactor, SwitchingConstraintModel, switch_statistics, switch_overlaps, partial_sums
 export FrozenGaussianBelief, FrozenSwitchingBeliefs
 export LikelihoodFactor, LikelihoodModel, Laplace, ExpectationPropagation, predictive, log_evidence
 export AbstractLikelihood, PoissonLikelihood, BivariatePoissonLikelihood, OrdinalProbitLikelihood

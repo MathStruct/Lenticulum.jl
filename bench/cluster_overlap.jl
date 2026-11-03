@@ -4,8 +4,8 @@
 # compared with the exact ones (every factor in one cluster node):
 #
 #   - one switching factor per switch, all feeding the sum;
-#   - E7's block wiring: each block's switches feed a partial sum s_b = Σ_{l ∈ b} uₗ, the blocks' s_b the
-#     sum, and each block (its switches and its partial sum) is one cluster node; blocks of 4 grouped
+#   - E7's block wiring (`partial_sums`): each block's switches feed a partial sum s_b = Σ_{l ∈ b} uₗ, the
+#     blocks' s_b the sum, and each block (its switches and its partial sum) is one cluster node; blocks of 4 grouped
 #     by overlap (`switch_overlaps`, `overlap_groups`) or in index order;
 #   - clusters of the same 4 switches without the partial sum (they meet only at the sum node).
 #
@@ -39,26 +39,12 @@ function direct(W, Σ, x)
     return graph_of(b, ps)
 end
 
-# E7's block wiring: partial sums per block
+# E7's block wiring: partial sums per block, as an edit of the direct graph (`partial_sums`)
 function blocked(W, Σ, x, blocks)
-    b = GraphBuilder(); variable!(b, :z, d)
-    factor!(b, :data, DataFactor(:z, x)); connect!(b, :data, :z, :z; direction = Emitting())
-    ss = [Symbol(:s, j) for j in eachindex(blocks)]
-    dims = NamedTuple{(:z, ss...)}(ntuple(_ -> d, length(blocks) + 1))
-    factor!(b, :sum, LinearConstraintFactor(dims, d; noise = Σ)); connect!(b, :sum, :z, :z)
-    ps = Dict{Symbol,Any}(:data => NamedTuple(), :sum => (A = NamedTuple{keys(dims)}((E, ntuple(_ -> -E, length(blocks))...)), c = zeros(d)))
-    for (j, bl) in enumerate(blocks)
-        variable!(b, ss[j], d); connect!(b, :sum, ss[j], ss[j])
-        pd = NamedTuple{(:s, (Symbol(:u, l) for l in bl)...)}(ntuple(_ -> d, length(bl) + 1))
-        p = Symbol(:part, j)
-        factor!(b, p, LinearConstraintFactor(pd, d; noise = 1e-4)); connect!(b, p, :s, ss[j])
-        ps[p] = (A = NamedTuple{keys(pd)}((E, ntuple(_ -> -E, length(bl))...)), c = zeros(d))
-        for l in bl; add_switch!(b, ps, W, l, p); end
-    end
-    g, ps = graph_of(b, ps)
-    groups = [Symbol(:blk, j) => [Symbol(:part, j); [Symbol(:sw, l) for l in bl]] for (j, bl) in enumerate(blocks)]
-    gc = cluster(g, groups)
-    return gc, cluster_parameters(gc, ps)
+    g, ps = direct(W, Σ, x)
+    g2, ps2, groups = partial_sums(g, ps, :sum, [Symbol(:sw, l) for l in 1:L], blocks; noise = 1e-4)
+    gc = cluster(g2, groups)
+    return gc, cluster_parameters(gc, ps2)
 end
 
 # P(kₗ = 2) of every switch, read from the graph or the cluster holding it

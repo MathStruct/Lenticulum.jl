@@ -300,3 +300,24 @@ $\sum_i A_i x_i - b_k$, noise $Q$, the normalised log-weights, the switch channe
 here, so these factors can be put in a cluster node (`lib/Mycelium.jl/src/cluster.md`,
 [[L-SPEC-009 Cluster Nodes]]). Three switches in one cluster send the messages of the 8-outcome
 block factor that E7 built by hand (`test/cluster.jl`).
+
+## 14. Partial sums as an edit (2026-11-03)
+
+`partial_sums(g, ps, sum, switches, groups; noise)` does E7's block wiring on a built graph: for each
+group of two or more switches feeding the linear factor `sum`, it moves their channels to a new
+`LinearConstraintFactor` with residual $\sum_{l \in b} A_l u_l - s_b$ and noise $\nu I$, and `sum` reads $s_b$ with
+coefficient $I$. It returns the edited graph, the parameters (the coefficients $A_l$ copied, `sum`'s
+entry rewritten) and the groups to pass to `Mycelium.cluster`, so grouping by overlap
+(`switch_overlaps`, `overlap_groups`) is now three calls. The edit goes through `GraphBuilder(g)`
+and `replace_factor!` ([[L-SPEC-010 Structure Edits]]).
+
+The model changes by the partial sums' noise: on the five-switch model of `test/cluster.jl` the exact
+free energy (everything in one cluster) moves by an amount linear in $\nu$ (ratio 100 between
+$\nu = 10^{-6}$ and $10^{-8}$, below $10^{-5}$ at $10^{-8}$). In `bench/cluster_overlap.jl` the edit
+gives the same posteriors as the hand-built wiring it replaced (difference 0.0 on one point,
+checked by a scratch script, not in the repository).
+
+Limits: a `sum` whose parameters are tied to other nodes is refused (its coefficients would change
+for all of them), and the copied coefficients are separate parameters afterwards, so learning the
+sum's coefficients through the edited graph learns them per block; fixed coefficients, as in E7,
+are the intended case.
