@@ -350,3 +350,26 @@ unchanged, which also keeps that path free of mutation for Zygote. The scalar su
 function of the concretely typed factor vector, so `scalarisation` is not dispatched per node.
 Tested in `test/plates.jl` against the same messages per edge; timings in `blocks.md`.
 
+
+## Expectation-propagation and mixture-reduction nodes (2026-11-03)
+
+An `ExpectationPropagationRule()` node is counted like a belief-propagation node: its
+`local_free_energy` at its incoming messages, and its edges in each variable's counting number
+(`bp_degree` counts both rules, `_cavity_rule` in `graph.jl`). At an EP fixed point the factor
+belief's marginals match the variables' Gaussian marginals in their moments rather than
+exactly, and the same expression is the free energy whose stationary points those fixed points
+are: `test/mixture_rules.jl` checks it numerically, the fixed-belief gradient against the
+derivative of the re-converged free energy (`passing.md`). The default drivers accept EP nodes;
+the paths that differentiate through inference (non-diagonal couplings, `adjoint = :implicit`)
+and the residual-moment recorder still refuse anything but belief propagation. Energy rows of a
+plate (`_energy_row`) accept EP nodes too, when every node of the row has the same rule.
+
+A `MixtureReduction(M)` node is refused by every energy path (`_check_energy_edges`). Its fixed
+points are not the stationary points of a free energy we can name, and Lenticulum's local free
+energies collapse mixture inputs to their moments, so the number would describe other beliefs
+than the ones the node sent.
+
+The Bethe free energy of a belief-propagation graph whose marginal is a Gaussian mixture is not
+available either: `variable_entropy` has no method for a Gaussian mixture, which has no closed-form
+entropy. A latent mixture on a plain BP graph therefore has messages but no free energy; on EP
+nodes its marginals are Gaussian and it has both.

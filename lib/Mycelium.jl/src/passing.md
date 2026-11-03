@@ -211,3 +211,92 @@ returns one block (`blocks.md`). The default takes each replica's column, calls 
 vectors and packs the result with `belief_block`, so a factor type adds block arithmetic by adding
 a method of that form and nothing else changes. `DataFactor` (in `factors.jl`) returns its data as
 one point block.
+
+## Expectation propagation and mixture reduction (2026-11-03)
+
+Two more rules (Extending Mycelium §4, [[L-SPEC-008 Expectation Propagation and Mixture Reduction]]).
+Both compute the belief-propagation message first, from the same cavities, and change what is
+sent. `step!` calls `_rule_message(rule, ...)`, which is `factor_message` for belief propagation.
+
+**`ExpectationPropagationRule()`.** With $m_t$ the belief-propagation message to channel $t$ and
+$\pi_t$ the target's cavity (the excluded marginal, already the `prior` argument), the node sends
+
+$$
+m_t^{\mathrm{EP}} = \operatorname{proj}\bigl[\pi_t\, m_t\bigr] / \pi_t ,
+$$
+
+the projection matching moments (Minka 2001). Three hooks, all in Mycelium: `ep_message(m, π)`
+(a message that is not a mixture is in its family and passes unchanged; a point cavity, a pinned
+variable, makes the message irrelevant and it passes too), `ep_project` (a mixture of Gaussians:
+its total mean and covariance) and `ep_divide` (Gaussians: subtract canonical parameters). A site
+whose precision is not positive definite, possibly indefinite, is declared improper. An update
+is skipped, keeping the edge's message, when the cavity is a Gaussian that is not proper, when a
+component of the tilted belief is not proper, or when an input to the factor has a negative
+direction (left by an earlier negative site). Skipping keeps the iteration defined; it is a common
+remedy, not a rule we quote from Minka's paper. The
+first skip on a run warns. On a Gaussian graph nothing leaves the family and the rule is belief
+propagation (tested to rounding).
+
+The name is not `ExpectationPropagation`: Lenticulum already exports that, the moment-matching
+inversion method of a `LikelihoodFactor` (`likelihood.jl`, Gauss–Hermite quadrature inside one
+factor). The rule generalises it to any factor whose message leaves the family.
+
+**`MixtureReduction(M)`.** The message is the exact one with every mixture input expanded
+(`mixture_message`, a factor hook; belief propagation collapses those inputs to moments), then
+reduced to at most `M` components (`reduce_message`; Lenticulum's method is Runnalls' merge,
+`reduce_mixture`). Lenticulum implements `mixture_message` for `LinearConstraintFactor` and
+`SwitchingConstraintFactor` (`switching.md` §9). A factor without it refuses a mixture input on
+such a node; one with only Gaussian inputs takes `factor_message`.
+
+**One tree sweep.** `propagate!` used to stop a `TreeSchedule` after one undamped sweep whatever
+the rules. That is a fixed point when every message depends on upstream messages only: belief
+propagation, and `MixtureReduction`, whose messages are exact for reduced inputs. An EP message
+reads the target's cavity and a mean-field message the marginals, so a graph with either is now
+iterated (`_tree_exact`). Before, a mean-field graph swept with a `TreeSchedule` was reported
+exact after one sweep; the hybrid tests use `HybridSchedule`, so no test met it.
+
+**Free energy.** An EP node counts like a belief-propagation node: its local free energy at its
+incoming messages, and an entropy at each of its variables (`free_energy.md`). A
+`MixtureReduction` node is refused there: no free energy we know of has its fixed points as
+stationary points, and the factors' local free energies would collapse the mixtures they were
+sent.
+
+Tests: Mycelium's own (`lib/Mycelium.jl/test/message_rules.jl`, last testset) run a prior and three
+likelihood mixtures without Lenticulum: belief propagation pools them into 8 components in one
+sweep, the EP graph is iterated and each site times its cavity has the tilted moments to $10^{-10}$,
+EP edges count in `bp_degree`, and the refusals. The end-to-end ones are Lenticulum's
+(`test/mixture_rules.jl`):
+
+- Clutter problem, $D = 1$, $w = 0.5$, prior variance 100, clutter variance 10, data drawn from
+  the model (`Xoshiro(3)`). Belief propagation is exact on this star: its marginal holds all
+  $2^N$ components and matches the enumerated posterior to $10^{-12}$ ($N = 8, 12$). The EP rule reaches
+  the fixed point of a hand-written Minka loop to $10^{-10}$ on a tree and on a sequential schedule.
+  At $N = 12$ its mean is within $6 \cdot 10^{-4}$ of the exact one and its variance within 2%; at $N = 8$
+  the mean is off by 0.10. At $N = 4$ the undamped iteration oscillates, as the hand loop does, and
+  the rule follows that loop step for step.
+- A location-mixture likelihood ($y_i = x - b_{k_i} + \varepsilon$, six points, tied switching factors on EP):
+  the gradient of the free energy at fixed messages equals the derivative of the free energy at
+  the re-converged fixed point, to $10^{-7}$ relative, for an offset and a weight. So the free energy
+  of EP nodes is stationary in the messages at a fixed point, which is what lets the
+  fixed-belief gradient train such graphs. This is a numerical check, not a theorem quoted.
+- A switching linear chain, $T = 5$, $K = 2$ ($x_{t+1} = x_t + \beta_{k_t} + \varepsilon$, $y_t = x_t + \delta$), against
+  enumeration of the 16 switch sequences: the largest error of a marginal mean or variance
+  falls with the budget, 0.16, 0.011, $9.6 \cdot 10^{-4}$, $1.0 \cdot 10^{-4}$ for $M = 1, 2, 4, 8$, and is $1.6 \cdot 10^{-15}$
+  at $M = 16$, where nothing is merged. Belief propagation gives the $M = 2$ result: it collapses
+  the input and sends $K = 2$ components.
+
+Difficulties:
+
+1. **The exact reference needed a new product.** Belief propagation on the clutter star multiplies
+   likelihood messages, mixtures whose components are unnormalised exponentials
+   (`GaussianBelief(η, Λ, true)`). `combine_with_overlap` needed a proper first operand, so the
+   reference threw. The product of two unnormalised exponentials is exact in canonical form
+   (`gaussian.md`, "Products of improper components").
+2. **The first EP sweep has no cavities.** On a tree schedule's inward pass a likelihood node can
+   fire before the prior's message has reached the variable, so its cavity is uninformative and
+   its tilted belief, the likelihood mixture itself, has improper components. Such an update is
+   skipped; with no previous message the edge stays empty, and the outward pass fills it.
+3. **A message to a pointed variable stays a mixture.** On the location-mixture graph the messages
+   to the observed $y_i$ are not projected: their cavities are points. That is harmless (a point
+   dominates), but an assertion that "every message is Gaussian" is wrong there; the test checks
+   the marginal of $x$.

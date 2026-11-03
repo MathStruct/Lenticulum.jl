@@ -1257,6 +1257,8 @@ include("gradient_couplings.jl")
 
 include("switching_constraint.jl")
 
+include("mixture_rules.jl")
+
 include("mean_field_free_energy.jl")
 
 include("plates.jl")

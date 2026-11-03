@@ -71,6 +71,111 @@ function factor_messages(factors::AbstractVector, target, polarity, inputs::Name
     return belief_block(beliefs), st
 end
 
+# The factor -> variable message of a cavity-reading node under its rule (`passing.md`). An
+# expectation-propagation node returns `nothing` for an update it skips.
+_rule_message(::AbstractMessageRule, factor, target, pol, inputs, prior, ps, st) =
+    factor_message(factor, target, pol, inputs, prior, ps, st)
+
+function _rule_message(::ExpectationPropagationRule, factor, target, pol, inputs, prior, ps, st)
+    any(_indefinite, values(inputs)) && return nothing, st
+    m, st = factor_message(factor, target, pol, inputs, prior, ps, st)
+    return ep_message(m, prior), st
+end
+
+function _rule_message(r::MixtureReduction, factor, target, pol, inputs, prior, ps, st)
+    m, st = any(b -> b isa LenticulumCore.MixtureBelief, values(inputs)) ?
+        mixture_message(factor, target, pol, inputs, prior, ps, st) :
+        factor_message(factor, target, pol, inputs, prior, ps, st)
+    return reduce_message(m, r.maxcomponents), st
+end
+
+# A cavity with a negative direction, which an expectation-propagation site can leave behind;
+# a factor cannot take it as an input. `gaussian.jl` has the Gaussian method.
+_indefinite(b) = false
+
+"""
+    ep_message(message, cavity) -> belief or nothing
+
+The [`ExpectationPropagationRule`](@ref) message from the belief-propagation `message` to a target
+whose cavity (excluded marginal) is `cavity`. A message that is not a `MixtureBelief` is in its
+family and is returned as it is. A mixture is multiplied by the cavity (the tilted belief),
+projected ([`ep_project`](@ref)) and divided by the cavity ([`ep_divide`](@ref)); an
+uninformative cavity leaves the mixture itself as the tilted belief, and a point cavity (a
+pinned variable) makes the message irrelevant, so it is returned unchanged. Returns `nothing`
+when the update cannot be made: a Gaussian cavity that is not proper, or a tilted belief that
+[`ep_project`](@ref) cannot normalise.
+"""
+ep_message(m, cavity) = m
+function ep_message(m::LenticulumCore.MixtureBelief, cavity)
+    cavity isa LenticulumCore.DiracBelief && return m
+    if LenticulumCore.isuninformative(cavity)
+        tilted = m
+    else
+        cavity isa GaussianBelief && !LenticulumCore.isproper(cavity) && return nothing
+        tilted = combine(cavity, m)
+    end
+    p = ep_project(tilted)
+    p === nothing && return nothing
+    return ep_divide(p, cavity)
+end
+
+"""
+    ep_project(tilted) -> belief or nothing
+
+The projection step of expectation propagation: the member of the target's family closest to
+`tilted` in ``\\mathrm{KL}(\\text{tilted} \\,\\|\\, q)``, i.e. the one with the same moments. Mycelium
+implements it for a mixture of Gaussians (the total mean and covariance), returning `nothing`
+when a component is not proper, and for a Gaussian (itself). A belief type opts in by adding a
+method.
+"""
+ep_project(b::GaussianBelief) = b
+ep_project(b) = throw(ArgumentError(
+    "no expectation-propagation projection for $(typeof(b)): implement `Mycelium.ep_project` for it"))
+
+"""
+    ep_divide(p, cavity) -> belief
+
+``p / \\pi``: the site that, combined with the cavity, gives `p`. Gaussians subtract canonical
+parameters; the result may be improper, even indefinite, and is declared improper unless its
+precision is positive definite. Dividing by an uninformative belief returns `p`.
+"""
+function ep_divide(p, cavity)
+    LenticulumCore.isuninformative(cavity) && return p
+    throw(ArgumentError("no expectation-propagation division of $(typeof(p)) by $(typeof(cavity))"))
+end
+
+"""
+    mixture_message(factor, target::Symbol, polarity, inputs::NamedTuple, prior, ps, st) -> (belief, st)
+
+The factor → variable message when some `inputs` are `MixtureBelief`s, computed exactly: each
+mixture input is expanded into its components, the message of every combination of components
+is weighted by the components' weights and by the evidence the combination gives, and the result
+is one mixture. [`factor_message`](@ref) collapses such inputs to their moments instead.
+[`MixtureReduction`](@ref) nodes call it. No generic implementation, since the evidence needs the
+factor's form; Lenticulum implements it for `LinearConstraintFactor` and
+`SwitchingConstraintFactor`.
+"""
+function mixture_message(factor, target, polarity, inputs, prior, ps, st)
+    throw(ArgumentError(
+        "$(nameof(typeof(factor))) has no `Mycelium.mixture_message`, so a MixtureReduction() node cannot take \
+         its mixture inputs exactly; implement it, or use BeliefPropagation(), which collapses them"))
+end
+
+"""
+    reduce_message(belief, maxcomponents) -> belief
+
+A message reduced to at most `maxcomponents` mixture components, for [`MixtureReduction`](@ref) nodes. A
+belief that is not a mixture, or has few enough components, is returned unchanged; a reduction
+to one component returns the component. Lenticulum implements it for mixtures of Gaussians
+(Runnalls' merge, `reduce_mixture`); anything else is refused.
+"""
+reduce_message(b, maxcomponents::Integer) = b
+function reduce_message(m::LenticulumCore.MixtureBelief, maxcomponents::Integer)
+    length(m.components) <= maxcomponents && return m
+    throw(ArgumentError(
+        "no mixture reduction for $(typeof(m)): implement `Mycelium.reduce_message` for it"))
+end
+
 function mean_field_message(factor, target, polarity, beliefs, ps, st)
     throw(ArgumentError(
         "$(nameof(typeof(factor))) has no mean-field message: implement `Mycelium.mean_field_message` \
@@ -190,9 +295,17 @@ function step!(s::MessageStore, g::FactorGraph, t::MessageTask, ps, st;
             check_legal(g, e.factor, pol)
             inputs = _inputs(s, g, e.factor, chans)
             prior = excluded_marginal(s, g, e.variable, t.edge)
-            belief, stf = factor_message(fn.factor, e.channel, pol, inputs, prior, psf, stf)
+            belief, stf = _rule_message(fn.rule, fn.factor, e.channel, pol, inputs, prior, psf, stf)
         end
         old = s.to_variable[t.edge]
+        if belief === nothing
+            # An expectation-propagation update without a proper cavity is skipped: the edge keeps
+            # its message (none yet: an uninformative one, not stored).
+            @warn "factor :$(fn.name) skipped an expectation-propagation update on :$(e.channel): the cavity \
+                   or the tilted belief is not a proper Gaussian; the edge keeps its previous message" maxlog = 1
+            return (old === nothing ? LenticulumCore.TrivialBelief() : old.belief), (old === nothing ? Inf : 0.0),
+                   _setsubtree(st, fn.params, stf)
+        end
         if old !== nothing && damping > 0
             belief = damp(belief, old.belief, 1 - damping)
         end
@@ -304,6 +417,11 @@ Base.show(io::IO, r::ConvergenceReport) = print(io,
     "ConvergenceReport(", r.converged ? "converged" : "NOT converged",
     " after ", r.sweeps, " sweep(s), residual ", r.residual, "; ", r.reason, ")")
 
+# One tree sweep is a fixed point when every message depends on upstream messages only: belief
+# propagation and MixtureReduction() nodes. Expectation-propagation and mean-field messages also read the
+# target side (the cavity, the marginals), so those graphs are iterated like any other.
+_tree_exact(g::FactorGraph) = all(f -> f.rule isa BeliefPropagation || f.rule isa MixtureReduction, g.factors)
+
 """
     propagate!(store, g, sched, ps, st; maxsweeps = 100, tol = 1e-8, damping = 0.0,
                criterion = _default_criterion(sched))
@@ -311,8 +429,10 @@ Base.show(io::IO, r::ConvergenceReport) = print(io,
 
 Run the schedule to convergence, or to `maxsweeps`.
 
-For a [`TreeSchedule`](@ref) without damping one sweep is enough and is **exact**; the loop
-stops after one and says so. With damping a tree schedule is iterated and checked like any
+For a [`TreeSchedule`](@ref) without damping, on a graph of [`BeliefPropagation`](@ref) and
+[`MixtureReduction`](@ref) nodes, one sweep is enough and is **exact** (for `MixtureReduction`, exact for the reduced
+messages); the loop stops after one and says so. [`ExpectationPropagationRule`](@ref) and
+[`MeanField`](@ref) messages also depend on the target's side, so such graphs are iterated. With damping a tree schedule is iterated and checked like any
 other, since a damped sweep keeps part of each previously stored message. For loopy graphs there is no guarantee: see `Loopy Message Passing.md`.
 
 `damping ∈ [0,1)` mixes each new message with the previous one
@@ -334,7 +454,7 @@ function propagate!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, ps
     criterion in (:messages, :marginals) || throw(ArgumentError("criterion must be :messages or :marginals"))
     # Undamped, one tree sweep is exact. Damping keeps part of each stored message, so from a
     # warm start one sweep is not the fixed point: iterate and check like any schedule.
-    if sched isa TreeSchedule && iszero(damping)
+    if sched isa TreeSchedule && iszero(damping) && _tree_exact(g)
         _, st = sweep!(s, g, sched, ps, st; damping)
         return ConvergenceReport(true, 1, 0.0, "tree schedule: one sweep is exact"), st
     end

@@ -93,6 +93,24 @@ function combine_with_overlap(c::GaussianBelief, d::GaussianBelief)
     return _overlap(c, d, nothing)
 end
 
+# Two improper components (likelihoods, unnormalised exponentials, as a mixture message to a
+# channel with a flat direction carries them): their product is exp((η_c + η_d)ᵀx − xᵀ(Λ_c + Λ_d)x/2)
+# exactly, with no overlap to integrate. When that is proper it is normalised and its mass moves
+# into logZ; otherwise it stays an unnormalised exponential with logZ = 0. With `ref`, the same
+# constant of d is dropped as in the proper case, d at `ref`.
+function _improper_overlap(c::GaussianBelief, d::GaussianBelief, ref)
+    dimension(c) == dimension(d) || throw(DimensionMismatch(
+        "cannot combine beliefs of dimension $(dimension(c)) and $(dimension(d))"))
+    η, Λ = c.η + d.η, c.Λ + d.Λ
+    shift = ref === nothing ? 0.0 : LinearAlgebra.dot(d.η, ref) - LinearAlgebra.dot(ref, _sym(d.Λ) * ref) / 2
+    LenticulumCore._precision_isproper(Λ) || return GaussianBelief(η, Λ, true), -shift
+    cd = GaussianBelief(η, Λ)
+    C = LenticulumCore._precision_factor(_sym(Λ))
+    logZ = LinearAlgebra.dot(η, LenticulumCore._precision_solve(C, η)) / 2 +
+           (dimension(cd) * log(2π) - LenticulumCore._precision_logdet(C)) / 2
+    return cd, logZ - shift
+end
+
 _sym(Λ::LinearAlgebra.Diagonal) = Λ
 _sym(Λ) = LenticulumCore._symmetric_part(Λ)
 
@@ -106,6 +124,7 @@ _scaled_sum(A, B, s) = (A ./ s) ./ s' .+ (B ./ s) ./ s'
 # which depends on the site alone. Mixture products pass one shared point per site so that
 # the log masses stay O(1) however far the components are from the origin (LP-019 review).
 function _overlap(c::GaussianBelief, d::GaussianBelief, ref)
+    isproper(c) || isproper(d) || return _improper_overlap(c, d, ref)
     isproper(c) || throw(ArgumentError("combine_with_overlap requires a proper first Gaussian belief"))
     cd = combine(c, d)
     n = dimension(c)
@@ -140,4 +159,39 @@ function _overlap(c::GaussianBelief, d::GaussianBelief, ref)
                (LenticulumCore._precision_logdet(Cc) - LenticulumCore._precision_logdet(Ccd)) / 2
     end
     return cd, logZ
+end
+
+# --- Expectation propagation (`passing.md`, "Expectation propagation") -----------------
+
+# The projection of a Gaussian mixture: its total mean and covariance. Only proper components
+# have moments; a tilted belief with an improper one is not normalisable, and the update is
+# skipped (`nothing`).
+function ep_project(m::LenticulumCore.MixtureBelief{<:GaussianBelief})
+    all(LenticulumCore.isproper, m.components) || return nothing
+    w = LenticulumCore.mixture_weights(m)
+    w = w ./ sum(w)
+    μs = [LenticulumCore.belief_mean(c) for c in m.components]
+    μ = sum(w[k] .* μs[k] for k in eachindex(w))
+    Σ = sum(w[k] .* (LenticulumCore.belief_cov(m.components[k]) .+ (μs[k] .- μ) * (μs[k] .- μ)') for k in eachindex(w))
+    Σ = Matrix(LinearAlgebra.Symmetric(Σ))
+    LinearAlgebra.isposdef(Σ) || return nothing
+    Λ = Matrix(LinearAlgebra.Symmetric(inv(Σ)))
+    return GaussianBelief(Λ * μ, Λ)
+end
+
+# The site p / π: canonical parameters subtract. A site whose precision is not positive definite
+# (rank-deficient, or with a negative direction) is declared improper.
+function ep_divide(p::GaussianBelief, c::GaussianBelief)
+    dimension(p) == dimension(c) || throw(DimensionMismatch(
+        "cannot divide beliefs of dimension $(dimension(p)) and $(dimension(c))"))
+    Λ = p.Λ - c.Λ
+    return GaussianBelief(p.η - c.η, Λ, !LinearAlgebra.isposdef(LinearAlgebra.Symmetric(Matrix(Λ))))
+end
+ep_divide(p::GaussianBelief, ::LenticulumCore.TrivialBelief) = p
+
+# A Gaussian input with a negative direction (beyond rounding).
+function _indefinite(b::GaussianBelief)
+    Λ = LinearAlgebra.Symmetric(Matrix(b.Λ))
+    E = LinearAlgebra.eigvals(Λ)
+    return isempty(E) ? false : minimum(E) < -16 * length(E) * eps(Float64) * maximum(abs, E)
 end

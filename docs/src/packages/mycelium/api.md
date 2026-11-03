@@ -5,7 +5,8 @@ CurrentModule = Mycelium
 ```
 
 Every exported type and function of Mycelium, by source file. The guide is on the
-[Mycelium](@ref mycelium) page; plates and message blocks are on
+[Mycelium](@ref mycelium) page; schedules, running inference and the message rules are on
+[Mycelium API: schedules and inference](@ref mycelium-api-inference), plates and message blocks on
 [Mycelium API: plates and message blocks](@ref mycelium-api-plates).
 
 
@@ -32,20 +33,6 @@ Pages = ["polarity_resolution.jl"]
 ```@autodocs
 Modules = [Mycelium]
 Pages = ["messages.jl", "gaussian.jl"]
-```
-
-## Schedules
-
-```@autodocs
-Modules = [Mycelium]
-Pages = ["schedules.jl"]
-```
-
-## Running inference
-
-```@autodocs
-Modules = [Mycelium]
-Pages = ["passing.jl"]
 ```
 
 ## Free energy

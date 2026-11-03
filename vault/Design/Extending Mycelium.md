@@ -13,8 +13,9 @@
 >
 > The first step, the message rule, is done ([[L-ADR-0009 Factor nodes carry a message rule]]), and
 > so are the free energy of the hybrid (§1, [[L-SPEC-005 The Hybrid Free Energy]]), plates (§2,
-> [[L-SPEC-006 Plates]]) and rule-aware schedules (§3, [[L-SPEC-007 Hybrid Schedules]]). The rest is
-> proposed, ordered by what it unblocks.
+> [[L-SPEC-006 Plates]]), rule-aware schedules (§3, [[L-SPEC-007 Hybrid Schedules]]) and the EP and
+> mixture-reduction rules (§4, [[L-SPEC-008 Expectation Propagation and Mixture Reduction]]). The rest
+> is proposed, ordered by what it unblocks.
 
 > Sources: original to this vault (design). Hybrid belief propagation and mean field: Riegler, Kirkelund, Manchon, Badiu & Fleury, *Merging Belief Propagation and the Mean Field Approximation: A Free Energy Approach*, IEEE Trans. Inf. Theory 59(1), 2013. Region free energies and generalised belief propagation: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE Trans. Inf. Theory 51(7), 2005. Expectation propagation: Minka, UAI 2001. Gaussian-mixture reduction: Runnalls, IEEE Trans. Aerosp. Electron. Syst. 2007. Monte Carlo EM: Wei & Tanner, *A Monte Carlo Implementation of the EM Algorithm and the Poor Man's Data Augmentation Algorithms*, JASA 85(411), 1990. Stochastic-approximation EM: Delyon, Lavielle & Moulines, *Convergence of a Stochastic Approximation Version of the EM Algorithm*, Ann. Statist. 27(1), 1999. code: `lib/Mycelium.jl/src/graph.jl`, `passing.jl`, `free_energy.jl`, `schedules.jl`, `exposure.jl`
 >
@@ -165,6 +166,21 @@ of §1 decreases along it.
 
 - EP on Minka's clutter problem against the exact posterior in small cases.
 - `Reduce` on a switching linear chain against exact enumeration, as the budget grows.
+
+**Status (2026-11-03): implemented** ([[L-SPEC-008 Expectation Propagation and Mixture Reduction]],
+`passing.md`, `switching.md` §9). The rules are `ExpectationPropagationRule()` (Lenticulum already
+exports `ExpectationPropagation`, the likelihood factor's inversion method) and
+`MixtureReduction(M)`; a factor opts in to the second with `mixture_message`, the exact message with
+mixture inputs expanded, implemented for the linear and switching constraint factors. Both tests
+above pass: on the clutter problem the rule reaches the fixed point of a hand-written Minka loop to
+$10^{-10}$, and belief propagation (exact there, $2^N$ components) gives the posterior to compare with;
+on a switching chain of five steps the error falls from 0.16 at a budget of one component to
+$10^{-15}$ at 16, the exact posterior. An EP node's free energy is counted like belief propagation's and is
+stationary at a fixed point (checked numerically); a reduction node has no free energy and is
+refused. The same day plates of switching factors were batched to the outcome and in their free
+energy (`switching.md` §10): a Gaussian-mixture E-step over 1000 points takes 0.10 ms, 2.3 times the
+closed form, against 9.7 ms edge by edge. What is left is mixture messages on blocks, which EP on
+plates also needs (L-SPEC-006 §8).
 
 ## 5. Cluster nodes: exact inference inside, messages outside
 

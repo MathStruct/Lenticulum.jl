@@ -117,7 +117,8 @@ otherwise include $H(q)$. Checked against Monte Carlo in `test/mean_field_free_e
   switching factors on belief propagation runs as assumed-density filtering, and experiment E6 measured the
   bias that causes when switches overlap. Putting the sum node on `MeanField()` removes the
   collapse to *prior* moments: it then reads the other inputs' current means
-  ([[Composing Stochastic Factors]], E7).
+  ([[Composing Stochastic Factors]], E7). Since 2026-11-03 a node on `MixtureReduction(M)` expands
+  mixture inputs instead, exactly, and reduces its outgoing message to `M` components (§9).
 - **Bethe free energy with mixture marginals.** Mycelium has no entropy for a Gaussian-mixture
   variable belief, so a graph's Bethe free energy is available only when every continuous
   variable whose marginal is a mixture has degree one, or is clamped. The factor's own entropy
@@ -189,3 +190,60 @@ three testsets).
 | The pointwise energy is a scalar with the normaliser, unlike the siblings (Mistral 6) | right, and already stated in §4 | none |
 | Moment matching makes "exact" conditional (ChatGPT 5) | already stated in §5 | none |
 
+
+## 9. Mixture inputs expanded (2026-11-03)
+
+`Mycelium.mixture_message(f, target, ...)` is the exact message when inputs are Gaussian mixtures,
+for `MixtureReduction(M)` nodes (Extending Mycelium §4, [[L-SPEC-008 Expectation Propagation and Mixture Reduction]]).
+Each mixture input $\sum_j v_{ij} \mathcal N(m_{ij}, S_{ij})$ is a hidden index; a combination $c$ of
+components gives $R_c = Q + \sum_{i \ne t} A_i S_{i c_i} A_i^\top$ and $d_{kc} = b_k - \sum_{i \ne t} A_i m_{i c_i}$, and carries the
+evidence $\prod_i v_{i c_i}\, \mathcal N(d_{kc}; 0, R_c)$. Unlike the components of `factor_message`, these differ in
+$R_c$, so the weight keeps $-\tfrac12 \log\det R_c$, and a proper component, normalised, also
+$\tfrac12 \eta^\top \Lambda_c^{-1} \eta - \tfrac12 \log\det \Lambda_c + \tfrac d2 \log 2\pi$. Improper components stay unnormalised
+exponentials, as in `factor_message`.
+
+Flat directions of the non-mixture inputs are integrated out as there (`_residual_metric`), and
+the weight then needs the finite part of the diverging normaliser. For a prior $\mathcal N(0, \tau \Sigma_0)$
+along the flat coefficients $G$,
+$\log\det(R + \tau G \Sigma_0 G^\top) = \log\det R + \rho \log \tau + 2\sum_{i \le \rho} \log s_i + \log\det(V_\rho^\top \Sigma_0 V_\rho) + o(1)$, with $s_i$
+and $V_\rho$ the nonzero singular values and right singular vectors of $L^{-1} G$ ($R = LL^\top$). The span of
+$V_\rho$ is the row space of $G$ whatever $L$ is, so the last term is the same for every combination,
+and `_residual_metric_logdet` returns $\log\det R_c + 2 \sum_i \log s_i$. Mixture components themselves must be
+proper; a flat direction inside one would change $G$ between combinations.
+
+`LinearConstraintFactor` is the case $K = 1$, $b_1 = c$ (`constraint.jl` calls the same kernel). Tests
+(`test/mixture_rules.jl`): log-density differences of the message against the pointwise sum over
+components and outcomes to $10^{-12}$, to a continuous channel and to the outcome, for both factors;
+with a flat input beside the mixture, against a prior of variance $10^8$ to $10^{-6}$; and equal to
+`factor_message` without mixture inputs. On a switching linear chain the reduction budget then
+interpolates between assumed-density filtering and the exact posterior (`passing.md`).
+
+## 10. Plates of switching factors (2026-11-03)
+
+Two batched methods for a plate of tied switching factors (L-ADR-0010, `blocks.md`):
+
+- `factor_messages` on blocks, **to the outcome**, when the continuous inputs are points, trivial,
+  or proper Gaussians with one shared precision: one metric $T$, then
+  $\log P_i(k) = \log w_k - \tfrac12 \lVert T(b_k - s_i)\rVert^2$ normalised per column, as a `CategoricalBlock`. The squared
+  norm is taken of the difference, not expanded into $\lVert Tb_k\rVert^2 - 2\,(Tb_k)^\top Ts_i + \lVert Ts_i\rVert^2$, which would
+  cancel for data far from the origin. To a continuous channel the message is a mixture and goes
+  replica by replica.
+- `factor_beliefs`, `belief_free_energies` and `local_free_energies` through `FrozenSwitchingBeliefs`:
+  with the continuous messages as point blocks or shared-precision Gaussian blocks and the
+  outcome's as a categorical or trivial block, the belief precision, covariance and $H(x \mid k)$
+  are computed once; per replica the means of every outcome and the posterior $q_i$, as
+  `switch_statistics` computes them one at a time. `belief_free_energies` is written without
+  mutation for Zygote.
+
+`test/plates.jl` ("Plates of switching factors on message blocks") checks both against the same
+messages per edge: a mixture over observed points (40 replicas), and a latent mixture on
+expectation-propagation nodes (the outcome and $z$ latent, $x = z + \delta$ observed): messages to the
+sequential schedule's within $10^{-10}$, the free energy to $10^{-12}$ relative, each graded term to
+$10^{-12}$, the gradient to $10^{-10}$ with ForwardDiff and Zygote and $10^{-6}$ with reference differences.
+Timings (`bench/mixture_plates.jl`, `blocks.md`): at $N = 1000$ the E-step takes 0.10 ms on blocks
+against 9.7 ms edge by edge and 0.044 ms by hand, $F$ 1.1 ms against 5.1 ms, $\nabla F$ 2.9 ms against
+29 ms.
+
+The first version folded the point channels with `foldl(...; init)`; Zygote's pullback of that
+fails on an empty list (a plate whose continuous channels are all latent), so it is a `reduce`
+behind an emptiness check.

@@ -488,6 +488,10 @@ contribution into the constant, ``c \\mapsto c - A_j v_j``, and drops out of the
 is what keeps the joint precision finite, and it is the n-ary version of the three hand-written
 cases in `gaussian.jl`. With every channel clamped the residual is deterministic and the
 entropy is zero, which falls out of the same code rather than needing its own branch.
+
+A Gaussian-mixture message is collapsed to its moments first, as `factor_message` collapses it,
+so the belief is the one the outgoing messages were computed from (assumed-density filtering),
+not the exact mixture belief.
 """
 function residual_statistics(f::LinearConstraintFactor{names}, msgs, ps) where {names}
     c_eff = float.(ps.c)
@@ -503,7 +507,9 @@ function residual_statistics(f::LinearConstraintFactor{names}, msgs, ps) where {
     isempty(free) && return (-c_eff, zeros(f.m, f.m), 0.0)
 
     G = reduce(hcat, (ps.A[n] for n in free))
-    canon = [_canon(_get(msgs, n), f.dims[n]) for n in free]
+    # A mixture message is collapsed to its moments, as `factor_message` collapses it (gaussian.md,
+    # "Mixture inputs"); the factor belief is then the one the message was computed from.
+    canon = [_canon(_collapse(_get(msgs, n)), f.dims[n]) for n in free]
     Qi = inv(_chol(f.Q, "Q"))
     Λ = G' * Qi * G + _blockdiag(map(last, canon))
     η = G' * (Qi * c_eff) + reduce(vcat, map(first, canon))

@@ -18,8 +18,9 @@
     counting_number(g, vid) -> Int
 
 The counting number ``1 - d_v`` of a variable, where ``d_v`` counts its edges to
-[`BeliefPropagation`](@ref) nodes. With every node on belief propagation that is the degree, and
-this is the Bethe counting number.
+[`BeliefPropagation`](@ref) nodes, and to [`ExpectationPropagationRule`](@ref) nodes, which count the
+same way. With every node on belief propagation that is the degree, and this is the Bethe
+counting number.
 
 A variable of degree 1 counts `0` (nothing to correct: only one factor mentions it). A
 variable of degree 2 counts `-1` (its entropy was counted twice, so subtract one copy). And
@@ -35,10 +36,11 @@ counting_number(g::FactorGraph, vid::Int) = 1 - bp_degree(g, vid)
 """
     bp_degree(g, vid) -> Int
 
-The number of edges from variable `vid` to [`BeliefPropagation`](@ref) nodes.
+The number of edges from variable `vid` to [`BeliefPropagation`](@ref) and
+[`ExpectationPropagationRule`](@ref) nodes, the nodes the Bethe free energy counts with an entropy.
 """
 bp_degree(g::FactorGraph, vid::Int) =
-    count(ei -> factornode(g, g.edges[ei].factor).rule isa BeliefPropagation, g.edges_of_variable[vid])
+    count(ei -> _cavity_rule(factornode(g, g.edges[ei].factor).rule), g.edges_of_variable[vid])
 
 """
     counting_numbers(g) -> NamedTuple
@@ -110,7 +112,7 @@ This is ``E_G = \\bigoplus_f E_f`` from `Scalar and Multivariate Energy.md`, rea
 composite energy of a graph *is* the per-factor breakdown, not a number that a logger later
 decomposes.
 
-A [`BeliefPropagation`](@ref) node contributes its [`local_free_energy`](@ref) at its incoming
+A [`BeliefPropagation`](@ref) or [`ExpectationPropagationRule`](@ref) node contributes its [`local_free_energy`](@ref) at its incoming
 messages; a [`MeanField`](@ref) node its [`mean_field_energy`](@ref) at the marginals of its
 variables, an average energy with no entropy (Riegler et al. 2013, eq. 17).
 
@@ -215,13 +217,13 @@ end
 
 function _energy_row(g::FactorGraph, idx::EdgeMessages, fids::Vector{Int})
     f1 = g.factors[first(fids)]
-    f1.rule isa BeliefPropagation || return nothing
+    _cavity_rule(f1.rule) || return nothing          # local free energies at incoming messages
     E1 = g.edges_of_factor[f1.id]
     rows = Int[idx.row[e] for e in E1]
     all(!=(0), rows) || return nothing
     for (col, fid) in enumerate(fids)
         f = g.factors[fid]
-        f.params === f1.params && f.rule isa BeliefPropagation || return nothing
+        f.params === f1.params && f.rule === f1.rule || return nothing
         Ei = g.edges_of_factor[fid]
         length(Ei) == length(E1) || return nothing
         for j in eachindex(Ei)
@@ -289,7 +291,7 @@ _row_scalar(factors::AbstractVector, E::AbstractVector) =
 function _variable_terms_rows(s, g)
     total, done = 0.0, falses(nvariables(g))
     _has_rows(s, g) || return total, done
-    bp = BitVector([f.rule isa BeliefPropagation for f in g.factors])
+    bp = BitVector([_cavity_rule(f.rule) for f in g.factors])
     for pl in g.plates
         V::Matrix{Int} = pl.variables
         for k in axes(V, 1)
@@ -337,6 +339,8 @@ function _block_entropies(b::GaussianBlock)
     _shared(b) && all(==(b.improper[1]), b.improper) && return fill(variable_entropy(replica(b, 1)), nreplicas(b))
     return [variable_entropy(replica(b, i)) for i in 1:nreplicas(b)]
 end
+_block_entropies(b::CategoricalBlock) =
+    [-sum(k -> b.logp[k, i] == -Inf ? 0.0 : exp(b.logp[k, i]) * b.logp[k, i], axes(b.logp, 1)) for i in axes(b.logp, 2)]
 _block_entropies(b::BeliefBlock) = [variable_entropy(replica(b, i)) for i in 1:nreplicas(b)]
 
 # The gradient's scalar for a plate row on batched beliefs: the replicas' scalarised free energies.
@@ -713,12 +717,17 @@ function _check_tied_state(g, st)
 end
 
 # `mean_field = false` for the paths that differentiate through inference or record residual
-# moments from cavity messages; they are written for belief propagation only.
+# moments from cavity messages; they are written for belief propagation only. The default paths
+# also take mean-field nodes and expectation-propagation nodes (counted like belief propagation:
+# their free energy is the expectation-consistent Bethe free energy, `passing.md`); MixtureReduction()
+# nodes are refused everywhere, since no free energy has their fixed points as stationary points.
 function _check_energy_edges(g; mean_field::Bool = true, what = "this computation")
     for f in g.factors
-        f.rule isa BeliefPropagation || (mean_field && f.rule isa MeanField) || throw(ArgumentError(
+        f.rule isa BeliefPropagation || (mean_field && (f.rule isa MeanField || f.rule isa ExpectationPropagationRule)) ||
+            throw(ArgumentError(
             "factor :$(f.name) uses $(nameof(typeof(f.rule)))() messages; $what is implemented for \
-             belief-propagation nodes only, so it is refused rather than misreported"))
+             belief-propagation $(mean_field ? ", mean-field and expectation-propagation " : "")nodes only, \
+             so it is refused rather than misreported"))
     end
     for f in g.factors
         f.rule isa MeanField && continue      # reads marginals, which every edge direction has

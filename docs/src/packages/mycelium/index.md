@@ -74,6 +74,17 @@ that paper, eq. (17): a mean-field node contributes `mean_field_energy`, its ave
 the product of the marginals, and the variable counting numbers count belief-propagation
 neighbours only.
 
+Two more rules handle factors whose messages leave the Gaussian family, such as switching
+factors, whose messages are mixtures. [`ExpectationPropagationRule`](@ref) sends the
+belief-propagation message projected the EP way: the target's cavity times the message,
+moment-matched to a Gaussian, divided by the cavity ([`ep_message`](@ref)); updates without a
+proper cavity are skipped, and the graph is iterated to a fixed point, where its free energy
+(counted like belief propagation's) is stationary. [`MixtureReduction`](@ref)`(M)` keeps
+mixtures: mixture inputs are expanded exactly ([`mixture_message`](@ref), implemented by
+Lenticulum's linear and switching constraint factors) and the message is reduced to `M`
+components by Runnalls' merge ([`reduce_message`](@ref)). On a switching chain the budget moves the
+answer from assumed-density filtering to the exact posterior; such nodes have no free energy.
+
 Points can be passed instead of beliefs. `GibbsSampler(g, sampled)` draws the named variables (for
 example the discrete switches) from their exact conditionals, integrating the others out by belief
 propagation with the drawn ones pinned (`pin!`). A `SampleBuffer` keeps the samples, weighs them by
@@ -227,7 +238,9 @@ one [`BeliefBlock`](@ref) (Gaussian information vectors as a ``d \times N`` matr
 precision, points as a matrix); reading `store.to_variable[e]` still returns that edge's
 message. A factor computes a group's messages on blocks through [`factor_messages`](@ref), and a
 plate's free energy and gradient through [`local_free_energies`](@ref), [`factor_beliefs`](@ref)
-and [`belief_free_energies`](@ref); `LinearConstraintFactor` and `GaussianPrior` implement them.
+and [`belief_free_energies`](@ref); `LinearConstraintFactor` and `GaussianPrior` implement them,
+and `SwitchingConstraintFactor` too, with its messages to the outcome as one
+[`CategoricalBlock`](@ref) (a Gaussian-mixture E-step over 1000 points: about 2.3 times the closed form).
 
 ## Known gaps
 
@@ -238,9 +251,12 @@ and [`belief_free_energies`](@ref); `LinearConstraintFactor` and `GaussianPrior`
   rather than resample; structured belief pairs retain their explicit rules.
 - Potential distances compare callable identity (otherwise `Inf`); damping potentials is
   an inspectable no-op through `can_damp`.
-- Plates are batched for Gaussian and point messages only (factor analysis: about 9 times the
-  E-step written by hand at ``N = 1000``; `blocks.md`). Mixtures and other beliefs are held per
-  replica inside a block and computed one replica at a time.
+- Plates are batched for Gaussian, point and categorical messages (factor analysis: about 9 times
+  the E-step written by hand at ``N = 1000``; a Gaussian mixture's E-step about 2.3 times;
+  `blocks.md`). Mixture messages and other beliefs are held per replica inside a block and
+  computed one replica at a time, and plate sweeps group belief-propagation nodes only.
+- Belief-propagation graphs whose marginals are Gaussian mixtures have no free energy (no
+  closed-form mixture entropy); `MixtureReduction` nodes have none either.
 - In the coupled drivers (`adjoint = :implicit`, non-diagonal couplings), a factor whose edges are
   all cut is held at its fixed belief, as in the default driver (LP-021); a factor with some edges
   cut and some not is differentiated at its messages, with the cut ones constant.

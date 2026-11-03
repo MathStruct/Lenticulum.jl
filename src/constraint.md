@@ -294,3 +294,17 @@ $K$ and precision. That is the case for data (points) and a shared prior. The in
 replicas are stacked, so the messages come from one product $K(c\,\mathbf 1^\top - \sum_n A_n M_n)$,
 and they share one precision matrix (messages are never mutated in place). Otherwise each replica
 goes through `_linear_message`. `test/plates.jl` checks both paths against `factor_message`.
+
+## Mixture inputs (2026-11-03)
+
+- `Mycelium.mixture_message(f::LinearConstraintFactor, ...)`, for `MixtureReduction(M)` nodes: the
+  exact message with mixture inputs expanded, one component per combination of input components,
+  each weighted by its evidence $\prod_i v_{i c_i}\, \mathcal N(d_c; 0, R_c)$. It is the switching factor's kernel with
+  $K = 1$, $b_1 = c$ (`switching.md` §9, where the weights and the flat directions are worked out).
+- `residual_statistics` now collapses a Gaussian-mixture message to its moments, as
+  `factor_message` does. Before, a mixture cavity reached `_canon`, which has no method for it, so
+  a linear factor next to a latent mixture had messages but no local free energy. The collapsed
+  belief is the one the factor's messages were computed from (assumed-density filtering); it is
+  not the exact mixture belief, and the free energy of such a graph is that of the collapsed
+  beliefs. Found when a plate with a latent mixture was evaluated on its per-edge path
+  (`test/plates.jl`).

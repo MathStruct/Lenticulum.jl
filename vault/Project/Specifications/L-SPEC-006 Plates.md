@@ -1,8 +1,8 @@
 #design
 
-> **Status: draft (2026-11-02, Claude), implemented as described; §5–§6 added 2026-11-03 with [[L-ADR-0010 Plates get batched message blocks]].** Related: [[Extending Mycelium]] §2, [[L-SPEC-003 Exposed Parameters and Energy Channels]], [[L-SPEC-005 The Hybrid Free Energy]], [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]], [[LP-021 The coupled gradient drivers cut diagonal edges at fixed messages]]. Code: `lib/Mycelium.jl/src/plates.jl`, `blocks.jl`, `graph.jl` (parameter keys), `passing.jl` (`factor_messages`), `free_energy.jl`, `src/constraint.jl`, `src/gaussian.jl`.
+> **Status: draft (2026-11-02, Claude), implemented as described; §5–§6 added 2026-11-03 with [[L-ADR-0010 Plates get batched message blocks]], §7 the same day with [[L-SPEC-008 Expectation Propagation and Mixture Reduction]]; §8 is a plan, not implemented.** Related: [[Extending Mycelium]] §2, [[L-SPEC-003 Exposed Parameters and Energy Channels]], [[L-SPEC-005 The Hybrid Free Energy]], [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]], [[LP-021 The coupled gradient drivers cut diagonal edges at fixed messages]]. Code: `lib/Mycelium.jl/src/plates.jl`, `blocks.jl`, `graph.jl` (parameter keys), `passing.jl` (`factor_messages`), `free_energy.jl`, `src/constraint.jl`, `src/gaussian.jl`, `src/switching.jl`.
 
-> Sources: original to this repository. code: `lib/Mycelium.jl/src/plates.jl`, `lib/Mycelium.jl/src/graph.jl`, `lib/Mycelium.jl/src/passing.jl`, `lib/Mycelium.jl/src/free_energy.jl`, `src/constraint.jl`; tests: `test/plates.jl`; benchmark: `bench/plates.jl`
+> Sources: original to this repository. code: `lib/Mycelium.jl/src/plates.jl`, `lib/Mycelium.jl/src/graph.jl`, `lib/Mycelium.jl/src/passing.jl`, `lib/Mycelium.jl/src/free_energy.jl`, `src/constraint.jl`; tests: `test/plates.jl`; benchmarks: `bench/plates.jl`, `bench/mixture_plates.jl`
 >
 > Theory (CT-ML wiki): [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
@@ -75,6 +75,35 @@ the per-node path. The defaults loop over replicas; `LinearConstraintFactor` and
 implement them for Gaussian blocks of shared precision. A plate variable row's Bethe terms are
 the entropies of its marginal block.
 
+**§7. Categorical blocks and switching plates.** A `CategoricalBlock` holds the normalised
+log-probabilities of $n$ categoricals over one support as a $K \times n$ matrix; `belief_block` builds it
+from categoricals of one length and labels. `SwitchingConstraintFactor` has a block method to its
+outcome (inputs as for `LinearConstraintFactor`'s), which returns a `CategoricalBlock`, and
+implements the three energy hooks of §6 through `FrozenSwitchingBeliefs`. Energy rows accept
+expectation-propagation nodes as well, when every node of the row has the same rule
+([[L-SPEC-008 Expectation Propagation and Mixture Reduction]]).
+
+**§8. Mixture blocks (planned, not implemented).** What §7 leaves per replica, measured in
+`bench/mixture_plates.jl`: a switching factor's mixture messages to a continuous channel cost 5.0 ms
+at $N = 1000$, 50 times the batched E-step. The plan:
+
+1. `MixtureBlock(η, Λ, logw, improper)`: $\eta$ of size $d \times K \times n$, one precision shared by every
+   component and replica, log-weights $K \times n$. It is exactly what tied switching factors send
+   when their inputs share one precision, since all their components share $A_t^\top R^{-1} A_t$.
+   `replica` gives the `MixtureBelief` of column $i$.
+2. Its block method in `SwitchingConstraintFactor`'s `factor_messages` (the same metric as §7).
+3. `combine_blocks` of a mixture block with a shared-precision Gaussian block: every product
+   component has one precision, and the overlaps $\log Z_{ki}$ are a quadratic form per column with one
+   shared factorisation. Mixture times mixture ($K^2$ components) stays column by column.
+4. EP on blocks: the projection of a tilted mixture block is a Gaussian block whose precisions
+   differ per replica (the scatter of the means differs), so the sites, and the cavities after
+   them, have per-replica precisions. `LinearConstraintFactor`'s block method would need a path
+   for those (a batch of small factorisations) before EP plates gain.
+
+Expected gain (a conjecture, to be measured): the 5 ms of step 2 to a few tenths of a millisecond,
+as §7 brought the outcome messages from 9.7 to 0.10 ms. `MixtureReduction` plates are not in the
+plan: their component counts differ between replicas.
+
 ## Checked by
 
 `test/plates.jl`:
@@ -106,6 +135,17 @@ the entropies of its marginal block.
   $10^{-13}$ (relative), the graded terms to $10^{-12}$, the gradient to $10^{-10}$ with ForwardDiff and
   Zygote ($10^{-6}$ with reference differences); the gradient of `:lik` is one batched item.
 
+- a plate of switching factors over 40 observed points, and one with a latent mixture on
+  expectation-propagation nodes: messages equal the sequential schedule's to $10^{-10}$; after a
+  sweep the outcome messages form a `CategoricalBlock`; the free energy on blocks against the same
+  messages per edge to $10^{-12}$ (relative), the graded terms to $10^{-12}$, the gradient to
+  $10^{-10}$ with ForwardDiff and Zygote ($10^{-6}$ with reference differences), one batched item;
+  the categorical block's product, distance and entropies column for column.
+
+`bench/mixture_plates.jl` (`blocks.md`, `switching.md` §10): the mixture E-step at $N = 1000$ takes
+0.10 ms on blocks, 9.7 ms edge by edge and 0.044 ms by hand; $F$ 1.1 ms against 5.1 ms per edge,
+$\nabla F$ 2.9 ms against 29 ms.
+
 `bench/plates.jl` measures the speed (`plates.md`, `blocks.md`): on blocks the grouped plate is
 about 9 times the hand-written E-step at $N = 1000$ (0.09 ms against 0.0102 ms; 2.39 ms before), the
 free energy 1.1 ms and its gradient 2.1 ms (10.7 and 57 ms with the same messages per edge);
@@ -114,8 +154,8 @@ building is linear in $N$.
 ## Open
 
 - **Speed.** [[Extending Mycelium]] §2 asked for a small factor of hand-written code; on blocks the
-  plate is about 9 to 13 times slower than the closed form. Mixtures and other non-Gaussian
-  messages are still per replica inside blocks.
+  plate is about 9 to 13 times slower than the closed form, the mixture E-step about 2 to 3.5 times.
+  Mixture messages to continuous channels are still per replica inside blocks (§8).
 - No nested plates, no stateful tied factors.
 - [[LP-021 The coupled gradient drivers cut diagonal edges at fixed messages]], found here, is
   resolved for factors whose edges are all cut; factors with mixed couplings are open.

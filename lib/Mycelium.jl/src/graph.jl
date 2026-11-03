@@ -85,7 +85,8 @@ end
     AbstractMessageRule
 
 How a factor node computes its outgoing messages: [`BeliefPropagation`](@ref), the default,
-or [`MeanField`](@ref). Chosen per node with `factor!(b, name, f; rule)`.
+[`MeanField`](@ref), [`ExpectationPropagationRule`](@ref) or [`MixtureReduction`](@ref). Chosen per node with
+`factor!(b, name, f; rule)`.
 """
 abstract type AbstractMessageRule end
 
@@ -109,6 +110,53 @@ point; one tree sweep is not one. The graph free energy is then the merged free 
 paper, eq. (17), with each mean-field node's [`mean_field_energy`](@ref) (`free_energy.md`).
 """
 struct MeanField <: AbstractMessageRule end
+
+"""
+    ExpectationPropagationRule()
+
+Expectation-propagation messages (Minka 2001): the belief-propagation message ``m_t`` is
+computed as usual, and when it leaves the target's family (a mixture of Gaussians, say) the
+*tilted* belief ``\\pi_t\\, m_t``, with ``\\pi_t`` the target's cavity (excluded marginal), is
+projected onto the family by matching moments ([`ep_project`](@ref)) and the cavity is divided
+out ([`ep_divide`](@ref)):
+
+```math
+m_t^{\\mathrm{EP}} \\;=\\; \\operatorname{proj}\\bigl[\\pi_t\\, m_t\\bigr] \\,/\\, \\pi_t .
+```
+
+A message already in its family is sent unchanged, so on a Gaussian graph the rule is belief
+propagation. Gaussian division is subtraction of canonical parameters; the site may have an
+indefinite precision and is then declared improper. An update whose cavity is not a proper
+Gaussian, or whose tilted belief has a component that is not, is skipped: the edge keeps its
+previous message. Lenticulum's `ExpectationPropagation` is a different thing: the inversion
+method of a `LikelihoodFactor`. Iterate to a fixed point (with damping if
+it oscillates); one tree sweep is not one. The graph free energy counts the node as a
+belief-propagation node, which at a fixed point is the expectation-consistent Bethe free energy
+(`passing.md`, "Expectation propagation").
+"""
+struct ExpectationPropagationRule <: AbstractMessageRule end
+
+"""
+    MixtureReduction(maxcomponents)
+
+Mixture messages with a budget: the factor → variable message is the exact one, with every
+mixture input expanded into its components ([`mixture_message`](@ref)) instead of collapsed to
+its moments, and then reduced to at most `maxcomponents` components ([`reduce_message`](@ref);
+for Gaussian mixtures Runnalls' merge). `MixtureReduction(1)` is assumed-density filtering on the outgoing
+message; a large enough budget is exact belief propagation with mixtures. The graph free energy
+is not defined for these nodes, and is refused.
+"""
+struct MixtureReduction <: AbstractMessageRule
+    maxcomponents::Int
+    function MixtureReduction(maxcomponents::Integer)
+        maxcomponents >= 1 || throw(ArgumentError("MixtureReduction needs a budget of at least one component; got $maxcomponents"))
+        return new(Int(maxcomponents))
+    end
+end
+
+# Rules whose messages are computed from cavity (variable -> factor) messages, and whose nodes the
+# Bethe free energy counts with their local free energy and their entropy (`free_energy.md`).
+_cavity_rule(r::AbstractMessageRule) = r isa BeliefPropagation || r isa ExpectationPropagationRule
 
 """
     FactorNode(id, name, factor)
@@ -230,7 +278,8 @@ end
 Add a factor node wrapping an `AbstractLenticulumFactor`; returns its id.
 `freeze` is `:all`, a parameter path such as `(:encoder,)`, or a tuple of paths.
 Paths select complete subtrees and are checked against the actual parameter tree.
-`rule` is how the node computes its messages: [`BeliefPropagation`](@ref) or [`MeanField`](@ref).
+`rule` is how the node computes its messages: [`BeliefPropagation`](@ref), [`MeanField`](@ref),
+[`ExpectationPropagationRule`](@ref) or [`MixtureReduction`](@ref).
 `params` is the node's [`parameter_key`](@ref): nodes given the same key share one entry of `ps`
 and `st` (their gradients add), and must have the same factor type and `freeze`; [`build`](@ref)
 checks.

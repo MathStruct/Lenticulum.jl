@@ -63,7 +63,11 @@ measurement of the linear observable ``\sum_i A_i x_i``. It is the smallest fact
 the Gaussian class. Its message to a continuous channel is a mixture of ``K`` Gaussians, its
 message to the outcome a `CategoricalBelief`, and its local free energy is closed form. With
 `K = 1` it is a `LinearConstraintFactor`. Both constraint factors also have a mean-field message
-(`Mycelium.mean_field_message`), used when their node is added with `rule = MeanField()`. The
+(`Mycelium.mean_field_message`), used when their node is added with `rule = MeanField()`, and an
+exact message for mixture inputs (`Mycelium.mixture_message`), used by `rule = MixtureReduction(M)`;
+on `rule = ExpectationPropagationRule()` a switching node sends Gaussian sites instead of
+mixtures. In a plate, tied switching factors send their outcome messages as one block and
+evaluate their free energy in one call (`FrozenSwitchingBeliefs`). The
 tutorial [mixtures from switching factors](@ref tutorial-switching) works through both. The design
 and the experiments behind it are in
 the vault notes *Switching Constraint Factors* (the theory) and *Composing Stochastic Factors*

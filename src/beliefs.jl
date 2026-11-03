@@ -95,3 +95,21 @@ function reduce_mixture(m::LenticulumCore.MixtureBelief{<:GaussianBelief}; max_c
     end
     return LenticulumCore.MixtureBelief([Gaussian(μs[k], Σs[k]) for k in eachindex(ws)], ws)
 end
+
+"""
+    Mycelium.reduce_message(m::MixtureBelief{<:GaussianBelief}, maxcomponents)
+
+The message of a `MixtureReduction(maxcomponents)` node: [`reduce_mixture`](@ref) when `m` has more than
+`maxcomponents` components, and the single component when one is left. Runnalls' merge needs
+the components' moments, so a mixture with an improper (likelihood) component over the budget
+is refused.
+"""
+function Mycelium.reduce_message(m::LenticulumCore.MixtureBelief{<:GaussianBelief}, maxcomponents::Integer)
+    length(m.components) <= maxcomponents && return m
+    all(isproper, m.components) || throw(ArgumentError(
+        "cannot reduce a mixture with improper (likelihood) components: Runnalls' merge needs their \
+         moments. Raise the MixtureReduction() budget to $(length(m.components)), or reduce on a side where the \
+         components are proper"))
+    r = reduce_mixture(m; max_components = maxcomponents)
+    return length(r.components) == 1 ? only(r.components) : r
+end

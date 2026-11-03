@@ -256,3 +256,10 @@ They index the same way; a graph with plates gives each template edge a block ro
 one `BeliefBlock` for all replicas, read edge by edge as views (`blocks.md`). `has_to_variable` and
 `has_to_factor` ask the storage (`_isset`) instead of building the view.
 
+
+## Two improper mixture components (2026-11-03)
+
+`combine_with_overlap` for a Gaussian pair now also takes two improper operands: their product is
+exact in canonical form (`gaussian.md`, "Products of improper components"). An improper `c` with a
+proper `d` still throws; `_mixture_product` puts the proper operand first, as before. The LP-019 test
+that `combine(site, mix)` no longer throws keeps passing.

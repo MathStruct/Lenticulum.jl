@@ -205,7 +205,8 @@ Return the pooled belief and ``\\log Z = \\log \\int p_c\\,p_d``.
 For proper beliefs this is the exact log overlap. When `d` is improper,
 `logZ` is defined up to an additive constant depending on `d` alone, which
 cancels when normalising mixture weights. For Gaussian pairs, `c` must be
-proper and `d` may be improper. For disjoint categorical support, return
+proper when `d` is; when both are improper (unnormalised exponentials) the product is exact,
+normalised with its mass in `logZ` if it is proper and `logZ = 0` otherwise. For disjoint categorical support, return
 `(c, -Inf)` since the pooled distribution is undefined.
 Implemented for categorical pairs here and Gaussian pairs in Mycelium's `gaussian.jl`.
 """

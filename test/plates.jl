@@ -353,3 +353,66 @@ pl_fa_nlp(X, W, c) = -sum(pl_lognormal(X[:, i], c, W * W' + PL_σ2 * I) for i in
         @test only(G.lc.c) ≈ (Fat(0.1 + h) - Fat(0.1 - h)) / 2h atol = 1e-6
     end
 end
+
+# A plate of switching factors (a Gaussian mixture): the messages to the outcome as one
+# categorical block, and the free energy as one batched row (Extending Mycelium §4, switching.md §10).
+const PL_SD, PL_SK = 2, 3
+const PL_SQ = [0.3 0.05; 0.05 0.2]
+function pl_sw_observed!(p, x)
+    variable!(p, :z, PL_SD); variable!(p, :k, PL_SK)
+    factor!(p, :data, DataFactor(:z, x))
+    factor!(p, :sw, SwitchingConstraintFactor((z = PL_SD,), PL_SK, PL_SD; noise = PL_SQ))
+    connect!(p, :data, :z, :z; direction = Emitting()); connect!(p, :sw, :z, :z); connect!(p, :sw, :k, :k)
+end
+# z latent, x = z + δ observed, the mixture on z on expectation-propagation nodes (Gaussian marginals)
+function pl_sw_latent!(p, x)
+    variable!(p, :z, PL_SD); variable!(p, :x, PL_SD); variable!(p, :k, PL_SK)
+    factor!(p, :data, DataFactor(:x, x))
+    factor!(p, :obs, LinearConstraintFactor((x = PL_SD, z = PL_SD), PL_SD; noise = 0.4))
+    factor!(p, :sw, SwitchingConstraintFactor((z = PL_SD,), PL_SK, PL_SD; noise = PL_SQ); rule = ExpectationPropagationRule())
+    connect!(p, :data, :x, :x; direction = Emitting()); connect!(p, :obs, :x, :x; direction = Absorbing())
+    connect!(p, :obs, :z, :z); connect!(p, :sw, :z, :z); connect!(p, :sw, :k, :k)
+end
+
+@testset "Plates of switching factors on message blocks" begin
+    X = randn(Xoshiro(1), PL_SD, 40) .* 2
+    for (tpl, nsweeps) in ((pl_sw_observed!, 3), (pl_sw_latent!, 30))
+        b = GraphBuilder(); plate!((p, i) -> tpl(p, X[:, i]), b, :obs, size(X, 2)); g = build(b)
+        ps = LuxCore.initialparameters(Xoshiro(0), g)
+        ps = merge(ps, (sw = merge(ps.sw, (A = (z = Matrix(1.0I, PL_SD, PL_SD),),)),))
+        haskey(ps, :obs) && (ps = merge(ps, (obs = (A = (x = Matrix(1.0I, PL_SD, PL_SD), z = -Matrix(1.0I, PL_SD, PL_SD)), c = zeros(PL_SD)),)))
+        st = LuxCore.initialstates(Xoshiro(0), g)
+        sched = plate_schedule(g)
+        s, s2 = MessageStore(g), MessageStore(g)
+        for _ in 1:nsweeps
+            sweep!(s, g, sched, ps, st); sweep!(s2, g, SequentialSchedule(tasks(sched)), ps, st)
+        end
+        for i in 1:nedges(g)
+            a, c = s.to_variable[i], s2.to_variable[i]
+            a === nothing || @test belief_distance(a.belief, c.belief) < 1e-10
+        end
+        kinds = Set(typeof(m.belief) for m in s.to_variable.blocks if m !== nothing)
+        tpl === pl_sw_observed! && @test any(k -> k <: CategoricalBlock, kinds)
+        items, rest = Mycelium._row_items(s, g, :sw, ps.sw, NamedTuple(), [g.factors[i] for i in tied_factors(g, :sw)])
+        @test length(items) == 1 && isempty(rest) && items[1][3] isa Lenticulum.FrozenSwitchingBeliefs
+        se = MessageStore(copy(s.to_variable), copy(s.to_factor), s.iteration)
+        @test first(LenticulumCore.scalar_free_energy(s, g, ps, st)) ≈ first(LenticulumCore.scalar_free_energy(se, g, ps, st)) rtol = 1e-12
+        Fb, Fe = first(factor_free_energies(s, g, ps, st)), first(factor_free_energies(se, g, ps, st))
+        for name in keys(Fb.parts), part in (:fit, :complexity, :negentropy)
+            Fb.parts[name] isa Real || @test Fb.parts[name][part] ≈ Fe.parts[name][part] atol = 1e-12
+        end
+        for (ad, tol) in ((nothing, 1e-6), (AutoForwardDiff(), 1e-10), (AutoZygote(), 1e-10))
+            @test pl_flat(LenticulumCore.free_energy_gradient(s, g, ps, st; ad).sw) ≈
+                  pl_flat(LenticulumCore.free_energy_gradient(se, g, ps, st; ad).sw) atol = tol
+        end
+    end
+    # the categorical block's operations, column for column as the per-belief rules
+    rng = Xoshiro(2)
+    cs = [CategoricalBelief(rand(rng, 3) .+ 0.1) for _ in 1:4]; ds = [CategoricalBelief(rand(rng, 3) .+ 0.1) for _ in 1:4]
+    B, C = belief_block(cs), belief_block(ds)
+    @test B isa CategoricalBlock && nreplicas(B) == 4
+    BC = Mycelium.combine_blocks(B, C)
+    @test all(i -> replica(BC, i).logp ≈ Mycelium.combine(cs[i], ds[i]).logp, 1:4)
+    @test Mycelium.block_distance(B, C) ≈ maximum(i -> belief_distance(cs[i], ds[i]), 1:4)
+    @test Mycelium._block_entropies(B) ≈ [Mycelium.variable_entropy(c) for c in cs]
+end

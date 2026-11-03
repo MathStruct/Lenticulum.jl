@@ -21,6 +21,7 @@ A `BeliefBlock` is $n$ beliefs of one kind:
 | `TrivialBlock(n)` | nothing | `TrivialBelief()` |
 | `PointBlock(X)` | $X \in \mathbb R^{d \times n}$ | `DiracBelief(X[:, i])` |
 | `GaussianBlock(η, Λ, improper)` | $\eta \in \mathbb R^{d \times n}$; $\Lambda$ shared ($d \times d$) or a vector of $n$ | `GaussianBelief(η[:, i], Λᵢ, improper[i])` |
+| `CategoricalBlock(logp, labels)` | $\log p \in \mathbb R^{K \times n}$, columns normalised | `CategoricalBelief(logp[:, i])` |
 | `VectorBlock(beliefs)` | anything | `beliefs[i]` |
 
 `belief_block(beliefs)` picks the most specific block for a vector of beliefs, keeping a precision
@@ -34,6 +35,9 @@ The operations a sweep needs work column for column, just as the per-belief rule
   a point dominates a Gaussian, the trivial block is the unit, and the improper flag follows
   `combine` on each column. Any other pair is combined column by column with `combine`, with its
   errors.
+- Categorical blocks multiply column by column (log-probabilities add, each column normalised);
+  `block_distance` is the largest total variation, and the entropies of a variable row are one
+  vectorised sum.
 - `block_distance`: the largest `belief_distance` over the columns ($\max(\|\Delta\eta\|_\infty, \|\Delta\Lambda\|_\infty)$
   for Gaussians, the norm of the difference for points), without temporaries.
 
@@ -75,8 +79,10 @@ precision and two point blocks.
 
 Batched methods: `LinearConstraintFactor` (inputs as points, trivial, or proper Gaussians with one
 shared precision: one factorisation, then $H = Kc\,\mathbf 1^\top - \sum_n (K A_n) M_n$), `GaussianPrior`
-(one conversion when the replicas share mean and covariance), and `DataFactor` (the data as one
-point block).
+(one conversion when the replicas share mean and covariance), `DataFactor` (the data as one
+point block), and `SwitchingConstraintFactor` to its outcome (the same inputs as the linear
+factor: one metric, then $\log P_i(k) = \log w_k - \tfrac12\lVert T(b_k - s_i)\rVert^2$ as a `CategoricalBlock`; 2026-11-03,
+`switching.md` §10).
 
 ## Energies on blocks
 
@@ -89,7 +95,9 @@ rows, none detached) is evaluated by three hooks. Each defaults to a loop over r
   beliefs, ps, st)`, differentiable in `ps`: the parameter gradient's frozen beliefs and its
   energies (LP-020). `free_energy_gradient` differentiates one item per row instead of $n$.
 
-`LinearConstraintFactor` and `GaussianPrior` implement them through `FrozenGaussianBeliefs` (in
+`SwitchingConstraintFactor` implements them through `FrozenSwitchingBeliefs` (one precision,
+covariance and $H(x \mid k)$, a mean per outcome and replica, the outcome posteriors as a $K \times n$
+matrix; `switching.md` §10). `LinearConstraintFactor` and `GaussianPrior` implement them through `FrozenGaussianBeliefs` (in
 Lenticulum's `gaussian.jl`): with every free input a Gaussian block of shared precision, the
 factor beliefs share one covariance and entropy, and only the means differ, one column each. The
 variable terms of the Bethe free energy go by rows as well: the marginal block of a variable row
@@ -123,10 +131,30 @@ sweep, with the messages as blocks against the same messages per edge:
 | 1000 | 1.14 ms | 10.67 ms | 2.06 ms | 57.40 ms |
 | 3000 | 3.49 ms | 32.88 ms | 5.51 ms | 166.47 ms |
 
+A plate of switching factors, a Gaussian mixture with one replica per point
+(`bench/mixture_plates.jl`, $d = 2$, $K = 3$; the same minimum of five runs): the E-step is the messages
+to the outcomes.
+
+| $N$ | sequential | grouped, on blocks | both directions | by hand | $F$, blocks | $F$, per edge | $\nabla F$, blocks | $\nabla F$, per edge |
+|---|---|---|---|---|---|---|---|---|
+| 100 | 1.02 ms | 0.021 ms | 0.56 ms | 0.0061 ms | 0.12 ms | 0.53 ms | 0.43 ms | 2.89 ms |
+| 1000 | 9.69 ms | 0.10 ms | 5.02 ms | 0.044 ms | 1.09 ms | 5.14 ms | 2.86 ms | 28.99 ms |
+| 3000 | 29.36 ms | 0.27 ms | 15.25 ms | 0.13 ms | 3.59 ms | 15.89 ms | 8.45 ms | 87.12 ms |
+
+"Sequential" is edge by edge; "both directions" makes the edge to the observed $z$ bidirectional,
+so each replica also sends its mixture message back, replica by replica. The E-step on blocks is
+about 2.3 times the closed form, $F$ about 4.7 times and $\nabla F$ about 10 times faster than per edge;
+the mixture messages cost 50 times the whole E-step.
+
 ## What it does not do
 
-- Mixtures (switching factors) and other non-Gaussian messages are held as `VectorBlock`s and run
-  per replica; a batched mixture block (components × replicas) is not implemented.
+- Mixture messages (a switching factor's message to a continuous channel) are held as
+  `VectorBlock`s and computed per replica; `bench/mixture_plates.jl` measures them at 50 times the
+  batched E-step. A batched mixture block is the planned next step ([[L-SPEC-006 Plates]] §8).
+- Plate sweeps group belief-propagation nodes only: `ExpectationPropagationRule()` and
+  `MixtureReduction(M)` nodes take the per-edge path. Their energies do use the rows (EP nodes,
+  same rule throughout). EP on blocks needs the mixture block first: the projection is cheap, the
+  mixture message is not.
 - Per-replica precisions (`Λ` as a vector) are combined and compared column by column; no factor
   method produces or consumes them in batch, so they take the per-replica fallback inside
   `LinearConstraintFactor`.

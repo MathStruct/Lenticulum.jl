@@ -102,3 +102,35 @@ $D^{-1}(\Sigma_c + \Sigma_d)D^{-1}$ with $D = \operatorname{diag}(\sqrt{\max(\Si
 (`_scaled_sum`, diagonal-preserving, so huge and tiny variances coexist and device/Zygote
 paths broadcast); and mixture products re-centre improper sites only when the other side has
 exactly one, since the dropped constant differs between sites.
+
+## Expectation propagation (2026-11-03)
+
+The Gaussian pieces of the `ExpectationPropagationRule()` (`passing.md`):
+
+- `ep_project(m::MixtureBelief{<:GaussianBelief})`: the total mean $\mu = \sum_k w_k \mu_k$ and
+  covariance $\sum_k w_k(\Sigma_k + (\mu_k - \mu)(\mu_k - \mu)^\top)$, as Lenticulum's `moment_match`, but
+  returning `nothing` instead of throwing when a component is not proper or the covariance is not
+  positive definite: the rule then skips the update.
+- `ep_divide(p, c)`: $(\eta_p - \eta_c, \Lambda_p - \Lambda_c)$, declared improper unless the difference is positive
+  definite. EP sites are often not: on the clutter problem a site's precision is negative for an
+  outlier the cavity already explains.
+- `_indefinite(b)`: a precision with an eigenvalue below $-16\, d\, \varepsilon\, \max|\lambda|$; an EP node
+  skips an update whose factor would receive such a cavity, since the factors take positive
+  semidefinite inputs only.
+
+## Products of improper components (2026-11-03)
+
+`combine_with_overlap(c, d)` used to require a proper `c`. When both are improper, unnormalised
+exponentials $\exp(\eta^\top x - \tfrac12 x^\top \Lambda x)$ as a likelihood mixture carries them, the product is
+exact: the exponentials multiply, $(\eta_c + \eta_d, \Lambda_c + \Lambda_d)$, and there is no overlap integral to take.
+If the sum is proper it is normalised and its mass
+$\tfrac12 \eta^\top \Lambda^{-1} \eta + \tfrac d2 \log 2\pi - \tfrac12 \log\det \Lambda$ moves into $\log Z$; otherwise it stays an unnormalised
+exponential with $\log Z = 0$. With a re-centring point `ref` (LP-019) the same constant of `d` is
+dropped as in the proper case, $d$ evaluated at `ref`. Two mixtures of likelihoods, the messages
+of two data points to one variable, can now be pooled; exact belief propagation on the clutter
+problem needs it (`test/mixture_rules.jl`, which also checks the formula on a 1-d pair and the
+improper case).
+
+The normalisation subtracts no log-partitions from each other, but it does compute
+$\tfrac12 \eta^\top \Lambda^{-1} \eta$ directly, which is large when the product is far from the origin; the LP-019
+care for proper pairs (the convolution form) has no counterpart here.

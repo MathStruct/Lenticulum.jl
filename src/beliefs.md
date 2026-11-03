@@ -63,3 +63,13 @@ removed mass bounds total variation, not moments: components at 0 and `1e12` wit
 removed mass `1e-10` shift the mean by 100. Merging without pruning still preserves
 moments. Evidence: `test/lp018.jl`, “LP-018.9 finite particle weights in moment
 matching” and “LP-018.13 pruning bounds mass, not moments”.
+
+## The reduction of a message (2026-11-03)
+
+`Mycelium.reduce_message(m::MixtureBelief{<:GaussianBelief}, M)` is what a `MixtureReduction(M)` node
+sends: `reduce_mixture(m; max_components = M)` (Runnalls 2007) when `m` has more than `M`
+components, and the one component itself when one is left, so a budget of one sends a Gaussian.
+Runnalls' merge needs the components' moments, so a mixture with an improper (likelihood)
+component over the budget is refused with that reason; under the budget it passes. Pruning
+(weights below $10^{-8}$ of the largest) happens only when a reduction is needed. Tested in
+`test/mixture_rules.jl`.

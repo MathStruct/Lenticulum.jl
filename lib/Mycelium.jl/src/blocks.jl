@@ -23,6 +23,7 @@ belief, read with [`replica`](@ref). Implemented:
 | `TrivialBlock(n)` | nothing | `TrivialBelief()` |
 | `PointBlock(X)` | points as the columns of a `d × n` matrix | `DiracBelief(X[:, i])` |
 | `GaussianBlock(η, Λ, improper)` | information vectors `η` (`d × n`), precisions `Λ` | `GaussianBelief(η[:, i], Λᵢ, improper[i])` |
+| `CategoricalBlock(logp, labels)` | normalised log-probabilities as the columns of a `K × n` matrix | `CategoricalBelief(logp[:, i])` |
 | `VectorBlock(beliefs)` | any beliefs, one per replica | `beliefs[i]` |
 
 `Λ` of a `GaussianBlock` is one matrix shared by every replica, or a vector of `n` matrices.
@@ -47,6 +48,18 @@ struct GaussianBlock{E<:AbstractMatrix,L} <: BeliefBlock
         return new{E,L}(η, Λ, collect(Bool, improper))
     end
 end
+"""
+    CategoricalBlock(logp, labels = nothing)
+
+`n` categorical beliefs over one support of `K` states: the normalised log-probabilities as the
+columns of the `K × n` matrix `logp`, the `labels` shared. Replica `i` is
+`CategoricalBelief(logp[:, i])`. A plate of switching factors sends its outcome messages as one.
+"""
+struct CategoricalBlock{M<:AbstractMatrix,L} <: BeliefBlock
+    logp::M                   # K × n, each column normalised
+    labels::L                 # shared by every replica
+end
+CategoricalBlock(logp::AbstractMatrix) = CategoricalBlock(logp, nothing)
 struct VectorBlock <: BeliefBlock
     beliefs::Vector{Any}
 end
@@ -59,6 +72,7 @@ The number of replicas in a [`BeliefBlock`](@ref).
 nreplicas(b::TrivialBlock) = b.n
 nreplicas(b::PointBlock) = size(b.X, 2)
 nreplicas(b::GaussianBlock) = size(b.η, 2)
+nreplicas(b::CategoricalBlock) = size(b.logp, 2)
 nreplicas(b::VectorBlock) = length(b.beliefs)
 
 """
@@ -72,6 +86,7 @@ function replica end
 replica(::TrivialBlock, i::Int) = LenticulumCore.TrivialBelief()
 replica(b::PointBlock, i::Int) = LenticulumCore.DiracBelief(b.X[:, i])
 replica(b::GaussianBlock, i::Int) = GaussianBelief(b.η[:, i], _precision(b, i), b.improper[i])
+replica(b::CategoricalBlock, i::Int) = LenticulumCore.CategoricalBelief(Val(:log), b.logp[:, i], b.labels)
 replica(b::VectorBlock, i::Int) = b.beliefs[i]
 
 _shared(b::GaussianBlock) = b.Λ isa AbstractMatrix
@@ -102,6 +117,10 @@ function belief_block(bs::AbstractVector)
             Λ = all(b -> b.Λ === b1.Λ, bs) ? b1.Λ : [b.Λ for b in bs]
             return GaussianBlock(η, Λ, [b.improper for b in bs])
         end
+    elseif b1 isa LenticulumCore.CategoricalBelief
+        K = length(b1.logp)
+        all(b -> b isa LenticulumCore.CategoricalBelief && length(b.logp) == K && isequal(b.labels, b1.labels), bs) &&
+            return CategoricalBlock(reduce(hcat, [b.logp for b in bs]), b1.labels)
     end
     return VectorBlock(Any[b for b in bs])
 end
@@ -135,6 +154,15 @@ function combine_blocks(a::GaussianBlock, b::GaussianBlock)
     end
     return GaussianBlock(a.η + b.η, Λ, improper)
 end
+# Categoricals multiply: log-probabilities add, and each column is normalised again.
+function combine_blocks(a::CategoricalBlock, b::CategoricalBlock)
+    size(a.logp) == size(b.logp) && isequal(a.labels, b.labels) || return _combine_columns(a, b)
+    l = a.logp .+ b.logp
+    m = maximum(l; dims = 1)
+    any(==(-Inf), m) && return _combine_columns(a, b)   # throws: disjoint supports
+    l = l .- m
+    return CategoricalBlock(l .- log.(sum(exp.(l); dims = 1)), a.labels)
+end
 combine_blocks(a::BeliefBlock, b::BeliefBlock) = _combine_columns(a, b)
 _combine_columns(a, b) = belief_block([combine(replica(a, i), replica(b, i)) for i in 1:nreplicas(a)])
 
@@ -161,6 +189,19 @@ function block_distance(a::PointBlock, b::PointBlock)
     end
     return d
 end
+# Total variation per column, as `belief_distance` of two categoricals.
+function block_distance(a::CategoricalBlock, b::CategoricalBlock)
+    size(a.logp) == size(b.logp) && isequal(a.labels, b.labels) || return Inf
+    d = 0.0
+    for i in axes(a.logp, 2)
+        s = 0.0
+        for k in axes(a.logp, 1)
+            s += abs(exp(a.logp[k, i]) - exp(b.logp[k, i]))
+        end
+        d = max(d, s / 2)
+    end
+    return d
+end
 function _maxabsdiff(x::AbstractArray, y::AbstractArray)
     x === y && return 0.0
     size(x) == size(y) || return Inf
@@ -178,6 +219,7 @@ end
 # Whether every column is uninformative (`true`), none is (`false`), or some are (`missing`).
 _uninformative(::TrivialBlock) = true
 _uninformative(::PointBlock) = false
+_uninformative(::CategoricalBlock) = false
 function _uninformative(b::GaussianBlock)       # isuninformative: Λᵢ = 0 and ηᵢ = 0
     _shared(b) && !all(iszero, b.Λ) && return false
     flags = [all(iszero, _precision(b, i)) && all(iszero, view(b.η, :, i)) for i in 1:nreplicas(b)]

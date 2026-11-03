@@ -66,7 +66,7 @@ export NonlinearFactor, NonlinearGaussianModel, Linearization, Unscented, linear
 export LinearConstraintFactor, LinearConstraintModel
 export residual, residual_statistics
 export SwitchingConstraintFactor, SwitchingConstraintModel, switch_statistics
-export FrozenGaussianBelief
+export FrozenGaussianBelief, FrozenSwitchingBeliefs
 export LikelihoodFactor, LikelihoodModel, Laplace, ExpectationPropagation, predictive, log_evidence
 export AbstractLikelihood, PoissonLikelihood, BivariatePoissonLikelihood, OrdinalProbitLikelihood
 export npredictors, obsdim, loglikelihood, loglikelihood_derivatives, outcomes, outcome_logprobs
