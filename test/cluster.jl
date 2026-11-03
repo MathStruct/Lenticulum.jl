@@ -150,6 +150,72 @@ end
     @test first(scalar_free_energy(sc, gc, psc, NamedTuple())) ≈ -mr_lse(lp) rtol = 1e-12
 end
 
+# E7's grouping (examples/hierarchy_inference.jl on experiment-qm), verbatim, as the oracle.
+function cl_e7_overlap_blocks(G, B)
+    L = size(G, 1)
+    blocks = [[l] for l in 1:L]
+    c = [abs(G[l, m]) / sqrt(G[l, l] * G[m, m]) for l in 1:L, m in 1:L]
+    while true
+        best, pair = 0.0, nothing
+        for a in eachindex(blocks), b in a+1:length(blocks)
+            length(blocks[a]) + length(blocks[b]) <= B || continue
+            s = maximum(c[l, m] for l in blocks[a] for m in blocks[b])
+            s > best && ((best, pair) = (s, (a, b)))
+        end
+        pair === nothing && break
+        a, b = pair
+        blocks[a] = sort(vcat(blocks[a], blocks[b])); deleteat!(blocks, b)
+    end
+    return blocks
+end
+
+# The additive wiring z = Σₗ uₗ + ε, uₗ ∈ {0, Wₗ} + εₗ, in d dimensions with L switches.
+function cl_additive_W(W, Σ, ε, x)
+    d, L = size(W)
+    b = GraphBuilder(); variable!(b, :z, d)
+    factor!(b, :data, DataFactor(:z, x)); connect!(b, :data, :z, :z; direction = Emitting())
+    dims = NamedTuple{(:z, (Symbol(:u, l) for l in 1:L)...)}(ntuple(_ -> d, L + 1))
+    factor!(b, :sum, LinearConstraintFactor(dims, d; noise = Σ)); connect!(b, :sum, :z, :z)
+    for l in 1:L
+        u, k, sw = Symbol(:u, l), Symbol(:k, l), Symbol(:sw, l)
+        variable!(b, u, d); variable!(b, k, 2)
+        factor!(b, sw, SwitchingConstraintFactor((u = d,), 2, d; noise = ε))
+        connect!(b, :sum, u, u); connect!(b, sw, :u, u); connect!(b, sw, :k, k)
+    end
+    g = build(b)
+    E = Matrix(1.0I, d, d)
+    ps = merge((data = NamedTuple(), sum = (A = NamedTuple{keys(dims)}((E, ntuple(_ -> -E, L)...)), c = zeros(d))),
+               NamedTuple{Tuple(Symbol(:sw, l) for l in 1:L)}(Tuple((A = (u = E,), b = hcat(zeros(d), W[:, l]), logw = zeros(2)) for l in 1:L)))
+    return g, ps
+end
+
+@testset "Grouping switches by overlap" begin
+    rng = Xoshiro(11)
+    d, L = 4, 6
+    W = randn(rng, d, L); W[:, 4] .= W[:, 1] .+ 0.1 .* randn(rng, d); W[:, 6] .= -W[:, 2] .+ 0.2 .* randn(rng, d)
+    Σ = [0.5 0.1 0 0; 0.1 0.4 0 0; 0 0 0.3 0; 0 0 0 0.6]
+    g, ps = cl_additive_W(W, Σ, 1e-3, randn(rng, d))
+    sws = [Symbol(:sw, l) for l in 1:L]
+    O = switch_overlaps(g, ps, :sum, sws)
+    R = Σ + L * 1e-3 * I
+    G = W' * (R \ W)
+    @test O ≈ [abs(G[l, m]) / sqrt(G[l, l] * G[m, m]) for l in 1:L, m in 1:L] atol = 1e-12
+    for B in (2, 3, 4)
+        @test overlap_groups(O, B) == cl_e7_overlap_blocks(G, B)
+    end
+    groups = overlap_groups(O, 3)
+    @test any(gr -> 1 in gr && 4 in gr, groups) && any(gr -> 2 in gr && 6 in gr, groups)   # the planted pairs
+    gc = cluster(g, [Symbol(:blk, i) => sws[gr] for (i, gr) in enumerate(groups)])
+    @test count(f -> f.factor isa ClusterFactor, gc.factors) == length(groups)
+    psc = cluster_parameters(gc, ps)
+    @test Set(keys(psc)) == Set([:data, :sum, (Symbol(:blk, i) for i in eachindex(groups))...])
+    # the blocks' messages run, and the overlap clusters are exact when there is one group
+    gall = cluster(g, [:one => sws])
+    s = MessageStore(gall)
+    for _ in 1:5; sweep!(s, gall, SequentialSchedule(all_tasks(gall)), cluster_parameters(gall, ps), NamedTuple()); end
+    @test marginal(s, gall, gall.variable_index[:u1]) isa MixtureBelief
+end
+
 @testset "cluster: refusals" begin
     g = cl_additive()
     @test_throws ArgumentError cluster(g, :c, [:data, :sw1])            # DataFactor has no cluster_form
@@ -157,6 +223,9 @@ end
     @test_throws ArgumentError cluster(g, :sum, [:sw1])                 # the name is taken
     gt = mr_chain(BeliefPropagation())
     @test_throws ArgumentError cluster(gt, :c, [:o1, :o2])              # :obs is tied to o3…o5 outside
+    @test_throws ArgumentError cluster(gt, [:c1 => [:o1, :o2, :o3], :c2 => [:o4, :o5]])   # tied across clusters without params
+    @test_throws ArgumentError cluster(g, [:c1 => [:sw1, :sw2], :c2 => [:sw2]])        # overlapping groups
+    @test_throws ArgumentError cluster(g, [:c1 => [:sw1, :sw2]]; params = :sum)        # a key an outside node reads
     b = GraphBuilder()
     plate!((p, i) -> (variable!(p, :x, 1); factor!(p, :pr, GaussianPrior(:x, 0.0, 1.0)); connect!(p, :pr, :x, :x)), b, :pl, 2)
     @test_throws ArgumentError cluster(build(b), :c, [Symbol("pr[1]")])

@@ -120,37 +120,99 @@ uses_cavity(::ClusterFactor) = true
 
 """
     cluster(g::FactorGraph, name::Symbol, factors) -> FactorGraph
+    cluster(g::FactorGraph, groups::AbstractVector{<:Pair}; params = nothing) -> FactorGraph
 
 The graph with the factor nodes named in `factors` replaced by one [`ClusterFactor`](@ref) node
-`name`. Variables touched only by those factors become internal to it; every other variable they
-touch becomes one of its channels, named after the variable, on a bidirectional edge. Inside the
-node inference is exact (`cluster.md`): each factor must have a [`cluster_form`](@ref), a discrete
-variable is one some factor switches on ([`cluster_switch`](@ref)), and every variable needs an
-`Int` dimension (its number of states, if discrete).
+`name`; the second form makes one node per `name => factors` pair, at once. Variables touched
+only by a group's factors become internal to its node; every other variable they touch becomes
+one of its channels, named after the variable, on a bidirectional edge. Inside the node inference
+is exact (`cluster.md`): each factor must have a [`cluster_form`](@ref), a discrete variable is one
+some factor switches on ([`cluster_switch`](@ref)), and every variable needs an `Int` dimension (its
+number of states, if discrete).
 
-Refused: graphs with plates; factors that are not belief-propagation nodes, have frozen parameter
-paths, or share a parameter key with a node outside the cluster; edges of the clustered factors
-that are not bidirectional, diagonal and attached. The cluster node reads the parameter entry
-`name`, a `NamedTuple` keyed by the clustered factors' parameter keys ([`cluster_parameters`](@ref)).
+A cluster node reads the parameter entry `name`, a `NamedTuple` keyed by its factors' parameter
+keys ([`cluster_parameters`](@ref)). With `params`, every node reads that one entry instead: the
+nodes are tied, which is how replicas of one model (one cluster per data point) share their
+parameters, and which requires every node to hold the same parameter keys.
+
+Refused: graphs with plates; groups that overlap; factors that are not belief-propagation nodes,
+have frozen parameter paths, or share a parameter key with a node outside every group (or, without
+`params`, with a node in another group); unconnected channels; edges of the clustered factors
+that are not bidirectional, diagonal and attached.
 """
-function cluster(g::FactorGraph, name::Symbol, factors)
+cluster(g::FactorGraph, name::Symbol, factors) = cluster(g, [name => factors])
+
+function cluster(g::FactorGraph, groups::AbstractVector{<:Pair}; params::Union{Symbol,Nothing} = nothing)
     isempty(g.plates) || throw(ArgumentError("cluster: graphs with plates are not supported"))
-    haskey(g.factor_index, name) && !(name in factors) && throw(ArgumentError("cluster: a factor :$name exists already"))
-    fids = Int[]
-    for fname in factors
-        haskey(g.factor_index, fname) || throw(ArgumentError("cluster: no factor :$fname"))
-        push!(fids, g.factor_index[fname])
+    isempty(groups) && throw(ArgumentError("cluster: no groups"))
+    names = Symbol[first(gr) for gr in groups]
+    allunique(names) || throw(ArgumentError("cluster: the cluster names must differ"))
+    fidss = Vector{Int}[]
+    for (name, factors) in groups
+        fids = Int[]
+        for fname in factors
+            haskey(g.factor_index, fname) || throw(ArgumentError("cluster: no factor :$fname"))
+            push!(fids, g.factor_index[fname])
+        end
+        allunique(fids) && !isempty(fids) || throw(ArgumentError("cluster: give each factor once, and at least one"))
+        push!(fidss, fids)
     end
-    allunique(fids) && !isempty(fids) || throw(ArgumentError("cluster: give each factor once, and at least one"))
-    inside = Set(fids)
+    allunique(reduce(vcat, fidss)) || throw(ArgumentError("cluster: the groups overlap"))
+    union_ = Set(reduce(vcat, fidss))
+    for (name, fids) in zip(names, fidss)
+        haskey(g.factor_index, name) && !(g.factor_index[name] in union_) && throw(ArgumentError("cluster: a factor :$name exists already"))
+    end
+    nodes = [_cluster_node(g, fids, Set(fids), union_, params !== nothing) for fids in fidss]
+    if params !== nothing
+        all(c -> Set(_unique_keys(c)) == Set(_unique_keys(first(nodes))), nodes) || throw(ArgumentError(
+            "cluster: tied cluster nodes (params = :$params) must hold the same parameter keys"))
+    end
+    # a cluster's parameter key must not be one that a node left outside reads
+    outside_keys = Set(f.params for f in g.factors if !(f.id in union_))
+    for k in (params === nothing ? names : [params])
+        k in outside_keys && throw(ArgumentError(
+            "cluster: the parameter key :$k is read by a node outside the clusters; choose another name or `params`"))
+    end
+    owner = Dict(f => k for (k, fids) in enumerate(fidss) for f in fids)
+    internal = union(Set{Int}(), (_internal_variables(g, fids) for fids in fidss)...)
+    b = GraphBuilder()
+    for v in g.variables
+        v.id in internal || variable!(b, v.name, v.space)
+    end
+    placed = falses(length(groups))
+    for f in g.factors
+        k = get(owner, f.id, 0)
+        if k == 0
+            factor!(b, f.name, f.factor; freeze = f.freeze, rule = f.rule, params = f.params)
+        elseif !placed[k]
+            factor!(b, names[k], nodes[k]; params = something(params, names[k])); placed[k] = true
+        end
+    end
+    for e in g.edges
+        haskey(owner, e.factor) && continue
+        connect!(b, g.factors[e.factor].name, e.channel, g.variables[e.variable].name;
+                 direction = e.direction, coupling = e.coupling, detach = e.detach)
+    end
+    for (name, node) in zip(names, nodes), v in node.boundary
+        connect!(b, name, v, v)
+    end
+    return build(b)
+end
+
+_internal_variables(g, fids) = (inside = Set(fids); vids = unique(g.edges[ei].variable for fid in fids for ei in g.edges_of_factor[fid]);
+    Set(v for v in vids if all(ei -> g.edges[ei].factor in inside, g.edges_of_variable[v])))
+
+# One group's node, after the checks of `cluster`.
+function _cluster_node(g, fids, inside, union_, tied)
     for fid in fids
         f = g.factors[fid]
         f.rule isa BeliefPropagation || throw(ArgumentError("cluster: :$(f.name) is not a BeliefPropagation() node"))
         which(cluster_form, Tuple{typeof(f.factor),Any}) === which(cluster_form, Tuple{Any,Any}) && throw(ArgumentError(
             "cluster: :$(f.name) ($(nameof(typeof(f.factor)))) has no `Mycelium.cluster_form`; keep it outside the cluster"))
         isempty(f.freeze) || throw(ArgumentError("cluster: :$(f.name) has frozen parameter paths"))
-        all(h -> h.params !== f.params || h.id in inside, g.factors) || throw(ArgumentError(
-            "cluster: :$(f.name) shares its parameter key :$(f.params) with a node outside the cluster"))
+        all(h -> h.params !== f.params || h.id in (tied ? union_ : inside), g.factors) || throw(ArgumentError(
+            "cluster: :$(f.name) shares its parameter key :$(f.params) with a node outside the cluster" *
+            (tied ? "s" : " (tie the clusters with `params` to share keys between them)")))
         wired = Set(g.edges[ei].channel for ei in g.edges_of_factor[fid])
         for ch in LenticulumCore.channels(f.factor)
             LenticulumCore.channelname(ch) in wired || throw(ArgumentError(
@@ -163,7 +225,7 @@ function cluster(g::FactorGraph, name::Symbol, factors)
         end
     end
     vids = unique(g.edges[ei].variable for fid in fids for ei in g.edges_of_factor[fid])
-    internal = Set(v for v in vids if all(ei -> g.edges[ei].factor in inside, g.edges_of_variable[v]))
+    internal = _internal_variables(g, fids)
     vnames = [g.variables[v].name for v in vids]
     dims = Dict{Symbol,Int}()
     for v in vids
@@ -174,54 +236,73 @@ function cluster(g::FactorGraph, name::Symbol, factors)
     wiring = [[g.edges[ei].channel => g.variables[g.edges[ei].variable].name for ei in g.edges_of_factor[fid]] for fid in fids]
     discrete = Symbol[]
     for (fid, w) in zip(fids, wiring)
-        s = cluster_switch(g.factors[fid].factor)
-        s === nothing && continue
-        k = findfirst(p -> p.first === s, w)
+        sw = cluster_switch(g.factors[fid].factor)
+        sw === nothing && continue
+        k = findfirst(p -> p.first === sw, w)
         k === nothing || push!(discrete, w[k].second)
     end
     discrete = unique(discrete)
     continuous = [v for v in vnames if !(v in discrete)]
     boundary = [g.variables[v].name for v in vids if !(v in internal)]
-    node = ClusterFactor([g.factors[f].name for f in fids], [g.factors[f].params for f in fids],
-                         Any[g.factors[f].factor for f in fids], wiring,
-                         vnames, dims, discrete, continuous, boundary)
-    b = GraphBuilder()
-    for v in g.variables
-        v.id in internal || variable!(b, v.name, v.space)
-    end
-    placed = false
-    for f in g.factors
-        if f.id in inside
-            placed && continue
-            factor!(b, name, node); placed = true
-        else
-            factor!(b, f.name, f.factor; freeze = f.freeze, rule = f.rule, params = f.params)
-        end
-    end
-    for e in g.edges
-        e.factor in inside && continue
-        connect!(b, g.factors[e.factor].name, e.channel, g.variables[e.variable].name;
-                 direction = e.direction, coupling = e.coupling, detach = e.detach)
-    end
-    for v in boundary
-        connect!(b, name, v, v)
-    end
-    return build(b)
+    return ClusterFactor([g.factors[f].name for f in fids], [g.factors[f].params for f in fids],
+                         Any[g.factors[f].factor for f in fids], wiring, vnames, dims, discrete, continuous, boundary)
 end
 
 """
+    cluster_parameters(gc, ps) -> NamedTuple
     cluster_parameters(gc, name, ps) -> NamedTuple
 
-A parameter (or state) tree of the original graph as the clustered graph `gc` reads it: the
-clustered factors' entries are moved under `name`, keyed by their parameter keys.
+A parameter (or state) tree of the original graph as the clustered graph `gc` reads it: each
+cluster node's factors' entries are moved under the node's parameter key (its name, or the shared
+`params` of tied nodes), keyed by their parameter keys. The second form checks that `name` is a
+cluster node and converts for all of them.
 """
+function cluster_parameters(gc::FactorGraph, ps::NamedTuple)
+    nodes = [f for f in gc.factors if f.factor isa ClusterFactor]
+    moved = Dict{Symbol,Any}()
+    inner_keys = Set{Symbol}()
+    for f in nodes
+        ks = _unique_keys(f.factor)
+        union!(inner_keys, ks)
+        haskey(moved, f.params) || (moved[f.params] = NamedTuple{Tuple(ks)}(Tuple(_subtree(ps, k) for k in ks)))
+    end
+    rest = Tuple(k for k in keys(ps) if !(k in inner_keys) && !haskey(moved, k))
+    outer = NamedTuple{rest}(Tuple(getfield(ps, k) for k in rest))
+    added = Tuple(unique(f.params for f in nodes))
+    return merge(outer, NamedTuple{added}(Tuple(moved[k] for k in added)))
+end
 function cluster_parameters(gc::FactorGraph, name::Symbol, ps::NamedTuple)
-    c = factornode(gc, gc.factor_index[name]).factor
-    c isa ClusterFactor || throw(ArgumentError("cluster_parameters: :$name is not a cluster node"))
-    ks = _unique_keys(c)
-    inner = NamedTuple{Tuple(ks)}(Tuple(_subtree(ps, k) for k in ks))
-    rest = Tuple(k for k in keys(ps) if !(k in ks))
-    return merge(NamedTuple{rest}(Tuple(getfield(ps, k) for k in rest)), NamedTuple{(name,)}((inner,)))
+    factornode(gc, gc.factor_index[name]).factor isa ClusterFactor ||
+        throw(ArgumentError("cluster_parameters: :$name is not a cluster node"))
+    return cluster_parameters(gc, ps)
+end
+
+"""
+    overlap_groups(C::AbstractMatrix, maxsize) -> Vector{Vector{Int}}
+
+Groups of at most `maxsize` items by their pairwise overlaps `C` (symmetric, larger is more
+overlap), E7's rule (`Composing Stochastic Factors`): starting from singletons, merge the two
+groups whose largest overlap between members is largest, as long as the merged group fits and
+that overlap is positive. Lenticulum's `switch_overlaps` gives the overlaps of switching factors
+feeding one sum; the groups then go to [`cluster`](@ref).
+"""
+function overlap_groups(C::AbstractMatrix, maxsize::Integer)
+    L = size(C, 1)
+    size(C, 2) == L || throw(DimensionMismatch("the overlaps must be a square matrix"))
+    maxsize >= 1 || throw(ArgumentError("maxsize must be at least 1"))
+    groups = [[l] for l in 1:L]
+    while true
+        best, pair = 0.0, nothing
+        for a in eachindex(groups), b in (a + 1):length(groups)
+            length(groups[a]) + length(groups[b]) <= maxsize || continue
+            o = maximum(C[l, m] for l in groups[a] for m in groups[b])
+            o > best && ((best, pair) = (o, (a, b)))
+        end
+        pair === nothing && break
+        a, b = pair
+        groups[a] = sort(vcat(groups[a], groups[b])); deleteat!(groups, b)
+    end
+    return groups
 end
 
 # --- Exact inference inside -----------------------------------------------------

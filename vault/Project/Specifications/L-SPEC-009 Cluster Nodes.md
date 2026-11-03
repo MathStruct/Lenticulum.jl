@@ -43,6 +43,14 @@ belief $b \propto \prod_f f \prod_v \mu_v$, graded `(fit, complexity, negentropy
 `belief_free_energy` give its parameter gradient at a fixed belief. Internal variables do not
 appear in the graph's counting numbers.
 
+**§6. Several clusters, tied, and grouping by overlap** (planned and implemented 2026-11-03).
+`cluster(g, groups::Vector{Pair}; params)` makes one node per group; with `params` the nodes read
+one entry (tied), and a key shared between groups is allowed only then. `overlap_groups(C,
+maxsize)` is E7's greedy grouping; Lenticulum's `switch_overlaps(g, ps, sum, switches)` gives the
+switches' overlaps as they feed one linear factor (largest $|\cos|$ of their offset directions in the
+sum's total-noise metric). Grouping does not rewire: E7's partial sum per block is the caller's
+edit, and without it a cluster of switches meeting only at the sum gains nothing (`cluster.md`).
+
 **§5. Parameters and marginals.** The node's parameters are keyed by the clustered factors'
 parameter keys; `cluster_parameters(gc, name, ps)` converts a parameter tree of the original graph.
 `cluster_marginal(store, gc, name, v, ps)` is the marginal of a cluster variable under the node's
@@ -57,8 +65,13 @@ same loopy schedule and local free energies to $10^{-10}$); the cluster of the s
 has $-\log p(z)$ where the plain graph has no free energy; the refusals. `lib/Mycelium.jl/test/cluster.jl`:
 the same on Mycelium's own prior factors.
 
+Grouping (`test/cluster.jl`, `bench/cluster_overlap.jl`): `switch_overlaps` equals E7's normalised
+Gram to $10^{-12}$ and `overlap_groups` E7's `overlap_blocks` for block sizes 2–4; on eight switches in
+overlapping pairs, blocks of 4 by overlap (with partial sums) cut the mean error of the switch
+posteriors from 0.092 to 0.031, blocks in index order to 0.092.
+
 ## Open
 
 - Factors whose $A$ or $Q$ depend on the outcome, flat continuous directions inside a cluster,
-  clusters in plates, automatic grouping by overlap (E7's $|\cos|$ criterion).
+  clusters in plates, inserting E7's partial sums automatically from the groups.
 - Merging repeated components of a message (assignments the target does not see).

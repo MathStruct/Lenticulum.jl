@@ -485,3 +485,48 @@ end
         @test Mycelium.block_distance(M, M) == 0
     end
 end
+
+# EP sites into a linear factor (L-SPEC-006 §8.4): z carries the mixture on EP nodes, y = z + δ₁ is
+# latent, x = y + δ₂ observed. The message of :up to y reads z's cavity, the EP site: a block with a
+# precision per replica, which `LinearConstraintFactor`'s block method takes in one loop.
+function pl_two_layer!(p, x)
+    variable!(p, :z, PL_SD); variable!(p, :y, PL_SD); variable!(p, :x, PL_SD); variable!(p, :k, PL_SK)
+    factor!(p, :data, DataFactor(:x, x))
+    factor!(p, :down, LinearConstraintFactor((x = PL_SD, y = PL_SD), PL_SD; noise = 0.3))
+    factor!(p, :up, LinearConstraintFactor((y = PL_SD, z = PL_SD), PL_SD; noise = 0.2))
+    factor!(p, :sw, SwitchingConstraintFactor((z = PL_SD,), PL_SK, PL_SD; noise = PL_SQ); rule = ExpectationPropagationRule())
+    connect!(p, :data, :x, :x; direction = Emitting()); connect!(p, :down, :x, :x; direction = Absorbing())
+    connect!(p, :down, :y, :y); connect!(p, :up, :y, :y); connect!(p, :up, :z, :z)
+    connect!(p, :sw, :z, :z); connect!(p, :sw, :k, :k)
+end
+pl_eye(d) = Matrix(1.0I, d, d)
+
+@testset "EP sites into a linear factor on blocks" begin
+    X = randn(Xoshiro(5), PL_SD, 30) .* 2
+    b = GraphBuilder(); plate!((p, i) -> pl_two_layer!(p, X[:, i]), b, :obs, size(X, 2)); g = build(b)
+    ps = LuxCore.initialparameters(Xoshiro(0), g)
+    ps = merge(ps, (sw = merge(ps.sw, (A = (z = pl_eye(PL_SD),),)),
+                    down = (A = (x = pl_eye(PL_SD), y = -pl_eye(PL_SD)), c = zeros(PL_SD)),
+                    up = (A = (y = pl_eye(PL_SD), z = -pl_eye(PL_SD)), c = zeros(PL_SD))))
+    sched = plate_schedule(g)
+    s, s2 = MessageStore(g), MessageStore(g)
+    for _ in 1:30
+        sweep!(s, g, sched, ps, NamedTuple()); sweep!(s2, g, SequentialSchedule(tasks(sched)), ps, NamedTuple())
+    end
+    for i in 1:nedges(g)
+        a, c = s.to_variable[i], s2.to_variable[i]
+        a === nothing || @test belief_distance(a.belief, c.belief) < 1e-10
+    end
+    # the row of :up's messages to y is one block with a precision per replica
+    up_y = [e for e in 1:nedges(g) if g.factors[g.edges[e].factor].params === :up && g.edges[e].channel === :y]
+    r = s.to_variable.row[first(up_y)]
+    @test r != 0 && s.to_variable.blocks[r] !== nothing && !(s.to_variable.blocks[r].belief.Λ isa AbstractMatrix)
+    # the block method against the per-replica messages, at per-replica-precision inputs
+    fs = [g.factors[g.edges[e].factor].factor for e in up_y]
+    zin = Mycelium.GaussianBlock(randn(Xoshiro(6), PL_SD, length(fs)), [Matrix((1.0 + i) * I, PL_SD, PL_SD) for i in eachindex(fs)], fill(false, length(fs)))
+    blk, _ = Mycelium.factor_messages(fs, :y, nothing, (z = zin,), fill(nothing, length(fs)), ps.up, NamedTuple())
+    for i in eachindex(fs)
+        m1, _ = factor_message(fs[i], :y, nothing, (z = replica(zin, i),), nothing, ps.up, NamedTuple())
+        @test belief_distance(replica(blk, i), m1) < 1e-12
+    end
+end

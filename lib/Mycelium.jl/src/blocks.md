@@ -185,15 +185,27 @@ $z_i$), one sweep of a warm store:
 
 and the Gaussian-mixture plate's "both directions" sweep at $N = 1000$ went from 5.02 ms to 0.22 ms.
 
+With two layers (the EP sites on $z$ feed a linear factor, $y = z + \delta_1$ latent, $x = y + \delta_2$ observed),
+the linear factor receives inputs with a precision per replica. Its block method handles them in
+one loop (`_linear_block_each`, L-SPEC-006 §8.4):
+
+| $N$ | edge by edge | grouped, on blocks |
+|---|---|---|
+| 100 | 6.39 ms | 0.26 ms |
+| 1000 | 67.3 ms | 1.66 ms |
+| 3000 | 226.1 ms | 5.44 ms |
+
+The first version of that loop was no faster than the per-replica path (2.29 ms at $N = 1000$, the
+same with the loop disabled); with buffers and in-place factorisations it is 1.66 ms.
+
 ## What it does not do
 
 - A mixture block needs one precision for every component and replica, and every outcome possible
   in every replica (an impossible one is dropped from that replica's mixture, so the replicas
   would differ in $K$); otherwise mixtures are `VectorBlock`s, computed per replica.
 - Mixture times mixture ($K^2$ components) is column by column.
-- EP sites have a precision per replica, and `LinearConstraintFactor`'s block method takes shared
-  precisions only, so a linear factor downstream of EP sites goes replica by replica. The
-  benchmark's template does not meet it (the observation's edge to $x$ absorbs).
+- EP sites have a precision per replica; `LinearConstraintFactor`'s block method takes them
+  (and points) in one loop, but inputs with flat directions per replica go one by one.
 - `MixtureReduction(M)` nodes take the per-edge path: their component counts differ between
   replicas.
 - Per-replica precisions (`Λ` as a vector) are combined and compared column by column; no factor

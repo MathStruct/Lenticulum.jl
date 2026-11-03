@@ -15,7 +15,7 @@
 > so are the free energy of the hybrid (§1, [[L-SPEC-005 The Hybrid Free Energy]]), plates (§2,
 > [[L-SPEC-006 Plates]]), rule-aware schedules (§3, [[L-SPEC-007 Hybrid Schedules]]) and the EP and
 > mixture-reduction rules (§4, [[L-SPEC-008 Expectation Propagation and Mixture Reduction]]) and
-> cluster nodes (§5, [[L-SPEC-009 Cluster Nodes]]). The rest is proposed, ordered by what it unblocks.
+> cluster nodes (§5, [[L-SPEC-009 Cluster Nodes]]) and structure edits (§6, [[L-SPEC-010 Structure Edits]]).
 
 > Sources: original to this vault (design). Hybrid belief propagation and mean field: Riegler, Kirkelund, Manchon, Badiu & Fleury, *Merging Belief Propagation and the Mean Field Approximation: A Free Energy Approach*, IEEE Trans. Inf. Theory 59(1), 2013. Region free energies and generalised belief propagation: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE Trans. Inf. Theory 51(7), 2005. Expectation propagation: Minka, UAI 2001. Gaussian-mixture reduction: Runnalls, IEEE Trans. Aerosp. Electron. Syst. 2007. Monte Carlo EM: Wei & Tanner, *A Monte Carlo Implementation of the EM Algorithm and the Poor Man's Data Augmentation Algorithms*, JASA 85(411), 1990. Stochastic-approximation EM: Delyon, Lavielle & Moulines, *Convergence of a Stochastic Approximation Version of the EM Algorithm*, Ann. Statist. 27(1), 1999. code: `lib/Mycelium.jl/src/graph.jl`, `passing.jl`, `free_energy.jl`, `schedules.jl`, `exposure.jl`
 >
@@ -221,6 +221,15 @@ generating structures recovered), but it rebuilt models outside Mycelium, with e
 
 **Test.** The moves of `structure_switches.jl`, done as edits, reproduce its search paths and scores
 where exact inference is available.
+
+**Status (2026-11-03): implemented** ([[L-SPEC-010 Structure Edits]], `edits.md`). A graph is opened
+as a builder, edited by name and rebuilt; `transfer` carries the shared edges' messages. The test
+in part: the add and remove moves of the additive wiring ($J = 1$), as edits of one graph holding 200
+points as tied cluster nodes (exact scores), find the 8-mode grid's three switches by the branch's
+path (`examples/structure_edits.md`), in 734 s against the branch's 3.6–13 s with closed-form EM.
+The split and merge moves ($J > 1$) are not ported. Same day: grouping switches by overlap
+(§5, `overlap_groups`, `switch_overlaps`) cuts the error of switch posteriors from 0.092 to 0.031 on
+eight overlapping switches, but only with E7's partial sum per block, itself a structure edit.
 
 ## 6b. Sampling, and what an average must keep
 

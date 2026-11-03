@@ -557,6 +557,8 @@ include("message_rules.jl")
 
 include("cluster.jl")
 
+include("edits.jl")
+
 include("sampling.jl")
 
 include("conformance.jl")

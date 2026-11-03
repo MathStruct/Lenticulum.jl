@@ -1261,6 +1261,8 @@ include("mixture_rules.jl")
 
 include("cluster.jl")
 
+include("structure_edits.jl")
+
 include("mean_field_free_energy.jl")
 
 include("plates.jl")

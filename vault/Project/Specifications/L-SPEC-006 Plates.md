@@ -99,13 +99,18 @@ Gaussians with one precision for every component: $\eta$ is $d \times K \times n
    precision per replica; otherwise `ep_message` column by column. When a column's update would
    be skipped, a variable is pinned, or an input has a negative direction, the group goes edge by
    edge. An EP group never takes the vector-batched path.
-4. Not done: a per-replica-precision path in `LinearConstraintFactor`'s block method, which a
-   linear factor fed by EP sites would need. The plan expected EP plates to wait for it; the
-   measured template does not need it, since its observation's edge to the data absorbs.
+4. `LinearConstraintFactor`'s block method takes inputs with a precision per replica (EP sites,
+   or any proper Gaussian blocks, beside points) in one loop with preallocated buffers
+   (`_linear_block_each`): $R_i = Q + \sum_n A_n S_{n,i} A_n^\top$ and the message of `_linear_message` without
+   flat inputs; inputs with flat directions still go replica by replica. (Planned as a follow-up
+   on 2026-11-03 and implemented the same day.)
 
 Measured (`bench/mixture_plates.jl`, `blocks.md`): at $N = 1000$ the mixture messages back to the
 points take 0.22 ms instead of 5.0 ms (the plan's conjecture was a few tenths of a millisecond), and
-one EP sweep of a latent mixture 0.85 ms instead of 44 ms edge by edge.
+one EP sweep of a latent mixture 0.85 ms instead of 44 ms edge by edge, and one sweep of two layers
+(EP sites feeding a linear factor) 1.7 ms against 67 ms edge by edge. The per-replica loop of step 4
+brought that from 2.3 ms: the per-replica path it replaces was already nearly as fast, and the
+allocations of small matrix products were what cost (`blocks.md`).
 
 ## Checked by
 
@@ -149,7 +154,10 @@ one EP sweep of a latent mixture 0.85 ms instead of 44 ms edge by edge.
   prior with the mixture at a latent variable give the sequential schedule's messages to $10^{-10}$
   with mixture blocks in both directions; the block product equals the per-column `combine` to
   $10^{-12}$ (proper and improper components, both orders); the EP plate runs on blocks (a site
-  block with per-replica precisions) and matches the sequential schedule after 30 sweeps.
+  block with per-replica precisions) and matches the sequential schedule after 30 sweeps;
+- EP sites into a linear factor (two layers): the grouped schedule gives the sequential one's
+  messages to $10^{-10}$ after 30 sweeps, the linear factor's row is a block with per-replica
+  precisions, and its block method equals the per-replica messages to $10^{-12}$.
 
 `bench/mixture_plates.jl` (`blocks.md`, `switching.md` §10): the mixture E-step at $N = 1000$ takes
 0.10 ms on blocks, 9.7 ms edge by edge and 0.044 ms by hand; $F$ 1.1 ms against 5.1 ms per edge,
@@ -164,7 +172,7 @@ building is linear in $N$.
 
 - **Speed.** [[Extending Mycelium]] §2 asked for a small factor of hand-written code; on blocks the
   plate is about 9 to 13 times slower than the closed form, the mixture E-step about 2 to 3.5 times.
-  A linear factor fed by EP sites (per-replica precisions) goes replica by replica (§8.4).
+  Inputs with flat directions and a precision per replica go replica by replica.
 - No nested plates, no stateful tied factors.
 - [[LP-021 The coupled gradient drivers cut diagonal edges at fixed messages]], found here, is
   resolved for factors whose edges are all cut; factors with mixed couplings are open.

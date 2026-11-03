@@ -773,3 +773,56 @@ function Mycelium.cluster_form(f::GaussianPrior, ps)
     n = length(f.μ)
     return Mycelium.ClusterForm(NamedTuple{(f.channel,)}((Matrix(1.0I, n, n),)), reshape(float.(f.μ), n, 1), Matrix(f.Σ), [0.0], nothing)
 end
+
+"""
+    switch_overlaps(g, ps, sum::Symbol, switches) -> Matrix
+
+The pairwise overlaps of switching factors feeding one linear factor `sum`, for grouping them
+into cluster nodes (`Mycelium.overlap_groups`, E7's rule). Switch ``l`` sets its channel ``u_l``
+(``A_{u,l} u_l = b_{l,k} + \\varepsilon_l``, ``A_{u,l}`` square and invertible), which enters `sum` as
+``A_{\\mathrm{sum},l}\\, u_l``; its effect on the sum's residual is the matrix of directions
+``V_l = A_{\\mathrm{sum},l} A_{u,l}^{-1} (b_{l,k} - b_{l,j})_{j < k}`` (every pair of outcomes). In the metric of the noise of the sum and the listed switches (other inputs of `sum` are not counted)
+``R = Q_{\\mathrm{sum}} + \\sum_l A_{\\mathrm{sum},l} A_{u,l}^{-1} Q_l A_{u,l}^{-\\top} A_{\\mathrm{sum},l}^\\top``, the overlap of two switches is the
+largest ``\\lvert\\cos\\rvert`` between a direction of one and a direction of the other; the diagonal is 1. For
+binary switches feeding ``z = \\sum_l W_l k_l + \\varepsilon`` this is E7's ``\\lvert G_{lm}\\rvert / \\sqrt{G_{ll} G_{mm}}``, ``G = W^\\top R^{-1} W``.
+"""
+function switch_overlaps(g::Mycelium.FactorGraph, ps, sum::Symbol, switches)
+    snode = Mycelium.factornode(g, g.factor_index[sum])
+    snode.factor isa LinearConstraintFactor || throw(ArgumentError("switch_overlaps: :$sum is not a LinearConstraintFactor"))
+    psum = Mycelium._subtree(ps, snode.params)
+    R = Matrix{Float64}(snode.factor.Q)
+    Vs = Matrix{Float64}[]
+    for name in switches
+        node = Mycelium.factornode(g, g.factor_index[name])
+        f = node.factor
+        f isa SwitchingConstraintFactor && length(f.dims) == 1 || throw(ArgumentError(
+            "switch_overlaps: :$name must be a SwitchingConstraintFactor with one continuous channel"))
+        p = Mycelium._subtree(ps, node.params)
+        uch = only(keys(f.dims))
+        e = only(ei for ei in g.edges_of_factor[node.id] if g.edges[ei].channel === uch)
+        v = g.edges[e].variable
+        es = [ei for ei in g.edges_of_factor[snode.id] if g.edges[ei].variable == v]
+        length(es) == 1 || throw(ArgumentError("switch_overlaps: :$name's channel does not feed :$sum once"))
+        As = psum.A[g.edges[only(es)].channel]
+        Au = p.A[uch]
+        size(Au, 1) == size(Au, 2) && LinearAlgebra.rank(Au) == size(Au, 1) || throw(ArgumentError(
+            "switch_overlaps: :$name's coefficient must be square and invertible"))
+        M = As / Au
+        K = size(p.b, 2)
+        push!(Vs, M * reduce(hcat, [p.b[:, k] .- p.b[:, j] for j in 1:K for k in (j + 1):K]))   # every pair of outcomes
+        R = R .+ M * f.Q * M'
+    end
+    C = cholesky(Symmetric(R))
+    Ws = [C.L \ V for V in Vs]                            # directions whitened by R
+    L = length(Ws)
+    O = Matrix{Float64}(I, L, L)
+    for l in 1:L, m in (l + 1):L
+        o = 0.0
+        for a in eachcol(Ws[l]), b in eachcol(Ws[m])
+            na, nb = LinearAlgebra.norm(a), LinearAlgebra.norm(b)
+            na > 0 && nb > 0 && (o = max(o, abs(LinearAlgebra.dot(a, b)) / (na * nb)))
+        end
+        O[l, m] = O[m, l] = o
+    end
+    return O
+end

@@ -92,7 +92,15 @@ constraint factors and Gaussian or categorical priors). Outside it is one factor
 messages and a closed-form local free energy; [`cluster_parameters`](@ref) rearranges the
 parameters and [`cluster_marginal`](@ref) reads its internal variables. A whole model in one
 cluster is exact (its free energy is ``-\log p`` of the data), and clustering a mixture variable
-with its switches gives it the free energy plain belief propagation lacks.
+with its switches gives it the free energy plain belief propagation lacks. Several clusters are
+made in one call, tied with `params` (one per data point of one model);
+[`overlap_groups`](@ref) groups switches by Lenticulum's `switch_overlaps`, as E7 did.
+
+A built graph is edited by opening it as a builder: `GraphBuilder(g)`, then `variable!`,
+`factor!`, `connect!`, [`remove_factor!`](@ref), [`remove_variable!`](@ref), [`disconnect!`](@ref) and
+[`replace_factor!`](@ref) by name, then `build`. [`transfer`](@ref) carries the messages of the edges
+both graphs share into a store for the new graph, as a warm start. `examples/structure_edits.jl`
+runs a greedy structure search over switch wirings this way, scored by the exact free energy.
 
 Points can be passed instead of beliefs. `GibbsSampler(g, sampled)` draws the named variables (for
 example the discrete switches) from their exact conditionals, integrating the others out by belief

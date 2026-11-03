@@ -72,6 +72,39 @@ Lenticulum `test/cluster.jl`:
 Mycelium `test/cluster.jl`: priors only, the message is the product of the Gaussian priors, an
 internal categorical keeps its prior, and the refusals.
 
+## Grouping by overlap and several clusters at once (2026-11-03)
+
+`cluster(g, [name₁ => factors₁, name₂ => factors₂, …]; params)` makes several cluster nodes in one
+call. With `params` they read one parameter entry, tied: one cluster per data point of one model
+(`examples/structure_edits.jl`). Without it a parameter key shared between groups is refused,
+since each node would hold its own copy. `cluster_parameters(gc, ps)` converts for every node.
+
+`overlap_groups(C, maxsize)` is E7's greedy grouping (`Composing Stochastic Factors`): start from
+singletons, merge the two groups whose largest pairwise overlap is largest while the merged group
+fits and the overlap is positive. Lenticulum's `switch_overlaps(g, ps, sum, switches)` gives the
+overlaps of switching factors feeding one linear factor: each switch's offset directions mapped
+through the sum's coefficients, $|\cos|$ in the metric of the sum's total noise
+$R = Q_{\mathrm{sum}} + \sum_l A_l Q_l A_l^\top$. For binary switches this is E7's $|G_{lm}|/\sqrt{G_{ll}G_{mm}}$, $G = W^\top R^{-1} W$: `test/cluster.jl`
+compares both to $10^{-12}$ and the groups with E7's own function, copied as the oracle, for group
+sizes 2, 3 and 4; two planted overlapping pairs end up in the same groups.
+
+Whether it helps, `bench/cluster_overlap.jl` ($d = 8$, eight binary switches in four overlapping pairs,
+interleaved so that index order splits them, 100 points from the model, 50 loopy sweeps), the mean
+over points of the mean $\lvert\Delta P(k_l = 2)\rvert$ against the exact posterior (every factor in one cluster):
+
+| E-step | mean $\lvert\Delta P\rvert$ | max |
+|---|---|---|
+| one switching factor per switch | 0.0922 | 0.2376 |
+| clusters of the overlap groups, the switches only | 0.0922 | 0.2376 |
+| E7's blocks of 4 in index order (partial sum + switches per cluster) | 0.0917 | 0.2433 |
+| E7's blocks of 4 grouped by overlap | 0.0309 | 0.1446 |
+
+Grouping by overlap cuts the error to a third, as in E7, but only with E7's wiring: each block's
+switches feed a partial sum $s_b = \sum_{l \in b} u_l$ inside the block's cluster, and the blocks' sums feed
+the sum node. Clustering the switches alone changes nothing, to four digits: they meet only at the
+sum node, which collapses each $u_l$'s mixture to its moments separately, so the cluster's joint
+over its switches never reaches the coupling. Blocks that ignore overlap help as little.
+
 ## What it does not do
 
 - **Factors outside the conditionally linear-Gaussian class.** A factor needs `cluster_form`, and
@@ -88,8 +121,8 @@ internal categorical keeps its prior, and the refusals.
   to a node outside, and edges that are not bidirectional, diagonal and attached. The cluster node
   itself is a belief-propagation node; differentiating through inference (`adjoint = :implicit`)
   is not tested with it.
-- **Grouping by overlap** (the largest $\lvert\cos\rvert$ of the offsets in the noise metric, E7) is not
-  automated: the caller names the factors.
+- **Grouping rewires nothing.** `overlap_groups` chooses the groups; putting a partial sum per
+  group into the graph, which is what makes the groups pay (below), is the caller's edit.
 
 ## Difficulties
 
@@ -108,3 +141,9 @@ internal categorical keeps its prior, and the refusals.
    depends on the precision only, so a shared one is one test; and Zygote through
    `belief_free_energy` works (the chain's gradient is tested with it, and `_cluster_layout` is
    non-differentiable in the ChainRulesCore extension, which the reviewed diff did not show).
+4. **Review of the grouping (Gemini via `agy`, 2026-11-03).** Fixed: a cluster's parameter key could
+   equal the key of a node left outside, and `cluster_parameters` would then overwrite that node's
+   entry (refused now, tested); tied nodes compared their parameter keys in order, so the same
+   factors listed in another order were refused (compared as sets now); `switch_overlaps` took the
+   directions of a switch with three or more outcomes from the first outcome only (every pair
+   now). Documented: the metric counts the noise of the sum and of the listed switches only.

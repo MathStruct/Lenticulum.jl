@@ -364,7 +364,13 @@ function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{na
     f, n = first(fs), length(fs)
     others = _other_channels(Val(names), Val(target))
     parts = map(c -> (c, _block_parts(_get(inputs, c), f.dims[c], n)), others)
-    if !all(h -> h === f || (isequal(h.Q, f.Q) && h.dims == f.dims), fs) || any(p -> p[2] === nothing, parts)
+    same = all(h -> h === f || (isequal(h.Q, f.Q) && h.dims == f.dims), fs)
+    if same && any(p -> p[2] === nothing, parts)
+        # inputs with a precision per replica (EP sites, L-SPEC-006 §8.4): one loop, no belief objects
+        out = _linear_block_each(ps.A, float.(ps.c), f.Q, target, others, inputs, f.dims, n)
+        out === nothing || return out, st
+    end
+    if !same || any(p -> p[2] === nothing, parts)
         cols = [NamedTuple{keys(inputs)}(map(b -> Mycelium.replica(b, i), values(inputs))) for i in 1:n]
         return Mycelium.belief_block(first(Mycelium.factor_messages(fs, target, polarity, cols, priors, ps, st))), st
     end
@@ -386,6 +392,70 @@ function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{na
     H = foldl((acc, (ch, (M, _, _))) -> acc .+ (K * A[ch]) * M, parts; init = zeros(eltype(K), size(K, 1), n))
     H = (K * c) .- H
     return Mycelium.GaussianBlock(H, Λ, fill(improper, n)), st
+end
+
+# The messages of tied replicas whose inputs have a precision per replica: points, and proper
+# Gaussian blocks with a shared or a per-replica precision; no flat directions (those take the
+# per-replica path). Replica i: Rᵢ = Q + Σₙ Aₙ Sₙ,ᵢ Aₙᵀ, the message N⁻¹(Aₜᵀ Rᵢ⁻¹ dᵢ, Aₜᵀ Rᵢ⁻¹ Aₜ) with
+# dᵢ = c − Σₙ Aₙ mₙ,ᵢ, as `_linear_message` without flat inputs, term for term. `nothing` otherwise.
+function _linear_block_each(A, c, Q, target, others, inputs, dims, n)
+    means, covs = Any[], Any[]
+    for ch in others
+        b = _get(inputs, ch)
+        if b isa Mycelium.PointBlock && size(b.X, 1) == dims[ch]
+            push!(means, b.X); push!(covs, nothing)
+        elseif b isa Mycelium.GaussianBlock && size(b.η, 1) == dims[ch] && !any(b.improper)
+            M, S = _block_moments_each(b, n)
+            M === nothing && return nothing
+            push!(means, M); push!(covs, S)
+        else
+            return nothing
+        end
+    end
+    At = Matrix{Float64}(A[target])
+    improper = _projected_rank(At, At) < size(At, 2)
+    D = c .- (isempty(others) ? zeros(length(c), n) : reduce(+, [A[ch] * M for (ch, M) in zip(others, means)]))
+    gauss = [(Matrix{Float64}(A[ch]), S) for (ch, S) in zip(others, covs) if S !== nothing]
+    return _linear_block_loop(At, Matrix{Float64}(LinearAlgebra.Symmetric(Matrix(Q))), gauss, D, n, improper)
+end
+
+# Means and covariances of a proper Gaussian block, one per replica; `nothing` if one is not proper.
+function _block_moments_each(b, n)
+    d = size(b.η, 1)
+    M = Matrix{Float64}(undef, d, n); S = Vector{Matrix{Float64}}(undef, n)
+    W = Matrix{Float64}(undef, d, d)
+    for i in 1:n
+        copyto!(W, b.Λ isa AbstractMatrix ? b.Λ : b.Λ[i])
+        C = LinearAlgebra.cholesky!(LinearAlgebra.Symmetric(W); check = false)
+        LinearAlgebra.issuccess(C) || return nothing, nothing
+        M[:, i] .= C \ view(b.η, :, i)
+        S[i] = inv(C)
+    end
+    return M, S
+end
+
+# Rᵢ = Q + Σ AₙSₙ,ᵢAₙᵀ, then Aₜᵀ Rᵢ⁻¹ dᵢ and Aₜᵀ Rᵢ⁻¹ Aₜ, with buffers: d and n are small and large.
+function _linear_block_loop(At, Q, gauss, D, n, improper)
+    m, dt = size(At)
+    η = zeros(dt, n)
+    Λs = Vector{Matrix{Float64}}(undef, n)
+    R = similar(Q); T = similar(Q); AS = [zeros(m, size(An, 2)) for (An, _) in gauss]
+    Rd = zeros(m); RA = zeros(m, dt)
+    for i in 1:n
+        copyto!(R, Q)
+        for (k, (An, S)) in enumerate(gauss)
+            LinearAlgebra.mul!(AS[k], An, S[i])
+            LinearAlgebra.mul!(R, AS[k], An', 1.0, 1.0)
+        end
+        copyto!(T, R)
+        C = LinearAlgebra.cholesky!(LinearAlgebra.Symmetric(T); check = false)
+        LinearAlgebra.issuccess(C) || throw(ArgumentError("Q + Σ AᵢSᵢAᵢᵀ is not positive definite: $R"))
+        Rd .= view(D, :, i); LinearAlgebra.ldiv!(C, Rd)
+        LinearAlgebra.mul!(view(η, :, i), At', Rd)
+        copyto!(RA, At); LinearAlgebra.ldiv!(C, RA)
+        Λs[i] = At' * RA
+    end
+    return Mycelium.GaussianBlock(η, Λs, fill(improper, n))
 end
 
 # A channel's block as (M, S, N): the means as columns, one covariance S and one flat basis N
