@@ -63,3 +63,31 @@ for N in (100, 1000, 3000)
             1e3best(() -> scalar_free_energy(s, g, ps, NamedTuple())), 1e3best(() -> scalar_free_energy(se, g, ps, NamedTuple())),
             1e3best(() -> free_energy_gradient(s, g, ps, NamedTuple())), 1e3best(() -> free_energy_gradient(se, g, ps, NamedTuple())))
 end
+
+# A latent mixture on expectation-propagation nodes: z_i latent with x_i = z_i + δ observed and the
+# switching factor on z_i. One sweep of a warm store (after 10 sweeps), edge by edge against grouped
+# on blocks (`ep_block`: the sites as one block); the marginal means of z are compared.
+function latent!(p, x)
+    variable!(p, :z, D); variable!(p, :x, D); variable!(p, :k, K)
+    factor!(p, :data, DataFactor(:x, x))
+    factor!(p, :obs, LinearConstraintFactor((x = D, z = D), D; noise = 0.4))
+    factor!(p, :sw, SwitchingConstraintFactor((z = D,), K, D; noise = Q); rule = ExpectationPropagationRule())
+    connect!(p, :data, :x, :x; direction = Emitting()); connect!(p, :obs, :x, :x; direction = Absorbing())
+    connect!(p, :obs, :z, :z); connect!(p, :sw, :z, :z); connect!(p, :sw, :k, :k)
+end
+println()
+@printf("%6s %14s %14s %10s\n", "N", "EP sequential", "EP grouped", "max |Δμ|")
+for N in (100, 1000, 3000)
+    X = randn(Xoshiro(N), D, N) .* 2
+    b = GraphBuilder(); plate!((p, i) -> latent!(p, X[:, i]), b, :obs, N); g = build(b)
+    ps0 = LuxCore.initialparameters(Xoshiro(0), g)
+    ps = merge(ps0, (sw = merge(ps0.sw, (A = (z = Matrix(1.0I, D, D),),)),
+                     obs = (A = (x = Matrix(1.0I, D, D), z = -Matrix(1.0I, D, D)), c = zeros(D))))
+    grouped = plate_schedule(g); seq = SequentialSchedule(tasks(grouped))
+    warm(sched) = (s = MessageStore(g); for _ in 1:10; sweep!(s, g, sched, ps, NamedTuple()); end; s)
+    sg, ss = warm(grouped), warm(seq)
+    pl = only(plates(g))
+    Δ = maximum(i -> maximum(abs, belief_mean(marginal(sg, g, pl.variables[1, i])) .- belief_mean(marginal(ss, g, pl.variables[1, i]))), 1:N)
+    @printf("%6d %12.3f ms %12.3f ms %10.1e\n", N, 1e3best(() -> sweep!(ss, g, seq, ps, NamedTuple())),
+            1e3best(() -> sweep!(sg, g, grouped, ps, NamedTuple())), Δ)
+end

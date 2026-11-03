@@ -1259,6 +1259,8 @@ include("switching_constraint.jl")
 
 include("mixture_rules.jl")
 
+include("cluster.jl")
+
 include("mean_field_free_energy.jl")
 
 include("plates.jl")

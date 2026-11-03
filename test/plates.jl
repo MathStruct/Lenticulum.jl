@@ -397,6 +397,8 @@ end
         end
         kinds = Set(typeof(m.belief) for m in s.to_variable.blocks if m !== nothing)
         tpl === pl_sw_observed! && @test any(k -> k <: CategoricalBlock, kinds)
+        # on EP nodes the sites are batched too (`ep_block`): one Gaussian block, a precision per replica
+        tpl === pl_sw_latent! && @test any(m -> m !== nothing && m.belief isa GaussianBlock && !(m.belief.Λ isa AbstractMatrix), s.to_variable.blocks)
         items, rest = Mycelium._row_items(s, g, :sw, ps.sw, NamedTuple(), [g.factors[i] for i in tied_factors(g, :sw)])
         @test length(items) == 1 && isempty(rest) && items[1][3] isa Lenticulum.FrozenSwitchingBeliefs
         se = MessageStore(copy(s.to_variable), copy(s.to_factor), s.iteration)
@@ -421,4 +423,65 @@ end
     @test all(i -> replica(BC, i).logp ≈ Mycelium.combine(cs[i], ds[i]).logp, 1:4)
     @test Mycelium.block_distance(B, C) ≈ maximum(i -> belief_distance(cs[i], ds[i]), 1:4)
     @test Mycelium._block_entropies(B) ≈ [Mycelium.variable_entropy(c) for c in cs]
+end
+
+# Mixture blocks (L-SPEC-006 §8): the switching factors' messages to a continuous channel as one
+# block, and their products with Gaussian blocks at a variable.
+function pl_mix_latent!(p, x)       # z has a Gaussian prior, the mixture, and an observation x = z + δ
+    variable!(p, :z, PL_SD); variable!(p, :x, PL_SD); variable!(p, :k, PL_SK)
+    factor!(p, :prior, GaussianPrior(:z, zeros(PL_SD), Matrix(9.0I, PL_SD, PL_SD)))
+    factor!(p, :data, DataFactor(:x, x))
+    factor!(p, :obs, LinearConstraintFactor((x = PL_SD, z = PL_SD), PL_SD; noise = 0.4))
+    factor!(p, :sw, SwitchingConstraintFactor((z = PL_SD,), PL_SK, PL_SD; noise = PL_SQ))
+    connect!(p, :prior, :z, :z); connect!(p, :data, :x, :x; direction = Emitting())
+    connect!(p, :obs, :x, :x; direction = Absorbing()); connect!(p, :obs, :z, :z)
+    connect!(p, :sw, :z, :z); connect!(p, :sw, :k, :k)
+end
+function pl_mix_observed!(p, x)     # the mixture message sent back to an observed z
+    variable!(p, :z, PL_SD); variable!(p, :k, PL_SK)
+    factor!(p, :data, DataFactor(:z, x))
+    factor!(p, :sw, SwitchingConstraintFactor((z = PL_SD,), PL_SK, PL_SD; noise = PL_SQ))
+    connect!(p, :data, :z, :z; direction = Emitting()); connect!(p, :sw, :z, :z); connect!(p, :sw, :k, :k)
+end
+
+@testset "Mixture blocks" begin
+    X = randn(Xoshiro(3), PL_SD, 30) .* 2
+    for tpl in (pl_mix_observed!, pl_mix_latent!)
+        b = GraphBuilder(); plate!((p, i) -> tpl(p, X[:, i]), b, :obs, size(X, 2)); g = build(b)
+        ps = LuxCore.initialparameters(Xoshiro(0), g)
+        ps = merge(ps, (sw = merge(ps.sw, (A = (z = Matrix(1.0I, PL_SD, PL_SD),),)),))
+        haskey(ps, :obs) && (ps = merge(ps, (obs = (A = (x = Matrix(1.0I, PL_SD, PL_SD), z = -Matrix(1.0I, PL_SD, PL_SD)), c = zeros(PL_SD)),)))
+        sched = plate_schedule(g)
+        s, s2 = MessageStore(g), MessageStore(g)
+        for _ in 1:2
+            sweep!(s, g, sched, ps, NamedTuple()); sweep!(s2, g, SequentialSchedule(tasks(sched)), ps, NamedTuple())
+        end
+        @test any(m -> m !== nothing && m.belief isa MixtureBlock, s.to_variable.blocks)
+        for i in 1:nedges(g), (a, c) in ((s.to_variable[i], s2.to_variable[i]), (s.to_factor[i], s2.to_factor[i]))
+            (a === nothing) == (c === nothing) || @test false
+            a === nothing || @test belief_distance(a.belief, c.belief) < 1e-10
+        end
+        tpl === pl_mix_latent! && @test any(m -> m !== nothing && m.belief isa MixtureBlock, s.to_factor.blocks)
+    end
+    # the block operations, column for column as the per-belief rules
+    rng = Xoshiro(4)
+    d, K, n = 2, 3, 5
+    for improper in (false, true)
+        Λm = improper ? [1.0 0.0; 0.0 0.0] : [2.0 0.3; 0.3 1.5]
+        M = MixtureBlock(randn(rng, d, K, n) .* (improper ? [1.0, 0.0] : [1.0, 1.0]), Λm, (l = randn(rng, K, n); l .- log.(sum(exp.(l); dims = 1))), improper)
+        G = belief_block([Gaussian(randn(rng, d), [1.0 0.2; 0.2 0.8]) for _ in 1:n])
+        G = Mycelium.GaussianBlock(G.η, [3.0 0.4; 0.4 2.0], fill(false, n))
+        for (A, B) in ((M, G), (G, M))
+            AB = Mycelium.combine_blocks(A, B)
+            @test AB isa MixtureBlock
+            for i in 1:n
+                ref = Mycelium.combine(replica(A, i), replica(B, i))
+                bi = replica(AB, i)
+                @test exp.(bi.logw) ≈ exp.(ref.logw) atol = 1e-12
+                @test all(k -> bi.components[k].η ≈ ref.components[k].η && bi.components[k].Λ ≈ ref.components[k].Λ, 1:K)
+            end
+        end
+        @test belief_block(replicas(M)) isa MixtureBlock               # one Λ object: rebuilt as a block
+        @test Mycelium.block_distance(M, M) == 0
+    end
 end

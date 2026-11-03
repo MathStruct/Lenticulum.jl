@@ -1,6 +1,6 @@
 #design
 
-> **Status: draft (2026-11-02, Claude), implemented as described; §5–§6 added 2026-11-03 with [[L-ADR-0010 Plates get batched message blocks]], §7 the same day with [[L-SPEC-008 Expectation Propagation and Mixture Reduction]]; §8 is a plan, not implemented.** Related: [[Extending Mycelium]] §2, [[L-SPEC-003 Exposed Parameters and Energy Channels]], [[L-SPEC-005 The Hybrid Free Energy]], [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]], [[LP-021 The coupled gradient drivers cut diagonal edges at fixed messages]]. Code: `lib/Mycelium.jl/src/plates.jl`, `blocks.jl`, `graph.jl` (parameter keys), `passing.jl` (`factor_messages`), `free_energy.jl`, `src/constraint.jl`, `src/gaussian.jl`, `src/switching.jl`.
+> **Status: draft (2026-11-02, Claude), implemented as described; §5–§6 added 2026-11-03 with [[L-ADR-0010 Plates get batched message blocks]], §7 the same day with [[L-SPEC-008 Expectation Propagation and Mixture Reduction]], and §8, planned first, implemented later that day.** Related: [[Extending Mycelium]] §2, [[L-SPEC-003 Exposed Parameters and Energy Channels]], [[L-SPEC-005 The Hybrid Free Energy]], [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]], [[LP-021 The coupled gradient drivers cut diagonal edges at fixed messages]]. Code: `lib/Mycelium.jl/src/plates.jl`, `blocks.jl`, `graph.jl` (parameter keys), `passing.jl` (`factor_messages`), `free_energy.jl`, `src/constraint.jl`, `src/gaussian.jl`, `src/switching.jl`.
 
 > Sources: original to this repository. code: `lib/Mycelium.jl/src/plates.jl`, `lib/Mycelium.jl/src/graph.jl`, `lib/Mycelium.jl/src/passing.jl`, `lib/Mycelium.jl/src/free_energy.jl`, `src/constraint.jl`; tests: `test/plates.jl`; benchmarks: `bench/plates.jl`, `bench/mixture_plates.jl`
 >
@@ -83,26 +83,29 @@ implements the three energy hooks of §6 through `FrozenSwitchingBeliefs`. Energ
 expectation-propagation nodes as well, when every node of the row has the same rule
 ([[L-SPEC-008 Expectation Propagation and Mixture Reduction]]).
 
-**§8. Mixture blocks (planned, not implemented).** What §7 leaves per replica, measured in
-`bench/mixture_plates.jl`: a switching factor's mixture messages to a continuous channel cost 5.0 ms
-at $N = 1000$, 50 times the batched E-step. The plan:
+**§8. Mixture blocks and EP plates** (planned 2026-11-03, implemented the same day; the plan's
+fourth step changed, see below). A `MixtureBlock(η, Λ, logw, improper)` holds $n$ mixtures of $K$
+Gaussians with one precision for every component: $\eta$ is $d \times K \times n$, the log-weights $K \times n$.
+`belief_block` builds it from mixtures whose components share one precision object and flag.
 
-1. `MixtureBlock(η, Λ, logw, improper)`: $\eta$ of size $d \times K \times n$, one precision shared by every
-   component and replica, log-weights $K \times n$. It is exactly what tied switching factors send
-   when their inputs share one precision, since all their components share $A_t^\top R^{-1} A_t$.
-   `replica` gives the `MixtureBelief` of column $i$.
-2. Its block method in `SwitchingConstraintFactor`'s `factor_messages` (the same metric as §7).
-3. `combine_blocks` of a mixture block with a shared-precision Gaussian block: every product
-   component has one precision, and the overlaps $\log Z_{ki}$ are a quadratic form per column with one
-   shared factorisation. Mixture times mixture ($K^2$ components) stays column by column.
-4. EP on blocks: the projection of a tilted mixture block is a Gaussian block whose precisions
-   differ per replica (the scatter of the means differs), so the sites, and the cavities after
-   them, have per-replica precisions. `LinearConstraintFactor`'s block method would need a path
-   for those (a batch of small factorisations) before EP plates gain.
+1. `SwitchingConstraintFactor`'s block method to a continuous channel returns one, when its
+   inputs are as in §7, the outcome's input is trivial, absent or a categorical block, $K > 1$, and
+   every outcome is possible in every replica; otherwise the replicas go one by one.
+2. `combine_blocks` of a mixture block and a Gaussian block with one proper shared precision, in
+   either order, gives the columns of `combine`, batched; other pairs go column by column.
+3. A group of tied `ExpectationPropagationRule()` nodes is planned when its targets' cavity edges
+   are block rows (`_GroupPlan.ep`). On blocks the group sends `ep_block(message, cavity)`: for a
+   mixture block and a shared-precision Gaussian cavity, the sites as one `GaussianBlock` with a
+   precision per replica; otherwise `ep_message` column by column. When a column's update would
+   be skipped, a variable is pinned, or an input has a negative direction, the group goes edge by
+   edge. An EP group never takes the vector-batched path.
+4. Not done: a per-replica-precision path in `LinearConstraintFactor`'s block method, which a
+   linear factor fed by EP sites would need. The plan expected EP plates to wait for it; the
+   measured template does not need it, since its observation's edge to the data absorbs.
 
-Expected gain (a conjecture, to be measured): the 5 ms of step 2 to a few tenths of a millisecond,
-as §7 brought the outcome messages from 9.7 to 0.10 ms. `MixtureReduction` plates are not in the
-plan: their component counts differ between replicas.
+Measured (`bench/mixture_plates.jl`, `blocks.md`): at $N = 1000$ the mixture messages back to the
+points take 0.22 ms instead of 5.0 ms (the plan's conjecture was a few tenths of a millisecond), and
+one EP sweep of a latent mixture 0.85 ms instead of 44 ms edge by edge.
 
 ## Checked by
 
@@ -142,6 +145,12 @@ plan: their component counts differ between replicas.
   $10^{-10}$ with ForwardDiff and Zygote ($10^{-6}$ with reference differences), one batched item;
   the categorical block's product, distance and entropies column for column.
 
+- mixture blocks: a plate sending its mixtures back to observed points and one pooling a Gaussian
+  prior with the mixture at a latent variable give the sequential schedule's messages to $10^{-10}$
+  with mixture blocks in both directions; the block product equals the per-column `combine` to
+  $10^{-12}$ (proper and improper components, both orders); the EP plate runs on blocks (a site
+  block with per-replica precisions) and matches the sequential schedule after 30 sweeps.
+
 `bench/mixture_plates.jl` (`blocks.md`, `switching.md` §10): the mixture E-step at $N = 1000$ takes
 0.10 ms on blocks, 9.7 ms edge by edge and 0.044 ms by hand; $F$ 1.1 ms against 5.1 ms per edge,
 $\nabla F$ 2.9 ms against 29 ms.
@@ -155,7 +164,7 @@ building is linear in $N$.
 
 - **Speed.** [[Extending Mycelium]] §2 asked for a small factor of hand-written code; on blocks the
   plate is about 9 to 13 times slower than the closed form, the mixture E-step about 2 to 3.5 times.
-  Mixture messages to continuous channels are still per replica inside blocks (§8).
+  A linear factor fed by EP sites (per-replica precisions) goes replica by replica (§8.4).
 - No nested plates, no stateful tied factors.
 - [[LP-021 The coupled gradient drivers cut diagonal edges at fixed messages]], found here, is
   resolved for factors whose edges are all cut; factors with mixed couplings are open.

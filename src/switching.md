@@ -278,3 +278,25 @@ claim was checked against the code:
 
 Mistral (`vibe`) reviewed the same code before the commit and found the missing `switch` check in
 the outcome block method, fixed in 703850a5; its other points were not bugs (`passing.md`).
+
+## 12. Mixture messages as one block (2026-11-03)
+
+`_switch_mixture_block`, called by the block method of `factor_messages` for a continuous target:
+with the other continuous inputs as for the outcome method (points, trivial, or proper Gaussians
+of one precision), the outcome's input trivial, absent or a `CategoricalBlock`, and $K > 1$, the
+messages of all replicas are one `MixtureBlock`: one metric $T$ and one precision
+$(TA_t)^\top(TA_t)$, $\eta_{ki} = (TA_t)^\top T(b_k - s_i)$, and the weights of `_switch_message`
+($\log \pi_{ki} + \log w_k - \tfrac12\lVert T(b_k - s_i)\rVert^2$, plus $\tfrac12 \eta^\top \Lambda^{-1} \eta$ for proper components). An
+outcome impossible in some replica sends the group to the per-replica path, since
+`_switch_message` drops it and the replicas would differ in $K$; a target the factor cannot reach
+gives a `TrivialBlock`. Tested in `test/plates.jl` ("Mixture blocks") against the sequential
+schedule; timings in `blocks.md`.
+
+## 13. Cluster forms (2026-11-03)
+
+`Mycelium.cluster_form` and `cluster_switch` for `SwitchingConstraintFactor` (the residual
+$\sum_i A_i x_i - b_k$, noise $Q$, the normalised log-weights, the switch channel), `LinearConstraintFactor`
+($K = 1$, $b_1 = c$) and `GaussianPrior` without learnable noise ($x - \mu$, noise $\Sigma$) are defined
+here, so these factors can be put in a cluster node (`lib/Mycelium.jl/src/cluster.md`,
+[[L-SPEC-009 Cluster Nodes]]). Three switches in one cluster send the messages of the 8-outcome
+block factor that E7 built by hand (`test/cluster.jl`).

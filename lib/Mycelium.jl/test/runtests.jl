@@ -555,6 +555,8 @@ include("overlap.jl")
 
 include("message_rules.jl")
 
+include("cluster.jl")
+
 include("sampling.jl")
 
 include("conformance.jl")

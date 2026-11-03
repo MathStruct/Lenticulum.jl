@@ -85,6 +85,15 @@ Lenticulum's linear and switching constraint factors) and the message is reduced
 components by Runnalls' merge ([`reduce_message`](@ref)). On a switching chain the budget moves the
 answer from assumed-density filtering to the exact posterior; such nodes have no free energy.
 
+[`cluster`](@ref)`(g, name, factors)` replaces factor nodes by one node with exact inference inside:
+its discrete states are enumerated and its continuous variables eliminated, for factors that state
+themselves as a residual with Gaussian noise and outcome weights ([`cluster_form`](@ref): the
+constraint factors and Gaussian or categorical priors). Outside it is one factor with exact
+messages and a closed-form local free energy; [`cluster_parameters`](@ref) rearranges the
+parameters and [`cluster_marginal`](@ref) reads its internal variables. A whole model in one
+cluster is exact (its free energy is ``-\log p`` of the data), and clustering a mixture variable
+with its switches gives it the free energy plain belief propagation lacks.
+
 Points can be passed instead of beliefs. `GibbsSampler(g, sampled)` draws the named variables (for
 example the discrete switches) from their exact conditionals, integrating the others out by belief
 propagation with the drawn ones pinned (`pin!`). A `SampleBuffer` keeps the samples, weighs them by
@@ -240,7 +249,9 @@ message. A factor computes a group's messages on blocks through [`factor_message
 plate's free energy and gradient through [`local_free_energies`](@ref), [`factor_beliefs`](@ref)
 and [`belief_free_energies`](@ref); `LinearConstraintFactor` and `GaussianPrior` implement them,
 and `SwitchingConstraintFactor` too, with its messages to the outcome as one
-[`CategoricalBlock`](@ref) (a Gaussian-mixture E-step over 1000 points: about 2.3 times the closed form).
+[`CategoricalBlock`](@ref) (a Gaussian-mixture E-step over 1000 points: about 2.3 times the closed form)
+and its mixture messages as one [`MixtureBlock`](@ref); a plate of expectation-propagation nodes
+sends its sites as one block ([`ep_block`](@ref)).
 
 ## Known gaps
 
@@ -251,12 +262,14 @@ and `SwitchingConstraintFactor` too, with its messages to the outcome as one
   rather than resample; structured belief pairs retain their explicit rules.
 - Potential distances compare callable identity (otherwise `Inf`); damping potentials is
   an inspectable no-op through `can_damp`.
-- Plates are batched for Gaussian, point and categorical messages (factor analysis: about 9 times
-  the E-step written by hand at ``N = 1000``; a Gaussian mixture's E-step about 2.3 times;
-  `blocks.md`). Mixture messages and other beliefs are held per replica inside a block and
-  computed one replica at a time, and plate sweeps group belief-propagation nodes only.
+- Plates are batched for Gaussian, point, categorical and mixture messages (factor analysis: about
+  9 times the E-step written by hand at ``N = 1000``; a Gaussian mixture's E-step about 2.3 times;
+  `blocks.md`), and for expectation-propagation nodes on blocks. Mixtures whose components differ
+  in precision, other beliefs, and `MixtureReduction` nodes go one replica at a time.
 - Belief-propagation graphs whose marginals are Gaussian mixtures have no free energy (no
-  closed-form mixture entropy); `MixtureReduction` nodes have none either.
+  closed-form mixture entropy) unless those variables are inside a cluster node;
+  `MixtureReduction` nodes have none either. Cluster nodes enumerate their discrete states (at
+  most ``2^{16}``) and take conditionally linear-Gaussian factors only.
 - In the coupled drivers (`adjoint = :implicit`, non-diagonal couplings), a factor whose edges are
   all cut is held at its fixed belief, as in the default driver (LP-021); a factor with some edges
   cut and some not is differentiated at its messages, with the cut ones constant.

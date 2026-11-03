@@ -1,0 +1,494 @@
+# ---------------------------------------------------------------------------
+# Cluster nodes: exact inference inside, messages outside (Extending Mycelium §5, L-SPEC-009).
+#
+# `cluster(g, name, factors)` replaces a set of factor nodes by one `ClusterFactor`. The variables
+# that only those factors touch become internal; the others are its channels. Inside, inference is
+# exact for conditionally linear-Gaussian factors: every factor states, through `cluster_form`, a
+# residual r = Σ A_c x_c − C[:, k] with noise N(0, Q) and a weight w_k, the column k chosen by one
+# discrete channel (or fixed). For each joint assignment of the cluster's discrete variables the
+# continuous ones are jointly Gaussian in canonical form, with one precision J for every
+# assignment, and are eliminated exactly; the assignments are enumerated.
+#
+# See `cluster.md`.
+# ---------------------------------------------------------------------------
+
+"""
+    ClusterForm(A, C, Q, logw, switch)
+
+A factor as a cluster node reads it: the residual ``r = \\sum_c A_c x_c - C_{:,k}`` with noise
+``\\mathcal N(0, Q)`` and log-weight ``\\log w_k``, so that
+``-\\log f(x, k) = \\tfrac12 r^\\top Q^{-1} r + \\tfrac12 \\log\\det 2\\pi Q - \\log w_k``. `A` is a `NamedTuple` of
+matrices keyed by the continuous channels, `C` has one column per outcome, `logw` one entry
+per outcome, and `switch` names the discrete channel the outcome is read from (`nothing` with one
+outcome). A discrete-only factor has `m = 0` rows. Returned by [`cluster_form`](@ref).
+"""
+struct ClusterForm{A<:NamedTuple,C<:AbstractMatrix,Q<:AbstractMatrix,W<:AbstractVector}
+    A::A
+    C::C
+    Q::Q
+    logw::W
+    switch::Union{Symbol,Nothing}
+end
+
+"""
+    cluster_form(factor, ps) -> ClusterForm
+
+The factor as a conditionally linear-Gaussian term, for [`cluster`](@ref) nodes, and the discrete
+channel it switches on (structural, without parameters). Mycelium implements them for
+`PriorFactor`s whose belief is a `CategoricalBelief` (a discrete term) or a proper
+`GaussianBelief`; Lenticulum for `LinearConstraintFactor`, `SwitchingConstraintFactor` and
+`GaussianPrior` without learnable noise. A factor without a method cannot be put in a cluster.
+"""
+function cluster_form(factor, ps)
+    throw(ArgumentError("$(nameof(typeof(factor))) has no `Mycelium.cluster_form`, so it cannot be put in a cluster node"))
+end
+"""
+    cluster_switch(factor) -> Union{Symbol,Nothing}
+
+The discrete channel a factor switches on, read without parameters: what makes a variable
+discrete inside a [`cluster`](@ref) node. `nothing` by default.
+"""
+cluster_switch(factor) = nothing
+
+cluster_switch(f::PriorFactor) = f.belief isa LenticulumCore.CategoricalBelief ? f.channel : nothing
+function cluster_form(f::PriorFactor, ps)
+    b = f.belief
+    if b isa LenticulumCore.CategoricalBelief
+        return ClusterForm(NamedTuple(), zeros(0, length(b.logp)), zeros(0, 0), collect(b.logp), f.channel)
+    elseif b isa GaussianBelief && LenticulumCore.isproper(b)
+        n = dimension(b)
+        A = NamedTuple{(f.channel,)}((Matrix(1.0LinearAlgebra.I, n, n),))
+        return ClusterForm(A, reshape(LenticulumCore.belief_mean(b), n, 1), Matrix(LenticulumCore.belief_cov(b)), [0.0], nothing)
+    end
+    throw(ArgumentError("a PriorFactor in a cluster needs a categorical or proper Gaussian belief"))
+end
+
+"""
+    ClusterFactor
+
+A cluster node, built by [`cluster`](@ref): the factors it replaces (`names`, `factors`, each
+with its channels wired to cluster variables, and the parameter key it read, `keys`), its
+variables and their dimensions, which of them are discrete, and the channels it exposes
+(`boundary`, one per variable shared with the rest of the graph, named after it). Its parameters
+are a `NamedTuple` keyed by those parameter keys, so factors tied inside the cluster still share
+one entry ([`cluster_parameters`](@ref)).
+"""
+struct ClusterFactor <: LenticulumCore.AbstractLenticulumFactor
+    names::Vector{Symbol}
+    keys::Vector{Symbol}
+    factors::Vector{Any}
+    wiring::Vector{Vector{Pair{Symbol,Symbol}}}    # per factor: its channel => cluster variable
+    variables::Vector{Symbol}
+    dims::Dict{Symbol,Int}
+    discrete::Vector{Symbol}
+    continuous::Vector{Symbol}
+    boundary::Vector{Symbol}
+end
+
+LenticulumCore.channels(c::ClusterFactor) = Tuple(LenticulumCore.Channel(v, c.dims[v]) for v in c.boundary)
+function LenticulumCore.supported_polarities(c::ClusterFactor)
+    names = Tuple(c.boundary)
+    out = LenticulumCore.Polarity[]
+    for t in eachindex(names), rest in Iterators.product(ntuple(_ -> (LenticulumCore.Observed(), LenticulumCore.Latent()), length(names) - 1)...)
+        vals = Any[rest...]
+        insert!(vals, t, LenticulumCore.Unobserved())
+        push!(out, _polarity(names, Tuple(vals)))
+    end
+    return Tuple(out)
+end
+function LenticulumCore.supports_polarity(c::ClusterFactor, p::LenticulumCore.Polarity)
+    Set(keys(p)) == Set(c.boundary) || return false
+    return length(LenticulumCore.unobserved_channels(p)) == 1
+end
+LenticulumCore.hasnopolarity(::ClusterFactor) = false
+LenticulumCore.isunidirectional(::ClusterFactor) = false
+LenticulumCore.islearnable(c::ClusterFactor) = any(LenticulumCore.islearnable, c.factors)
+LenticulumCore.energyspace(::ClusterFactor) = LenticulumCore.GradedEnergySpace((
+    fit = LenticulumCore.ScalarEnergySpace(), complexity = LenticulumCore.ScalarEnergySpace(),
+    negentropy = LenticulumCore.ScalarEnergySpace()))
+LenticulumCore.scalarisation(::ClusterFactor) = LenticulumCore.GradedScalarisation((
+    fit = LenticulumCore.IdentityScalarisation(), complexity = LenticulumCore.IdentityScalarisation(),
+    negentropy = LenticulumCore.IdentityScalarisation()))
+_unique_keys(c::ClusterFactor) = unique(c.keys)
+LuxCore.initialparameters(rng::AbstractRNG, c::ClusterFactor) = NamedTuple{Tuple(_unique_keys(c))}(
+    Tuple(LuxCore.initialparameters(rng, c.factors[findfirst(==(k), c.keys)]) for k in _unique_keys(c)))
+LuxCore.initialstates(rng::AbstractRNG, c::ClusterFactor) = NamedTuple{Tuple(_unique_keys(c))}(
+    Tuple(LuxCore.initialstates(rng, c.factors[findfirst(==(k), c.keys)]) for k in _unique_keys(c)))
+uses_cavity(::ClusterFactor) = true
+
+# --- The graph transformation -------------------------------------------------------
+
+"""
+    cluster(g::FactorGraph, name::Symbol, factors) -> FactorGraph
+
+The graph with the factor nodes named in `factors` replaced by one [`ClusterFactor`](@ref) node
+`name`. Variables touched only by those factors become internal to it; every other variable they
+touch becomes one of its channels, named after the variable, on a bidirectional edge. Inside the
+node inference is exact (`cluster.md`): each factor must have a [`cluster_form`](@ref), a discrete
+variable is one some factor switches on ([`cluster_switch`](@ref)), and every variable needs an
+`Int` dimension (its number of states, if discrete).
+
+Refused: graphs with plates; factors that are not belief-propagation nodes, have frozen parameter
+paths, or share a parameter key with a node outside the cluster; edges of the clustered factors
+that are not bidirectional, diagonal and attached. The cluster node reads the parameter entry
+`name`, a `NamedTuple` keyed by the clustered factors' parameter keys ([`cluster_parameters`](@ref)).
+"""
+function cluster(g::FactorGraph, name::Symbol, factors)
+    isempty(g.plates) || throw(ArgumentError("cluster: graphs with plates are not supported"))
+    haskey(g.factor_index, name) && !(name in factors) && throw(ArgumentError("cluster: a factor :$name exists already"))
+    fids = Int[]
+    for fname in factors
+        haskey(g.factor_index, fname) || throw(ArgumentError("cluster: no factor :$fname"))
+        push!(fids, g.factor_index[fname])
+    end
+    allunique(fids) && !isempty(fids) || throw(ArgumentError("cluster: give each factor once, and at least one"))
+    inside = Set(fids)
+    for fid in fids
+        f = g.factors[fid]
+        f.rule isa BeliefPropagation || throw(ArgumentError("cluster: :$(f.name) is not a BeliefPropagation() node"))
+        which(cluster_form, Tuple{typeof(f.factor),Any}) === which(cluster_form, Tuple{Any,Any}) && throw(ArgumentError(
+            "cluster: :$(f.name) ($(nameof(typeof(f.factor)))) has no `Mycelium.cluster_form`; keep it outside the cluster"))
+        isempty(f.freeze) || throw(ArgumentError("cluster: :$(f.name) has frozen parameter paths"))
+        all(h -> h.params !== f.params || h.id in inside, g.factors) || throw(ArgumentError(
+            "cluster: :$(f.name) shares its parameter key :$(f.params) with a node outside the cluster"))
+        wired = Set(g.edges[ei].channel for ei in g.edges_of_factor[fid])
+        for ch in LenticulumCore.channels(f.factor)
+            LenticulumCore.channelname(ch) in wired || throw(ArgumentError(
+                "cluster: channel :$(LenticulumCore.channelname(ch)) of :$(f.name) is not connected; inside a cluster every channel needs a variable"))
+        end
+        for ei in g.edges_of_factor[fid]
+            e = g.edges[ei]
+            e.direction isa Bidirectional && e.coupling isa DiagonalCoupling && !e.detach || throw(ArgumentError(
+                "cluster: the edge of :$(f.name) on :$(e.channel) must be bidirectional, diagonal and attached"))
+        end
+    end
+    vids = unique(g.edges[ei].variable for fid in fids for ei in g.edges_of_factor[fid])
+    internal = Set(v for v in vids if all(ei -> g.edges[ei].factor in inside, g.edges_of_variable[v]))
+    vnames = [g.variables[v].name for v in vids]
+    dims = Dict{Symbol,Int}()
+    for v in vids
+        sp = g.variables[v].space
+        sp isa Integer || throw(ArgumentError("cluster: variable :$(g.variables[v].name) needs an Int dimension"))
+        dims[g.variables[v].name] = Int(sp)
+    end
+    wiring = [[g.edges[ei].channel => g.variables[g.edges[ei].variable].name for ei in g.edges_of_factor[fid]] for fid in fids]
+    discrete = Symbol[]
+    for (fid, w) in zip(fids, wiring)
+        s = cluster_switch(g.factors[fid].factor)
+        s === nothing && continue
+        k = findfirst(p -> p.first === s, w)
+        k === nothing || push!(discrete, w[k].second)
+    end
+    discrete = unique(discrete)
+    continuous = [v for v in vnames if !(v in discrete)]
+    boundary = [g.variables[v].name for v in vids if !(v in internal)]
+    node = ClusterFactor([g.factors[f].name for f in fids], [g.factors[f].params for f in fids],
+                         Any[g.factors[f].factor for f in fids], wiring,
+                         vnames, dims, discrete, continuous, boundary)
+    b = GraphBuilder()
+    for v in g.variables
+        v.id in internal || variable!(b, v.name, v.space)
+    end
+    placed = false
+    for f in g.factors
+        if f.id in inside
+            placed && continue
+            factor!(b, name, node); placed = true
+        else
+            factor!(b, f.name, f.factor; freeze = f.freeze, rule = f.rule, params = f.params)
+        end
+    end
+    for e in g.edges
+        e.factor in inside && continue
+        connect!(b, g.factors[e.factor].name, e.channel, g.variables[e.variable].name;
+                 direction = e.direction, coupling = e.coupling, detach = e.detach)
+    end
+    for v in boundary
+        connect!(b, name, v, v)
+    end
+    return build(b)
+end
+
+"""
+    cluster_parameters(gc, name, ps) -> NamedTuple
+
+A parameter (or state) tree of the original graph as the clustered graph `gc` reads it: the
+clustered factors' entries are moved under `name`, keyed by their parameter keys.
+"""
+function cluster_parameters(gc::FactorGraph, name::Symbol, ps::NamedTuple)
+    c = factornode(gc, gc.factor_index[name]).factor
+    c isa ClusterFactor || throw(ArgumentError("cluster_parameters: :$name is not a cluster node"))
+    ks = _unique_keys(c)
+    inner = NamedTuple{Tuple(ks)}(Tuple(_subtree(ps, k) for k in ks))
+    rest = Tuple(k for k in keys(ps) if !(k in ks))
+    return merge(NamedTuple{rest}(Tuple(getfield(ps, k) for k in rest)), NamedTuple{(name,)}((inner,)))
+end
+
+# --- Exact inference inside -----------------------------------------------------
+
+# The cluster's joint in canonical form, given its incoming messages (`msgs`, keyed by boundary
+# variable; `skip` excluded): the free continuous variables and their offsets, the points
+# substituted, the assignments of the discrete variables, J, one h and one constant per assignment.
+struct _ClusterJoint
+    free::Vector{Symbol}
+    offset::Dict{Symbol,UnitRange{Int}}
+    points::Dict{Symbol,Vector{Float64}}
+    assignments::Vector{Vector{Int}}           # per assignment: the state of each discrete variable
+    J::Matrix{Float64}
+    H::Matrix{Float64}                         # n × nA
+    c::Vector{Float64}                         # nA
+end
+
+_incoming(msgs, v, skip) = v === skip ? nothing : (haskey(msgs, v) ? getfield(msgs, v) : nothing)
+_cluster_input(b) = b
+_cluster_input(b::LenticulumCore.MixtureBelief{<:GaussianBelief}) = ep_project(b) === nothing ?
+    throw(ArgumentError("a cluster node collapses a mixture input to its moments, which needs proper components")) : ep_project(b)
+
+function _cluster_joint(c::ClusterFactor, msgs, ps, skip)
+    points = Dict{Symbol,Vector{Float64}}()
+    for v in c.continuous
+        b = _incoming(msgs, v, skip)
+        b isa LenticulumCore.DiracBelief && (points[v] = collect(float.(b.value isa Real ? [b.value] : b.value)))
+    end
+    free = [v for v in c.continuous if !haskey(points, v)]
+    offset = Dict{Symbol,UnitRange{Int}}()
+    n = 0
+    for v in free
+        offset[v] = (n + 1):(n + c.dims[v]); n += c.dims[v]
+    end
+    # the discrete states allowed and their incoming log-probabilities
+    states, lps = Vector{Vector{Int}}(), Vector{Vector{Float64}}()
+    for v in c.discrete
+        K = c.dims[v]
+        b = _incoming(msgs, v, skip)
+        if b isa LenticulumCore.DiracBelief
+            k = Int(only(b.value isa Real ? [b.value] : b.value))
+            push!(states, [k]); push!(lps, [0.0])
+        elseif b isa LenticulumCore.CategoricalBelief
+            length(b.logp) == K || throw(DimensionMismatch("message to :$v has $(length(b.logp)) states, the variable $K"))
+            ks = [k for k in 1:K if b.logp[k] > -Inf]
+            isempty(ks) && throw(ArgumentError("cluster: the message to :$v gives every state zero probability"))
+            push!(states, ks); push!(lps, b.logp[ks])
+        else
+            push!(states, collect(1:K)); push!(lps, zeros(K))
+        end
+    end
+    combos = vec(collect(Iterators.product(eachindex.(states)...)))
+    nA = length(combos)
+    nA <= 2^16 || throw(ArgumentError("cluster: $nA joint discrete states; at most 2^16 are enumerated"))
+    assignments = [[states[j][ix[j]] for j in eachindex(states)] for ix in combos]
+    cst = [sum(lps[j][ix[j]] for j in eachindex(states); init = 0.0) for ix in combos]
+    J = zeros(n, n); H = zeros(n, nA)
+    # incoming Gaussian messages on free boundary variables
+    for v in free
+        b = _cluster_input(_incoming(msgs, v, skip))
+        b isa GaussianBelief || continue
+        o = offset[v]
+        J[o, o] .+= b.Λ
+        H[o, :] .+= b.η
+    end
+    for (i, f) in enumerate(c.factors)
+        F = cluster_form(f, _subtree(ps, c.keys[i]))
+        w = Dict(c.wiring[i])
+        m = size(F.C, 1)
+        kcol = F.switch === nothing ? fill(1, nA) : (j = findfirst(==(w[F.switch]), c.discrete); [a[j] for a in assignments])
+        cst .+= F.logw[kcol]
+        m == 0 && continue
+        G = zeros(m, n)
+        shift = zeros(m)
+        for (ch, Ach) in pairs(F.A)
+            v = w[ch]
+            haskey(points, v) ? (shift .+= Ach * points[v]) : (G[:, offset[v]] .+= Ach)
+        end
+        CQ = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Matrix(F.Q)))
+        Cc = F.C[:, kcol] .- shift                       # r = G x − c_a
+        QiC = CQ \ Cc
+        QiG = CQ \ G
+        J .+= G' * QiG
+        H .+= G' * QiC
+        cst .+= -vec(sum(Cc .* QiC; dims = 1)) ./ 2 .- (logdet(CQ) + m * log(2π)) / 2
+    end
+    return _ClusterJoint(free, offset, points, assignments, (J + J') / 2, H, cst)
+end
+
+# log ∫ exp(hᵀx − xᵀJx/2) dx for each column of H, with J positive definite.
+function _log_integrals(J, H, what)
+    size(J, 1) == 0 && return zeros(size(H, 2))
+    C = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(J); check = false)
+    LinearAlgebra.issuccess(C) || throw(ArgumentError(
+        "cluster: $what are not determined by the cluster's factors and incoming messages (singular precision)"))
+    return vec(sum(H .* (C \ H); dims = 1)) ./ 2 .- logdet(C) / 2 .+ size(J, 1) * log(2π) / 2
+end
+
+_lse(v) = (m = maximum(v); m == -Inf ? -Inf : m + log(sum(exp.(v .- m))))
+
+"""
+    Mycelium.factor_message(c::ClusterFactor, target, polarity, inputs, prior, ps, st)
+
+The exact message of the cluster to one of its channels, given the others' messages: every joint
+assignment of the discrete variables is enumerated, and the continuous variables other than the
+target are eliminated from that assignment's Gaussian (one precision for all). To a continuous
+channel the message is a mixture over the assignments (a `GaussianBelief` if there is one); to a
+discrete channel a `CategoricalBelief`. Points are substituted; a Gaussian-mixture input is
+collapsed to its moments.
+"""
+function factor_message(c::ClusterFactor, target::Symbol, polarity, inputs, prior, ps, st)
+    target in c.boundary || throw(ArgumentError("channel :$target is not a channel of this cluster (has $(c.boundary))"))
+    jt = _cluster_joint(c, inputs, ps, target)
+    if target in c.discrete
+        l = jt.c .+ _log_integrals(jt.J, jt.H, "its continuous variables")
+        j = findfirst(==(target), c.discrete)
+        K = c.dims[target]
+        lk = [_lse([l[a] for a in eachindex(l) if jt.assignments[a][j] == k]; ) for k in 1:K]
+        all(==(-Inf), lk) && throw(ArgumentError("cluster: every state of :$target has zero probability"))
+        return LenticulumCore.CategoricalBelief(Val(:log), lk .- _lse(lk), nothing), st
+    end
+    ot = jt.offset[target]
+    rs = setdiff(1:size(jt.J, 1), ot)
+    Jrr, Jtr, Jtt = jt.J[rs, rs], jt.J[ot, rs], jt.J[ot, ot]
+    Hr, Ht = jt.H[rs, :], jt.H[ot, :]
+    if isempty(rs)
+        Λ, E, l = Jtt, Ht, copy(jt.c)
+    else
+        Cr = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Jrr); check = false)
+        LinearAlgebra.issuccess(Cr) || throw(ArgumentError(
+            "cluster: the continuous variables other than :$target are not determined by the cluster's factors and incoming messages"))
+        X = Cr \ Hr
+        Λ = Jtt - Jtr * (Cr \ Jtr')
+        E = Ht - Jtr * X
+        l = jt.c .+ vec(sum(Hr .* X; dims = 1)) ./ 2 .- logdet(Cr) / 2 .+ length(rs) * log(2π) / 2
+    end
+    Λ = (Λ + Λ') / 2
+    all(iszero, Λ) && all(iszero, E) && return LenticulumCore.TrivialBelief(), st
+    d = length(ot)
+    CΛ = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Λ); check = false)
+    proper = LinearAlgebra.issuccess(CΛ)
+    if proper                                   # normalised components: their mass into the weight
+        l = l .+ vec(sum(E .* (CΛ \ E); dims = 1)) ./ 2 .- logdet(CΛ) / 2 .+ d * log(2π) / 2
+    end
+    keep = findall(>(-Inf), l)
+    isempty(keep) && throw(ArgumentError("cluster: every assignment has zero probability"))
+    comps = [GaussianBelief(E[:, a], Λ, !proper) for a in keep]
+    length(comps) == 1 && return only(comps), st
+    lk = l[keep]
+    return LenticulumCore.MixtureBelief(Val(:log), comps, lk .- _lse(lk)), st
+end
+
+# --- The free energy --------------------------------------------------------------
+
+"""
+    FrozenClusterBelief
+
+The cluster's belief ``b(x, a) \\propto \\prod_f f(x, a) \\prod_v \\mu_v``, held fixed: the posterior `q` over
+the discrete assignments, the means of the free continuous variables per assignment (columns of
+`M`), their covariance `Σ` (one for all assignments), the conditional entropy ``H(x \\mid a)``, the
+substituted points, and the assignments.
+"""
+struct FrozenClusterBelief{Q<:AbstractVector,M<:AbstractMatrix,S<:AbstractMatrix,H<:Real}
+    q::Q
+    M::M
+    Σ::S
+    H::H
+    free::Vector{Symbol}
+    offset::Dict{Symbol,UnitRange{Int}}
+    points::Dict{Symbol,Vector{Float64}}
+    assignments::Vector{Vector{Int}}
+end
+
+function factor_belief(c::ClusterFactor, msgs, ps, st)
+    jt = _cluster_joint(c, msgs, ps, nothing)
+    n = size(jt.J, 1)
+    l = jt.c .+ _log_integrals(jt.J, jt.H, "its continuous variables")
+    all(==(-Inf), l) && throw(ArgumentError("cluster: every assignment has zero probability"))
+    q = exp.(l .- _lse(l))
+    if n == 0
+        M, Σ, H = zeros(0, length(q)), zeros(0, 0), 0.0
+    else
+        C = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(jt.J))
+        M, Σ = C \ jt.H, Matrix(inv(C))
+        H = n * (1 + log(2π)) / 2 - logdet(C) / 2
+    end
+    return FrozenClusterBelief(q, M, Σ, H, jt.free, jt.offset, jt.points, jt.assignments)
+end
+
+"""
+    Mycelium.local_free_energy(c::ClusterFactor, msgs, ps, st)
+    Mycelium.belief_free_energy(c::ClusterFactor, b::FrozenClusterBelief, ps, st)
+
+``\\mathbb E_b[-\\log \\prod_f f] - H(b)`` for the cluster's exact belief, graded as `(fit, complexity,
+negentropy)`: `fit` is ``\\sum_f \\sum_a q_a \\tfrac12 \\mathbb E[r_f^\\top Q_f^{-1} r_f \\mid a]``, `complexity`
+``\\sum_f (\\tfrac12 \\log\\det 2\\pi Q_f - \\sum_a q_a \\log w_{f,a})``, and `negentropy` ``-H(q) - H(x \\mid a)``, closed form
+since given the assignment the continuous part is one Gaussian. `belief_free_energy` re-evaluates
+the factors' terms at `ps` with the belief fixed (the parameter gradient, LP-020).
+"""
+local_free_energy(c::ClusterFactor, msgs, ps, st) = belief_free_energy(c, factor_belief(c, msgs, ps, st), ps, st)
+
+# Which outcome column each assignment reads, which channels feed each free variable, and which
+# channels hold points: structure only, computed outside AD (`@non_differentiable` in the
+# ChainRulesCore extension).
+function _cluster_layout(c::ClusterFactor, i::Int, F::ClusterForm, b::FrozenClusterBelief)
+    w = Dict(c.wiring[i])
+    kcol = F.switch === nothing ? fill(1, length(b.q)) :
+        (j = findfirst(==(w[F.switch]), c.discrete); [a[j] for a in b.assignments])
+    feeds = [[ch for ch in keys(F.A) if w[ch] === v] for v in b.free]
+    pts = [(ch, b.points[w[ch]]) for ch in keys(F.A) if haskey(b.points, w[ch])]
+    return kcol, feeds, pts
+end
+
+function belief_free_energy(c::ClusterFactor, b::FrozenClusterBelief, ps, st)
+    n = size(b.M, 1)
+    terms = map(eachindex(c.factors)) do i
+        F = cluster_form(c.factors[i], _subtree(ps, c.keys[i]))
+        kcol, feeds, pts = _cluster_layout(c, i, F, b)
+        cx = -sum(b.q .* F.logw[kcol])
+        m = size(F.C, 1)
+        m == 0 && return (0.0, cx)
+        R = -F.C[:, kcol]
+        for (ch, x) in pts
+            R = R .+ getfield(F.A, ch) * x
+        end
+        Cr = zeros(m, m)
+        if n > 0
+            G = reduce(hcat, [isempty(chs) ? zeros(m, length(b.offset[v])) : reduce(+, [getfield(F.A, ch) for ch in chs])
+                              for (v, chs) in zip(b.free, feeds)])
+            R = R .+ G * b.M
+            Cr = G * b.Σ * G'
+        end
+        CQ = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Matrix(F.Q)))
+        quad = vec(sum(R .* (CQ \ R); dims = 1))
+        return ((sum(b.q .* quad) + LinearAlgebra.tr(CQ \ Cr)) / 2, cx + (logdet(CQ) + m * log(2π)) / 2)
+    end
+    fit, complexity = sum(first, terms), sum(last, terms)
+    Hq = -sum(ifelse.(b.q .> 0, b.q .* log.(max.(b.q, floatmin(Float64))), 0.0))
+    return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -Hq - b.H)), st
+end
+
+"""
+    cluster_marginal(store, gc, name, v, ps, st = NamedTuple()) -> AbstractBelief
+
+The marginal of variable `v` of cluster node `name` (internal or a channel) under the cluster's
+exact belief given its current incoming messages: a mixture over the discrete assignments of the
+Gaussian of `v` given each (a `GaussianBelief` if there is one assignment), a categorical for a
+discrete variable, the point for a substituted one.
+"""
+function cluster_marginal(s::AbstractMessageStore, gc::FactorGraph, name::Symbol, v::Symbol, ps, st = NamedTuple())
+    fid = gc.factor_index[name]
+    c = factornode(gc, fid).factor
+    c isa ClusterFactor || throw(ArgumentError("cluster_marginal: :$name is not a cluster node"))
+    v in c.variables || throw(ArgumentError("cluster_marginal: :$v is not a variable of cluster :$name"))
+    b = factor_belief(c, messages_into(s, gc, fid), _subtree(ps, factornode(gc, fid).params), _subtree(st, name))
+    if v in c.discrete
+        j = findfirst(==(v), c.discrete)
+        p = zeros(c.dims[v])
+        for (a, qa) in zip(b.assignments, b.q)
+            p[a[j]] += qa
+        end
+        return LenticulumCore.CategoricalBelief(p)
+    end
+    haskey(b.points, v) && return LenticulumCore.DiracBelief(b.points[v])
+    o = b.offset[v]
+    S = Matrix(LinearAlgebra.Symmetric(b.Σ[o, o]))
+    comps = [LenticulumCore.Gaussian(b.M[o, a], S) for a in eachindex(b.q) if b.q[a] > 0]
+    length(comps) == 1 && return only(comps)
+    return LenticulumCore.MixtureBelief(comps, b.q[b.q .> 0])
+end

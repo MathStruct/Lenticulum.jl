@@ -1,0 +1,167 @@
+# Cluster nodes (Extending Mycelium §5, L-SPEC-009): exact inference inside, messages outside.
+# Oracles: exact enumeration of a switching chain (marginals and log p(y)), the hand-built block
+# factor of E7 (a switching factor with 2^B outcomes), and the factors themselves.
+using Test, Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random
+using ADTypes, DifferentiationInterface, ForwardDiff, Zygote
+using LenticulumCore: MixtureBelief, CategoricalBelief, DiracBelief, Unobserved, Observed, Polarity
+isdefined(@__MODULE__, :mr_chain) || include(joinpath(@__DIR__, "mixture_rules.jl"))
+
+# −log p(y) of the switching chain of `mixture_rules.jl`, enumerating the switch sequences:
+# given them y is Gaussian, mean m_s and covariance V + rI with V_ij = v₀ + (min(i, j) − 1) q.
+function cl_chain_nlp(offs = MR_CHAIN.offs)
+    c, T = MR_CHAIN, MR_T
+    V = [c.v0 + (min(i, j) - 1) * c.q for i in 1:T, j in 1:T]
+    C = V + c.r * I
+    lps = map(vec(collect(Iterators.product(ntuple(_ -> 1:2, T - 1)...)))) do seq
+        m = cumsum([c.m0; [offs[k] for k in seq]])
+        sum(log(c.wk[k]) for k in seq) - (dot(c.ys - m, C \ (c.ys - m)) + logdet(2π * C)) / 2
+    end
+    return -mr_lse(lps)
+end
+
+@testset "A cluster of every factor is exact" begin
+    g = mr_chain(BeliefPropagation())
+    gc = cluster(g, :all, [f.name for f in g.factors if !(f.factor isa DataFactor)])
+    @test nfactors(gc) == MR_T + 1 && nvariables(gc) == MR_T          # the data, one cluster, the y's
+    psc = cluster_parameters(gc, :all, MR_CHAIN_PS)
+    @test keys(psc.all) == (:obs, :prior, :dyn)                        # tied factors keep one entry each
+    _, rep, _, s = infer!(gc, tree_schedule(gc), psc, NamedTuple())
+    @test rep.converged
+    F = first(scalar_free_energy(s, gc, psc, NamedTuple()))
+    @test F ≈ cl_chain_nlp() rtol = 1e-12                              # the free energy is −log p(y)
+    μe, ve = mr_chain_exact()
+    for t in 1:MR_T
+        q = moment_match(cluster_marginal(s, gc, :all, Symbol(:x, t), psc))
+        @test only(belief_mean(q)) ≈ μe[t] atol = 1e-12
+        @test only(belief_cov(q)) ≈ ve[t] atol = 1e-12
+    end
+    k = cluster_marginal(s, gc, :all, :k1, psc)
+    @test k isa CategoricalBelief && sum(exp, k.logp) ≈ 1
+    # the gradient at the exact belief is the gradient of −log p(y), in the tied offsets
+    h = 1e-6
+    fd = [(cl_chain_nlp(MR_CHAIN.offs .+ h .* (1:2 .== j)) - cl_chain_nlp(MR_CHAIN.offs .- h .* (1:2 .== j))) / 2h for j in 1:2]
+    for (ad, tol) in ((nothing, 1e-6), (AutoForwardDiff(), 1e-7), (AutoZygote(), 1e-7))
+        G = free_energy_gradient(s, gc, psc, NamedTuple(); ad)
+        @test vec(G.all.dyn.b) ≈ fd atol = tol
+    end
+end
+
+# E7's additive wiring: z = u₁ + u₂ + u₃ + ε observed, each uₗ from a two-outcome switching factor.
+const CL_OFFS = [[-1.0 1.0], [0.0 2.0], [-2.0 0.5]]
+const CL_W = [[0.3, 0.7], [0.5, 0.5], [0.8, 0.2]]
+function cl_additive(; block = false)
+    b = GraphBuilder()
+    variable!(b, :z, 1)
+    factor!(b, :data, DataFactor(:z, [1.3])); connect!(b, :data, :z, :z; direction = Emitting())
+    factor!(b, :sum, LinearConstraintFactor((z = 1, u1 = 1, u2 = 1, u3 = 1), 1; noise = 0.2))
+    connect!(b, :sum, :z, :z)
+    for l in 1:3
+        variable!(b, Symbol(:u, l), 1); connect!(b, :sum, Symbol(:u, l), Symbol(:u, l))
+    end
+    if block
+        variable!(b, :kb, 8)
+        factor!(b, :blk, SwitchingConstraintFactor((u1 = 1, u2 = 1, u3 = 1), 8, 3; noise = Diagonal([0.05, 0.1, 0.15]) |> Matrix, switch = :k))
+        for l in 1:3; connect!(b, :blk, Symbol(:u, l), Symbol(:u, l)); end
+        connect!(b, :blk, :k, :kb)
+    else
+        for l in 1:3
+            variable!(b, Symbol(:k, l), 2)
+            factor!(b, Symbol(:sw, l), SwitchingConstraintFactor((u = 1,), 2, 1; noise = 0.05 * l))
+            connect!(b, Symbol(:sw, l), :u, Symbol(:u, l)); connect!(b, Symbol(:sw, l), :k, Symbol(:k, l))
+        end
+    end
+    return build(b)
+end
+const CL_SUM = (A = (z = fill(1.0, 1, 1), u1 = fill(-1.0, 1, 1), u2 = fill(-1.0, 1, 1), u3 = fill(-1.0, 1, 1)), c = [0.0])
+cl_sw(l) = (A = (u = fill(1.0, 1, 1),), b = CL_OFFS[l], logw = log.(CL_W[l]))
+# the block factor: outcome (k₁, k₂, k₃) with k₁ fastest, offsets stacked, weights multiplied
+function cl_block()
+    combos = vec(collect(Iterators.product(1:2, 1:2, 1:2)))
+    A = (u1 = reshape([1.0, 0, 0], 3, 1), u2 = reshape([0, 1.0, 0], 3, 1), u3 = reshape([0, 0, 1.0], 3, 1))
+    B = reduce(hcat, [[CL_OFFS[l][ks[l]] for l in 1:3] for ks in combos])
+    return (A = A, b = B, logw = [sum(log(CL_W[l][ks[l]]) for l in 1:3) for ks in combos])
+end
+
+@testset "A cluster of switches is the block factor" begin
+    g, gb = cl_additive(), cl_additive(; block = true)
+    gc = cluster(g, :blk, [:sw1, :sw2, :sw3])
+    ps = (data = NamedTuple(), sum = CL_SUM, sw1 = cl_sw(1), sw2 = cl_sw(2), sw3 = cl_sw(3))
+    psc = cluster_parameters(gc, :blk, ps)
+    psb = (data = NamedTuple(), sum = CL_SUM, blk = cl_block())
+    @test Set(gc.factors[gc.factor_index[:blk]].factor.boundary) == Set([:u1, :u2, :u3])
+    # one message, against the block factor's, at Gaussian inputs
+    c = gc.factors[gc.factor_index[:blk]].factor
+    bf = gb.factors[gb.factor_index[:blk]].factor
+    ins = (u2 = Gaussian(0.3, 0.5), u3 = Gaussian(-0.4, 2.0))
+    mc, _ = factor_message(c, :u1, nothing, ins, nothing, psc.blk, NamedTuple())
+    mb, _ = factor_message(bf, :u1, nothing, ins, nothing, psb.blk, NamedTuple())
+    for x in ([-1.0], [0.4], [2.0])
+        @test Mycelium.belief_logdensity(mc, x) ≈ Mycelium.belief_logdensity(mb, x) atol = 1e-12
+    end
+    # the same loopy schedule on both graphs: the same marginals and free energy
+    sc, sb = MessageStore(gc), MessageStore(gb)
+    for _ in 1:15
+        sweep!(sc, gc, SequentialSchedule(all_tasks(gc)), psc, NamedTuple())
+        sweep!(sb, gb, SequentialSchedule(all_tasks(gb)), psb, NamedTuple())
+    end
+    for v in (:u1, :u2, :u3)                                            # z is observed
+        qc, qb = moment_match(marginal(sc, gc, gc.variable_index[v])), moment_match(marginal(sb, gb, gb.variable_index[v]))
+        @test belief_mean(qc) ≈ belief_mean(qb) atol = 1e-10
+        @test belief_cov(qc) ≈ belief_cov(qb) atol = 1e-10
+    end
+    # The uₗ have mixture marginals, so these graphs have no Bethe free energy (no mixture entropy);
+    # the nodes' local free energies at their messages agree, term by term.
+    Fc, _ = local_free_energy(c, messages_into(sc, gc, gc.factor_index[:blk]), psc.blk, NamedTuple())
+    Fb, _ = local_free_energy(bf, messages_into(sb, gb, gb.factor_index[:blk]), psb.blk, NamedTuple())
+    for part in (:fit, :complexity, :negentropy)
+        @test Fc[part] ≈ Fb[part] rtol = 1e-10
+    end
+    # a cluster of one factor is that factor
+    g1 = cluster(g, :one, [:sw1])
+    ps1 = cluster_parameters(g1, :one, ps)
+    s0, s1 = MessageStore(g), MessageStore(g1)
+    for _ in 1:10
+        sweep!(s0, g, SequentialSchedule(all_tasks(g)), ps, NamedTuple())
+        sweep!(s1, g1, SequentialSchedule(all_tasks(g1)), ps1, NamedTuple())
+    end
+    q0, q1 = moment_match(marginal(s0, g, g.variable_index[:u1])), moment_match(marginal(s1, g1, g1.variable_index[:u1]))
+    @test belief_mean(q0) ≈ belief_mean(q1) atol = 1e-10
+    F0, _ = local_free_energy(g.factors[g.factor_index[:sw1]].factor, messages_into(s0, g, g.factor_index[:sw1]), ps.sw1, NamedTuple())
+    F1, _ = local_free_energy(g1.factors[g1.factor_index[:one]].factor, messages_into(s1, g1, g1.factor_index[:one]), ps1.one, NamedTuple())
+    for part in (:fit, :complexity, :negentropy)
+        @test F0[part] ≈ F1[part] rtol = 1e-10
+    end
+end
+
+@testset "A cluster closes the mixture-entropy gap" begin
+    # On belief propagation the uₗ have mixture marginals and the graph no free energy; with the
+    # switches and the sum in one cluster they are internal, and the free energy is −log p(z).
+    g = cl_additive()
+    ps = (data = NamedTuple(), sum = CL_SUM, sw1 = cl_sw(1), sw2 = cl_sw(2), sw3 = cl_sw(3))
+    s = MessageStore(g)
+    for _ in 1:5; sweep!(s, g, SequentialSchedule(all_tasks(g)), ps, NamedTuple()); end
+    @test_throws ArgumentError scalar_free_energy(s, g, ps, NamedTuple())
+    gc = cluster(g, :all, [:sum, :sw1, :sw2, :sw3])
+    psc = cluster_parameters(gc, :all, ps)
+    _, _, _, sc = infer!(gc, tree_schedule(gc), psc, NamedTuple())
+    lp = map(vec(collect(Iterators.product(1:2, 1:2, 1:2)))) do ks
+        sum(log(CL_W[l][ks[l]]) for l in 1:3) + mr_lognorm(1.3, sum(CL_OFFS[l][ks[l]] for l in 1:3), 0.2 + 0.05 * 6)
+    end
+    @test first(scalar_free_energy(sc, gc, psc, NamedTuple())) ≈ -mr_lse(lp) rtol = 1e-12
+end
+
+@testset "cluster: refusals" begin
+    g = cl_additive()
+    @test_throws ArgumentError cluster(g, :c, [:data, :sw1])            # DataFactor has no cluster_form
+    @test_throws ArgumentError cluster(g, :c, [:nope])
+    @test_throws ArgumentError cluster(g, :sum, [:sw1])                 # the name is taken
+    gt = mr_chain(BeliefPropagation())
+    @test_throws ArgumentError cluster(gt, :c, [:o1, :o2])              # :obs is tied to o3…o5 outside
+    b = GraphBuilder()
+    plate!((p, i) -> (variable!(p, :x, 1); factor!(p, :pr, GaussianPrior(:x, 0.0, 1.0)); connect!(p, :pr, :x, :x)), b, :pl, 2)
+    @test_throws ArgumentError cluster(build(b), :c, [Symbol("pr[1]")])
+    # a channel left unconnected inside a cluster
+    b2 = GraphBuilder(); variable!(b2, :u, 1)
+    factor!(b2, :lc, LinearConstraintFactor((u = 1, w = 1), 1; noise = 1.0)); connect!(b2, :lc, :u, :u)
+    @test_throws ArgumentError cluster(build(b2), :c, [:lc])
+end

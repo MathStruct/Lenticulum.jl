@@ -43,7 +43,8 @@ included (`switching.md` §9).
 
 **§4. Schedules.** One undamped `TreeSchedule` sweep is reported exact only when every node is a
 belief-propagation or mixture-reduction node; a graph with an expectation-propagation or
-mean-field node is iterated. Plate sweeps group belief-propagation nodes only.
+mean-field node is iterated. Plate sweeps group belief-propagation and (on message blocks only)
+expectation-propagation nodes, [[L-SPEC-006 Plates]] §8; mixture-reduction nodes go edge by edge.
 
 **§5. Free energy.** An expectation-propagation node is counted as a belief-propagation node: its
 `local_free_energy` at its incoming messages, and its edges in the counting numbers. The default
@@ -79,8 +80,8 @@ with $\log Z = 0$ otherwise.
 
 ## Open
 
-- EP and reduction nodes in plates run edge by edge; EP on blocks waits for mixture blocks
-  (L-SPEC-006 §8).
+- Mixture-reduction nodes in plates run edge by edge (their component counts differ between
+  replicas); EP plates feeding a linear factor go replica by replica there (L-SPEC-006 §8.4).
 - No free energy for reduction nodes, and none for belief-propagation graphs with Gaussian-mixture
   marginals (no closed-form entropy).
 - Expanded mixture inputs must have proper components.

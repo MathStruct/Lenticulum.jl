@@ -59,11 +59,13 @@ include("gaussian.jl")
 include("gradient_couplings.jl")
 include("graph_adjoint.jl")
 include("sampling.jl")
+include("cluster.jl")
 
 # --- Graph -----------------------------------------------------------------
 export FactorGraph, GraphBuilder, VariableNode, FactorNode, Edge
 export AbstractMessageRule, BeliefPropagation, MeanField, ExpectationPropagationRule, MixtureReduction
-export ep_message, ep_project, ep_divide, mixture_message, reduce_message
+export ep_message, ep_project, ep_divide, ep_block, mixture_message, reduce_message
+export cluster, ClusterFactor, ClusterForm, cluster_form, cluster_switch, cluster_parameters, cluster_marginal, FrozenClusterBelief
 export variable!, factor!, connect!, build, validate
 export EdgeDirection, Bidirectional, Emitting, Absorbing, emits, absorbs
 export nvariables, nfactors, nedges, variable, factornode
@@ -80,7 +82,7 @@ export legal_targets, legal_sources
 export Message, MessageStore, reset!, pin!, unpin!, combine, combine_with_overlap, belief_logdensity, belief_distance
 export marginal, excluded_marginal, damp, can_damp
 export has_to_variable, has_to_factor
-export BeliefBlock, TrivialBlock, PointBlock, GaussianBlock, CategoricalBlock, VectorBlock, belief_block, replica, replicas, nreplicas
+export BeliefBlock, TrivialBlock, PointBlock, GaussianBlock, CategoricalBlock, MixtureBlock, VectorBlock, belief_block, replica, replicas, nreplicas
 
 # --- Schedules -------------------------------------------------------------
 export AbstractSchedule, MessageTask, tasks, all_tasks, islegal

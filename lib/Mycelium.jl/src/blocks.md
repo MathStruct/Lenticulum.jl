@@ -22,6 +22,7 @@ A `BeliefBlock` is $n$ beliefs of one kind:
 | `PointBlock(X)` | $X \in \mathbb R^{d \times n}$ | `DiracBelief(X[:, i])` |
 | `GaussianBlock(η, Λ, improper)` | $\eta \in \mathbb R^{d \times n}$; $\Lambda$ shared ($d \times d$) or a vector of $n$ | `GaussianBelief(η[:, i], Λᵢ, improper[i])` |
 | `CategoricalBlock(logp, labels)` | $\log p \in \mathbb R^{K \times n}$, columns normalised | `CategoricalBelief(logp[:, i])` |
+| `MixtureBlock(η, Λ, logw, improper)` | $\eta \in \mathbb R^{d \times K \times n}$, one $\Lambda$ for every component, $\log w \in \mathbb R^{K \times n}$ | `MixtureBelief` of `GaussianBelief(η[:, k, i], Λ, improper)` |
 | `VectorBlock(beliefs)` | anything | `beliefs[i]` |
 
 `belief_block(beliefs)` picks the most specific block for a vector of beliefs, keeping a precision
@@ -38,6 +39,11 @@ The operations a sweep needs work column for column, just as the per-belief rule
 - Categorical blocks multiply column by column (log-probabilities add, each column normalised);
   `block_distance` is the largest total variation, and the entropies of a variable row are one
   vectorised sum.
+- A mixture block times a Gaussian block of one proper shared precision, in either order, is the
+  componentwise product of `_mixture_product` with its overlaps, batched (`_mixture_gaussian`):
+  proper components through the convolution form of `_overlap`, improper ones through its
+  expansion about the Gaussian's mean, one factorisation for all $Kn$ pairs. With $K = 1$ a
+  re-centring point can enter, so that, and any other pair, goes column by column.
 - `block_distance`: the largest `belief_distance` over the columns ($\max(\|\Delta\eta\|_\infty, \|\Delta\Lambda\|_\infty)$
   for Gaussians, the norm of the difference for points), without temporaries.
 
@@ -138,23 +144,58 @@ to the outcomes.
 | $N$ | sequential | grouped, on blocks | both directions | by hand | $F$, blocks | $F$, per edge | $\nabla F$, blocks | $\nabla F$, per edge |
 |---|---|---|---|---|---|---|---|---|
 | 100 | 1.02 ms | 0.021 ms | 0.56 ms | 0.0061 ms | 0.12 ms | 0.53 ms | 0.43 ms | 2.89 ms |
-| 1000 | 9.69 ms | 0.10 ms | 5.02 ms | 0.044 ms | 1.09 ms | 5.14 ms | 2.86 ms | 28.99 ms |
+| 1000 | 9.69 ms | 0.10 ms | 5.02 ms (0.22 ms with mixture blocks) | 0.044 ms | 1.09 ms | 5.14 ms | 2.86 ms | 28.99 ms |
 | 3000 | 29.36 ms | 0.27 ms | 15.25 ms | 0.13 ms | 3.59 ms | 15.89 ms | 8.45 ms | 87.12 ms |
 
 "Sequential" is edge by edge; "both directions" makes the edge to the observed $z$ bidirectional,
 so each replica also sends its mixture message back, replica by replica. The E-step on blocks is
 about 2.3 times the closed form, $F$ about 4.7 times and $\nabla F$ about 10 times faster than per edge;
-the mixture messages cost 50 times the whole E-step.
+the mixture messages cost 50 times the whole E-step, until the mixture blocks below.
+
+## Mixture blocks and EP on blocks (2026-11-03)
+
+A plate of tied switching factors sends its mixture messages to a continuous channel as one
+`MixtureBlock` when the inputs are as for its outcome method and every outcome is possible
+(`_switch_mixture_block`, `switching.md` §12). A plate of `ExpectationPropagationRule()` nodes is
+grouped too: `_group_plan` records the rows of the targets' cavities, and on blocks the group
+computes the message block, the cavity block (the combine of those rows, as `excluded_marginal`),
+and [`ep_block`](@ref): a mixture block times a shared-precision Gaussian cavity, projected per
+replica and divided, gives one `GaussianBlock` of sites with a precision per replica; other blocks
+go column by column through `ep_message`. When any column's update would be skipped, a variable
+is pinned, or an input has a negative direction, the group takes the per-edge path, which skips
+exactly those. EP groups never take the vector-batched path of belief propagation, which would
+send unprojected messages.
+
+`test/plates.jl` ("Mixture blocks"): a plate sending its mixtures back to observed points and one
+whose latent variable pools a Gaussian prior with the mixture (the cavity is then a mixture block
+times a Gaussian block) give the sequential schedule's messages to $10^{-10}$, with mixture blocks in
+both directions; the block product equals the per-column `combine` to $10^{-12}$ for proper and
+improper components, in both orders. The EP plate of "Plates of switching factors on message
+blocks" now runs on blocks (a site block with per-replica precisions is asserted) and still
+matches the sequential schedule to $10^{-10}$ after 30 sweeps.
+
+`bench/mixture_plates.jl`, a latent mixture on EP nodes ($x_i = z_i + \delta$ observed, the mixture on
+$z_i$), one sweep of a warm store:
+
+| $N$ | EP edge by edge | EP grouped, on blocks | max $\lvert\Delta\mu\rvert$ |
+|---|---|---|---|
+| 100 | 4.43 ms | 0.13 ms | $1.1 \cdot 10^{-15}$ |
+| 1000 | 44.2 ms | 0.85 ms | $2.2 \cdot 10^{-15}$ |
+| 3000 | 137.8 ms | 2.99 ms | $1.8 \cdot 10^{-15}$ |
+
+and the Gaussian-mixture plate's "both directions" sweep at $N = 1000$ went from 5.02 ms to 0.22 ms.
 
 ## What it does not do
 
-- Mixture messages (a switching factor's message to a continuous channel) are held as
-  `VectorBlock`s and computed per replica; `bench/mixture_plates.jl` measures them at 50 times the
-  batched E-step. A batched mixture block is the planned next step ([[L-SPEC-006 Plates]] §8).
-- Plate sweeps group belief-propagation nodes only: `ExpectationPropagationRule()` and
-  `MixtureReduction(M)` nodes take the per-edge path. Their energies do use the rows (EP nodes,
-  same rule throughout). EP on blocks needs the mixture block first: the projection is cheap, the
-  mixture message is not.
+- A mixture block needs one precision for every component and replica, and every outcome possible
+  in every replica (an impossible one is dropped from that replica's mixture, so the replicas
+  would differ in $K$); otherwise mixtures are `VectorBlock`s, computed per replica.
+- Mixture times mixture ($K^2$ components) is column by column.
+- EP sites have a precision per replica, and `LinearConstraintFactor`'s block method takes shared
+  precisions only, so a linear factor downstream of EP sites goes replica by replica. The
+  benchmark's template does not meet it (the observation's edge to $x$ absorbs).
+- `MixtureReduction(M)` nodes take the per-edge path: their component counts differ between
+  replicas.
 - Per-replica precisions (`Λ` as a vector) are combined and compared column by column; no factor
   method produces or consumes them in batch, so they take the per-replica fallback inside
   `LinearConstraintFactor`.
@@ -188,3 +229,7 @@ the mixture messages cost 50 times the whole E-step.
    could not be differentiated in `ps` by ForwardDiff, though the per-edge path could and the tests
    only differentiated `free_energy_gradient`'s items (built outside AD). The fields are
    parametric now, and `test/plates.jl` differentiates the free energy on blocks.
+5. **A loop that was slower than the broadcasts it replaced.** The first `ep_block` took 3.1 ms per
+   sweep at $N = 1000$, most of it in the per-replica moment loop; rewriting the loop without
+   temporaries made it 4.4 ms. The block returned by `combine_blocks` is not concretely inferred, so
+   every access in the loop was dynamic. A function barrier (`_ep_sites`) brought it to 0.85 ms.

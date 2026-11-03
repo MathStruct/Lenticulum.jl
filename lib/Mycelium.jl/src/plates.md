@@ -180,3 +180,12 @@ free energy 1.1 ms (the table in `blocks.md`).
 belief-propagation clusters must be trees), lifts replica 1's, and marks the schedule `hybrid`, so
 `propagate!` converges on marginals. `test/plates.jl` checks it against the hand-lifted schedule of
 the same plate.
+
+## Expectation-propagation groups (2026-11-03)
+
+`_group_plan` now plans a group of tied `ExpectationPropagationRule()` nodes as well, when the
+edges of the targets' variables form block rows in one order (`_variable_rows`, shared with
+`_cavity_plan`); the plan's `ep` field holds those rows. Such a group runs only on blocks
+(`_step_blocks!`: the message block, the cavity block, `ep_block`) and otherwise edge by edge
+through `step!`, never through the vector-batched `factor_messages`, which would send the
+belief-propagation messages unprojected. Details and timings in `blocks.md`.

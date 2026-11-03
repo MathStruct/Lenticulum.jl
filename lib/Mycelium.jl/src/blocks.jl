@@ -24,6 +24,7 @@ belief, read with [`replica`](@ref). Implemented:
 | `PointBlock(X)` | points as the columns of a `d × n` matrix | `DiracBelief(X[:, i])` |
 | `GaussianBlock(η, Λ, improper)` | information vectors `η` (`d × n`), precisions `Λ` | `GaussianBelief(η[:, i], Λᵢ, improper[i])` |
 | `CategoricalBlock(logp, labels)` | normalised log-probabilities as the columns of a `K × n` matrix | `CategoricalBelief(logp[:, i])` |
+| `MixtureBlock(η, Λ, logw, improper)` | `K` Gaussian components per replica, `η` of size `d × K × n`, one precision `Λ` for all, log-weights `K × n` | `MixtureBelief` of `GaussianBelief(η[:, k, i], Λ, improper)` |
 | `VectorBlock(beliefs)` | any beliefs, one per replica | `beliefs[i]` |
 
 `Λ` of a `GaussianBlock` is one matrix shared by every replica, or a vector of `n` matrices.
@@ -60,6 +61,26 @@ struct CategoricalBlock{M<:AbstractMatrix,L} <: BeliefBlock
     labels::L                 # shared by every replica
 end
 CategoricalBlock(logp::AbstractMatrix) = CategoricalBlock(logp, nothing)
+"""
+    MixtureBlock(η, Λ, logw, improper)
+
+`n` mixtures of `K` Gaussians whose components all share one precision `Λ` (and one `improper`
+flag): component `k` of replica `i` is `GaussianBelief(η[:, k, i], Λ, improper)`, its normalised
+log-weight `logw[k, i]`. What a plate of tied switching factors sends to a continuous channel
+when their inputs share one precision.
+"""
+struct MixtureBlock{E<:AbstractArray,L<:AbstractMatrix,W<:AbstractMatrix} <: BeliefBlock
+    η::E                      # d × K × n
+    Λ::L
+    logw::W                   # K × n, each column normalised
+    improper::Bool
+    function MixtureBlock(η::E, Λ::L, logw::W, improper::Bool) where {E<:AbstractArray,L<:AbstractMatrix,W<:AbstractMatrix}
+        ndims(η) == 3 || throw(DimensionMismatch("η must be d × K × n"))
+        size(logw) == (size(η, 2), size(η, 3)) || throw(DimensionMismatch("logw must be K × n"))
+        size(Λ) == (size(η, 1), size(η, 1)) || throw(DimensionMismatch("Λ must be d × d"))
+        return new{E,L,W}(η, Λ, logw, improper)
+    end
+end
 struct VectorBlock <: BeliefBlock
     beliefs::Vector{Any}
 end
@@ -73,6 +94,7 @@ nreplicas(b::TrivialBlock) = b.n
 nreplicas(b::PointBlock) = size(b.X, 2)
 nreplicas(b::GaussianBlock) = size(b.η, 2)
 nreplicas(b::CategoricalBlock) = size(b.logp, 2)
+nreplicas(b::MixtureBlock) = size(b.η, 3)
 nreplicas(b::VectorBlock) = length(b.beliefs)
 
 """
@@ -87,6 +109,8 @@ replica(::TrivialBlock, i::Int) = LenticulumCore.TrivialBelief()
 replica(b::PointBlock, i::Int) = LenticulumCore.DiracBelief(b.X[:, i])
 replica(b::GaussianBlock, i::Int) = GaussianBelief(b.η[:, i], _precision(b, i), b.improper[i])
 replica(b::CategoricalBlock, i::Int) = LenticulumCore.CategoricalBelief(Val(:log), b.logp[:, i], b.labels)
+replica(b::MixtureBlock, i::Int) = LenticulumCore.MixtureBelief(Val(:log),
+    [GaussianBelief(b.η[:, k, i], b.Λ, b.improper) for k in axes(b.η, 2)], b.logw[:, i])
 replica(b::VectorBlock, i::Int) = b.beliefs[i]
 
 _shared(b::GaussianBlock) = b.Λ isa AbstractMatrix
@@ -116,6 +140,14 @@ function belief_block(bs::AbstractVector)
             η = reduce(hcat, [b.η for b in bs])
             Λ = all(b -> b.Λ === b1.Λ, bs) ? b1.Λ : [b.Λ for b in bs]
             return GaussianBlock(η, Λ, [b.improper for b in bs])
+        end
+    elseif b1 isa LenticulumCore.MixtureBelief && !isempty(b1.components) && first(b1.components) isa GaussianBelief
+        c1 = first(b1.components)
+        K, d = length(b1.components), dimension(c1)
+        if all(b -> b isa LenticulumCore.MixtureBelief && length(b.components) == K &&
+                    all(c -> c isa GaussianBelief && c.Λ === c1.Λ && c.improper == c1.improper && dimension(c) == d, b.components), bs)
+            η = reshape(reduce(hcat, [c.η for b in bs for c in b.components]), d, K, n)
+            return MixtureBlock(η, c1.Λ, reduce(hcat, [b.logw for b in bs]), c1.improper)
         end
     elseif b1 isa LenticulumCore.CategoricalBelief
         K = length(b1.logp)
@@ -163,6 +195,47 @@ function combine_blocks(a::CategoricalBlock, b::CategoricalBlock)
     l = l .- m
     return CategoricalBlock(l .- log.(sum(exp.(l); dims = 1)), a.labels)
 end
+# A mixture block times a Gaussian block of one proper shared precision, in either order: the
+# componentwise product of `_mixture_product` with its overlaps, batched. Every pair shares the
+# precisions, so one factorisation serves all `K n` pairs. Covered: proper components (the
+# convolution form of `_overlap`) and improper ones (the expansion about the Gaussian's mean);
+# with `K = 1` a reference point may enter, so that and anything else goes column by column.
+combine_blocks(a::MixtureBlock, b::GaussianBlock) = _mixture_gaussian(a, b, () -> _combine_columns(a, b))
+combine_blocks(a::GaussianBlock, b::MixtureBlock) = _mixture_gaussian(b, a, () -> _combine_columns(a, b))
+
+function _mixture_gaussian(m::MixtureBlock, gb::GaussianBlock, fallback)
+    d, K, n = size(m.η)
+    (_shared(gb) && size(gb.η) == (d, n) && K > 1 && !any(gb.improper) &&
+     LenticulumCore._precision_isproper(gb.Λ)) || return fallback()
+    Cg = LenticulumCore._precision_factor(gb.Λ)
+    μg = LenticulumCore._precision_solve(Cg, gb.η)                       # d × n
+    Λ = m.Λ + gb.Λ
+    E = reshape(m.η, d, K * n)
+    if !m.improper && LenticulumCore._precision_isproper(m.Λ)
+        # log N(μc − μd; 0, Σc + Σd) with the congruence scaling of `_overlap`
+        Cc = LenticulumCore._precision_factor(m.Λ)
+        Σc, Σd = inv(Cc), inv(Cg)
+        sc = sqrt.(max.(LinearAlgebra.diag(Σc), LinearAlgebra.diag(Σd)))
+        C = LenticulumCore._precision_factor(_scaled_sum(Σc, Σd, sc))
+        δh = ((LenticulumCore._precision_solve(Cc, E) .- repeat(μg; inner = (1, K))) ./ sc) ./ 2
+        logZ = -2 .* vec(sum(δh .* LenticulumCore._precision_solve(C, δh); dims = 1)) .-
+               (LenticulumCore._precision_logdet(C) + 2 * sum(log, sc) + d * log(2π)) / 2
+    elseif m.improper || !LenticulumCore._precision_isproper(m.Λ)
+        # ∫ N(x; μg, Σg) exp(ηᵀx − xᵀΛₘx/2) dx, expanded about μg (`_overlap` with an improper d)
+        Λd = _sym(m.Λ)
+        LenticulumCore._precision_isproper(Λ) || return fallback()
+        Ccd = LenticulumCore._precision_factor(Λ)
+        Mg = repeat(μg; inner = (1, K))
+        R = E .- Λd * Mg
+        logZ = vec(sum(E .* Mg; dims = 1)) .- vec(sum(Mg .* (Λd * Mg); dims = 1)) ./ 2 .+
+               vec(sum(R .* LenticulumCore._precision_solve(Ccd, R); dims = 1)) ./ 2 .+
+               (LenticulumCore._precision_logdet(Cg) - LenticulumCore._precision_logdet(Ccd)) / 2
+    end
+    l = m.logw .+ reshape(logZ, K, n)
+    l = l .- maximum(l; dims = 1)
+    l = l .- log.(sum(exp.(l); dims = 1))
+    return MixtureBlock(m.η .+ reshape(gb.η, d, 1, n), Λ, l, false)
+end
 combine_blocks(a::BeliefBlock, b::BeliefBlock) = _combine_columns(a, b)
 _combine_columns(a, b) = belief_block([combine(replica(a, i), replica(b, i)) for i in 1:nreplicas(a)])
 
@@ -189,6 +262,26 @@ function block_distance(a::PointBlock, b::PointBlock)
     end
     return d
 end
+# As `belief_distance` of two mixtures: the larger of the weights' total variation and the
+# components' Gaussian distance, per column.
+function block_distance(a::MixtureBlock, b::MixtureBlock)
+    size(a.η) == size(b.η) || return Inf
+    dΛ = _maxabsdiff(a.Λ, b.Λ)
+    d = 0.0
+    for i in axes(a.η, 3)
+        w = 0.0
+        for k in axes(a.η, 2)
+            w += abs(exp(a.logw[k, i]) - exp(b.logw[k, i]))
+        end
+        c = dΛ
+        for k in axes(a.η, 2), j in axes(a.η, 1)
+            c = max(c, abs(a.η[j, k, i] - b.η[j, k, i]))
+        end
+        d = max(d, w / 2, c)
+    end
+    return d
+end
+
 # Total variation per column, as `belief_distance` of two categoricals.
 function block_distance(a::CategoricalBlock, b::CategoricalBlock)
     size(a.logp) == size(b.logp) && isequal(a.labels, b.labels) || return Inf
@@ -220,6 +313,7 @@ end
 _uninformative(::TrivialBlock) = true
 _uninformative(::PointBlock) = false
 _uninformative(::CategoricalBlock) = false
+_uninformative(::MixtureBlock) = false
 function _uninformative(b::GaussianBlock)       # isuninformative: Λᵢ = 0 and ηᵢ = 0
     _shared(b) && !all(iszero, b.Λ) && return false
     flags = [all(iszero, _precision(b, i)) && all(iszero, view(b.η, :, i)) for i in 1:nreplicas(b)]

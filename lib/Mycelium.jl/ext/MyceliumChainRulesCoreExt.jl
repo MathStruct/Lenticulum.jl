@@ -3,6 +3,7 @@ using Mycelium, LenticulumCore, ChainRulesCore
 ChainRulesCore.@non_differentiable Mycelium._index_metadata(θ, indices)
 ChainRulesCore.@non_differentiable Mycelium._active_indices(f, ps)
 ChainRulesCore.@non_differentiable Mycelium._factor_nodes(g)
+ChainRulesCore.@non_differentiable Mycelium._cluster_layout(c, i, F, b)
 ChainRulesCore.@non_differentiable Mycelium._variable_nodes(g)
 ChainRulesCore.@non_differentiable Mycelium.factornode(g, id)
 ChainRulesCore.@non_differentiable Mycelium.parameter_keys(g)

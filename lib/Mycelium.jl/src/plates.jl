@@ -216,6 +216,7 @@ struct _GroupPlan{F}
     target::Int
     rows::Vector{Int}
     detach::Bool              # a target edge is detached: commit per edge (`stop_gradient`)
+    ep::Any                   # expectation-propagation nodes: the targets' cavity rows (a `_CavityPlan`); else `nothing`
 end
 
 # A lifted group of variable -> factor messages whose members' variables have their edges in the
@@ -236,7 +237,12 @@ _row_index(g::FactorGraph) = EdgeMessages(nedges(g), _block_rows(g))
 
 function _cavity_plan(g::FactorGraph, grp::Vector{MessageTask}, index::EdgeMessages)
     length(grp) > 1 && _to_factor_group(g, grp) || return nothing
-    es = [t.edge for t in grp]
+    return _variable_rows(g, [t.edge for t in grp], index)
+end
+
+# The rows of the other edges at each edge's variable, in the same order for every member, with
+# `es` itself a row (member i in column i): what a cavity of these edges combines.
+function _variable_rows(g::FactorGraph, es::Vector{Int}, index::EdgeMessages)
     target = _row_of(index, es)
     target == 0 && return nothing
     vs = [g.edges[e].variable for e in es]
@@ -258,7 +264,7 @@ function _group_plan(g::FactorGraph, grp::Vector{MessageTask}, index::EdgeMessag
     length(grp) > 1 && all(t -> t.kind === :to_variable && can_emit(g, t.edge), grp) || return nothing
     nodes = [factornode(g, g.edges[t.edge].factor) for t in grp]
     f1 = first(nodes)
-    all(h -> h.params === f1.params && h.rule isa BeliefPropagation, nodes) || return nothing
+    _cavity_rule(f1.rule) && all(h -> h.params === f1.params && h.rule === f1.rule, nodes) || return nothing
     allunique(g.edges[t.edge].variable for t in grp) || return nothing
     E1 = g.edges_of_factor[f1.id]
     layout(h) = [(g.edges[e].channel, typeof(g.edges[e].direction)) for e in g.edges_of_factor[h.id]]
@@ -269,7 +275,12 @@ function _group_plan(g::FactorGraph, grp::Vector{MessageTask}, index::EdgeMessag
     edges = reshape(reduce(hcat, [g.edges_of_factor[h.id] for h in nodes]), length(E1), length(nodes))
     factors = [h.factor for h in nodes]
     rows = [_row_of(index, edges[j, :]) for j in axes(edges, 1)]
-    return _GroupPlan(identity.(factors), first.(l1), edges, target, rows, any(t -> g.edges[t.edge].detach, grp))
+    ep = nothing
+    if f1.rule isa ExpectationPropagationRule        # needs the targets' cavities as rows, or no plan
+        ep = _variable_rows(g, [t.edge for t in grp], index)
+        ep === nothing && return nothing
+    end
+    return _GroupPlan(identity.(factors), first.(l1), edges, target, rows, any(t -> g.edges[t.edge].detach, grp), ep)
 end
 tasks(s::PlateSchedule) = reduce(vcat, s.groups; init = MessageTask[])
 
@@ -501,6 +512,8 @@ function _step_planned!(s, g, grp, plan::_GroupPlan, ps, st, damping)
         r = _step_blocks!(s, g, grp, plan, ps, st, damping)
         r === nothing || return r
     end
+    # expectation propagation is batched on blocks only; otherwise each message goes through `step!`
+    plan.ep === nothing || return _step_each!(s, g, grp, ps, st, damping)
     E, n, nc = plan.edges, length(grp), length(plan.channels)
     mask = [j != plan.target && _informative_input(s, E[j, 1]) for j in 1:nc]
     for i in 2:n, j in 1:nc
@@ -550,10 +563,19 @@ function _step_blocks!(s, g, grp, plan::_GroupPlan, ps, st, damping)
     psf = _factor_parameters(fn, _subtree(ps, fn.params))
     stf = _subtree(st, fn.params)
     inputs = NamedTuple{chans}(Tuple(blocks[js]))
+    if plan.ep !== nothing                 # an EP update would be skipped, or a pin: the per-edge path decides
+        isempty(s.pins) && !any(_indefinite_block, blocks[js]) || return nothing
+    end
     out, stf = factor_messages(plan.factors, e1.channel, pol, inputs, _LazyPriors(s, g, grp), psf, stf)
     out isa BeliefBlock || (out = belief_block(out))
     nreplicas(out) == n || throw(ArgumentError(
         "factor_messages of $(nameof(typeof(fn.factor))) returned $(nreplicas(out)) messages for $n replicas"))
+    if plan.ep !== nothing
+        cav = _cavity_block(s, plan.ep, n)
+        cav === nothing && return nothing
+        out = ep_block(out, cav)
+        out === nothing && return nothing
+    end
     st = _setsubtree(st, fn.params, stf)
     if damping > 0 || plan.detach
         return _commit_group!(s, g, grp, replicas(out), damping), st
@@ -585,3 +607,91 @@ function _commit_group!(s, g, grp, beliefs, damping)
 end
 
 _default_criterion(s::PlateSchedule) = s.hybrid ? :marginals : :messages
+
+# --- Expectation propagation on blocks ------------------------------------------------
+
+# The cavity block of a group's targets: the combine of the other rows at their variables, as
+# `excluded_marginal` combines the other edges (a row without messages is skipped). `nothing`
+# when a row is partly filled.
+function _cavity_block(s, plan::_CavityPlan, n)
+    acc = TrivialBlock(n)
+    for r in plan.others
+        b = _row_block(s.to_variable, r)
+        b === missing && return nothing
+        b === nothing && continue
+        acc = combine_blocks(acc, b)
+    end
+    return acc
+end
+
+_indefinite_block(b) = false
+_indefinite_block(b::GaussianBlock) = _shared(b) ? _indefinite(replica(b, 1)) : any(i -> _indefinite(replica(b, i)), 1:nreplicas(b))
+_indefinite_block(b::VectorBlock) = any(_indefinite, b.beliefs)
+
+"""
+    ep_block(message::BeliefBlock, cavity::BeliefBlock) -> BeliefBlock or nothing
+
+[`ep_message`](@ref) of every column, for a plate of `ExpectationPropagationRule()` nodes: a
+block of mixtures of Gaussians with one precision times a Gaussian cavity block is projected and
+divided in one pass; anything else goes column by column. `nothing` when some column's update
+would be skipped, so the group takes the per-edge path and skips exactly those.
+"""
+function ep_block(m::BeliefBlock, cav::BeliefBlock)
+    m isa MixtureBlock && cav isa GaussianBlock && (r = _ep_mixture_block(m, cav)) !== nothing && return r
+    out = Vector{Any}(undef, nreplicas(m))
+    for i in 1:nreplicas(m)
+        b = ep_message(replica(m, i), replica(cav, i))
+        b === nothing && return nothing
+        out[i] = b
+    end
+    return belief_block(out)
+end
+ep_block(m::Union{TrivialBlock,PointBlock,GaussianBlock,CategoricalBlock}, ::BeliefBlock) = m   # in their family
+
+# Tilted = cavity × mixture (one precision for every component, `combine_blocks`); its moments per
+# replica; the site (moments)⁻¹ minus the cavity. Each replica gets its own precision, since the
+# scatter of the component means differs. `nothing` falls back to the columns.
+function _ep_mixture_block(m::MixtureBlock, cav::GaussianBlock)
+    n = nreplicas(m)
+    _shared(cav) && !any(cav.improper) && LenticulumCore._precision_isproper(cav.Λ) || return nothing
+    t = combine_blocks(cav, m)
+    t isa MixtureBlock && !t.improper && LenticulumCore._precision_isproper(t.Λ) || return nothing
+    return _ep_sites(t, cav, n)            # a function barrier: `t` is typed concretely there
+end
+
+function _ep_sites(t::MixtureBlock, cav::GaussianBlock, n)
+    d, K, _ = size(t.η)
+    Ct = LenticulumCore._precision_factor(t.Λ)
+    Σt = inv(Ct)
+    μ = reshape(LenticulumCore._precision_solve(Ct, reshape(t.η, d, K * n)), d, K, n)
+    W = exp.(t.logw); W = W ./ sum(W; dims = 1)
+    η = similar(cav.η, d, n)
+    Λs = Vector{Matrix{Float64}}(undef, n)
+    flags = Vector{Bool}(undef, n)
+    Σt = Matrix(LinearAlgebra.Symmetric(Σt))
+    S, μi, δ = similar(Σt), zeros(d), zeros(d)
+    for i in 1:n                                   # loops, not broadcasts: d and K are small, n is not
+        fill!(μi, 0.0)
+        for k in 1:K, j in 1:d
+            μi[j] += W[k, i] * μ[j, k, i]
+        end
+        copyto!(S, Σt)
+        for k in 1:K
+            w = W[k, i]
+            for j in 1:d
+                δ[j] = μ[j, k, i] - μi[j]
+            end
+            for b in 1:d, a in 1:d
+                S[a, b] += w * δ[a] * δ[b]
+            end
+        end
+        C = LinearAlgebra.cholesky!(LinearAlgebra.Symmetric(S); check = false)
+        LinearAlgebra.issuccess(C) || return nothing
+        Λp = inv(C)                                # as `ep_project`: from the factor of the moment test
+        η[:, i] .= (C \ μi) .- view(cav.η, :, i)
+        Λp .-= cav.Λ                               # the site, `ep_divide`
+        Λs[i] = Λp
+        flags[i] = !LinearAlgebra.isposdef(LinearAlgebra.Symmetric(Λp))
+    end
+    return GaussianBlock(η, Λs, flags)
+end

@@ -585,6 +585,10 @@ any other input, goes replica by replica through `factor_message`.
 function Mycelium.factor_messages(fs::AbstractVector{<:SwitchingConstraintFactor{names}}, target::Symbol, polarity,
                                   inputs::NamedTuple, priors::AbstractVector, ps, st) where {names}
     f, n = first(fs), length(fs)
+    if target !== f.switch && _same_switching(fs)
+        out = _switch_mixture_block(f, target, inputs, n, ps)
+        out === nothing || return out, st
+    end
     parts = target === f.switch ? map(c -> (c, _block_parts(_get(inputs, c), f.dims[c], n)), names) : nothing
     if parts === nothing || any(p -> p[2] === nothing, parts) || !_same_switching(fs)
         cols = [NamedTuple{keys(inputs)}(map(b -> Mycelium.replica(b, i), values(inputs))) for i in 1:n]
@@ -720,4 +724,52 @@ function Mycelium.local_free_energies(fs::AbstractVector{<:SwitchingConstraintFa
     b isa FrozenSwitchingBeliefs ||
         return invoke(Mycelium.local_free_energies, Tuple{AbstractVector,NamedTuple,Any,Any}, fs, msgs, ps, st)
     return Mycelium.belief_free_energies(fs, b, ps, st)
+end
+
+# The mixture messages of tied replicas to a continuous channel as one `MixtureBlock`, or
+# `nothing` for the per-replica path: inputs as for the outcome's block method, the outcome's input
+# trivial, absent or a categorical block, and every outcome possible in every replica (an
+# impossible one is dropped from that replica's mixture, so the replicas would differ in K), with
+# K > 1 (one outcome gives a Gaussian). Component k of replica i: η = (TAₜ)ᵀT(b_k − s_i), one
+# precision (TAₜ)ᵀ(TAₜ), the weights as in `_switch_message`.
+function _switch_mixture_block(f::SwitchingConstraintFactor{names}, target, inputs, n, ps) where {names}
+    f.K > 1 || return nothing
+    lpk = _switch_logp_block(_get(inputs, f.switch), f.K, n)
+    lpk === nothing && return nothing
+    others = [c for c in names if c !== target]
+    parts = [(c, _block_parts(_get(inputs, c), f.dims[c], n)) for c in others]
+    any(p -> p[2] === nothing, parts) && return nothing
+    _, R, G = _accumulate(ps.A, f.Q, [(ch, (M[:, 1], S, N)) for (ch, (M, S, N)) in parts])
+    T, Li = _residual_metric(R, G, "Q + Σ AᵢSᵢAᵢᵀ")
+    At = ps.A[target]
+    Ta = T * At
+    rt = _projected_rank(Ta, Li * At)
+    rt == 0 && return Mycelium.TrivialBlock(n)
+    S = isempty(parts) ? zeros(f.m, n) : reduce(+, [ps.A[ch] * M for (ch, (M, _, _)) in parts])
+    TB, TS = T * float.(ps.b), T * S
+    Z = reshape(TB, size(TB, 1), f.K, 1) .- reshape(TS, size(TS, 1), 1, n)        # T(b_k − s_i)
+    L = lpk .+ _logweights(ps) .- dropdims(sum(abs2, Z; dims = 1); dims = 1) ./ 2   # K × n
+    all(isfinite, L) || return nothing
+    η = reshape(Ta' * reshape(Z, size(Z, 1), :), size(At, 2), f.K, n)
+    proper = rt == size(At, 2)
+    Λ = Ta' * Ta
+    if proper                                              # normalised components: ½ηᵀΛ⁻¹η into the weight
+        CΛ = _chol(Λ, "AₜᵀR⁻¹Aₜ")
+        Ef = reshape(η, size(η, 1), :)
+        L = L .+ reshape(vec(sum(Ef .* (CΛ \ Ef); dims = 1)) ./ 2, f.K, n)
+    end
+    L = L .- maximum(L; dims = 1)
+    L = L .- log.(sum(exp.(L); dims = 1))
+    return Mycelium.MixtureBlock(η, Λ, L, !proper)
+end
+
+# --- Cluster nodes (Extending Mycelium §5, L-SPEC-009) ---------------------------
+
+Mycelium.cluster_switch(f::SwitchingConstraintFactor) = f.switch
+Mycelium.cluster_form(f::SwitchingConstraintFactor, ps) = Mycelium.ClusterForm(ps.A, ps.b, f.Q, _logweights(ps), f.switch)
+Mycelium.cluster_form(f::LinearConstraintFactor, ps) = Mycelium.ClusterForm(ps.A, reshape(ps.c, :, 1), f.Q, [0.0], nothing)
+function Mycelium.cluster_form(f::GaussianPrior, ps)
+    f.noise_learning === nothing || throw(ArgumentError("a GaussianPrior with learnable noise cannot be put in a cluster node"))
+    n = length(f.μ)
+    return Mycelium.ClusterForm(NamedTuple{(f.channel,)}((Matrix(1.0I, n, n),)), reshape(float.(f.μ), n, 1), Matrix(f.Σ), [0.0], nothing)
 end

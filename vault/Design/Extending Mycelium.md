@@ -14,8 +14,8 @@
 > The first step, the message rule, is done ([[L-ADR-0009 Factor nodes carry a message rule]]), and
 > so are the free energy of the hybrid (§1, [[L-SPEC-005 The Hybrid Free Energy]]), plates (§2,
 > [[L-SPEC-006 Plates]]), rule-aware schedules (§3, [[L-SPEC-007 Hybrid Schedules]]) and the EP and
-> mixture-reduction rules (§4, [[L-SPEC-008 Expectation Propagation and Mixture Reduction]]). The rest
-> is proposed, ordered by what it unblocks.
+> mixture-reduction rules (§4, [[L-SPEC-008 Expectation Propagation and Mixture Reduction]]) and
+> cluster nodes (§5, [[L-SPEC-009 Cluster Nodes]]). The rest is proposed, ordered by what it unblocks.
 
 > Sources: original to this vault (design). Hybrid belief propagation and mean field: Riegler, Kirkelund, Manchon, Badiu & Fleury, *Merging Belief Propagation and the Mean Field Approximation: A Free Energy Approach*, IEEE Trans. Inf. Theory 59(1), 2013. Region free energies and generalised belief propagation: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE Trans. Inf. Theory 51(7), 2005. Expectation propagation: Minka, UAI 2001. Gaussian-mixture reduction: Runnalls, IEEE Trans. Aerosp. Electron. Syst. 2007. Monte Carlo EM: Wei & Tanner, *A Monte Carlo Implementation of the EM Algorithm and the Poor Man's Data Augmentation Algorithms*, JASA 85(411), 1990. Stochastic-approximation EM: Delyon, Lavielle & Moulines, *Convergence of a Stochastic Approximation Version of the EM Algorithm*, Ann. Statist. 27(1), 1999. code: `lib/Mycelium.jl/src/graph.jl`, `passing.jl`, `free_energy.jl`, `schedules.jl`, `exposure.jl`
 >
@@ -179,8 +179,9 @@ $10^{-15}$ at 16, the exact posterior. An EP node's free energy is counted like 
 stationary at a fixed point (checked numerically); a reduction node has no free energy and is
 refused. The same day plates of switching factors were batched to the outcome and in their free
 energy (`switching.md` §10): a Gaussian-mixture E-step over 1000 points takes 0.10 ms, 2.3 times the
-closed form, against 9.7 ms edge by edge. What is left is mixture messages on blocks, which EP on
-plates also needs (L-SPEC-006 §8).
+closed form, against 9.7 ms edge by edge. Later that day the mixture messages were batched too
+(mixture blocks, L-SPEC-006 §8), and with them EP on plates: one EP sweep of a latent mixture over
+1000 points takes 0.85 ms instead of 44 ms edge by edge.
 
 ## 5. Cluster nodes: exact inference inside, messages outside
 
@@ -198,6 +199,16 @@ a mixture *variable* lacks, which is the cleanest answer to the mixture-entropy 
 
 **Test.** A cluster of $B$ binary switches equals the hand-built block factor in messages and free
 energy. With every factor in one cluster, the graph is exact.
+
+**Status (2026-11-03): implemented** ([[L-SPEC-009 Cluster Nodes]], `cluster.md`) for conditionally
+linear-Gaussian factors: each states itself as a residual with noise and weights
+(`cluster_form`; the constraint factors, Gaussian and categorical priors), and the node enumerates
+the discrete states and eliminates the continuous ones. Both tests pass: three switches in a
+cluster send the block factor's messages (to $10^{-12}$) and have its local free energy term by term;
+a switching chain in one cluster has the free energy $-\log p(y)$ and the enumerated marginals to
+$10^{-12}$. The mixture-entropy gap closes as predicted: with the sum node and the switches in one
+cluster the additive wiring has a free energy ($-\log p(z)$), where on plain belief propagation it
+has none. Grouping by overlap is still the caller's choice.
 
 ## 6. Structure edits on a live graph
 
