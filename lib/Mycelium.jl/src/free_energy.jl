@@ -125,10 +125,13 @@ function factor_free_energies(s::AbstractMessageStore, g::FactorGraph, ps, st)
 end
 
 # Each node's free energy, in node order, and the threaded state. A vector, not a NamedTuple:
-# `scalar_free_energy` sums it without a type with one field per node (`plates.md`).
+# `scalar_free_energy` sums it without a type with one field per node (`plates.md`). A plate
+# factor row whose messages are held as blocks is evaluated in one `local_free_energies` call.
 function _factor_terms(s::AbstractMessageStore, g::FactorGraph, ps, st)
     _check_energy_edges(g)
     _check_tied_state(g, st)
+    rows = _energy_rows(s, g)
+    isempty(rows) || return _factor_terms_rows(s, g, ps, st, rows)
     results = map(_factor_nodes(g)) do f
         psf = _factor_parameters(f, _subtree(ps, f.params))
         stf = _subtree(st, f.params)
@@ -139,6 +142,207 @@ function _factor_terms(s::AbstractMessageStore, g::FactorGraph, ps, st)
         _setsubtree(acc, item[1].params, item[2][2])
     end
     return map(first, results), stnew
+end
+
+# --- Batched energies over plates (L-ADR-0010, step 2) -------------------------------
+
+"""
+    local_free_energies(factors, msgs::NamedTuple, ps, st) -> (energies::AbstractVector, st)
+
+The [`local_free_energy`](@ref) of each of several tied replicas at once: `factors[i]` is replica
+`i`'s factor, sharing the parameters `ps`, and `msgs` holds one [`BeliefBlock`](@ref) of incoming
+messages per channel (or `nothing` where no message is stored). `energies[i]` must be what
+`local_free_energy` returns for replica `i`. The graph free energy calls this for each plate
+factor row whose messages are held as blocks. The default evaluates each replica's column; a
+factor type overrides it to share the work that depends only on the parameters.
+"""
+function local_free_energies(factors::AbstractVector, msgs::NamedTuple, ps, st)
+    out = Vector{Any}(undef, length(factors))
+    for i in eachindex(factors)
+        out[i], st = local_free_energy(factors[i], _column(msgs, i), ps, st)
+    end
+    return out, st
+end
+
+"""
+    factor_beliefs(factors, msgs::NamedTuple, ps, st) -> beliefs or nothing
+    belief_free_energies(factors, beliefs, ps, st) -> (energies::AbstractVector, st)
+
+The batched forms of [`factor_belief`](@ref) and [`belief_free_energy`](@ref), for the parameter
+gradient over a plate: `factor_beliefs` evaluates the replicas' factor beliefs once, outside AD,
+from message blocks as in [`local_free_energies`](@ref), and `belief_free_energies` returns each
+replica's free energy at them, differentiable in `ps`. The defaults go replica by replica (a
+vector of `factor_belief`s, `nothing` if a replica has none). A factor type overrides both
+together, with a batched belief type of its own. `nothing` from `factor_beliefs` makes the
+gradient take the per-replica path, including its LP-020 warning.
+"""
+function factor_beliefs(factors::AbstractVector, msgs::NamedTuple, ps, st)
+    bs = [factor_belief(factors[i], _column(msgs, i), ps, st) for i in eachindex(factors)]
+    return any(b -> b === nothing, bs) ? nothing : bs
+end
+"""
+    belief_free_energies(factors, beliefs, ps, st) -> (energies::AbstractVector, st)
+
+Each replica's [`belief_free_energy`](@ref) at the beliefs [`factor_beliefs`](@ref) returned,
+differentiable in `ps`; see there.
+"""
+belief_free_energies(factors::AbstractVector, beliefs::AbstractVector, ps, st) =
+    (map((f, b) -> first(belief_free_energy(f, b, ps, st)), factors, beliefs), st)
+
+_column(msgs::NamedTuple, i) = NamedTuple{keys(msgs)}(map(b -> b === nothing ? nothing : replica(b, i), values(msgs)))
+
+# A plate factor row the energies can take in one call: belief-propagation nodes on one parameter
+# key, each with its edges in the same block rows in the same channel order, replica i in column
+# i, no edge detached.
+struct _EnergyRow
+    fids::Vector{Int}
+    channels::Tuple
+    rows::Vector{Int}
+end
+
+function _energy_rows(s, g::FactorGraph)
+    _has_rows(s, g) || return _EnergyRow[]
+    out = _EnergyRow[]
+    for pl in g.plates
+        F::Matrix{Int} = pl.factors
+        for k in axes(F, 1)
+            r = _energy_row(g, s.to_factor, F[k, :])
+            r === nothing || push!(out, r)
+        end
+    end
+    return out
+end
+
+function _energy_row(g::FactorGraph, idx::EdgeMessages, fids::Vector{Int})
+    f1 = g.factors[first(fids)]
+    f1.rule isa BeliefPropagation || return nothing
+    E1 = g.edges_of_factor[f1.id]
+    rows = Int[idx.row[e] for e in E1]
+    all(!=(0), rows) || return nothing
+    for (col, fid) in enumerate(fids)
+        f = g.factors[fid]
+        f.params === f1.params && f.rule isa BeliefPropagation || return nothing
+        Ei = g.edges_of_factor[fid]
+        length(Ei) == length(E1) || return nothing
+        for j in eachindex(Ei)
+            e = g.edges[Ei[j]]
+            idx.row[Ei[j]] == rows[j] && idx.col[Ei[j]] == col && !e.detach &&
+                e.channel === g.edges[E1[j]].channel || return nothing
+        end
+    end
+    return _EnergyRow(fids, Tuple(g.edges[e].channel for e in E1), rows)
+end
+
+# The row's incoming messages as blocks, or `nothing` when a row of edges is partly filled.
+function _row_messages(s, row::_EnergyRow)
+    bs = map(r -> _row_block(s.to_factor, r), row.rows)
+    any(b -> b === missing, bs) && return nothing
+    return NamedTuple{row.channels}(Tuple(bs))
+end
+
+# The rows' energies in one call each and the other nodes' one by one. With `scalar = true` the
+# result is the sum of the scalarised terms instead of the vector. A row's key is stateless when
+# tied (`_check_tied_state`), and its state is set once.
+function _factor_terms_rows(s, g, ps, st, rows; scalar::Bool = false)
+    results = scalar ? nothing : Vector{Any}(nothing, nfactors(g))
+    covered = falses(nfactors(g))
+    total = 0.0
+    for row in rows
+        msgs = _row_messages(s, row)
+        msgs === nothing && continue
+        f1 = g.factors[first(row.fids)]
+        psf = _factor_parameters(f1, _subtree(ps, f1.params))
+        factors = identity.([g.factors[i].factor for i in row.fids])
+        E, stf = local_free_energies(factors, msgs, psf, _subtree(st, f1.params))
+        length(E) == length(row.fids) || throw(ArgumentError(
+            "local_free_energies of $(nameof(typeof(f1.factor))) returned $(length(E)) energies for $(length(row.fids)) replicas"))
+        if scalar
+            total += _row_scalar(factors, E)
+        else
+            for (i, fid) in enumerate(row.fids)
+                results[fid] = E[i]
+            end
+        end
+        covered[row.fids] .= true
+        st = _setsubtree(st, f1.params, stf)
+    end
+    for f in g.factors
+        covered[f.id] && continue
+        psf = _factor_parameters(f, _subtree(ps, f.params))
+        stf = _subtree(st, f.params)
+        Ff, stf = f.rule isa MeanField ? mean_field_energy(f.factor, marginals_into(s, g, f.id), psf, stf) :
+                  local_free_energy(f.factor, messages_into(s, g, f.id), psf, stf)
+        scalar ? (total += LenticulumCore.scalarise(LenticulumCore.scalarisation(f.factor), Ff)) : (results[f.id] = Ff)
+        st = _setsubtree(st, f.params, stf)
+    end
+    return scalar ? total : results, st
+end
+
+# The sum of a row's scalarised energies; `factors` concretely typed, so this compiles per type.
+_row_scalar(factors::AbstractVector, E::AbstractVector) =
+    sum(i -> LenticulumCore.scalarise(LenticulumCore.scalarisation(factors[i]), E[i]), eachindex(factors, E); init = 0.0)
+
+# The variable terms of a plate's variable rows in one block operation each: the marginal block
+# (the combine of the rows of to-variable messages) and its entropies. Returns the total and the
+# variables it covered; a row with a pinned variable, a partly filled row, or edges outside
+# block rows is left to the per-variable path.
+function _variable_terms_rows(s, g)
+    total, done = 0.0, falses(nvariables(g))
+    _has_rows(s, g) || return total, done
+    bp = BitVector([f.rule isa BeliefPropagation for f in g.factors])
+    for pl in g.plates
+        V::Matrix{Int} = pl.variables
+        for k in axes(V, 1)
+            vids = V[k, :]
+            t = _variable_row_term(s, g, s.to_variable, bp, vids)
+            t === nothing && continue
+            total += t
+            done[vids] .= true
+        end
+    end
+    return total, done
+end
+
+# The edges of every variable of the row in the same block rows, replica i in column i, so that
+# they also have one counting number (their factors are in the same factor rows).
+function _variable_row_term(s, g::FactorGraph, idx::EdgeMessages, bp::BitVector, vids::Vector{Int})
+    isempty(s.pins) || any(v -> _pin(s, v) !== nothing, vids) && return nothing
+    E1 = g.edges_of_variable[first(vids)]
+    rows = Int[idx.row[e] for e in E1]
+    all(!=(0), rows) || return nothing
+    for (i, v) in enumerate(vids)
+        Ei = g.edges_of_variable[v]
+        length(Ei) == length(E1) || return nothing
+        for j in eachindex(Ei)
+            idx.row[Ei[j]] == rows[j] && idx.col[Ei[j]] == i && bp[g.edges[Ei[j]].factor] == bp[g.edges[E1[j]].factor] ||
+                return nothing
+        end
+    end
+    c = counting_number(g, first(vids))
+    c == 0 && return 0.0
+    acc = TrivialBlock(length(vids))
+    for r in rows
+        b = _row_block(idx, r)
+        b === nothing && continue
+        b === missing && return nothing
+        acc = combine_blocks(acc, b)
+    end
+    return c * sum(-, _block_entropies(acc))
+end
+
+# The entropy of each column, `variable_entropy` of its belief; one evaluation for a shared precision.
+_block_entropies(b::PointBlock) = zeros(nreplicas(b))
+_block_entropies(b::TrivialBlock) = zeros(nreplicas(b))
+function _block_entropies(b::GaussianBlock)
+    _shared(b) && all(==(b.improper[1]), b.improper) && return fill(variable_entropy(replica(b, 1)), nreplicas(b))
+    return [variable_entropy(replica(b, i)) for i in 1:nreplicas(b)]
+end
+_block_entropies(b::BeliefBlock) = [variable_entropy(replica(b, i)) for i in 1:nreplicas(b)]
+
+# The gradient's scalar for a plate row on batched beliefs: the replicas' scalarised free energies.
+function _beliefs_scalar(ps, factors, beliefs, st)
+    E, _ = belief_free_energies(factors, beliefs, ps, st)
+    return sum(map((f, e) -> LenticulumCore.scalarise(LenticulumCore.scalarisation(f), e), factors, E))
 end
 
 """
@@ -295,12 +499,22 @@ likelihood factor uses the identity, in the same graph. See
 Uses [`factor_free_energies`](@ref), including its cavity edge-direction check.
 """
 function LenticulumCore.scalar_free_energy(s::MessageStore, g::FactorGraph, ps, st)
-    F, st = _factor_terms(s, g, ps, st)
+    rows = _energy_rows(s, g)
     total = 0.0
-    for (f, Ff) in zip(g.factors, F)
-        total += LenticulumCore.scalarise(LenticulumCore.scalarisation(f.factor), Ff)
+    if isempty(rows)
+        F, st = _factor_terms(s, g, ps, st)
+        for (f, Ff) in zip(g.factors, F)
+            total += LenticulumCore.scalarise(LenticulumCore.scalarisation(f.factor), Ff)
+        end
+    else
+        _check_energy_edges(g)
+        _check_tied_state(g, st)
+        total, st = _factor_terms_rows(s, g, ps, st, rows; scalar = true)
     end
+    vtotal, done = _variable_terms_rows(s, g)
+    total += vtotal
     for v in g.variables
+        done[v.id] && continue
         total += _variable_term(s, g, v.id)
     end
     return total, st
@@ -332,6 +546,24 @@ function _gradient_item(f, msgs, p, st)
          `factor_belief`, so its parameter gradient holds the messages fixed, not its belief; \
          this is not the free-energy gradient in general (LP-020)", maxlog = 1)
     return (_local_scalar, f.factor, msgs)
+end
+
+# The plate rows of a key whose messages are blocks and whose factor type has batched beliefs, as
+# one gradient item each; the other nodes are returned for the per-node path.
+function _row_items(s, g, key, p, stf, nodes)
+    items = Any[]
+    covered = Set{Int}()
+    for row in _energy_rows(s, g)
+        g.factors[first(row.fids)].params === key || continue
+        msgs = _row_messages(s, row)
+        msgs === nothing && continue
+        factors = [g.factors[i].factor for i in row.fids]
+        B = factor_beliefs(factors, msgs, p, stf)
+        B === nothing && continue
+        push!(items, (_beliefs_scalar, factors, B))
+        union!(covered, row.fids)
+    end
+    return items, [h for h in nodes if !(h.id in covered)]
 end
 
 # Tied nodes: one parameter vector, the sum of their scalars, differentiated in one call.
@@ -394,8 +626,9 @@ function LenticulumCore.free_energy_gradient(s::MessageStore, g::FactorGraph, ps
         end
         stf = _subtree(st, key)
         LenticulumCore._check_factor_ad(ad, f.factor, stf)
-        items = map(h -> _gradient_item(h, h.rule isa MeanField ? marginals_into(s, g, h.id) :
-                                                                  messages_into(s, g, h.id), p, stf), nodes)
+        items, rest = _row_items(s, g, key, p, stf, nodes)
+        append!(items, map(h -> _gradient_item(h, h.rule isa MeanField ? marginals_into(s, g, h.id) :
+                                                                  messages_into(s, g, h.id), p, stf), rest))
         grad = length(items) == 1 ?
             LenticulumCore._parameter_gradient(ad, only(items)[1], p, only(items)[2], only(items)[3], stf; ε) :
             LenticulumCore._parameter_gradient(ad, _tied_scalar, p, items, stf; ε)

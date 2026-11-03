@@ -5,7 +5,8 @@ CurrentModule = Mycelium
 ```
 
 Every exported type and function of Mycelium, by source file. The guide is on the
-[Mycelium](@ref mycelium) page.
+[Mycelium](@ref mycelium) page; plates and message blocks are on
+[Mycelium API: plates and message blocks](@ref mycelium-api-plates).
 
 
 ```@index
@@ -38,13 +39,6 @@ Pages = ["messages.jl", "gaussian.jl"]
 ```@autodocs
 Modules = [Mycelium]
 Pages = ["schedules.jl"]
-```
-
-## Plates
-
-```@autodocs
-Modules = [Mycelium]
-Pages = ["plates.jl"]
 ```
 
 ## Running inference

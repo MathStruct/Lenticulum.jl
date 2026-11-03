@@ -229,6 +229,19 @@ differentiated code is unchanged for proper inputs. The theory and the tolerance
 refuses a partially improper one (`belief_mean` throws); it is the two-channel case of `LinearConstraintFactor` and could call the same code,
 which has not been done.
 
+## Batched factor beliefs (2026-11-03)
+
+`FrozenGaussianBeliefs` is `FrozenGaussianBelief` for the $n$ replicas of a plate row: points as
+$d \times n$ matrices, the free channels' joint means as the columns of `M`, and one covariance and
+entropy for all, which holds when every free input is a Gaussian block with one shared precision
+(`lib/Mycelium.jl/src/blocks.md`). `_affine_gaussian_beliefs` builds it as
+`_affine_gaussian_belief` does, one column per replica; `_frozen_residuals` returns the residual
+means as columns and the shared covariance, and `_column_fits` the $n$ fits. `GaussianPrior` and
+`LinearConstraintFactor` implement `factor_beliefs`, `belief_free_energies` and
+`local_free_energies` with them; other inputs return `nothing` and take the per-replica path.
+`GaussianPrior` also has a block `factor_messages`: one shared `GaussianBlock` when the replicas
+share mean and covariance. Checked against the same messages per edge in `test/plates.jl`.
+
 ## Batched prior messages (2026-11-02)
 
 `Mycelium.factor_messages` for a vector of tied `GaussianPrior`s (a plate) converts the mean and

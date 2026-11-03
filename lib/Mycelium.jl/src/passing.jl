@@ -62,6 +62,15 @@ There is no generic implementation, because the expectation needs the factor's f
 opt in by adding a method. Lenticulum implements it for `LinearConstraintFactor` and
 `SwitchingConstraintFactor`.
 """
+# Block inputs (a plate sweep on message blocks, `blocks.jl`): `inputs` is a NamedTuple of
+# `BeliefBlock`s and the result one block. The default takes each replica's column and calls the
+# method above, so a factor type opts in to block arithmetic by adding a method of this form.
+function factor_messages(factors::AbstractVector, target, polarity, inputs::NamedTuple, priors::AbstractVector, ps, st)
+    cols = [NamedTuple{keys(inputs)}(map(b -> replica(b, i), values(inputs))) for i in eachindex(factors)]
+    beliefs, st = factor_messages(factors, target, polarity, cols, priors, ps, st)
+    return belief_block(beliefs), st
+end
+
 function mean_field_message(factor, target, polarity, beliefs, ps, st)
     throw(ArgumentError(
         "$(nameof(typeof(factor))) has no mean-field message: implement `Mycelium.mean_field_message` \

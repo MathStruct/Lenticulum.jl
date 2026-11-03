@@ -208,14 +208,53 @@ PlateSchedule(groups, plans) = PlateSchedule(groups, plans, false)
 # built: member i's factor `factors[i]` (tied, belief propagation, one type) and its edge on
 # channel `channels[j]` at `edges[j, i]`, the same channel layout and directions in every member,
 # the target channel's position, and distinct targets.
+# `rows[j]` is the block row (`blocks.jl`) that holds channel j's edges in member order, or 0.
 struct _GroupPlan{F}
     factors::Vector{F}
     channels::Vector{Symbol}
     edges::Matrix{Int}
     target::Int
+    rows::Vector{Int}
+    detach::Bool              # a target edge is detached: commit per edge (`stop_gradient`)
 end
 
-function _group_plan(g::FactorGraph, grp::Vector{MessageTask})
+# A lifted group of variable -> factor messages whose members' variables have their edges in the
+# same block rows, member i in column i: the messages are the combine of the rows `others`,
+# written to the row `target`. No edge involved is detached.
+struct _CavityPlan
+    target::Int
+    others::Vector{Int}
+end
+
+# The block row holding the edges `es` as its columns 1:n in this order, or 0.
+function _row_of(index::EdgeMessages, es)
+    r = index.row[first(es)]
+    r != 0 && length(index.rows[r]) == length(es) && all(i -> index.row[es[i]] == r && index.col[es[i]] == i, eachindex(es)) || return 0
+    return r
+end
+_row_index(g::FactorGraph) = EdgeMessages(nedges(g), _block_rows(g))
+
+function _cavity_plan(g::FactorGraph, grp::Vector{MessageTask}, index::EdgeMessages)
+    length(grp) > 1 && _to_factor_group(g, grp) || return nothing
+    es = [t.edge for t in grp]
+    target = _row_of(index, es)
+    target == 0 && return nothing
+    vs = [g.edges[e].variable for e in es]
+    allunique(vs) || return nothing
+    E1 = g.edges_of_variable[first(vs)]
+    seq = [index.row[e] for e in E1]
+    for (i, v) in enumerate(vs)
+        Ei = g.edges_of_variable[v]
+        length(Ei) == length(E1) || return nothing
+        for (k, e) in enumerate(Ei)
+            index.row[e] == seq[k] != 0 && index.col[e] == i && !g.edges[e].detach || return nothing
+        end
+    end
+    return _CavityPlan(target, [r for r in seq if r != target])
+end
+
+function _group_plan(g::FactorGraph, grp::Vector{MessageTask}, index::EdgeMessages = _row_index(g))
+    length(grp) > 1 && _to_factor_group(g, grp) && return _cavity_plan(g, grp, index)
     length(grp) > 1 && all(t -> t.kind === :to_variable && can_emit(g, t.edge), grp) || return nothing
     nodes = [factornode(g, g.edges[t.edge].factor) for t in grp]
     f1 = first(nodes)
@@ -227,9 +266,10 @@ function _group_plan(g::FactorGraph, grp::Vector{MessageTask})
     all(h -> layout(h) == l1, nodes) || return nothing
     target = findfirst(==(first(grp).edge), E1)
     all(((t, h),) -> g.edges_of_factor[h.id][target] == t.edge, zip(grp, nodes)) || return nothing
-    edges = reduce(hcat, [g.edges_of_factor[h.id] for h in nodes])
+    edges = reshape(reduce(hcat, [g.edges_of_factor[h.id] for h in nodes]), length(E1), length(nodes))
     factors = [h.factor for h in nodes]
-    return _GroupPlan(identity.(factors), first.(l1), reshape(edges, length(E1), length(nodes)), target)
+    rows = [_row_of(index, edges[j, :]) for j in axes(edges, 1)]
+    return _GroupPlan(identity.(factors), first.(l1), edges, target, rows, any(t -> g.edges[t.edge].detach, grp))
 end
 tasks(s::PlateSchedule) = reduce(vcat, s.groups; init = MessageTask[])
 
@@ -263,7 +303,8 @@ function plate_schedule(g::FactorGraph, replica_tasks::AbstractVector{MessageTas
             "task on edge $(t.edge) belongs to replica $i of plate :$(pl.name); write the schedule for replica 1"))
         return [MessageTask(pl.edges[k, j], t.kind) for j in 1:pl.n]
     end
-    return PlateSchedule(groups, Any[_group_plan(g, grp) for grp in groups], hybrid)
+    index = _row_index(g)
+    return PlateSchedule(groups, Any[_group_plan(g, grp, index) for grp in groups], hybrid)
 end
 plate_schedule(g::FactorGraph, sched::AbstractSchedule; plate = nothing) =
     plate_schedule(g, tasks(sched); plate, hybrid = sched isa HybridSchedule)
@@ -329,8 +370,9 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::PlateSchedule, ps, st; d
     maxres = 0.0
     for (grp, plan) in zip(sched.groups, sched.plans)
         res, st = length(grp) == 1 ? _step_each!(s, g, grp, ps, st, damping) :
+                  plan isa _CavityPlan ? (_step_cavity!(s, g, grp, plan), st) :
                   _to_factor_group(g, grp) ? (_step_to_factor_group!(s, g, grp), st) :
-                  plan !== nothing ? _step_planned!(s, g, grp, plan, ps, st, damping) :
+                  plan isa _GroupPlan ? _step_planned!(s, g, grp, plan, ps, st, damping) :
                   _batchable(s, g, grp) ? _step_group!(s, g, grp, ps, st, damping) :
                   _step_each!(s, g, grp, ps, st, damping)
         maxres = max(maxres, res)
@@ -362,6 +404,29 @@ function _step_to_factor_group!(s, g, grp)
         s.to_factor[t.edge] = Message(belief, s.iteration)
     end
     return maxres
+end
+
+# Whether the store has the graph's block rows (a store built from vectors has none).
+_has_rows(s::MessageStore, g) = length(s.to_variable.rows) == length(s.to_factor.rows) == sum(pl -> size(pl.edges, 1), g.plates; init = 0) > 0
+_has_rows(s, g) = false
+
+# A cavity group on blocks: the combine of the other rows at each member's variable, one block
+# operation per row. Falls back to the per-edge path when a variable is pinned or a row is
+# partly filled.
+function _step_cavity!(s, g, grp, plan::_CavityPlan)
+    _has_rows(s, g) && (isempty(s.pins) || !any(t -> _pin(s, g.edges[t.edge].variable) !== nothing, grp)) ||
+        return _step_to_factor_group!(s, g, grp)
+    acc = TrivialBlock(length(grp))
+    for r in plan.others
+        b = _row_block(s.to_variable, r)
+        b === nothing && continue
+        b === missing && return _step_to_factor_group!(s, g, grp)
+        acc = combine_blocks(acc, b)
+    end
+    old = _row_block(s.to_factor, plan.target)
+    res = old isa BeliefBlock ? block_distance(old, acc) : Inf
+    _set_block!(s.to_factor, plan.target, acc, s.iteration)
+    return res
 end
 
 # Whether the group's factor -> variable messages can be computed together (see `PlateSchedule`).
@@ -432,6 +497,10 @@ _informative_input(s, e) = has_to_factor(s, e) && !LenticulumCore.isuninformativ
 # resolved and checked on the first member only (the plan holds one layout of channels and
 # directions, and one factor type), and the inputs are gathered without searching edges.
 function _step_planned!(s, g, grp, plan::_GroupPlan, ps, st, damping)
+    if _has_rows(s, g) && all(!=(0), plan.rows)
+        r = _step_blocks!(s, g, grp, plan, ps, st, damping)
+        r === nothing || return r
+    end
     E, n, nc = plan.edges, length(grp), length(plan.channels)
     mask = [j != plan.target && _informative_input(s, E[j, 1]) for j in 1:nc]
     for i in 2:n, j in 1:nc
@@ -453,6 +522,47 @@ function _step_planned!(s, g, grp, plan::_GroupPlan, ps, st, damping)
     length(beliefs) == n || throw(ArgumentError(
         "factor_messages of $(nameof(typeof(fn.factor))) returned $(length(beliefs)) messages for $n replicas"))
     return _commit_group!(s, g, grp, beliefs, damping), _setsubtree(st, fn.params, stf)
+end
+
+# The planned group on blocks: inputs are the rows' blocks, the result is one block for the target
+# row. Returns `nothing` (nothing done) when a row is partly filled or partly uninformative.
+function _step_blocks!(s, g, grp, plan::_GroupPlan, ps, st, damping)
+    n, nc = length(grp), length(plan.channels)
+    blocks = Vector{Any}(nothing, nc)
+    mask = falses(nc)
+    for j in 1:nc
+        j == plan.target && continue
+        b = _row_block(s.to_factor, plan.rows[j])
+        b === missing && return nothing
+        b === nothing && continue
+        u = _uninformative(b)
+        u === missing && return nothing
+        u && continue
+        blocks[j], mask[j] = b, true
+    end
+    js = findall(mask)
+    chans = Tuple(plan.channels[js])
+    e1 = g.edges[first(grp).edge]
+    fn = factornode(g, e1.factor)
+    pol = resolve_polarity(g, e1.factor, e1.channel, chans)
+    isempty(chans) && !issink(fn.factor) && !LenticulumCore.supports_polarity(fn.factor, pol) && return nothing
+    check_legal(g, e1.factor, pol)
+    psf = _factor_parameters(fn, _subtree(ps, fn.params))
+    stf = _subtree(st, fn.params)
+    inputs = NamedTuple{chans}(Tuple(blocks[js]))
+    out, stf = factor_messages(plan.factors, e1.channel, pol, inputs, _LazyPriors(s, g, grp), psf, stf)
+    out isa BeliefBlock || (out = belief_block(out))
+    nreplicas(out) == n || throw(ArgumentError(
+        "factor_messages of $(nameof(typeof(fn.factor))) returned $(nreplicas(out)) messages for $n replicas"))
+    st = _setsubtree(st, fn.params, stf)
+    if damping > 0 || plan.detach
+        return _commit_group!(s, g, grp, replicas(out), damping), st
+    end
+    r = plan.rows[plan.target]
+    old = _row_block(s.to_variable, r)
+    res = old isa BeliefBlock ? block_distance(old, out) : Inf
+    _set_block!(s.to_variable, r, out, s.iteration)
+    return res, st
 end
 
 function _gather_inputs(::Type{NT}, tf, E, js) where {NT}

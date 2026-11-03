@@ -581,6 +581,18 @@ function Mycelium.factor_messages(fs::AbstractVector{<:GaussianPrior}, target::S
     b = Gaussian(f.μ, Σ)
     return Any[b for _ in fs], st
 end
+# On blocks: the shared message as one block with a shared precision.
+function Mycelium.factor_messages(fs::AbstractVector{<:GaussianPrior}, target::Symbol, polarity,
+                                  inputs::NamedTuple, priors::AbstractVector, ps, st)
+    f, n = first(fs), length(fs)
+    Σ = noise_covariance(f, ps)
+    all(h -> h === f || (isequal(h.μ, f.μ) && isequal(noise_covariance(h, ps), Σ)), fs) ||
+        return Mycelium.belief_block(first(Mycelium.factor_messages(fs, target, polarity, Any[nothing for _ in fs], priors, ps, st))), st
+    b = Gaussian(f.μ, Σ)
+    η = similar(b.η, length(b.η), n)
+    η .= b.η
+    return Mycelium.GaussianBlock(η, b.Λ, fill(b.improper, n)), st
+end
 function Mycelium._gradient_message(ad, f::GaussianPrior, ::Symbol, _, _, _, ps, st)
     P=inv(Symmetric(noise_covariance(f,ps)))
     return GaussianBelief(P*f.μ,P),st
@@ -692,6 +704,68 @@ function _frozen_residual(blocks, r0, b::FrozenGaussianBelief)
     return r .+ G * b.m, G * b.Σ * G'
 end
 
+# --- Batched factor beliefs (a plate, L-ADR-0010) -----------------------------------
+
+"""
+    FrozenGaussianBeliefs
+
+The factor beliefs of `n` tied replicas held fixed, as [`FrozenGaussianBelief`](@ref) column for
+column: the point channels as `d × n` matrices, the free channels' joint means as the columns
+of `M`, and one covariance `Σ` and entropy `H` shared by every replica. Built from message
+blocks whose Gaussian inputs share one precision, which is what makes `Σ` shared.
+"""
+struct FrozenGaussianBeliefs{M,S}
+    points::Vector{Pair{Symbol,Matrix{Float64}}}
+    free::Vector{Symbol}
+    M::M
+    Σ::S
+    H::Float64
+end
+
+# `_affine_gaussian_belief` for blocks: every point channel a `PointBlock`, every other channel a
+# `GaussianBlock` with a shared precision, a `TrivialBlock` or no message. `nothing` otherwise.
+function _affine_gaussian_beliefs(blocks, r0::AbstractVector, W, msgs::NamedTuple, dims, n)
+    points = Pair{Symbol,Matrix{Float64}}[]
+    free = Symbol[]
+    R0 = r0 .+ zeros(eltype(r0), length(r0), n)
+    for c in keys(blocks)
+        b = _get(msgs, c)
+        if b isa Mycelium.PointBlock
+            push!(points, c => Matrix{Float64}(b.X))
+            R0 = R0 .+ blocks[c] * b.X
+        elseif b === nothing || b isa Mycelium.TrivialBlock || (b isa Mycelium.GaussianBlock && b.Λ isa AbstractMatrix)
+            push!(free, c)
+        else
+            return nothing
+        end
+    end
+    isempty(free) && return FrozenGaussianBeliefs(points, free, zeros(0, n), zeros(0, 0), 0.0)
+    G = reduce(hcat, (blocks[c] for c in free))
+    canon = map(free) do c
+        b = _get(msgs, c)
+        b isa Mycelium.GaussianBlock ? (b.η, b.Λ) : (zeros(dims[c], n), zeros(dims[c], dims[c]))
+    end
+    Λ = G' * W * G + _blockdiag(map(last, canon))
+    η = reduce(vcat, map(first, canon)) .- G' * (W * R0)
+    CΛ = _chol(Λ, "factor belief precision")
+    H = Mycelium.variable_entropy(GaussianBelief(zeros(size(Λ, 1)), Λ))
+    return FrozenGaussianBeliefs(points, free, CΛ \ η, inv(CΛ), H)
+end
+
+# The residual means (one column per replica) and the shared residual covariance.
+function _frozen_residuals(blocks, r0, b::FrozenGaussianBeliefs)
+    R = r0 .+ zeros(eltype(r0), length(r0), size(b.M, 2))
+    for (c, X) in b.points
+        R = R .+ blocks[c] * X
+    end
+    isempty(b.free) && return R, zeros(eltype(R), size(R, 1), size(R, 1))
+    G = reduce(hcat, (blocks[c] for c in b.free))
+    return R .+ G * b.M, G * b.Σ * G'
+end
+
+# ½(rᵢᵀ W rᵢ + tr(W C)) for every column rᵢ of R.
+_column_fits(R, W, C) = (vec(sum(R .* (W * R); dims = 1)) .+ tr(W * C)) ./ 2
+
 _gaussian_blocks(f::GaussianFactor, ps) = NamedTuple{(f.in_channel, f.out_channel)}(
     (-ps.A, Matrix{eltype(ps.A)}(I, f.nout, f.nout)))
 _gaussian_dims(f::GaussianFactor) = NamedTuple{(f.in_channel, f.out_channel)}((f.nin, f.nout))
@@ -727,6 +801,35 @@ function Mycelium.factor_belief(f::GaussianPrior, msgs, ps, st)
     return _affine_gaussian_belief(NamedTuple{(f.channel,)}((Matrix(1.0I, n, n),)), -f.μ, Λ0, msgs,
                                    NamedTuple{(f.channel,)}((n,)))
 end
+# Tied priors with one mean and covariance, from message blocks.
+function Mycelium.factor_beliefs(fs::AbstractVector{<:GaussianPrior}, msgs::NamedTuple, ps, st)
+    f = first(fs)
+    all(h -> h === f || (isequal(h.μ, f.μ) && isequal(h.Σ, f.Σ) && h.channel === f.channel &&
+                         isequal(h.noise_learning, f.noise_learning)), fs) ||
+        return invoke(Mycelium.factor_beliefs, Tuple{AbstractVector,NamedTuple,Any,Any}, fs, msgs, ps, st)
+    Λ0 = f.noise_learning === nothing ? _prior_precision(f.Σ) : first(_noise_metrics(f.noise_learning, f.Σ, ps))
+    n = length(f.μ)
+    return _affine_gaussian_beliefs(NamedTuple{(f.channel,)}((Matrix(1.0I, n, n),)), -f.μ, Λ0, msgs,
+                                    NamedTuple{(f.channel,)}((n,)), length(fs))
+end
+function Mycelium.belief_free_energies(fs::AbstractVector{<:GaussianPrior}, b::FrozenGaussianBeliefs, ps, st)
+    f = first(fs)
+    n = length(f.μ)
+    R, Cr = _frozen_residuals(NamedTuple{(f.channel,)}((Matrix(1.0I, n, n),)), -f.μ, b)
+    Λ0, logdetQ = f.noise_learning === nothing ?
+        (_prior_precision(f.Σ), zero(eltype(f.Σ))) : _noise_metrics(f.noise_learning, f.Σ, ps)
+    complexity = f.noise_learning === nothing ? logdet(_chol(2π .* f.Σ, "2πΣ")) / 2 :
+        (n * log(2π) + logdetQ) / 2 + _noise_penalty(f.noise_learning.prior, Λ0, logdetQ)
+    fit = _column_fits(R, Λ0, Cr)
+    return [LenticulumCore.GradedEnergy((fit = fi, complexity = complexity, negentropy = -b.H)) for fi in fit], st
+end
+function Mycelium.local_free_energies(fs::AbstractVector{<:GaussianPrior}, msgs::NamedTuple, ps, st)
+    b = Mycelium.factor_beliefs(fs, msgs, ps, st)
+    b isa FrozenGaussianBeliefs ||
+        return invoke(Mycelium.local_free_energies, Tuple{AbstractVector,NamedTuple,Any,Any}, fs, msgs, ps, st)
+    return Mycelium.belief_free_energies(fs, b, ps, st)
+end
+
 function Mycelium.belief_free_energy(f::GaussianPrior, b::FrozenGaussianBelief, ps, st)
     n = length(f.μ)
     r̄, Cr = _frozen_residual(NamedTuple{(f.channel,)}((Matrix(1.0I, n, n),)), -f.μ, b)

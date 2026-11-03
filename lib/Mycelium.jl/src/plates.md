@@ -3,8 +3,9 @@
 > Plates: a template replicated over $n$ observations in one unrolled graph, with tied parameters,
 > a record of the replicas, and schedules that run the same template task for every replica in
 > one call. Equal to the loop of $n$ graphs in marginals, free energy and gradients
-> (`test/plates.jl`); about 6 times faster than that loop for factor analysis
-> (`bench/plates.jl`), still 170 to 240 times slower than the same E-step written by hand.
+> (`test/plates.jl`). With the messages held as blocks (`blocks.md`, since 2026-11-03) the
+> factor-analysis E-step is about 9 times the hand-written one at $N = 1000$, down from 240
+> (`bench/plates.jl`).
 
 > Sources: original to this repository (design: [[Extending Mycelium]] §2). code: `plates.jl`, `graph.jl` (`parameter_key`, `parameter_keys`, `tied_factors`), `passing.jl` (`factor_messages`), `free_energy.jl` (`free_energy_gradient`, `parameter_step`), `../../../src/constraint.jl` (the batched `factor_messages`); tests: `../../../test/plates.jl`; benchmark: `../../../bench/plates.jl`
 >
@@ -140,18 +141,21 @@ never reached the batched `LinearConstraintFactor` method. Julia's comprehension
 of the elements, the vector was concrete, and the method was dispatched; `test/plates.jl` now
 checks which method each planned group dispatches to.
 
-What is left is spread out: the variable → factor groups (one `excluded_marginal` each), the
+What was left was spread out: the variable → factor groups (one `excluded_marginal` each), the
 commits, the input gathering, and the factor methods, all through untyped `Vector{Any}` message
-storage. Closing the remaining factor of about 200 needs a batched message representation, which
-plates do not have.
+storage. Closing the remaining factor of about 200 needed a batched message representation:
+[[L-ADR-0010 Plates get batched message blocks]], implemented in `blocks.jl` (`blocks.md`). The
+tables above are those of before; the grouped plate now takes 0.09 ms at $N = 1000$, and the
+free energy 1.1 ms (the table in `blocks.md`).
 
 ## What it does not do
 
-- No batched data structure: messages are still one belief per edge. A factor that wants real
-  vectorisation implements `factor_messages` and stacks inside it.
+- Batched messages only as `blocks.md` describes: Gaussian blocks with a shared precision, points,
+  and per-replica `VectorBlock`s for everything else.
 - No nested plates, no plate over a sub-plate, no plates of different sizes sharing a template.
-- No batched gradient beyond summing the tied scalars in one AD call; the beliefs are still
-  evaluated per node.
+- The batched gradient (one item per plate factor row, `blocks.md`) needs the row's messages as
+  blocks and a factor type with `factor_beliefs`; other rows sum the tied scalars per node in one
+  AD call.
 - Mean-field groups and shared-target groups run member by member.
 - Tied factors must be stateless.
 

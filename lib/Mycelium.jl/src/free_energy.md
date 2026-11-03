@@ -335,3 +335,18 @@ the same terms as a vector (`_factor_terms`), so it does not build a type with o
 which recompiled for every plate size (`plates.md`). Checked in `test/plates.jl`
 against the sum of separate graphs' gradients. The coupled drivers differentiate the whole of
 `ps` and sum tied entries without change.
+
+## Batched energies over plates (2026-11-03)
+
+With message blocks (`blocks.md`, [[L-ADR-0010 Plates get batched message blocks]]), a plate factor
+row whose incoming messages are blocks is evaluated in one call: `_factor_terms` and
+`scalar_free_energy` use `local_free_energies(factors, msgs, ps, st)`, and `free_energy_gradient`
+gives the row one item, `_beliefs_scalar` over `factor_beliefs` (evaluated outside AD) and
+`belief_free_energies` (differentiated). Rows are found by `_energy_rows`: belief-propagation nodes
+on one key, edges in block rows in one channel order, replica $i$ in column $i$, none detached. A
+variable row's Bethe terms are the entropies of its marginal block (`_variable_terms_rows`). A
+store without rows (the coupled drivers' replay, or one built from vectors) takes the per-node path
+unchanged, which also keeps that path free of mutation for Zygote. The scalar sum over a row is a
+function of the concretely typed factor vector, so `scalarisation` is not dispatched per node.
+Tested in `test/plates.jl` against the same messages per edge; timings in `blocks.md`.
+

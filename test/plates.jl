@@ -127,6 +127,25 @@ pl_fa_nlp(X, W, c) = -sum(pl_lognormal(X[:, i], c, W * W' + PL_σ2 * I) for i in
         G = LenticulumCore.free_energy_gradient(s, g, ps, st; ad = AutoForwardDiff())
         ps2, _, _ = parameter_step(s, g, ps, st; ad = AutoForwardDiff(), rule = GradientDescent(0.01))
         @test pl_flat(ps2.lik) ≈ pl_flat(ps.lik) .- 0.01 .* pl_flat(G.lik) atol = 1e-12
+        # the store holds blocks, so the energies took the batched path (L-ADR-0010 step 2): one
+        # row per factor template and one batched gradient item for :lik; the same messages held
+        # per edge (a store without block rows) give the same free energy, terms and gradients
+        @test length(Mycelium._energy_rows(s, g)) == 3
+        items, rest = Mycelium._row_items(s, g, :lik, ps.lik, NamedTuple(), [g.factors[i] for i in tied_factors(g, :lik)])
+        @test length(items) == 1 && isempty(rest) && items[1][3] isa Lenticulum.FrozenGaussianBeliefs
+        se = MessageStore(copy(s.to_variable), copy(s.to_factor), s.iteration)
+        @test isempty(Mycelium._energy_rows(se, g))
+        @test first(LenticulumCore.scalar_free_energy(se, g, ps, st)) ≈ F rtol = 1e-13
+        Fb, Fe = first(factor_free_energies(s, g, ps, st)), first(factor_free_energies(se, g, ps, st))
+        for name in keys(Fb.parts)
+            for part in (:fit, :complexity, :negentropy)
+                Fb.parts[name] isa Real || @test Fb.parts[name][part] ≈ Fe.parts[name][part] atol = 1e-12
+            end
+        end
+        for (ad, tol) in ((nothing, 1e-6), (AutoForwardDiff(), 1e-10), (AutoZygote(), 1e-10))   # differences: ε = 1e-6
+            @test pl_flat(LenticulumCore.free_energy_gradient(s, g, ps, st; ad).lik) ≈
+                  pl_flat(LenticulumCore.free_energy_gradient(se, g, ps, st; ad).lik) atol = tol
+        end
     end
 
     @testset "a grouped sweep gives the sequential schedule's messages" begin
@@ -157,12 +176,35 @@ pl_fa_nlp(X, W, c) = -sum(pl_lognormal(X[:, i], c, W * W' + PL_σ2 * I) for i in
     @testset "a plate sweep takes the batched path, and large plates stay cheap" begin
         g = pl_fa_graph(X)
         sched = plate_schedule(g)
-        planned = [p for p in sched.plans if p !== nothing]
+        planned = [p for p in sched.plans if p isa Mycelium._GroupPlan]
         @test length(planned) == 3                     # data -> x, lik -> z, prior -> z
+        @test count(p -> p isa Mycelium._CavityPlan, sched.plans) == 3   # x -> lik, z -> lik, z -> prior
         for p in planned
+            @test all(!=(0), p.rows)                   # every channel's edges are one block row
             T = Tuple{typeof(p.factors),Symbol,Any,Vector{Any},Vector{Any},Any,Any}
             @test which(Mycelium.factor_messages, T).module === (eltype(p.factors) <: DataFactor ? Mycelium : Lenticulum)
+            Tb = Tuple{typeof(p.factors),Symbol,Any,NamedTuple,Mycelium._LazyPriors,Any,Any}
+            @test which(Mycelium.factor_messages, Tb).module === (eltype(p.factors) <: DataFactor ? Mycelium : Lenticulum)
+            @test which(Mycelium.factor_messages, Tb) != which(Mycelium.factor_messages, Tuple{Vector{Any},Symbol,Any,NamedTuple,Vector{Any},Any,Any})
         end
+        # after a sweep every template edge holds one block: prior and lik messages as Gaussian
+        # blocks with a shared precision, data as points
+        ps0 = LuxCore.initialparameters(Xoshiro(0), g)
+        ps = merge(ps0, (lik = pl_fa_lik(ps0, W, c),))
+        s = MessageStore(g)
+        sweep!(s, g, sched, ps, NamedTuple())
+        live = [m.belief for m in vcat(s.to_variable.blocks, s.to_factor.blocks) if m !== nothing]
+        @test length(live) == 6
+        @test count(b -> b isa GaussianBlock && b.Λ isa AbstractMatrix, live) == 4
+        @test count(b -> b isa PointBlock, live) == 2
+        # writing one edge of a block row turns the row back into per-edge messages
+        e = first(plates(g)).edges[1, 2]
+        r = s.to_variable.row[e]
+        before = [s.to_variable[x] for x in s.to_variable.rows[r]]
+        s.to_variable[e] = Message(TrivialBelief(), 0)
+        @test s.to_variable.blocks[r] === nothing
+        @test all(i -> s.to_variable.rows[r][i] == e || belief_distance(s.to_variable[s.to_variable.rows[r][i]].belief, before[i].belief) == 0,
+                  eachindex(before))
         # 500 replicas: the free energy is a sum over node vectors, not a 1500-field NamedTuple
         Xl = randn(rng, PL_D, 500)
         gl = pl_fa_graph(Xl)

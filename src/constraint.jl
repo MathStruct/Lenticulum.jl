@@ -347,6 +347,63 @@ function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{na
     return Any[GaussianBelief(H[:, i], Λ, improper) for i in axes(H, 2)], st
 end
 
+"""
+    Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor}, target, polarity, inputs::NamedTuple, priors, ps, st)
+
+The same messages from message blocks (a plate sweep on blocks, L-ADR-0010): `inputs` holds one
+`BeliefBlock` per channel. When the replicas share the noise covariance and each input block is
+points, trivial, or proper Gaussians with one shared precision, the shared work is done once
+and the result is one `GaussianBlock` with a shared precision: ``H = K(c\\,\\mathbf 1^\\top - \\sum_n A_n M_n)``,
+with ``M_n`` the input means as columns. Otherwise each replica's column goes through the method
+above.
+"""
+function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{names}}, target::Symbol, polarity,
+                                  inputs::NamedTuple, priors::AbstractVector, ps, st) where {names}
+    target in names || throw(ArgumentError(
+        "channel :$target is not a channel of this LinearConstraintFactor (has $names)"))
+    f, n = first(fs), length(fs)
+    others = _other_channels(Val(names), Val(target))
+    parts = map(c -> (c, _block_parts(_get(inputs, c), f.dims[c], n)), others)
+    if !all(h -> h === f || (isequal(h.Q, f.Q) && h.dims == f.dims), fs) || any(p -> p[2] === nothing, parts)
+        cols = [NamedTuple{keys(inputs)}(map(b -> Mycelium.replica(b, i), values(inputs))) for i in 1:n]
+        return Mycelium.belief_block(first(Mycelium.factor_messages(fs, target, polarity, cols, priors, ps, st))), st
+    end
+    c = float.(ps.c)
+    A, At = ps.A, ps.A[target]
+    _, R, G = _accumulate(A, f.Q, [(ch, (M[:, 1], S, N)) for (ch, (M, S, N)) in parts])
+    if isempty(G)
+        Ri = inv(_chol(R, "Q + Σ AᵢSᵢAᵢᵀ"))
+        improper = _projected_rank(At, At) < size(At, 2)
+        K, Λ = At' * Ri, At' * Ri * At
+    else
+        T, Li = _residual_metric(R, G, "Q + Σ AᵢSᵢAᵢᵀ")
+        Ta = T * At
+        rt = _projected_rank(Ta, Li * At)
+        rt == 0 && return Mycelium.TrivialBlock(n), st
+        K, Λ, improper = Ta' * T, Ta' * Ta, rt < size(At, 2)
+    end
+    # H = K(c 1ᵀ − Σₙ Aₙ Mₙ), as Kc − Σₙ (K Aₙ) Mₙ: small products first, one n-column temporary
+    H = foldl((acc, (ch, (M, _, _))) -> acc .+ (K * A[ch]) * M, parts; init = zeros(eltype(K), size(K, 1), n))
+    H = (K * c) .- H
+    return Mycelium.GaussianBlock(H, Λ, fill(improper, n)), st
+end
+
+# A channel's block as (M, S, N): the means as columns, one covariance S and one flat basis N
+# for every replica (as `_split_moments`), or `nothing` when the replicas differ in S or N, or a
+# precision is improper but not zero.
+_block_parts(::Mycelium.TrivialBlock, d, n) = (fp = _flat_part(d); (zeros(d, n), fp[2], fp[3]))
+_block_parts(::Nothing, d, n) = _block_parts(Mycelium.TrivialBlock(n), d, n)
+_block_parts(b::Mycelium.PointBlock, d, n) = size(b.X, 1) == d ? (b.X, zeros(d, d), nothing) : nothing
+function _block_parts(b::Mycelium.GaussianBlock, d, n)
+    b.Λ isa AbstractMatrix && size(b.Λ, 1) == d || return nothing
+    all(iszero, b.Λ) && return all(iszero, b.η) ? _block_parts(Mycelium.TrivialBlock(n), d, n) : nothing
+    b1 = Mycelium.replica(b, 1)
+    all(==(b.improper[1]), b.improper) && isproper(b1) || return nothing
+    C = LenticulumCore._improper_check(b1, "a block input")      # the factorisation of `belief_mean`
+    return (LenticulumCore._precision_solve(C, b.η), belief_cov(b1), nothing)
+end
+_block_parts(b, d, n) = nothing
+
 # The channels other than the target, as a tuple known to the compiler.
 @generated _other_channels(::Val{names}, ::Val{target}) where {names,target} =
     Tuple(n for n in names if n !== target)
@@ -512,6 +569,28 @@ function Mycelium.belief_free_energy(f::LinearConstraintFactor, b::FrozenGaussia
     fit = (r̄' * (Qi * r̄) + tr(Qi * Cr)) / 2
     complexity = logdet(_chol(2π .* f.Q, "2πQ")) / 2
     return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -b.H)), st
+end
+
+# Tied replicas with one noise covariance, from message blocks (a plate).
+function Mycelium.factor_beliefs(fs::AbstractVector{<:LinearConstraintFactor}, msgs::NamedTuple, ps, st)
+    f = first(fs)
+    all(h -> h === f || (isequal(h.Q, f.Q) && h.dims == f.dims), fs) ||
+        return invoke(Mycelium.factor_beliefs, Tuple{AbstractVector,NamedTuple,Any,Any}, fs, msgs, ps, st)
+    return _affine_gaussian_beliefs(ps.A, -ps.c, inv(_chol(f.Q, "Q")), msgs, f.dims, length(fs))
+end
+function Mycelium.belief_free_energies(fs::AbstractVector{<:LinearConstraintFactor}, b::FrozenGaussianBeliefs, ps, st)
+    f = first(fs)
+    R, Cr = _frozen_residuals(ps.A, -ps.c, b)
+    Qi = inv(Symmetric(f.Q))                                   # not inv(::Cholesky): Zygote has no rule
+    complexity = logdet(_chol(2π .* f.Q, "2πQ")) / 2
+    fit = _column_fits(R, Qi, Cr)
+    return [LenticulumCore.GradedEnergy((fit = fi, complexity = complexity, negentropy = -b.H)) for fi in fit], st
+end
+function Mycelium.local_free_energies(fs::AbstractVector{<:LinearConstraintFactor}, msgs::NamedTuple, ps, st)
+    b = Mycelium.factor_beliefs(fs, msgs, ps, st)
+    b isa FrozenGaussianBeliefs ||
+        return invoke(Mycelium.local_free_energies, Tuple{AbstractVector,NamedTuple,Any,Any}, fs, msgs, ps, st)
+    return Mycelium.belief_free_energies(fs, b, ps, st)
 end
 
 # --- The mean-field node's average energy (Riegler et al. 2013, eq. 17) --------------------

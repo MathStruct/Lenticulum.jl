@@ -47,6 +47,7 @@ using LinearAlgebra: LinearAlgebra, logdet, tr
 
 include("graph.jl")
 include("polarity_resolution.jl")
+include("blocks.jl")
 include("messages.jl")
 include("schedules.jl")
 include("passing.jl")
@@ -78,6 +79,7 @@ export legal_targets, legal_sources
 export Message, MessageStore, reset!, pin!, unpin!, combine, combine_with_overlap, belief_logdensity, belief_distance
 export marginal, excluded_marginal, damp, can_damp
 export has_to_variable, has_to_factor
+export BeliefBlock, TrivialBlock, PointBlock, GaussianBlock, VectorBlock, belief_block, replica, replicas, nreplicas
 
 # --- Schedules -------------------------------------------------------------
 export AbstractSchedule, MessageTask, tasks, all_tasks, islegal
@@ -101,7 +103,7 @@ export factor_free_energies, variable_corrections, messages_into, variable_free_
 export bethe_free_energy, chain_free_energy   # scalar_free_energy extends LenticulumCore's
 
 # --- Factors ---------------------------------------------------------------
-export local_free_energy, marginals_into, uses_cavity, issink, point, factor_belief, belief_free_energy
+export local_free_energy, local_free_energies, factor_beliefs, belief_free_energies, marginals_into, uses_cavity, issink, point, factor_belief, belief_free_energy
 export DataFactor, PriorFactor, LossFactor, RelayFactor, OptimiserFactor
 export ExposedFactor, expose, supports_parameter_polarity, parameter_message, parameter_free_energy
 export AbstractUpdateRule, GradientDescent, Momentum, Nesterov

@@ -171,3 +171,9 @@ $-H(q)$ and `uses_cavity` is `true`, so graph free-energy evaluation needs its e
 variable-to-factor messages: a directed relay (`Absorbing()` in, `Emitting()` out), accepted
 before with a zero contribution, now raises the LP-014 error asking for `Bidirectional()`. The game quantities (`energy`, the identity game) are unchanged.
 Tested in `test/lp019.jl`.
+
+## `DataFactor` on blocks (2026-11-03)
+
+`factor_messages` on blocks returns the replicas' data as one `PointBlock` when it is real vectors
+of one length, and `local_free_energies` returns zeros, as `local_free_energy` does
+(`blocks.md`).

@@ -1,6 +1,6 @@
 #design
 
-> **Status: draft (2026-11-02, Claude), implemented as described.** Related: [[Extending Mycelium]] §2, [[L-SPEC-003 Exposed Parameters and Energy Channels]], [[L-SPEC-005 The Hybrid Free Energy]], [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]], [[LP-021 The coupled gradient drivers cut diagonal edges at fixed messages]]. Code: `lib/Mycelium.jl/src/plates.jl`, `graph.jl` (parameter keys), `passing.jl` (`factor_messages`), `free_energy.jl`, `src/constraint.jl`.
+> **Status: draft (2026-11-02, Claude), implemented as described; §5–§6 added 2026-11-03 with [[L-ADR-0010 Plates get batched message blocks]].** Related: [[Extending Mycelium]] §2, [[L-SPEC-003 Exposed Parameters and Energy Channels]], [[L-SPEC-005 The Hybrid Free Energy]], [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]], [[LP-021 The coupled gradient drivers cut diagonal edges at fixed messages]]. Code: `lib/Mycelium.jl/src/plates.jl`, `blocks.jl`, `graph.jl` (parameter keys), `passing.jl` (`factor_messages`), `free_energy.jl`, `src/constraint.jl`, `src/gaussian.jl`.
 
 > Sources: original to this repository. code: `lib/Mycelium.jl/src/plates.jl`, `lib/Mycelium.jl/src/graph.jl`, `lib/Mycelium.jl/src/passing.jl`, `lib/Mycelium.jl/src/free_energy.jl`, `src/constraint.jl`; tests: `test/plates.jl`; benchmark: `bench/plates.jl`
 >
@@ -10,8 +10,9 @@
 
 One graph for many observations: a template replicated $n$ times with shared parameters, so that
 learning through a graph does not mean building a graph per data point. It covers parameter
-tying in general, the plate builder, and schedules that compute the replicas together. It does
-not add a batched message representation.
+tying in general, the plate builder, schedules that compute the replicas together, and, since
+2026-11-03, message blocks: a batched message representation for plate edges, with batched
+energies.
 
 ## The contract
 
@@ -51,6 +52,29 @@ tied factors of one type in one template position support the same polarities) o
 what `factor_message` returns for each replica. The default loops; `LinearConstraintFactor`
 shares the factorisation and the rank test when its replicas' noise and input covariances agree.
 
+**§5. Message blocks.** `MessageStore(g)` gives each template edge of each plate a block row (its
+edges, replica $i$ in column $i$), in each direction. A row holds either one `BeliefBlock` or one
+message per edge. Indexing an edge of a row held as a block returns that edge's column as a
+`Message`; assigning to one first turns the whole row back into per-edge messages. A store built
+from vectors has no rows. A `PlateSchedule` group whose edges are block rows writes its result as
+one block: a factor → variable group through `factor_messages(factors, target, polarity,
+inputs::NamedTuple, priors, ps, st)`, whose inputs are blocks and whose result is a block (or a
+vector of beliefs), and which must give, column for column, what `factor_message` gives; a
+variable → factor group as the `combine` of the other rows at each member's variable. A group
+takes the per-edge path when a variable is pinned, a row is partly filled or partly
+uninformative, damping is on, or a target edge is detached. The default `factor_messages` on
+blocks goes replica by replica; `LinearConstraintFactor`, `GaussianPrior` and `DataFactor` have
+block methods.
+
+**§6. Batched energies.** A plate factor row whose nodes are belief-propagation nodes on one key,
+with their edges in block rows (none detached) and their incoming messages held as blocks, is
+evaluated by `local_free_energies(factors, msgs, ps, st)` (each replica's `local_free_energy`) in
+the free energy, and by `factor_beliefs` (outside AD) and `belief_free_energies` (differentiable)
+in `free_energy_gradient`, one AD item per row. `nothing` from `factor_beliefs` sends the row to
+the per-node path. The defaults loop over replicas; `LinearConstraintFactor` and `GaussianPrior`
+implement them for Gaussian blocks of shared precision. A plate variable row's Bethe terms are
+the entropies of its marginal block.
+
 ## Checked by
 
 `test/plates.jl`:
@@ -73,17 +97,25 @@ shares the factorisation and the rank test when its replicas' noise and input co
   energy to $10^{-6}$.
 
 - each lifted factor → variable group has a plan and dispatches to the batched method of its
-  factor type; a plate of 500 replicas has the closed-form free energy to $10^{-12}$ (relative).
+  factor type, on edge inputs and on blocks; a plate of 500 replicas has the closed-form free
+  energy to $10^{-12}$ (relative);
+- after a sweep of the factor-analysis plate all six live rows are blocks (four Gaussian with a
+  shared precision, two of points); writing one edge of a row turns it back into per-edge
+  messages with the same values;
+- the energies on blocks against the same messages per edge: the scalar free energy to
+  $10^{-13}$ (relative), the graded terms to $10^{-12}$, the gradient to $10^{-10}$ with ForwardDiff and
+  Zygote ($10^{-6}$ with reference differences); the gradient of `:lik` is one batched item.
 
-`bench/plates.jl` measures the speed (`plates.md`): the grouped plate is about 6.3 times faster
-than a loop of prebuilt graphs and 170–240 times slower than the hand-written E-step; building and
-the free energy are linear in $N$ (0.05 s and 34 ms at $N = 3000$).
+`bench/plates.jl` measures the speed (`plates.md`, `blocks.md`): on blocks the grouped plate is
+about 9 times the hand-written E-step at $N = 1000$ (0.09 ms against 0.0102 ms; 2.39 ms before), the
+free energy 1.1 ms and its gradient 2.1 ms (10.7 and 57 ms with the same messages per edge);
+building is linear in $N$.
 
 ## Open
 
-- **Speed.** [[Extending Mycelium]] §2 asked for a small factor of hand-written code; after the
-  review fixes the plate is 170–240 times slower, spread over untyped message storage and
-  per-message bookkeeping. A batched message representation would be the next step.
-- No nested plates, no batched message type, no stateful tied factors.
+- **Speed.** [[Extending Mycelium]] §2 asked for a small factor of hand-written code; on blocks the
+  plate is about 9 to 13 times slower than the closed form. Mixtures and other non-Gaussian
+  messages are still per replica inside blocks.
+- No nested plates, no stateful tied factors.
 - [[LP-021 The coupled gradient drivers cut diagonal edges at fixed messages]], found here, is
   resolved for factors whose edges are all cut; factors with mixed couplings are open.

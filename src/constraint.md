@@ -277,6 +277,14 @@ in `test/mean_field_free_energy.jl`.
 
 ## Batched messages for plates (2026-11-02)
 
+*Update (2026-11-03).* With message blocks (`lib/Mycelium.jl/src/blocks.md`) there is a second
+method, on a `NamedTuple` of blocks: inputs as point blocks, trivial blocks, or proper Gaussian
+blocks with one shared precision take the shared path below and return one `GaussianBlock`
+(``H = Kc\,\mathbf 1^\top - \sum_n (K A_n) M_n``, the small products first); anything else goes
+column by column through the method on vectors. The free energy over a plate row uses
+`factor_beliefs`/`belief_free_energies`/`local_free_energies` on blocks, through
+`FrozenGaussianBeliefs` (`gaussian.md`); test: `test/plates.jl`.
+
 `Mycelium.factor_messages(fs, target, polarity, inputs, priors, ps, st)` computes the messages of
 tied replicas (`lib/Mycelium.jl/src/plates.md`). When all replicas have one noise covariance and
 dimensions, and every replica's inputs have the same covariances and flat directions, the metric

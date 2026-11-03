@@ -100,7 +100,11 @@ was not met: for factor analysis the grouped plate is about 6.3 times faster tha
 prebuilt graphs and 170–240 times slower than the hand-written E-step, after the fixes of a
 review (graph types that grew with the graph, per-replica work in batched groups; `plates.md`). The comparison with E7's vectorised code was not rerun (E7 lives on
 `experiment-qm`). A plate is unrolled rather than batched; "factors inside see batched inputs"
-holds only through `factor_messages`.
+holds only through `factor_messages`. A batched message representation, the remaining step to the speed target, was decided in
+[[L-ADR-0010 Plates get batched message blocks]] and implemented on 2026-11-03 (`blocks.md`): plate
+edges hold one block per template edge, and the factor-analysis E-step is about 9 times the
+hand-written one at $N = 1000$ (0.09 ms against 0.0102 ms, `bench/plates.jl`), with the free energy
+and its gradient batched per template factor.
 
 **What.** A graph template replicated over $N$ observations with tied parameters, run as one batched
 graph: beliefs with a batch dimension, messages computed for all replicas at once, and gradients

@@ -140,6 +140,7 @@ makedocs(;
             "Mycelium" => [
                 "Guide" => "packages/mycelium/index.md",
                 "API" => "packages/mycelium/api.md",
+                "API: plates and blocks" => "packages/mycelium/api_plates.md",
             ],
             "Lenticulum" => "packages/lenticulum.md",
             "VariationalDiffusion" => [

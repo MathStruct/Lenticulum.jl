@@ -31,14 +31,20 @@ distinct from "computed and uninformative" (the latter is `TrivialBelief()`).
 """
 abstract type AbstractMessageStore end
 mutable struct MessageStore <: AbstractMessageStore
-    to_variable::Vector{Any}
-    to_factor::Vector{Any}
+    to_variable::EdgeMessages
+    to_factor::EdgeMessages
     iteration::Int
     pins::Dict{Int,Any}
+    MessageStore(tv::EdgeMessages, tf::EdgeMessages, iteration::Int, pins::Dict{Int,Any}) = new(tv, tf, iteration, pins)
 end
 MessageStore(to_variable, to_factor, iteration) = MessageStore(to_variable, to_factor, iteration, Dict{Int,Any}())
-MessageStore(g::FactorGraph) =
-    MessageStore(Vector{Any}(nothing, nedges(g)), Vector{Any}(nothing, nedges(g)), 0)
+MessageStore(to_variable::AbstractVector, to_factor::AbstractVector, iteration::Int, pins::Dict{Int,Any}) =
+    MessageStore(_edge_messages(to_variable), _edge_messages(to_factor), iteration, pins)
+_edge_messages(v::EdgeMessages) = v
+_edge_messages(v::AbstractVector) = EdgeMessages(v)
+# A graph with plates gets one block row per template edge (`blocks.jl`, L-ADR-0010).
+MessageStore(g::FactorGraph) = (rows = _block_rows(g);
+    MessageStore(EdgeMessages(nedges(g), rows), EdgeMessages(nedges(g), rows), 0, Dict{Int,Any}()))
 
 """
     pin!(store, g, variable::Symbol, value) -> store
@@ -61,8 +67,8 @@ end
 _pin(::AbstractMessageStore, vid::Int) = nothing
 _pin(s::MessageStore, vid::Int) = get(s.pins, vid, nothing)
 
-has_to_variable(s::AbstractMessageStore, ei::Int) = s.to_variable[ei] !== nothing
-has_to_factor(s::AbstractMessageStore, ei::Int) = s.to_factor[ei] !== nothing
+has_to_variable(s::AbstractMessageStore, ei::Int) = _isset(s.to_variable, ei)
+has_to_factor(s::AbstractMessageStore, ei::Int) = _isset(s.to_factor, ei)
 
 """
     reset!(store)

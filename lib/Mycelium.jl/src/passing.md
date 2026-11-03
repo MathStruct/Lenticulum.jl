@@ -203,3 +203,11 @@ is measured in natural parameters, whose entries are of order $10^8$; the moment
 so `test/switching_constraint.jl` converges its hybrid at `tol = 1e-10`. It is the default for a
 `HybridSchedule` and for plate schedules lifted from one; it costs one marginal per variable per
 sweep.
+
+## `factor_messages` on blocks (2026-11-03)
+
+A second method of `factor_messages` takes `inputs` as a `NamedTuple` of `BeliefBlock`s and
+returns one block (`blocks.md`). The default takes each replica's column, calls the method on
+vectors and packs the result with `belief_block`, so a factor type adds block arithmetic by adding
+a method of that form and nothing else changes. `DataFactor` (in `factors.jl`) returns its data as
+one point block.

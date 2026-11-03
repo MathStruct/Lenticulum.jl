@@ -133,6 +133,14 @@ LenticulumCore.islearnable(::DataFactor) = false
 factor_message(f::DataFactor, ::Symbol, _, _, _, ps, st) =
     (LenticulumCore.DiracBelief(f.value), st)
 local_free_energy(::DataFactor, _, ps, st) = (0.0, st)
+local_free_energies(fs::AbstractVector{<:DataFactor}, ::NamedTuple, ps, st) = (zeros(length(fs)), st)
+# On blocks (a plate sweep): the points of real-vector data as one block.
+function factor_messages(fs::AbstractVector{<:DataFactor}, ::Symbol, _, ::NamedTuple, ::AbstractVector, ps, st)
+    v1 = first(fs).value
+    v1 isa AbstractVector{<:Real} && all(f -> f.value isa AbstractVector{<:Real} && length(f.value) == length(v1), fs) ||
+        return belief_block(Any[LenticulumCore.DiracBelief(f.value) for f in fs]), st
+    return PointBlock(reduce(hcat, [f.value for f in fs])), st
+end
 
 # =========================================================================== #
 # Prior

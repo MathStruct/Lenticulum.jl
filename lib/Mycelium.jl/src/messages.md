@@ -248,3 +248,11 @@ checks equal weights and the independent total variation `1/6` between `(2/3,1/3
 and `(1/2,1/2)`, with vector and tuple weights. Both original vector assertions
 failed in `Mycelium-final.log` before this fix. Scaling uses non-mutating division
 so immutable weight containers remain supported.
+
+## Block rows in the store (2026-11-03)
+
+`MessageStore`'s fields `to_variable` and `to_factor` are `EdgeMessages` rather than `Vector{Any}`.
+They index the same way; a graph with plates gives each template edge a block row that can hold
+one `BeliefBlock` for all replicas, read edge by edge as views (`blocks.md`). `has_to_variable` and
+`has_to_factor` ask the storage (`_isset`) instead of building the view.
+

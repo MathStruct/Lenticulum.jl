@@ -222,8 +222,12 @@ Any node can be tied outside a plate too, with `factor!(b, name, f; params = key
 need the same factor type and `freeze`. `plate_schedule(g, replica_tasks)` lifts a hand-written
 schedule for replica 1; a template with mean-field nodes gets its [`hybrid_schedule`](@ref) by
 default. A sweep of a plate schedule gives
-the messages of the same tasks run one by one. Factors can compute a group's messages together
-through [`factor_messages`](@ref); `LinearConstraintFactor` does.
+the messages of the same tasks run one by one. The store holds each template edge's messages as
+one [`BeliefBlock`](@ref) (Gaussian information vectors as a ``d \times N`` matrix with a shared
+precision, points as a matrix); reading `store.to_variable[e]` still returns that edge's
+message. A factor computes a group's messages on blocks through [`factor_messages`](@ref), and a
+plate's free energy and gradient through [`local_free_energies`](@ref), [`factor_beliefs`](@ref)
+and [`belief_free_energies`](@ref); `LinearConstraintFactor` and `GaussianPrior` implement them.
 
 ## Known gaps
 
@@ -234,9 +238,9 @@ through [`factor_messages`](@ref); `LinearConstraintFactor` does.
   rather than resample; structured belief pairs retain their explicit rules.
 - Potential distances compare callable identity (otherwise `Inf`); damping potentials is
   an inspectable no-op through `can_damp`.
-- Plates are unrolled, not batched: the grouped schedule removes the per-replica polarity and
-  rank work, but the per-message overhead stays (factor analysis: about 6 times faster than a
-  loop of graphs, 170–240 times slower than the E-step written by hand; `plates.md`).
+- Plates are batched for Gaussian and point messages only (factor analysis: about 9 times the
+  E-step written by hand at ``N = 1000``; `blocks.md`). Mixtures and other beliefs are held per
+  replica inside a block and computed one replica at a time.
 - In the coupled drivers (`adjoint = :implicit`, non-diagonal couplings), a factor whose edges are
   all cut is held at its fixed belief, as in the default driver (LP-021); a factor with some edges
   cut and some not is differentiated at its messages, with the cut ones constant.
