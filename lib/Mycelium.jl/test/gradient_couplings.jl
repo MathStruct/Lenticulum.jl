@@ -91,7 +91,10 @@ end
         d=free_energy_gradient(s,g,p,st;ad)
         @test d.a.gain ≈ 0.07 atol=2e-8
         @test all(iszero,LenticulumCore._flatten(d.b))
-        @test_throws ArgumentError free_energy_gradient(s,first(coupled_chain(ExactCoupling())),p,st;ad)
+        # LP-021 option 3: without `schedule` the couplings do not change the free-energy gradient
+        # (before, a non-diagonal graph required a replay)
+        ge=first(coupled_chain(ExactCoupling()))
+        @test LenticulumCore._flatten(free_energy_gradient(s,ge,p,st;ad)) == LenticulumCore._flatten(d)
     end
 end
 

@@ -144,8 +144,15 @@ end
         for ad in (nothing,AutoForwardDiff(),AutoZygote())
             d=free_energy_gradient(MessageStore(g),g,p,st;ad,schedule=sched,adjoint=:implicit,tol=1e-12,
                 linear_tol=ad===nothing ? 2e-7 : 1e-10)
-            u=free_energy_gradient(MessageStore(g),g,p,st;ad,schedule=sched,nsweeps=60)
-            @test adjoint_flat(d) ≈ adjoint_flat(u) atol=5e-7 rtol=5e-7
+            if Mycelium._mixed_cuts(g)
+                # LP-021 option 3: on a mixed graph the implicit adjoint is the envelope gradient at
+                # the fixed point, not the derivative of the cut replay
+                _,_,stc,sc=infer!(g,sched,p,st;tol=1e-12,maxsweeps=1000)
+                @test adjoint_flat(d) ≈ adjoint_flat(free_energy_gradient(sc,g,p,stc;ad)) atol=5e-7 rtol=5e-7
+            else
+                u=free_energy_gradient(MessageStore(g),g,p,st;ad,schedule=sched,nsweeps=60)
+                @test adjoint_flat(d) ≈ adjoint_flat(u) atol=5e-7 rtol=5e-7
+            end
             damped=free_energy_gradient(MessageStore(g),g,p,st;ad,schedule=ResidualSchedule(maxtasks=10),
                 damping=0.3,adjoint=:implicit,tol=1e-12,linear_tol=ad===nothing ? 2e-7 : 1e-10)
             @test adjoint_flat(damped) ≈ adjoint_flat(d) atol=5e-7 rtol=5e-7

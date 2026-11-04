@@ -155,6 +155,12 @@ function _implicit_graph_gradient(g, ps, st; ad, ε, schedule, damping, maxsweep
     ranges = map((i,n) -> i:i+n-1, starts, lengths)
     x = reduce(vcat, parts)
     isempty(x) && throw(ArgumentError("implicit graph message state has no numeric coordinates"))
+    # LP-021, option 3: on a mixed graph the cut messages would make the implicit derivative another
+    # quantity; at this converged fixed point the free-energy gradient is the envelope one.
+    if _mixed_cuts(g)
+        gradient = _envelope_gradient(store, g, ps, st; ad, ε)
+        return return_state ? (gradient, last(factor_free_energies(store, g, ps, st))) : gradient
+    end
     frozen = _frozen_beliefs(store, g, ps, st)          # LP-021: fully cut factors at fixed beliefs
     ctx = (; g, ps, st, ts, beliefs, ranges, x, ad, damping, ε, frozen)
     # Check the full, uncut update too: a detached row must still be at a BP root.

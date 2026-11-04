@@ -3,7 +3,9 @@
 # graph and scored by its exact free energy. Extends `examples/structure_edits.jl` (J = 1) to J > 1.
 # Recorded in `examples/structure_clusters.md`.
 # Run:  julia -t auto --project=docs examples/structure_clusters.jl   (an environment with ForwardDiff)
-#       STRUCTURE_GREEDY=false skips the greedy search and runs the reference only.
+#       STRUCTURE_GREEDY=false skips the greedy search and runs the reference only;
+#       STRUCTURE_COMPOUND=false leaves out the compound moves and the data-driven splits (the branch's
+#       four moves only).
 #
 # The model: z = c_j + Σₗ kₗ W_{jl} + ε, j ~ π, kₗ | j ~ Bernoulli(p_{jl}). As a graph, per point:
 #   - the label j (J states) read by a switch `sw0` whose outcome sets u₀ = c_j (log-weights log π);
@@ -18,7 +20,10 @@
 #
 # Moves (edits of the unclustered graph): add a switch (every sum node gains a channel), remove the
 # least used switch, split the heaviest cluster, merge the two closest clusters (both change the
-# number of states of j and of every qₗ, so those variables are re-added and their factors replaced).
+# number of states of j and of every qₗ, so those variables are re-added and their factors replaced),
+# and two compound moves, a split with a removal and a merge with an addition: no single move leads
+# from (2, 3) to (3, 2), where the four-move search stops on the tree. Splits also get a data-driven
+# warm start (2-means on the heaviest cluster's points), and the compound split tries every switch.
 # Fit: Momentum on the free-energy gradient at the exact beliefs (generalised EM), on c, log π, W and
 # the logits of p. Score: BIC = 2F + p log N, p = J(d + 1 + L(d + 1)) − 1.
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, Printf, Statistics
@@ -168,6 +173,29 @@ function split_θ(θ, rng)
     lw = log.([w; w[j] / 2]); lw[j] = log(w[j] / 2)
     return (a = lw, C = C, W = cat(θ.W, θ.W[:, j:j, :]; dims = 2), r = vcat(θ.r, θ.r[j:j, :]))
 end
+# A data-driven split: the heaviest cluster's points (responsibility > 1/2, read from each point's
+# cluster node) are split by 2-means; each half's centre is its mean minus the switches' expected
+# offsets, its weight the cluster's share by size.
+function data_split_θ(θ, s, gc, ids, X)
+    N = size(X, 2); w = weights(θ); j = argmax(w)
+    ps = full_ps(make_ps(θ, ids), N)
+    resp = [exp(cluster_marginal(s, gc, nm(:c, i), :j, ps).logp[j]) for i in 1:N]
+    P = X[:, resp .> 0.5]
+    size(P, 2) >= 2 || return split_θ(θ, Xoshiro(1))
+    a, b = Tuple(argmax(((p, q),) -> norm(P[:, p] - P[:, q]), [(p, q) for p in axes(P, 2) for q in (p + 1):size(P, 2)]))
+    μ = hcat(P[:, a], P[:, b])
+    lab = ones(Int, size(P, 2))
+    for _ in 1:20
+        lab = [argmin([norm(P[:, t] - μ[:, k]) for k in 1:2]) for t in axes(P, 2)]
+        for k in 1:2; any(==(k), lab) && (μ[:, k] = vec(mean(P[:, lab .== k]; dims = 2))); end
+    end
+    p = 1 ./ (1 .+ exp.(-θ.r[j, :]))
+    shift = isempty(p) ? zeros(d) : sum(p[l] .* θ.W[:, j, l] for l in eachindex(p))
+    f = count(==(1), lab) / length(lab)
+    C = hcat(θ.C, μ[:, 2] .- shift); C[:, j] = μ[:, 1] .- shift
+    lw = log.([w; w[j] * (1 - f)]); lw[j] = log(w[j] * f)
+    return (a = lw, C = C, W = cat(θ.W, θ.W[:, j:j, :]; dims = 2), r = vcat(θ.r, θ.r[j:j, :]))
+end
 function merge_θ(θ)
     J = size(θ.C, 2); w = weights(θ)
     a, b = argmin(((a, b),) -> norm(θ.C[:, a] - θ.C[:, b]), [(a, b) for a in 1:J for b in (a + 1):J])
@@ -192,6 +220,7 @@ function tree_data(N, rng)
     end)
 end
 
+const COMPOUND = get(ENV, "STRUCTURE_COMPOUND", "true") != "false"
 rng = Xoshiro(5)
 const N = 200
 X = tree_data(N, rng)
@@ -229,15 +258,41 @@ while true
             θS, FS, sS = fit(gcS, ids, N, split_θ(θ, rng); s0 = transfer(s, gc, gcS)); global nfits += 1
             push!(cands, ("split a cluster", bic(FS, J + 1, L, N), gS, gcS, J + 1, ids, θS, sS, next))
         end
+        if COMPOUND
+            θS, FS, sS = fit(gcS, ids, N, data_split_θ(θ, s, gc, ids, X); s0 = transfer(s, gc, gcS)); global nfits += 1
+            push!(cands, ("split a cluster", bic(FS, J + 1, L, N), gS, gcS, J + 1, ids, θS, sS, next))
+        end
     end
     if J > 1                                                        # merge the two closest clusters
         gM = resize_clusters(g, J - 1, ids, N); gcM = clustered(gM, ids, N)
         θM, FM, sM = fit(gcM, ids, N, merge_θ(θ); s0 = transfer(s, gc, gcM)); global nfits += 1
         push!(cands, ("merge two clusters", bic(FM, J - 1, L, N), gM, gcM, J - 1, ids, θM, sM, next))
     end
+    if COMPOUND && J < 4 && L > 0                                   # a data-driven split, then remove each switch in turn
+        θD = data_split_θ(θ, s, gc, ids, X)
+        for l in 1:L
+            idsC = ids[setdiff(1:L, l)]
+            gC = remove_switch(resize_clusters(g, J + 1, ids, N), ids, ids[l], N); gcC = clustered(gC, idsC, N)
+            θC, FC, sC = fit(gcC, idsC, N, drop_θ(θD, l); s0 = transfer(s, gc, gcC)); global nfits += 1
+            push!(cands, ("split, remove a switch", bic(FC, J + 1, L - 1, N), gC, gcC, J + 1, idsC, θC, sC, next))
+        end
+    end
+    if COMPOUND && J > 1 && L < 3                                   # merge, then add a switch
+        gC = add_switch(resize_clusters(g, J - 1, ids, N), J - 1, ids, next, N); idsC = [ids; next]; gcC = clustered(gC, idsC, N)
+        for _ in 1:4
+            θC, FC, sC = fit(gcC, idsC, N, add_θ(merge_θ(θ), rng); s0 = transfer(s, gc, gcC)); global nfits += 1
+            push!(cands, ("merge, add a switch", bic(FC, J - 1, L + 1, N), gC, gcC, J - 1, idsC, θC, sC, next + 1))
+        end
+    end
     i = argmin([c[2] for c in cands])
     move, score, gN, gcN, JN, idsN, θN, sN, nextN = cands[i]
-    score < best - 1e-6 || break
+    if !(score < best - 1e-6)       # the stop: the best candidate of each move
+        for mv in unique(c[1] for c in cands)
+            @printf("  stop: best %-22s (J, L) = (%d, %d)  BIC = %9.2f\n", mv, first(c[5] for c in cands if c[1] == mv),
+                    first(length(c[6]) for c in cands if c[1] == mv), minimum(c[2] for c in cands if c[1] == mv))
+        end
+        break
+    end
     global g, gc, J, ids, θ, s, best, next = gN, gcN, JN, idsN, θN, sN, score, nextN
     push!(path, "($J, $(length(ids)))")
     @printf("%-18s (J, L) = (%d, %d)  BIC = %9.2f   (%.0f s)\n", move, J, length(ids), best, time() - t0)

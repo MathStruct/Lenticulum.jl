@@ -38,12 +38,13 @@ gradient steps at the exact beliefs) finds $L = 3$ by three additions, the branc
 labels tied to switch outcomes by `TableFactor`s) with all four of the branch's moves; split and
 merge re-add the label and outcome variables with new state counts. On the branch's tree (200
 points) greedy goes (1, 0) → (1, 1) → (2, 1) → (2, 2) → (2, 3), BIC 1 355.84 in 441 s, while the
-generating (3, 2) reaches 1 299.15: a worse structure, as on the branch's 16-mode grid.
+generating (3, 2) reaches 1 299.15: a worse structure, as on the branch's 16-mode grid. With a compound move (a
+data-driven split, then a removal) the search continues to (3, 2) at 1 299.17 (970 s, 81 fits).
 
 ## Open
 
 - Editing plates directly; stable ids (append-only growth with masks) instead of rebuilding. An edited
   graph whose replicas are named `x[i]` gets its plate back with `as_plate` (2026-11-04).
-- A combined move (split and remove) or a second pass: on the tree the greedy search ends at $(2, 3)$,
-  worse than the generating $(3, 2)$ (`examples/structure_clusters.md`).
+- Moves and warm starts are the caller's; the example's compound split-and-remove with a data-driven
+  split is one choice that works on the tree (`examples/structure_clusters.md`), not a general rule.
 - Fitting is slow against closed-form M-steps; frozen paths inside cluster nodes.

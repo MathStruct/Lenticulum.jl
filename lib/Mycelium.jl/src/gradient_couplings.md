@@ -270,3 +270,19 @@ switched every fully cut factor from the default driver's fixed-belief gradient 
 outside AD, and `_graph_scalar` differentiates `belief_free_energy` at that belief. Factors with a
 derivative path, and factors without `factor_belief`, are unchanged. `test/lp021.jl` checks the
 all-diagonal, one-exact-edge and all-exact cases against central differences.
+
+## Mixed cuts: couplings only in a replay (LP-021 option 3, 2026-11-04)
+
+At a fixed point the free-energy gradient is the envelope one, whatever the couplings; a coupling
+can only change the derivative of a computation that is not at its fixed point, or of another
+loss. So `free_energy_gradient` without `schedule` uses the envelope driver for graphs with
+diagonal, exact or pathwise couplings (`_deterministic_couplings`; before, non-diagonal edges
+required a replay), and `adjoint = :implicit` returns the envelope gradient at its converged fixed
+point when the graph is **mixed** (`_mixed_cuts`: a cut and a differentiated edge, both carrying
+messages that depend on the parameters; a data factor's edges and an observed variable's do not
+count). On a graph that is not mixed the implicit adjoint is kept; it equals the envelope gradient
+there (`test/lp021.jl`, `test/graph_adjoint.jl`). A replay with `schedule` still differentiates the
+replayed sweeps, and warns on a mixed graph: holding a parameter-dependent message fixed next to
+differentiated ones gave errors of 0.18–0.73 against the free-energy gradient, at convergence
+(the LP-021 note has the table). Score-function couplings and `StraightThroughFactor` keep the
+replay semantics.

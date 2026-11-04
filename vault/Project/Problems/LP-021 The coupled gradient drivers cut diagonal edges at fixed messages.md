@@ -1,6 +1,6 @@
 #open-problem
 
-> **Status: resolved (2026-11-02), by option 1 below (Daniel's choice).** Found while testing plates ([[L-SPEC-006 Plates]]); measured and now checked in `test/lp021.jl`. Related: [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]], [[LP-011 Gradient couplings and isfrozen are declared but unused]], [[graph_adjoint]], [[gradient_couplings]], [[free_energy]].
+> **Status: resolved (2026-11-02), by option 1 below (Daniel's choice); the mixed case resolved 2026-11-04 by option 3 of the follow-up (Daniel's choice).** Found while testing plates ([[L-SPEC-006 Plates]]); measured and now checked in `test/lp021.jl`. Related: [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]], [[LP-011 Gradient couplings and isfrozen are declared but unused]], [[graph_adjoint]], [[gradient_couplings]], [[free_energy]].
 
 > Sources: original repository analysis; code: `lib/Mycelium.jl/src/graph_adjoint.jl` (`_graph_update`, `_graph_loss`), `lib/Mycelium.jl/src/gradient_couplings.jl` (`_coupled_gradient`, `_replay`), `lib/Mycelium.jl/src/free_energy.jl` (`free_energy_gradient`); tests: `test/lp021.jl`
 >
@@ -54,6 +54,36 @@ $10^{-8}$: `adjoint = :implicit` with every edge diagonal (0.58 before), the sam
 `ExactCoupling()` edge (the data edge) under the unrolled replay and the implicit adjoint, and
 every edge exact. The existing coupled-gradient tests pass unchanged.
 
-**Still open.** A factor with some edges cut and some not (mixed) keeps the current treatment: its
-term is differentiated at its replayed messages, with the cut ones constant. Whether such a cut
-should mean "fixed message" or something else was not decided.
+**The mixed case (2026-11-04).** A factor with some edges cut and some differentiated. Measured on
+the graph above and on a chain $z_1 \to z_2 \to x$ (scratch scripts, then checked in `test/lp021.jl`),
+maximum error against central differences, gradients of size 1.1–1.5:
+
+| graph | fixed cut messages (the replay) | any cut factor at its belief |
+|---|---|---|
+| `lik`: $z$ exact, $x$ cut; prior's $z$ edge cut | 0.58 | 0.38 |
+| `lik`: $z$ exact, $x$ cut; prior's $z$ edge exact | $5 \cdot 10^{-10}$ | 0.58 |
+| `lik`: $z$ cut, $x$ exact; data edge exact | 0.58 | $5 \cdot 10^{-10}$ |
+| chain: $z_1$'s edges cut, $z_2$'s exact | 0.29 | 0.68 |
+| chain: $z_1$'s exact, $z_2$'s cut | 0.18 | 0.29 |
+
+Neither local rule is right: each is exact only where the mixed factor is not really mixed (its cut
+or its differentiated edge carries a message that does not depend on the parameters, here the
+observed $x$). The free-energy gradient is either every factor at its fixed belief or every message
+differentiated; at a fixed point both are the envelope gradient, and a mixture keeps terms that
+cancel only when all messages are differentiated.
+
+Options: (1) keep fixed messages and document a cut as a stop-gradient; (2) hold any factor with a
+cut at its belief (ruled out by the table); (3) let the couplings not change the free-energy
+gradient at a fixed point, so that they matter only in a replay that differentiates a truncated
+computation, and for losses other than the free energy; (4) refuse mixed graphs.
+
+**Resolution of the mixed case: option 3** (Daniel's choice). `free_energy_gradient` without
+`schedule` gives the envelope gradient at the store whatever the couplings (diagonal, exact,
+pathwise; before, non-diagonal edges required a replay). `adjoint = :implicit` on a mixed graph
+returns the envelope gradient at its converged fixed point (`_mixed_cuts`: a cut and a
+differentiated edge, both carrying parameter-dependent messages; edges of observed variables do not
+count). A replay (`schedule`) still differentiates the replayed computation, and on a mixed graph it
+warns that this is not the free-energy gradient. Score-function couplings and straight-through
+factors keep their replay semantics. Checked in `test/lp021.jl` ("mixed cuts give the envelope
+gradient"): three mixed chains, below $10^{-8}$ without `schedule` and with `adjoint = :implicit`,
+the replay warned and more than 0.1 off.

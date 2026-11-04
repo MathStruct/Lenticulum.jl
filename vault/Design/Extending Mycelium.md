@@ -230,7 +230,8 @@ path (`examples/structure_edits.md`), in 166 s (with the clusters as a plate, 20
 The split and merge moves ($J > 1$) followed the same day (`examples/structure_clusters.md`):
 the switch over sums as a graph needs a discrete factor tying each switch's outcome to the cluster
 label (`TableFactor`), and the cluster nodes drop the assignments it rules out. On the branch's
-tree greedy ends at $(2, 3)$, BIC 1 355.84, worse than the generating $(3, 2)$ at 1 299.15. Same day: grouping switches by overlap
+tree the four moves end at $(2, 3)$, BIC 1 355.84, worse than the generating $(3, 2)$ at 1 299.15; a
+compound split-and-remove with a data-driven split reaches $(3, 2)$ at 1 299.17 (2026-11-04). Same day: grouping switches by overlap
 (§5, `overlap_groups`, `switch_overlaps`) cuts the error of switch posteriors from 0.092 to 0.031 on
 eight overlapping switches, but only with E7's partial sum per block, itself a structure edit (now `partial_sums`).
 

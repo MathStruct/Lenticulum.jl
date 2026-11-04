@@ -592,8 +592,15 @@ sampling refuse such nodes. Bethe variable corrections are
 constant with respect to parameters at fixed beliefs. Exact for the default linear
 scalarisations, as the envelope argument is about the summed free energy. Nonlearnable subtrees receive
 zeros. Frozen coordinates receive zeros too. The result has `ps`'s structure.
-Non-diagonal edges require `schedule` and finite `nsweeps` (default 1), replaying from
-empty messages rather than differentiating this store's history. Score edges also
+**Couplings (LP-021).** At a fixed point the free-energy gradient does not depend on the edges'
+couplings, so without `schedule` a graph whose couplings are diagonal, exact or pathwise gets this
+gradient at the store's beliefs too. A coupling changes the result only in a replay: with
+`schedule`, non-diagonal edges replay finite `nsweeps` (default 1) from empty messages and
+differentiate that computation, a cut (diagonal) edge holding its message fixed. When cut and
+differentiated edges whose messages depend on the parameters meet in one graph (the mixed case),
+that is not the free-energy gradient even when the replay converges (off by 0.2–0.7 in
+`test/lp021.jl`), and a warning says so; `adjoint = :implicit` returns the envelope gradient at its
+converged fixed point for such a graph instead. Score edges also
 require `rng` and `nsamples >= 2`, returning a `GradientEstimate`. No input store or
 state is mutated. Replay includes flooding snapshots, realised residual task choices
 and outgoing damping. `adjoint=:implicit` instead differentiates a converged synchronous
@@ -615,10 +622,19 @@ function LenticulumCore.free_energy_gradient(s::MessageStore, g::FactorGraph, ps
     # Keep the same cavity validation as the reporting API.
     _check_energy_edges(g)
     adjoint in (:unrolled, :implicit) || throw(ArgumentError("adjoint must be :unrolled or :implicit"))
-    if adjoint === :implicit || any(e -> !(e.coupling isa DiagonalCoupling), g.edges)
+    coupled = adjoint === :implicit || any(e -> !(e.coupling isa DiagonalCoupling), g.edges)
+    # LP-021, option 3: without a replay (no `schedule`) the couplings do not change the free-energy
+    # gradient, which at a fixed point is the envelope one; they matter for a replay only.
+    if coupled && !(adjoint === :unrolled && schedule === nothing && _deterministic_couplings(g))
         return _coupled_gradient(s, g, ps, st; ad, ε, schedule, nsweeps, rng, nsamples,
             damping, adjoint, maxsweeps, tol, linear_solver, linear_tol, linear_maxiter)
     end
+    return _envelope_gradient(s, g, ps, st; ad, ε)
+end
+
+# The free-energy gradient at the store's beliefs (LP-020): each factor's term differentiated at
+# its fixed belief, tied nodes summed.
+function _envelope_gradient(s, g, ps, st; ad = nothing, ε = 1e-6)
     keys_ = parameter_keys(g)
     grads = map(keys_) do key
         nodes = [g.factors[i] for i in tied_factors(g, key)]

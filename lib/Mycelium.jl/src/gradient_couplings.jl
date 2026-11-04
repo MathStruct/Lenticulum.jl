@@ -120,6 +120,24 @@ end
 # `nothing` (a factor with a derivative path, or without `factor_belief`: fixed messages).
 _all_cut(g, f) = all(ei -> g.edges[ei].detach || g.edges[ei].coupling isa DiagonalCoupling, g.edges_of_factor[f.id])
 
+# LP-021, option 3. Couplings with a deterministic derivative path (or none); score estimators and
+# straight-through surrogates are other semantics, kept for the replay.
+_deterministic_couplings(g) = all(e -> e.detach || e.coupling isa Union{DiagonalCoupling,LenticulumCore.ExactCoupling,LenticulumCore.PathwiseCoupling}, g.edges) &&
+    !any(f -> f.factor isa StraightThroughFactor, g.factors)
+# An edge whose message cannot depend on the parameters: a data factor's, or any edge of an observed
+# variable (one a `DataFactor` emits into). Cutting it changes nothing.
+function _constant_edge(g, ei)
+    e = g.edges[ei]
+    g.factors[e.factor].factor isa DataFactor && return true
+    return any(ej -> g.factors[g.edges[ej].factor].factor isa DataFactor, g.edges_of_variable[e.variable])
+end
+_cut_edge(e) = e.detach || e.coupling isa DiagonalCoupling
+# The mixed case: a cut and a differentiated edge, both carrying parameter-dependent messages.
+function _mixed_cuts(g)
+    live = [ei for ei in eachindex(g.edges) if !_constant_edge(g, ei)]
+    return any(ei -> _cut_edge(g.edges[ei]), live) && any(ei -> !_cut_edge(g.edges[ei]), live)
+end
+
 function _frozen_beliefs(s, g, ps, st)
     return Any[f.rule isa BeliefPropagation && _all_cut(g, f) ?
                factor_belief(f.factor, messages_into(s, g, f.id), _subtree(ps, f.params), _subtree(st, f.params)) :
@@ -268,6 +286,9 @@ function _coupled_gradient(s, g, ps, st; ad=nothing, ε=1e-6, schedule=nothing,
     else
         nsamples === nothing || throw(ArgumentError("nsamples is only used for score coupling"))
     end
+    _mixed_cuts(g) && @warn("the graph mixes cut (diagonal) and differentiated edges carrying parameter-dependent \
+        messages; the replay's gradient holds the cut messages fixed and is not the free-energy gradient, \
+        even at convergence (LP-021). Omit `schedule`, or use `adjoint = :implicit`, for the free-energy gradient.", maxlog = 1)
     ts = _realised_tasks(g, schedule, nsweeps, ps, st; damping)
     n = stochastic ? nsamples : 1
     results = map(1:n) do draw
