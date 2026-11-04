@@ -308,3 +308,21 @@ goes through `_linear_message`. `test/plates.jl` checks both paths against `fact
   not the exact mixture belief, and the free energy of such a graph is that of the collapsed
   beliefs. Found when a plate with a latent mixture was evaluated on its per-edge path
   (`test/plates.jl`).
+
+## Output channels (2026-11-04, LP-022)
+
+The factor is a Gaussian in its residual, normalised over $r \in \mathbb R^m$, and not a density of any channel.
+With every coefficient learnable, the free energy on data is minimised by $A = 0$, $c = 0$ (every point
+on the relation), and with learnable noise in the switching or regime factors it is unbounded below
+(scale $A$ and the noise together). [[LP-022 Constraint factors are normalised in their residual, not their channels]]
+measures both. `output = :y` fixes the coefficient of `y` (`dims[:y] == m`) at `output_coeff` (default the
+identity) and drops it from the parameters. The factor is then the normalised conditional density of
+`y` given the other channels, up to $|\det A_y|$. GaussianFactor is this case with $A_y = I$ (§2).
+
+Implementation: one accessor, `_coeffs(f, ps)`, returns `ps.A` with the fixed coefficient merged in,
+and every method of the three constraint factors reads the coefficients through it (messages, plate
+blocks, mean-field and mixture messages, beliefs and free energies, cluster forms, `switch_overlaps`,
+`partial_sums`). `ps.A` holding the output's coefficient is an `ArgumentError`, rather than being
+silently overridden. The merge reorders the `NamedTuple`'s keys; nothing reads `A` by position.
+Tests: `test/lp022.jl`.
+

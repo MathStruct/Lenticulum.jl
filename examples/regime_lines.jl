@@ -3,13 +3,14 @@
 # Recorded in `examples/regime_lines.md`.
 # Run:  julia -t auto --project=docs examples/regime_lines.jl   (an environment with ForwardDiff)
 #
-# Model: x ~ U(−3, 3), k ~ (w₁, w₂), y = a_k x + c_k + σ_k ε. As a factor on z = (x, y):
-# 0 = [−a_k 1] z − c_k + ε_k, ε_k ~ N(0, σ_k²): the coefficients and the noise depend on the line,
-# which `SwitchingConstraintFactor` cannot state (`switching.md` §5). Point i is its data, its
-# outcome k_i and one RegimeFactor, tied over the points, so the graph is a forest and its Bethe
-# free energy is exactly −Σᵢ log p(yᵢ | xᵢ). The coefficient of y is held at 1 (the scale of the
-# residual is the noise's). The reference is EM for a mixture of linear regressions (weighted
-# least squares per line), from the same start.
+# Model: x ~ U(−3, 3), k ~ (w₁, w₂), y = a_k x + c_k + σ_k ε. As a factor on (y, x):
+# 0 = y − a_k x − c_k + ε_k, ε_k ~ N(0, σ_k²): the coefficients and the noise depend on the line,
+# which `SwitchingConstraintFactor` cannot state (`switching.md` §5). Point i is its data on y_i
+# and x_i, its outcome k_i and one RegimeFactor, tied over the points, so the graph is a forest and
+# its Bethe free energy is exactly −Σᵢ log p(yᵢ | xᵢ). y is the factor's output (`output = :y`): its
+# coefficient is fixed at 1 and is not a parameter, which makes the factor a density of y (LP-022;
+# with it learnable, scaling it and σ together lowers F without bound). The reference is EM for a
+# mixture of linear regressions (weighted least squares per line), from the same start.
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, Printf, Statistics
 using ADTypes, DifferentiationInterface, ForwardDiff
 
@@ -26,18 +27,18 @@ nm(s, i) = replica_name(s, i)
 function graph(x, y)
     b = GraphBuilder()
     for i in 1:N
-        variable!(b, nm(:z, i), 2); variable!(b, nm(:k, i), 2)
-        factor!(b, nm(:data, i), DataFactor(:z, [x[i], y[i]])); connect!(b, nm(:data, i), :z, nm(:z, i); direction = Emitting())
-        factor!(b, nm(:reg, i), RegimeFactor((z = 2,), 2, 1; learn_noise = true); params = :reg)
-        connect!(b, nm(:reg, i), :z, nm(:z, i)); connect!(b, nm(:reg, i), :k, nm(:k, i))
+        variable!(b, nm(:x, i), 1); variable!(b, nm(:y, i), 1); variable!(b, nm(:k, i), 2)
+        factor!(b, nm(:dx, i), DataFactor(:x, [x[i]])); connect!(b, nm(:dx, i), :x, nm(:x, i); direction = Emitting())
+        factor!(b, nm(:dy, i), DataFactor(:y, [y[i]])); connect!(b, nm(:dy, i), :y, nm(:y, i); direction = Emitting())
+        factor!(b, nm(:reg, i), RegimeFactor((y = 1, x = 1), 2, 1; learn_noise = true, output = :y); params = :reg)
+        connect!(b, nm(:reg, i), :y, nm(:y, i)); connect!(b, nm(:reg, i), :x, nm(:x, i)); connect!(b, nm(:reg, i), :k, nm(:k, i))
     end
     return build(b)
 end
 # θ = (a, c, logw, log σ) ↔ the factor's parameters
-params(θ) = (A = (z = cat(([-θ.a[k] 1.0] for k in 1:2)...; dims = 3),), b = reshape(θ.c, 1, 2), logw = θ.logw,
-             L = reshape(θ.logσ, 1, 1, 2))
-fullps(θ) = merge(NamedTuple{Tuple(nm(:data, i) for i in 1:N)}(ntuple(_ -> NamedTuple(), N)), (reg = params(θ),))
-# two sequential sweeps solve the forest (data → z → regime → k)
+params(θ) = (A = (x = reshape(-θ.a, 1, 1, 2),), b = reshape(θ.c, 1, 2), logw = θ.logw, L = reshape(θ.logσ, 1, 1, 2))
+fullps(θ) = merge(NamedTuple(s => NamedTuple() for i in 1:N for s in (nm(:dx, i), nm(:dy, i))), (reg = params(θ),))
+# two sequential sweeps solve the forest (data → x, y → regime → k)
 solve(g, ps) = (s = MessageStore(g); sched = SequentialSchedule(all_tasks(g));
                 for _ in 1:2; sweep!(s, g, sched, ps, NamedTuple()); end; s)
 lse(v) = (m = maximum(v); m + log(sum(exp.(v .- m))))
@@ -58,7 +59,7 @@ function fit_graph(g, θ0; steps = 400, η = 0.05)
         s = solve(g, ps)
         F = first(scalar_free_energy(s, g, ps, NamedTuple()))
         G = free_energy_gradient(s, g, ps, NamedTuple(); ad = AutoForwardDiff()).reg
-        grads = (a = -vec(G.A.z[1, 1, :]), c = vec(G.b), logw = G.logw, logσ = vec(G.L))
+        grads = (a = -vec(G.A.x), c = vec(G.b), logw = G.logw, logσ = vec(G.L))
         θ = NamedTuple{keysθ}(map(keysθ) do k
             gk = getfield(grads, k)
             m[k] = β1 .* m[k] .+ (1 - β1) .* gk; v[k] = β2 .* v[k] .+ (1 - β2) .* gk .^ 2

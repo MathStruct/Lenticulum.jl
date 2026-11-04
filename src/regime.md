@@ -28,6 +28,11 @@ fixed (one covariance per regime, or one shared), or with `learn_noise = true` a
 diagonal; the strict upper triangle is unused and gets a zero gradient. `regime_covariances(f, ps)`
 returns the $Q_k$.
 
+**Output channel.** `output = :y` fixes the coefficient of `y` at `output_coeff` in every regime and
+drops it from the parameters. The factor is then a normalised conditional density of `y`, a mixture
+of regressions. Without it, learning every coefficient has no lower bound with `learn_noise`
+(LP-022, `test/lp022.jl`).
+
 ## 2. How it is computed
 
 The factor implements only `Mycelium.cluster_form`: residual $\sum_i A_{i,k} x_i - b_k$ with

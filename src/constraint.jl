@@ -21,7 +21,8 @@
 # ---------------------------------------------------------------------------
 
 """
-    LinearConstraintFactor(dims::NamedTuple, m::Int; noise = 0.1, init_coeff, init_constant)
+    LinearConstraintFactor(dims::NamedTuple, m::Int; noise = 0.1, output = nothing, output_coeff = I,
+                           init_coeff, init_constant)
 
 The soft linear relation ``0 = \\sum_i A_i x_i - c + \\varepsilon``, ``\\varepsilon \\sim
 \\mathcal{N}(0, Q)`` — equivalently the density
@@ -46,6 +47,14 @@ f  = LinearConstraintFactor((i1 = 1, i2 = 1, i3 = 1), 1; noise = 1e-8)
 ps = (A = (i1 = ones(1,1), i2 = ones(1,1), i3 = ones(1,1)), c = [0.0])
 ```
 
+**Output channel** (LP-022). The factor is normalised in its residual, not in its channels, so
+with every coefficient learnable it is not a density of any of them: ``A = 0, c = 0`` puts every point on
+the relation, and scaling ``A`` and the noise together lowers ``-\\log f`` without bound. With
+`output = :y` (`dims[:y] == m`) the coefficient of `y` is fixed at `output_coeff` (the identity, or
+an invertible `m × m` matrix) and is not a parameter (`ps.A` omits it): the factor is then the
+normalised conditional density of `y` given the other channels, up to the constant
+``|\\det A_y|``. Declare it whenever `y` carries data and the other coefficients are learned.
+
 See `constraint.md` for the message algebra and the honest list of what is missing.
 """
 struct LinearConstraintFactor{names,D<:Tuple,Q<:AbstractMatrix,W,B} <:
@@ -55,6 +64,8 @@ struct LinearConstraintFactor{names,D<:Tuple,Q<:AbstractMatrix,W,B} <:
     Q::Q
     init_coeff::W
     init_constant::B
+    output::Union{Symbol,Nothing}
+    output_coeff::Union{Matrix{Float64},Nothing}
 end
 
 function LinearConstraintFactor(
@@ -63,6 +74,8 @@ function LinearConstraintFactor(
     noise = 0.1,
     init_coeff = (rng, m, n) -> randn(rng, m, n) ./ sqrt(n),
     init_constant = (rng, m) -> zeros(m),
+    output::Union{Symbol,Nothing} = nothing,
+    output_coeff = LinearAlgebra.I,
 )
     isempty(dims) && throw(ArgumentError("a constraint needs at least one channel"))
     all(d -> d isa Int && d > 0, values(dims)) ||
@@ -75,15 +88,42 @@ function LinearConstraintFactor(
     Q = Matrix(LenticulumCore._symmetric_part(Q))   # one consistent matrix from here on
     isposdef(Symmetric(Q)) ||
         throw(ArgumentError("noise covariance Q must be positive definite"))
-    return LinearConstraintFactor(dims, m, Q, init_coeff, init_constant)
+    return LinearConstraintFactor(dims, m, Q, init_coeff, init_constant, output, _output_coeff(dims, m, output, output_coeff))
 end
 
-LuxCore.initialparameters(rng::AbstractRNG, f::LinearConstraintFactor{names}) where {names} = (
-    A = NamedTuple{names}(map(n -> f.init_coeff(rng, f.m, n), values(f.dims))),
+# --- A declared output channel (LP-022) ---------------------------------------------
+
+# The fixed coefficient of the output channel, checked: an invertible m × m matrix.
+function _output_coeff(dims, m, output, C)
+    output === nothing && return nothing
+    output in keys(dims) || throw(ArgumentError("output :$output is not a continuous channel (has $(keys(dims)))"))
+    dims[output] == m || throw(ArgumentError(
+        "output :$output has dimension $(dims[output]); a fixed output coefficient needs the residual dimension $m"))
+    A = C isa LinearAlgebra.UniformScaling ? Matrix{Float64}(C(m)) : Matrix{Float64}(C)
+    size(A) == (m, m) || throw(DimensionMismatch("output_coeff must be $m × $m; got $(size(A))"))
+    LinearAlgebra.rank(A) == m || throw(ArgumentError("output_coeff must be invertible"))
+    return A
+end
+
+# The coefficients of every channel: the parameters `_coeffs(f, ps)` with a declared output channel's fixed
+# coefficient merged in. Every method of the constraint factors reads `A` through this.
+_coeffs(f, ps) = _merge_output(f.output, _fixed_output(f), ps.A)
+_fixed_output(f) = f.output_coeff
+_merge_output(::Nothing, _, A) = A
+function _merge_output(out::Symbol, C, A)
+    haskey(A, out) && throw(ArgumentError(
+        "the coefficient of the output channel :$out is fixed (`output`), not a parameter; drop A.$out"))
+    return merge(A, NamedTuple{(out,)}((C,)))
+end
+# the channels whose coefficients are parameters
+_learned(f) = Tuple(n for n in keys(f.dims) if n !== f.output)
+
+LuxCore.initialparameters(rng::AbstractRNG, f::LinearConstraintFactor) = (
+    A = NamedTuple{_learned(f)}(map(n -> f.init_coeff(rng, f.m, f.dims[n]), _learned(f))),
     c = f.init_constant(rng, f.m),
 )
 LuxCore.initialstates(::AbstractRNG, ::LinearConstraintFactor) = NamedTuple()
-LuxCore.parameterlength(f::LinearConstraintFactor) = f.m * sum(values(f.dims)) + f.m
+LuxCore.parameterlength(f::LinearConstraintFactor) = f.m * sum(f.dims[n] for n in _learned(f); init = 0) + f.m
 
 LenticulumCore.channels(f::LinearConstraintFactor{names}) where {names} =
     map((n, d) -> LenticulumCore.Channel(n, d), names, values(f.dims))
@@ -174,7 +214,7 @@ function residual(f::LinearConstraintFactor{names}, vals::NamedTuple, ps) where 
     for n in names
         haskey(vals, n) || throw(ArgumentError(
             "residual needs a value for every channel; :$n is missing (have $(keys(vals)))"))
-        r = r .+ ps.A[n] * _vec(vals[n])
+        r = r .+ _coeffs(f, ps)[n] * _vec(vals[n])
     end
     return r
 end
@@ -276,7 +316,7 @@ function _message(f::LinearConstraintFactor{names}, target::Symbol, inputs, ps, 
     target in names || throw(ArgumentError(
         "channel :$target is not a channel of this LinearConstraintFactor (has $names)"))
     parts = [(n, _split_moments(_get(inputs, n), f.dims[n])) for n in names if n !== target]
-    return _linear_message(ps.A, float.(ps.c), f.Q, target, parts, st)
+    return _linear_message(_coeffs(f, ps), float.(ps.c), f.Q, target, parts, st)
 end
 
 # The message to `target` from Σᵢ Aᵢxᵢ = c + ε, the other channels given as `parts`.
@@ -320,11 +360,11 @@ function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{na
        !all(p -> all(splat(same), zip(p, p1)), partss)
         beliefs = Vector{Any}(undef, length(partss))
         for (i, p) in enumerate(partss)
-            beliefs[i], st = _linear_message(ps.A, c, fs[i].Q, target, p, st)
+            beliefs[i], st = _linear_message(_coeffs(fs[1], ps), c, fs[i].Q, target, p, st)
         end
         return beliefs, st
     end
-    A, At = ps.A, ps.A[target]
+    A, At = _coeffs(fs[1], ps), _coeffs(fs[1], ps)[target]
     _, R, G = _accumulate(A, f.Q, p1)
     if isempty(G)
         Ri = inv(_chol(R, "Q + Σ AᵢSᵢAᵢᵀ"))
@@ -367,7 +407,7 @@ function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{na
     same = all(h -> h === f || (isequal(h.Q, f.Q) && h.dims == f.dims), fs)
     if same && any(p -> p[2] === nothing, parts)
         # inputs with a precision per replica (EP sites, L-SPEC-006 §8.4): one loop, no belief objects
-        out = _linear_block_each(ps.A, float.(ps.c), f.Q, target, others, inputs, f.dims, n)
+        out = _linear_block_each(_coeffs(fs[1], ps), float.(ps.c), f.Q, target, others, inputs, f.dims, n)
         out === nothing || return out, st
     end
     if !same || any(p -> p[2] === nothing, parts)
@@ -375,7 +415,7 @@ function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{na
         return Mycelium.belief_block(first(Mycelium.factor_messages(fs, target, polarity, cols, priors, ps, st))), st
     end
     c = float.(ps.c)
-    A, At = ps.A, ps.A[target]
+    A, At = _coeffs(fs[1], ps), _coeffs(fs[1], ps)[target]
     _, R, G = _accumulate(A, f.Q, [(ch, (M[:, 1], S, N)) for (ch, (M, S, N)) in parts])
     if isempty(G)
         Ri = inv(_chol(R, "Q + Σ AᵢSᵢAᵢᵀ"))
@@ -535,7 +575,7 @@ function Mycelium.mean_field_message(f::LinearConstraintFactor{names}, target::S
     target in names || throw(ArgumentError(
         "channel :$target is not a channel of this LinearConstraintFactor (has $names)"))
     parts = [(n, _mf_split(_get(beliefs, n), f.dims[n])) for n in names if n !== target]
-    return _linear_message(ps.A, float.(ps.c), f.Q, target, parts, st)
+    return _linear_message(_coeffs(f, ps), float.(ps.c), f.Q, target, parts, st)
 end
 
 # A marginal as the mean-field rule reads it: (mean, nothing, N), flat along the columns of N.
@@ -569,14 +609,14 @@ function residual_statistics(f::LinearConstraintFactor{names}, msgs, ps) where {
     for n in names
         b = _get(msgs, n)
         if b isa LenticulumCore.DiracBelief
-            c_eff = c_eff .- ps.A[n] * _vec(b.value)
+            c_eff = c_eff .- _coeffs(f, ps)[n] * _vec(b.value)
         else
             push!(free, n)
         end
     end
     isempty(free) && return (-c_eff, zeros(f.m, f.m), 0.0)
 
-    G = reduce(hcat, (ps.A[n] for n in free))
+    G = reduce(hcat, (_coeffs(f, ps)[n] for n in free))
     # A mixture message is collapsed to its moments, as `factor_message` collapses it (gaussian.md,
     # "Mixture inputs"); the factor belief is then the one the message was computed from.
     canon = [_canon(_collapse(_get(msgs, n)), f.dims[n]) for n in free]
@@ -638,9 +678,9 @@ averaged under `b`; it agrees with `local_free_energy` at the belief it was eval
 parameter derivative is the graph gradient's (LP-020). See [`FrozenGaussianBelief`](@ref).
 """
 Mycelium.factor_belief(f::LinearConstraintFactor, msgs, ps, st) =
-    _affine_gaussian_belief(ps.A, -ps.c, inv(_chol(f.Q, "Q")), msgs, f.dims)
+    _affine_gaussian_belief(_coeffs(f, ps), -ps.c, inv(_chol(f.Q, "Q")), msgs, f.dims)
 function Mycelium.belief_free_energy(f::LinearConstraintFactor, b::FrozenGaussianBelief, ps, st)
-    r̄, Cr = _frozen_residual(ps.A, -ps.c, b)
+    r̄, Cr = _frozen_residual(_coeffs(f, ps), -ps.c, b)
     Qi = inv(Symmetric(f.Q))                                   # not inv(::Cholesky): Zygote has no rule
     fit = (r̄' * (Qi * r̄) + tr(Qi * Cr)) / 2
     complexity = logdet(_chol(2π .* f.Q, "2πQ")) / 2
@@ -652,11 +692,11 @@ function Mycelium.factor_beliefs(fs::AbstractVector{<:LinearConstraintFactor}, m
     f = first(fs)
     all(h -> h === f || (isequal(h.Q, f.Q) && h.dims == f.dims), fs) ||
         return invoke(Mycelium.factor_beliefs, Tuple{AbstractVector,NamedTuple,Any,Any}, fs, msgs, ps, st)
-    return _affine_gaussian_beliefs(ps.A, -ps.c, inv(_chol(f.Q, "Q")), msgs, f.dims, length(fs))
+    return _affine_gaussian_beliefs(_coeffs(fs[1], ps), -ps.c, inv(_chol(f.Q, "Q")), msgs, f.dims, length(fs))
 end
 function Mycelium.belief_free_energies(fs::AbstractVector{<:LinearConstraintFactor}, b::FrozenGaussianBeliefs, ps, st)
     f = first(fs)
-    R, Cr = _frozen_residuals(ps.A, -ps.c, b)
+    R, Cr = _frozen_residuals(_coeffs(fs[1], ps), -ps.c, b)
     Qi = inv(Symmetric(f.Q))                                   # not inv(::Cholesky): Zygote has no rule
     complexity = logdet(_chol(2π .* f.Q, "2πQ")) / 2
     fit = _column_fits(R, Qi, Cr)

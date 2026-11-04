@@ -16,7 +16,7 @@
 
 """
     SwitchingConstraintFactor(dims::NamedTuple, K::Int, m::Int; switch = :k, noise = 0.1,
-                              init_coeff, init_offsets)
+                              output = nothing, output_coeff = I, init_coeff, init_offsets)
 
 The switching soft linear relation ``0 = \\sum_i A_i x_i - b_k + \\varepsilon``,
 ``\\varepsilon \\sim \\mathcal N(0, Q)``, with a discrete outcome ``k \\in \\{1, \\dots, K\\}`` of weight
@@ -42,6 +42,10 @@ f  = SwitchingConstraintFactor((z = 2,), 2, 2; noise = 0.1)
 ps = (A = (z = Matrix(1.0I, 2, 2),), b = [-1.0 1.0; 0.0 0.0], logw = zeros(2))
 ```
 
+`output = :y` fixes the coefficient of `y` (`dims[:y] == m`) at `output_coeff` and drops it from the
+parameters, so that the factor is a normalised conditional density of `y`, as for
+[`LinearConstraintFactor`](@ref) (LP-022); declare it when `y` carries data and `A` is learned.
+
 See `switching.md` for the messages, the free energy and what is not done.
 """
 struct SwitchingConstraintFactor{names,D<:Tuple,Q<:AbstractMatrix,W,B} <:
@@ -53,6 +57,8 @@ struct SwitchingConstraintFactor{names,D<:Tuple,Q<:AbstractMatrix,W,B} <:
     Q::Q
     init_coeff::W
     init_offsets::B
+    output::Union{Symbol,Nothing}
+    output_coeff::Union{Matrix{Float64},Nothing}
 end
 
 function SwitchingConstraintFactor(
@@ -63,6 +69,8 @@ function SwitchingConstraintFactor(
     noise = 0.1,
     init_coeff = (rng, m, n) -> randn(rng, m, n) ./ sqrt(n),
     init_offsets = (rng, m, K) -> randn(rng, m, K),
+    output::Union{Symbol,Nothing} = nothing,
+    output_coeff = LinearAlgebra.I,
 )
     isempty(dims) && throw(ArgumentError("a switching constraint needs at least one continuous channel"))
     all(d -> d isa Int && d > 0, values(dims)) ||
@@ -75,16 +83,16 @@ function SwitchingConstraintFactor(
     LenticulumCore._nearly_symmetric(Q) || throw(ArgumentError("noise covariance must be symmetric"))
     Q = Matrix(LenticulumCore._symmetric_part(Q))
     isposdef(Symmetric(Q)) || throw(ArgumentError("noise covariance Q must be positive definite"))
-    return SwitchingConstraintFactor(dims, K, m, switch, Q, init_coeff, init_offsets)
+    return SwitchingConstraintFactor(dims, K, m, switch, Q, init_coeff, init_offsets, output, _output_coeff(dims, m, output, output_coeff))
 end
 
-LuxCore.initialparameters(rng::AbstractRNG, f::SwitchingConstraintFactor{names}) where {names} = (
-    A = NamedTuple{names}(map(n -> f.init_coeff(rng, f.m, n), values(f.dims))),
+LuxCore.initialparameters(rng::AbstractRNG, f::SwitchingConstraintFactor) = (
+    A = NamedTuple{_learned(f)}(map(n -> f.init_coeff(rng, f.m, f.dims[n]), _learned(f))),
     b = f.init_offsets(rng, f.m, f.K),
     logw = zeros(f.K),
 )
 LuxCore.initialstates(::AbstractRNG, ::SwitchingConstraintFactor) = NamedTuple()
-LuxCore.parameterlength(f::SwitchingConstraintFactor) = f.m * sum(values(f.dims)) + f.m * f.K + f.K
+LuxCore.parameterlength(f::SwitchingConstraintFactor) = f.m * sum(f.dims[n] for n in _learned(f); init = 0) + f.m * f.K + f.K
 
 _allnames(f::SwitchingConstraintFactor{names}) where {names} = (names..., f.switch)
 
@@ -160,7 +168,7 @@ function residual(f::SwitchingConstraintFactor{names}, vals::NamedTuple, ps) whe
     for n in names
         haskey(vals, n) || throw(ArgumentError(
             "residual needs a value for every channel; :$n is missing (have $(keys(vals)))"))
-        r = r .+ ps.A[n] * _vec(vals[n])
+        r = r .+ _coeffs(f, ps)[n] * _vec(vals[n])
     end
     return r
 end
@@ -245,7 +253,7 @@ function _switch_message(f::SwitchingConstraintFactor{names}, target::Symbol, in
     lw = _logweights(ps)
     lpk = target === f.switch ? nothing : _switch_logp(_get(inputs, f.switch), f.K)
     parts = [(n, _split_moments(_get(inputs, n), f.dims[n])) for n in names if n !== target]
-    s, R, G = _accumulate(ps.A, f.Q, parts)
+    s, R, G = _accumulate(_coeffs(f, ps), f.Q, parts)
     T, Li = _residual_metric(R, G, "Q + Σ AᵢSᵢAᵢᵀ")
     Z = T * (ps.b .- s)                                        # column k is T d_k
     quad = vec(sum(abs2, Z; dims = 1))
@@ -256,7 +264,7 @@ function _switch_message(f::SwitchingConstraintFactor{names}, target::Symbol, in
     l = lpk .+ lw .- quad ./ 2
     ks = [k for k in 1:f.K if l[k] > -Inf]
     isempty(ks) && throw(ArgumentError("the incoming outcome belief gives every outcome zero probability"))
-    At = ps.A[target]
+    At = _coeffs(f, ps)[target]
     Ta = T * At
     rt = _projected_rank(Ta, Li * At)
     rt == 0 && return (LenticulumCore.TrivialBelief(), st)
@@ -296,7 +304,7 @@ function Mycelium.mean_field_message(f::SwitchingConstraintFactor{names}, target
         "channel :$target is not a channel of this SwitchingConstraintFactor (has $(_allnames(f)))"))
     lw = _logweights(ps)
     parts = [(n, _mf_split(_get(beliefs, n), f.dims[n])) for n in names if n !== target]
-    sbar, _, G = _accumulate(ps.A, f.Q, parts)
+    sbar, _, G = _accumulate(_coeffs(f, ps), f.Q, parts)
     T, Li = _residual_metric(f.Q, G, "Q")
     if target === f.switch
         l = lw .- vec(sum(abs2, T * (ps.b .- sbar); dims = 1)) ./ 2
@@ -304,7 +312,7 @@ function Mycelium.mean_field_message(f::SwitchingConstraintFactor{names}, target
     end
     kb = _get(beliefs, f.switch)
     q = kb === nothing || kb isa LenticulumCore.TrivialBelief ? exp.(lw) : exp.(_switch_logp(kb, f.K))
-    At = ps.A[target]
+    At = _coeffs(f, ps)[target]
     Ta = T * At
     rt = _projected_rank(Ta, Li * At)
     rt == 0 && return (LenticulumCore.TrivialBelief(), st)
@@ -329,7 +337,7 @@ function switch_statistics(f::SwitchingConstraintFactor{names}, msgs, ps) where 
     for n in names
         b = _get(msgs, n)
         if b isa LenticulumCore.DiracBelief
-            shift = shift .+ ps.A[n] * _vec(b.value)
+            shift = shift .+ _coeffs(f, ps)[n] * _vec(b.value)
         else
             push!(free, n)
         end
@@ -341,7 +349,7 @@ function switch_statistics(f::SwitchingConstraintFactor{names}, msgs, ps) where 
     if isempty(free)
         rbar, Cr, Hx = -Ceff, zeros(f.m, f.m), 0.0
     else
-        G = reduce(hcat, (ps.A[n] for n in free))
+        G = reduce(hcat, (_coeffs(f, ps)[n] for n in free))
         canon = [_canon(_collapse(_get(msgs, n)), f.dims[n]) for n in free]
         Λ = G' * (CQ \ G) + _blockdiag(map(last, canon))
         CΛ = _chol(Λ, "factor belief precision")
@@ -418,10 +426,10 @@ does not. Agrees with `local_free_energy` at the belief it was evaluated at (LP-
 """
 function Mycelium.factor_belief(f::SwitchingConstraintFactor, msgs, ps, st)
     q, _, _, _ = switch_statistics(f, msgs, ps)
-    return _affine_gaussian_belief(ps.A, -float.(ps.b), inv(_chol(f.Q, "Q")), msgs, f.dims; q)
+    return _affine_gaussian_belief(_coeffs(f, ps), -float.(ps.b), inv(_chol(f.Q, "Q")), msgs, f.dims; q)
 end
 function Mycelium.belief_free_energy(f::SwitchingConstraintFactor, b::FrozenGaussianBelief, ps, st)
-    rbar, Cr = _frozen_residual(ps.A, -ps.b, b)
+    rbar, Cr = _frozen_residual(_coeffs(f, ps), -ps.b, b)
     return _switch_free_energy(f, b.q, rbar, Cr, b.H, ps), st
 end
 
@@ -488,7 +496,7 @@ function Mycelium.mixture_message(f::SwitchingConstraintFactor{names}, target::S
     to_switch = target === f.switch
     lpk = to_switch ? zeros(f.K) : _switch_logp(_get(inputs, f.switch), f.K)
     others = [n for n in names if n !== target]
-    return _expanded_message(ps.A, f.Q, float.(ps.b), lw, lpk, f.dims, others, target, inputs, to_switch), st
+    return _expanded_message(_coeffs(f, ps), f.Q, float.(ps.b), lw, lpk, f.dims, others, target, inputs, to_switch), st
 end
 
 function Mycelium.mixture_message(f::LinearConstraintFactor{names}, target::Symbol, polarity, inputs, prior, ps, st) where {names}
@@ -496,7 +504,7 @@ function Mycelium.mixture_message(f::LinearConstraintFactor{names}, target::Symb
         "channel :$target is not a channel of this LinearConstraintFactor (has $names)"))
     others = [n for n in names if n !== target]
     c = float.(ps.c)
-    return _expanded_message(ps.A, f.Q, reshape(c, length(c), 1), [0.0], [0.0], f.dims, others, target, inputs, false), st
+    return _expanded_message(_coeffs(f, ps), f.Q, reshape(c, length(c), 1), [0.0], [0.0], f.dims, others, target, inputs, false), st
 end
 
 # An input as the expansion reads it: a list of (log weight, (mean, cov, flat basis)).
@@ -594,10 +602,10 @@ function Mycelium.factor_messages(fs::AbstractVector{<:SwitchingConstraintFactor
         cols = [NamedTuple{keys(inputs)}(map(b -> Mycelium.replica(b, i), values(inputs))) for i in 1:n]
         return Mycelium.belief_block(first(Mycelium.factor_messages(fs, target, polarity, cols, priors, ps, st))), st
     end
-    _, R, G = _accumulate(ps.A, f.Q, [(ch, (M[:, 1], S, N)) for (ch, (M, S, N)) in parts])
+    _, R, G = _accumulate(_coeffs(fs[1], ps), f.Q, [(ch, (M[:, 1], S, N)) for (ch, (M, S, N)) in parts])
     T, _ = _residual_metric(R, G, "Q + Σ AᵢSᵢAᵢᵀ")
     # s_i = Σₙ Aₙ mₙ,ᵢ as columns, then ‖T b_k − T s_i‖² for every (k, i)
-    S = foldl((acc, (ch, (M, _, _))) -> acc .+ ps.A[ch] * M, parts; init = zeros(f.m, n))
+    S = foldl((acc, (ch, (M, _, _))) -> acc .+ _coeffs(fs[1], ps)[ch] * M, parts; init = zeros(f.m, n))
     TB, TS = T * float.(ps.b), T * S
     lw = _logweights(ps)
     L = zeros(f.K, n)
@@ -670,14 +678,14 @@ function Mycelium.factor_beliefs(fs::AbstractVector{<:SwitchingConstraintFactor{
         end
     end
     CQ = _chol(f.Q, "Q")
-    R0 = _switch_offsets(ps.A, float.(ps.b), points, n)           # m × K × n
+    R0 = _switch_offsets(_coeffs(fs[1], ps), float.(ps.b), points, n)           # m × K × n
     C = reshape(-R0, f.m, f.K * n)                                 # c_{k,i} = b_k − Σ_points Aₙxₙ,ᵢ
     QiC = CQ \ C
     logZ = -vec(sum(C .* QiC; dims = 1)) ./ 2
     if isempty(free)
         M, Σ, H = zeros(0, f.K, n), zeros(0, 0), 0.0
     else
-        G = reduce(hcat, (ps.A[c] for c in free))
+        G = reduce(hcat, (_coeffs(fs[1], ps)[c] for c in free))
         canon = map(free) do c
             b = _get(msgs, c)
             b isa Mycelium.GaussianBlock ? (Matrix{Float64}(b.η), b.Λ) : (zeros(f.dims[c], n), zeros(f.dims[c], f.dims[c]))
@@ -701,11 +709,11 @@ end
 
 function Mycelium.belief_free_energies(fs::AbstractVector{<:SwitchingConstraintFactor}, b::FrozenSwitchingBeliefs, ps, st)
     f, n = first(fs), size(b.q, 2)
-    R = _switch_offsets(ps.A, ps.b, b.points, n)                   # m × K × n at the current parameters
+    R = _switch_offsets(_coeffs(fs[1], ps), ps.b, b.points, n)                   # m × K × n at the current parameters
     if isempty(b.free)
         Cr = zeros(eltype(R), f.m, f.m)
     else
-        G = reduce(hcat, (ps.A[c] for c in b.free))
+        G = reduce(hcat, (_coeffs(fs[1], ps)[c] for c in b.free))
         R = R .+ reshape(G * reshape(b.M, size(b.M, 1), :), f.m, f.K, n)
         Cr = G * b.Σ * G'
     end
@@ -739,13 +747,13 @@ function _switch_mixture_block(f::SwitchingConstraintFactor{names}, target, inpu
     others = [c for c in names if c !== target]
     parts = [(c, _block_parts(_get(inputs, c), f.dims[c], n)) for c in others]
     any(p -> p[2] === nothing, parts) && return nothing
-    _, R, G = _accumulate(ps.A, f.Q, [(ch, (M[:, 1], S, N)) for (ch, (M, S, N)) in parts])
+    _, R, G = _accumulate(_coeffs(f, ps), f.Q, [(ch, (M[:, 1], S, N)) for (ch, (M, S, N)) in parts])
     T, Li = _residual_metric(R, G, "Q + Σ AᵢSᵢAᵢᵀ")
-    At = ps.A[target]
+    At = _coeffs(f, ps)[target]
     Ta = T * At
     rt = _projected_rank(Ta, Li * At)
     rt == 0 && return Mycelium.TrivialBlock(n)
-    S = isempty(parts) ? zeros(f.m, n) : reduce(+, [ps.A[ch] * M for (ch, (M, _, _)) in parts])
+    S = isempty(parts) ? zeros(f.m, n) : reduce(+, [_coeffs(f, ps)[ch] * M for (ch, (M, _, _)) in parts])
     TB, TS = T * float.(ps.b), T * S
     Z = reshape(TB, size(TB, 1), f.K, 1) .- reshape(TS, size(TS, 1), 1, n)        # T(b_k − s_i)
     L = lpk .+ _logweights(ps) .- dropdims(sum(abs2, Z; dims = 1); dims = 1) ./ 2   # K × n
@@ -766,8 +774,8 @@ end
 # --- Cluster nodes (Extending Mycelium §5, L-SPEC-009) ---------------------------
 
 Mycelium.cluster_switch(f::SwitchingConstraintFactor) = f.switch
-Mycelium.cluster_form(f::SwitchingConstraintFactor, ps) = Mycelium.ClusterForm(ps.A, ps.b, f.Q, _logweights(ps), f.switch)
-Mycelium.cluster_form(f::LinearConstraintFactor, ps) = Mycelium.ClusterForm(ps.A, reshape(ps.c, :, 1), f.Q, [0.0], nothing)
+Mycelium.cluster_form(f::SwitchingConstraintFactor, ps) = Mycelium.ClusterForm(_coeffs(f, ps), ps.b, f.Q, _logweights(ps), f.switch)
+Mycelium.cluster_form(f::LinearConstraintFactor, ps) = Mycelium.ClusterForm(_coeffs(f, ps), reshape(ps.c, :, 1), f.Q, [0.0], nothing)
 function Mycelium.cluster_form(f::GaussianPrior, ps)
     f.noise_learning === nothing || throw(ArgumentError("a GaussianPrior with learnable noise cannot be put in a cluster node"))
     n = length(f.μ)
@@ -803,8 +811,8 @@ function switch_overlaps(g::Mycelium.FactorGraph, ps, sum::Symbol, switches)
         v = g.edges[e].variable
         es = [ei for ei in g.edges_of_factor[snode.id] if g.edges[ei].variable == v]
         length(es) == 1 || throw(ArgumentError("switch_overlaps: :$name's channel does not feed :$sum once"))
-        As = psum.A[g.edges[only(es)].channel]
-        Au = p.A[uch]
+        As = _coeffs(snode.factor, psum)[g.edges[only(es)].channel]
+        Au = _coeffs(f, p)[uch]
         size(Au, 1) == size(Au, 2) && LinearAlgebra.rank(Au) == size(Au, 1) || throw(ArgumentError(
             "switch_overlaps: :$name's coefficient must be square and invertible"))
         M = As / Au
@@ -853,6 +861,7 @@ function partial_sums(g::Mycelium.FactorGraph, ps, sum::Symbol, switches, groups
         throw(ArgumentError("partial_sums: :$sum's parameters :$(snode.params) are tied to other nodes"))
     allunique(reduce(vcat, collect.(groups); init = Int[])) || throw(ArgumentError("partial_sums: the groups overlap"))
     psum = Mycelium._subtree(ps, snode.params)
+    Asum = _coeffs(f, psum)
     m = f.m
     sum_edges = Dict(g.edges[ei].channel => g.edges[ei] for ei in g.edges_of_factor[snode.id])
     # the channel of `sum` each switch feeds
@@ -888,18 +897,20 @@ function partial_sums(g::Mycelium.FactorGraph, ps, sum::Symbol, switches, groups
                               direction = e.direction, coupling = e.coupling, detach = e.detach)
             push!(moved, c)
         end
-        push!(added, p => (A = NamedTuple{keys(pd)}((-Matrix{Float64}(I, m, m), (psum.A[c] for c in chs)...)), c = zeros(m)))
+        f.output in chs && throw(ArgumentError("partial_sums: the output channel :$(f.output) of :$sum cannot move into a partial sum"))
+        push!(added, p => (A = NamedTuple{keys(pd)}((-Matrix{Float64}(I, m, m), (Asum[c] for c in chs)...)), c = zeros(m)))
         push!(snew, p)
         push!(clusters, Symbol(prefix, j, :_block) => [p; collect(switches[collect(gr)])])
     end
     kept = Tuple(c for c in keys(f.dims) if !(c in moved))
     names = (kept..., snew...)
     dims = NamedTuple{names}(((f.dims[c] for c in kept)..., (m for _ in snew)...))
-    Mycelium.replace_factor!(b, sum, LinearConstraintFactor(dims, m, f.Q, f.init_coeff, f.init_constant))
+    Mycelium.replace_factor!(b, sum, LinearConstraintFactor(dims, m, f.Q, f.init_coeff, f.init_constant, f.output, f.output_coeff))
     for p in snew
         Mycelium.connect!(b, sum, p, Symbol(p, :_sum))
     end
-    A = NamedTuple{names}(((psum.A[c] for c in kept)..., (Matrix{Float64}(I, m, m) for _ in snew)...))
+    lk = Tuple(c for c in kept if c !== f.output)
+    A = NamedTuple{(lk..., snew...)}(((Asum[c] for c in lk)..., (Matrix{Float64}(I, m, m) for _ in snew)...))
     ps′ = merge(ps, NamedTuple{(snode.params,)}((merge(psum, (A = A,)),)), NamedTuple(added))
     return Mycelium.build(b), ps′, clusters
 end

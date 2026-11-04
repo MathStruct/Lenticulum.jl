@@ -302,6 +302,13 @@ here, so these factors can be put in a cluster node (`lib/Mycelium.jl/src/cluste
 [[L-SPEC-009 Cluster Nodes]]). Three switches in one cluster send the messages of the 8-outcome
 block factor that E7 built by hand (`test/cluster.jl`).
 
+## 13b. Output channels (2026-11-04)
+
+`output = :y` fixes the coefficient of a data channel, as for `LinearConstraintFactor`
+(`constraint.md`, "Output channels"; LP-022): without it, learning every coefficient prefers $A = 0$.
+`partial_sums` keeps a sum factor's output and refuses to move the output channel into a partial sum
+(not tested).
+
 ## 14. Partial sums as an edit (2026-11-03)
 
 `partial_sums(g, ps, sum, switches, groups; noise)` does E7's block wiring on a built graph: for each

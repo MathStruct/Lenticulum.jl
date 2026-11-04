@@ -13,7 +13,7 @@
 
 """
     RegimeFactor(dims::NamedTuple, K::Int, m::Int; switch = :k, noise = 0.1, learn_noise = false,
-                 init_coeff, init_offsets)
+                 output = nothing, output_coeff = I, init_coeff, init_offsets)
 
 The switching soft linear relation whose coefficients and noise depend on the outcome
 ``k \\in \\{1, \\dots, K\\}`` (a regime):
@@ -30,6 +30,11 @@ vector of `K` matrices or an `m × m × K` array.
 With `learn_noise = true` the noise is a parameter `L` too (`m × m × K`: ``Q_k = L_k L_k^\\top``,
 ``L_k`` lower triangular with the exponential of `L[:, :, k]`'s diagonal on its diagonal),
 initialised at `noise`.
+
+`output = :y` (`dims[:y] == m`) fixes the coefficient of `y` at `output_coeff` in every regime and
+drops it from the parameters: the factor is then a normalised conditional density of `y` given
+the other channels, a mixture of regressions. Without it, learning every coefficient (above all
+with `learn_noise`) has no lower bound: scaling `A` and `L` together lowers ``-\\log f`` (LP-022).
 
 Mixtures of regressions (E1's crossing lines: `A_{z,k} = [-a_k\\ 1]`), Gaussian mixtures with one
 covariance per component, mixtures of factor analysers (``z = W_k x + \\mu_k + \\varepsilon_k`` with a
@@ -50,11 +55,14 @@ struct RegimeFactor{names,D<:Tuple,Q<:AbstractArray,W,B} <: LenticulumCore.Abstr
     learn_noise::Bool
     init_coeff::W
     init_offsets::B
+    output::Union{Symbol,Nothing}
+    output_coeff::Union{Matrix{Float64},Nothing}
 end
 
 function RegimeFactor(dims::NamedTuple, K::Int, m::Int; switch::Symbol = :k, noise = 0.1, learn_noise::Bool = false,
                       init_coeff = (rng, m, n) -> randn(rng, m, n) ./ sqrt(n),
-                      init_offsets = (rng, m, K) -> randn(rng, m, K))
+                      init_offsets = (rng, m, K) -> randn(rng, m, K),
+                      output::Union{Symbol,Nothing} = nothing, output_coeff = I)
     isempty(dims) && throw(ArgumentError("a regime factor needs at least one continuous channel"))
     all(d -> d isa Int && d > 0, values(dims)) || throw(ArgumentError("channel dimensions must be positive Ints; got $(dims)"))
     switch in keys(dims) && throw(ArgumentError("the switch channel :$switch is also a continuous channel"))
@@ -72,11 +80,11 @@ function RegimeFactor(dims::NamedTuple, K::Int, m::Int; switch::Symbol = :k, noi
         isposdef(Symmetric(Qk)) || throw(ArgumentError("noise covariance $k must be positive definite"))
         Q[:, :, k] = Qk
     end
-    return RegimeFactor(dims, K, m, switch, Q, learn_noise, init_coeff, init_offsets)
+    return RegimeFactor(dims, K, m, switch, Q, learn_noise, init_coeff, init_offsets, output, _output_coeff(dims, m, output, output_coeff))
 end
 
-function LuxCore.initialparameters(rng::AbstractRNG, f::RegimeFactor{names}) where {names}
-    A = NamedTuple{names}(map(n -> cat((f.init_coeff(rng, f.m, n) for _ in 1:f.K)...; dims = 3), values(f.dims)))
+function LuxCore.initialparameters(rng::AbstractRNG, f::RegimeFactor)
+    A = NamedTuple{_learned(f)}(map(n -> cat((f.init_coeff(rng, f.m, f.dims[n]) for _ in 1:f.K)...; dims = 3), _learned(f)))
     base = (A = A, b = f.init_offsets(rng, f.m, f.K), logw = zeros(f.K))
     f.learn_noise || return base
     L = zeros(f.m, f.m, f.K)
@@ -88,7 +96,9 @@ function LuxCore.initialparameters(rng::AbstractRNG, f::RegimeFactor{names}) whe
 end
 LuxCore.initialstates(::AbstractRNG, ::RegimeFactor) = NamedTuple()
 LuxCore.parameterlength(f::RegimeFactor) =
-    f.K * (f.m * sum(values(f.dims)) + f.m + 1) + (f.learn_noise ? f.K * f.m * (f.m + 1) ÷ 2 : 0)
+    f.K * (f.m * sum(f.dims[n] for n in _learned(f); init = 0) + f.m + 1) + (f.learn_noise ? f.K * f.m * (f.m + 1) ÷ 2 : 0)
+# the output's fixed coefficient, the same in every regime
+_fixed_output(f::RegimeFactor) = f.output_coeff === nothing ? nothing : repeat(f.output_coeff, 1, 1, f.K)
 
 _allnames(f::RegimeFactor{names}) where {names} = (names..., f.switch)
 LenticulumCore.channels(f::RegimeFactor{names}) where {names} =
@@ -126,7 +136,7 @@ end
 
 Mycelium.cluster_switch(f::RegimeFactor) = f.switch
 Mycelium.cluster_form(f::RegimeFactor, ps) =
-    Mycelium.ClusterForm(ps.A, ps.b, regime_covariances(f, ps), _logweights(ps), f.switch)
+    Mycelium.ClusterForm(_coeffs(f, ps), ps.b, regime_covariances(f, ps), _logweights(ps), f.switch)
 
 # Outside a cluster: a one-factor cluster over the factor's channels.
 Mycelium.uses_cavity(::RegimeFactor) = true
