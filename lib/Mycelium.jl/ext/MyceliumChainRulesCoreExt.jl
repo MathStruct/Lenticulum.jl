@@ -36,6 +36,7 @@ ChainRulesCore.@non_differentiable Mycelium.check_legal(g, fid, p)
 ChainRulesCore.@non_differentiable Mycelium.MessageStore(g::FactorGraph)
 ChainRulesCore.@non_differentiable Mycelium._ReplayStore(g::FactorGraph)
 ChainRulesCore.@non_differentiable Mycelium._check_energy_edges(g)
+ChainRulesCore.@non_differentiable Mycelium._check_unnormalised(g)
 function ChainRulesCore.rrule(::typeof(available_channels), s, g, fid; kwargs...)
     return available_channels(s,g,fid;kwargs...), _ -> (NoTangent(),NoTangent(),NoTangent(),NoTangent())
 end

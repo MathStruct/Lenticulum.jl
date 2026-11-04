@@ -326,3 +326,6 @@ blocks, mean-field and mixture messages, beliefs and free energies, cluster form
 silently overridden. The merge reorders the `NamedTuple`'s keys; nothing reads `A` by position.
 Tests: `test/lp022.jl`.
 
+`free_energy_gradient` warns once when such a factor without `output` learns its coefficients on
+data (`Mycelium.learns_unnormalised`, LP-022).
+

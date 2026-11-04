@@ -1,6 +1,6 @@
 #open-problem
 
-> **Status: mitigated (2026-11-04).** An `output` channel can now be declared, and with it the factor is a normalised conditional density. Nothing refuses or warns about the degenerate parameterisation. Found from Daniel's question how a switching factor is kept from "accepting more points than are on the relation"; measured in `test/lp022.jl`. Related: [[Switching Constraint Factors]], [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]], [[constraint]], [[switching]], [[regime]].
+> **Status: mitigated (2026-11-04).** An `output` channel can now be declared, and with it the factor is a normalised conditional density. `free_energy_gradient` warns once when the degenerate parameterisation meets data (Daniel chose a warning over a refusal). Found from Daniel's question how a switching factor is kept from "accepting more points than are on the relation"; measured in `test/lp022.jl`. Related: [[Switching Constraint Factors]], [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]], [[constraint]], [[switching]], [[regime]].
 
 > Sources: original repository analysis; code: `src/constraint.jl` (`_coeffs`, `_output_coeff`), `src/switching.jl`, `src/regime.jl`; tests: `test/lp022.jl`
 >
@@ -58,10 +58,14 @@ one in, so messages, free energies, cluster forms and `partial_sums` see the ful
 
 ## Open
 
-- **No guard.** A factor without `output` whose coefficients are all learnable and which touches
-  data is still accepted silently. A check would need to know which variables carry data (an
-  `Emitting` data edge) and which parameters are learned (none are frozen). It could warn in
-  `free_energy_gradient`. Not done: Daniel has not decided between a warning and a refusal.
+- **A warning, not a refusal** (added 2026-11-04, Daniel's choice). `free_energy_gradient` warns
+  once per session when a node whose factor `learns_unnormalised` (the three constraint factors
+  without `output`) is learnable, has no frozen `A`, and has a channel on a variable observed by a
+  `DataFactor`. Inside a cluster node it names the clustered factor (`c/rel`). Data that arrive
+  otherwise (pinned variables, point messages from other factors) are not detected, and a factor
+  whose coefficients are fixed by other means (a parameter step that skips `A`, as
+  `examples/structure_edits.jl` does) still warns. `test/lp022.jl` tests the detection
+  (`_unnormalised_nodes`), since the warning itself fires once per session.
 - **Several data channels.** One output channel per factor. A factor on two data channels whose
   joint density is meant needs both coefficients fixed, or a model written as a chain of
   conditionals.

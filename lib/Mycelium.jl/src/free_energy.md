@@ -373,3 +373,14 @@ The Bethe free energy of a belief-propagation graph whose marginal is a Gaussian
 available either: `variable_entropy` has no method for a Gaussian mixture, which has no closed-form
 entropy. A latent mixture on a plain BP graph therefore has messages but no free energy; on EP
 nodes its marginals are Gaussian and it has both.
+
+## Learned relations that are not densities of their data (2026-11-04, LP-022)
+
+`free_energy_gradient` warns once per session when a learnable node whose factor
+`learns_unnormalised` (a hook, `false` by default; Lenticulum's constraint factors without an
+`output`) has no frozen `A` and a channel on a variable that a `DataFactor` observes; inside a
+cluster node it looks at the clustered factors through their wiring. Such a factor is normalised in
+its residual, so its free energy on data can fall without fitting (LP-022). It is a warning, not a
+refusal: a fit may hold the coefficients fixed in its own loop. Detection only covers data from
+`DataFactor`s. Test: Lenticulum `test/lp022.jl`.
+

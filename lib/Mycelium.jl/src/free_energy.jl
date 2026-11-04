@@ -621,6 +621,7 @@ function LenticulumCore.free_energy_gradient(s::MessageStore, g::FactorGraph, ps
                                             linear_maxiter = 1000)
     # Keep the same cavity validation as the reporting API.
     _check_energy_edges(g)
+    _check_unnormalised(g)
     adjoint in (:unrolled, :implicit) || throw(ArgumentError("adjoint must be :unrolled or :implicit"))
     coupled = adjoint === :implicit || any(e -> !(e.coupling isa DiagonalCoupling), g.edges)
     # LP-021, option 3: without a replay (no `schedule`) the couplings do not change the free-energy
@@ -768,3 +769,53 @@ function _replace_coordinates(θ, indices, active)
 end
 
 _index_metadata(θ, indices) = indices
+
+# --- Learned factors that are not densities of their data (LP-022) -----------------------
+
+"""
+    learns_unnormalised(factor) -> Bool
+
+Whether `factor`, with its parameters learned, is normalised in something other than its
+channels, so that on data its free energy can be lowered without fitting (Lenticulum's
+constraint factors without an `output`: ``A = 0`` puts every point on the relation, LP-022).
+[`free_energy_gradient`](@ref LenticulumCore.free_energy_gradient) warns, once, when such a node
+is learnable, not frozen, and reaches a variable that carries data (a `DataFactor`). `false` by
+default.
+"""
+learns_unnormalised(::Any) = false
+
+# The nodes that warrant the warning, by name: unfrozen, learnable `learns_unnormalised` factors
+# with a channel on a variable that a `DataFactor` observes; inside a cluster node, the clustered
+# factors whose channels reach such a boundary variable.
+function _unnormalised_nodes(g::FactorGraph)
+    data = Set{Int}(g.edges[ei].variable for fn in g.factors if fn.factor isa DataFactor for ei in g.edges_of_factor[fn.id])
+    isempty(data) && return Symbol[]
+    names = Symbol[]
+    for fn in g.factors
+        (fn.freeze === :all || LenticulumCore.isfrozen(fn.factor) ||
+         any(p -> !isempty(p) && first(p) === :A, LenticulumCore._freeze_paths(fn.freeze))) && continue
+        vars = Dict(g.edges[ei].channel => g.edges[ei].variable for ei in g.edges_of_factor[fn.id])
+        if fn.factor isa ClusterFactor
+            c = fn.factor
+            observed = Set(ch for (ch, v) in vars if v in data)
+            for (f, w, nm) in zip(c.factors, c.wiring, c.names)
+                LenticulumCore.islearnable(f) && learns_unnormalised(f) && any(p -> p.second in observed, w) &&
+                    push!(names, Symbol(fn.name, "/", nm))
+            end
+        elseif LenticulumCore.islearnable(fn.factor) && learns_unnormalised(fn.factor) && any(v -> v in data, values(vars))
+            push!(names, fn.name)
+        end
+    end
+    return names
+end
+function _check_unnormalised(g::FactorGraph)
+    names = _unnormalised_nodes(g)
+    isempty(names) && return nothing
+    shown = join(first(names, 3), ", ") * (length(names) > 3 ? " and $(length(names) - 3) more" : "")
+    @warn "free_energy_gradient: $shown learn every coefficient of a relation on observed data. Such a factor is " *
+          "normalised in its residual, not in its channels, so the free energy can fall without fitting (A = 0 puts " *
+          "every point on the relation; with learned noise it is unbounded below). Declare the data channel with " *
+          "`output = :y`, or freeze its coefficient (LP-022)." maxlog = 1
+    return nothing
+end
+
