@@ -27,7 +27,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Bibliography</loc>
-    <lastmod>2026-11-04T11:52:10.000Z</lastmod>
+    <lastmod>2026-11-04T17:14:44.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Comparisons/Geometric-Deep-Learning-and-Physical-Laws</loc>
     <lastmod>2026-10-15T11:05:36.000Z</lastmod>
@@ -186,7 +186,7 @@
     <lastmod>2026-10-26T01:19:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-11-04T15:46:20.763Z</lastmod>
+    <lastmod>2026-11-04T17:15:02.278Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-10-25T22:36:28.000Z</lastmod>
@@ -441,7 +441,7 @@
     <lastmod>2026-11-04T15:46:01.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-010-Structure-Edits</loc>
-    <lastmod>2026-11-04T15:46:01.000Z</lastmod>
+    <lastmod>2026-11-04T17:14:44.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/Specifications</loc>
     <lastmod>2026-11-03T18:02:07.000Z</lastmod>
@@ -587,6 +587,9 @@
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/edits</loc>
     <lastmod>2026-11-03T18:02:07.000Z</lastmod>
   </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/em</loc>
+    <lastmod>2026-11-04T17:14:44.000Z</lastmod>
+  </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/exposure</loc>
     <lastmod>2026-10-30T08:37:55.000Z</lastmod>
   </url><url>
@@ -697,6 +700,9 @@
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/src/likelihood</loc>
     <lastmod>2026-10-29T14:49:16.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/src/m_steps</loc>
+    <lastmod>2026-11-04T17:14:44.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/src/noise</loc>
     <lastmod>2026-10-27T10:34:02.000Z</lastmod>
