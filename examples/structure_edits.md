@@ -48,6 +48,17 @@ graph, each move an edit of it and each candidate scored by the graph's own free
 Reference, best BIC per $L$ from random starts: 10 923.84, 6 493.69, 2 863.19, 1 067.60, 1 087.91 for
 $L = 0, \dots, 4$. The greedy search took 166 s (734 s before the clusters were a plate, 2026-11-04).
 
+**Fitted by EM** (`STRUCTURE_FIT=em julia -t auto --project=docs examples/structure_edits.jl`,
+2026-11-04): `Mycelium.fit_em` with SQUAREM, closed-form M-steps from the cluster beliefs, until $F$
+falls by less than $10^{-6}$. The switches' coefficients are frozen as well, so that their M-step is the
+offsets. The same greedy path and scores (10 923.84 → 6 493.69 → 2 863.19 → 1 067.60) in 177.0 s,
+against 192.5–200.3 s for the gradient fit that day. Reference by EM: 10 923.84, 6 493.69,
+2 863.19, 1 067.60, **1 163.52** for $L = 0, \dots, 4$. EM from the reference's random starts at
+$L = 4$ ends worse than the gradient fit's 1 087.91; the search's warm-started $L = 4$ fits reach
+$F = 504.879$, below the gradient fit's. Fitting is no longer what limits the search: each new
+structure's first fit spends 11–22 s compiling, and the warm fits take 0.6–2.5 s (an instrumented
+scratch copy; `lib/Mycelium.jl/src/em.md` §3).
+
 ## What it shows
 
 1. **The search runs on one graph.** Greedy search finds the generating structure, $L = 3$, by

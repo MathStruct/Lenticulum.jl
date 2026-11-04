@@ -57,6 +57,7 @@ include("constraint.jl")
 include("likelihood.jl")
 include("switching.jl")
 include("regime.jl")
+include("m_steps.jl")
 
 export GaussianBelief, Gaussian, uninformative
 export belief_mean, belief_cov, isproper, logpartition, kl_divergence

@@ -642,6 +642,20 @@ references:
     end: "358"
     doi: "10.1007/s41468-019-00038-7"
   - type: article
+    title: "Simple and Globally Convergent Methods for Accelerating the Convergence of Any EM Algorithm"
+    authors:
+      - family-names: "Varadhan"
+        given-names: "Ravi"
+      - family-names: "Roland"
+        given-names: "Christophe"
+    year: 2008
+    journal: "Scandinavian Journal of Statistics"
+    volume: "35"
+    issue: "2"
+    start: "335"
+    end: "353"
+    doi: "10.1111/j.1467-9469.2007.00585.x"
+  - type: article
     title: "A Widely Applicable Bayesian Information Criterion"
     authors:
       - family-names: "Watanabe"

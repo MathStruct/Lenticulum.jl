@@ -38,7 +38,7 @@ function add_switch(g, L, N)
     for i in 1:N
         replace_factor!(b, nm(:sum, i), sumfactor(L + 1))
         u, k, sw = nm(Symbol(:u, L + 1), i), nm(Symbol(:k, L + 1), i), nm(Symbol(:sw, L + 1), i)
-        variable!(b, u, d); variable!(b, k, 2); factor!(b, sw, switch(); params = Symbol(:sw, L + 1))
+        variable!(b, u, d); variable!(b, k, 2); factor!(b, sw, switch(); params = Symbol(:sw, L + 1), freeze = (:A,))
         connect!(b, nm(:sum, i), Symbol(:u, L + 1), u); connect!(b, sw, :u, u); connect!(b, sw, :k, k)
     end
     return build(b)
@@ -55,7 +55,7 @@ function remove_switch(g, L, N, l)      # drop switch l, renaming the last one i
     for i in 1:N
         remove_factor!(b, nm(Symbol(:sw, L), i)); remove_variable!(b, nm(Symbol(:u, L), i)); remove_variable!(b, nm(Symbol(:k, L), i))
         u, k, sw = nm(Symbol(:u, l), i), nm(Symbol(:k, l), i), nm(Symbol(:sw, l), i)
-        variable!(b, u, d); variable!(b, k, 2); factor!(b, sw, switch(); params = Symbol(:sw, l))
+        variable!(b, u, d); variable!(b, k, 2); factor!(b, sw, switch(); params = Symbol(:sw, l), freeze = (:A,))
         connect!(b, sw, :u, u); connect!(b, sw, :k, k)
     end
     return _resum(build(b), L - 1, N)
@@ -79,7 +79,7 @@ full_ps(gc, inner, N) = merge(NamedTuple{Tuple(nm(:data, i) for i in 1:N)}(ntupl
 
 # Fit by gradient steps at the exact beliefs (Momentum on c, the offsets b and the log-weights; the
 # sum node's coefficients stay fixed). Returns the fitted parameters, F and the store.
-function fit(gc, L, N, c, sws; steps = 300, η = 0.02, γ = 0.9, s0 = nothing)
+function fit_gradient(gc, L, N, c, sws; steps = 300, η = 0.02, γ = 0.9, s0 = nothing)
     sched = plate_schedule(gc)                           # N components; two sweeps reach every cluster
     vel = nothing
     s = s0
@@ -106,6 +106,15 @@ function fit(gc, L, N, c, sws; steps = 300, η = 0.02, γ = 0.9, s0 = nothing)
     end
     return c, sws, F, s
 end
+# Fit by EM instead (`STRUCTURE_FIT=em`): closed-form M-steps from the cluster beliefs, SQUAREM-
+# accelerated (`Mycelium.fit_em`), until F falls by less than 1e-6. The frozen coefficients stay.
+function fit_by_em(gc, L, N, c, sws; s0 = nothing, iters = 300, tol = 1e-6)
+    ps = full_ps(gc, make_ps(L, c, sws), N)
+    ps, Fs, s = fit_em(gc, ps, NamedTuple(); schedule = plate_schedule(gc), iters, tol, accelerate = true, store = s0)
+    return ps.mix.sum.c, Any[ps.mix[Symbol(:sw, l)] for l in 1:L], Fs[end], s
+end
+const FIT = get(ENV, "STRUCTURE_FIT", "gradient")
+fit(args...; kwargs...) = FIT == "em" ? fit_by_em(args...; kwargs...) : fit_gradient(args...; kwargs...)
 bic(F, L, N) = 2F + (d + L * (d + 1)) * log(N)
 
 # data: E3's 8-mode grid in 2-d, z = c + Σₗ kₗ Wₗ + ε, three switches

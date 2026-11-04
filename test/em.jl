@@ -1,0 +1,140 @@
+# Closed-form M-steps from cluster beliefs (`lib/Mycelium.jl/src/em.jl`, `src/m_steps.jl`).
+# Oracles: hand-written EM for a mixture of linear regressions (the same iterates), the free
+# energy's non-increase, and stationarity at the fixed point (the free-energy gradient, by
+# ForwardDiff, vanishes there), which checks the M-step formulas independently.
+using Test, Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random
+using ADTypes, DifferentiationInterface, ForwardDiff
+
+em_lse(v) = (m = maximum(v); m + log(sum(exp.(v .- m))))
+
+# --- a mixture of regressions with one noise level per line ---------------------------------
+function em_lines_data(N)
+    rng = Xoshiro(11)
+    x = 6 .* rand(rng, N) .- 3
+    k = [rand(rng) < 0.5 ? 1 : 2 for _ in 1:N]
+    return x, [1.0, -1.0][k] .* x .+ [0.0, 0.5][k] .+ [0.2, 0.5][k] .* randn(rng, N)
+end
+function em_lines_graph(x, y; freeze = ())
+    b = GraphBuilder()
+    for i in eachindex(x)
+        r(s) = replica_name(s, i)
+        variable!(b, r(:x), 1); variable!(b, r(:y), 1); variable!(b, r(:k), 2)
+        factor!(b, r(:dx), DataFactor(:x, [x[i]])); connect!(b, r(:dx), :x, r(:x); direction = Emitting())
+        factor!(b, r(:dy), DataFactor(:y, [y[i]])); connect!(b, r(:dy), :y, r(:y); direction = Emitting())
+        factor!(b, r(:reg), RegimeFactor((y = 1, x = 1), 2, 1; learn_noise = true, output = :y); params = :reg, freeze)
+        connect!(b, r(:reg), :y, r(:y)); connect!(b, r(:reg), :x, r(:x)); connect!(b, r(:reg), :k, r(:k))
+    end
+    return build(b)
+end
+em_lines_ps(N, a, c, logw, logσ) = merge(NamedTuple(s => NamedTuple() for i in 1:N for s in (replica_name(:dx, i), replica_name(:dy, i))),
+    (reg = (A = (x = reshape(-a, 1, 1, 2),), b = reshape(c, 1, 2), logw = logw, L = reshape(logσ, 1, 1, 2)),))
+function em_lines_hand(x, y, a, c, σ, w, steps)
+    a, c, σ, w = copy(a), copy(c), copy(σ), copy(w)
+    X = [x ones(length(x))]
+    for _ in 1:steps
+        lr = [log(w[k]) - (y[i] - a[k] * x[i] - c[k])^2 / (2σ[k]^2) - log(σ[k]) for i in eachindex(x), k in 1:2]
+        R = exp.(lr .- [em_lse(lr[i, :]) for i in eachindex(x)])
+        for k in 1:2
+            Wt = Diagonal(R[:, k])
+            a[k], c[k] = (X' * Wt * X) \ (X' * Wt * y)
+            σ[k] = sqrt(sum(R[:, k] .* (y .- a[k] .* x .- c[k]) .^ 2) / sum(R[:, k]))
+            w[k] = sum(R[:, k]) / length(x)
+        end
+    end
+    return a, c, σ, w
+end
+em_sweep(g) = SequentialSchedule(all_tasks(g))
+
+@testset "EM: a mixture of regressions follows hand-written EM step for step" begin
+    N = 120
+    x, y = em_lines_data(N)
+    g = em_lines_graph(x, y)
+    a0, c0, σ0, w0 = [0.5, -0.5], [0.0, 0.0], [1.0, 1.0], [0.5, 0.5]
+    for steps in (1, 3, 8)
+        # `iters` E-steps, each followed by an M-step (`steps` EM steps), and the free energy at the end
+        ps, Fs, _ = fit_em(g, em_lines_ps(N, a0, c0, log.(w0), log.(σ0)), NamedTuple(); schedule = em_sweep(g), iters = steps, tol = -Inf)
+        @test length(Fs) == steps + 1
+        a, c, σ, w = em_lines_hand(x, y, a0, c0, σ0, w0, steps)
+        p = ps.reg
+        @test -vec(p.A.x) ≈ a rtol = 1e-10
+        @test vec(p.b) ≈ c rtol = 1e-10 atol = 1e-12
+        @test exp.(vec(p.L)) ≈ σ rtol = 1e-10
+        @test exp.(p.logw) ≈ w rtol = 1e-10
+        @test all(diff(Fs) .<= 1e-9)                       # EM does not increase −log p
+    end
+    # frozen weights stay
+    gf = em_lines_graph(x, y; freeze = (:logw,))
+    ps, _, _ = fit_em(gf, em_lines_ps(N, a0, c0, log.([0.3, 0.7]), log.(σ0)), NamedTuple(); schedule = em_sweep(gf), iters = 3, tol = -Inf)
+    @test ps.reg.logw ≈ log.([0.3, 0.7])
+end
+
+@testset "EM: a mixture of factor analysers in a cluster reaches a stationary point" begin
+    # z = W_k x + μ_k + ε_k, x ~ N(0, I₂), z ∈ R³ observed, three regimes, a cluster per point (tied)
+    rng = Xoshiro(4)
+    Wt = [randn(rng, 3, 2) for _ in 1:3]; μt = [[0.0, 3.0, 0.0], [3.0, -2.0, 1.0], [-3.0, 0.0, 2.0]]
+    N = 90
+    Z = reduce(hcat, [(k = mod1(i, 3); Wt[k] * randn(rng, 2) .+ μt[k] .+ 0.2 .* randn(rng, 3)) for i in 1:N])
+    b = GraphBuilder()
+    for i in 1:N
+        r(s) = replica_name(s, i)
+        variable!(b, r(:z), 3); variable!(b, r(:x), 2); variable!(b, r(:k), 3)
+        factor!(b, r(:d), DataFactor(:z, Z[:, i])); connect!(b, r(:d), :z, r(:z); direction = Emitting())
+        factor!(b, r(:pr), GaussianPrior(:x, zeros(2), Matrix(1.0I, 2, 2)); params = :pr); connect!(b, r(:pr), :x, r(:x))
+        factor!(b, r(:reg), RegimeFactor((z = 3, x = 2), 3, 3; learn_noise = true, output = :z, noise = 0.5); params = :reg)
+        connect!(b, r(:reg), :z, r(:z)); connect!(b, r(:reg), :x, r(:x)); connect!(b, r(:reg), :k, r(:k))
+    end
+    g = build(b)
+    gc = cluster(as_plate(g, :pts, N), :pts, :c, [:pr, :reg]; params = :mix)
+    f = RegimeFactor((z = 3, x = 2), 3, 3; learn_noise = true, output = :z, noise = 0.5)
+    p0 = merge(LuxCore.initialparameters(Xoshiro(2), f), (b = reduce(hcat, [Z[:, i] for i in 1:3]),))
+    ps0 = merge(NamedTuple(replica_name(:d, i) => NamedTuple() for i in 1:N), (mix = (pr = NamedTuple(), reg = p0),))
+    ps, Fs, s = fit_em(gc, ps0, NamedTuple(); schedule = plate_schedule(gc), iters = 400, tol = 1e-10)
+    @test all(diff(Fs) .<= 1e-8)
+    @test Fs[end] < Fs[1] - 100
+    G = free_energy_gradient(s, gc, ps, NamedTuple(); ad = AutoForwardDiff()).mix.reg
+    @test maximum(abs, G.b) < 1e-4 && maximum(abs, G.A.x) < 1e-4 && maximum(abs, G.L) < 1e-4
+    @test abs(sum(G.logw)) < 1e-6                           # the weights' gradient sums to zero at a stationary point
+end
+
+@testset "EM: switches over a frozen sum, and the refusal" begin
+    # E3's additive wiring: z = c + u₁ + u₂ + ε, the sum's coefficients frozen; EM in c, b, logw
+    rng = Xoshiro(9)
+    N = 60
+    Z = [0.5 .+ (rand(rng) < 0.5 ? 2.0 : 0.0) .+ (rand(rng) < 0.3 ? -1.5 : 0.0) .+ 0.3 * randn(rng) for _ in 1:N]
+    function graph(freeze; swnoise = 0.05)
+        b = GraphBuilder()
+        for i in 1:N
+            r(s) = replica_name(s, i)
+            variable!(b, r(:z), 1); variable!(b, r(:u1), 1); variable!(b, r(:u2), 1); variable!(b, r(:k1), 2); variable!(b, r(:k2), 2)
+            factor!(b, r(:d), DataFactor(:z, [Z[i]])); connect!(b, r(:d), :z, r(:z); direction = Emitting())
+            factor!(b, r(:sum), LinearConstraintFactor((z = 1, u1 = 1, u2 = 1), 1; noise = 0.09); params = :sum, freeze)
+            connect!(b, r(:sum), :z, r(:z)); connect!(b, r(:sum), :u1, r(:u1)); connect!(b, r(:sum), :u2, r(:u2))
+            for l in 1:2
+                factor!(b, r(Symbol(:sw, l)), SwitchingConstraintFactor((u = 1,), 2, 1; noise = swnoise); params = Symbol(:sw, l), freeze = (:A,))
+                connect!(b, r(Symbol(:sw, l)), :u, r(Symbol(:u, l))); connect!(b, r(Symbol(:sw, l)), :k, r(Symbol(:k, l)))
+            end
+        end
+        return cluster(as_plate(build(b), :pts, N), :pts, :c, [:sum, :sw1, :sw2]; params = :mix)
+    end
+    sw(b) = (A = (u = ones(1, 1),), b = b, logw = zeros(2))
+    inner = (sum = (A = (z = ones(1, 1), u1 = -ones(1, 1), u2 = -ones(1, 1)), c = [0.0]), sw1 = sw([0.0 1.0]), sw2 = sw([0.0 -1.0]))
+    ps0 = merge(NamedTuple(replica_name(:d, i) => NamedTuple() for i in 1:N), (mix = inner,))
+    gc = graph((:A,))
+    ps, Fs, s = fit_em(gc, ps0, NamedTuple(); schedule = plate_schedule(gc), iters = 500, tol = 1e-11, accelerate = true)
+    @test all(diff(Fs) .<= 1e-8) && Fs[end] < Fs[1]
+    @test ps.mix.sum.A == inner.sum.A && ps.mix.sw1.A == inner.sw1.A      # frozen paths unchanged
+    G = free_energy_gradient(s, gc, ps, NamedTuple(); ad = AutoForwardDiff()).mix
+    @test maximum(abs, G.sum.c) < 1e-5 && maximum(abs, G.sw1.b) < 1e-5 && maximum(abs, G.sw2.b) < 1e-5
+    @test abs(sum(G.sw1.logw)) < 1e-6
+    # nearly deterministic switches (noise 1e-3) make plain EM slow (contraction 0.99 per step);
+    # SQUAREM reaches the same fixed point in far fewer E-steps
+    gs = graph((:A,); swnoise = 1e-3)
+    _, Fp, _ = fit_em(gs, ps0, NamedTuple(); schedule = plate_schedule(gs), iters = 3000, tol = 1e-9)
+    _, Fa, _ = fit_em(gs, ps0, NamedTuple(); schedule = plate_schedule(gs), iters = 3000, tol = 1e-9, accelerate = true)
+    @test length(Fp) > 1000 && length(Fa) < 200
+    @test Fa[end] ≈ Fp[end] atol = 1e-6
+    # with every coefficient of the sum learned the M-step would be A = 0: refused (LP-022)
+    gl = graph(())
+    s0 = MessageStore(gl); sweep!(s0, gl, plate_schedule(gl), ps0, NamedTuple()); sweep!(s0, gl, plate_schedule(gl), ps0, NamedTuple())
+    @test_throws ArgumentError em_step(s0, gl, ps0, NamedTuple())
+end
