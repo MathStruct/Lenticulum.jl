@@ -130,6 +130,20 @@ move set was enough; the warm start was not.
   of it (1 343.89 against 1 299.17): two of its centres sit near the same grid. The fits themselves are
   as good or better (1 299.14 from the generating parameters against 1 299.15; the best random start
   1 412.51 against 1 420.65).
+- **Collapsed, with restarts** (the default of `fit_by_em` now: `STRUCTURE_RESTARTS = 4`, the warm
+  start and three perturbed copies, the best kept). At $(1, 0)$ without restarts three of four
+  add-a-switch draws ended at BIC 31 942.95 by EM and one by gradient steps; EM settles on stationary
+  points that gradient steps leave. With restarts the search follows the gradient search's path to
+  $(2, 3)$ (1 355.83 against 1 355.84), then takes a plain split to $(3, 3)$ at **1 343.74** where the gradient
+  search's compound move reached $(3, 2)$ at 1 299.17: 74 fits in 670 s. Reference: 1 299.14 from the
+  generating parameters; 1 826.59, 1 379.88, 1 661.42, 1 449.49 from the random starts.
+
+  Why (an instrumented scratch copy, at that step): from EM's $(2, 3)$ fit, the compound candidates
+  reach 2 720.80, 1 593.59 and 1 683.27 by EM, and 2 472.62, 1 509.55 and 1 769.61 by gradient steps from
+  the same starts; gradient steps from EM's results do not move them, and EM to $\Delta F < 10^{-9}$ changes
+  little. So the fit method does not decide it: the two $(2, 3)$ fits score alike but are different
+  optima, and only the gradient search's leads on to $(3, 2)$. Splitting every cluster instead of the
+  heaviest (tried, not kept) did not help: $(3, 3)$ at 1 344.20 in 784 s.
 
 ## What it shows
 

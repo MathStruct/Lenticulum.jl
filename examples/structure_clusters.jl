@@ -211,10 +211,26 @@ function em_θ(s, gc, ps, st, ids, N, X)
     end
     return full_ps(make_ps((a = a, C = C, W = W, r = r), ids), N)
 end
-function fit_by_em(gc, ids, N, θ; s0 = nothing, iters = 300, tol = 1e-4)
+function fit_by_em_once(gc, ids, N, θ; s0 = nothing, iters = 300, tol = 1e-4)
     ps, Fs, s = fit_em(gc, full_ps(make_ps(θ, ids), N), NamedTuple(); schedule = plate_schedule(gc), iters, tol,
                        accelerate = true, store = s0, mstep = (s, g, p, st) -> em_θ(s, g, p, st, ids, N, X))
     return θ_of(ps.mix, ids), Fs[end], s
+end
+# Restarts (`STRUCTURE_RESTARTS`, default 4): EM settles on stationary points the gradient fit escapes
+# (at (1, 0), three of four add-a-switch draws ended at BIC 31 942.95 by EM, one by gradient steps), so
+# each EM fit also starts from perturbed copies of its warm start (centres by S/2, offsets by S,
+# logits by 1; a separate generator, so the search's own draws are unchanged) and keeps the best.
+const RESTARTS = parse(Int, get(ENV, "STRUCTURE_RESTARTS", "4"))
+const RESTART_RNG = Xoshiro(2026)
+perturb(θ, rng) = (a = θ.a, C = θ.C .+ (S / 2) .* randn(rng, size(θ.C)), W = θ.W .+ S .* randn(rng, size(θ.W)),
+                   r = θ.r .+ randn(rng, size(θ.r)))
+function fit_by_em(gc, ids, N, θ; s0 = nothing, kwargs...)
+    best = fit_by_em_once(gc, ids, N, θ; s0 = s0 === nothing ? nothing : deepcopy(s0), kwargs...)
+    for _ in 2:RESTARTS
+        cand = fit_by_em_once(gc, ids, N, perturb(θ, RESTART_RNG); s0 = s0 === nothing ? nothing : deepcopy(s0), kwargs...)
+        cand[2] < best[2] && (best = cand)
+    end
+    return best
 end
 const FIT = get(ENV, "STRUCTURE_FIT", "gradient")
 fit(args...; kwargs...) = FIT == "em" ? fit_by_em(args...; kwargs...) : fit_gradient(args...; kwargs...)
@@ -238,8 +254,8 @@ end
 # A data-driven split: the heaviest cluster's points (responsibility > 1/2, read from each point's
 # cluster node) are split by 2-means; each half's centre is its mean minus the switches' expected
 # offsets, its weight the cluster's share by size.
-function data_split_θ(θ, s, gc, ids, X)
-    N = size(X, 2); w = weights(θ); j = argmax(w)
+function data_split_θ(θ, s, gc, ids, X; j = argmax(weights(θ)))
+    N = size(X, 2); w = weights(θ)
     ps = full_ps(make_ps(θ, ids), N)
     resp = [exp(cluster_marginal(s, gc, nm(:c, i), :j, ps).logp[j]) for i in 1:N]
     P = X[:, resp .> 0.5]
