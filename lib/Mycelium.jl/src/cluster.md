@@ -120,7 +120,19 @@ $q_l = (\text{bit}, j)$ with $2J$ states, and a table over $(j, q_l)$ allows onl
 Enumerating every joint state would cost $J (2J)^L$ assignments where $J 2^L$ are possible, so
 `_cluster_joint` now adds every factor's log-weights first and drops the assignments of weight
 zero before the Gaussian part (the precisions and solves). The beliefs keep the surviving
-assignments only. In `belief_free_energy` a $-\infty$ log-weight met a weight of exactly 0 and
+assignments only. Since 2026-11-04 the enumeration itself is pruned (`_enumerate_assignments`): the
+assignments are built one discrete variable at a time, a factor's log-weights are added once all
+its switch channels are assigned, and a partial assignment of weight zero is dropped there. The 2^16
+cap now counts the possible assignments, not the full product: 18 binary variables tied equal by
+tables (2^18 joint states, 2 possible) form one cluster (`test/cluster.jl`, "pruned enumeration";
+before, the cap refused it). It does not speed up the plated example: at $(4, 3)$, 2 048 joint states
+of which 32 are possible, a fitting step took 0.155 s against 0.158 s before (a scratch timing), since
+the batched path builds one joint per plate group.
+
+A cluster's message merges equal components: assignments the target does not see (an internal
+discrete variable that does not move it) gave repeated components with split weights; they are now
+one component with the summed weight, and a message whose components are all equal is one
+Gaussian (`test/cluster.jl`, Mycelium's side). In `belief_free_energy` a $-\infty$ log-weight met a weight of exactly 0 and
 gave `0 · (-Inf) = NaN`; such entries are set to 0 before the product (`_finite_logw`), which is the
 $0 \log 0 = 0$ convention, and no AD backend sees the infinity.
 

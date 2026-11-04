@@ -454,6 +454,36 @@ _cluster_input(b) = b
 _cluster_input(b::LenticulumCore.MixtureBelief{<:GaussianBelief}) = ep_project(b) === nothing ?
     throw(ArgumentError("a cluster node collapses a mixture input to its moments, which needs proper components")) : ep_project(b)
 
+# The joint discrete assignments of nonzero weight and their log-weights (incoming messages and
+# every factor's outcome weights). Built one variable at a time: a factor's log-weights are added
+# as soon as all its switch channels are assigned, and partial assignments of weight zero (a -Inf,
+# e.g. a `TableFactor` tying variables) are dropped there, so the impossible ones are never
+# enumerated in full.
+function _enumerate_assignments(c::ClusterFactor, forms, wirings, states, lps)
+    nd = length(c.discrete)
+    chans(F) = F.switch === nothing ? () : (F.switch isa Symbol ? (F.switch,) : F.switch)
+    pos = [[findfirst(==(w[ch]), c.discrete) for ch in chans(F)] for (F, w) in zip(forms, wirings)]
+    done = [isempty(p) ? 0 : maximum(p) for p in pos]
+    partial = [Int[]]
+    cst = [sum((F.logw[1] for (F, d) in zip(forms, done) if d == 0); init = 0.0)]
+    for j in 1:nd
+        np, nc = Vector{Vector{Int}}(), Float64[]
+        for (a, ca) in zip(partial, cst), (t, k) in enumerate(states[j])
+            push!(np, [a; k]); push!(nc, ca + lps[j][t])
+        end
+        for (F, p, d) in zip(forms, pos, done)
+            d == j || continue
+            L = LinearIndices(Tuple(c.dims[c.discrete[q]] for q in p))
+            nc .+= F.logw[[L[(a[q] for q in p)...] for a in np]]
+        end
+        keep = findall(>(-Inf), nc)
+        isempty(keep) && throw(ArgumentError("cluster: every joint discrete state has zero probability"))
+        partial, cst = np[keep], nc[keep]
+        length(partial) <= 2^16 || throw(ArgumentError("cluster: more than 2^16 joint discrete states of nonzero weight"))
+    end
+    return partial, cst
+end
+
 function _cluster_joint(c::ClusterFactor, msgs, ps, skip)
     points = Dict{Symbol,Vector{Float64}}()
     for v in c.continuous
@@ -483,23 +513,9 @@ function _cluster_joint(c::ClusterFactor, msgs, ps, skip)
             push!(states, collect(1:K)); push!(lps, zeros(K))
         end
     end
-    combos = vec(collect(Iterators.product(eachindex.(states)...)))
-    nA = length(combos)
-    nA <= 2^16 || throw(ArgumentError("cluster: $nA joint discrete states; at most 2^16 are enumerated"))
-    assignments = [[states[j][ix[j]] for j in eachindex(states)] for ix in combos]
-    cst = [sum(lps[j][ix[j]] for j in eachindex(states); init = 0.0) for ix in combos]
     forms = [cluster_form(f, _subtree(ps, c.keys[i])) for (i, f) in enumerate(c.factors)]
     wirings = [Dict(w) for w in c.wiring]
-    for (F, w) in zip(forms, wirings)
-        cst .+= F.logw[_switch_columns(c, F, w, assignments)]
-    end
-    # assignments of weight zero (a -Inf log-weight, e.g. a `TableFactor` tying discrete variables)
-    # are dropped before the Gaussian part, which is the expensive one
-    keep = findall(>(-Inf), cst)
-    isempty(keep) && throw(ArgumentError("cluster: every joint discrete state has zero probability"))
-    if length(keep) < length(cst)
-        assignments, cst = assignments[keep], cst[keep]
-    end
+    assignments, cst = _enumerate_assignments(c, forms, wirings, states, lps)
     nA = length(assignments)
     J = zeros(n, n); H = zeros(n, nA)
     # incoming Gaussian messages on free boundary variables
@@ -598,9 +614,18 @@ function _joint_message(c::ClusterFactor, jt::_ClusterJoint, target::Symbol, cho
     end
     keep = findall(>(-Inf), l)
     isempty(keep) && throw(ArgumentError("cluster: every assignment has zero probability"))
-    comps = [GaussianBelief(E[:, a], Λ, !proper) for a in keep]
-    length(comps) == 1 && return only(comps)
-    lk = l[keep]
+    # assignments the target does not see (internal discrete variables that do not move it) give
+    # equal components; they are merged, their weights summed
+    groups = Dict{Vector{Float64},Vector{Int}}()
+    order = Vector{Vector{Float64}}()
+    for a in keep
+        col = E[:, a]
+        haskey(groups, col) || (groups[col] = Int[]; push!(order, col))
+        push!(groups[col], a)
+    end
+    length(order) == 1 && return GaussianBelief(only(order), Λ, !proper)
+    comps = [GaussianBelief(col, Λ, !proper) for col in order]
+    lk = [_lse(l[groups[col]]) for col in order]
     return LenticulumCore.MixtureBelief(Val(:log), comps, lk .- _lse(lk))
 end
 

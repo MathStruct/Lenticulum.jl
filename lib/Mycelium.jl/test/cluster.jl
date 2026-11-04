@@ -17,7 +17,7 @@
     # the message to x is the product of the two priors (k is internal and does not touch x)
     m, _ = factor_message(c, :x, nothing, NamedTuple(), nothing, cluster_parameters(gc, :c, NamedTuple()).c, NamedTuple())
     p = Mycelium.combine(G(0.5, 2.0), G(-1.0, 0.5))
-    m = m isa LenticulumCore.MixtureBelief ? ep_project(m) : m
+    @test m isa GaussianBelief          # k does not move x: its two equal components are merged
     @test LenticulumCore.belief_mean(m) ≈ LenticulumCore.belief_mean(p) && LenticulumCore.belief_cov(m) ≈ LenticulumCore.belief_cov(p)
     @test cluster_marginal(MessageStore(gc), gc, :c, :k, NamedTuple()).logp ≈ log.([0.3, 0.7])
     @test_throws ArgumentError cluster(g, :c, [:p1, :zz])
@@ -63,4 +63,25 @@ end
     @test cluster_form(TableFactor((a = 3, b = 2), Tab), NamedTuple()).logw == vec(Tab)
     @test_throws DimensionMismatch TableFactor((a = 2, b = 2), Tab)
     @test_throws ArgumentError TableFactor((a = 1,), [-Inf])
+end
+
+# Assignments are enumerated one variable at a time and pruned as soon as a table rules them out, so
+# the 2^16 cap counts the possible states, not the full product: 18 binary variables tied equal by a
+# chain of tables have 2^18 joint states and 2 possible ones.
+@testset "cluster: pruned enumeration" begin
+    n = 18
+    Cat = LenticulumCore.CategoricalBelief
+    Teq = [0.0 -Inf; -Inf 0.0]
+    b = GraphBuilder()
+    for i in 1:n; variable!(b, Symbol(:k, i), 2); end
+    factor!(b, :p1, PriorFactor(:k1, Cat([0.3, 0.7]), _ -> 0.0)); connect!(b, :p1, :k1, :k1)
+    for i in 1:(n - 1)
+        t = Symbol(:t, i)
+        factor!(b, t, TableFactor((a = 2, b = 2), Teq)); connect!(b, t, :a, Symbol(:k, i)); connect!(b, t, :b, Symbol(:k, i + 1))
+    end
+    g = build(b)
+    gc = cluster(g, :all, [:p1; [Symbol(:t, i) for i in 1:(n - 1)]])
+    s = MessageStore(gc); sweep!(s, gc, SequentialSchedule(all_tasks(gc)), cluster_parameters(gc, NamedTuple()), NamedTuple())
+    @test exp.(cluster_marginal(s, gc, :all, Symbol(:k, n), NamedTuple()).logp) ≈ [0.3, 0.7]
+    @test first(scalar_free_energy(s, gc, cluster_parameters(gc, NamedTuple()), NamedTuple())) ≈ 0.0 atol = 1e-12
 end

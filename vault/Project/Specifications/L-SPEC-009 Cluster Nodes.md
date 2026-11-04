@@ -91,6 +91,7 @@ propagation through the tables on the same tree.
 
 ## Open
 
-- Factors whose $A$ or $Q$ depend on the outcome, flat continuous directions inside a cluster,
-  clusters in plates, inserting E7's partial sums automatically from the groups.
-- Merging repeated components of a message (assignments the target does not see).
+- Factors whose $A$ or $Q$ depend on the outcome (one precision per assignment), flat continuous
+  directions inside a cluster.
+- Done 2026-11-03/04: clusters in plates (§8), E7's partial sums from the groups (Lenticulum's
+  `partial_sums`), merging repeated components of a message, pruned enumeration.
