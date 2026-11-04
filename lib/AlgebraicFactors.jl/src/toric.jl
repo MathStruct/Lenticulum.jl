@@ -111,6 +111,10 @@ independence(names::Tuple, alphabets::Tuple) =
 LenticulumCore.channels(f::ToricFactor) =
     map((n, s) -> LenticulumCore.Channel(n, s), f.names, f.alphabets)
 LenticulumCore.islearnable(::ToricFactor) = true
+# Unnormalised, the potential is not a distribution of its channels: learning η on observed states
+# lowers −η'a_x without bound (LP-022, `vault/Energy-Based/Why Learned Relations Do Not Collapse.md`);
+# `free_energy_gradient` warns.
+Mycelium.learns_unnormalised(f::ToricFactor) = !f.normalised
 LuxCore.initialparameters(::AbstractRNG, f::ToricFactor) = (η = zeros(size(f.A, 1)),)
 LuxCore.initialstates(::AbstractRNG, ::ToricFactor) = NamedTuple()
 LuxCore.parameterlength(f::ToricFactor) = size(f.A, 1)

@@ -134,3 +134,13 @@ $10^{-2}$ in norm.
 `fit.jl`; [[fit]] records the gauge, convergence/existence distinction and numerical
 limitations. No LP solver, Markov basis, manifold or polynomial inference is implemented.
 Label matching and finite summation are exact; large tables remain expensive.
+
+## Learned on observed states (2026-11-04, LP-022)
+
+Unnormalised (the default), the potential is not a distribution of its channels: on observed
+states $-\eta^\top a(x)$ has no lower bound, and the free-energy gradient lacks the partition's term
+$\mathbb E_{p_\eta}[a]$. `test/lp022.jl`: with two binary variables observed and $\eta = t\,a(x_{\text{obs}})$, $F = -3.34, -30.0, -300.0$ for
+$t = 1, 10, 100$; normalised, $F = -\log p(x_{\text{obs}}) = 0.0$. `Mycelium.learns_unnormalised(f) = !f.normalised`, so
+`free_energy_gradient` warns once for an unnormalised toric factor on `DataFactor` variables. See
+[[Why Learned Relations Do Not Collapse]].
+

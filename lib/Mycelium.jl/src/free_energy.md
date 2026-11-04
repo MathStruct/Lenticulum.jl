@@ -378,7 +378,7 @@ nodes its marginals are Gaussian and it has both.
 
 `free_energy_gradient` warns once per session when a learnable node whose factor
 `learns_unnormalised` (a hook, `false` by default; Lenticulum's constraint factors without an
-`output`) has no frozen `A` and a channel on a variable that a `DataFactor` observes; inside a
+`output`, AlgebraicFactors' unnormalised `ToricFactor`) has no frozen `A` and a channel on a variable that a `DataFactor` observes; inside a
 cluster node it looks at the clustered factors through their wiring. Such a factor is normalised in
 its residual, so its free energy on data can fall without fitting (LP-022). It is a warning, not a
 refusal: a fit may hold the coefficients fixed in its own loop. Detection only covers data from

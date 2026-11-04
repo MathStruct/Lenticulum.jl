@@ -115,9 +115,15 @@ quadratic in $Y$ and no choice of $W$ makes it constant. Now look at what is imp
 
 | factor | energy | can it flatten? |
 |---|---|---|
-| `LinearConstraintFactor` | $\tfrac12\|r\|^2_{Q^{-1}}$, `Q` a fixed hyperparameter | no |
-| `DEQFactor`, `NeuralODEFactor` | $\tfrac12\|r\|^2$, `SquaredNorm` | no |
+| `LinearConstraintFactor` | $\tfrac12\|r\|^2_{Q^{-1}}$, `Q` a fixed hyperparameter | **yes** when every coefficient is learned: $A = 0$ (corrected 2026-11-04, LP-022); no with a fixed data coefficient (`output`) |
+| `DEQFactor` | $\tfrac12\|z - g(z,x)\|^2$, `SquaredNorm` | **yes** with $z$ observed: $g(z,x) = z$ (corrected 2026-11-04) |
+| `NeuralODEFactor` | $\tfrac12\|z_1 - \Phi(z_0)\|^2$, `SquaredNorm` | no |
 | `GaussianFactor` | $\tfrac12\|r\|^2_{Q^{-1}} + \tfrac12\log\det 2\pi Q$ | no — **and see below** |
+
+The first version of this table said no for every row: it read "fixed metric" as "cannot flatten",
+but a metric on the residual does not stop the residual itself from being zero everywhere when the
+coefficients of the observed channel are learned. Every factor family is gone through in
+[[Why Learned Relations Do Not Collapse]].
 
 With fixed metrics these regressors cannot flatten their energy surface by changing the
 noise. `GaussianFactor` can now learn that metric ([[LP-005 Learning the noise covariance]]).
@@ -134,8 +140,9 @@ itself is unbounded below as $Q\to0$, so a noise prior or floor is still necessa
 `GaussianFactor.energy` remains the residual; its scalarisation is quadratic fit only.
 Its free energy carries the normaliser and optional noise-prior density. Adding a
 learnable noise scale to a residual factor requires both positive-definite coordinates
-and the normalised objective. The constraint and DEQ factors have no learned noise
-scale in their current implementations.
+and the normalised objective. Of the constraint factors only `RegimeFactor` learns its noise
+(`learn_noise = true`); with every coefficient learned as well its free energy is unbounded below
+(LP-022). The DEQ factor has no learned noise scale.
 
 ## 5. Latent variables: minimise or marginalise
 

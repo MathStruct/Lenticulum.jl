@@ -1039,3 +1039,4 @@ include("game_exact.jl")
 include("lp019.jl")
 
 include("lp020.jl")
+include("lp022.jl")

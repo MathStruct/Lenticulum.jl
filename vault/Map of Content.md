@@ -69,6 +69,9 @@ five it calls "entropy", side by side, with the confusions they invite.
     EBM training methods are already implemented here under other names: **score matching is
     `VariationalDiffusion`**, **NCE is `Adversarial.RatioFactor`** — and NCE with a known noise
     distribution is the `belief_logdensity` [[messages]] §1 has always wanted
+19. [[Why Learned Relations Do Not Collapse]] — how each learnable factor family avoids (or does
+    not avoid) learning a relation that holds everywhere: normalisation in the data channels, the
+    `output` option, log partitions, comparison; what is guarded and what is not (the DEQ)
 
 ## 2c. Types
 
@@ -277,6 +280,8 @@ them; the same layout as Moonkale's and Sophia's vaults.
   to gaps in the theory, e.g. [[LP-002 The Jacobian side is not implemented]]
 - [[Specifications]] — `L-SPEC-nnn`: contracts precise enough to test against, starting with
   [[L-SPEC-001 The Factor Interface]]
+- [[Feature Backlog]] — every feature still to implement, with its source, its motivation and a
+  proposed priority
 
 ## 6. Research questions
 

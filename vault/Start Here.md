@@ -89,7 +89,9 @@ something that does not work and needs a decision, or waits for someone, gets a 
 `vault/Project/Problems/`; an interface contract gets a specification in
 `vault/Project/Specifications/`. Each starts from its template in `vault/templates/` (not
 published) and gets a line in its index: [[Decisions]], [[Problem Log]], [[Specifications]]. A
-decision or specification is `proposed` or `draft` until Daniel accepts it.
+decision or specification is `proposed` or `draft` until Daniel accepts it. A feature that should
+be implemented, from any of these or from a review or measurement, gets a row in
+[[Feature Backlog]], which is kept current as features land.
 
 An open question that is mathematics rather than engineering, and that someone could answer
 without knowing the code, goes into `vault/Research Questions/` as an `RQ-nnn` note (template
