@@ -56,6 +56,7 @@ include("nonlinear.jl")
 include("constraint.jl")
 include("likelihood.jl")
 include("switching.jl")
+include("regime.jl")
 
 export GaussianBelief, Gaussian, uninformative
 export belief_mean, belief_cov, isproper, logpartition, kl_divergence
@@ -66,6 +67,7 @@ export NonlinearFactor, NonlinearGaussianModel, Linearization, Unscented, linear
 export LinearConstraintFactor, LinearConstraintModel
 export residual, residual_statistics
 export SwitchingConstraintFactor, SwitchingConstraintModel, switch_statistics, switch_overlaps, partial_sums
+export RegimeFactor, regime_covariances
 export FrozenGaussianBelief, FrozenSwitchingBeliefs
 export LikelihoodFactor, LikelihoodModel, Laplace, ExpectationPropagation, predictive, log_evidence
 export AbstractLikelihood, PoissonLikelihood, BivariatePoissonLikelihood, OrdinalProbitLikelihood

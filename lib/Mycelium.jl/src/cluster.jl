@@ -5,9 +5,11 @@
 # that only those factors touch become internal; the others are its channels. Inside, inference is
 # exact for conditionally linear-Gaussian factors: every factor states, through `cluster_form`, a
 # residual r = Σ A_c x_c − C[:, k] with noise N(0, Q) and a weight w_k, the column k chosen by one
-# discrete channel (or fixed). For each joint assignment of the cluster's discrete variables the
-# continuous ones are jointly Gaussian in canonical form, with one precision J for every
-# assignment, and are eliminated exactly; the assignments are enumerated.
+# discrete channel (or fixed); A and Q may depend on the outcome too. For each joint assignment
+# of the cluster's discrete variables the continuous ones are jointly Gaussian in canonical form
+# and are eliminated exactly; the assignments are enumerated. Assignments that give the same
+# precision J (the same outcomes of every factor whose A or Q depends on its outcome) form one
+# precision class and share its factorisations; without such factors there is one class.
 #
 # See `cluster.md`.
 # ---------------------------------------------------------------------------
@@ -22,15 +24,37 @@ matrices keyed by the continuous channels, `C` has one column per outcome, `logw
 per outcome, and `switch` names the discrete channel the outcome is read from (`nothing` with one
 outcome), or a tuple of discrete channels whose joint state is the outcome (column-major: the
 first channel varies fastest, as `LinearIndices`). A discrete-only factor has `m = 0` rows.
+
+The coefficients and the noise may depend on the outcome: an entry of `A` may be an
+`m × d × K` array (``A_{c,k}`` = `A[c][:, :, k]`) and `Q` an `m × m × K` array (``Q_k``), with `K` the number
+of columns of `C`. The cluster then has one precision per combination of such outcomes
+(`cluster.md`, "Per-outcome coefficients and noise").
 Returned by [`cluster_form`](@ref).
 """
-struct ClusterForm{A<:NamedTuple,C<:AbstractMatrix,Q<:AbstractMatrix,W<:AbstractVector}
+struct ClusterForm{A<:NamedTuple,C<:AbstractMatrix,Q<:AbstractArray,W<:AbstractVector}
     A::A
     C::C
     Q::Q
     logw::W
     switch::Union{Symbol,Nothing,Tuple{Vararg{Symbol}}}
+    function ClusterForm(A::NamedTuple, C::AbstractMatrix, Q::AbstractArray, logw::AbstractVector,
+                         switch::Union{Symbol,Nothing,Tuple{Vararg{Symbol}}})
+        m, K = size(C)
+        ndims(Q) in (2, 3) && size(Q, 1) == size(Q, 2) == m && (ndims(Q) == 2 || size(Q, 3) == K) ||
+            throw(DimensionMismatch("ClusterForm: Q has size $(size(Q)); needs ($m, $m) or ($m, $m, $K)"))
+        for (ch, a) in pairs(A)
+            ndims(a) in (2, 3) && size(a, 1) == m && (ndims(a) == 2 || size(a, 3) == K) ||
+                throw(DimensionMismatch("ClusterForm: A.$ch has size $(size(a)); needs ($m, d) or ($m, d, $K)"))
+        end
+        length(logw) == K || throw(DimensionMismatch("ClusterForm: $(length(logw)) log-weights for $K outcomes"))
+        return new{typeof(A),typeof(C),typeof(Q),typeof(logw)}(A, C, Q, logw, switch)
+    end
 end
+
+# Whether a form's coefficients or noise depend on its outcome, and their values at outcome k.
+_varies(F::ClusterForm) = size(F.C, 1) > 0 && (ndims(F.Q) == 3 || any(a -> ndims(a) == 3, values(F.A)))
+_at(a::AbstractMatrix, _) = a
+_at(a::AbstractArray{<:Any,3}, k) = a[:, :, k]
 
 """
     cluster_form(factor, ps) -> ClusterForm
@@ -190,6 +214,23 @@ LuxCore.initialparameters(rng::AbstractRNG, c::ClusterFactor) = NamedTuple{Tuple
 LuxCore.initialstates(rng::AbstractRNG, c::ClusterFactor) = NamedTuple{Tuple(_unique_keys(c))}(
     Tuple(LuxCore.initialstates(rng, c.factors[findfirst(==(k), c.keys)]) for k in _unique_keys(c)))
 uses_cavity(::ClusterFactor) = true
+
+"""
+    as_cluster(factor) -> ClusterFactor
+
+One factor as a cluster node over its own channels (variables named after them, parameters
+under the key `:factor`): its exact belief-propagation messages and Bethe free energy outside a
+cluster, for a factor that has only a [`cluster_form`](@ref). Call the result with parameters
+`(factor = ps,)` and inputs keyed by the factor's channel names.
+"""
+function as_cluster(f)
+    names = [LenticulumCore.channelname(ch) for ch in LenticulumCore.channels(f)]
+    dims = Dict(LenticulumCore.channelname(ch) => Int(LenticulumCore.channelspace(ch)) for ch in LenticulumCore.channels(f))
+    sws = cluster_switch(f)
+    discrete = sws === nothing ? Symbol[] : collect(Symbol, sws isa Symbol ? (sws,) : sws)
+    return ClusterFactor([:factor], [:factor], Any[f], [[n => n for n in names]], names, dims, discrete,
+                         [n for n in names if !(n in discrete)], names)
+end
 
 # --- The graph transformation -------------------------------------------------------
 
@@ -438,16 +479,20 @@ end
 
 # The cluster's joint in canonical form, given its incoming messages (`msgs`, keyed by boundary
 # variable; `skip` excluded): the free continuous variables and their offsets, the points
-# substituted, the assignments of the discrete variables, J, one h and one constant per assignment.
+# substituted, the assignments of the discrete variables, one h and one constant per assignment,
+# and the precision of each precision class (`J[class[a]]` for assignment a; one class unless a
+# factor's A or Q depends on its outcome).
 struct _ClusterJoint
     free::Vector{Symbol}
     offset::Dict{Symbol,UnitRange{Int}}
     points::Dict{Symbol,Vector{Float64}}
     assignments::Vector{Vector{Int}}           # per assignment: the state of each discrete variable
-    J::Matrix{Float64}
+    J::Vector{Matrix{Float64}}                 # per precision class
+    class::Vector{Int}                         # per assignment: its precision class
     H::Matrix{Float64}                         # n × nA
     c::Vector{Float64}                         # nA
 end
+_members(jt, κ) = findall(==(κ), jt.class)
 
 _incoming(msgs, v, skip) = v === skip ? nothing : (haskey(msgs, v) ? getfield(msgs, v) : nothing)
 _cluster_input(b) = b
@@ -517,7 +562,10 @@ function _cluster_joint(c::ClusterFactor, msgs, ps, skip)
     wirings = [Dict(w) for w in c.wiring]
     assignments, cst = _enumerate_assignments(c, forms, wirings, states, lps)
     nA = length(assignments)
+    kcols = [_switch_columns(c, F, w, assignments) for (F, w) in zip(forms, wirings)]
+    class, keys_ = _precision_classes(forms, kcols, nA)
     J = zeros(n, n); H = zeros(n, nA)
+    Js = [zeros(n, n) for _ in keys_]
     # incoming Gaussian messages on free boundary variables
     for v in free
         b = _cluster_input(_incoming(msgs, v, skip))
@@ -526,25 +574,55 @@ function _cluster_joint(c::ClusterFactor, msgs, ps, skip)
         J[o, o] .+= b.Λ
         H[o, :] .+= b.η
     end
-    for (F, w) in zip(forms, wirings)
+    vf = 0
+    for (F, w, kcol) in zip(forms, wirings, kcols)
         m = size(F.C, 1)
         m == 0 && continue
-        kcol = _switch_columns(c, F, w, assignments)
-        G = zeros(m, n)
-        shift = zeros(m)
-        for (ch, Ach) in pairs(F.A)
-            v = w[ch]
-            haskey(points, v) ? (shift .+= Ach * points[v]) : (G[:, offset[v]] .+= Ach)
+        varies = _varies(F)
+        varies && (vf += 1)
+        for k in (varies ? unique(kcol) : [0])
+            idx = varies ? findall(==(k), kcol) : collect(1:nA)
+            G = zeros(m, n)
+            shift = zeros(m)
+            for (ch, Ach) in pairs(F.A)
+                v = w[ch]
+                Ak = _at(Ach, k)
+                haskey(points, v) ? (shift .+= Ak * points[v]) : (G[:, offset[v]] .+= Ak)
+            end
+            CQ = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Matrix(_at(F.Q, k))))
+            Cc = F.C[:, kcol[idx]] .- shift                 # r = G x − c_a
+            QiC = CQ \ Cc
+            GQG = G' * (CQ \ G)
+            if varies                                       # into the classes with this outcome
+                for (κ, key) in enumerate(keys_)
+                    key[vf] == k && (Js[κ] .+= GQG)
+                end
+            else
+                J .+= GQG
+            end
+            H[:, idx] .+= G' * QiC
+            cst[idx] .+= -vec(sum(Cc .* QiC; dims = 1)) ./ 2 .- (logdet(CQ) + m * log(2π)) / 2
         end
-        CQ = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Matrix(F.Q)))
-        Cc = F.C[:, kcol] .- shift                       # r = G x − c_a
-        QiC = CQ \ Cc
-        QiG = CQ \ G
-        J .+= G' * QiG
-        H .+= G' * QiC
-        cst .+= -vec(sum(Cc .* QiC; dims = 1)) ./ 2 .- (logdet(CQ) + m * log(2π)) / 2
     end
-    return _ClusterJoint(free, offset, points, assignments, (J + J') / 2, H, cst)
+    Js = [(Jκ + J + (Jκ + J)') / 2 for Jκ in Js]
+    return _ClusterJoint(free, offset, points, assignments, Js, class, H, cst)
+end
+
+# The precision class of each assignment: the outcomes it gives the factors whose A or Q depends
+# on their outcome (`kcols[f][a]`, the column factor f reads), numbered in order of appearance.
+function _precision_classes(forms, kcols, nA)
+    vary = [i for (i, F) in enumerate(forms) if _varies(F)]
+    keys_ = Vector{Vector{Int}}()
+    index = Dict{Vector{Int},Int}()
+    class = Vector{Int}(undef, nA)
+    for a in 1:nA
+        key = [kcols[i][a] for i in vary]
+        class[a] = get!(index, key) do
+            push!(keys_, key); length(keys_)
+        end
+    end
+    isempty(keys_) && push!(keys_, Int[])
+    return class, keys_
 end
 
 # log ∫ exp(hᵀx − xᵀJx/2) dx for each column of H, with J positive definite.
@@ -552,12 +630,21 @@ end
 _cached(::Nothing, _, f) = f()
 _cached(chol::AbstractDict, k, f) = get!(f, chol, k)
 
-function _log_integrals(J, H, what, chol = nothing)
-    size(J, 1) == 0 && return zeros(size(H, 2))
-    C = _cached(chol, :CJ, () -> LinearAlgebra.cholesky(LinearAlgebra.Symmetric(J); check = false))
-    LinearAlgebra.issuccess(C) || throw(ArgumentError(
-        "cluster: $what are not determined by the cluster's factors and incoming messages (singular precision)"))
-    return vec(sum(H .* (C \ H); dims = 1)) ./ 2 .- logdet(C) / 2 .+ size(J, 1) * log(2π) / 2
+# log ∫ exp(hᵀx − xᵀJ_κx/2) dx for each assignment (column of H), J_κ its class's precision,
+# positive definite. Factorisations are cached per class.
+function _log_integrals(jt::_ClusterJoint, what, chol = nothing)
+    n = size(jt.H, 1)
+    n == 0 && return zeros(size(jt.H, 2))
+    out = zeros(size(jt.H, 2))
+    for κ in eachindex(jt.J)
+        idx = _members(jt, κ)
+        C = _cached(chol, (:CJ, κ), () -> LinearAlgebra.cholesky(LinearAlgebra.Symmetric(jt.J[κ]); check = false))
+        LinearAlgebra.issuccess(C) || throw(ArgumentError(
+            "cluster: $what are not determined by the cluster's factors and incoming messages (singular precision)"))
+        Hκ = jt.H[:, idx]
+        out[idx] .= vec(sum(Hκ .* (C \ Hκ); dims = 1)) ./ 2 .- logdet(C) / 2 .+ n * log(2π) / 2
+    end
+    return out
 end
 
 _lse(v) = (m = maximum(v); m == -Inf ? -Inf : m + log(sum(exp.(v .- m))))
@@ -567,10 +654,11 @@ _lse(v) = (m = maximum(v); m == -Inf ? -Inf : m + log(sum(exp.(v .- m))))
 
 The exact message of the cluster to one of its channels, given the others' messages: every joint
 assignment of the discrete variables is enumerated, and the continuous variables other than the
-target are eliminated from that assignment's Gaussian (one precision for all). To a continuous
-channel the message is a mixture over the assignments (a `GaussianBelief` if there is one); to a
-discrete channel a `CategoricalBelief`. Points are substituted; a Gaussian-mixture input is
-collapsed to its moments.
+target are eliminated from that assignment's Gaussian. To a continuous channel the message is a
+mixture over the assignments (a `GaussianBelief` if there is one); its components have one
+precision per precision class, and improper components must share theirs. To a discrete
+channel a `CategoricalBelief`. Points are substituted; a Gaussian-mixture input is collapsed to
+its moments.
 """
 function factor_message(c::ClusterFactor, target::Symbol, polarity, inputs, prior, ps, st)
     target in c.boundary || throw(ArgumentError("channel :$target is not a channel of this cluster (has $(c.boundary))"))
@@ -578,11 +666,12 @@ function factor_message(c::ClusterFactor, target::Symbol, polarity, inputs, prio
     return _joint_message(c, jt, target, nothing), st
 end
 
-# The message to `target` from a joint. `chol` caches the factorisations, which depend on J only:
-# `nothing`, or a `Dict` filled on first use (tied replicas sharing J reuse it, `cluster_batch.jl`).
+# The message to `target` from a joint. `chol` caches the factorisations, which depend on the
+# classes' precisions only: `nothing`, or a `Dict` filled on first use (tied replicas sharing them
+# reuse it, `cluster_batch.jl`).
 function _joint_message(c::ClusterFactor, jt::_ClusterJoint, target::Symbol, chol)
     if target in c.discrete
-        l = jt.c .+ _log_integrals(jt.J, jt.H, "its continuous variables", chol)
+        l = jt.c .+ _log_integrals(jt, "its continuous variables", chol)
         j = findfirst(==(target), c.discrete)
         K = c.dims[target]
         lk = [_lse([l[a] for a in eachindex(l) if jt.assignments[a][j] == k]; ) for k in 1:K]
@@ -590,43 +679,58 @@ function _joint_message(c::ClusterFactor, jt::_ClusterJoint, target::Symbol, cho
         return LenticulumCore.CategoricalBelief(Val(:log), lk .- _lse(lk), nothing)
     end
     ot = jt.offset[target]
-    rs = setdiff(1:size(jt.J, 1), ot)
-    Jrr, Jtr, Jtt = jt.J[rs, rs], jt.J[ot, rs], jt.J[ot, ot]
-    Hr, Ht = jt.H[rs, :], jt.H[ot, :]
-    if isempty(rs)
-        Λ, E, l = Jtt, Ht, copy(jt.c)
-    else
-        Cr = _cached(chol, :Cr, () -> LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Jrr); check = false))
-        LinearAlgebra.issuccess(Cr) || throw(ArgumentError(
-            "cluster: the continuous variables other than :$target are not determined by the cluster's factors and incoming messages"))
-        X = Cr \ Hr
-        Λ = _cached(chol, :Λ, () -> Jtt - Jtr * (Cr \ Jtr'))
-        E = Ht - Jtr * X
-        l = jt.c .+ vec(sum(Hr .* X; dims = 1)) ./ 2 .- logdet(Cr) / 2 .+ length(rs) * log(2π) / 2
-    end
-    Λ = (Λ + Λ') / 2
-    all(iszero, Λ) && all(iszero, E) && return LenticulumCore.TrivialBelief()
+    rs = setdiff(1:size(jt.H, 1), ot)
     d = length(ot)
-    CΛ = _cached(chol, :CΛ, () -> LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Λ); check = false))
-    proper = LinearAlgebra.issuccess(CΛ)
-    if proper                                   # normalised components: their mass into the weight
-        l = l .+ vec(sum(E .* (CΛ \ E); dims = 1)) ./ 2 .- logdet(CΛ) / 2 .+ d * log(2π) / 2
+    nA = size(jt.H, 2)
+    E = zeros(d, nA); l = copy(jt.c)
+    Λs = Matrix{Float64}[]; proper = Bool[]
+    for κ in eachindex(jt.J)
+        idx = _members(jt, κ)
+        Jκ = jt.J[κ]
+        Jtt = Jκ[ot, ot]
+        Hr, Ht = jt.H[rs, idx], jt.H[ot, idx]
+        if isempty(rs)
+            Λ = Jtt
+            E[:, idx] .= Ht
+        else
+            Jtr = Jκ[ot, rs]
+            Cr = _cached(chol, (:Cr, κ), () -> LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Jκ[rs, rs]); check = false))
+            LinearAlgebra.issuccess(Cr) || throw(ArgumentError(
+                "cluster: the continuous variables other than :$target are not determined by the cluster's factors and incoming messages"))
+            X = Cr \ Hr
+            Λ = _cached(chol, (:Λ, κ), () -> Jtt - Jtr * (Cr \ Jtr'))
+            E[:, idx] .= Ht - Jtr * X
+            l[idx] .+= vec(sum(Hr .* X; dims = 1)) ./ 2 .- logdet(Cr) / 2 .+ length(rs) * log(2π) / 2
+        end
+        Λ = (Λ + Λ') / 2
+        CΛ = _cached(chol, (:CΛ, κ), () -> LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Λ); check = false))
+        ok = LinearAlgebra.issuccess(CΛ)
+        if ok                                   # normalised components: their mass into the weight
+            Eκ = E[:, idx]
+            l[idx] .+= vec(sum(Eκ .* (CΛ \ Eκ); dims = 1)) ./ 2 .- logdet(CΛ) / 2 .+ d * log(2π) / 2
+        end
+        push!(Λs, Λ); push!(proper, ok)
+    end
+    if length(Λs) > 1 && !all(proper) && !all(==(Λs[1]), Λs)
+        throw(ArgumentError("cluster: the message to :$target has improper components with different precisions, " *
+                            "which cannot be weighted consistently (cluster.md, \"Per-outcome coefficients and noise\")"))
     end
     keep = findall(>(-Inf), l)
     isempty(keep) && throw(ArgumentError("cluster: every assignment has zero probability"))
+    length(Λs) == 1 && all(iszero, Λs[1]) && all(iszero, E) && return LenticulumCore.TrivialBelief()
     # assignments the target does not see (internal discrete variables that do not move it) give
     # equal components; they are merged, their weights summed
-    groups = Dict{Vector{Float64},Vector{Int}}()
-    order = Vector{Vector{Float64}}()
+    groups = Dict{Tuple{Int,Vector{Float64}},Vector{Int}}()
+    order = Vector{Tuple{Int,Vector{Float64}}}()
     for a in keep
-        col = E[:, a]
-        haskey(groups, col) || (groups[col] = Int[]; push!(order, col))
-        push!(groups[col], a)
+        key = (findfirst(==(Λs[jt.class[a]]), Λs), E[:, a])  # equal precisions count as one
+        haskey(groups, key) || (groups[key] = Int[]; push!(order, key))
+        push!(groups[key], a)
     end
-    length(order) == 1 && return GaussianBelief(only(order), Λ, !proper)
-    comps = [GaussianBelief(col, Λ, !proper) for col in order]
-    lk = [_lse(l[groups[col]]) for col in order]
-    return LenticulumCore.MixtureBelief(Val(:log), comps, lk .- _lse(lk))
+    comp((κ, col)) = GaussianBelief(col, Λs[κ], !proper[κ])
+    length(order) == 1 && return comp(only(order))
+    lk = [_lse(l[groups[key]]) for key in order]
+    return LenticulumCore.MixtureBelief(Val(:log), [comp(key) for key in order], lk .- _lse(lk))
 end
 
 # --- The free energy --------------------------------------------------------------
@@ -636,14 +740,15 @@ end
 
 The cluster's belief ``b(x, a) \\propto \\prod_f f(x, a) \\prod_v \\mu_v``, held fixed: the posterior `q` over
 the discrete assignments, the means of the free continuous variables per assignment (columns of
-`M`), their covariance `Σ` (one for all assignments), the conditional entropy ``H(x \\mid a)``, the
-substituted points, and the assignments.
+`M`), their covariance per precision class (`Σ[class[a]]`) and its conditional entropy
+``H(x \\mid a)`` (`H[class[a]]`), the substituted points, and the assignments.
 """
-struct FrozenClusterBelief{Q<:AbstractVector,M<:AbstractMatrix,S<:AbstractMatrix,H<:Real}
+struct FrozenClusterBelief{Q<:AbstractVector,M<:AbstractMatrix,S<:AbstractVector,H<:AbstractVector}
     q::Q
     M::M
     Σ::S
     H::H
+    class::Vector{Int}
     free::Vector{Symbol}
     offset::Dict{Symbol,UnitRange{Int}}
     points::Dict{Symbol,Vector{Float64}}
@@ -653,18 +758,24 @@ end
 factor_belief(c::ClusterFactor, msgs, ps, st) = _joint_belief(_cluster_joint(c, msgs, ps, nothing), nothing)
 
 function _joint_belief(jt::_ClusterJoint, chol)
-    n = size(jt.J, 1)
-    l = jt.c .+ _log_integrals(jt.J, jt.H, "its continuous variables", chol)
+    n = size(jt.H, 1)
+    l = jt.c .+ _log_integrals(jt, "its continuous variables", chol)
     all(==(-Inf), l) && throw(ArgumentError("cluster: every assignment has zero probability"))
     q = exp.(l .- _lse(l))
-    if n == 0
-        M, Σ, H = zeros(0, length(q)), zeros(0, 0), 0.0
-    else
-        C = _cached(chol, :CJ, () -> LinearAlgebra.cholesky(LinearAlgebra.Symmetric(jt.J); check = false))
-        M = C \ jt.H
-        Σ, H = _cached(chol, :ΣH, () -> (Matrix(inv(C)), n * (1 + log(2π)) / 2 - logdet(C) / 2))
+    M = zeros(n, length(q))
+    Σs = Matrix{Float64}[]; Hs = Float64[]
+    for κ in eachindex(jt.J)
+        if n == 0
+            push!(Σs, zeros(0, 0)); push!(Hs, 0.0)
+            continue
+        end
+        C = _cached(chol, (:CJ, κ), () -> LinearAlgebra.cholesky(LinearAlgebra.Symmetric(jt.J[κ]); check = false))
+        idx = _members(jt, κ)
+        M[:, idx] .= C \ jt.H[:, idx]
+        Σ, H = _cached(chol, (:ΣH, κ), () -> (Matrix(inv(C)), n * (1 + log(2π)) / 2 - logdet(C) / 2))
+        push!(Σs, Σ); push!(Hs, H)
     end
-    return FrozenClusterBelief(q, M, Σ, H, jt.free, jt.offset, jt.points, jt.assignments)
+    return FrozenClusterBelief(q, M, Σs, Hs, jt.class, jt.free, jt.offset, jt.points, jt.assignments)
 end
 
 """
@@ -672,22 +783,29 @@ end
     Mycelium.belief_free_energy(c::ClusterFactor, b::FrozenClusterBelief, ps, st)
 
 ``\\mathbb E_b[-\\log \\prod_f f] - H(b)`` for the cluster's exact belief, graded as `(fit, complexity,
-negentropy)`: `fit` is ``\\sum_f \\sum_a q_a \\tfrac12 \\mathbb E[r_f^\\top Q_f^{-1} r_f \\mid a]``, `complexity`
-``\\sum_f (\\tfrac12 \\log\\det 2\\pi Q_f - \\sum_a q_a \\log w_{f,a})``, and `negentropy` ``-H(q) - H(x \\mid a)``, closed form
-since given the assignment the continuous part is one Gaussian. `belief_free_energy` re-evaluates
-the factors' terms at `ps` with the belief fixed (the parameter gradient, LP-020).
+negentropy)`: `fit` is ``\\sum_f \\sum_a q_a \\tfrac12 \\mathbb E[r_f^\\top Q_{f,a}^{-1} r_f \\mid a]``, `complexity`
+``\\sum_f \\sum_a q_a (\\tfrac12 \\log\\det 2\\pi Q_{f,a} - \\log w_{f,a})``, and `negentropy`
+``-H(q) - \\sum_a q_a H(x \\mid a)``, closed form since given the assignment the continuous part is
+one Gaussian. `belief_free_energy` re-evaluates the factors' terms at `ps` with the belief fixed
+(the parameter gradient, LP-020).
 """
 local_free_energy(c::ClusterFactor, msgs, ps, st) = belief_free_energy(c, factor_belief(c, msgs, ps, st), ps, st)
 
-# Which outcome column each assignment reads, which channels feed each free variable, and which
-# channels hold points: structure only, computed outside AD (`@non_differentiable` in the
-# ChainRulesCore extension).
+# Which outcome column each assignment reads, the groups of assignments that read one outcome's
+# A and Q (one group if they do not depend on the outcome) with the belief's weight on each
+# precision class within the group, which channels feed each free variable, and which channels
+# hold points: structure only, computed outside AD (`@non_differentiable` in the ChainRulesCore
+# extension).
 function _cluster_layout(c::ClusterFactor, i::Int, F::ClusterForm, b::FrozenClusterBelief)
     w = Dict(c.wiring[i])
     kcol = _switch_columns(c, F, w, b.assignments)
+    groups = map(_varies(F) ? unique(kcol) : [0]) do k
+        idx = _varies(F) ? findall(==(k), kcol) : collect(eachindex(kcol))
+        (k, idx, [sum(b.q[a] for a in idx if b.class[a] == κ; init = 0.0) for κ in eachindex(b.Σ)])
+    end
     feeds = [[ch for ch in keys(F.A) if w[ch] === v] for v in b.free]
     pts = [(ch, b.points[w[ch]]) for ch in keys(F.A) if haskey(b.points, w[ch])]
-    return kcol, feeds, pts
+    return kcol, groups, feeds, pts
 end
 
 _finite_logw(lw) = map(x -> x == -Inf ? zero(x) : x, lw)
@@ -696,30 +814,34 @@ function belief_free_energy(c::ClusterFactor, b::FrozenClusterBelief, ps, st)
     n = size(b.M, 1)
     terms = map(eachindex(c.factors)) do i
         F = cluster_form(c.factors[i], _subtree(ps, c.keys[i]))
-        kcol, feeds, pts = _cluster_layout(c, i, F, b)
+        kcol, groups, feeds, pts = _cluster_layout(c, i, F, b)
         # an impossible outcome (log-weight -Inf) has q = 0 exactly, and its 0·log 0 term is 0; the
         # entry is replaced before the product so that no AD backend meets 0 · (-Inf)
         cx = -sum(b.q .* _finite_logw(F.logw[kcol]))
         m = size(F.C, 1)
         m == 0 && return (0.0, cx)
-        R = -F.C[:, kcol]
-        for (ch, x) in pts
-            R = R .+ getfield(F.A, ch) * x
+        parts = map(groups) do (k, idx, wκ)
+            R = -F.C[:, kcol[idx]]
+            for (ch, x) in pts
+                R = R .+ _at(getfield(F.A, ch), k) * x
+            end
+            CQ = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Matrix(_at(F.Q, k))))
+            tr = 0.0
+            if n > 0
+                G = reduce(hcat, [isempty(chs) ? zeros(m, length(b.offset[v])) : reduce(+, [_at(getfield(F.A, ch), k) for ch in chs])
+                                  for (v, chs) in zip(b.free, feeds)])
+                R = R .+ G * b.M[:, idx]
+                tr = sum(map(κ -> wκ[κ] * LinearAlgebra.tr(CQ \ (G * b.Σ[κ] * G')), eachindex(wκ)))
+            end
+            quad = vec(sum(R .* (CQ \ R); dims = 1))
+            ((sum(b.q[idx] .* quad) + tr) / 2, sum(wκ) * (logdet(CQ) + m * log(2π)) / 2)
         end
-        Cr = zeros(m, m)
-        if n > 0
-            G = reduce(hcat, [isempty(chs) ? zeros(m, length(b.offset[v])) : reduce(+, [getfield(F.A, ch) for ch in chs])
-                              for (v, chs) in zip(b.free, feeds)])
-            R = R .+ G * b.M
-            Cr = G * b.Σ * G'
-        end
-        CQ = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Matrix(F.Q)))
-        quad = vec(sum(R .* (CQ \ R); dims = 1))
-        return ((sum(b.q .* quad) + LinearAlgebra.tr(CQ \ Cr)) / 2, cx + (logdet(CQ) + m * log(2π)) / 2)
+        return (sum(first, parts), cx + sum(last, parts))
     end
     fit, complexity = sum(first, terms), sum(last, terms)
     Hq = -sum(ifelse.(b.q .> 0, b.q .* log.(max.(b.q, floatmin(Float64))), 0.0))
-    return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -Hq - b.H)), st
+    Hx = sum(b.q .* b.H[b.class])
+    return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -Hq - Hx)), st
 end
 
 """
@@ -746,8 +868,8 @@ function cluster_marginal(s::AbstractMessageStore, gc::FactorGraph, name::Symbol
     end
     haskey(b.points, v) && return LenticulumCore.DiracBelief(b.points[v])
     o = b.offset[v]
-    S = Matrix(LinearAlgebra.Symmetric(b.Σ[o, o]))
-    comps = [LenticulumCore.Gaussian(b.M[o, a], S) for a in eachindex(b.q) if b.q[a] > 0]
+    S = [Matrix(LinearAlgebra.Symmetric(Σ[o, o])) for Σ in b.Σ]
+    comps = [LenticulumCore.Gaussian(b.M[o, a], S[b.class[a]]) for a in eachindex(b.q) if b.q[a] > 0]
     length(comps) == 1 && return only(comps)
     return LenticulumCore.MixtureBelief(comps, b.q[b.q .> 0])
 end

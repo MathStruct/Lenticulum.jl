@@ -111,7 +111,8 @@ otherwise include $H(q)$. Checked against Monte Carlo in `test/mean_field_free_e
   Gaussians have different precisions: the message to a continuous channel is still a mixture,
   but the components no longer share a precision, and improper components with different
   precisions cannot be weighted consistently. Experiment E1's two crossing lines need this (different
-  $A_k$). Not implemented.
+  $A_k$). Not in this factor; since 2026-11-04 `RegimeFactor` (`regime.md`) is that factor, exact
+  inside a cluster node and a one-factor cluster outside one.
 - **Mixture inputs** are collapsed to their moments before use, in the messages and in the free
   energy, as for `LinearConstraintFactor` (`gaussian.md`, "Mixture inputs"). So a chain of
   switching factors on belief propagation runs as assumed-density filtering, and experiment E6 measured the

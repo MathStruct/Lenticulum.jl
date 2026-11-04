@@ -171,19 +171,66 @@ scratch timing gave sweeps plus free energy 3.7 times and the gradient 6 times f
 unplated clusters, at equal values ($9 \cdot 10^{-13}$, $10^{-11}$). The examples' timings are in
 `examples/structure_edits.md` and `examples/structure_clusters.md`.
 
+## Per-outcome coefficients and noise (2026-11-04)
+
+A `ClusterForm` may give an entry of $A$ as an $m \times d \times K$ array and $Q$ as an $m \times m \times K$ array:
+the factor's coefficients $A_{c,k}$ and noise $Q_k$ then depend on its outcome $k$, as in Lenticulum's
+`RegimeFactor` (`src/regime.md`). Given the assignment $a$ of the cluster's discrete variables the
+continuous ones are still jointly Gaussian, but the precision
+
+$$
+J_a = J_0 + \sum_{f \text{ varying}} G_{f,k_f(a)}^\top Q_{f,k_f(a)}^{-1} G_{f,k_f(a)}
+$$
+
+now depends on $a$ through the outcomes $k_f(a)$ of the varying factors only ($J_0$ holds the incoming
+messages and the factors whose $A$ and $Q$ do not vary). The assignments are grouped into
+**precision classes**, one per combination of those outcomes; each class is factorised once
+(`_precision_classes`, the factorisation cache is keyed by class). Without a varying factor there
+is one class and every computation is the one above.
+
+- **Messages.** To a discrete channel nothing changes but the class-wise log-integrals. To a
+  continuous channel each class gives its own precision $\Lambda_\kappa = J_{tt} - J_{tr} J_{rr}^{-1} J_{rt}$, so the
+  message is a mixture whose components need not share a precision. Components are merged when
+  both their precision and their natural mean are equal. If a component is improper and the
+  classes' precisions differ, the message is refused: an improper component has no
+  normalising mass, and with one precision for all the unnormalised weights are comparable (the
+  same infinite factor cancels), with several they are not (`switching.md` §5).
+- **Belief and free energy.** `FrozenClusterBelief` holds one covariance $\Sigma_\kappa$ and one entropy
+  $H(x \mid \kappa)$ per class and the class of each assignment. In the free energy a factor whose $A$ and $Q$
+  vary is evaluated per outcome group: its residual means with $A_{c,k}$, its trace term
+  $\sum_\kappa q_{k,\kappa} \operatorname{tr}(Q_k^{-1} G_k \Sigma_\kappa G_k^\top)$ with $q_{k,\kappa}$ the belief's mass on the assignments of outcome $k$ in
+  class $\kappa$, and its $\tfrac12 \log\det 2\pi Q_k$ weighted by the mass on outcome $k$. The negentropy is
+  $-H(q) - \sum_a q_a H(x \mid \kappa(a))$.
+- **Plates.** Replicas with a varying factor are not batched (`_cluster_batchable` is false): the
+  data terms $G_k^\top Q_k^{-1} s$ would differ per class, and the batched path assumes one precision. They
+  take the per-replica path, with the same results.
+- **One factor outside a cluster.** `as_cluster(f)` is a factor as a one-factor cluster over its
+  own channels. A factor stated only by a `cluster_form` gets its messages and Bethe free energy
+  from it (Lenticulum's `RegimeFactor` does).
+
+Tests: Lenticulum `test/regime.jl`. A mixture of factor analysers ($x \sim \mathcal N(0, I)$, $z = W_k x + \mu_k + \varepsilon_k$,
+three regimes with different $W_k$ and $Q_k$) in one cluster gives $F = -\log p(z)$ to $10^{-12}$, the regime
+posterior and the three posteriors of $x$ (each with its own covariance) to $10^{-12}$; the gradient in
+$A$, $b$, $\log w$ and the noise's Cholesky factors agrees with central differences of $-\log p(z)$ to $10^{-6}$
+(ForwardDiff and Zygote); over a plate of four points the per-replica path is taken and is exact.
+
 ## What it does not do
 
-- **Factors outside the conditionally linear-Gaussian class.** A factor needs `cluster_form`, and
-  its $A$ and $Q$ must not depend on the outcome (as the switching factor's do not). `DataFactor`
-  stays outside: data reaches the cluster as point messages.
+- **Factors outside the conditionally linear-Gaussian class.** A factor needs `cluster_form`
+  (its $A$ and $Q$ may depend on its outcome since 2026-11-04, above). `DataFactor` stays outside:
+  data reaches the cluster as point messages.
+- **Improper messages with several precisions.** Refused (above); so is a flat continuous
+  direction in general (next item).
 - **Undetermined continuous variables.** Elimination needs $J_{rr}$ (or $J$) positive definite: every
   continuous variable must be pinned down by the cluster's factors and the incoming messages. A
   flat direction is refused rather than integrated under a flat prior, as the constraint factors
   do it.
-- **Enumeration is exponential.** At most $2^{16}$ joint discrete states; components are not merged,
-  so a message to a variable that some switches do not touch repeats components.
-- **Plates, frozen parameters, other rules, other couplings.** `cluster` refuses graphs with
-  plates, frozen parameter paths, nodes that are not on belief propagation, a parameter key tied
+- **Enumeration is exponential.** At most $2^{16}$ joint discrete states of nonzero weight (pruned as
+  they are built, above); equal components of a message are merged, but nothing reduces the
+  number of distinct ones. Precision classes add one factorisation each.
+- **Plates, frozen parameters, other rules, other couplings.** `cluster(g, groups)` refuses graphs
+  with plates (`cluster(g, plate, name, factors)` clusters a plate's factors, on a graph with one
+  plate), frozen parameter paths, nodes that are not on belief propagation, a parameter key tied
   to a node outside, and edges that are not bidirectional, diagonal and attached. The cluster node
   itself is a belief-propagation node; differentiating through inference (`adjoint = :implicit`)
   is not tested with it.

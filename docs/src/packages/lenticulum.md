@@ -37,6 +37,7 @@ pseudo-mean.
 | `GaussianPrior` | ``\mathcal{N}(\mu, \Sigma)`` on one channel | one |
 | `LinearConstraintFactor` | ``0 = \sum_i A_i x_i - c + \varepsilon`` | **any number** |
 | `SwitchingConstraintFactor` | ``0 = \sum_i A_i x_i - b_k + \varepsilon``, outcome ``k`` of weight ``w_k`` | any number, plus the outcome |
+| `RegimeFactor` | ``0 = \sum_i A_{i,k} x_i - b_k + \varepsilon_k``, ``\varepsilon_k \sim \mathcal{N}(0, Q_k)``: coefficients and noise per outcome | any number, plus the outcome |
 | `NonlinearFactor` | ``p(y \mid x) = \mathcal{N}(y; f(x), Q)``, ``f`` given | two, named |
 | `LikelihoodFactor` | ``p(y \mid x) = L(y \mid Ax + b)``, ``L`` non-Gaussian (counts, ordered categories) | two, named |
 
@@ -67,7 +68,10 @@ message to the outcome a `CategoricalBelief`, and its local free energy is close
 exact message for mixture inputs (`Mycelium.mixture_message`), used by `rule = MixtureReduction(M)`;
 on `rule = ExpectationPropagationRule()` a switching node sends Gaussian sites instead of
 mixtures. In a plate, tied switching factors send their outcome messages as one block and
-evaluate their free energy in one call (`FrozenSwitchingBeliefs`). The
+evaluate their free energy in one call (`FrozenSwitchingBeliefs`).
+`RegimeFactor` lets the outcome choose the coefficients and the noise as well (mixtures of
+regressions, of factor analysers, Gaussian mixtures with one covariance per component). It is
+exact inside a Mycelium cluster node and is a one-factor cluster outside one. The
 tutorial [mixtures from switching factors](@ref tutorial-switching) works through both. The design
 and the experiments behind it are in
 the vault notes *Switching Constraint Factors* (the theory) and *Composing Stochastic Factors*

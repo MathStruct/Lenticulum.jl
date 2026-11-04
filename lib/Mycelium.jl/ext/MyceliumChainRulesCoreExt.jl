@@ -5,6 +5,7 @@ ChainRulesCore.@non_differentiable Mycelium._active_indices(f, ps)
 ChainRulesCore.@non_differentiable Mycelium._factor_nodes(g)
 ChainRulesCore.@non_differentiable Mycelium._cluster_layout(c, i, F, b)
 ChainRulesCore.@non_differentiable Mycelium._batch_layout(c, i, F, B)
+ChainRulesCore.@non_differentiable Mycelium.as_cluster(f)
 ChainRulesCore.@non_differentiable Mycelium.cluster_form(f::Mycelium.TableFactor, ps)    # a constant table
 ChainRulesCore.@non_differentiable Mycelium._variable_nodes(g)
 ChainRulesCore.@non_differentiable Mycelium.factornode(g, id)

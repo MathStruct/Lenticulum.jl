@@ -342,7 +342,7 @@ end
     @test mb[5].logw ≈ m1.logw && all(k -> mb[5].components[k].η ≈ m1.components[k].η, eachindex(m1.components))
     # replicas whose inputs differ in shape take the per-node path, with the same result
     mixed = [i == 4 ? (z = LenticulumCore.Gaussian(X[:, i], Matrix(0.5I, 2, 2)),) : ins[i] for i in 1:12]
-    @test !Mycelium._cluster_batchable(cs, mixed, nothing) && Mycelium._cluster_batchable(cs, ins, nothing)
+    @test !Mycelium._cluster_batchable(cs, mixed, nothing, ps.mix) && Mycelium._cluster_batchable(cs, ins, nothing, ps.mix)
     # as_plate refusals
     @test_throws ArgumentError as_plate(gp, :again, 12)
     b = GraphBuilder(); variable!(b, Symbol("x[1]"), 1); variable!(b, Symbol("x[2]"), 1); variable!(b, Symbol("y[1]"), 1)

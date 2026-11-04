@@ -32,15 +32,17 @@ function _input_shape(c::ClusterFactor, msgs, skip)
         return bb isa GaussianBelief ? (:gauss, bb.Λ) : (:none,)
     end
 end
-function _cluster_batchable(cs, msgs, skip)
+function _cluster_batchable(cs, msgs, skip, ps)
     length(cs) >= 2 || return false
+    # per-outcome coefficients or noise: several precisions, replica by replica (cluster.md)
+    any(i -> _varies(cluster_form(cs[1].factors[i], _subtree(ps, cs[1].keys[i]))), eachindex(cs[1].factors)) && return false
     c1, k1 = cs[1], _input_shape(cs[1], msgs[1], skip)
     return all(i -> _same_cluster(cs[i], c1) && isequal(_input_shape(cs[i], msgs[i], skip), k1), 2:length(cs))
 end
 
 # The per-factor pieces of a joint that do not depend on the replica's data.
 function _joint_plan(c::ClusterFactor, jt::_ClusterJoint, ps)
-    n = size(jt.J, 1)
+    n = size(jt.H, 1)
     plan = Any[]
     for (i, f) in enumerate(c.factors)
         F = cluster_form(f, _subtree(ps, c.keys[i]))
@@ -65,7 +67,7 @@ function _data_terms(c::ClusterFactor, jt::_ClusterJoint, plan, msgs, skip)
         b = _incoming(msgs, v, skip)
         b isa LenticulumCore.DiracBelief && (points[v] = collect(float.(b.value isa Real ? [b.value] : b.value)))
     end
-    h = zeros(size(jt.J, 1)); δ = zeros(length(jt.assignments))
+    h = zeros(size(jt.H, 1)); δ = zeros(length(jt.assignments))
     for v in jt.free
         b = _cluster_input(_incoming(msgs, v, skip))
         b isa GaussianBelief && (h[jt.offset[v]] .+= b.η)
@@ -91,13 +93,13 @@ function _batch_joints(cs, msgs, ps, skip)
     return map(eachindex(cs)) do i
         i == 1 && return jt1
         h, δ, pts = _data_terms(cs[i], jt1, plan, msgs[i], skip)
-        _ClusterJoint(jt1.free, jt1.offset, pts, jt1.assignments, jt1.J, jt1.H .+ (h .- h1), jt1.c .+ (δ .- δ1))
+        _ClusterJoint(jt1.free, jt1.offset, pts, jt1.assignments, jt1.J, jt1.class, jt1.H .+ (h .- h1), jt1.c .+ (δ .- δ1))
     end
 end
 
 function factor_messages(cs::AbstractVector{<:ClusterFactor}, target::Symbol, polarity, inputs::AbstractVector,
                          priors::AbstractVector, ps, st)
-    if !_cluster_batchable(cs, inputs, target)
+    if !_cluster_batchable(cs, inputs, target, ps)
         out = Vector{Any}(undef, length(cs))
         for i in eachindex(cs)
             out[i], st = factor_message(cs[i], target, polarity, inputs[i], priors[i], ps, st)
@@ -105,7 +107,7 @@ function factor_messages(cs::AbstractVector{<:ClusterFactor}, target::Symbol, po
         return out, st
     end
     target in cs[1].boundary || throw(ArgumentError("channel :$target is not a channel of this cluster (has $(cs[1].boundary))"))
-    chol = Dict{Symbol,Any}()
+    chol = Dict{Any,Any}()
     return Any[_joint_message(cs[i], jt, target, chol) for (i, jt) in enumerate(_batch_joints(cs, inputs, ps, target))], st
 end
 
@@ -131,12 +133,12 @@ end
 
 function factor_beliefs(cs::AbstractVector{<:ClusterFactor}, msgs::NamedTuple, ps, st)
     cols = [_column(msgs, i) for i in eachindex(cs)]
-    _cluster_batchable(cs, cols, nothing) || return [factor_belief(cs[i], cols[i], ps, st) for i in eachindex(cs)]
-    chol = Dict{Symbol,Any}()
+    _cluster_batchable(cs, cols, nothing, ps) || return [factor_belief(cs[i], cols[i], ps, st) for i in eachindex(cs)]
+    chol = Dict{Any,Any}()
     bs = [_joint_belief(jt, chol) for jt in _batch_joints(cs, cols, ps, nothing)]
     b1 = bs[1]
     pts = Dict(v => reduce(hcat, [b.points[v] for b in bs]) for v in keys(b1.points))
-    return FrozenClusterBeliefs(reduce(hcat, [b.q for b in bs]), reduce(hcat, [b.M for b in bs]), b1.Σ, b1.H,
+    return FrozenClusterBeliefs(reduce(hcat, [b.q for b in bs]), reduce(hcat, [b.M for b in bs]), only(b1.Σ), only(b1.H),
                                 b1.free, b1.offset, pts, b1.assignments)
 end
 
