@@ -27,7 +27,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Bibliography</loc>
-    <lastmod>2026-11-03T15:28:05.000Z</lastmod>
+    <lastmod>2026-11-04T11:52:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Comparisons/Geometric-Deep-Learning-and-Physical-Laws</loc>
     <lastmod>2026-10-15T11:05:36.000Z</lastmod>
@@ -186,7 +186,7 @@
     <lastmod>2026-10-26T01:19:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-11-04T02:40:32.747Z</lastmod>
+    <lastmod>2026-11-04T11:52:26.602Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-10-25T22:36:28.000Z</lastmod>
@@ -432,7 +432,7 @@
     <lastmod>2026-11-03T15:28:05.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-009-Cluster-Nodes</loc>
-    <lastmod>2026-11-04T02:40:18.000Z</lastmod>
+    <lastmod>2026-11-04T11:52:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Specifications/L-SPEC-010-Structure-Edits</loc>
     <lastmod>2026-11-04T02:13:36.000Z</lastmod>
@@ -576,7 +576,7 @@
     <lastmod>2026-11-03T18:02:07.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/cluster</loc>
-    <lastmod>2026-11-04T02:40:18.000Z</lastmod>
+    <lastmod>2026-11-04T11:52:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/edits</loc>
     <lastmod>2026-11-03T18:02:07.000Z</lastmod>
@@ -698,6 +698,9 @@
     <loc>https://mathstruct.org/Lenticulum.jl/preview/src/nonlinear</loc>
     <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/src/regime</loc>
+    <lastmod>2026-11-04T11:52:10.000Z</lastmod>
+  </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/src/switching</loc>
-    <lastmod>2026-11-03T23:12:10.000Z</lastmod>
+    <lastmod>2026-11-04T10:24:40.000Z</lastmod>
   </url></urlset>
