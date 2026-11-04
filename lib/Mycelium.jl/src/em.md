@@ -61,11 +61,14 @@ both reaching $F = 504.6574$. Per call: an E-step (two sweeps and $F$) 0.017 s, 
 ForwardDiff gradient 0.01 s. `em_step` builds every replica's belief on its own; the gradient uses
 the plate's batched beliefs.
 
-The whole search improves less, 177 s against 192–200 s on the same day with the same path and
-scores. Fitting is not the bottleneck there: the first fit of every new structure spends 11–22 s
-compiling (each `L` is a new parameter type, and inference is specialised on it), and the
-over-parameterised `L = 4` candidates need 130–170 SQUAREM cycles (30–50 s; their $F$, 504.879, is
-lower than the gradient fit's). Per-fit timings from an instrumented scratch copy of the example.
+The whole search improved less at first, 177 s against 192–200 s on the same day with the same path
+and scores. Fitting was not the bottleneck there: the first fit of every new structure spent 11–22 s
+compiling (each `L` is a new parameter type, and the message loop was specialised on it), and the
+over-parameterised `L = 4` candidates needed 130–170 SQUAREM cycles to $\Delta F < 10^{-6}$ (30–50 s; their $F$,
+504.879, is lower than the gradient fit's). Per-fit timings from an instrumented scratch copy.
+The message loop no longer specialises on the parameter tree (`passing.md`, "Compilation per
+structure"), and the example stops EM at $\Delta F < 10^{-4}$ (BIC to $10^{-3}$): the search takes **58.0 s**
+with EM against 163.8 s with gradient steps, the same path and scores.
 
 ## 4. What it does not do
 

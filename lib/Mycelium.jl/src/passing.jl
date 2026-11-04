@@ -255,11 +255,17 @@ With `commit = false` the message is computed but not stored, which is what
 expectation-propagation node without a proper cavity) returns the edge's current message
 (`TrivialBelief()` if it has none) and stores nothing, with either `commit`.
 """
-step!(s::MessageStore, g::FactorGraph, t::MessageTask, ps, st; kwargs...) = Base.front(_step!(s, g, t, ps, st; kwargs...))
+step!(s::MessageStore, g::FactorGraph, t::MessageTask, @nospecialize(ps), @nospecialize(st); kwargs...) = Base.front(_step!(s, g, t, ps, st; kwargs...))
 
 # `step!` and whether the update was skipped: the schedules that compute without committing
 # (flooding, residual) must not store or select a skipped update.
-function _step!(s::MessageStore, g::FactorGraph, t::MessageTask, ps, st;
+#
+# `ps` and `st` are the graph-wide trees, read only through `_subtree` by the node's key. They are
+# not specialised on: their type changes with every new graph structure (a key per node), and
+# inferring this body for a tree of a few hundred keys took 6.9 of the 9.1 s a new structure
+# spent compiling its sweeps (`passing.md`, "Compilation per structure"). The factor's methods
+# still specialise on its own subtree.
+function _step!(s::MessageStore, g::FactorGraph, t::MessageTask, @nospecialize(ps), @nospecialize(st);
                damping::Real = 0.0, commit::Bool = true)
     0 <= damping < 1 || throw(ArgumentError("damping must be in [0, 1); got $damping"))
     e = g.edges[t.edge]
@@ -341,7 +347,7 @@ committed together.
 """
 function sweep! end
 
-function sweep!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, ps, st;
+function sweep!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, @nospecialize(ps), @nospecialize(st);
                 damping::Real = 0.0)
     s.iteration += 1
     maxres = 0.0
@@ -352,7 +358,7 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, ps, st
     return maxres, st
 end
 
-function sweep!(s::MessageStore, g::FactorGraph, sched::FloodingSchedule, ps, st;
+function sweep!(s::MessageStore, g::FactorGraph, sched::FloodingSchedule, @nospecialize(ps), @nospecialize(st);
                 damping::Real = 0.0)
     s.iteration += 1
     ts = tasks(sched)
@@ -380,7 +386,7 @@ function _task_age(s::MessageStore, t::MessageTask)
     return m === nothing ? -1 : m.iteration
 end
 
-function sweep!(s::MessageStore, g::FactorGraph, sched::ResidualSchedule, ps, st;
+function sweep!(s::MessageStore, g::FactorGraph, sched::ResidualSchedule, @nospecialize(ps), @nospecialize(st);
                 damping::Real = 0.0, record = nothing)
     s.iteration += 1
     ts = all_tasks(g)

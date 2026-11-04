@@ -107,8 +107,8 @@ function fit_gradient(gc, L, N, c, sws; steps = 300, η = 0.02, γ = 0.9, s0 = n
     return c, sws, F, s
 end
 # Fit by EM instead (`STRUCTURE_FIT=em`): closed-form M-steps from the cluster beliefs, SQUAREM-
-# accelerated (`Mycelium.fit_em`), until F falls by less than 1e-6. The frozen coefficients stay.
-function fit_by_em(gc, L, N, c, sws; s0 = nothing, iters = 300, tol = 1e-6)
+# accelerated (`Mycelium.fit_em`), until F falls by less than 1e-4 (BIC to 1e-3). The frozen coefficients stay.
+function fit_by_em(gc, L, N, c, sws; s0 = nothing, iters = 300, tol = 1e-4)
     ps = full_ps(gc, make_ps(L, c, sws), N)
     ps, Fs, s = fit_em(gc, ps, NamedTuple(); schedule = plate_schedule(gc), iters, tol, accelerate = true, store = s0)
     return ps.mix.sum.c, Any[ps.mix[Symbol(:sw, l)] for l in 1:L], Fs[end], s

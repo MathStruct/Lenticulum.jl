@@ -459,7 +459,7 @@ end
 
 # --- Grouped execution ---------------------------------------------------------
 
-function sweep!(s::MessageStore, g::FactorGraph, sched::PlateSchedule, ps, st; damping::Real = 0.0)
+function sweep!(s::MessageStore, g::FactorGraph, sched::PlateSchedule, @nospecialize(ps), @nospecialize(st); damping::Real = 0.0)
     0 <= damping < 1 || throw(ArgumentError("damping must be in [0, 1); got $damping"))
     s.iteration += 1
     maxres = 0.0
@@ -591,7 +591,7 @@ _informative_input(s, e) = has_to_factor(s, e) && !LenticulumCore.isuninformativ
 # A group with a `_GroupPlan`: availability is read through the plan's edges, the polarity is
 # resolved and checked on the first member only (the plan holds one layout of channels and
 # directions, and one factor type), and the inputs are gathered without searching edges.
-function _step_planned!(s, g, grp, plan::_GroupPlan, ps, st, damping)
+function _step_planned!(s, g, grp, plan::_GroupPlan, @nospecialize(ps), @nospecialize(st), damping)
     if _has_rows(s, g) && all(!=(0), plan.rows)
         r = _step_blocks!(s, g, grp, plan, ps, st, damping)
         r === nothing || return r
@@ -623,7 +623,7 @@ end
 
 # The planned group on blocks: inputs are the rows' blocks, the result is one block for the target
 # row. Returns `nothing` (nothing done) when a row is partly filled or partly uninformative.
-function _step_blocks!(s, g, grp, plan::_GroupPlan, ps, st, damping)
+function _step_blocks!(s, g, grp, plan::_GroupPlan, @nospecialize(ps), @nospecialize(st), damping)
     n, nc = length(grp), length(plan.channels)
     blocks = Vector{Any}(nothing, nc)
     mask = falses(nc)

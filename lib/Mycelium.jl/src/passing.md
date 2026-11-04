@@ -309,3 +309,18 @@ committing did not. `FloodingSchedule` stored the returned `TrivialBelief()` on 
 message, and `ResidualSchedule` selected the skipped task (residual Inf) and could not commit it.
 `_step!` now also returns whether the update was skipped; flooding leaves such an edge as it is, and
 the residual schedule never selects it. `step!` is unchanged. Test: `test/mixture_rules.jl`.
+
+## Compilation per structure (2026-11-04)
+
+`ps` and `st` are graph-wide trees with a key per parameter key, so their type changes with every
+new graph structure. `step!`, `_step!`, every `sweep!` and the plate group steps
+(`_step_planned!`, `_step_blocks!`) read them only through `_subtree` by the node's key, and are
+now `@nospecialize` in them; the factor's own methods still specialise on its small subtree.
+Measured with SnoopCompile (a scratch script; `examples/structure_edits.jl`'s graphs, 200 points):
+a structure with three switches, after one with two had compiled, spent 9.06 s inferring its first
+two sweeps, 6.93 s of it in `_step!` for a tree of 201 keys; with `@nospecialize`, 1.14 s. Its first
+sweeps took 8.77 s before and 0.70 s after. The example's greedy search fell from 192–200 s to 163.8 s
+with gradient fits and from 177 s to 143 s with EM, the same paths and scores. A ForwardDiff
+gradient still compiles per structure (3.7 s), since the dual numbers' chunk follows the parameter
+count; EM does not use it.
+

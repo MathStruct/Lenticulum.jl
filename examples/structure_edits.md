@@ -35,7 +35,7 @@ graph, each move an edit of it and each candidate scored by the graph's own free
 - **Search.** Greedy from $L = 0$, taking the best improving move. The reference fits every
   $L \le 4$ from 4 random starts.
 
-## Measured (2026-11-03)
+## Measured (2026-11-03; refits 2026-11-04 below)
 
 | step | move | $L$ | BIC |
 |---|---|---|---|
@@ -51,13 +51,13 @@ $L = 0, \dots, 4$. The greedy search took 166 s (734 s before the clusters were 
 **Fitted by EM** (`STRUCTURE_FIT=em julia -t auto --project=docs examples/structure_edits.jl`,
 2026-11-04): `Mycelium.fit_em` with SQUAREM, closed-form M-steps from the cluster beliefs, until $F$
 falls by less than $10^{-6}$. The switches' coefficients are frozen as well, so that their M-step is the
-offsets. The same greedy path and scores (10 923.84 → 6 493.69 → 2 863.19 → 1 067.60) in 177.0 s,
-against 192.5–200.3 s for the gradient fit that day. Reference by EM: 10 923.84, 6 493.69,
-2 863.19, 1 067.60, **1 163.52** for $L = 0, \dots, 4$. EM from the reference's random starts at
-$L = 4$ ends worse than the gradient fit's 1 087.91; the search's warm-started $L = 4$ fits reach
-$F = 504.879$, below the gradient fit's. Fitting is no longer what limits the search: each new
-structure's first fit spends 11–22 s compiling, and the warm fits take 0.6–2.5 s (an instrumented
-scratch copy; `lib/Mycelium.jl/src/em.md` §3).
+offsets; EM stops at $\Delta F < 10^{-4}$. The same greedy path and scores (10 923.84 → 6 493.69 → 2 863.19 →
+1 067.60) in **58.0 s**, against 163.8 s for the gradient fit on the same code (both after the message
+loop stopped specialising on the parameter tree, `lib/Mycelium.jl/src/passing.md`; 177.0 s and
+192.5–200.3 s before). Reference by EM: 10 923.84, 6 493.69, 2 863.19, 1 067.60, **1 163.54** for
+$L = 0, \dots, 4$. EM from the reference's random starts at $L = 4$ ends worse than the gradient fit's
+1 087.91; the search's warm-started $L = 4$ fits reach a lower $F$ than the gradient fit's
+(`lib/Mycelium.jl/src/em.md` §3).
 
 ## What it shows
 
