@@ -70,9 +70,16 @@ per node. Values equal the unplated graph's.
 may be an $m \times d \times K$ array and its `Q` an $m \times m \times K$ array. Assignments are grouped into
 precision classes (one per combination of the varying factors' outcomes), each eliminated with its
 own precision; a message to a continuous channel is then a mixture whose components may differ in
-precision, and is refused if improper components differ. Such nodes are not batched over a plate.
+precision (an improper component is the unnormalised exponential its weight multiplies). Such
+nodes are not batched over a plate.
 `as_cluster(f)` is one factor as a cluster node, for a factor with only a `cluster_form`; Lenticulum's
 `RegimeFactor` ($0 = \sum_i A_{i,k} x_i - b_k + \varepsilon_k$, $\varepsilon_k \sim \mathcal N(0, Q_k)$) is one.
+
+**§10. Flat directions** (added 2026-11-04). Continuous directions that no factor and no incoming
+message determines are integrated out in the diffuse limit (a vague prior $\mathcal N(0, s^2 I)$, $s \to \infty$,
+its factor for the flat directions dropped): pseudo-inverse and pseudo-determinant on the range of
+the precision. Refused when the assignments leave different numbers of directions flat, or when a
+linear term reaches a flat direction. A marginal with a flat direction is improper.
 
 **§5. Parameters and marginals.** The node's parameters are keyed by the clustered factors'
 parameter keys; `cluster_parameters(gc, name, ps)` converts a parameter tree of the original graph.
@@ -103,9 +110,13 @@ posteriors of $x$ to $10^{-12}$; the gradient in $A$, $b$, $\log w$ and the nois
 to $10^{-6}$, ForwardDiff and Zygote), the one-factor cluster's messages against the closed form, and
 a plate of four points.
 
+Flat directions (Lenticulum `test/cluster_flat.jl`): free energies, switch posteriors, gradients and
+messages against the same graphs with a vague prior ($s = 10^4$, corrected for its constant) and
+against closed forms; the refusals.
+
 ## Open
 
-- Flat continuous directions inside a cluster; batching per-outcome forms over a plate.
+- Batching per-outcome forms over a plate.
 - Done 2026-11-03/04: clusters in plates (§8), E7's partial sums from the groups (Lenticulum's
   `partial_sums`), merging repeated components of a message, pruned enumeration, per-outcome
-  coefficients and noise (§9).
+  coefficients and noise (§9), flat directions (§10).

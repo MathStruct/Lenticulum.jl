@@ -116,10 +116,9 @@ end
             dot(η, Λ \ η) / 2 + RG_DX * log(2π) / 2 - logdet(Λ) / 2
     end
     @test exp.(mx.logw) ≈ exp.(lm .- rg_lse(lm)) atol = 1e-12
-    # improper components with different precisions are refused: m = 1 < dim x
+    # improper components with different precisions: `test/cluster_flat.jl`
     f1 = RegimeFactor((z = 1, x = 2), 2, 1; noise = [fill(0.1, 1, 1), fill(0.3, 1, 1)])
     p1 = (A = (z = ones(1, 1, 2), x = cat([-1.0 0.5], [0.3 -2.0]; dims = 3)), b = [0.0 1.0], logw = zeros(2))
-    @test_throws ArgumentError factor_message(f1, :x, nothing, (z = DiracBelief([0.2]),), nothing, p1, NamedTuple())
     # with z unobserved and x given, the message to z is a mixture with per-regime noise
     mz, _ = factor_message(f1, :z, nothing, (x = DiracBelief([1.0, 2.0]),), nothing, p1, NamedTuple())
     @test mz isa MixtureBelief && [c.Λ[1] for c in mz.components] ≈ [10.0, 1 / 0.3]

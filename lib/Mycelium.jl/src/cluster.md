@@ -6,9 +6,9 @@
 > free energy. A whole switching chain in one cluster has the free energy $-\log p(y)$ to
 > $10^{-12}$; three switches in one cluster send the messages of E7's hand-built block factor.
 
-> Sources: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE Trans. Inf. Theory 51(7), 2005 (regions; here a region is solved exactly). code: `cluster.jl`; Lenticulum `src/switching.jl` (`cluster_form` for the constraint factors and `GaussianPrior`); tests: `../test/cluster.jl`, Lenticulum `test/cluster.jl`
+> Sources: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE Trans. Inf. Theory 51(7), 2005 (regions; here a region is solved exactly); de Jong, *The Diffuse Kalman Filter*, Ann. Statist. 19(2), 1991 (the diffuse likelihood: flat directions). code: `cluster.jl`; Lenticulum `src/switching.jl` (`cluster_form` for the constraint factors and `GaussianPrior`); tests: `../test/cluster.jl`, Lenticulum `test/cluster.jl`
 >
-> Bibliography: [[Bibliography#^yedidia2005bethe|Yedidia et al. 2005]]
+> Bibliography: [[Bibliography#^yedidia2005bethe|Yedidia et al. 2005]] · [[Bibliography#^dejong1991diffuse|de Jong 1991]]
 >
 > Theory (CT-ML wiki): [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
@@ -191,10 +191,12 @@ is one class and every computation is the one above.
 - **Messages.** To a discrete channel nothing changes but the class-wise log-integrals. To a
   continuous channel each class gives its own precision $\Lambda_\kappa = J_{tt} - J_{tr} J_{rr}^{-1} J_{rt}$, so the
   message is a mixture whose components need not share a precision. Components are merged when
-  both their precision and their natural mean are equal. If a component is improper and the
-  classes' precisions differ, the message is refused: an improper component has no
-  normalising mass, and with one precision for all the unnormalised weights are comparable (the
-  same infinite factor cancels), with several they are not (`switching.md` §5).
+  both their precision and their natural mean are equal. A proper component is normalised and its
+  mass moved into the weight; an improper one is the unnormalised exponential
+  $\exp(\eta^\top x - x^\top \Lambda x / 2)$ its weight multiplies, which is how Mycelium's mixture products read it
+  (`gaussian.jl`, `_improper_overlap`). So improper components with different precisions are
+  weighted consistently. (The first version refused them, after `switching.md` §5; that concern is
+  about a factor that projects flat inputs out, not about an exact message.)
 - **Belief and free energy.** `FrozenClusterBelief` holds one covariance $\Sigma_\kappa$ and one entropy
   $H(x \mid \kappa)$ per class and the class of each assignment. In the free energy a factor whose $A$ and $Q$
   vary is evaluated per outcome group: its residual means with $A_{c,k}$, its trace term
@@ -214,17 +216,58 @@ posterior and the three posteriors of $x$ (each with its own covariance) to $10^
 $A$, $b$, $\log w$ and the noise's Cholesky factors agrees with central differences of $-\log p(z)$ to $10^{-6}$
 (ForwardDiff and Zygote); over a plate of four points the per-replica path is taken and is exact.
 
+## Flat directions (2026-11-04)
+
+A direction of the continuous variables that no factor in the cluster and no incoming message
+determines is **flat**: the precision ($J_\kappa$, or $J_{rr}$ when the target's message eliminates the other
+variables) is singular there. Until 2026-11-04 the node refused it. It now integrates such
+directions out in the **diffuse limit**: a vague prior $\mathcal N(0, s^2 I)$, $s \to \infty$, with the factor $(2\pi s^2)^{k/2}$
+of the $k$ flat directions dropped. On the range of $J$ (an orthonormal basis $U$, eigenvalues $\lambda$),
+
+$$
+\log \int \exp\bigl(h^\top x - \tfrac12 x^\top J x\bigr)\, dx \;\to\; \tfrac12 h^\top J^{+} h - \tfrac12 \log \operatorname{pdet} J + \tfrac{n - k}{2} \log 2\pi ,
+$$
+
+which needs $h \perp \ker J$: every quadratic term vanishes on $\ker J$ ($J$ is a sum of positive
+semidefinite terms), so only a linear term of an incoming message can reach a flat direction, and
+that integral diverges; it is refused. The dropped factor is the same for all assignments only if
+they leave equally many directions flat; otherwise the node refuses (in the vague limit the
+assignments with more flat directions would take all the weight, which is rarely what a model
+means). This is the diffuse treatment of state-space models (de Jong 1991, the diffuse likelihood) and what
+the constraint factors do with a flat input (`constraint.md` §4.1).
+
+- **Where it matters.** A boundary channel with no incoming message yet (the first sweep of a
+  loopy schedule), a factor outside a cluster with a flat input (`as_cluster`, Lenticulum's
+  `RegimeFactor`), and combinations of variables the model never determines (only $u - w$ enters,
+  so $u + w$ is flat).
+- **Belief and free energy.** The frozen belief holds $M = J^+ H$ and $\Sigma = J^+$ per class, the flat
+  directions at mean 0 and dropped; $H(x \mid \kappa)$ is the entropy on the range. Every factor's $G$ annihilates
+  $\ker J$, so the fit terms are the limits of the vague ones, and their gradient in $\theta$ at the frozen belief
+  is the vague gradient's limit (a term $G N N^\top / \varepsilon$ with $GN = 0$ vanishes).
+- **Marginals.** `cluster_marginal` of a variable in a flat class is the information form of the
+  other variables eliminated; a variable with a flat direction gets an improper component (zero
+  precision there) rather than a covariance with zeros.
+- **Deciding flatness.** An eigenvalue at most $10^{-10}$ times the largest is flat. Cholesky can
+  succeed on a singular $J$ (rounding leaves a pivot of $10^{-15}$, and the first test then gave variances
+  of $6 \cdot 10^{14}$ and a free energy 18.7 off), so its smallest pivot is checked against the same threshold.
+  A precision that weak but meant (a prior of standard deviation $10^5$ beside factors of precision 1)
+  is taken as flat, which shifts the free energy by the dropped constant.
+
+Tests: Lenticulum `test/cluster_flat.jl`. With only $u - w$ determined, the free energy equals the
+vague graph's ($s = 10^4$) less $\tfrac12 \log 2\pi s^2$ to $10^{-6}$ and the closed form $-\log p(z) + \tfrac12 \log 2$ to $10^{-12}$; the
+switch posterior and the gradient (ForwardDiff, Zygote) equal the vague ones, and $u$'s marginal is
+improper of zero precision. A `RegimeFactor` with $x \in \mathbb R^3$ seen through $2 \times 3$ maps sends the message to
+the regime of the vague input to $10^{-7}$ and the closed form $w_k / \sqrt{\det W_k W_k^\top}$ to $10^{-12}$; a linear term along
+a flat direction and regimes with different numbers of flat directions are refused; improper
+components of rank one with different precisions have the closed-form $\Lambda_k$, $\eta_k$ and weights.
+
 ## What it does not do
 
 - **Factors outside the conditionally linear-Gaussian class.** A factor needs `cluster_form`
   (its $A$ and $Q$ may depend on its outcome since 2026-11-04, above). `DataFactor` stays outside:
   data reaches the cluster as point messages.
-- **Improper messages with several precisions.** Refused (above); so is a flat continuous
-  direction in general (next item).
-- **Undetermined continuous variables.** Elimination needs $J_{rr}$ (or $J$) positive definite: every
-  continuous variable must be pinned down by the cluster's factors and the incoming messages. A
-  flat direction is refused rather than integrated under a flat prior, as the constraint factors
-  do it.
+- **Flat directions with unequal counts, or reached by a linear term.** Refused (above). Flat
+  directions in equal number are integrated out in the diffuse limit.
 - **Enumeration is exponential.** At most $2^{16}$ joint discrete states of nonzero weight (pruned as
   they are built, above); equal components of a message are merged, but nothing reduces the
   number of distinct ones. Precision classes add one factorisation each.

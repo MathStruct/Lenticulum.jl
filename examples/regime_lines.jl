@@ -37,17 +37,9 @@ end
 params(θ) = (A = (z = cat(([-θ.a[k] 1.0] for k in 1:2)...; dims = 3),), b = reshape(θ.c, 1, 2), logw = θ.logw,
              L = reshape(θ.logσ, 1, 1, 2))
 fullps(θ) = merge(NamedTuple{Tuple(nm(:data, i) for i in 1:N)}(ntuple(_ -> NamedTuple(), N)), (reg = params(θ),))
-# two sequential sweeps solve the forest (data → z → regime → k). The regime factor's message to
-# the observed z is left out: its components are improper (a line, not a point) with one precision
-# per line, which a cluster refuses (`regime.md` §3), and nothing reads it.
-function solve(g, ps)
-    keep(t) = !(t.kind === :to_variable && g.variables[g.edges[t.edge].variable].name in zs &&
-                g.factors[g.edges[t.edge].factor].factor isa RegimeFactor)
-    zs = Set(nm(:z, i) for i in 1:N)
-    s = MessageStore(g); sched = SequentialSchedule(filter(keep, all_tasks(g)))
-    for _ in 1:2; sweep!(s, g, sched, ps, NamedTuple()); end
-    return s
-end
+# two sequential sweeps solve the forest (data → z → regime → k)
+solve(g, ps) = (s = MessageStore(g); sched = SequentialSchedule(all_tasks(g));
+                for _ in 1:2; sweep!(s, g, sched, ps, NamedTuple()); end; s)
 lse(v) = (m = maximum(v); m + log(sum(exp.(v .- m))))
 function nlp(θ, x, y)              # −Σ log p(y | x), the closed form
     lw = θ.logw .- lse(θ.logw)

@@ -1261,6 +1261,7 @@ include("mixture_rules.jl")
 
 include("cluster.jl")
 include("regime.jl")
+include("cluster_flat.jl")
 
 include("structure_edits.jl")
 

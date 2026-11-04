@@ -1,6 +1,6 @@
 # Two crossing lines with one noise level each, as one graph of regime factors
 
-Run `julia -t auto --project=docs examples/regime_lines.jl` (about 25 seconds; the docs
+Run `julia -t auto --project=docs examples/regime_lines.jl` (about 35 seconds; the docs
 environment has ForwardDiff). This belongs to `src/regime.md` and
 [L-SPEC-009](../vault/Project/Specifications/L-SPEC-009%20Cluster%20Nodes.md) §9.
 
@@ -19,9 +19,9 @@ likelihood that closed-form EM reaches?
 - **Graph.** Point $i$: its data on $z_i$, its outcome $k_i$, one `RegimeFactor((z = 2,), 2, 1;
   learn_noise = true)`, tied over the points. The graph is a forest and $k_i$ has degree one, so the
   Bethe free energy is exactly $-\sum_i \log p(y_i \mid x_i)$; no cluster node is needed. Two sequential
-  sweeps solve it. The regime factor's message to the observed $z_i$ is left out of the schedule:
-  its components are improper (a line in the plane) with one precision per line, which is
-  refused (`regime.md` §3), and nothing reads it.
+  sweeps solve it. (The regime factor's message to the observed $z_i$ has improper components, a
+  line in the plane each, with one precision per line; nothing reads it. Until the flat
+  directions of 2026-11-04 it was refused and the schedule left it out.)
 - **Fit.** 400 Adam steps ($\eta = 0.05$) of the free-energy gradient (ForwardDiff) in $a$, $c$, $\log w$ and $\log \sigma$
   (the parameter `L`); the coefficient of $y$ is held at 1 (the residual's scale is the noise's).
 - **Reference.** EM for a mixture of linear regressions (weighted least squares per line, the
@@ -36,8 +36,8 @@ At the start the graph's free energy equals the closed form, 555.7111638001, to 
 | fit | $a$ | $c$ | $\sigma$ | $w$ | $-\log p$ | time |
 |---|---|---|---|---|---|---|
 | generating parameters | (1, −1) | (0, 0.5) | (0.2, 0.5) | (0.5, 0.5) | 254.1073 | |
-| graph, 400 Adam steps | (0.997, −0.994) | (−0.009, 0.478) | (0.193, 0.502) | (0.519, 0.481) | **253.3893** | 21.7 s |
-| EM | (0.997, −0.994) | (−0.009, 0.478) | (0.193, 0.502) | (0.519, 0.481) | **253.3893** | 0.53 s, 12 iterations |
+| graph, 400 Adam steps | (0.997, −0.994) | (−0.009, 0.478) | (0.193, 0.502) | (0.519, 0.481) | **253.3893** | 29.4 s |
+| EM | (0.997, −0.994) | (−0.009, 0.478) | (0.193, 0.502) | (0.519, 0.481) | **253.3893** | 0.52 s, 12 iterations |
 | EM, one $\sigma$ | (0.996, −0.995) | (−0.001, 0.487) | (0.377, 0.377) | (0.532, 0.468) | 306.8969 | |
 
 The graph's fit and EM differ by $2.0 \cdot 10^{-8}$ in $-\log p$ and by at most $3.2 \cdot 10^{-6}$ in any parameter
@@ -49,12 +49,12 @@ The graph's fit and EM differ by $2.0 \cdot 10^{-8}$ in $-\log p$ and by at most
    regime factors reaches EM's maximum likelihood, to the parameters' sixth digit.
 2. **The noise per line matters here.** With one $\sigma$ (the location-shift case) the best
    $-\log p$ is 306.90, 53.5 worse; the lines are found either way, the noise levels are not.
-3. **It is slow against closed form**, 21.7 s against 0.53 s: 400 gradient steps, each through
+3. **It is slow against closed form**, 29.4 s against 0.52 s: 400 gradient steps, each through
    300 one-factor clusters replica by replica (per-outcome forms are not batched over a plate).
 
 ## Caveats
 
 - One data set, one start, well separated lines; EM's label order is the start's, and so is the
   graph's.
-- The schedule leaves out a message the factor refuses. A graph that needs the message to $z$
-  (a latent $z$ with a flat direction) cannot use this factor so (`regime.md` §3).
+- Timing from the run after flat directions were added (the sweeps now also send the messages to
+  $z$); the first run, without them, took 21.7 s with the same values.

@@ -10,6 +10,7 @@
 # and are eliminated exactly; the assignments are enumerated. Assignments that give the same
 # precision J (the same outcomes of every factor whose A or Q depends on its outcome) form one
 # precision class and share its factorisations; without such factors there is one class.
+# Directions that nothing determines are integrated out in the diffuse limit (pseudo-inverses).
 #
 # See `cluster.md`.
 # ---------------------------------------------------------------------------
@@ -630,19 +631,78 @@ end
 _cached(::Nothing, _, f) = f()
 _cached(chol::AbstractDict, k, f) = get!(f, chol, k)
 
-# log ∫ exp(hᵀx − xᵀJ_κx/2) dx for each assignment (column of H), J_κ its class's precision,
-# positive definite. Factorisations are cached per class.
+# --- Flat directions: the diffuse limit -------------------------------------------
+#
+# A precision J (positive semidefinite) is factorised by Cholesky when it is definite, and
+# otherwise split into its range and its null space (`_Flat`): the directions no factor and no
+# incoming message determines. Integrals over x then mean the limit of a vague prior N(0, s²I),
+# s → ∞, with the factor (2πs²)^{k/2} of the k flat directions dropped: pseudo-inverse and
+# pseudo-determinant on the range (`cluster.md`, "Flat directions"). The dropped factor is common
+# to all assignments only if they leave equally many directions flat, which is checked
+# (`_same_flatness`); a linear term reaching a flat direction makes the integral diverge and is
+# refused (`_check_range`).
+struct _Flat
+    U::Matrix{Float64}          # an orthonormal basis of the range
+    λ::Vector{Float64}          # J's eigenvalues on it
+    N::Matrix{Float64}          # an orthonormal basis of the null space
+end
+const _FLAT_RTOL = 1e-10
+# Flat means an eigenvalue at most _FLAT_RTOL times the largest. A Cholesky factorisation can
+# succeed on a singular J (rounding leaves a tiny positive pivot), so its smallest pivot is checked
+# against the same threshold, and the eigendecomposition decides when it is small.
+function _psd_factor(J::AbstractMatrix)
+    scale = maximum(abs, LinearAlgebra.diag(J); init = 0.0)
+    C = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(J); check = false)
+    LinearAlgebra.issuccess(C) && minimum(abs2, LinearAlgebra.diag(C.U); init = Inf) > _FLAT_RTOL * scale && return C
+    E = LinearAlgebra.eigen(LinearAlgebra.Symmetric(Matrix(J)))
+    λmax = maximum(abs, E.values; init = 0.0)
+    any(E.values .< -sqrt(eps()) * max(λmax, 1.0)) && throw(ArgumentError("cluster: an indefinite joint precision"))
+    keep = E.values .> _FLAT_RTOL * λmax
+    all(keep) && LinearAlgebra.issuccess(C) && return C
+    return _Flat(E.vectors[:, keep], E.values[keep], E.vectors[:, .!keep])
+end
+# Whether a precision Λ (of a message or marginal, eliminated from a joint of diagonal scale
+# `scale`) is definite: its Cholesky pivots above the flat threshold.
+function _definite(Λ, scale)
+    C = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Λ); check = false)
+    ok = LinearAlgebra.issuccess(C) && minimum(abs2, LinearAlgebra.diag(C.U); init = Inf) > _FLAT_RTOL * scale
+    return ok, C
+end
+_psd_solve(C::LinearAlgebra.Cholesky, B) = C \ B
+_psd_solve(F::_Flat, B) = F.U * ((F.U' * B) ./ F.λ)
+_psd_logdet(C::LinearAlgebra.Cholesky) = logdet(C)
+_psd_logdet(F::_Flat) = sum(log, F.λ; init = 0.0)
+_psd_rank(C::LinearAlgebra.Cholesky) = size(C, 1)
+_psd_rank(F::_Flat) = length(F.λ)
+_psd_inv(C::LinearAlgebra.Cholesky) = Matrix(inv(C))
+_psd_inv(F::_Flat) = F.U * LinearAlgebra.Diagonal(1 ./ F.λ) * F.U'
+_check_range(::LinearAlgebra.Cholesky, _, _) = nothing
+function _check_range(F::_Flat, H, what)
+    isempty(H) && return nothing
+    tol = sqrt(eps()) * max(maximum(abs, H), 1.0) * size(F.N, 1)
+    maximum(abs, F.N' * H; init = 0.0) <= tol || throw(ArgumentError(
+        "cluster: $what have a flat direction that a linear term reaches, so their integral diverges " *
+        "(an incoming message or factor offset along a direction nothing determines)"))
+    return nothing
+end
+_same_flatness(fs, what) = length(unique(_psd_rank.(fs))) <= 1 || throw(ArgumentError(
+    "cluster: the assignments leave different numbers of directions of $what flat, so their weights " *
+    "are not comparable in the diffuse limit (cluster.md, \"Flat directions\")"))
+
+# log ∫ exp(hᵀx − xᵀJ_κx/2) dx for each assignment (column of H), J_κ its class's precision; in
+# the diffuse limit if J_κ is singular. Factorisations are cached per class.
 function _log_integrals(jt::_ClusterJoint, what, chol = nothing)
     n = size(jt.H, 1)
     n == 0 && return zeros(size(jt.H, 2))
     out = zeros(size(jt.H, 2))
+    fs = [_cached(chol, (:CJ, κ), () -> _psd_factor(jt.J[κ])) for κ in eachindex(jt.J)]
+    _same_flatness(fs, what)
     for κ in eachindex(jt.J)
         idx = _members(jt, κ)
-        C = _cached(chol, (:CJ, κ), () -> LinearAlgebra.cholesky(LinearAlgebra.Symmetric(jt.J[κ]); check = false))
-        LinearAlgebra.issuccess(C) || throw(ArgumentError(
-            "cluster: $what are not determined by the cluster's factors and incoming messages (singular precision)"))
+        C = fs[κ]
         Hκ = jt.H[:, idx]
-        out[idx] .= vec(sum(Hκ .* (C \ Hκ); dims = 1)) ./ 2 .- logdet(C) / 2 .+ n * log(2π) / 2
+        _check_range(C, Hκ, what)
+        out[idx] .= vec(sum(Hκ .* _psd_solve(C, Hκ); dims = 1)) ./ 2 .- _psd_logdet(C) / 2 .+ _psd_rank(C) * log(2π) / 2
     end
     return out
 end
@@ -656,9 +716,10 @@ The exact message of the cluster to one of its channels, given the others' messa
 assignment of the discrete variables is enumerated, and the continuous variables other than the
 target are eliminated from that assignment's Gaussian. To a continuous channel the message is a
 mixture over the assignments (a `GaussianBelief` if there is one); its components have one
-precision per precision class, and improper components must share theirs. To a discrete
-channel a `CategoricalBelief`. Points are substituted; a Gaussian-mixture input is collapsed to
-its moments.
+precision per precision class; an improper component is the unnormalised exponential its weight
+multiplies. To a discrete channel a `CategoricalBelief`. Points are substituted; a
+Gaussian-mixture input is collapsed to its moments. Directions that nothing determines (a channel
+without a message, say) are integrated out in the diffuse limit (`cluster.md`, "Flat directions").
 """
 function factor_message(c::ClusterFactor, target::Symbol, polarity, inputs, prior, ps, st)
     target in c.boundary || throw(ArgumentError("channel :$target is not a channel of this cluster (has $(c.boundary))"))
@@ -684,6 +745,8 @@ function _joint_message(c::ClusterFactor, jt::_ClusterJoint, target::Symbol, cho
     nA = size(jt.H, 2)
     E = zeros(d, nA); l = copy(jt.c)
     Λs = Matrix{Float64}[]; proper = Bool[]
+    isempty(rs) || _same_flatness([_cached(chol, (:Cr, κ), () -> _psd_factor(jt.J[κ][rs, rs])) for κ in eachindex(jt.J)],
+                                  "the continuous variables other than :$target")
     for κ in eachindex(jt.J)
         idx = _members(jt, κ)
         Jκ = jt.J[κ]
@@ -694,26 +757,20 @@ function _joint_message(c::ClusterFactor, jt::_ClusterJoint, target::Symbol, cho
             E[:, idx] .= Ht
         else
             Jtr = Jκ[ot, rs]
-            Cr = _cached(chol, (:Cr, κ), () -> LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Jκ[rs, rs]); check = false))
-            LinearAlgebra.issuccess(Cr) || throw(ArgumentError(
-                "cluster: the continuous variables other than :$target are not determined by the cluster's factors and incoming messages"))
-            X = Cr \ Hr
-            Λ = _cached(chol, (:Λ, κ), () -> Jtt - Jtr * (Cr \ Jtr'))
+            Cr = _cached(chol, (:Cr, κ), () -> _psd_factor(Jκ[rs, rs]))
+            _check_range(Cr, Hr, "the continuous variables other than :$target")
+            X = _psd_solve(Cr, Hr)
+            Λ = _cached(chol, (:Λ, κ), () -> Jtt - Jtr * _psd_solve(Cr, Jtr'))
             E[:, idx] .= Ht - Jtr * X
-            l[idx] .+= vec(sum(Hr .* X; dims = 1)) ./ 2 .- logdet(Cr) / 2 .+ length(rs) * log(2π) / 2
+            l[idx] .+= vec(sum(Hr .* X; dims = 1)) ./ 2 .- _psd_logdet(Cr) / 2 .+ _psd_rank(Cr) * log(2π) / 2
         end
         Λ = (Λ + Λ') / 2
-        CΛ = _cached(chol, (:CΛ, κ), () -> LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Λ); check = false))
-        ok = LinearAlgebra.issuccess(CΛ)
+        ok, CΛ = _cached(chol, (:CΛ, κ), () -> _definite(Λ, maximum(abs, LinearAlgebra.diag(Jκ); init = 0.0)))
         if ok                                   # normalised components: their mass into the weight
             Eκ = E[:, idx]
             l[idx] .+= vec(sum(Eκ .* (CΛ \ Eκ); dims = 1)) ./ 2 .- logdet(CΛ) / 2 .+ d * log(2π) / 2
         end
         push!(Λs, Λ); push!(proper, ok)
-    end
-    if length(Λs) > 1 && !all(proper) && !all(==(Λs[1]), Λs)
-        throw(ArgumentError("cluster: the message to :$target has improper components with different precisions, " *
-                            "which cannot be weighted consistently (cluster.md, \"Per-outcome coefficients and noise\")"))
     end
     keep = findall(>(-Inf), l)
     isempty(keep) && throw(ArgumentError("cluster: every assignment has zero probability"))
@@ -769,10 +826,11 @@ function _joint_belief(jt::_ClusterJoint, chol)
             push!(Σs, zeros(0, 0)); push!(Hs, 0.0)
             continue
         end
-        C = _cached(chol, (:CJ, κ), () -> LinearAlgebra.cholesky(LinearAlgebra.Symmetric(jt.J[κ]); check = false))
+        C = _cached(chol, (:CJ, κ), () -> _psd_factor(jt.J[κ]))
         idx = _members(jt, κ)
-        M[:, idx] .= C \ jt.H[:, idx]
-        Σ, H = _cached(chol, (:ΣH, κ), () -> (Matrix(inv(C)), n * (1 + log(2π)) / 2 - logdet(C) / 2))
+        M[:, idx] .= _psd_solve(C, jt.H[:, idx])
+        # on the range of J_κ in the diffuse limit: the flat directions have mean 0 and drop out
+        Σ, H = _cached(chol, (:ΣH, κ), () -> (_psd_inv(C), _psd_rank(C) * (1 + log(2π)) / 2 - _psd_logdet(C) / 2))
         push!(Σs, Σ); push!(Hs, H)
     end
     return FrozenClusterBelief(q, M, Σs, Hs, jt.class, jt.free, jt.offset, jt.points, jt.assignments)
@@ -857,7 +915,9 @@ function cluster_marginal(s::AbstractMessageStore, gc::FactorGraph, name::Symbol
     c = factornode(gc, fid).factor
     c isa ClusterFactor || throw(ArgumentError("cluster_marginal: :$name is not a cluster node"))
     v in c.variables || throw(ArgumentError("cluster_marginal: :$v is not a variable of cluster :$name"))
-    b = factor_belief(c, messages_into(s, gc, fid), _subtree(ps, factornode(gc, fid).params), _subtree(st, name))
+    jt = _cluster_joint(c, messages_into(s, gc, fid), _subtree(ps, factornode(gc, fid).params), nothing)
+    chol = Dict{Any,Any}()
+    b = _joint_belief(jt, chol)
     if v in c.discrete
         j = findfirst(==(v), c.discrete)
         p = zeros(c.dims[v])
@@ -868,8 +928,19 @@ function cluster_marginal(s::AbstractMessageStore, gc::FactorGraph, name::Symbol
     end
     haskey(b.points, v) && return LenticulumCore.DiracBelief(b.points[v])
     o = b.offset[v]
-    S = [Matrix(LinearAlgebra.Symmetric(Σ[o, o])) for Σ in b.Σ]
-    comps = [LenticulumCore.Gaussian(b.M[o, a], S[b.class[a]]) for a in eachindex(b.q) if b.q[a] > 0]
+    rs = setdiff(1:size(jt.H, 1), o)
+    comp = map(eachindex(b.Σ)) do κ
+        chol[(:CJ, κ)] isa _Flat || return a -> LenticulumCore.Gaussian(b.M[o, a], Matrix(LinearAlgebra.Symmetric(b.Σ[κ][o, o])))
+        # a flat class: v's marginal in information form (the other variables eliminated in the
+        # diffuse limit), improper if v itself has a flat direction
+        J = jt.J[κ]
+        Cr = isempty(rs) ? nothing : _psd_factor(J[rs, rs])
+        Λ = isempty(rs) ? J[o, o] : J[o, o] - J[o, rs] * _psd_solve(Cr, J[rs, o])
+        Λ = (Λ + Λ') / 2
+        proper = first(_definite(Λ, maximum(abs, LinearAlgebra.diag(J); init = 0.0)))
+        a -> GaussianBelief(isempty(rs) ? jt.H[o, a] : jt.H[o, a] - J[o, rs] * _psd_solve(Cr, jt.H[rs, a]), Λ, !proper)
+    end
+    comps = [comp[b.class[a]](a) for a in eachindex(b.q) if b.q[a] > 0]
     length(comps) == 1 && return only(comps)
     return LenticulumCore.MixtureBelief(comps, b.q[b.q .> 0])
 end

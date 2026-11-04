@@ -45,15 +45,13 @@ per-outcome `A` and `Q` arrays (`cluster.md`, "Per-outcome coefficients and nois
 
 ## 3. What it does not do
 
-- **Flat inputs.** Every continuous input except the target must be observed or a proper
-  Gaussian (a mixture input is collapsed to its moments). `SwitchingConstraintFactor` integrates
-  a flat input out by projecting out its range (`constraint.md` §4.1); a cluster refuses a
-  singular precision (`cluster.md`).
-- **Improper messages with several precisions.** If the message to a continuous channel has
-  improper components (for instance $m < d_t$) whose precisions differ by regime, it is refused: the
-  unnormalised weights of improper components are comparable only when the precision is
-  shared. E1's crossing lines with the point $z$ observed are fine (the message goes to $k$); a
-  message to $z$ itself would be refused.
+- **Flat inputs** are integrated out in the diffuse limit since 2026-11-04 (`cluster.md`, "Flat
+  directions"), provided every regime leaves equally many directions flat; otherwise the message
+  is refused. A mixture input is collapsed to its moments.
+- **Improper messages with several precisions** are sent (since 2026-11-04; refused before): each
+  improper component is the unnormalised exponential its weight multiplies, which is how
+  Mycelium's products read it, so components with different precisions are weighted
+  consistently (`test/cluster_flat.jl`).
 - **No mean-field, mixture-expansion or EP rules**, no plate blocks: inside a plate its cluster
   nodes take the per-replica path (`cluster.md`).
 - **No game interface** (`assemble`, `invert`): only the Mycelium factor methods.
