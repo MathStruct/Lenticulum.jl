@@ -220,6 +220,13 @@ end
     @test combine(DiracBelief(2), TrivialBelief()) === DiracBelief(2)
     @test combine(DiracBelief(2), DiracBelief(2)) === DiracBelief(2)
     @test_throws ArgumentError combine(DiracBelief(2), DiracBelief(3))
+    # a point with zero probability under a categorical belief is a contradiction, not a clamp
+    @test combine(DiracBelief(2), CategoricalBelief([0.3, 0.7])) === DiracBelief(2)
+    @test combine(CategoricalBelief([0.3, 0.7]), DiracBelief([1])).value == [1]
+    @test combine(DiracBelief([2.0]), CategoricalBelief([0.5, 0.5]; labels = [[1.0], [2.0]])).value == [2.0]   # vector labels
+    @test_throws ArgumentError combine(DiracBelief([3.0]), CategoricalBelief([0.5, 0.5]; labels = [[1.0], [2.0]]))
+    @test_throws ArgumentError combine(DiracBelief(2), CategoricalBelief([1.0, 0.0]))
+    @test_throws ArgumentError combine(CategoricalBelief([1.0, 0.0]), DiracBelief(2.0))
 
     @test belief_distance(DiracBelief(1.0), DiracBelief(1.0)) == 0.0
     @test belief_distance(DiracBelief(1.0), DiracBelief(4.0)) == 3.0

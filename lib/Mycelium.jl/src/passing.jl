@@ -251,9 +251,15 @@ nested `NamedTuple` shape `LuxCore.setup` produces.
 Returns the new belief, the [`belief_distance`](@ref) to the message it replaces (the
 *residual*, used for convergence and for [`ResidualSchedule`](@ref)), and the updated state.
 With `commit = false` the message is computed but not stored, which is what
-[`FloodingSchedule`](@ref) needs for double buffering.
+[`FloodingSchedule`](@ref) needs for double buffering. A skipped update (an
+expectation-propagation node without a proper cavity) returns the edge's current message
+(`TrivialBelief()` if it has none) and stores nothing, with either `commit`.
 """
-function step!(s::MessageStore, g::FactorGraph, t::MessageTask, ps, st;
+step!(s::MessageStore, g::FactorGraph, t::MessageTask, ps, st; kwargs...) = Base.front(_step!(s, g, t, ps, st; kwargs...))
+
+# `step!` and whether the update was skipped: the schedules that compute without committing
+# (flooding, residual) must not store or select a skipped update.
+function _step!(s::MessageStore, g::FactorGraph, t::MessageTask, ps, st;
                damping::Real = 0.0, commit::Bool = true)
     0 <= damping < 1 || throw(ArgumentError("damping must be in [0, 1); got $damping"))
     e = g.edges[t.edge]
@@ -268,7 +274,7 @@ function step!(s::MessageStore, g::FactorGraph, t::MessageTask, ps, st;
         if commit
             s.to_factor[t.edge] = Message(belief, s.iteration)
         end
-        return belief, res, st
+        return belief, res, st, false
     else
         can_emit(g, t.edge) || throw(PolarityError(
             factornode(g, e.factor).name, e.channel,
@@ -304,7 +310,7 @@ function step!(s::MessageStore, g::FactorGraph, t::MessageTask, ps, st;
             @warn "factor :$(fn.name) skipped an expectation-propagation update on :$(e.channel): the cavity \
                    or the tilted belief is not a proper Gaussian; the edge keeps its previous message" maxlog = 1
             return (old === nothing ? LenticulumCore.TrivialBelief() : old.belief), (old === nothing ? Inf : 0.0),
-                   _setsubtree(st, fn.params, stf)
+                   _setsubtree(st, fn.params, stf), true
         end
         if old !== nothing && damping > 0
             belief = damp(belief, old.belief, 1 - damping)
@@ -314,7 +320,7 @@ function step!(s::MessageStore, g::FactorGraph, t::MessageTask, ps, st;
         if commit
             s.to_variable[t.edge] = Message(belief, s.iteration)
         end
-        return belief, res, _setsubtree(st, fn.params, stf)
+        return belief, res, _setsubtree(st, fn.params, stf), false
     end
 end
 
@@ -351,13 +357,15 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::FloodingSchedule, ps, st
     s.iteration += 1
     ts = tasks(sched)
     results = Vector{Any}(undef, length(ts))
+    skipped = falses(length(ts))
     maxres = 0.0
     for (i, t) in enumerate(ts)
-        b, res, st = step!(s, g, t, ps, st; damping, commit = false)
+        b, res, st, skipped[i] = _step!(s, g, t, ps, st; damping, commit = false)
         results[i] = b
         maxres = max(maxres, res)
     end
     for (i, t) in enumerate(ts)
+        skipped[i] && continue              # a skipped update keeps the edge as it is (no message stays none)
         if t.kind === :to_factor
             s.to_factor[t.edge] = Message(results[i], s.iteration)
         else
@@ -384,7 +392,8 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::ResidualSchedule, ps, st
         best_res = -1.0
         best_age = typemax(Int)
         for (i, t) in enumerate(ts)
-            _, res, _ = step!(s, g, t, ps, st; damping, commit = false)
+            _, res, _, skip = _step!(s, g, t, ps, st; damping, commit = false)
+            skip && continue                # cannot be committed: never the best task
             age = _task_age(s, t)
             if res > best_res || (res == best_res && age < best_age)
                 best_idx = i

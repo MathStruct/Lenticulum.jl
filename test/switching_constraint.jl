@@ -533,3 +533,15 @@ end
     # nor is an indefinite precision
     @test_throws ArgumentError Mycelium.factor_message(lf, :v, nothing, (u = GaussianBelief([0.0, 0.0], [2.0 0.0; 0.0 -1.0]),), nothing, lps, nt)
 end
+
+@testset "Switching outcomes read categorical messages by position (labels 1:K only)" begin
+    # review of 2026-11-04 (ChatGPT P2): labels in another order were read as the states 1:K
+    f = SwitchingConstraintFactor((z = 1,), 2, 1; noise = 0.1)
+    p = (A = (z = ones(1, 1),), b = [-1.0 1.0], logw = zeros(2))
+    k = LenticulumCore.CategoricalBelief([0.2, 0.8])
+    m, _ = Mycelium.factor_message(f, :z, nothing, (k = k,), nothing, p, NamedTuple())
+    m1, _ = Mycelium.factor_message(f, :z, nothing, (k = LenticulumCore.CategoricalBelief([0.2, 0.8]; labels = [1, 2]),), nothing, p, NamedTuple())
+    @test m1.logw ≈ m.logw
+    @test_throws ArgumentError Mycelium.factor_message(f, :z, nothing, (k = LenticulumCore.CategoricalBelief([0.8, 0.2]; labels = [2, 1]),),
+                                                       nothing, p, NamedTuple())
+end

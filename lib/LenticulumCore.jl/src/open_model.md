@@ -137,3 +137,8 @@ extension does not load in LenticulumCore's own test environment).
 After review (2026-10-30): where $p_j$ underflows ($w_j \ll \max w$, e.g. `[1e-200, 1e200]`) the
 numerator-first form loses $-1/\sum w$; there the rule uses $D_j/w_j - \sum D/\sum w$, which is
 safe because $\sum w \ge \max w$ is not small.
+
+## Empty sample beliefs (2026-11-04, LP-023)
+
+`SampleBelief` refuses no samples and all-zero weights, which downstream operations handled
+inconsistently (a division by a zero total, or an empty reduction).

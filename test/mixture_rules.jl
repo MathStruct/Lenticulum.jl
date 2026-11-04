@@ -345,3 +345,23 @@ end
     e, lz = Mycelium.combine_with_overlap(GaussianBelief(zeros(2), zeros(2, 2), true), GaussianBelief([1.0, 0.0], [1.0 0.0; 0.0 0.0], true))
     @test !isproper(e) && lz == 0
 end
+
+@testset "Expectation propagation: a skipped update is not stored by flooding or residual schedules" begin
+    # No prior on x: the first EP update of each point has no proper cavity and is skipped. A
+    # skipped update must leave the edge without a message (review of 2026-11-04, ChatGPT P1).
+    b = GraphBuilder(); variable!(b, :x, 1)
+    for (i, y) in enumerate((0.5, 2.0))
+        factor!(b, Symbol(:l, i), PriorFactor(:x, mr_clutter_message(y), x -> 0.0); rule = ExpectationPropagationRule())
+        connect!(b, Symbol(:l, i), :x, :x)
+    end
+    g = build(b)
+    ts = [t for t in all_tasks(g) if t.kind === :to_variable]
+    s = MessageStore(g)
+    @test_logs (:warn, r"skipped an expectation-propagation update") match_mode = :any sweep!(s, g, FloodingSchedule(ts), NamedTuple(), NamedTuple())
+    @test all(t -> s.to_variable[t.edge] === nothing, ts)
+    # the residual schedule never selects a task it cannot commit
+    rec = MessageTask[]
+    s2 = MessageStore(g)
+    sweep!(s2, g, ResidualSchedule(4), NamedTuple(), NamedTuple(); record = rec)
+    @test !any(t -> t in rec, ts) && all(t -> s2.to_variable[t.edge] === nothing, ts)
+end

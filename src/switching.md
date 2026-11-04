@@ -329,3 +329,10 @@ Limits: a `sum` whose parameters are tied to other nodes is refused (its coeffic
 for all of them), and the copied coefficients are separate parameters afterwards, so learning the
 sum's coefficients through the edited graph learns them per block; fixed coefficients, as in E7,
 are the intended case.
+
+## 15. Categorical labels (2026-11-04, LP-023)
+
+The outcome probabilities of an incoming categorical message are read by position, so labels
+other than `1:K` in order are refused (`Mycelium._check_positional`, also used by cluster nodes and
+`TableFactor`). Before, labels `[2, 1]` were read as the states `[1, 2]`. Test:
+`test/switching_constraint.jl`.

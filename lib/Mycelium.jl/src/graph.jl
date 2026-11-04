@@ -401,6 +401,9 @@ _variable_nodes(g) = g.variables
 
 function _factor_parameters(f::FactorNode, ps)
     isempty(ps) && return ps
+    # nothing frozen: every coordinate is active, without building the index of all of them on
+    # every message (review of 2026-11-04)
+    LenticulumCore.islearnable(f.factor) && !LenticulumCore.isfrozen(f) && return ps
     indices = _active_indices(f, ps)
     length(indices) == LenticulumCore._flatlen(ps) && return ps
     θ = LenticulumCore._flatten_active(ps)

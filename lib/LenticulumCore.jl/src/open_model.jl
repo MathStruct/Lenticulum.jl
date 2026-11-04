@@ -130,12 +130,14 @@ struct SampleBelief{S,W} <: AbstractBelief
     samples::S
     weights::W
     function SampleBelief(samples::S, weights::W) where {S,W}
+        n = samples isa AbstractMatrix ? size(samples, 2) : length(samples)
+        n > 0 || throw(ArgumentError("a sample belief needs at least one sample"))
         if weights !== nothing
-            n = samples isa AbstractMatrix ? size(samples, 2) : length(samples)
             length(weights) == n ||
                 throw(ArgumentError("need one weight per sample: $(length(weights)) weights for $n samples"))
             all(isfinite, weights) && all(≥(0), weights) ||
                 throw(ArgumentError("weights must be finite and non-negative"))
+            any(>(0), weights) || throw(ArgumentError("weights must not all be zero (a belief of zero mass)"))
         end
         return new{S,W}(samples, weights)
     end

@@ -47,13 +47,28 @@ Unlike [`invert`](@ref), which returns the posterior ``q(x) \\propto \\pi(x)\\,\
 approximate). Belief propagation (`Mycelium.factor_message`) calls `likelihood_message` so that
 a variable of degree ``d`` does not count its prior ``d`` times.
 
-Defaults to `invert(lens, π, inputs, ps, st)` for every lens. That is right for lenses whose
-`invert` already returns an extrinsic message (point and particle lenses); a lens whose `invert`
-returns a posterior must override `likelihood_message`, or belief propagation counts `π` twice
-(`L-ADR-0006`).
+Defaults to `invert(lens, π, inputs, ps, st)` only for lenses that declare
+[`invert_is_extrinsic`](@ref) (point and particle lenses, whose `invert` does not multiply in `π`);
+any other lens must implement `likelihood_message`, and the default throws. Until 2026-11-04 the
+default applied to every lens, so a lens whose `invert` returns a posterior silently counted `π`
+twice in belief propagation (`L-ADR-0006`; review of 2026-11-04).
 """
-likelihood_message(lens::AbstractBayesianLens, π, inputs, ps, st) =
-    invert(lens, π, inputs, ps, st)
+function likelihood_message(lens::AbstractBayesianLens, π, inputs, ps, st)
+    invert_is_extrinsic(lens) && return invert(lens, π, inputs, ps, st)
+    throw(ArgumentError(
+        "$(nameof(typeof(lens))) has no `likelihood_message`. Implement it (the likelihood with the cavity π divided " *
+        "out), or declare `LenticulumCore.invert_is_extrinsic(::YourLens) = true` if `invert` already returns " *
+        "an extrinsic message (a point or particle lens that does not multiply in π)"))
+end
+
+"""
+    invert_is_extrinsic(lens) -> Bool
+
+Whether `invert(lens, π, ...)` already returns an extrinsic message, one that does not multiply in
+the cavity `π` (it may use `π` as a warm start), so that [`likelihood_message`](@ref) can default
+to it. `false` by default; `true` for lenses with [`TrivialInversion`](@ref).
+"""
+invert_is_extrinsic(::AbstractBayesianLens) = false
 
 """
     ExactInversion()
@@ -116,6 +131,7 @@ AutoBayes Remark 24 uses exactly this to turn a prior into a statistical game wi
 variational free energy as its loss. The prior is a **factor**, not part of the model.
 """
 struct TrivialInversion <: AbstractInversion end
+invert_is_extrinsic(::BayesianLens{<:Any,TrivialInversion}) = true
 isexact(::TrivialInversion) = true
 
 """

@@ -601,6 +601,16 @@ end
 function _adjoint_solve(::DenseSolve, m, z, ρ, b, ps, st)
     free = .!isinf.(ρ)
     Jff = prior_jacobian(m, z, ps, st; coords = free) .+ Diagonal(ρ[free] .^ 2)
+    # At a fold or a branch point J_FF is singular and the implicit function theorem does not
+    # apply: refuse rather than return Inf/NaN gradients (review of 2026-11-04).
+    # The check runs on a host copy (device arrays keep their own solve); for AD number types
+    # (duals) it is skipped.
+    if eltype(Jff) <: AbstractFloat
+        κ = LinearAlgebra.cond(Matrix(Jff), 1)
+        isfinite(κ) && κ * eps(eltype(Jff)) < 1e-2 || throw(ArgumentError(
+            "implicit_pullback: the free-block Jacobian is singular or nearly so at the solution (cond₁ = $κ; " *
+            "a fold or branch point), where the implicit function theorem does not apply"))
+    end
     return Jff' \ b
 end
 

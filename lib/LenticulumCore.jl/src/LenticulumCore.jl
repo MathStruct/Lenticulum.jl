@@ -76,7 +76,7 @@ export GaussianBelief, Gaussian, uninformative, isuninformative, belief_mean, be
 export as_distribution, as_belief
 export forward, logdensity, pushforward, isexact, ispure
 export latentspace, observedspace, unobservedspace
-export BayesianLens, ComposedLens, TensorLens, invert, likelihood_message, compose
+export BayesianLens, ComposedLens, TensorLens, invert, likelihood_message, invert_is_extrinsic, compose
 export ExactInversion, AmortisedInversion, SolverInversion, ProximalInversion, TrivialInversion
 
 # --- Games -----------------------------------------------------------------

@@ -2,6 +2,7 @@ module MyceliumChainRulesCoreExt
 using Mycelium, LenticulumCore, ChainRulesCore
 ChainRulesCore.@non_differentiable Mycelium._index_metadata(θ, indices)
 ChainRulesCore.@non_differentiable Mycelium._active_indices(f, ps)
+ChainRulesCore.@non_differentiable LenticulumCore.isfrozen(f::Mycelium.FactorNode)
 ChainRulesCore.@non_differentiable Mycelium._factor_nodes(g)
 ChainRulesCore.@non_differentiable Mycelium._cluster_layout(c, i, F, b)
 ChainRulesCore.@non_differentiable Mycelium._batch_layout(c, i, F, B)

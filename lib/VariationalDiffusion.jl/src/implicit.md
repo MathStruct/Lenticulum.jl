@@ -371,3 +371,17 @@ the **ratio** is right within 10% (5.0 predicted against 4.9 measured for Newton
 
 Related: [[analytic]], [[reddiff]], [[factor]], [[energy_network]], [[krylov]], [[sampler]], [[Deterministic Relaxation]], [[Inference Signatures]],
 [[The Implicit Diffusion Factor as a Statistical Game]]
+
+## Singular Jacobians in the pullback; non-conservative Laplace (2026-11-04, LP-023)
+
+- The dense `implicit_pullback` solve refuses a free-block Jacobian that is singular to working
+  precision ($\mathrm{cond}_1 \cdot \varepsilon \ge 10^{-2}$, on a host copy; skipped for AD number types). At a fold or branch
+  point the implicit function theorem does not apply, and the solve returned Inf/NaN. Tikhonov
+  damping, which one review proposed, would return a gradient of a different problem silently.
+  The Krylov path warns when GMRES stops short, as before.
+- `implicit_laplace` of a field that is not a gradient (a noise predictor that is not an energy
+  network) returns the inverse of $\operatorname{sym} J_{FF}$, which is then a local-curvature measure, not a
+  posterior covariance; the docstring says so and a warning fires when
+  $\lVert J - J^\top \rVert > 2 \cdot 10^{-6} \lVert J \rVert$.
+
+Tests: `test/review_singular.jl` (a stub relation supplies the Jacobian).

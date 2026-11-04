@@ -359,6 +359,8 @@ uncertainty would need the linearisation of [`deq_sensitivity`](@ref) *and* a
 `GaussianBelief` to put it in. The type is in `LenticulumCore` now; the covariance is not
 built yet. See `deq.md` §4.1.
 """
+# a point lens: `π` is only the solver's warm start, so `invert` is the extrinsic message
+LenticulumCore.invert_is_extrinsic(::LenticulumCore.BayesianLens{<:DEQModel,<:LenticulumCore.SolverInversion}) = true
 function LenticulumCore.invert(
     lens::LenticulumCore.BayesianLens{<:DEQModel,<:LenticulumCore.SolverInversion},
     π, inputs, ps, st,

@@ -149,7 +149,8 @@ end
 _switch_logp(::Nothing, K) = zeros(K)
 _switch_logp(::LenticulumCore.TrivialBelief, K) = zeros(K)
 _switch_logp(b::LenticulumCore.CategoricalBelief, K) =
-    (length(b.logp) == K || throw(DimensionMismatch("outcome belief has $(length(b.logp)) states, the factor $K")); copy(b.logp))
+    (length(b.logp) == K || throw(DimensionMismatch("outcome belief has $(length(b.logp)) states, the factor $K"));
+     copy(Mycelium._check_positional(b, K, "SwitchingConstraintFactor").logp))
 function _switch_logp(b::LenticulumCore.DiracBelief, K)
     k = b.value
     k isa Integer && 1 <= k <= K || throw(ArgumentError("an observed outcome must be an index in 1:$K; got $k"))

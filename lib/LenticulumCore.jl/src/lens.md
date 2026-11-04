@@ -79,3 +79,12 @@ reading the paper with the code open, so the docstring says it explicitly. The a
 matching the notation, would confuse everyone else.
 
 Related: [[Inversions and Bayesian Lenses]], [Composition of Bayesian Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens#the-chain-rule-bayesian-inversion-is-functorial), [[Implicit Learners]], [[open_model]]
+
+## The `likelihood_message` default is opt-in (2026-11-04, LP-023)
+
+`likelihood_message` defaulted to `invert` for every lens, right only when `invert` does not
+multiply in the cavity. It now does so only for lenses declaring `invert_is_extrinsic(lens) =
+true`: `BayesianLens{<:Any,TrivialInversion}` here, the DEQ and neural-ODE lenses in ImplicitLayers
+(which use `π` only as a warm start). Any other lens without `likelihood_message` throws, with a
+message naming both ways out. Every lens that relied on the default was one of these, so no result
+changed. Test: LenticulumCore `test/runtests.jl`.

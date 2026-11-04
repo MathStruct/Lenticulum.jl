@@ -148,3 +148,9 @@ that builds nodes by hand is unchanged.
 `connect!` checks for a duplicate port in a set (`GraphBuilder.ports`) instead of scanning the edges,
 so building is linear in the number of edges. `show` now says "forest" for a disconnected graph whose components are trees (`_ncomponents`), the
 usual shape of a plate with shared parameters only; it said "loopy" before.
+
+## Parameters of an unfrozen node (2026-11-04, LP-023)
+
+`_factor_parameters` returns `ps` directly for a learnable node with nothing frozen. Before, it
+built the offset tree and index of every parameter coordinate on each message, only to find them
+all active. Frozen and non-learnable nodes take the old path. Not timed.

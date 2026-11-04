@@ -898,14 +898,15 @@ end
     end
     for (a,b) in ((SampleBelief(zs),SampleBelief(ws[:,1:2])),
                   (SampleBelief(zs,weights),SampleBelief(ws,[3.,2,1])),
-                  (SampleBelief(zs,zeros(3)),DiracBelief(w)),
-                  (SampleBelief(Vector{Float64}[]),DiracBelief(w)),
                   (TrivialBelief(),DiracBelief(w)),
                   (nothing,DiracBelief(w)),
                   (SampleBelief(zs),Gaussian(w,I(4))),
                   (DiracBelief(complex.(z)),DiracBelief(w)))
         @test_throws ArgumentError factor_message(f,:p,forward,(z=a,w=b),nothing,ps,st)
     end
+    # zero-mass and empty particle sets are refused by SampleBelief itself (LP-023)
+    @test_throws ArgumentError SampleBelief(zs,zeros(3))
+    @test_throws ArgumentError SampleBelief(Vector{Float64}[])
     @test_throws DimensionMismatch factor_message(f,:p,forward,(z=DiracBelief(z[1:3]),w=DiracBelief(w)),nothing,ps,st)
     @test_throws ArgumentError factor_message(f,:z,nothing,NamedTuple(),nothing,ps,st)
     @test_throws ArgumentError factor_message(f,:bad,nothing,NamedTuple(),nothing,ps,st)

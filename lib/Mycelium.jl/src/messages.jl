@@ -135,6 +135,23 @@ combine(a::LenticulumCore.DiracBelief, ::LenticulumCore.AbstractBelief) = a
 combine(::LenticulumCore.AbstractBelief, b::LenticulumCore.DiracBelief) = b
 combine(a::LenticulumCore.DiracBelief, ::LenticulumCore.TrivialBelief) = a
 combine(::LenticulumCore.TrivialBelief, b::LenticulumCore.DiracBelief) = b
+# A point and a categorical belief: the point, unless the categorical gives it probability zero,
+# a contradiction (zero mass) rather than a clamp (review of 2026-11-04).
+function combine(a::LenticulumCore.DiracBelief, b::LenticulumCore.CategoricalBelief)
+    # a labelled belief is looked up by the value as it is (labels may be vectors), else unwrapped;
+    # an unlabelled one by the state index
+    u = a.value isa AbstractArray && length(a.value) == 1 ? only(a.value) : a.value
+    lp = if b.labels === nothing
+        u isa Real && isinteger(u) ? belief_logdensity(b, Int(u)) : -Inf
+    else
+        max(something(findfirst(isequal(a.value), b.labels), 0) > 0 ? belief_logdensity(b, a.value) : -Inf,
+            something(findfirst(isequal(u), b.labels), 0) > 0 ? belief_logdensity(b, u) : -Inf)
+    end
+    lp == -Inf && throw(ArgumentError(
+        "contradictory beliefs: the clamped state $(a.value) has probability zero under the categorical belief"))
+    return a
+end
+combine(a::LenticulumCore.CategoricalBelief, b::LenticulumCore.DiracBelief) = combine(b, a)
 
 # --- categorical: elementwise product, exact and total ---------------------------------
 function combine(a::LenticulumCore.CategoricalBelief, b::LenticulumCore.CategoricalBelief)

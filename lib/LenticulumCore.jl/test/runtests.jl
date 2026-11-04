@@ -269,6 +269,9 @@ diag_of(C) = [C[i, i] for i in axes(C, 1)]
         @test_throws ArgumentError SampleBelief([[1.0], [2.0]], [1.0])
         @test_throws ArgumentError SampleBelief([[1.0], [2.0]], [-0.5, 1.5])
         @test_throws ArgumentError SampleBelief([[1.0], [2.0]], [NaN, 1.0])
+        @test_throws ArgumentError SampleBelief(Vector{Float64}[])                # no samples
+        @test_throws ArgumentError SampleBelief(zeros(2, 0))                      # no columns
+        @test_throws ArgumentError SampleBelief([[1.0], [2.0]], [0.0, 0.0])       # zero mass
     end
 end
 
@@ -369,6 +372,19 @@ end
     @test b.logφ === logφ
     @test !applicable(belief_mean, b)
     @test !applicable(belief_cov, b)
+end
+
+# review of 2026-11-04 (ChatGPT P1): `likelihood_message` defaults to `invert` only for lenses
+# that declare an extrinsic `invert`; otherwise a posterior would be sent as a likelihood.
+struct _PosteriorLens <: LenticulumCore.AbstractBayesianLens end
+struct _PointLens <: LenticulumCore.AbstractBayesianLens end
+LenticulumCore.invert(::_PosteriorLens, π, inputs, ps, st) = (π, st)
+LenticulumCore.invert(::_PointLens, π, inputs, ps, st) = (DiracBelief(1.0), st)
+LenticulumCore.invert_is_extrinsic(::_PointLens) = true
+@testset "likelihood_message defaults to invert only for extrinsic lenses" begin
+    @test_throws ArgumentError likelihood_message(_PosteriorLens(), TrivialBelief(), NamedTuple(), NamedTuple(), NamedTuple())
+    @test first(likelihood_message(_PointLens(), TrivialBelief(), NamedTuple(), NamedTuple(), NamedTuple())) == DiracBelief(1.0)
+    @test !invert_is_extrinsic(_PosteriorLens())
 end
 
 include("parameter_ad.jl")

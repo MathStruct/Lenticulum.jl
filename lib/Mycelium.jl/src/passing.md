@@ -300,3 +300,12 @@ Difficulties:
    to the observed $y_i$ are not projected: their cavities are points. That is harmless (a point
    dominates), but an assertion that "every message is Gaussian" is wrong there; the test checks
    the marginal of $x$.
+
+## Skipped updates under flooding and residual schedules (2026-11-04, LP-023)
+
+An expectation-propagation update without a proper cavity is skipped: the edge keeps its message.
+`step!` with `commit = true` already did that, but the two schedules that compute without
+committing did not. `FloodingSchedule` stored the returned `TrivialBelief()` on an edge that had no
+message, and `ResidualSchedule` selected the skipped task (residual Inf) and could not commit it.
+`_step!` now also returns whether the update was skipped; flooding leaves such an edge as it is, and
+the residual schedule never selects it. `step!` is unchanged. Test: `test/mixture_rules.jl`.

@@ -90,6 +90,12 @@ the inverse curvature of the query's energy (for an energy-parametrised predicto
 already symmetric; otherwise its symmetric part is used). Hard-clamped coordinates have zero
 variance. `free` marks the free coordinates.
 
+**Non-conservative fields.** For a noise predictor that is not an energy network, the field need
+not be a gradient, ``J_{FF}`` need not be symmetric, and there need be no energy whose curvature
+this is: ``(\\operatorname{sym} J_{FF})^{-1}`` is then a local-curvature (stability) measure, not a
+Laplace posterior covariance. A warning is given when the antisymmetric part exceeds
+``10^{-6}`` of ``\\lVert J_{FF} \\rVert`` (review of 2026-11-04).
+
 **Units.** The energy is the clamp ``\\tfrac12\\lVert P(z - z_0)\\rVert^2`` (a Gaussian log-likelihood with
 precision ``\\rho^2``) plus the prior term, a weighted sum of smoothed negative log-densities
 scaled by `m.λ`. `cov` is a calibrated posterior covariance when that prior term is a calibrated
@@ -103,6 +109,9 @@ function implicit_laplace(m::AbstractImplicitRelation, sol::ImplicitSolution, ρ
         throw(ArgumentError("the Laplace approximation needs a converged, stable answer (a local minimum)"))
     free = .!isinf.(ρ)
     J = prior_jacobian(m, sol.z, ps, st; coords = free) .+ Diagonal(ρ[free] .^ 2)
+    LinearAlgebra.norm(J .- J') > 2e-6 * LinearAlgebra.norm(J) && @warn "implicit_laplace: J_FF is not symmetric \
+        (a non-conservative field): the covariance is the inverse of its symmetric part, a local-curvature \
+        measure rather than a Laplace posterior covariance"
     C = LinearAlgebra.cholesky(Symmetric((J .+ J') ./ 2); check = false)
     LinearAlgebra.issuccess(C) ||
         throw(ArgumentError("the symmetric part of J_FF is not positive definite at the solution"))

@@ -263,3 +263,9 @@ one `BeliefBlock` for all replicas, read edge by edge as views (`blocks.md`). `h
 exact in canonical form (`gaussian.md`, "Products of improper components"). An improper `c` with a
 proper `d` still throws; `_mixture_product` puts the proper operand first, as before. The LP-019 test
 that `combine(site, mix)` no longer throws keeps passing.
+
+## A point against a categorical belief (2026-11-04, LP-023)
+
+`combine(DiracBelief(k), b::CategoricalBelief)` returned the point whatever `b` said. A point of
+probability zero under `b` is a contradiction (zero mass), so it now throws, as two different
+points do. Test: Mycelium `test/runtests.jl`.

@@ -136,11 +136,19 @@ cluster_switch(::TableFactor{names}) where {names} = names
 cluster_form(f::TableFactor{names}, ps) where {names} =
     ClusterForm(NamedTuple(), zeros(0, length(f.logtable)), zeros(0, 0), vec(collect(Float64, f.logtable)), names)
 
+# A categorical message read by position: its labels, if any, must be the states 1:K in order
+# (a factor indexes its outcomes 1:K; labels in another order would be read as the wrong states).
+function _check_positional(b::LenticulumCore.CategoricalBelief, K::Int, what)
+    b.labels === nothing || isequal(collect(b.labels), collect(1:K)) || throw(ArgumentError(
+        "$what: a categorical message with labels $(b.labels) cannot be read as the states 1:$K; drop or reorder its labels"))
+    return b
+end
+
 # the log-weights a channel's incoming message puts on its states (an observed state is one-hot)
 function _table_input(b, K::Int, name)
     b === nothing && return zeros(K)
     b isa LenticulumCore.TrivialBelief && return zeros(K)
-    b isa LenticulumCore.CategoricalBelief && length(b.logp) == K && return collect(Float64, b.logp)
+    b isa LenticulumCore.CategoricalBelief && length(b.logp) == K && return collect(Float64, _check_positional(b, K, "TableFactor").logp)
     if b isa LenticulumCore.DiracBelief
         v = b.value isa AbstractArray ? only(b.value) : b.value
         v isa Integer && 1 <= v <= K || throw(ArgumentError("TableFactor: an observed :$name must be a state in 1:$K; got $v"))
@@ -552,6 +560,7 @@ function _cluster_joint(c::ClusterFactor, msgs, ps, skip)
             push!(states, [k]); push!(lps, [0.0])
         elseif b isa LenticulumCore.CategoricalBelief
             length(b.logp) == K || throw(DimensionMismatch("message to :$v has $(length(b.logp)) states, the variable $K"))
+            _check_positional(b, K, "cluster")
             ks = [k for k in 1:K if b.logp[k] > -Inf]
             isempty(ks) && throw(ArgumentError("cluster: the message to :$v gives every state zero probability"))
             push!(states, ks); push!(lps, b.logp[ks])

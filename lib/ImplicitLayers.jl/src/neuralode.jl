@@ -280,6 +280,7 @@ end
 const _NeuralODELens = LenticulumCore.BayesianLens{<:NeuralODEModel,
     <:Union{LenticulumCore.ExactInversion,LenticulumCore.SolverInversion}}
 
+LenticulumCore.invert_is_extrinsic(::_NeuralODELens) = true     # a flow of points; `π` is not used
 function LenticulumCore.invert(lens::_NeuralODELens, π, inputs, ps, st)
     f, p = lens.model.factor, lens.model.polarity
     target = only(LenticulumCore.unobserved_channels(p))
