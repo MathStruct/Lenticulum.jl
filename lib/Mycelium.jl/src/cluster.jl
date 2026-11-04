@@ -260,10 +260,13 @@ keys ([`cluster_parameters`](@ref)). With `params`, every node reads that one en
 nodes are tied, which is how replicas of one model (one cluster per data point) share their
 parameters, and which requires every node to hold the same parameter keys.
 
-Refused: graphs with plates; groups that overlap; factors that are not belief-propagation nodes,
-have frozen parameter paths, or share a parameter key with a node outside every group (or, without
-`params`, with a node in another group); unconnected channels; edges of the clustered factors
-that are not bidirectional, diagonal and attached.
+Frozen parameter paths carry over: a clustered node's `freeze` becomes the cluster node's paths
+under its parameter key (`(key, path...)`, or `(key,)` when frozen whole).
+
+Refused: graphs with plates; groups that overlap; factors that are not belief-propagation nodes or
+share a parameter key with a node outside every group (or, without `params`, with a node in
+another group); tied groups that freeze different paths; unconnected channels; edges of the
+clustered factors that are not bidirectional, diagonal and attached.
 """
 cluster(g::FactorGraph, name::Symbol, factors) = cluster(g, [name => factors])
 
@@ -327,6 +330,9 @@ function _cluster(g::FactorGraph, groups, params, renames)
         k in outside_keys && throw(ArgumentError(
             "cluster: the parameter key :$k is read by a node outside the clusters; choose another name or `params`"))
     end
+    freezes = [_cluster_freeze(g, fids) for fids in fidss]
+    params === nothing || all(==(first(freezes)), freezes) || throw(ArgumentError(
+        "cluster: tied cluster nodes (params = :$params) must freeze the same parameter paths"))
     owner = Dict(f => k for (k, fids) in enumerate(fidss) for f in fids)
     internal = union(Set{Int}(), (_internal_variables(g, fids) for fids in fidss)...)
     b = GraphBuilder()
@@ -339,7 +345,7 @@ function _cluster(g::FactorGraph, groups, params, renames)
         if k == 0
             factor!(b, f.name, f.factor; freeze = f.freeze, rule = f.rule, params = f.params)
         elseif !placed[k]
-            factor!(b, names[k], nodes[k]; params = something(params, names[k])); placed[k] = true
+            factor!(b, names[k], nodes[k]; params = something(params, names[k]), freeze = freezes[k]); placed[k] = true
         end
     end
     for e in g.edges
@@ -367,13 +373,34 @@ _internal_variables(g, fids) = (inside = Set(fids); vids = unique(g.edges[ei].va
     Set(v for v in vids if all(ei -> g.edges[ei].factor in inside, g.edges_of_variable[v])))
 
 # One group's node, after the checks of `cluster`.
+# The cluster node's frozen paths: each clustered node's paths under its parameter key (the node's
+# parameters are keyed by those keys), `(key,)` for a node frozen whole. Tied nodes share a key
+# and agree on their freeze (`build` checks), so each key is read once.
+function _cluster_freeze(g, fids)
+    paths = Tuple[]
+    seen = Set{Symbol}()
+    for fid in fids
+        f = g.factors[fid]
+        f.params in seen && continue
+        push!(seen, f.params)
+        fr = LenticulumCore._freeze_paths(f.freeze)
+        if fr === :all || LenticulumCore.isfrozen(f.factor)
+            push!(paths, (f.params,))
+        else
+            for q in fr
+                push!(paths, (f.params, q...))
+            end
+        end
+    end
+    return Tuple(paths)
+end
+
 function _cluster_node(g, fids, inside, union_, tied)
     for fid in fids
         f = g.factors[fid]
         f.rule isa BeliefPropagation || throw(ArgumentError("cluster: :$(f.name) is not a BeliefPropagation() node"))
         which(cluster_form, Tuple{typeof(f.factor),Any}) === which(cluster_form, Tuple{Any,Any}) && throw(ArgumentError(
             "cluster: :$(f.name) ($(nameof(typeof(f.factor)))) has no `Mycelium.cluster_form`; keep it outside the cluster"))
-        isempty(f.freeze) || throw(ArgumentError("cluster: :$(f.name) has frozen parameter paths"))
         all(h -> h.params !== f.params || h.id in (tied ? union_ : inside), g.factors) || throw(ArgumentError(
             "cluster: :$(f.name) shares its parameter key :$(f.params) with a node outside the cluster" *
             (tied ? "s" : " (tie the clusters with `params` to share keys between them)")))

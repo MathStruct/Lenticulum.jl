@@ -14,11 +14,11 @@ function M._index_metadata(θ::AbstractGPUArray, indices)
 end
 M._gather_active(θ::AbstractGPUArray, indices) = θ[M._index_metadata(θ, indices)]
 function M._mask_gradient(θ::AbstractGPUArray, indices)
-    mask = [i in indices for i in eachindex(θ)]
+    mask = collect(M._active_mask(length(θ), indices))
     return ifelse.(M._index_metadata(θ, mask) .!= 0, θ, zero(eltype(θ)))
 end
 function M._pin_coordinates(θ::AbstractGPUArray, indices)
-    mask = [i in indices for i in eachindex(θ)]
+    mask = collect(M._active_mask(length(θ), indices))
     return ifelse.(M._index_metadata(θ, mask) .!= 0, θ, stop_gradient(θ))
 end
 function M._replace_coordinates(θ::AbstractGPUArray, indices, active)

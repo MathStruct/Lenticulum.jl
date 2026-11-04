@@ -124,3 +124,8 @@ move set was enough; the warm start was not.
   random restarts per candidate (the branch added 32). Either may explain the different path. The noise covariance is fixed at $0.1 I$, not learned.
 - $L$ is shared by the clusters, as on the branch.
 - The impossible assignments are still enumerated before they are dropped; $J(2J)^L$ grows fast.
+- The sum node's coefficients are frozen (`freeze = (:A,)`, 2026-11-04). Rerun with the freeze: the
+  same path, scores, stop candidates and fitted centres to the printed digits, 1121 s for the
+  greedy search (970 s above, from an earlier run). The reference random starts in that run gave
+  1420.82, 1420.65, 1584.92 and 2291.43.
+

@@ -348,3 +348,34 @@ end
     b = GraphBuilder(); variable!(b, Symbol("x[1]"), 1); variable!(b, Symbol("x[2]"), 1); variable!(b, Symbol("y[1]"), 1)
     @test_throws ArgumentError as_plate(build(b), :p, 2)                   # y has one replica of two
 end
+
+@testset "Cluster nodes keep their factors' frozen parameter paths" begin
+    function graph(freeze)
+        b = GraphBuilder()
+        variable!(b, :z, 1); variable!(b, :u1, 1); variable!(b, :u2, 1); variable!(b, :k1, 2); variable!(b, :k2, 2)
+        factor!(b, :data, DataFactor(:z, [1.1])); connect!(b, :data, :z, :z; direction = Emitting())
+        factor!(b, :sum, LinearConstraintFactor((z = 1, u1 = 1, u2 = 1), 1; noise = 0.2); freeze)
+        connect!(b, :sum, :z, :z); connect!(b, :sum, :u1, :u1); connect!(b, :sum, :u2, :u2)
+        for l in 1:2
+            sw, u, k = Symbol(:sw, l), Symbol(:u, l), Symbol(:k, l)
+            factor!(b, sw, SwitchingConstraintFactor((u = 1,), 2, 1; noise = 0.05)); connect!(b, sw, :u, u); connect!(b, sw, :k, k)
+        end
+        return cluster(build(b), :c, [:sum, :sw1, :sw2])
+    end
+    p = (data = NamedTuple(), sum = (A = (z = ones(1, 1), u1 = -ones(1, 1), u2 = -ones(1, 1)), c = [0.0]),
+         sw1 = cl_sw(1), sw2 = cl_sw(2))
+    gf, g0 = graph((:A,)), graph(())
+    @test gf.factors[gf.factor_index[:c]].freeze == ((:sum, :A),)
+    ps = cluster_parameters(g0, :c, p)
+    _, _, _, s0 = infer!(g0, tree_schedule(g0), ps, NamedTuple())
+    _, _, _, sf = infer!(gf, tree_schedule(gf), ps, NamedTuple())
+    @test first(scalar_free_energy(sf, gf, ps, NamedTuple())) ≈ first(scalar_free_energy(s0, g0, ps, NamedTuple()))
+    for ad in (AutoForwardDiff(), AutoZygote())
+        Gf = free_energy_gradient(sf, gf, ps, NamedTuple(); ad).c
+        G0 = free_energy_gradient(s0, g0, ps, NamedTuple(); ad).c
+        @test all(iszero, Gf.sum.A.u1) && all(iszero, Gf.sum.A.z) && any(!iszero, G0.sum.A.u1)
+        @test Gf.sum.c ≈ G0.sum.c && Gf.sw1.b ≈ G0.sw1.b && Gf.sw2.logw ≈ G0.sw2.logw
+    end
+    # a node frozen whole is frozen under its key
+    @test graph(:all).factors[graph(:all).factor_index[:c]].freeze == ((:sum,),)
+end

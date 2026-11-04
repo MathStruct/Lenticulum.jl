@@ -762,7 +762,7 @@ function _check_energy_edges(g; mean_field::Bool = true, what = "this computatio
 end
 
 _gather_active(θ, indices) = θ[indices]
-_mask_gradient(θ, indices) = [i in indices ? θ[i] : zero(θ[i]) for i in eachindex(θ)]
+_mask_gradient(θ, indices) = (mask = _active_mask(length(θ), indices); [mask[i] ? θ[i] : zero(θ[i]) for i in eachindex(θ)])
 function _replace_coordinates(θ, indices, active)
     positions = Dict(i => k for (k, i) in enumerate(indices))
     return [haskey(positions, i) ? active[positions[i]] : θ[i] for i in eachindex(θ)]
@@ -798,8 +798,11 @@ function _unnormalised_nodes(g::FactorGraph)
         if fn.factor isa ClusterFactor
             c = fn.factor
             observed = Set(ch for (ch, v) in vars if v in data)
-            for (f, w, nm) in zip(c.factors, c.wiring, c.names)
-                LenticulumCore.islearnable(f) && learns_unnormalised(f) && any(p -> p.second in observed, w) &&
+            # the cluster node's paths are the clustered nodes' under their keys: (key,) or (key, :A, ...)
+            paths = LenticulumCore._freeze_paths(fn.freeze)
+            frozenA(k) = any(p -> p[1] === k && (length(p) == 1 || p[2] === :A), paths)
+            for (f, w, nm, k) in zip(c.factors, c.wiring, c.names, c.keys)
+                LenticulumCore.islearnable(f) && learns_unnormalised(f) && !frozenA(k) && any(p -> p.second in observed, w) &&
                     push!(names, Symbol(fn.name, "/", nm))
             end
         elseif LenticulumCore.islearnable(fn.factor) && learns_unnormalised(fn.factor) && any(v -> v in data, values(vars))

@@ -47,4 +47,4 @@ data-driven split, then a removal) the search continues to (3, 2) at 1 299.17 (9
   graph whose replicas are named `x[i]` gets its plate back with `as_plate` (2026-11-04).
 - Moves and warm starts are the caller's; the example's compound split-and-remove with a data-driven
   split is one choice that works on the tree (`examples/structure_clusters.md`), not a general rule.
-- Fitting is slow against closed-form M-steps; frozen paths inside cluster nodes.
+- Fitting is slow against closed-form M-steps. (Frozen paths inside cluster nodes: done 2026-11-04.)

@@ -64,7 +64,9 @@ $L = 0, \dots, 4$. The greedy search took 166 s (734 s before the clusters were 
 
 - One family (additive wiring, $J = 1$), one data set. The branch's split and merge moves (the switch
   over sums, $J > 1$) are in [`structure_clusters.md`](structure_clusters.md).
-- The sum node's coefficients are held fixed by hand in the fitting loop. A cluster node cannot
-  carry frozen parameter paths (`cluster.md`).
+- The sum node's coefficients are frozen (`freeze = (:A,)`, carried into the cluster nodes since
+  2026-11-04; before, the fitting loop held them fixed by hand). Rerun with the freeze the same day:
+  the same path and scores to the printed digits, 192.5 s, and 195.0 s for the same script without
+  the freeze. The 166 s above is from an earlier run on a less loaded machine.
 - How much `transfer` saves is not measured here: each component's tree is solved again in two
   sweeps. `test/structure_edits.jl` checks the warm start on a loopy graph.

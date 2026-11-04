@@ -154,3 +154,12 @@ usual shape of a plate with shared parameters only; it said "loopy" before.
 `_factor_parameters` returns `ps` directly for a learnable node with nothing frozen. Before, it
 built the offset tree and index of every parameter coordinate on each message, only to find them
 all active. Frozen and non-learnable nodes take the old path. Not timed.
+
+## Pinning frozen coordinates (2026-11-04)
+
+`_pin_coordinates` and `_mask_gradient` tested `i in indices` for each coordinate, a search of the
+index vector, so pinning was quadratic in the parameter count on every message of a frozen node.
+They now build a mask (`_active_mask`, outside AD), and `_active_indices` caches the index by the
+freeze and the shape of the parameter tree. In `examples/structure_edits.jl` (a few dozen
+parameters per node) neither is measurable: 192.5 s with the frozen sum, 195.0 s without.
+

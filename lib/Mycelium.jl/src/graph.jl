@@ -393,8 +393,24 @@ function _key_node(g::FactorGraph, key::Symbol)
     return g.factors[i]
 end
 
-_active_indices(f::FactorNode, ps) = LenticulumCore._trainable_indices(ps,
+_active_indices(f::FactorNode, ps) = _cached_indices(ps,
     !LenticulumCore.islearnable(f.factor) || LenticulumCore.isfrozen(f.factor) ? :all : f.freeze)
+
+# The active coordinates depend on the freeze and the shape of the parameter tree only, so they
+# are cached by both: a frozen node no longer rebuilds the offset tree of every coordinate on
+# each message (`graph.md`). Shapes are the leaves' sizes, cheap to compute.
+const _INDEX_CACHE = Dict{Any,Vector{Int}}()
+const _INDEX_LOCK = ReentrantLock()
+_shape(x::NamedTuple) = map(_shape, x)
+_shape(x::Tuple) = map(_shape, x)
+_shape(x::AbstractArray) = size(x)
+_shape(x) = typeof(x)
+function _cached_indices(ps, freeze)
+    key = (freeze, _shape(ps))
+    lock(_INDEX_LOCK) do
+        get!(() -> LenticulumCore._trainable_indices(ps, freeze), _INDEX_CACHE, key)
+    end
+end
 # Vectors, not tuples: a tuple of every node makes compile time grow with the graph (plates).
 _factor_nodes(g) = g.factors
 _variable_nodes(g) = g.variables
@@ -646,4 +662,10 @@ function _ncomponents(g::FactorGraph)
     return count(i -> root(i) == i, eachindex(parent))
 end
 
-_pin_coordinates(θ, indices) = [i in indices ? θ[i] : LenticulumCore.stop_gradient(θ[i]) for i in eachindex(θ)]
+# `i in indices` per coordinate searched the index vector, quadratic in the parameter count on every
+# message; a mask, built outside AD (`_active_mask`), is linear (2026-11-04).
+_active_mask(n::Int, indices) = (m = falses(n); m[indices] .= true; m)
+function _pin_coordinates(θ, indices)
+    mask = _active_mask(length(θ), indices)
+    return [mask[i] ? θ[i] : LenticulumCore.stop_gradient(θ[i]) for i in eachindex(θ)]
+end

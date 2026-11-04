@@ -22,8 +22,8 @@ factor becomes internal; every other variable a clustered factor touches becomes
 node, named after the variable, on a bidirectional diagonal edge. The other nodes and edges are
 copied unchanged. A variable is discrete when a clustered factor switches on it
 (`cluster_switch`); every variable has an `Int` dimension. Refused: plates, a missing or taken
-name, a factor without `cluster_form`, a factor not on `BeliefPropagation()`, frozen parameter
-paths, a parameter key shared with a node outside, a clustered edge that is not bidirectional,
+name, a factor without `cluster_form`, a factor not on `BeliefPropagation()`, a parameter key shared
+with a node outside, tied groups with different frozen paths, a clustered edge that is not bidirectional,
 diagonal and attached.
 
 **§2. The factor form.** `cluster_form(factor, ps)` returns `ClusterForm(A, C, Q, logw, switch)`:
@@ -119,4 +119,5 @@ against closed forms; the refusals.
 - Batching per-outcome forms over a plate.
 - Done 2026-11-03/04: clusters in plates (§8), E7's partial sums from the groups (Lenticulum's
   `partial_sums`), merging repeated components of a message, pruned enumeration, per-outcome
-  coefficients and noise (§9), flat directions (§10).
+  coefficients and noise (§9), flat directions (§10), frozen parameter paths (carried over under the
+factor's parameter key).

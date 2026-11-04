@@ -147,4 +147,10 @@ end
     factor!(b, :pr, GaussianPrior(:x, 0.0, 1.0)); connect!(b, :pr, :x, :x)
     factor!(b, :rel, LinearConstraintFactor((y = 1, x = 1), 1)); connect!(b, :rel, :y, :y); connect!(b, :rel, :x, :x)
     @test Mycelium._unnormalised_nodes(cluster(build(b), :c, [:pr, :rel])) == [Symbol("c/rel")]
+    # frozen coefficients inside a cluster node (the cluster's path is (:rel, :A)) do not warn
+    b = GraphBuilder(); variable!(b, :y, 1); variable!(b, :x, 1)
+    factor!(b, :dy, DataFactor(:y, [0.3])); connect!(b, :dy, :y, :y; direction = Emitting())
+    factor!(b, :pr, GaussianPrior(:x, 0.0, 1.0)); connect!(b, :pr, :x, :x)
+    factor!(b, :rel, LinearConstraintFactor((y = 1, x = 1), 1); freeze = (:A,)); connect!(b, :rel, :y, :y); connect!(b, :rel, :x, :x)
+    @test isempty(Mycelium._unnormalised_nodes(cluster(build(b), :c, [:pr, :rel])))
 end

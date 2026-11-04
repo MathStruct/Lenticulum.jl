@@ -48,7 +48,7 @@ function base_graph(X, J)
         z, j, u0 = nm(:z, i), nm(:j, i), nm(:u0, i)
         variable!(b, z, d); variable!(b, j, J); variable!(b, u0, d)
         factor!(b, nm(:data, i), DataFactor(:z, X[:, i])); connect!(b, nm(:data, i), :z, z; direction = Emitting())
-        factor!(b, nm(:sum, i), sumfactor(Int[]); params = :sum)
+        factor!(b, nm(:sum, i), sumfactor(Int[]); params = :sum, freeze = (:A,))
         connect!(b, nm(:sum, i), :z, z); connect!(b, nm(:sum, i), :u0, u0)
         factor!(b, nm(:sw0, i), switch(J); params = :sw0); connect!(b, nm(:sw0, i), :u, u0); connect!(b, nm(:sw0, i), :k, j)
     end

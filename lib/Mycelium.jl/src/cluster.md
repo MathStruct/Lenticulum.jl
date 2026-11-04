@@ -261,6 +261,18 @@ the regime of the vague input to $10^{-7}$ and the closed form $w_k / \sqrt{\det
 a flat direction and regimes with different numbers of flat directions are refused; improper
 components of rank one with different precisions have the closed-form $\Lambda_k$, $\eta_k$ and weights.
 
+## Frozen parameter paths (2026-11-04)
+
+Until 2026-11-04 `cluster` refused clustered nodes with frozen parameter paths, so the structure
+examples held the sum node's coefficients fixed by hand in their fitting loops. A clustered node's
+`freeze` now carries over to the cluster node, under its parameter key: `(key, path...)` for each
+path, `(key,)` for a node frozen whole (or a factor that is `isfrozen`). The cluster node's
+parameters are keyed by those keys, so the paths name the same coordinates, and the usual pinning
+(`_factor_parameters`) zeroes their gradient on every path, the batched plate path included. Tied
+groups must freeze the same paths. Test: Lenticulum `test/cluster.jl`, "Cluster nodes keep their
+factors' frozen parameter paths" (zero gradient in the frozen `A`, the other gradients unchanged,
+ForwardDiff and Zygote).
+
 ## What it does not do
 
 - **Factors outside the conditionally linear-Gaussian class.** A factor needs `cluster_form`
@@ -271,9 +283,9 @@ components of rank one with different precisions have the closed-form $\Lambda_k
 - **Enumeration is exponential.** At most $2^{16}$ joint discrete states of nonzero weight (pruned as
   they are built, above); equal components of a message are merged, but nothing reduces the
   number of distinct ones. Precision classes add one factorisation each.
-- **Plates, frozen parameters, other rules, other couplings.** `cluster(g, groups)` refuses graphs
+- **Plates, other rules, other couplings.** `cluster(g, groups)` refuses graphs
   with plates (`cluster(g, plate, name, factors)` clusters a plate's factors, on a graph with one
-  plate), frozen parameter paths, nodes that are not on belief propagation, a parameter key tied
+  plate), nodes that are not on belief propagation, a parameter key tied
   to a node outside, and edges that are not bidirectional, diagonal and attached. The cluster node
   itself is a belief-propagation node; differentiating through inference (`adjoint = :implicit`)
   is not tested with it.

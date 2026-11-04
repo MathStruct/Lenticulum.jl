@@ -28,7 +28,7 @@ function base_graph(X)
     for i in axes(X, 2)
         variable!(b, nm(:z, i), d)
         factor!(b, nm(:data, i), DataFactor(:z, X[:, i])); connect!(b, nm(:data, i), :z, nm(:z, i); direction = Emitting())
-        factor!(b, nm(:sum, i), sumfactor(0); params = :sum); connect!(b, nm(:sum, i), :z, nm(:z, i))
+        factor!(b, nm(:sum, i), sumfactor(0); params = :sum, freeze = (:A,)); connect!(b, nm(:sum, i), :z, nm(:z, i))
     end
     return build(b)
 end
