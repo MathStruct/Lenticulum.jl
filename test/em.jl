@@ -62,6 +62,17 @@ em_sweep(g) = SequentialSchedule(all_tasks(g))
         @test exp.(p.logw) ≈ w rtol = 1e-10
         @test all(diff(Fs) .<= 1e-9)                       # EM does not increase −log p
     end
+    # the statistics: the outcome masses add up to the number of points; a custom M-step
+    ps0 = em_lines_ps(N, a0, c0, log.(w0), log.(σ0))
+    s = MessageStore(g); sweep!(s, g, em_sweep(g), ps0, NamedTuple()); sweep!(s, g, em_sweep(g), ps0, NamedTuple())
+    st = moment_statistics(s, g, ps0, NamedTuple())
+    @test collect(keys(st)) == [(:reg, nothing)]
+    stats = st[(:reg, nothing)][2]
+    @test sum(stats.n) ≈ N && stats.channels == [:x, :y]
+    @test sum(stats.m[2, :]) ≈ sum(y)                         # y is observed: its first moment is the data's
+    pa, _, _ = fit_em(g, ps0, NamedTuple(); schedule = em_sweep(g), iters = 2, tol = -Inf)
+    pb, _, _ = fit_em(g, ps0, NamedTuple(); schedule = em_sweep(g), iters = 2, tol = -Inf, mstep = em_step)
+    @test pa.reg.b == pb.reg.b && pa.reg.L == pb.reg.L
     # frozen weights stay
     gf = em_lines_graph(x, y; freeze = (:logw,))
     ps, _, _ = fit_em(gf, em_lines_ps(N, a0, c0, log.([0.3, 0.7]), log.(σ0)), NamedTuple(); schedule = em_sweep(gf), iters = 3, tol = -Inf)

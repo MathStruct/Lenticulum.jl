@@ -70,6 +70,12 @@ The message loop no longer specialises on the parameter tree (`passing.md`, "Com
 structure"), and the example stops EM at $\Delta F < 10^{-4}$ (BIC to $10^{-3}$): the search takes **58.0 s**
 with EM against 163.8 s with gradient steps, the same path and scores.
 
+**`examples/structure_clusters.jl`** (`structure_clusters.md`): the per-factor M-step built on
+`moment_statistics` crawled (the same small-noise switches; 1 143 s, a worse structure), and a
+collapsed M-step, the $u$'s integrated out given the assignment, takes the search to 181 s against
+1 121 s with gradient steps, on another path into a worse local optimum of the generating
+structure. `fit_em(...; mstep)` takes such a caller-supplied M-step.
+
 ## 4. What it does not do
 
 - **Batched statistics.** `em_step` computes each replica's belief separately; a batched version

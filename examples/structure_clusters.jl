@@ -5,7 +5,7 @@
 # Run:  julia -t auto --project=docs examples/structure_clusters.jl   (an environment with ForwardDiff)
 #       STRUCTURE_GREEDY=false skips the greedy search and runs the reference only;
 #       STRUCTURE_COMPOUND=false leaves out the compound moves and the data-driven splits (the branch's
-#       four moves only).
+#       four moves only); STRUCTURE_FIT=em fits by EM in θ instead of 300 gradient steps.
 #
 # The model: z = c_j + Σₗ kₗ W_{jl} + ε, j ~ π, kₗ | j ~ Bernoulli(p_{jl}). As a graph, per point:
 #   - the label j (J states) read by a switch `sw0` whose outcome sets u₀ = c_j (log-weights log π);
@@ -139,7 +139,7 @@ function unvec(v, J, L)
     return (a = a, C = C, W = W, r = r)
 end
 
-function fit(gc, ids, N, θ; steps = 300, η = 0.02, γ = 0.9, s0 = nothing)
+function fit_gradient(gc, ids, N, θ; steps = 300, η = 0.02, γ = 0.9, s0 = nothing)
     J, L = size(θ.C, 2), length(ids)
     sched = plate_schedule(gc)
     s = s0 === nothing ? MessageStore(gc) : s0
@@ -156,6 +156,68 @@ function fit(gc, ids, N, θ; steps = 300, η = 0.02, γ = 0.9, s0 = nothing)
     end
     return θ, F, s
 end
+
+# θ from the graph's parameters (the inverse of `make_ps`)
+function θ_of(inner, ids)
+    J, L = size(inner.sw0.b, 2), length(ids)
+    W, r = zeros(d, J, L), zeros(J, L)
+    for l in 1:L
+        sw = inner[Symbol(:sw, ids[l])]
+        for j in 1:J
+            W[:, j, l] = sw.b[:, 2j]
+            r[j, l] = sw.logw[2j] - sw.logw[2j - 1]
+        end
+    end
+    return (a = collect(inner.sw0.logw), C = Matrix(inner.sw0.b), W = W, r = r)
+end
+# EM in θ (`STRUCTURE_FIT=em`), collapsed: given the assignment a of a point's discrete variables
+# (its label j and the bits of its switches), the u's integrate out and z ~ N(c_j + Σₗ bitₗ W_jl, R)
+# with a fixed R, so the M-step for (c_j, W_j·) is one weighted least-squares fit per cluster over
+# the assignments' posterior weights, read from each point's cluster belief; π_j and the logits
+# r_jl are the posterior masses. This is EM on the same likelihood with fewer latent variables.
+# The per-factor M-step (`Mycelium.em_step` on the switches) crawls here: a switch of noise 1e-3
+# pins its u to the current offset, and each step moves it by little (`examples/structure_clusters.md`).
+function em_θ(s, gc, ps, st, ids, N, X)
+    θ = θ_of(ps.mix, ids)
+    J, L = size(θ.C, 2), length(ids)
+    nj, n1 = zeros(J), zeros(J, L)
+    G = [zeros(L + 1, L + 1) for _ in 1:J]; R = [zeros(L + 1, d) for _ in 1:J]
+    for i in 1:N
+        fid = gc.factor_index[nm(:c, i)]
+        fn = Mycelium.factornode(gc, fid)
+        c = fn.factor
+        b = Mycelium.factor_belief(c, Mycelium.messages_into(s, gc, fid), Mycelium._subtree(ps, fn.params), NamedTuple())
+        ij = findfirst(==(:j), c.discrete)
+        iq = [findfirst(==(Symbol(:q, t)), c.discrete) for t in ids]
+        z = X[:, i]
+        for (a, qa) in zip(b.assignments, b.q)
+            qa > 0 || continue
+            j = a[ij]
+            φ = [1.0; [a[iq[l]] == 2j ? 1.0 : 0.0 for l in 1:L]]     # state 2j of q is "bit on" in cluster j
+            nj[j] += qa; n1[j, :] .+= qa .* φ[2:end]
+            G[j] .+= qa .* (φ * φ'); R[j] .+= qa .* (φ * z')
+        end
+    end
+    a = log.(max.(nj, floatmin(Float64)) ./ N)
+    C, W, r = copy(θ.C), copy(θ.W), copy(θ.r)
+    for j in 1:J
+        nj[j] > 1e-12 || continue
+        B = pinv(G[j]) * R[j]                                    # (L + 1) × d
+        C[:, j] = B[1, :]
+        for l in 1:L
+            n1[j, l] > 1e-12 && (W[:, j, l] = B[1 + l, :])
+            r[j, l] = log(max(n1[j, l], floatmin(Float64))) - log(max(nj[j] - n1[j, l], floatmin(Float64)))
+        end
+    end
+    return full_ps(make_ps((a = a, C = C, W = W, r = r), ids), N)
+end
+function fit_by_em(gc, ids, N, θ; s0 = nothing, iters = 300, tol = 1e-4)
+    ps, Fs, s = fit_em(gc, full_ps(make_ps(θ, ids), N), NamedTuple(); schedule = plate_schedule(gc), iters, tol,
+                       accelerate = true, store = s0, mstep = (s, g, p, st) -> em_θ(s, g, p, st, ids, N, X))
+    return θ_of(ps.mix, ids), Fs[end], s
+end
+const FIT = get(ENV, "STRUCTURE_FIT", "gradient")
+fit(args...; kwargs...) = FIT == "em" ? fit_by_em(args...; kwargs...) : fit_gradient(args...; kwargs...)
 
 # --- warm starts: the branch's four moves ------------------------------------------------------------
 const S = sqrt(0.1)       # the noise scale, sqrt(tr Σ / d)

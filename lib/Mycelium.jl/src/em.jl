@@ -100,6 +100,28 @@ computed as a one-factor cluster, `as_cluster`). Run inference to convergence fi
 beliefs this is one step of EM and does not increase the free energy (`em.md`).
 """
 function em_step(s::AbstractMessageStore, g::FactorGraph, ps, st)
+    out = ps
+    for ((nk, fk), (f, stats, frozen)) in moment_statistics(s, g, ps, st)
+        frozen === :all && continue
+        old = fk === nothing ? _subtree(out, nk) : _subtree(_subtree(out, nk), fk)
+        new = m_step(f, stats, old, frozen)
+        new === nothing && continue
+        node = fk === nothing ? new : merge(_subtree(out, nk), NamedTuple{(fk,)}((new,)))
+        out = merge(out, NamedTuple{(nk,)}((node,)))
+    end
+    return out
+end
+
+"""
+    moment_statistics(store, g, ps, st) -> Dict
+
+The moment statistics [`em_step`](@ref) uses, for a caller with its own M-step (a
+parameterisation with constraints the factors' [`m_step`](@ref) do not know): a `Dict` from
+`(node key, factor key)` (the factor key is `nothing` outside a cluster node) to
+`(factor, stats::MomentStats, frozen)`, pooled over tied nodes and plate replicas. Only factors
+with an `m_step` method are included.
+"""
+function moment_statistics(s::AbstractMessageStore, g::FactorGraph, ps, st)
     acc = Dict{Tuple{Symbol,Union{Symbol,Nothing}},Any}()      # (node key, factor key) => (factor, stats, frozen)
     for fn in g.factors
         LenticulumCore.islearnable(fn.factor) || continue
@@ -123,16 +145,7 @@ function em_step(s::AbstractMessageStore, g::FactorGraph, ps, st)
                          LenticulumCore._freeze_paths(fn.freeze))
         end
     end
-    out = ps
-    for ((nk, fk), (f, stats, frozen)) in acc
-        frozen === :all && continue
-        old = fk === nothing ? _subtree(out, nk) : _subtree(_subtree(out, nk), fk)
-        new = m_step(f, stats, old, frozen)
-        new === nothing && continue
-        node = fk === nothing ? new : merge(_subtree(out, nk), NamedTuple{(fk,)}((new,)))
-        out = merge(out, NamedTuple{(nk,)}((node,)))
-    end
-    return out
+    return acc
 end
 _dense(x::NamedTuple) = map(_dense, x)
 _dense(x::Tuple) = map(_dense, x)
@@ -147,8 +160,8 @@ function _push_stats!(acc, key, f, stats, frozen)
 end
 
 """
-    fit_em(g, ps, st; schedule, sweeps = 2, iters = 100, tol = 1e-8, store = nothing, accelerate = false)
-        -> (ps, Fs, store)
+    fit_em(g, ps, st; schedule, sweeps = 2, iters = 100, tol = 1e-8, store = nothing, accelerate = false,
+           mstep = em_step) -> (ps, Fs, store)
 
 Expectation maximisation on `g`: `sweeps` sweeps of `schedule` (the E-step; exact when every
 learned factor is in a cluster node on a forest), the free energy, then [`em_step`](@ref), until
@@ -162,9 +175,13 @@ steps θ₁ = M(θ₀), θ₂ = M(θ₁), the extrapolation θ′ = θ₀ − 2�
 to θ₂. EM converges slowly when a latent variable is almost determined by the parameters (a switch
 with small noise feeding a sum: each M-step moves the offsets by little), and the extrapolation
 takes the long steps EM will not (`em.md`). `Fs` then holds one entry per cycle.
+
+`mstep(store, g, ps, st) -> ps′` replaces [`em_step`](@ref), for a parameterisation with
+constraints the factors' `m_step`s do not know (built on [`moment_statistics`](@ref)); it must
+return parameters of the same tree shape.
 """
 function fit_em(g::FactorGraph, ps, st; schedule, sweeps::Int = 2, iters::Int = 100, tol::Real = 1e-8,
-                store = nothing, accelerate::Bool = false)
+                store = nothing, accelerate::Bool = false, mstep = em_step)
     s = store === nothing ? MessageStore(g) : store
     estep(θ) = (for _ in 1:sweeps; sweep!(s, g, schedule, θ, st); end; first(LenticulumCore.scalar_free_energy(s, g, θ, st)))
     # extrapolate only the subtrees of learnable nodes: flattening the whole tree (one entry per
@@ -179,12 +196,12 @@ function fit_em(g::FactorGraph, ps, st; schedule, sweeps::Int = 2, iters::Int = 
         push!(Fs, F)
         length(Fs) >= 2 && Fs[end - 1] - F < tol && (converged = true; break)
         if !accelerate
-            ps = em_step(s, g, ps, st)
+            ps = mstep(s, g, ps, st)
             continue
         end
         θ0 = flat(ps)
-        p1 = em_step(s, g, ps, st); estep(p1)
-        p2 = em_step(s, g, p1, st)
+        p1 = mstep(s, g, ps, st); estep(p1)
+        p2 = mstep(s, g, p1, st)
         r = flat(p1) .- θ0
         v = flat(p2) .- 2 .* flat(p1) .+ θ0
         nv = LinearAlgebra.norm(v)
@@ -197,7 +214,7 @@ function fit_em(g::FactorGraph, ps, st; schedule, sweeps::Int = 2, iters::Int = 
         pext = merge(ps, _dense(LenticulumCore._unflatten(θ0 .- 2α .* r .+ α^2 .* v, learned(ps))))
         Fext = try estep(pext) catch; Inf end
         if isfinite(Fext)
-            pnew = em_step(s, g, pext, st)
+            pnew = mstep(s, g, pext, st)
             Fnew = try estep(pnew) catch; Inf end
             Fnew <= F && (ps = pnew; continue)
         end

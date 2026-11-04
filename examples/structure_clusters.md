@@ -101,6 +101,36 @@ An intermediate version (same day) had the compound split use a random split and
 least used switch; it reached $(3, 2)$ only at BIC 1 661.92 and the search stopped at $(2, 3)$. The
 move set was enough; the warm start was not.
 
+**Fitted by EM** (`STRUCTURE_FIT=em`, 2026-11-04). Two M-steps were tried, both SQUAREM-accelerated
+(`Mycelium.fit_em`) until $F$ falls by less than $10^{-4}$:
+
+- **Per factor** (each switch's offsets from the moments of its $u$, `Mycelium.moment_statistics`,
+  within this parameterisation): 1143 s, and the search stopped at $(2, 3)$ with BIC 1 359.22; the
+  compound split reached $(3, 2)$ only at 1 677.42. A switch of noise $10^{-3}$ pins its $u$ to the current
+  offset, so each EM step moves the offsets by little and $\Delta F < 10^{-4}$ comes long before the optimum
+  (`lib/Mycelium.jl/src/em.md` §2).
+- **Collapsed** (the default of `em_θ` now): given a point's assignment the $u$'s integrate out,
+  $z \sim \mathcal N(c_j + \sum_l \mathrm{bit}_l W_{jl},\ (0.1 + (L + 1) \cdot 10^{-3}) I)$, so the M-step for $(c_j, W_{j\cdot})$ is one weighted least-squares
+  fit per cluster over the assignments' posterior weights, read from each point's cluster belief.
+  EM on the same likelihood with fewer latent variables.
+
+  | step | move | $(J, L)$ | BIC | time |
+  |---|---|---|---|---|
+  | start | | (1, 0) | 46 415.38 | |
+  | 1 | split a cluster | (2, 0) | 17 383.50 | 6 s |
+  | 2 | add a switch | (2, 1) | 2 637.50 | 11 s |
+  | 3 | add a switch | (2, 2) | 1 780.52 | 25 s |
+  | 4 | split a cluster | (3, 2) | 1 343.89 | 69 s |
+  | stop | | (3, 2) | | 181 s, 74 fits |
+
+  Reference in the same run: 1 299.14 from the generating parameters, 1 412.51, 1 732.46, 1 448.49 and
+  1 861.76 from the random starts. The search is six times faster than with gradient steps (1 121 s
+  that day) and reaches the generating structure, but by another path (a split before any switch,
+  since fully converged fits make the split score better at $(1, 0)$) and into a worse local optimum
+  of it (1 343.89 against 1 299.17): two of its centres sit near the same grid. The fits themselves are
+  as good or better (1 299.14 from the generating parameters against 1 299.15; the best random start
+  1 412.51 against 1 420.65).
+
 ## What it shows
 
 1. **All four moves run on one graph.** Splits and merges change the number of states of the
