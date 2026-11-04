@@ -1,6 +1,6 @@
 # Structure search with split and merge moves, as edits of one graph
 
-Run `julia -t auto --project=docs examples/structure_clusters.jl` (about 18 minutes, the greedy search 16 of them; `STRUCTURE_GREEDY=false` runs the reference alone; the docs environment
+Run `julia -t auto --project=docs examples/structure_clusters.jl` (about 18 minutes, the greedy search 16 of them; `STRUCTURE_GREEDY=false` runs the reference alone; `STRUCTURE_FIT=em` fits by EM, `STRUCTURE_BEAM=k` runs a beam search; the docs environment
 has ForwardDiff). This extends [`structure_edits.md`](structure_edits.md) from one sum node ($J = 1$) to
 E3b's switch over sums, and belongs to [`Extending Mycelium`](../vault/Design/Extending%20Mycelium.md)
 §6 and [L-SPEC-010](../vault/Project/Specifications/L-SPEC-010%20Structure%20Edits.md).
@@ -144,6 +144,24 @@ move set was enough; the warm start was not.
   little. So the fit method does not decide it: the two $(2, 3)$ fits score alike but are different
   optima, and only the gradient search's leads on to $(3, 2)$. Splitting every cluster instead of the
   heaviest (tried, not kept) did not help: $(3, 3)$ at 1 344.20 in 784 s.
+
+**Beam search** (`STRUCTURE_BEAM=k`, with EM fits, 2026-11-04). Each kept structure is expanded by
+every move; the best fit per structure $(J, L)$ not expanded before is kept, and the $k$ best of those
+form the next beam; the search stops when no candidate improves on the best score seen.
+
+| $k$ | beams | result | fits | time |
+|---|---|---|---|---|
+| 1 (greedy) | | $(3, 3)$, 1 343.74 | 74 | 670 s |
+| 2 | (1, 1) (2, 0) → (2, 1) (1, 2) → (2, 2) (3, 1) → (3, 2) (2, 3) | **$(3, 2)$, 1 328.91** | 123 | 654 s |
+| 3 | … → (3, 2) (2, 3) (4, 1) | $(3, 2)$, 1 335.11 | 156 | 946 s |
+
+Both beams reach the generating structure, by the path $(1, 0) 	o (2, 0) 	o (2, 1) 	o (3, 1) 	o (3, 2)$, which greedy
+EM misses. They fit it less well than the gradient search's path did (1 299.17; 1 299.14 from the
+generating parameters): the $(3, 2)$ fits reached from these warm starts are local optima at
+1 329–1 335, and the beams' random draws differ (they are taken in another order), which is why $k = 3$
+is not better than $k = 2$. The reference random starts in these runs reach 1 389.95 and 1 408.89 at best.
+So with EM the beam fixes the structure, not the fit; a better optimum of the chosen structure would
+need better warm starts there (the branch used 32 restarts per candidate).
 
 ## What it shows
 

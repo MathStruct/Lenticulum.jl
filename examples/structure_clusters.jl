@@ -5,7 +5,8 @@
 # Run:  julia -t auto --project=docs examples/structure_clusters.jl   (an environment with ForwardDiff)
 #       STRUCTURE_GREEDY=false skips the greedy search and runs the reference only;
 #       STRUCTURE_COMPOUND=false leaves out the compound moves and the data-driven splits (the branch's
-#       four moves only); STRUCTURE_FIT=em fits by EM in θ instead of 300 gradient steps.
+#       four moves only); STRUCTURE_FIT=em fits by EM in θ instead of 300 gradient steps;
+#       STRUCTURE_BEAM=k (k > 1) runs a beam search of width k instead of the greedy one.
 #
 # The model: z = c_j + Σₗ kₗ W_{jl} + ε, j ~ π, kₗ | j ~ Bernoulli(p_{jl}). As a graph, per point:
 #   - the label j (J states) read by a switch `sw0` whose outcome sets u₀ = c_j (log-weights log π);
@@ -303,7 +304,61 @@ rng = Xoshiro(5)
 const N = 200
 X = tree_data(N, rng)
 
-if get(ENV, "STRUCTURE_GREEDY", "true") != "false"
+# every move's fitted candidates from one state: (move, BIC, g, gc, J, ids, θ, store, next)
+function candidates(g, gc, J, ids, θ, s, next)
+    nf = 0
+    cands = []
+    L = length(ids)
+    if L < 3                                                        # add a switch (4 draws)
+        gA = add_switch(g, J, ids, next, N); idsA = [ids; next]; gcA = clustered(gA, idsA, N)
+        for _ in 1:4
+            θA, FA, sA = fit(gcA, idsA, N, add_θ(θ, rng); s0 = transfer(s, gc, gcA)); nf += 1
+            push!(cands, ("add a switch", bic(FA, J, L + 1, N), gA, gcA, J, idsA, θA, sA, next + 1))
+        end
+    end
+    if L > 0                                                        # remove the least used switch
+        l = least_used(θ); idsR = ids[setdiff(1:L, l)]
+        gR = remove_switch(g, ids, ids[l], N); gcR = clustered(gR, idsR, N)
+        θR, FR, sR = fit(gcR, idsR, N, drop_θ(θ, l); s0 = transfer(s, gc, gcR)); nf += 1
+        push!(cands, ("remove a switch", bic(FR, J, L - 1, N), gR, gcR, J, idsR, θR, sR, next))
+    end
+    if J < 4                                                        # split the heaviest cluster (4 draws)
+        gS = resize_clusters(g, J + 1, ids, N); gcS = clustered(gS, ids, N)
+        for _ in 1:4
+            θS, FS, sS = fit(gcS, ids, N, split_θ(θ, rng); s0 = transfer(s, gc, gcS)); nf += 1
+            push!(cands, ("split a cluster", bic(FS, J + 1, L, N), gS, gcS, J + 1, ids, θS, sS, next))
+        end
+        if COMPOUND
+            θS, FS, sS = fit(gcS, ids, N, data_split_θ(θ, s, gc, ids, X); s0 = transfer(s, gc, gcS)); nf += 1
+            push!(cands, ("split a cluster", bic(FS, J + 1, L, N), gS, gcS, J + 1, ids, θS, sS, next))
+        end
+    end
+    if J > 1                                                        # merge the two closest clusters
+        gM = resize_clusters(g, J - 1, ids, N); gcM = clustered(gM, ids, N)
+        θM, FM, sM = fit(gcM, ids, N, merge_θ(θ); s0 = transfer(s, gc, gcM)); nf += 1
+        push!(cands, ("merge two clusters", bic(FM, J - 1, L, N), gM, gcM, J - 1, ids, θM, sM, next))
+    end
+    if COMPOUND && J < 4 && L > 0                                   # a data-driven split, then remove each switch in turn
+        θD = data_split_θ(θ, s, gc, ids, X)
+        for l in 1:L
+            idsC = ids[setdiff(1:L, l)]
+            gC = remove_switch(resize_clusters(g, J + 1, ids, N), ids, ids[l], N); gcC = clustered(gC, idsC, N)
+            θC, FC, sC = fit(gcC, idsC, N, drop_θ(θD, l); s0 = transfer(s, gc, gcC)); nf += 1
+            push!(cands, ("split, remove a switch", bic(FC, J + 1, L - 1, N), gC, gcC, J + 1, idsC, θC, sC, next))
+        end
+    end
+    if COMPOUND && J > 1 && L < 3                                   # merge, then add a switch
+        gC = add_switch(resize_clusters(g, J - 1, ids, N), J - 1, ids, next, N); idsC = [ids; next]; gcC = clustered(gC, idsC, N)
+        for _ in 1:4
+            θC, FC, sC = fit(gcC, idsC, N, add_θ(merge_θ(θ), rng); s0 = transfer(s, gc, gcC)); nf += 1
+            push!(cands, ("merge, add a switch", bic(FC, J - 1, L + 1, N), gC, gcC, J - 1, idsC, θC, sC, next + 1))
+        end
+    end
+    return cands, nf
+end
+
+const BEAM = parse(Int, get(ENV, "STRUCTURE_BEAM", "1"))
+if get(ENV, "STRUCTURE_GREEDY", "true") != "false" && BEAM == 1
 J, ids, next = 1, Int[], 1
 g = base_graph(X, J)
 gc = clustered(g, ids, N)
@@ -315,53 +370,7 @@ path = ["(1, 0)"]
 nfits = 1
 t0 = time()
 while true
-    cands = []
-    L = length(ids)
-    if L < 3                                                        # add a switch (4 draws)
-        gA = add_switch(g, J, ids, next, N); idsA = [ids; next]; gcA = clustered(gA, idsA, N)
-        for _ in 1:4
-            θA, FA, sA = fit(gcA, idsA, N, add_θ(θ, rng); s0 = transfer(s, gc, gcA)); global nfits += 1
-            push!(cands, ("add a switch", bic(FA, J, L + 1, N), gA, gcA, J, idsA, θA, sA, next + 1))
-        end
-    end
-    if L > 0                                                        # remove the least used switch
-        l = least_used(θ); idsR = ids[setdiff(1:L, l)]
-        gR = remove_switch(g, ids, ids[l], N); gcR = clustered(gR, idsR, N)
-        θR, FR, sR = fit(gcR, idsR, N, drop_θ(θ, l); s0 = transfer(s, gc, gcR)); global nfits += 1
-        push!(cands, ("remove a switch", bic(FR, J, L - 1, N), gR, gcR, J, idsR, θR, sR, next))
-    end
-    if J < 4                                                        # split the heaviest cluster (4 draws)
-        gS = resize_clusters(g, J + 1, ids, N); gcS = clustered(gS, ids, N)
-        for _ in 1:4
-            θS, FS, sS = fit(gcS, ids, N, split_θ(θ, rng); s0 = transfer(s, gc, gcS)); global nfits += 1
-            push!(cands, ("split a cluster", bic(FS, J + 1, L, N), gS, gcS, J + 1, ids, θS, sS, next))
-        end
-        if COMPOUND
-            θS, FS, sS = fit(gcS, ids, N, data_split_θ(θ, s, gc, ids, X); s0 = transfer(s, gc, gcS)); global nfits += 1
-            push!(cands, ("split a cluster", bic(FS, J + 1, L, N), gS, gcS, J + 1, ids, θS, sS, next))
-        end
-    end
-    if J > 1                                                        # merge the two closest clusters
-        gM = resize_clusters(g, J - 1, ids, N); gcM = clustered(gM, ids, N)
-        θM, FM, sM = fit(gcM, ids, N, merge_θ(θ); s0 = transfer(s, gc, gcM)); global nfits += 1
-        push!(cands, ("merge two clusters", bic(FM, J - 1, L, N), gM, gcM, J - 1, ids, θM, sM, next))
-    end
-    if COMPOUND && J < 4 && L > 0                                   # a data-driven split, then remove each switch in turn
-        θD = data_split_θ(θ, s, gc, ids, X)
-        for l in 1:L
-            idsC = ids[setdiff(1:L, l)]
-            gC = remove_switch(resize_clusters(g, J + 1, ids, N), ids, ids[l], N); gcC = clustered(gC, idsC, N)
-            θC, FC, sC = fit(gcC, idsC, N, drop_θ(θD, l); s0 = transfer(s, gc, gcC)); global nfits += 1
-            push!(cands, ("split, remove a switch", bic(FC, J + 1, L - 1, N), gC, gcC, J + 1, idsC, θC, sC, next))
-        end
-    end
-    if COMPOUND && J > 1 && L < 3                                   # merge, then add a switch
-        gC = add_switch(resize_clusters(g, J - 1, ids, N), J - 1, ids, next, N); idsC = [ids; next]; gcC = clustered(gC, idsC, N)
-        for _ in 1:4
-            θC, FC, sC = fit(gcC, idsC, N, add_θ(merge_θ(θ), rng); s0 = transfer(s, gc, gcC)); global nfits += 1
-            push!(cands, ("merge, add a switch", bic(FC, J - 1, L + 1, N), gC, gcC, J - 1, idsC, θC, sC, next + 1))
-        end
-    end
+    cands, nf = candidates(g, gc, J, ids, θ, s, next); global nfits += nf
     i = argmin([c[2] for c in cands])
     move, score, gN, gcN, JN, idsN, θN, sN, nextN = cands[i]
     if !(score < best - 1e-6)       # the stop: the best candidate of each move
@@ -377,6 +386,41 @@ while true
 end
 @printf("greedy search: (J, L) = (%d, %d) with %d fits in %.0f s; path %s\n", J, length(ids), nfits, time() - t0, join(path, " → "))
 println("weights ", round.(weights(θ); digits = 3), "   centres ", round.(θ.C; digits = 2))
+end
+
+# beam search (`STRUCTURE_BEAM=k`, k > 1): every kept structure is expanded by all moves, the best fit
+# per structure (J, L) not expanded before is kept, and the k best of those are the next beam; the
+# search stops when no candidate improves on the best score seen. k = 1 is the greedy search above.
+if get(ENV, "STRUCTURE_GREEDY", "true") != "false" && BEAM > 1
+gB = base_graph(X, 1); gcB = clustered(gB, Int[], N)
+θB, FB, sB = fit(gcB, Int[], N, (a = [0.0], C = reshape(vec(mean(X; dims = 2)), d, 1), W = zeros(d, 1, 0), r = zeros(1, 0)))
+start = (g = gB, gc = gcB, J = 1, ids = Int[], θ = θB, s = sB, next = 1, score = bic(FB, 1, 0, N), path = ["(1, 0)"])
+@printf("beam %d: start (J, L) = (1, 0)  BIC = %9.2f\n", BEAM, start.score)
+beam, bestst, seen, nfitsB, tB = [start], start, Set([(1, 0)]), 1, time()
+while true
+    pool = Dict{Tuple{Int,Int},Any}()
+    for st in beam
+        cands, nf = candidates(st.g, st.gc, st.J, st.ids, st.θ, st.s, st.next); global nfitsB += nf
+        for c in cands
+            key = (c[5], length(c[6]))
+            key in seen && continue
+            (haskey(pool, key) && pool[key][1][2] <= c[2]) || (pool[key] = (c, st.path))
+        end
+    end
+    isempty(pool) && break
+    ranked = sort(collect(values(pool)); by = x -> x[1][2])
+    ranked[1][1][2] < bestst.score - 1e-6 || break
+    global beam = map(ranked[1:min(BEAM, length(ranked))]) do (c, path)
+        move, score, gN, gcN, JN, idsN, θN, sN, nextN = c
+        (g = gN, gc = gcN, J = JN, ids = idsN, θ = θN, s = sN, next = nextN, score = score, path = [path; "($JN, $(length(idsN)))"])
+    end
+    foreach(b -> push!(seen, (b.J, length(b.ids))), beam)
+    beam[1].score < bestst.score && (global bestst = beam[1])
+    @printf("beam: %s   (%.0f s)\n", join([@sprintf("(%d, %d) %.2f", b.J, length(b.ids), b.score) for b in beam], ";  "), time() - tB)
+end
+@printf("beam search (k = %d): (J, L) = (%d, %d), BIC = %.2f with %d fits in %.0f s; path %s\n", BEAM, bestst.J,
+        length(bestst.ids), bestst.score, nfitsB, time() - tB, join(bestst.path, " → "))
+println("weights ", round.(weights(bestst.θ); digits = 3), "   centres ", round.(bestst.θ.C; digits = 2))
 end
 
 # reference: the generating structure (3, 2), fitted from the generating parameters and from 4 random
