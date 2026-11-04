@@ -120,7 +120,7 @@ Throws `ArgumentError` if a factor with [`uses_cavity`](@ref) has an `Emitting()
 its local free energy needs variable-to-factor messages. Use `Bidirectional()` on that edge.
 Missing messages on edges that can carry them remain `nothing`.
 """
-function factor_free_energies(s::AbstractMessageStore, g::FactorGraph, ps, st)
+function factor_free_energies(s::AbstractMessageStore, g::FactorGraph, @nospecialize(ps), @nospecialize(st))
     results, stnew = _factor_terms(s, g, ps, st)
     names = Tuple(f.name for f in g.factors)
     return LenticulumCore.GradedEnergy(NamedTuple{names}(Tuple(results))), stnew
@@ -129,7 +129,7 @@ end
 # Each node's free energy, in node order, and the threaded state. A vector, not a NamedTuple:
 # `scalar_free_energy` sums it without a type with one field per node (`plates.md`). A plate
 # factor row whose messages are held as blocks is evaluated in one `local_free_energies` call.
-function _factor_terms(s::AbstractMessageStore, g::FactorGraph, ps, st)
+function _factor_terms(s::AbstractMessageStore, g::FactorGraph, @nospecialize(ps), @nospecialize(st))
     _check_energy_edges(g)
     _check_tied_state(g, st)
     rows = _energy_rows(s, g)
@@ -245,7 +245,7 @@ end
 # The rows' energies in one call each and the other nodes' one by one. With `scalar = true` the
 # result is the sum of the scalarised terms instead of the vector. A row's key is stateless when
 # tied (`_check_tied_state`), and its state is set once.
-function _factor_terms_rows(s, g, ps, st, rows; scalar::Bool = false)
+function _factor_terms_rows(s, g, @nospecialize(ps), @nospecialize(st), rows; scalar::Bool = false)
     results = scalar ? nothing : Vector{Any}(nothing, nfactors(g))
     covered = falses(nfactors(g))
     total = 0.0
@@ -449,7 +449,7 @@ Contrast [`chain_free_energy`](@ref), which follows AutoBayes Theorem 23 literal
 
 Uses [`factor_free_energies`](@ref), including its cavity edge-direction check.
 """
-function bethe_free_energy(s::MessageStore, g::FactorGraph, ps, st)
+function bethe_free_energy(s::MessageStore, g::FactorGraph, @nospecialize(ps), @nospecialize(st))
     F, st = factor_free_energies(s, g, ps, st)
     V = variable_corrections(s, g)
     return LenticulumCore.GradedEnergy((; factors = F, variables = V)), st
@@ -502,7 +502,7 @@ likelihood factor uses the identity, in the same graph. See
 
 Uses [`factor_free_energies`](@ref), including its cavity edge-direction check.
 """
-function LenticulumCore.scalar_free_energy(s::MessageStore, g::FactorGraph, ps, st)
+function LenticulumCore.scalar_free_energy(s::MessageStore, g::FactorGraph, @nospecialize(ps), @nospecialize(st))
     rows = _energy_rows(s, g)
     total = 0.0
     if isempty(rows)

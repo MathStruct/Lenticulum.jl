@@ -324,3 +324,12 @@ with gradient fits and from 177 s to 143 s with EM, the same paths and scores. A
 gradient still compiles per structure (3.7 s), since the dual numbers' chunk follows the parameter
 count; EM does not use it.
 
+Extended 2026-11-05 to the graph-wide free-energy entry points (`scalar_free_energy`,
+`bethe_free_energy`, `factor_free_energies`, `_factor_terms`, `_factor_terms_rows`), the cluster
+code outside AD (`_cluster_joint`, the cluster's `factor_message` and `factor_belief`, the batched
+`factor_messages`, `factor_beliefs`, `_batch_joints`, `_joint_plan`, `_cluster_batchable`) and EM
+(`moment_statistics`, `em_step`, the statistics' `ClusterForm`). The functions AD differentiates
+stay specialised (their dual-number types change per structure anyway). Measured in a scratch
+script on `examples/structure_edits.jl`'s graphs: the free energy, `em_step` and a five-step
+`fit_em` on a new structure took 1.8 s, now 1.14 s (0.31 s warm); the warm per-call times are
+unchanged. The structure search with EM went from 34.9 s to 31.3 s, the same path and scores.

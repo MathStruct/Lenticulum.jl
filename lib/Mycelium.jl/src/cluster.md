@@ -317,3 +317,14 @@ ForwardDiff and Zygote).
    factors listed in another order were refused (compared as sets now); `switch_overlaps` took the
    directions of a switch with three or more outcomes from the first outcome only (every pair
    now). Documented: the metric counts the noise of the sum and of the listed switches only.
+
+## Review of 2026-11-05 (Mistral via `vibe`)
+
+A read-only review of the EM code found that batched cluster nodes treated an observed **discrete**
+boundary variable as "a point" without its state (`_input_shape`). Replicas that observed different
+states were batched on replica 1's surviving assignments, so their messages, free energies and EM
+statistics were those of replica 1's state. Reproduced in Lenticulum `test/cluster.jl` ("Batched
+cluster nodes with an observed switch that differs between replicas"): a batched free energy of
+54.76 against the exact 71.59, and the statistics' masses [6, 0] against [3, 3]. The observed state
+is now part of the shape, so such replicas go replica by replica. The defect dates from the batched
+path (2026-11-04); the examples observe no discrete variable, so their results are unaffected.

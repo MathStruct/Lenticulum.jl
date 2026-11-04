@@ -379,3 +379,30 @@ end
     # a node frozen whole is frozen under its key
     @test graph(:all).factors[graph(:all).factor_index[:c]].freeze == ((:sum,),)
 end
+
+@testset "Batched cluster nodes with an observed switch that differs between replicas" begin
+    # review of 2026-11-05 (Mistral): an observed discrete boundary variable was recorded as "a
+    # point" without its state, so replicas observing different states were batched on replica 1's
+    # assignments. Oracle: Σᵢ −log(w_{kᵢ} N(zᵢ; b_{kᵢ}, q)).
+    N = 6
+    z = [0.3, -1.2, 0.8, 2.0, -0.4, 1.1]; ks = [1, 2, 2, 1, 2, 1]
+    b = GraphBuilder()
+    for i in 1:N
+        r(s) = replica_name(s, i)
+        variable!(b, r(:z), 1); variable!(b, r(:k), 2)
+        factor!(b, r(:dz), DataFactor(:z, [z[i]])); connect!(b, r(:dz), :z, r(:z); direction = Emitting())
+        factor!(b, r(:dk), DataFactor(:k, ks[i])); connect!(b, r(:dk), :k, r(:k); direction = Emitting())
+        factor!(b, r(:sw), SwitchingConstraintFactor((z = 1,), 2, 1; noise = 0.2); params = :sw)
+        connect!(b, r(:sw), :z, r(:z)); connect!(b, r(:sw), :k, r(:k))
+    end
+    gp = cluster(as_plate(build(b), :pts, N), :pts, :c, [:sw]; params = :mix)
+    p = (A = (z = ones(1, 1),), b = [-1.0 1.5], logw = log.([0.3, 0.7]))
+    ps = merge(NamedTuple(s => NamedTuple() for i in 1:N for s in (replica_name(:dz, i), replica_name(:dk, i))), (mix = (sw = p,),))
+    s = MessageStore(gp)
+    for _ in 1:2; sweep!(s, gp, plate_schedule(gp), ps, NamedTuple()); end
+    w, bk = [0.3, 0.7], [-1.0, 1.5]
+    exact = sum(-(log(w[k]) - (zi - bk[k])^2 / (2 * 0.2) - log(2π * 0.2) / 2) for (zi, k) in zip(z, ks))
+    @test first(scalar_free_energy(s, gp, ps, NamedTuple())) ≈ exact rtol = 1e-12
+    sb = moment_statistics(s, gp, ps, NamedTuple()); sn = moment_statistics(s, gp, ps, NamedTuple(); batched = false)
+    @test sb[(:mix, :sw)][2].n ≈ sn[(:mix, :sw)][2].n ≈ [3.0, 3.0]
+end

@@ -15,7 +15,7 @@ specification), *partial*, *done*. Priority: **high** (it limits something measu
 
 | feature | status | priority | source | why |
 |---|---|---|---|---|
-| Compilation per structure in the free-energy and EM paths (`@nospecialize` of the graph-wide parameter tree beyond the message loop) | partial (message loop done 2026-11-04) | high | `passing.md` "Compilation per structure", `em.md` §3 | a new structure still compiles about 1–2 s outside the sweeps; fits are now 0.4 s |
+| Compilation per structure in the free-energy and EM paths | partial: message loop (2026-11-04), free energy, cluster code and EM outside AD (2026-11-05) | medium | `passing.md` "Compilation per structure" | a new structure still compiles 1.14 s for F, `em_step` and a fit (0.31 s warm); the AD paths and ForwardDiff's chunks remain |
 | Typed execution plans: factors grouped by type and rule, kernels compiled once per signature | proposed | medium | both reviews (LP-023) | the graph stores factors abstractly; plates are the first step |
 | A dependency-aware priority queue for `ResidualSchedule` | proposed | medium | ChatGPT review (LP-023) | each sweep probes every task, $O(T^2)$ evaluations |
 | Graph-wide parameters by integer slot instead of `NamedTuple` lookup by symbol | proposed | medium | ChatGPT review, [[Parallelism and Compilation]] | quadratic scaling with the number of keys |

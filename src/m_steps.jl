@@ -98,3 +98,7 @@ function Mycelium.m_step(f::RegimeFactor, st::Mycelium.MomentStats, ps, frozen)
     learn_noise && (out = merge(out, (L = L,)))
     return out
 end
+
+# the fixed output coefficient enters the minimiser (W_F), so tied factors must share it
+Mycelium.m_step_signature(f::Union{LinearConstraintFactor,SwitchingConstraintFactor,RegimeFactor}) = (f.output, f.output_coeff)
+

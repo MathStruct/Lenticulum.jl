@@ -23,7 +23,9 @@ _same_cluster(a::ClusterFactor, b::ClusterFactor) = a === b || (a.wiring == b.wi
 function _input_shape(c::ClusterFactor, msgs, skip)
     return map(c.boundary) do v
         b = _incoming(msgs, v, skip)
-        b isa LenticulumCore.DiracBelief && return (:point,)
+        # an observed discrete state fixes which assignments survive, so it is part of the shape
+        # (a continuous point only shifts h and the constants, `_data_terms`)
+        b isa LenticulumCore.DiracBelief && return v in c.discrete ? (:state, b.value) : (:point,)
         if v in c.discrete
             return b isa LenticulumCore.CategoricalBelief ? (:cat, b.logp) : (:none,)
         end
@@ -32,7 +34,7 @@ function _input_shape(c::ClusterFactor, msgs, skip)
         return bb isa GaussianBelief ? (:gauss, bb.Λ) : (:none,)
     end
 end
-function _cluster_batchable(cs, msgs, skip, ps)
+function _cluster_batchable(cs, msgs, skip, @nospecialize(ps))
     length(cs) >= 2 || return false
     # per-outcome coefficients or noise: several precisions, replica by replica (cluster.md)
     any(i -> _varies(cluster_form(cs[1].factors[i], _subtree(ps, cs[1].keys[i]))), eachindex(cs[1].factors)) && return false
@@ -41,7 +43,7 @@ function _cluster_batchable(cs, msgs, skip, ps)
 end
 
 # The per-factor pieces of a joint that do not depend on the replica's data.
-function _joint_plan(c::ClusterFactor, jt::_ClusterJoint, ps)
+function _joint_plan(c::ClusterFactor, jt::_ClusterJoint, @nospecialize(ps))
     n = size(jt.H, 1)
     plan = Any[]
     for (i, f) in enumerate(c.factors)
@@ -86,7 +88,7 @@ function _data_terms(c::ClusterFactor, jt::_ClusterJoint, plan, msgs, skip)
 end
 
 # Every replica's joint, from replica 1's and the data terms.
-function _batch_joints(cs, msgs, ps, skip)
+function _batch_joints(cs, msgs, @nospecialize(ps), skip)
     jt1 = _cluster_joint(cs[1], msgs[1], ps, skip)
     plan = _joint_plan(cs[1], jt1, ps)
     h1, δ1, _ = _data_terms(cs[1], jt1, plan, msgs[1], skip)
@@ -98,7 +100,7 @@ function _batch_joints(cs, msgs, ps, skip)
 end
 
 function factor_messages(cs::AbstractVector{<:ClusterFactor}, target::Symbol, polarity, inputs::AbstractVector,
-                         priors::AbstractVector, ps, st)
+                         priors::AbstractVector, @nospecialize(ps), @nospecialize(st))
     if !_cluster_batchable(cs, inputs, target, ps)
         out = Vector{Any}(undef, length(cs))
         for i in eachindex(cs)
@@ -131,7 +133,7 @@ struct FrozenClusterBeliefs
     assignments::Vector{Vector{Int}}
 end
 
-function factor_beliefs(cs::AbstractVector{<:ClusterFactor}, msgs::NamedTuple, ps, st)
+function factor_beliefs(cs::AbstractVector{<:ClusterFactor}, msgs::NamedTuple, @nospecialize(ps), @nospecialize(st))
     cols = [_column(msgs, i) for i in eachindex(cs)]
     _cluster_batchable(cs, cols, nothing, ps) || return [factor_belief(cs[i], cols[i], ps, st) for i in eachindex(cs)]
     chol = Dict{Any,Any}()

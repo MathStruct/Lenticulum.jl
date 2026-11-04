@@ -155,3 +155,22 @@ end
     s0 = MessageStore(gl); sweep!(s0, gl, plate_schedule(gl), ps0, NamedTuple()); sweep!(s0, gl, plate_schedule(gl), ps0, NamedTuple())
     @test_throws ArgumentError em_step(s0, gl, ps0, NamedTuple())
 end
+
+@testset "EM: tied factors with different fixed structure are not pooled" begin
+    # review of 2026-11-05 (Mistral): tied constraint factors with different `output_coeff` passed
+    # the tie check and pooled statistics under the first factor's fixed coefficient
+    b = GraphBuilder()
+    for (i, a) in enumerate((1.0, 2.0))
+        r(s) = replica_name(s, i)
+        variable!(b, r(:x), 1); variable!(b, r(:y), 1)
+        factor!(b, r(:d), DataFactor(:y, [0.5 * i])); connect!(b, r(:d), :y, r(:y); direction = Emitting())
+        factor!(b, r(:pr), GaussianPrior(:x, 0.0, 1.0); params = :pr); connect!(b, r(:pr), :x, r(:x))
+        factor!(b, r(:rel), LinearConstraintFactor((y = 1, x = 1), 1; noise = 0.1, output = :y, output_coeff = fill(a, 1, 1)); params = :rel)
+        connect!(b, r(:rel), :y, r(:y)); connect!(b, r(:rel), :x, r(:x))
+    end
+    gc = cluster(build(b), [replica_name(:c, i) => [replica_name(:pr, i), replica_name(:rel, i)] for i in 1:2]; params = :mix)
+    ps = (d = NamedTuple(), var"d[1]" = NamedTuple(), var"d[2]" = NamedTuple(),
+          mix = (pr = NamedTuple(), rel = (A = (x = -ones(1, 1),), c = [0.0])))
+    s = MessageStore(gc); for _ in 1:2; sweep!(s, gc, SequentialSchedule(all_tasks(gc)), ps, NamedTuple()); end
+    @test_throws r"differ in fixed structure" em_step(s, gc, ps, NamedTuple())
+end

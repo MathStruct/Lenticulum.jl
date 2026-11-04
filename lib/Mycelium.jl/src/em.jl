@@ -51,7 +51,7 @@ m_step(factor, stats, ps, frozen) = nothing
 _has_m_step(f) = which(m_step, Tuple{typeof(f),MomentStats,Any,Any}) !== which(m_step, Tuple{Any,Any,Any,Any})
 
 # The statistics of factor i of cluster node c under its belief b.
-function _moment_stats(c::ClusterFactor, i::Int, F::ClusterForm, b::FrozenClusterBelief)
+function _moment_stats(c::ClusterFactor, i::Int, @nospecialize(F::ClusterForm), b::FrozenClusterBelief)
     w = Dict(c.wiring[i])
     K = size(F.C, 2)
     chs = collect(keys(F.A))
@@ -84,7 +84,7 @@ end
 # The same over a plate row, from the stacked beliefs (`FrozenClusterBeliefs`: one precision class,
 # the means replica-major, the points as columns): a few matrix products instead of a loop over
 # replicas and assignments.
-function _moment_stats(c::ClusterFactor, i::Int, F::ClusterForm, B::FrozenClusterBeliefs)
+function _moment_stats(c::ClusterFactor, i::Int, @nospecialize(F::ClusterForm), B::FrozenClusterBeliefs)
     w = Dict(c.wiring[i])
     K = size(F.C, 2)
     chs = collect(keys(F.A))
@@ -135,7 +135,7 @@ node outside a cluster takes part when its belief is a [`FrozenClusterBelief`](@
 computed as a one-factor cluster, `as_cluster`). Run inference to convergence first: with exact
 beliefs this is one step of EM and does not increase the free energy (`em.md`).
 """
-function em_step(s::AbstractMessageStore, g::FactorGraph, ps, st)
+function em_step(s::AbstractMessageStore, g::FactorGraph, @nospecialize(ps), @nospecialize(st))
     out = ps
     for ((nk, fk), (f, stats, frozen)) in moment_statistics(s, g, ps, st)
         frozen === :all && continue
@@ -158,7 +158,7 @@ parameterisation with constraints the factors' [`m_step`](@ref) do not know): a 
 with an `m_step` method are included. A plate row of cluster nodes whose replicas share their
 structure is read from its stacked beliefs at once (`batched = false` takes every node alone).
 """
-function moment_statistics(s::AbstractMessageStore, g::FactorGraph, ps, st; batched::Bool = true)
+function moment_statistics(s::AbstractMessageStore, g::FactorGraph, @nospecialize(ps), @nospecialize(st); batched::Bool = true)
     acc = Dict{Tuple{Symbol,Union{Symbol,Nothing}},Any}()      # (node key, factor key) => (factor, stats, frozen)
     covered = Set{Int}()
     # plate rows of cluster nodes: their stacked beliefs, when the replicas share their structure
@@ -208,8 +208,20 @@ _dense(x::NamedTuple) = map(_dense, x)
 _dense(x::Tuple) = map(_dense, x)
 _dense(x::AbstractArray) = Array(x)
 _dense(x) = x
+"""
+    m_step_signature(factor)
+
+What of a factor besides its parameters enters its `m_step`'s minimiser (a fixed output
+coefficient, say). Tied factors pool their statistics only when their signatures are equal;
+`nothing` by default.
+"""
+m_step_signature(::Any) = nothing
+
 function _push_stats!(acc, key, f, stats, frozen)
     if haskey(acc, key)
+        isequal(m_step_signature(acc[key][1]), m_step_signature(f)) || throw(ArgumentError(
+            "em_step: tied factors under :$(key[end] === nothing ? key[1] : key[end]) differ in fixed structure " *
+            "($(m_step_signature(acc[key][1])) against $(m_step_signature(f))); one M-step cannot serve both"))
         _add!(acc[key][2], stats)
     else
         acc[key] = (f, stats, frozen)
@@ -222,7 +234,7 @@ end
 
 Expectation maximisation on `g`: `sweeps` sweeps of `schedule` (the E-step; exact when every
 learned factor is in a cluster node on a forest), the free energy, then [`em_step`](@ref), until
-the free energy falls by less than `tol` or `iters` steps. Returns the parameters, the free energy
+the free energy changes by less than `tol` or `iters` steps. Returns the parameters, the free energy
 before each M-step and, last, at the returned parameters (non-increasing for exact beliefs), and the
 store, holding the messages at the returned parameters. A warm `store` is reused.
 
@@ -251,7 +263,9 @@ function fit_em(g::FactorGraph, ps, st; schedule, sweeps::Int = 2, iters::Int = 
     for _ in 1:iters
         F = estep(ps)
         push!(Fs, F)
-        length(Fs) >= 2 && Fs[end - 1] - F < tol && (converged = true; break)
+        # |ΔF| < tol: with approximate beliefs F can rise, and a rise is not convergence (review of
+        # 2026-11-05, Mistral)
+        length(Fs) >= 2 && abs(Fs[end - 1] - F) < tol && (converged = true; break)
         if !accelerate
             ps = mstep(s, g, ps, st)
             continue

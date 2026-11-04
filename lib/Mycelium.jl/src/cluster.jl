@@ -565,7 +565,7 @@ function _enumerate_assignments(c::ClusterFactor, forms, wirings, states, lps)
     return partial, cst
 end
 
-function _cluster_joint(c::ClusterFactor, msgs, ps, skip)
+function _cluster_joint(c::ClusterFactor, msgs, @nospecialize(ps), skip)
     points = Dict{Symbol,Vector{Float64}}()
     for v in c.continuous
         b = _incoming(msgs, v, skip)
@@ -757,7 +757,7 @@ multiplies. To a discrete channel a `CategoricalBelief`. Points are substituted;
 Gaussian-mixture input is collapsed to its moments. Directions that nothing determines (a channel
 without a message, say) are integrated out in the diffuse limit (`cluster.md`, "Flat directions").
 """
-function factor_message(c::ClusterFactor, target::Symbol, polarity, inputs, prior, ps, st)
+function factor_message(c::ClusterFactor, target::Symbol, polarity, inputs, prior, @nospecialize(ps), @nospecialize(st))
     target in c.boundary || throw(ArgumentError("channel :$target is not a channel of this cluster (has $(c.boundary))"))
     jt = _cluster_joint(c, inputs, ps, target)
     return _joint_message(c, jt, target, nothing), st
@@ -848,7 +848,7 @@ struct FrozenClusterBelief{Q<:AbstractVector,M<:AbstractMatrix,S<:AbstractVector
     assignments::Vector{Vector{Int}}
 end
 
-factor_belief(c::ClusterFactor, msgs, ps, st) = _joint_belief(_cluster_joint(c, msgs, ps, nothing), nothing)
+factor_belief(c::ClusterFactor, msgs, @nospecialize(ps), @nospecialize(st)) = _joint_belief(_cluster_joint(c, msgs, ps, nothing), nothing)
 
 function _joint_belief(jt::_ClusterJoint, chol)
     n = size(jt.H, 1)

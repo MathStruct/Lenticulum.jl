@@ -105,3 +105,20 @@ search with EM from 58.0 s to 34.9 s, the same path and scores.
 3. **The first accelerated fit took 12 s.** The extrapolation rebuilt the parameters from a flat
    vector as views (`ReshapedArray`), a new parameter type that recompiled inference; they are
    materialised as plain arrays now (1.6 s for the first fit, 1.0 s after).
+
+## 6. Review of 2026-11-05 (Mistral via `vibe`)
+
+A read-only review of `em.jl` and `src/m_steps.jl` checked the statistics, the batched layout and the
+M-step's minimiser numerically and found them correct. It reported three silent errors, all
+confirmed and fixed:
+
+1. Batched statistics with an observed discrete input that differs between replicas (the
+   batching shape, `cluster.md` "Review of 2026-11-05"); tested.
+2. `fit_em` read any rise of $F$ as convergence (`Fs[end-1] - F < tol`). It now needs $|\Delta F| <$ `tol`;
+   with exact beliefs $F$ does not rise, with approximate ones a rise is not convergence.
+3. Tied factors that differ in fixed structure (a different `output_coeff`) pooled their
+   statistics under the first factor's. `m_step_signature(factor)` names that structure, and
+   `em_step` refuses to pool unequal signatures; tested (`test/em.jl`).
+
+Codex was tried first. Every model, the configured default included, was refused with "not
+supported when using Codex with a ChatGPT account".
