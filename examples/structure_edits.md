@@ -52,7 +52,8 @@ $L = 0, \dots, 4$. The greedy search took 166 s (734 s before the clusters were 
 2026-11-04): `Mycelium.fit_em` with SQUAREM, closed-form M-steps from the cluster beliefs, until $F$
 falls by less than $10^{-6}$. The switches' coefficients are frozen as well, so that their M-step is the
 offsets; EM stops at $\Delta F < 10^{-4}$. The same greedy path and scores (10 923.84 → 6 493.69 → 2 863.19 →
-1 067.60) in **58.0 s**, against 163.8 s for the gradient fit on the same code (both after the message
+1 067.60) in **58.0 s**, and 34.9 s once `em_step` read the plate's stacked beliefs (`em.md`), against
+163.8 s for the gradient fit on the same code (both after the message
 loop stopped specialising on the parameter tree, `lib/Mycelium.jl/src/passing.md`; 177.0 s and
 192.5–200.3 s before). Reference by EM: 10 923.84, 6 493.69, 2 863.19, 1 067.60, **1 163.54** for
 $L = 0, \dots, 4$. EM from the reference's random starts at $L = 4$ ends worse than the gradient fit's

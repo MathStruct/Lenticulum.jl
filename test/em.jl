@@ -134,6 +134,12 @@ end
     ps, Fs, s = fit_em(gc, ps0, NamedTuple(); schedule = plate_schedule(gc), iters = 500, tol = 1e-11, accelerate = true)
     @test all(diff(Fs) .<= 1e-8) && Fs[end] < Fs[1]
     @test ps.mix.sum.A == inner.sum.A && ps.mix.sw1.A == inner.sw1.A      # frozen paths unchanged
+    # the statistics from the plate's stacked beliefs equal those node by node
+    sb = moment_statistics(s, gc, ps, NamedTuple())
+    sn = moment_statistics(s, gc, ps, NamedTuple(); batched = false)
+    @test keys(sb) == keys(sn) && length(sb) == 3
+    @test all(k -> isapprox(sb[k][2].n, sn[k][2].n; rtol = 1e-12) && isapprox(sb[k][2].m, sn[k][2].m; rtol = 1e-12) &&
+                   isapprox(sb[k][2].S, sn[k][2].S; rtol = 1e-12), collect(keys(sb)))
     G = free_energy_gradient(s, gc, ps, NamedTuple(); ad = AutoForwardDiff()).mix
     @test maximum(abs, G.sum.c) < 1e-5 && maximum(abs, G.sw1.b) < 1e-5 && maximum(abs, G.sw2.b) < 1e-5
     @test abs(sum(G.sw1.logw)) < 1e-6

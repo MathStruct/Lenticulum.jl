@@ -1263,6 +1263,7 @@ include("cluster.jl")
 include("regime.jl")
 include("cluster_flat.jl")
 include("em.jl")
+include("validate_parameters.jl")
 
 include("structure_edits.jl")
 

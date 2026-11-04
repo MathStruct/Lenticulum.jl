@@ -24,9 +24,9 @@ reviewed commit) before anything was changed.
 ## Checked and not changed
 
 - **Missing parameter keys resolve to empty trees** (ChatGPT P2). True (`_subtree`), and data
-  factors rely on it. A learnable factor without its key fails at its first parameter access in
-  every factor read here. A `validate_parameters(g, ps)` before inference is a reasonable
-  addition; not done.
+  factors rely on it, so the lookup is unchanged. Since 2026-11-04 `validate_parameters(g, ps)`
+  checks a tree against the nodes' initial parameters (missing keys, names, array sizes, frozen
+  paths; unread keys warn); `test/validate_parameters.jl`. It is not called by inference itself.
 - **Root deduplication with a fixed tolerance** (Gemini 2.1). `implicit_roots` uses a relative
   `unique_tol` (default $10^{-3}$), a keyword. Scaling it by the local conditioning, as proposed, is
   plausible but not measured; no failing case is known.

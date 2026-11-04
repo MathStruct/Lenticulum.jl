@@ -6,7 +6,9 @@
 #       STRUCTURE_GREEDY=false skips the greedy search and runs the reference only;
 #       STRUCTURE_COMPOUND=false leaves out the compound moves and the data-driven splits (the branch's
 #       four moves only); STRUCTURE_FIT=em fits by EM in θ instead of 300 gradient steps;
-#       STRUCTURE_BEAM=k (k > 1) runs a beam search of width k instead of the greedy one.
+#       STRUCTURE_BEAM=k (k > 1) runs a beam search of width k instead of the greedy one, followed by a
+#       refit of the chosen structure from STRUCTURE_REFIT starts (32 with EM). The fastest route to the
+#       generating structure's best fit: STRUCTURE_FIT=em STRUCTURE_BEAM=2 (about 12 minutes).
 #
 # The model: z = c_j + Σₗ kₗ W_{jl} + ε, j ~ π, kₗ | j ~ Bernoulli(p_{jl}). As a graph, per point:
 #   - the label j (J states) read by a switch `sw0` whose outcome sets u₀ = c_j (log-weights log π);
@@ -420,6 +422,23 @@ while true
 end
 @printf("beam search (k = %d): (J, L) = (%d, %d), BIC = %.2f with %d fits in %.0f s; path %s\n", BEAM, bestst.J,
         length(bestst.ids), bestst.score, nfitsB, time() - tB, join(bestst.path, " → "))
+# a final refit of the chosen structure (`STRUCTURE_REFIT=n`, default 32 with EM): half the starts
+# perturb its fit, half are random (centres at random data points), as the reference's; the best is kept
+nrefit = parse(Int, get(ENV, "STRUCTURE_REFIT", FIT == "em" ? "32" : "0"))
+if nrefit > 0
+    tR = time()
+    Jb, Lb = bestst.J, length(bestst.ids)
+    starts = [isodd(r) ? perturb(bestst.θ, RESTART_RNG) :
+              (a = zeros(Jb), C = X[:, rand(RESTART_RNG, 1:N, Jb)], W = 2S .* randn(RESTART_RNG, d, Jb, Lb), r = zeros(Jb, Lb)) for r in 1:nrefit]
+    fits = [fit_by_em_once(bestst.gc, bestst.ids, N, θr) for θr in starts]
+    scores = [bic(f[2], Jb, Lb, N) for f in fits]
+    k = argmin(scores)
+    if scores[k] < bestst.score
+        global bestst = merge(bestst, (θ = fits[k][1], s = fits[k][3], score = scores[k]))
+    end
+    @printf("refit (%d starts, %s): best BIC %.2f (from a %s start), median %.2f; %.0f s\n", nrefit, FIT, scores[k],
+            isodd(k) ? "perturbed" : "random", sort(scores)[cld(nrefit, 2)], time() - tR)
+end
 println("weights ", round.(weights(bestst.θ); digits = 3), "   centres ", round.(bestst.θ.C; digits = 2))
 end
 

@@ -160,8 +160,12 @@ EM misses. They fit it less well than the gradient search's path did (1 299.17; 
 generating parameters): the $(3, 2)$ fits reached from these warm starts are local optima at
 1 329–1 335, and the beams' random draws differ (they are taken in another order), which is why $k = 3$
 is not better than $k = 2$. The reference random starts in these runs reach 1 389.95 and 1 408.89 at best.
-So with EM the beam fixes the structure, not the fit; a better optimum of the chosen structure would
-need better warm starts there (the branch used 32 restarts per candidate).
+So with EM the beam fixes the structure, not the fit. **A final refit** of the chosen structure from 32
+starts (`STRUCTURE_REFIT`, default 32 with EM: 16 perturbations of its fit and 16 random starts with
+centres at random data points) closes the gap: with $k = 2$ the best refit, from a random start,
+reaches **BIC 1 299.14**, the fit from the generating parameters, in 29 s (median 1 328.91). In all
+$(3, 2)$ at 1 299.14 in 692 s, against $(3, 2)$ at 1 299.17 in 1 121 s for the greedy search with gradient
+steps the same day.
 
 ## What it shows
 

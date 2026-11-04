@@ -71,7 +71,7 @@ export ep_message, ep_project, ep_divide, ep_block, mixture_message, reduce_mess
 export em_step, fit_em, m_step, moment_statistics, MomentStats
 export cluster, as_cluster, ClusterFactor, ClusterForm, TableFactor, FrozenClusterBeliefs, cluster_form, cluster_switch, cluster_parameters, cluster_marginal, overlap_groups, FrozenClusterBelief
 export remove_factor!, remove_variable!, disconnect!, replace_factor!, transfer
-export variable!, factor!, connect!, build, validate
+export variable!, factor!, connect!, build, validate, validate_parameters
 export EdgeDirection, Bidirectional, Emitting, Absorbing, emits, absorbs
 export nvariables, nfactors, nedges, variable, factornode
 export edges_of_factor, edges_of_variable, variable_degree, factor_degree, channels_of

@@ -81,6 +81,42 @@ function _moment_stats(c::ClusterFactor, i::Int, F::ClusterForm, b::FrozenCluste
     return st
 end
 
+# The same over a plate row, from the stacked beliefs (`FrozenClusterBeliefs`: one precision class,
+# the means replica-major, the points as columns): a few matrix products instead of a loop over
+# replicas and assignments.
+function _moment_stats(c::ClusterFactor, i::Int, F::ClusterForm, B::FrozenClusterBeliefs)
+    w = Dict(c.wiring[i])
+    K = size(F.C, 2)
+    chs = collect(keys(F.A))
+    dims = [size(getfield(F.A, ch), 2) for ch in chs]
+    st = MomentStats(chs, dims, K)
+    nA, N = size(B.q)
+    kk = repeat(_switch_columns(c, F, w, B.assignments), N)          # column (r - 1)·nA + a
+    q = vec(B.q)
+    if isempty(chs)
+        for k in 1:K
+            st.n[k] = sum(q[kk .== k]; init = 0.0)
+        end
+        return st
+    end
+    X = reduce(vcat, [haskey(B.points, w[ch]) ? repeat(B.points[w[ch]]; inner = (1, nA)) : B.M[B.offset[w[ch]], :] for ch in chs])
+    offs = cumsum([0; dims])
+    Σx = zeros(sum(dims), sum(dims))
+    for (p, cp) in enumerate(chs), (r, cr) in enumerate(chs)
+        (haskey(B.offset, w[cp]) && haskey(B.offset, w[cr])) || continue
+        Σx[(offs[p] + 1):offs[p + 1], (offs[r] + 1):offs[r + 1]] .= B.Σ[B.offset[w[cp]], B.offset[w[cr]]]
+    end
+    for k in 1:K
+        idx = findall(==(k), kk)
+        wq = q[idx]
+        Xk = X[:, idx]
+        st.n[k] = sum(wq; init = 0.0)
+        st.m[:, k] .= Xk * wq
+        st.S[:, :, k] .= (Xk .* wq') * Xk' .+ st.n[k] .* Σx
+    end
+    return st
+end
+
 # a cluster node's freeze, for the factor under key k: :all, or its paths with k stripped
 function _inner_freeze(freeze, k::Symbol)
     paths = LenticulumCore._freeze_paths(freeze)
@@ -119,11 +155,32 @@ The moment statistics [`em_step`](@ref) uses, for a caller with its own M-step (
 parameterisation with constraints the factors' [`m_step`](@ref) do not know): a `Dict` from
 `(node key, factor key)` (the factor key is `nothing` outside a cluster node) to
 `(factor, stats::MomentStats, frozen)`, pooled over tied nodes and plate replicas. Only factors
-with an `m_step` method are included.
+with an `m_step` method are included. A plate row of cluster nodes whose replicas share their
+structure is read from its stacked beliefs at once (`batched = false` takes every node alone).
 """
-function moment_statistics(s::AbstractMessageStore, g::FactorGraph, ps, st)
+function moment_statistics(s::AbstractMessageStore, g::FactorGraph, ps, st; batched::Bool = true)
     acc = Dict{Tuple{Symbol,Union{Symbol,Nothing}},Any}()      # (node key, factor key) => (factor, stats, frozen)
+    covered = Set{Int}()
+    # plate rows of cluster nodes: their stacked beliefs, when the replicas share their structure
+    for row in (batched ? _energy_rows(s, g) : _EnergyRow[])
+        f1 = g.factors[first(row.fids)]
+        (f1.factor isa ClusterFactor && LenticulumCore.islearnable(f1.factor) && f1.freeze !== :all) || continue
+        msgs = _row_messages(s, row)
+        msgs === nothing && continue
+        cs = [g.factors[i].factor for i in row.fids]
+        psn = _subtree(ps, f1.params)
+        B = factor_beliefs(cs, msgs, psn, _subtree(st, f1.params))
+        B isa FrozenClusterBeliefs || continue
+        c = cs[1]
+        for (i, f) in enumerate(c.factors)
+            LenticulumCore.islearnable(f) && _has_m_step(f) || continue
+            k = c.keys[i]
+            _push_stats!(acc, (f1.params, k), f, _moment_stats(c, i, cluster_form(f, _subtree(psn, k)), B), _inner_freeze(f1.freeze, k))
+        end
+        union!(covered, row.fids)
+    end
     for fn in g.factors
+        fn.id in covered && continue
         LenticulumCore.islearnable(fn.factor) || continue
         fn.freeze === :all && continue
         psn, stn = _subtree(ps, fn.params), _subtree(st, fn.params)

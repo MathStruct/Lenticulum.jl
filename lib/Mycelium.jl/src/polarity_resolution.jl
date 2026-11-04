@@ -161,3 +161,66 @@ The channels of factor `fid` from which it could ever read.
 """
 legal_sources(g::FactorGraph, fid::Int) =
     [g.edges[ei].channel for ei in g.edges_of_factor[fid] if can_absorb(g, ei)]
+
+# --- Parameter trees (review of 2026-11-04, LP-023) -----------------------------------------
+
+"""
+    validate_parameters(g, ps) -> nothing
+
+Checks a graph-wide parameter tree before inference or training, which otherwise read a missing
+key as an empty tree (`_subtree`) and fail later or not at all:
+
+- every node whose `LuxCore.initialparameters` is not empty has its parameter key in `ps`;
+- that entry has the same names (recursively) and array sizes as the initial parameters (it is not
+  compared by value; a declared `output` coefficient passed as a parameter is caught here);
+- every frozen path of a node exists in its entry.
+
+Throws an `ArgumentError` listing every problem. Keys of `ps` that no node reads are reported in
+a warning (a misspelt key, say), not an error.
+"""
+function validate_parameters(g::FactorGraph, ps)
+    problems = String[]
+    seen = Set{Symbol}()
+    for fn in g.factors
+        fn.params in seen && continue
+        push!(seen, fn.params)
+        p0 = LuxCore.initialparameters(Random.Xoshiro(0), fn.factor)
+        has = ps isa NamedTuple && haskey(ps, fn.params)
+        if !has
+            _isempty_tree(p0) || push!(problems, "no parameters for :$(fn.params) ($(nameof(typeof(fn.factor))) node :$(fn.name))")
+            continue
+        end
+        p = getfield(ps, fn.params)
+        _shape_problems!(problems, string(fn.params), p, p0)
+        paths = LenticulumCore._freeze_paths(fn.freeze)
+        paths === :all && continue
+        for path in paths
+            _has_path(p, path) || push!(problems, "frozen path $(path) of :$(fn.name) is not in its parameters")
+        end
+    end
+    isempty(problems) || throw(ArgumentError("validate_parameters: " * join(problems, "; ")))
+    extra = ps isa NamedTuple ? [k for k in keys(ps) if !(k in seen)] : Symbol[]
+    isempty(extra) || @warn "validate_parameters: keys no node reads: $(join(extra, ", "))"
+    return nothing
+end
+_isempty_tree(x::NamedTuple) = all(_isempty_tree, values(x))
+_isempty_tree(x::Tuple) = all(_isempty_tree, x)
+_isempty_tree(_) = false
+function _shape_problems!(out, where, p, p0)
+    if p0 isa NamedTuple
+        p isa NamedTuple || return push!(out, "$where should be a NamedTuple with keys $(keys(p0)); got $(typeof(p))")
+        Set(keys(p)) == Set(keys(p0)) || push!(out, "$where has keys $(keys(p)); expected $(keys(p0))")
+        for k in keys(p0)
+            haskey(p, k) && _shape_problems!(out, "$where.$k", getfield(p, k), getfield(p0, k))
+        end
+    elseif p0 isa AbstractArray
+        p isa AbstractArray && size(p) == size(p0) || push!(out, "$where has size $(p isa AbstractArray ? size(p) : typeof(p)); expected $(size(p0))")
+    elseif p0 isa Number
+        p isa Number || push!(out, "$where should be a number; got $(typeof(p))")
+    end
+    return out
+end
+_has_path(x, path) = isempty(path) ? true :
+    (x isa NamedTuple && path[1] isa Symbol && haskey(x, path[1]) && _has_path(getfield(x, path[1]), Base.tail(path))) ||
+    (x isa Tuple && path[1] isa Int && 1 <= path[1] <= length(x) && _has_path(x[path[1]], Base.tail(path)))
+

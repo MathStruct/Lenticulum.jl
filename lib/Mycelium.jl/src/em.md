@@ -76,10 +76,18 @@ collapsed M-step, the $u$'s integrated out given the assignment, takes the searc
 1 121 s with gradient steps, on another path into a worse local optimum of the generating
 structure. `fit_em(...; mstep)` takes such a caller-supplied M-step.
 
+**Batched statistics (2026-11-04).** A plate row of cluster nodes whose replicas share their
+structure is read from its stacked beliefs (`FrozenClusterBeliefs`, the same the batched free
+energy uses): per factor and outcome, $n_k$, $m_k$ and $S_k$ are a few matrix products over all
+replicas' assignments, instead of a belief per replica and a loop over its assignments. Rows that do
+not batch (per-outcome forms, replicas of different input shape) and nodes outside plates take the
+per-node path; `moment_statistics(...; batched = false)` forces it, and `test/em.jl` checks that both
+give the same statistics to $10^{-12}$. On the graph of §3, `em_step` fell from 0.03 s to 0.003 s and a warm
+fit from 1.0 s to 0.4 s (7.1 s for 300 gradient steps; a scratch timing); the `structure_edits`
+search with EM from 58.0 s to 34.9 s, the same path and scores.
+
 ## 4. What it does not do
 
-- **Batched statistics.** `em_step` computes each replica's belief separately; a batched version
-  over `FrozenClusterBeliefs` would cut its cost (0.03 s against the gradient's 0.01 s).
 - **Factors outside clusters**, except one-factor clusters, have no statistics: a learned factor
   on approximate (loopy) beliefs is not fitted by EM here.
 - **Only closed forms.** Factors without `m_step` keep their parameters; mixing M-steps with
