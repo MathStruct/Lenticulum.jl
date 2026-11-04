@@ -164,6 +164,90 @@ function plate!(template, b::GraphBuilder, name::Symbol, n::Integer)
 end
 
 """
+    as_plate(g, name::Symbol, n::Integer) -> FactorGraph
+
+`g` with the nodes named [`replica_name`](@ref)`(base, i)`, `i = 1:n`, recorded as a plate `name`:
+the graph [`plate!`](@ref) would build from a template declaring each `base`, with the same nodes,
+factors, edges and parameter keys. Every other node is shared. A factor whose replicas read one
+parameter key is tied; one whose replica `i` reads `replica_name(key, i)` is untied. The replicas
+must be alike as `plate!` requires (checked by it), and an edge may not join two replicas.
+
+This is how a graph changed by structure edits (`GraphBuilder(g)`, which refuses plates) gets
+its plate back, so that plate schedules and batched messages apply to it. `g` must have no plates.
+"""
+function as_plate(g::FactorGraph, name::Symbol, n::Integer)
+    isempty(g.plates) || throw(ArgumentError("as_plate: the graph has plates already"))
+    n >= 1 || throw(ArgumentError("as_plate: a plate needs n ≥ 1 replicas; got $n"))
+    function split(nm::Symbol)
+        m = match(r"^(.*)\[(\d+)\]$", String(nm))
+        m === nothing && return nothing
+        i = parse(Int, m.captures[2])
+        return 1 <= i <= n ? (Symbol(m.captures[1]), i) : nothing
+    end
+    vrep = Dict(v.id => split(v.name) for v in g.variables if split(v.name) !== nothing)
+    frep = Dict(f.id => split(f.name) for f in g.factors if split(f.name) !== nothing)
+    function bases(rep, what)
+        bs = sort!(unique(first.(values(rep))))
+        for b in bs
+            count(x -> x[1] === b, values(rep)) == n || throw(ArgumentError(
+                "as_plate: $what :$b has $(count(x -> x[1] === b, values(rep))) replicas, not $n"))
+        end
+        return bs
+    end
+    vb, fb = bases(vrep, "variable"), bases(frep, "factor")
+    # tying: the key of each factor base
+    keyof = Dict{Symbol,Tuple{Symbol,Bool}}()
+    for base in fb
+        ks = [g.factors[g.factor_index[replica_name(base, i)]].params for i in 1:n]
+        if all(==(ks[1]), ks)
+            keyof[base] = (ks[1], true)
+        else
+            s1 = split(ks[1])
+            s1 !== nothing && all(i -> ks[i] === replica_name(s1[1], i), 1:n) || throw(ArgumentError(
+                "as_plate: the replicas of :$base read the keys $(unique(ks)), neither one key nor one per replica"))
+            keyof[base] = (s1[1], false)
+        end
+    end
+    b = GraphBuilder()
+    for v in g.variables
+        haskey(vrep, v.id) || variable!(b, v.name, v.space)
+    end
+    for f in g.factors
+        haskey(frep, f.id) || factor!(b, f.name, f.factor; freeze = f.freeze, rule = f.rule, params = f.params)
+    end
+    conn(b, fname, e, vname) = connect!(b, fname, e.channel, vname; direction = e.direction, coupling = e.coupling, detach = e.detach)
+    for e in g.edges
+        haskey(frep, e.factor) || haskey(vrep, e.variable) || conn(b, g.factors[e.factor].name, e, g.variables[e.variable].name)
+    end
+    plate!(b, name, n) do p, i
+        for base in vb
+            variable!(p, base, g.variables[g.variable_index[replica_name(base, i)]].space)
+        end
+        for base in fb
+            f = g.factors[g.factor_index[replica_name(base, i)]]
+            key, tie = keyof[base]
+            factor!(p, base, f.factor; params = key, tie = tie, freeze = f.freeze, rule = f.rule)
+        end
+        es = [e for e in g.edges if haskey(frep, e.factor) && frep[e.factor][2] == i]
+        sort!(es; by = e -> (frep[e.factor][1], e.channel))
+        for e in es
+            ref = if haskey(vrep, e.variable)
+                vrep[e.variable][2] == i || throw(ArgumentError(
+                    "as_plate: an edge joins replica $i's :$(frep[e.factor][1]) to replica $(vrep[e.variable][2])'s :$(vrep[e.variable][1])"))
+                vrep[e.variable][1]
+            else
+                g.variables[e.variable].name
+            end
+            conn(p, frep[e.factor][1], e, ref)
+        end
+    end
+    for e in g.edges     # shared factors to replica variables
+        !haskey(frep, e.factor) && haskey(vrep, e.variable) && conn(b, g.factors[e.factor].name, e, g.variables[e.variable].name)
+    end
+    return build(b)
+end
+
+"""
     plates(g) -> Vector{Plate}
 
 The [`Plate`](@ref)s of a graph, in the order they were declared.

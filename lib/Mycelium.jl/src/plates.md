@@ -189,3 +189,13 @@ edges of the targets' variables form block rows in one order (`_variable_rows`, 
 (`_step_blocks!`: the message block, the cavity block, `ep_block`) and otherwise edge by edge
 through `step!`, never through the vector-batched `factor_messages`, which would send the
 belief-propagation messages unprojected. Details and timings in `blocks.md`.
+
+## A plate from names (2026-11-04)
+
+`as_plate(g, name, n)` records the nodes of an unplated graph named `replica_name(base, i)`,
+`i = 1:n`, as a plate: it replays them through `plate!` (so its checks apply), a factor tied when its
+replicas read one key and untied when replica $i$ reads `replica_name(key, i)`; all other nodes are
+shared, and an edge joining two replicas is refused. Structure edits (`GraphBuilder(g)`) refuse
+plates, so a graph edited replica by replica gets its plate back this way, and with it plate
+schedules and batched messages; `cluster(g, plate, name, factors)` uses it to keep the plate
+around cluster nodes (`cluster.md`).

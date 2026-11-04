@@ -12,7 +12,9 @@
 #   - the sum z − u₀ − Σₗ uₗ with noise 0.1·I, and the data.
 # The switch's log-weights are log p(bit | j) − log J, normalised over its 2J outcomes, so with the
 # table's log J the joint is exactly the model's. Every point is one cluster node (tied, `params = :mix`),
-# so the graph's free energy is −Σᵢ log p(zᵢ), with the impossible assignments dropped inside.
+# so the graph's free energy is −Σᵢ log p(zᵢ), with the impossible assignments dropped inside. The
+# points are recorded as a plate (`as_plate` after each edit), so the clusters' messages and free
+# energies are batched.
 #
 # Moves (edits of the unclustered graph): add a switch (every sum node gains a channel), remove the
 # least used switch, split the heaviest cluster, merge the two closest clusters (both change the
@@ -24,7 +26,7 @@ using ADTypes, DifferentiationInterface, ForwardDiff
 
 const d = 2
 const E = Matrix(1.0I, d, d)
-nm(s, i) = Symbol(s, "_", i)
+nm(s, i) = replica_name(s, i)
 chans(ids) = (:z, :u0, (Symbol(:u, s) for s in ids)...)
 sumfactor(ids) = LinearConstraintFactor(NamedTuple{chans(ids)}(ntuple(_ -> d, length(ids) + 2)), d; noise = 0.1)
 switch(K) = SwitchingConstraintFactor((u = d,), K, d; noise = 1e-3)
@@ -84,10 +86,9 @@ function resize_clusters(g, Jnew, ids, N)          # split or merge: j and every
     end
     return build(b)
 end
-function clustered(g, ids, N)
-    inner(i) = [nm(:sum, i); nm(:sw0, i); [nm(Symbol(:sw, s), i) for s in ids]; [nm(Symbol(:t, s), i) for s in ids]]
-    return cluster(g, [nm(:c, i) => inner(i) for i in 1:N]; params = :mix)
-end
+# every point's component as one cluster node, the points a plate (batched messages and energies)
+clustered(g, ids, N) = cluster(as_plate(g, :pts, N), :pts, :c,
+                               [:sum; :sw0; [Symbol(:sw, s) for s in ids]; [Symbol(:t, s) for s in ids]]; params = :mix)
 
 # --- parameters ------------------------------------------------------------------------------------
 # θ = (a: log π up to a constant, C: d×J centres, W: d×J×L offsets, r: J×L logits of p)
@@ -135,7 +136,7 @@ end
 
 function fit(gc, ids, N, θ; steps = 300, η = 0.02, γ = 0.9, s0 = nothing)
     J, L = size(θ.C, 2), length(ids)
-    sched = SequentialSchedule(all_tasks(gc))
+    sched = plate_schedule(gc)
     s = s0 === nothing ? MessageStore(gc) : s0
     vel = zeros(length(vecθ(θ)))
     F = Inf

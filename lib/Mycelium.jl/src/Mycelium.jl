@@ -60,13 +60,14 @@ include("gradient_couplings.jl")
 include("graph_adjoint.jl")
 include("sampling.jl")
 include("cluster.jl")
+include("cluster_batch.jl")
 include("edits.jl")
 
 # --- Graph -----------------------------------------------------------------
 export FactorGraph, GraphBuilder, VariableNode, FactorNode, Edge
 export AbstractMessageRule, BeliefPropagation, MeanField, ExpectationPropagationRule, MixtureReduction
 export ep_message, ep_project, ep_divide, ep_block, mixture_message, reduce_message
-export cluster, ClusterFactor, ClusterForm, TableFactor, cluster_form, cluster_switch, cluster_parameters, cluster_marginal, overlap_groups, FrozenClusterBelief
+export cluster, ClusterFactor, ClusterForm, TableFactor, FrozenClusterBeliefs, cluster_form, cluster_switch, cluster_parameters, cluster_marginal, overlap_groups, FrozenClusterBelief
 export remove_factor!, remove_variable!, disconnect!, replace_factor!, transfer
 export variable!, factor!, connect!, build, validate
 export EdgeDirection, Bidirectional, Emitting, Absorbing, emits, absorbs
@@ -74,7 +75,7 @@ export nvariables, nfactors, nedges, variable, factornode
 export edges_of_factor, edges_of_variable, variable_degree, factor_degree, channels_of
 export euler_characteristic, isconnected, istree, isdag, topological_order, leaves
 export learnable_factors, parameter_key, parameter_keys, tied_factors
-export Plate, PlateBuilder, plate!, plates, replica_name, PlateSchedule, plate_schedule
+export Plate, PlateBuilder, plate!, plates, replica_name, PlateSchedule, plate_schedule, as_plate
 
 # --- Polarity --------------------------------------------------------------
 export PolarityError, resolve_polarity, check_legal, can_emit, can_absorb

@@ -1,6 +1,6 @@
 # Structure search as edits of one graph
 
-Run `julia -t auto --project=docs examples/structure_edits.jl` (about 15 minutes; the docs environment
+Run `julia -t auto --project=docs examples/structure_edits.jl` (about 5 minutes; the docs environment
 has ForwardDiff). This belongs to [`Extending Mycelium`](../vault/Design/Extending%20Mycelium.md) §6
 and [L-SPEC-010](../vault/Project/Specifications/L-SPEC-010%20Structure%20Edits.md).
 
@@ -16,7 +16,8 @@ graph, each move an edit of it and each candidate scored by the graph's own free
   $z = c + \sum_l u_l + \varepsilon$ with $u_l \in \{b_{l1}, b_{l2}\}$, noise variance 0.1, switch noise $10^{-3}$.
 - **Data.** 200 points from three switches (E3's 8-mode grid), $W = 1.5\,[2\ 0\ 1;\ 0\ 2\ -1]$, `Xoshiro(3)`.
 - **Graph.** One graph holds all points. Point $i$ has its data, its sum node and its switches.
-  Each point is one cluster node (`cluster(...; params = :mix)`), and the clusters are tied, so the
+  Each point is one cluster node, the points a plate (`as_plate`, then `cluster(g, :pts, :c, ...; params = :mix)`),
+  and the clusters are tied, so the
   graph's free energy is exactly $-\sum_i \log p(z_i)$.
 - **Moves.** Both are edits of the unclustered graph (`GraphBuilder(g)`):
   - *add a switch*: every sum node is replaced by one with another channel (`replace_factor!`),
@@ -45,7 +46,7 @@ graph, each move an edit of it and each candidate scored by the graph's own free
 | stop | (add: 1 087.9; remove worse) | 3 | |
 
 Reference, best BIC per $L$ from random starts: 10 923.84, 6 493.69, 2 863.19, 1 067.60, 1 087.91 for
-$L = 0, \dots, 4$. The greedy search took 734 s.
+$L = 0, \dots, 4$. The greedy search took 166 s (734 s before the clusters were a plate, 2026-11-04).
 
 ## What it shows
 
@@ -53,7 +54,7 @@ $L = 0, \dots, 4$. The greedy search took 734 s.
    adding a switch three times. That is the path `structure_switches.jl` took for the 8-mode grid
    with closed-form EM on the branch, and the reference agrees. Each move was an edit, and each
    score the free energy of the edited graph, exact because every point is one cluster node.
-2. **It is slow.** 734 s against 3.6–13 s on the branch. Each candidate takes 300 gradient steps
+2. **It is slow.** 166 s against 3.6–13 s on the branch. Each candidate takes 300 gradient steps
    through 200 cluster nodes; the branch's M-step was closed form. The graph spends its time in
    fitting, not in the edits, which take milliseconds.
 3. **The score is exact only because inference is.** With approximate inference the free energy

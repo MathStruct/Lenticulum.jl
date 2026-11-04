@@ -1,6 +1,6 @@
 # Structure search with split and merge moves, as edits of one graph
 
-Run `julia -t auto --project=docs examples/structure_clusters.jl` (about 40 minutes, the greedy search 39 of them; `STRUCTURE_GREEDY=false` runs the reference alone; the docs environment
+Run `julia -t auto --project=docs examples/structure_clusters.jl` (about 9 minutes, the greedy search 7 of them; `STRUCTURE_GREEDY=false` runs the reference alone; the docs environment
 has ForwardDiff). This extends [`structure_edits.md`](structure_edits.md) from one sum node ($J = 1$) to
 E3b's switch over sums, and belongs to [`Extending Mycelium`](../vault/Design/Extending%20Mycelium.md)
 §6 and [L-SPEC-010](../vault/Project/Specifications/L-SPEC-010%20Structure%20Edits.md).
@@ -52,24 +52,22 @@ with central differences of the re-converged free energy to $1.8 \cdot 10^{-6}$ 
 | step | move | $(J, L)$ | BIC | time |
 |---|---|---|---|---|
 | start | | (1, 0) | 46 415.38 | |
-| 1 | add a switch | (1, 1) | 17 218.10 | 197 s |
-| 2 | split a cluster | (2, 1) | 2 637.50 | 489 s |
-| 3 | add a switch | (2, 2) | 1 659.24 | 749 s |
-| 4 | add a switch | (2, 3) | 1 355.84 | 1 512 s |
-| stop | no split, merge or removal improves; $L \le 3$ | (2, 3) | | 2 314 s, 44 fits |
+| 1 | add a switch | (1, 1) | 17 218.10 | 46 s |
+| 2 | split a cluster | (2, 1) | 2 637.50 | 105 s |
+| 3 | add a switch | (2, 2) | 1 659.24 | 163 s |
+| 4 | add a switch | (2, 3) | 1 355.84 | 300 s |
+| stop | no split, merge or removal improves; $L \le 3$ | (2, 3) | | 441 s, 44 fits |
 
 The final fit has weights 0.594 and 0.406 and centres $(1.86, 4.99)$ and $(4.23, -2.76)$: one cluster
 holds two of the three generating clusters, its switches spanning both.
 
-Reference, the generating structure $(3, 2)$ (graph built by the same edits; run with
-`STRUCTURE_GREEDY=false`, so its random starts draw from another state of the generator than in
-the full run):
+Reference, the generating structure $(3, 2)$ (graph built by the same edits), after the greedy
+search in the same run:
 
 | start | BIC |
 |---|---|
 | the generating parameters | **1 299.15** |
-| random start 1 | 1 334.57 |
-| random starts 2–4 | 2 156.73, 1 953.30, 2 224.20 |
+| random starts 1–4 | 2 490.53, 2 119.74, **1 457.61**, 1 594.49 |
 
 ## What it shows
 
@@ -78,13 +76,15 @@ the full run):
    adding a switch, and each candidate is scored by the exact free energy of the edited graph.
    The search took the moves one expects at first: a switch, a split, then switches.
 2. **It stops at a worse structure.** Greedy ends at $(2, 3)$, BIC 1 355.84, while $(3, 2)$ reaches
-   1 299.15 from the generating parameters and 1 334.57 from the best of four random starts: both
-   better. From $(2, 3)$ no single move reaches $(3, 2)$ (it needs a split and a removal), and the split
+   1 299.15 from the generating parameters, better; from random starts it does not (best of four
+   1 457.61), so the fits' local optima limit the comparison too. From $(2, 3)$ no single move reaches $(3, 2)$ (it needs a split and a removal), and the split
    to $(3, 3)$ pays for 9 more parameters. This is the branch's finding on the 16-mode grid, where
    greedy also ended at an equivalent but larger $(2, 3)$; here $(2, 3)$ is not even equivalent. A
    combined move or a second pass would be needed, as the branch noted.
-3. **It is slow**: 2 314 s for 44 fits, against the branch's 3.6–13 s with closed-form EM and random
-   restarts. Fitting dominates (300 gradient steps through 200 cluster nodes per candidate).
+3. **It is slow**: 441 s for 44 fits, against the branch's 3.6–13 s with closed-form EM and random
+   restarts. Fitting dominates (300 gradient steps through 200 cluster nodes per candidate). The
+   clusters are a plate (`as_plate`, `cluster(g, plate, ...)`), so their messages and free energies
+   are batched; the first run without the plate took 2 314 s for the same path and scores.
 
 ## Caveats
 

@@ -34,15 +34,16 @@ nodes, trees).
 free energy to $10^{-14}$) for adding and removing a switch; `transfer` keeps the surviving messages and
 the warm start reaches the cold start's fixed point. `examples/structure_edits.jl`: greedy search over
 $L$ switches on E3's 8-mode grid (200 points, exact scores through tied per-point cluster nodes, fits by
-gradient steps at the exact beliefs) finds $L = 3$ by three additions, the branch's path, in 734 s. `examples/structure_clusters.jl`: the switch over sums ($J$ clusters,
+gradient steps at the exact beliefs) finds $L = 3$ by three additions, the branch's path, in 166 s (clusters as a plate). `examples/structure_clusters.jl`: the switch over sums ($J$ clusters,
 labels tied to switch outcomes by `TableFactor`s) with all four of the branch's moves; split and
 merge re-add the label and outcome variables with new state counts. On the branch's tree (200
-points) greedy goes (1, 0) → (1, 1) → (2, 1) → (2, 2) → (2, 3), BIC 1 355.84 in 2 314 s, while the
+points) greedy goes (1, 0) → (1, 1) → (2, 1) → (2, 2) → (2, 3), BIC 1 355.84 in 441 s, while the
 generating (3, 2) reaches 1 299.15: a worse structure, as on the branch's 16-mode grid.
 
 ## Open
 
-- Plates; stable ids (append-only growth with masks) instead of rebuilding.
+- Editing plates directly; stable ids (append-only growth with masks) instead of rebuilding. An edited
+  graph whose replicas are named `x[i]` gets its plate back with `as_plate` (2026-11-04).
 - A combined move (split and remove) or a second pass: on the tree the greedy search ends at $(2, 3)$,
   worse than the generating $(3, 2)$ (`examples/structure_clusters.md`).
 - Fitting is slow against closed-form M-steps; frozen paths inside cluster nodes.

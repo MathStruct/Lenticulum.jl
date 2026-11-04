@@ -20,7 +20,7 @@ const d = 2
 const E = Matrix(1.0I, d, d)
 sumfactor(L) = LinearConstraintFactor(NamedTuple{(:z, (Symbol(:u, l) for l in 1:L)...)}(ntuple(_ -> d, L + 1)), d; noise = 0.1)
 switch() = SwitchingConstraintFactor((u = d,), 2, d; noise = 1e-3)
-nm(s, i) = Symbol(s, "_", i)
+nm(s, i) = replica_name(s, i)
 
 # the data graph with no switch: point i has z_i, its data and its sum node
 function base_graph(X)
@@ -71,7 +71,7 @@ function _resum(g, L, N)
     end
     return build(b)
 end
-clustered(g, L, N) = cluster(g, [nm(:c, i) => [nm(:sum, i); [nm(Symbol(:sw, l), i) for l in 1:L]] for i in 1:N]; params = :mix)
+clustered(g, L, N) = cluster(as_plate(g, :pts, N), :pts, :c, [:sum; [Symbol(:sw, l) for l in 1:L]]; params = :mix)   # a plate of clusters
 
 sum_ps(L, c) = (A = NamedTuple{(:z, (Symbol(:u, l) for l in 1:L)...)}((E, ntuple(_ -> -E, L)...)), c = c)
 make_ps(L, c, sws) = (; sum = sum_ps(L, c), (Symbol(:sw, l) => sws[l] for l in 1:L)...)
@@ -80,7 +80,7 @@ full_ps(gc, inner, N) = merge(NamedTuple{Tuple(nm(:data, i) for i in 1:N)}(ntupl
 # Fit by gradient steps at the exact beliefs (Momentum on c, the offsets b and the log-weights; the
 # sum node's coefficients stay fixed). Returns the fitted parameters, F and the store.
 function fit(gc, L, N, c, sws; steps = 300, η = 0.02, γ = 0.9, s0 = nothing)
-    sched = SequentialSchedule(all_tasks(gc))            # N components; two sweeps reach every cluster
+    sched = plate_schedule(gc)                           # N components; two sweeps reach every cluster
     vel = nothing
     s = s0
     F = Inf

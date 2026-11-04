@@ -59,6 +59,13 @@ logtable)` is a fixed factor over discrete variables with such a form; its `-Inf
 variables together. The node drops the assignments of weight zero before its Gaussian part, and a
 zero-weight outcome contributes nothing to the free energy ($0 \log 0 = 0$).
 
+**§8. Over a plate** (added 2026-11-04). `cluster(g, plate, name, factors; params)` makes one tied
+node per replica of the plate's template factors and keeps the plate; inside, variables carry
+template names. `as_plate(g, name, n)` records the nodes named `x[i]` as a plate. For tied nodes
+with the same factors and inputs of one shape, messages and free energies are batched
+(`factor_messages`, `factor_beliefs` → `FrozenClusterBeliefs`, `belief_free_energies`); otherwise
+per node. Values equal the unplated graph's.
+
 **§5. Parameters and marginals.** The node's parameters are keyed by the clustered factors'
 parameter keys; `cluster_parameters(gc, name, ps)` converts a parameter tree of the original graph.
 `cluster_marginal(store, gc, name, v, ps)` is the marginal of a cluster variable under the node's

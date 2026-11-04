@@ -18,7 +18,12 @@ A builder holding a copy of `g`'s variables, factors and edges, to be edited (`v
 their replica records would not survive the edits.
 """
 function GraphBuilder(g::FactorGraph)
-    isempty(g.plates) || throw(ArgumentError("GraphBuilder(g): graphs with plates cannot be edited"))
+    isempty(g.plates) || throw(ArgumentError(
+        "GraphBuilder(g): graphs with plates cannot be edited (edit the graph before `as_plate`)"))
+    return _copy_builder(g)
+end
+# A builder holding g's nodes and edges, without its plate records.
+function _copy_builder(g::FactorGraph)
     b = GraphBuilder()
     b.variables = copy(g.variables)
     b.factors = copy(g.factors)

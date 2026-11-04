@@ -98,7 +98,9 @@ made in one call, tied with `params` (one per data point of one model);
 Lenticulum's `partial_sums` adds E7's partial sum per group as an edit.
 [`TableFactor`](@ref) is a fixed factor over several discrete variables; its `-Inf` entries tie
 them together (a switch's outcome to a cluster label), and a cluster node drops the assignments
-they rule out before its Gaussian part.
+they rule out before its Gaussian part. On a plate, `cluster(g, plate, name, factors)` makes one tied node per
+replica and keeps the plate, and tied cluster nodes then share the work of their messages and
+free energies; [`as_plate`](@ref) gives an edited graph its plate back.
 
 A built graph is edited by opening it as a builder: `GraphBuilder(g)`, then `variable!`,
 `factor!`, `connect!`, [`remove_factor!`](@ref), [`remove_variable!`](@ref), [`disconnect!`](@ref) and

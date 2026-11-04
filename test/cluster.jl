@@ -268,3 +268,83 @@ end
     factor!(b2, :lc, LinearConstraintFactor((u = 1, w = 1), 1; noise = 1.0)); connect!(b2, :lc, :u, :u)
     @test_throws ArgumentError cluster(build(b2), :c, [:lc])
 end
+
+# Cluster nodes over a plate (L-SPEC-009 §8): E3b's switch over sums (J = 2, one switch, its label tied by
+# a TableFactor), one cluster per point. The plate's batched messages and energies must equal the
+# per-node ones of the same graph without the plate record.
+function cl_points(X, J; plated)
+    d = size(X, 1); E = Matrix(1.0I, d, d)
+    T = fill(-Inf, J, 2J); for j in 1:J; T[j, 2j - 1] = T[j, 2j] = log(J); end
+    b = GraphBuilder()
+    for i in axes(X, 2)
+        r(s) = replica_name(s, i)
+        variable!(b, r(:z), d); variable!(b, r(:j), J); variable!(b, r(:u0), d); variable!(b, r(:u1), d); variable!(b, r(:q1), 2J)
+        factor!(b, r(:data), DataFactor(:z, X[:, i])); connect!(b, r(:data), :z, r(:z); direction = Emitting())
+        factor!(b, r(:sum), LinearConstraintFactor((z = d, u0 = d, u1 = d), d; noise = 0.1); params = :sum)
+        factor!(b, r(:sw0), SwitchingConstraintFactor((u = d,), J, d; noise = 1e-3); params = :sw0)
+        factor!(b, r(:sw1), SwitchingConstraintFactor((u = d,), 2J, d; noise = 1e-3); params = :sw1)
+        factor!(b, r(:t1), TableFactor((j = J, q = 2J), T); params = :t1)
+        connect!(b, r(:sum), :z, r(:z)); connect!(b, r(:sum), :u0, r(:u0)); connect!(b, r(:sum), :u1, r(:u1))
+        connect!(b, r(:sw0), :u, r(:u0)); connect!(b, r(:sw0), :k, r(:j))
+        connect!(b, r(:sw1), :u, r(:u1)); connect!(b, r(:sw1), :k, r(:q1))
+        connect!(b, r(:t1), :j, r(:j)); connect!(b, r(:t1), :q, r(:q1))
+    end
+    g = build(b)
+    inner = (sum = (A = (z = E, u0 = -E, u1 = -E), c = zeros(d)),
+             sw0 = (A = (u = E,), b = [0.0 3.0; 1.0 -2.0][1:d, :], logw = log.([0.4, 0.6])),
+             sw1 = (A = (u = E,), b = [0.0 1.5 0.0 -1.0; 0.0 0.5 0.0 1.2][1:d, :], logw = log.([0.3, 0.7, 0.5, 0.5] ./ J)),
+             t1 = NamedTuple())
+    N = size(X, 2)
+    ps = merge(NamedTuple{Tuple(replica_name(:data, i) for i in 1:N)}(ntuple(_ -> NamedTuple(), N)), (mix = inner,))
+    facs = [:sum, :sw0, :sw1, :t1]
+    if plated
+        return cluster(as_plate(g, :pts, N), :pts, :c, facs; params = :mix), ps
+    end
+    return cluster(g, [replica_name(:c, i) => [replica_name(f, i) for f in facs] for i in 1:N]; params = :mix), ps
+end
+
+@testset "Cluster nodes over a plate: batched messages and energies" begin
+    rng = Xoshiro(21)
+    X = randn(rng, 2, 12) .* 2
+    gu, ps = cl_points(X, 2; plated = false)
+    gp, _ = cl_points(X, 2; plated = true)
+    @test length(plates(gp)) == 1 && size(only(plates(gp)).factors) == (2, 12)
+    @test Set(f.name for f in gp.factors) == Set(f.name for f in gu.factors)
+    c3 = gp.factors[gp.factor_index[replica_name(:c, 3)]].factor
+    @test c3.boundary == [:z] && Set(c3.discrete) == Set([:j, :q1])        # template names inside
+    run(g, sched) = (s = MessageStore(g); for _ in 1:2; sweep!(s, g, sched, ps, NamedTuple()); end; s)
+    su, sp = run(gu, SequentialSchedule(all_tasks(gu))), run(gp, plate_schedule(gp))
+    Fu, Fp = first(scalar_free_energy(su, gu, ps, NamedTuple())), first(scalar_free_energy(sp, gp, ps, NamedTuple()))
+    # exact: −Σ log p(zᵢ) by enumeration
+    R = 0.1I + 2e-3I
+    lp(x) = log(sum(exp(ps.mix.sw0.logw[j] + ps.mix.sw1.logw[2j - 2 + bit] + log(2)) *
+        exp(-0.5 * dot(x - ps.mix.sw0.b[:, j] - ps.mix.sw1.b[:, 2j - 2 + bit], R \ (x - ps.mix.sw0.b[:, j] - ps.mix.sw1.b[:, 2j - 2 + bit]))) /
+        sqrt(det(2π * Matrix(R, 2, 2))) for j in 1:2 for bit in 1:2))
+    @test Fu ≈ -sum(lp, eachcol(X)) atol = 1e-9
+    @test Fp ≈ Fu atol = 1e-10
+    # the plate path took the batched methods
+    pl = only(plates(gp))
+    cs = [gp.factors[pl.factors[1, i]].factor for i in 1:12]
+    @test cs[1] isa ClusterFactor && length(Mycelium._energy_rows(sp, gp)) >= 1
+    B = factor_beliefs(cs, Mycelium._row_messages(sp, only(r for r in Mycelium._energy_rows(sp, gp) if first(r.fids) == pl.factors[1, 1])), ps.mix, NamedTuple())
+    @test B isa FrozenClusterBeliefs && size(B.q, 2) == 12
+    # gradients: the batched energies against the per-node ones, ForwardDiff and Zygote
+    for ad in (AutoForwardDiff(), AutoZygote())
+        Gu = free_energy_gradient(su, gu, ps, NamedTuple(); ad = ad).mix
+        Gp = free_energy_gradient(sp, gp, ps, NamedTuple(); ad = ad).mix
+        @test isapprox(Gp.sw1.b, Gu.sw1.b; atol = 1e-8) && isapprox(Gp.sw0.logw, Gu.sw0.logw; atol = 1e-8)
+        @test isapprox(Gp.sum.A.u0, Gu.sum.A.u0; atol = 1e-8) && isapprox(Gp.sw1.logw, Gu.sw1.logw; atol = 1e-8)
+    end
+    # messages: batched equals one by one
+    ins = [(z = LenticulumCore.DiracBelief(X[:, i]),) for i in 1:12]
+    mb, _ = Mycelium.factor_messages(cs, :z, nothing, [NamedTuple() for _ in 1:12], fill(nothing, 12), ps.mix, NamedTuple())
+    m1, _ = factor_message(cs[5], :z, nothing, NamedTuple(), nothing, ps.mix, NamedTuple())
+    @test mb[5].logw ≈ m1.logw && all(k -> mb[5].components[k].η ≈ m1.components[k].η, eachindex(m1.components))
+    # replicas whose inputs differ in shape take the per-node path, with the same result
+    mixed = [i == 4 ? (z = LenticulumCore.Gaussian(X[:, i], Matrix(0.5I, 2, 2)),) : ins[i] for i in 1:12]
+    @test !Mycelium._cluster_batchable(cs, mixed, nothing) && Mycelium._cluster_batchable(cs, ins, nothing)
+    # as_plate refusals
+    @test_throws ArgumentError as_plate(gp, :again, 12)
+    b = GraphBuilder(); variable!(b, Symbol("x[1]"), 1); variable!(b, Symbol("x[2]"), 1); variable!(b, Symbol("y[1]"), 1)
+    @test_throws ArgumentError as_plate(build(b), :p, 2)                   # y has one replica of two
+end

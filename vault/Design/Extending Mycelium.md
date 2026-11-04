@@ -226,7 +226,7 @@ where exact inference is available.
 as a builder, edited by name and rebuilt; `transfer` carries the shared edges' messages. The test
 in part: the add and remove moves of the additive wiring ($J = 1$), as edits of one graph holding 200
 points as tied cluster nodes (exact scores), find the 8-mode grid's three switches by the branch's
-path (`examples/structure_edits.md`), in 734 s against the branch's 3.6–13 s with closed-form EM.
+path (`examples/structure_edits.md`), in 166 s (with the clusters as a plate, 2026-11-04; 734 s before) against the branch's 3.6–13 s with closed-form EM.
 The split and merge moves ($J > 1$) followed the same day (`examples/structure_clusters.md`):
 the switch over sums as a graph needs a discrete factor tying each switch's outcome to the cluster
 label (`TableFactor`), and the cluster nodes drop the assignments it rules out. On the branch's

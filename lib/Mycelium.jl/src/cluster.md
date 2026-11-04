@@ -131,6 +131,34 @@ column order. In Lenticulum, the switch over sums with $J = 2$, $L = 2$ in one c
 $F = -\log p(z)$ to $10^{-14}$ (a scratch check), and the example checks it at $(3, 2)$ on 200 points
 ($9 \cdot 10^{-13}$) along with the gradient against central differences (`examples/structure_clusters.md`).
 
+## Cluster nodes over a plate (2026-11-04)
+
+`cluster(g, plate, name, factors; params)` clusters the template factors `factors` of every replica
+of `plate` into one tied node per replica, and the graph keeps the plate. Inside each node the
+variables carry their template names (`:z`, not `z[3]`), so every replica has the same channels,
+which a plate group needs. `as_plate(g, name, n)` (`plates.jl`) records the nodes named `x[i]` of an
+unplated graph as a plate; structure edits refuse plates, so an edited graph gets its plate back
+this way.
+
+Tied clusters differ only in what their replica's messages bring. When every replica has the
+same factors (compared field by field) and its inputs the same shape (which channels are points,
+the input precisions, the discrete inputs), replica $i$'s joint is replica 1's with
+$H_i = H_1 + (h_i - h_1)\mathbf 1^\top$ and $c_i = c_1 + (\delta_i - \delta_1)$: $h$ collects the Gaussian inputs'
+$\eta$ and the points' shifts $-G_f^\top Q_f^{-1} s_f$, $\delta$ the terms $s_f^\top Q_f^{-1} C_{f,a} - \tfrac12 s_f^\top Q_f^{-1} s_f$. So
+`factor_messages` builds one joint, its precision's factorisations and the surviving assignments
+once (`cluster_batch.jl`), and `factor_beliefs` returns `FrozenClusterBeliefs`, whose
+`belief_free_energies` evaluates all replicas as a few stacked matrix products: what the parameter
+gradient differentiates. Replicas that differ fall back to the per-node methods.
+
+Tests (`test/cluster.jl`, "Cluster nodes over a plate"): the switch over sums ($J = 2$, a table) on 12
+points, plated against the same graph without the plate record: free energy equal to $10^{-10}$ and
+to $-\sum_i \log p(z_i)$ by enumeration, the batched beliefs taken, the gradient equal to $10^{-8}$
+with ForwardDiff and Zygote, batched messages equal to one by one, the fallback chosen when one
+replica's input is a Gaussian instead of a point; `as_plate`'s refusals. On 50 points at $(3, 2)$ a
+scratch timing gave sweeps plus free energy 3.7 times and the gradient 6 times faster than the
+unplated clusters, at equal values ($9 \cdot 10^{-13}$, $10^{-11}$). The examples' timings are in
+`examples/structure_edits.md` and `examples/structure_clusters.md`.
+
 ## What it does not do
 
 - **Factors outside the conditionally linear-Gaussian class.** A factor needs `cluster_form`, and

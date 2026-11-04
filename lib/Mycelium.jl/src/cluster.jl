@@ -218,7 +218,35 @@ that are not bidirectional, diagonal and attached.
 cluster(g::FactorGraph, name::Symbol, factors) = cluster(g, [name => factors])
 
 function cluster(g::FactorGraph, groups::AbstractVector{<:Pair}; params::Union{Symbol,Nothing} = nothing)
-    isempty(g.plates) || throw(ArgumentError("cluster: graphs with plates are not supported"))
+    isempty(g.plates) || throw(ArgumentError("cluster: on a graph with plates, cluster a plate's factors with `cluster(g, plate, name, factors)`"))
+    return _cluster(g, groups, params, nothing)
+end
+
+"""
+    cluster(g, plate::Symbol, name::Symbol, factors; params = name) -> FactorGraph
+
+Cluster the plate factors `factors` (template names) of every replica of `plate` into one node
+per replica, `replica_name(name, i)`, tied (all read `params`). The new graph keeps the plate,
+with the cluster nodes in it, so plate schedules group their messages and the batched cluster
+methods (`factor_messages`, `factor_beliefs`) share the work that does not depend on the replica.
+Inside each node the variables carry their template names (`:z`, not `Symbol("z[3]")`): those are
+its channels, the same in every replica, and the names `cluster_marginal` takes. The graph must
+have this one plate only.
+"""
+function cluster(g::FactorGraph, plate::Symbol, name::Symbol, factors::AbstractVector{Symbol}; params::Symbol = name)
+    pl = _plate(g, plate)
+    length(g.plates) == 1 || throw(ArgumentError("cluster: a graph with several plates is not supported"))
+    renames = map(1:pl.n) do i
+        Dict(g.variables[pl.variables[r, i]].name => Symbol(replace(String(g.variables[pl.variables[r, i]].name), r"\[\d+\]$" => ""))
+             for r in axes(pl.variables, 1))
+    end
+    groups = [replica_name(name, i) => [replica_name(f, i) for f in factors] for i in 1:pl.n]
+    gc = _cluster(build(_copy_builder(g)), groups, params, renames)
+    return as_plate(gc, plate, pl.n)
+end
+
+# `renames[k]`: graph variable name => the name inside cluster k (its channel), or `nothing`.
+function _cluster(g::FactorGraph, groups, params, renames)
     isempty(groups) && throw(ArgumentError("cluster: no groups"))
     names = Symbol[first(gr) for gr in groups]
     allunique(names) || throw(ArgumentError("cluster: the cluster names must differ"))
@@ -238,6 +266,7 @@ function cluster(g::FactorGraph, groups::AbstractVector{<:Pair}; params::Union{S
         haskey(g.factor_index, name) && !(g.factor_index[name] in union_) && throw(ArgumentError("cluster: a factor :$name exists already"))
     end
     nodes = [_cluster_node(g, fids, Set(fids), union_, params !== nothing) for fids in fidss]
+    renames === nothing || (nodes = [_renamed(c, m) for (c, m) in zip(nodes, renames)])
     if params !== nothing
         all(c -> Set(_unique_keys(c)) == Set(_unique_keys(first(nodes))), nodes) || throw(ArgumentError(
             "cluster: tied cluster nodes (params = :$params) must hold the same parameter keys"))
@@ -268,10 +297,20 @@ function cluster(g::FactorGraph, groups::AbstractVector{<:Pair}; params::Union{S
         connect!(b, g.factors[e.factor].name, e.channel, g.variables[e.variable].name;
                  direction = e.direction, coupling = e.coupling, detach = e.detach)
     end
-    for (name, node) in zip(names, nodes), v in node.boundary
-        connect!(b, name, v, v)
+    for (k, (name, node)) in enumerate(zip(names, nodes))
+        inv = renames === nothing ? Dict{Symbol,Symbol}() : Dict(w => v for (v, w) in renames[k])
+        for v in node.boundary
+            connect!(b, name, v, get(inv, v, v))
+        end
     end
     return build(b)
+end
+
+# The node with its variables renamed by `m` (graph name => name inside); others keep theirs.
+function _renamed(c::ClusterFactor, m)
+    r(v) = get(m, v, v)
+    return ClusterFactor(c.names, c.keys, c.factors, [[ch => r(v) for (ch, v) in w] for w in c.wiring],
+                         r.(c.variables), Dict(r(v) => k for (v, k) in c.dims), r.(c.discrete), r.(c.continuous), r.(c.boundary))
 end
 
 _internal_variables(g, fids) = (inside = Set(fids); vids = unique(g.edges[ei].variable for fid in fids for ei in g.edges_of_factor[fid]);
@@ -493,9 +532,13 @@ function _cluster_joint(c::ClusterFactor, msgs, ps, skip)
 end
 
 # log ∫ exp(hᵀx − xᵀJx/2) dx for each column of H, with J positive definite.
-function _log_integrals(J, H, what)
+# A value computed once per joint precision: `chol` is `nothing` (no cache) or a `Dict`.
+_cached(::Nothing, _, f) = f()
+_cached(chol::AbstractDict, k, f) = get!(f, chol, k)
+
+function _log_integrals(J, H, what, chol = nothing)
     size(J, 1) == 0 && return zeros(size(H, 2))
-    C = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(J); check = false)
+    C = _cached(chol, :CJ, () -> LinearAlgebra.cholesky(LinearAlgebra.Symmetric(J); check = false))
     LinearAlgebra.issuccess(C) || throw(ArgumentError(
         "cluster: $what are not determined by the cluster's factors and incoming messages (singular precision)"))
     return vec(sum(H .* (C \ H); dims = 1)) ./ 2 .- logdet(C) / 2 .+ size(J, 1) * log(2π) / 2
@@ -516,13 +559,19 @@ collapsed to its moments.
 function factor_message(c::ClusterFactor, target::Symbol, polarity, inputs, prior, ps, st)
     target in c.boundary || throw(ArgumentError("channel :$target is not a channel of this cluster (has $(c.boundary))"))
     jt = _cluster_joint(c, inputs, ps, target)
+    return _joint_message(c, jt, target, nothing), st
+end
+
+# The message to `target` from a joint. `chol` caches the factorisations, which depend on J only:
+# `nothing`, or a `Dict` filled on first use (tied replicas sharing J reuse it, `cluster_batch.jl`).
+function _joint_message(c::ClusterFactor, jt::_ClusterJoint, target::Symbol, chol)
     if target in c.discrete
-        l = jt.c .+ _log_integrals(jt.J, jt.H, "its continuous variables")
+        l = jt.c .+ _log_integrals(jt.J, jt.H, "its continuous variables", chol)
         j = findfirst(==(target), c.discrete)
         K = c.dims[target]
         lk = [_lse([l[a] for a in eachindex(l) if jt.assignments[a][j] == k]; ) for k in 1:K]
         all(==(-Inf), lk) && throw(ArgumentError("cluster: every state of :$target has zero probability"))
-        return LenticulumCore.CategoricalBelief(Val(:log), lk .- _lse(lk), nothing), st
+        return LenticulumCore.CategoricalBelief(Val(:log), lk .- _lse(lk), nothing)
     end
     ot = jt.offset[target]
     rs = setdiff(1:size(jt.J, 1), ot)
@@ -531,18 +580,18 @@ function factor_message(c::ClusterFactor, target::Symbol, polarity, inputs, prio
     if isempty(rs)
         Λ, E, l = Jtt, Ht, copy(jt.c)
     else
-        Cr = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Jrr); check = false)
+        Cr = _cached(chol, :Cr, () -> LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Jrr); check = false))
         LinearAlgebra.issuccess(Cr) || throw(ArgumentError(
             "cluster: the continuous variables other than :$target are not determined by the cluster's factors and incoming messages"))
         X = Cr \ Hr
-        Λ = Jtt - Jtr * (Cr \ Jtr')
+        Λ = _cached(chol, :Λ, () -> Jtt - Jtr * (Cr \ Jtr'))
         E = Ht - Jtr * X
         l = jt.c .+ vec(sum(Hr .* X; dims = 1)) ./ 2 .- logdet(Cr) / 2 .+ length(rs) * log(2π) / 2
     end
     Λ = (Λ + Λ') / 2
-    all(iszero, Λ) && all(iszero, E) && return LenticulumCore.TrivialBelief(), st
+    all(iszero, Λ) && all(iszero, E) && return LenticulumCore.TrivialBelief()
     d = length(ot)
-    CΛ = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Λ); check = false)
+    CΛ = _cached(chol, :CΛ, () -> LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Λ); check = false))
     proper = LinearAlgebra.issuccess(CΛ)
     if proper                                   # normalised components: their mass into the weight
         l = l .+ vec(sum(E .* (CΛ \ E); dims = 1)) ./ 2 .- logdet(CΛ) / 2 .+ d * log(2π) / 2
@@ -550,9 +599,9 @@ function factor_message(c::ClusterFactor, target::Symbol, polarity, inputs, prio
     keep = findall(>(-Inf), l)
     isempty(keep) && throw(ArgumentError("cluster: every assignment has zero probability"))
     comps = [GaussianBelief(E[:, a], Λ, !proper) for a in keep]
-    length(comps) == 1 && return only(comps), st
+    length(comps) == 1 && return only(comps)
     lk = l[keep]
-    return LenticulumCore.MixtureBelief(Val(:log), comps, lk .- _lse(lk)), st
+    return LenticulumCore.MixtureBelief(Val(:log), comps, lk .- _lse(lk))
 end
 
 # --- The free energy --------------------------------------------------------------
@@ -576,18 +625,19 @@ struct FrozenClusterBelief{Q<:AbstractVector,M<:AbstractMatrix,S<:AbstractMatrix
     assignments::Vector{Vector{Int}}
 end
 
-function factor_belief(c::ClusterFactor, msgs, ps, st)
-    jt = _cluster_joint(c, msgs, ps, nothing)
+factor_belief(c::ClusterFactor, msgs, ps, st) = _joint_belief(_cluster_joint(c, msgs, ps, nothing), nothing)
+
+function _joint_belief(jt::_ClusterJoint, chol)
     n = size(jt.J, 1)
-    l = jt.c .+ _log_integrals(jt.J, jt.H, "its continuous variables")
+    l = jt.c .+ _log_integrals(jt.J, jt.H, "its continuous variables", chol)
     all(==(-Inf), l) && throw(ArgumentError("cluster: every assignment has zero probability"))
     q = exp.(l .- _lse(l))
     if n == 0
         M, Σ, H = zeros(0, length(q)), zeros(0, 0), 0.0
     else
-        C = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(jt.J))
-        M, Σ = C \ jt.H, Matrix(inv(C))
-        H = n * (1 + log(2π)) / 2 - logdet(C) / 2
+        C = _cached(chol, :CJ, () -> LinearAlgebra.cholesky(LinearAlgebra.Symmetric(jt.J); check = false))
+        M = C \ jt.H
+        Σ, H = _cached(chol, :ΣH, () -> (Matrix(inv(C)), n * (1 + log(2π)) / 2 - logdet(C) / 2))
     end
     return FrozenClusterBelief(q, M, Σ, H, jt.free, jt.offset, jt.points, jt.assignments)
 end
