@@ -27,7 +27,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Bibliography</loc>
-    <lastmod>2026-11-04T11:52:10.000Z</lastmod>
+    <lastmod>2026-11-04T23:01:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Comparisons/Geometric-Deep-Learning-and-Physical-Laws</loc>
     <lastmod>2026-10-15T11:05:36.000Z</lastmod>
@@ -81,10 +81,13 @@
     <lastmod>2026-11-01T23:07:06.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Energy-Based/Energy-Based-Learning</loc>
-    <lastmod>2026-11-01T23:07:06.000Z</lastmod>
+    <lastmod>2026-11-04T23:01:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Energy-Based/Training-Energy-Based-Models</loc>
     <lastmod>2026-10-26T12:37:22.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/Energy-Based/Why-Learned-Relations-Do-Not-Collapse</loc>
+    <lastmod>2026-11-04T23:01:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Factor-Graphs/Acausal-Composition-is-a-Hypergraph-Category</loc>
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
@@ -186,7 +189,7 @@
     <lastmod>2026-10-26T01:19:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-11-04T14:21:46.274Z</lastmod>
+    <lastmod>2026-11-04T23:58:25.407Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-10-25T22:36:28.000Z</lastmod>
@@ -306,7 +309,7 @@
     <lastmod>2026-09-30T21:52:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Map-of-Content</loc>
-    <lastmod>2026-11-01T17:22:19.000Z</lastmod>
+    <lastmod>2026-11-04T23:01:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Decisions/Decisions</loc>
     <lastmod>2026-11-03T10:41:28.000Z</lastmod>
@@ -340,6 +343,9 @@
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Decisions/L-ADR-0010-Plates-get-batched-message-blocks</loc>
     <lastmod>2026-11-03T10:41:28.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/Project/Feature-Backlog</loc>
+    <lastmod>2026-11-04T23:55:26.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Problems/LP-001-The-vault-build-uses-GNU-only-sed</loc>
     <lastmod>2026-10-24T23:08:41.000Z</lastmod>
@@ -405,10 +411,10 @@
     <lastmod>2026-11-04T02:13:36.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Problems/LP-022-Constraint-factors-are-normalised-in-their-residual,-not-their-channels</loc>
-    <lastmod>2026-11-04T14:12:13.000Z</lastmod>
+    <lastmod>2026-11-04T23:01:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Problems/LP-023-Findings-of-the-external-reviews-of-2026-11-04</loc>
-    <lastmod>2026-11-04T13:21:11.000Z</lastmod>
+    <lastmod>2026-11-04T22:41:51.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Problems/Problem-Log</loc>
     <lastmod>2026-11-04T14:12:13.000Z</lastmod>
@@ -438,13 +444,16 @@
     <lastmod>2026-11-03T15:28:05.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Specifications/L-SPEC-009-Cluster-Nodes</loc>
-    <lastmod>2026-11-04T11:52:10.000Z</lastmod>
+    <lastmod>2026-11-04T15:46:01.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Specifications/L-SPEC-010-Structure-Edits</loc>
-    <lastmod>2026-11-04T02:13:36.000Z</lastmod>
+    <lastmod>2026-11-04T17:14:44.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/Project/Specifications/L-SPEC-011-Plate-Edits</loc>
+    <lastmod>2026-11-04T23:01:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Specifications/Specifications</loc>
-    <lastmod>2026-11-03T18:02:07.000Z</lastmod>
+    <lastmod>2026-11-04T23:01:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/README</loc>
     <lastmod>2026-10-28T15:44:20.000Z</lastmod>
@@ -474,7 +483,7 @@
     <lastmod>2026-10-25T00:27:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Start-Here</loc>
-    <lastmod>2026-10-24T14:35:42.000Z</lastmod>
+    <lastmod>2026-11-04T23:01:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Types/Probabilistic-Types</loc>
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
@@ -519,7 +528,7 @@
     <lastmod>2026-11-02T14:37:07.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/AlgebraicFactors.jl/toric</loc>
-    <lastmod>2026-11-02T14:37:07.000Z</lastmod>
+    <lastmod>2026-11-04T23:01:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/AlgebraicFactors.jl/veronese</loc>
     <lastmod>2026-10-25T21:52:12.000Z</lastmod>
@@ -582,10 +591,13 @@
     <lastmod>2026-11-03T18:02:07.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/Mycelium.jl/cluster</loc>
-    <lastmod>2026-11-04T11:52:10.000Z</lastmod>
+    <lastmod>2026-11-04T23:55:26.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/Mycelium.jl/edits</loc>
     <lastmod>2026-11-03T18:02:07.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/lib/Mycelium.jl/em</loc>
+    <lastmod>2026-11-04T23:55:26.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/Mycelium.jl/exposure</loc>
     <lastmod>2026-10-30T08:37:55.000Z</lastmod>
@@ -594,7 +606,7 @@
     <lastmod>2026-11-03T10:41:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/Mycelium.jl/free_energy</loc>
-    <lastmod>2026-11-04T14:12:13.000Z</lastmod>
+    <lastmod>2026-11-04T23:01:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/Mycelium.jl/gaussian</loc>
     <lastmod>2026-11-03T12:47:49.000Z</lastmod>
@@ -603,7 +615,7 @@
     <lastmod>2026-11-04T02:13:36.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/Mycelium.jl/graph</loc>
-    <lastmod>2026-11-04T13:21:11.000Z</lastmod>
+    <lastmod>2026-11-04T15:46:01.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/Mycelium.jl/graph_adjoint</loc>
     <lastmod>2026-11-04T02:13:36.000Z</lastmod>
@@ -612,7 +624,7 @@
     <lastmod>2026-11-04T13:21:11.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/Mycelium.jl/passing</loc>
-    <lastmod>2026-11-04T13:21:11.000Z</lastmod>
+    <lastmod>2026-11-04T23:55:26.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/Mycelium.jl/plates</loc>
     <lastmod>2026-11-04T00:27:44.000Z</lastmod>
@@ -697,6 +709,9 @@
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/src/likelihood</loc>
     <lastmod>2026-10-29T14:49:16.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/src/m_steps</loc>
+    <lastmod>2026-11-04T17:14:44.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/src/noise</loc>
     <lastmod>2026-10-27T10:34:02.000Z</lastmod>
