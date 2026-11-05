@@ -159,7 +159,10 @@ points, a nonzero polynomial can vanish on all of them. That is a choice of degr
 
 In order of preference:
 
-1. **Make it a conditional density.** Fix the coefficient of the data channel (`output`), or write
+1. **Make it a conditional density.** Normalise it in its data channel
+   (`OverlayFactor(:f => f; normalise = :y)`, since 2026-11-05: every coefficient stays learnable, and the
+   relation becomes the conditional Gaussian of $y$; `lib/Mycelium.jl/src/overlay.md` §2), fix the
+   coefficient of the data channel (`output`), or write
    the factor as $y = h_\theta(x) + \varepsilon$ with $y$ outside $h$. For a DEQ that means training through a
    downstream loss on the solved state, or a residual $z - h(x)$ with $z$ not inside $h$.
 2. **Pay the volume.** Learn the noise together with its $\tfrac12 \log\det 2\pi Q$, and guard against an exact

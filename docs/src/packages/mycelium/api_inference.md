@@ -26,7 +26,7 @@ Pages = ["passing.jl"]
 
 ```@autodocs
 Modules = [Mycelium]
-Pages = ["cluster.jl", "cluster_batch.jl", "em.jl"]
+Pages = ["cluster.jl", "cluster_batch.jl", "em.jl", "overlay.jl"]
 ```
 
 ## Structure edits

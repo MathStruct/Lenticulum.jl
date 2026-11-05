@@ -56,7 +56,6 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 |---|---|---|---|---|
 | Data loading from `MLUtils.jl` (`DataLoader`): minibatches fed into a plate's `DataFactor`s, shuffling, epochs, as an optional extension | proposed | medium | Daniel, 2026-11-05 | every example builds one `DataFactor` per point by hand and keeps all data in the graph; minibatch training needs the plate's data swapped per batch |
 | A split / concatenate factor: one channel of dimension $d_1 + d_2$ related exactly to two channels of $d_1$ and $d_2$ (and more pieces, any index sets), with exact messages in every direction | proposed | medium | Daniel, 2026-11-05 | today a selection-matrix `LinearConstraintFactor` with tiny noise, which is neither exact nor cheap |
-| Mirrored (overlaid) factors: two or more *different* factors acting on exactly the same variables, each with its own parameters (Daniel, 2026-11-05: "two different factors overlayed and acting on the same variables. They should have different parameters"), declared once instead of wiring each by hand | proposed | medium | Daniel, 2026-11-05 | a product of experts on one set of variables; open: whether the overlay is several nodes on shared variables (exact on a tree, a loop of length two otherwise: two factors on the same two variables form a cycle for belief propagation) or one node whose messages are the product of its members' (exact, like a cluster of the members), with an optional normaliser over the data channels that makes the overlay a conditional density (the LP-022 fix). Proposed design: the single node. A convex member adds no modes; a concave piecewise-linear one makes a switch ([[RQ-008 Overlays, Mixtures and Tropical Limits]]) |
 | Further utility factors: a deterministic map (a function as an exact relation, `FunctionFactor`), a permutation or reshape of a channel, a sum or average of several channels, a constant (clamp) factor with its own schedule | proposed | low | Gemini review §4 (a `FunctionFactor`), Daniel, 2026-11-05 | the common glue of a model, written by hand each time |
 
 ## Families
@@ -77,6 +76,12 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 | Benchmark regression tracking (scaling, allocations per message) | proposed | low | ChatGPT review §6 | |
 
 ## Done (2026-11-04/05)
+
+Overlaid ("mirrored") factors (2026-11-05): `Mycelium.OverlayFactor`, several factors with their own
+parameters on the same variables as one node; unnormalised the product (a cluster of the
+members), with `normalise = (:y, …)` a product or mixture of experts normalised in `y`, which a
+learned relation on data cannot collapse (`lib/Mycelium.jl/src/overlay.md`). Members without a
+`cluster_form` (nonlinear energies) remain open (RQ-008).
 
 CI with a second Julia version and the device tests (2026-11-05). The matrix runs the current
 release and 1.12, the oldest supported. Two separate jobs run the Mycelium and ImplicitLayers device

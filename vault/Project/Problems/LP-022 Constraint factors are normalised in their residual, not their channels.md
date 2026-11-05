@@ -75,4 +75,7 @@ one in, so messages, free energies, cluster forms and `partial_sums` see the ful
   (now warned too; `lib/AlgebraicFactors.jl/test/lp022.jl`) and `DEQFactor`s trained by their
   residual energy with the state observed (not guarded). Every family is gone through in
   [[Why Learned Relations Do Not Collapse]].
+- A second fix (2026-11-05): `OverlayFactor(:rel => f; normalise = :y)` normalises a relation in its
+  data channel, $\mathcal N(y; -A_y^{-1}(A_x x - c), A_y^{-1}QA_y^{-\top})$, with every coefficient learnable; $A = 0$ is
+  refused and maximum likelihood is least squares with its variance (`test/overlay.jl`).
 

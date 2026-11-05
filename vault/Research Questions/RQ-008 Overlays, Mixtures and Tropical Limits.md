@@ -107,9 +107,10 @@ $$
 - **Verify 2 and 3 in more cases:** outcome-dependent $A_k$ or $Q_k$ (`RegimeFactor`). There the pieces are
   different quadratics, and the limit is a minimum of quadratics, not a quadratic minus a tropical
   polynomial.
-- **Implement the overlay node.** Messages as the product of the members' (exact for
-  linear-Gaussian members, EP or Laplace otherwise), the normaliser as an option, then test it
-  against a cluster node of the same members.
+- **The overlay node** exists since 2026-11-05 for members with a cluster form (`OverlayFactor`,
+  `lib/Mycelium.jl/src/overlay.md`), with the normaliser per joint outcome; it equals a cluster node
+  of the members and the closed forms (`test/overlay.jl`). Open: members with nonlinear energies
+  (EP or Laplace), and the normalisation of the whole product, which gates the outcomes by $x$.
 - **Dequantisation.** The passage from log-sum-exp to max as $s \to 0$ is Maslov's dequantisation. The
   temperature $s$ is the switch's noise, so annealing the noise is a path from a smooth mixture to its
   tropical skeleton, as annealing the field levels is for implicit relations (`calibration.md`).
