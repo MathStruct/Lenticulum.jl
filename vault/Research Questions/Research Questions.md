@@ -24,3 +24,4 @@ with its source; then its status changes and it stays listed.
 | [[RQ-005 A Chain Rule for the Fisher Metric on Factor Graphs]] | Is there a local, message-based Fisher metric on loopy factor graphs? | information geometry | open |
 | [[RQ-006 Gaussian Factor Graphs as Cellular Sheaves]] | What do sheaf Laplacians and cohomology say about loopy Gaussian belief propagation? | applied topology | open |
 | [[RQ-007 Risk Scalarisations and Local Decomposition]] | For which risk measures (entropic risk, CVaR) of a factor graph's total energy is there a local, message-passing computation or bound? | variational inference, risk measures | open |
+| [[RQ-008 Overlays, Mixtures and Tropical Limits]] | Which relations do overlays of simple factors represent, and how does a switching factor's tropical low-noise limit relate to the topology of a learned relation? | tropical geometry, topological data analysis, graphical models | open |

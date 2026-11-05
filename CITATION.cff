@@ -729,6 +729,19 @@ references:
     end: "554"
     url: "https://jmlr.org/papers/v3/chickering02b.html"
   - type: conference-paper
+    title: "Tropical Geometry of Deep Neural Networks"
+    authors:
+      - family-names: "Zhang"
+        given-names: "Liwen"
+      - family-names: "Naitzat"
+        given-names: "Gregory"
+      - family-names: "Lim"
+        given-names: "Lek-Heng"
+    year: 2018
+    collection-title: "Proceedings of the 35th International Conference on Machine Learning"
+    volume: "80"
+    url: "https://arxiv.org/abs/1805.07091"
+  - type: conference-paper
     title: "DAGs with NO TEARS: Continuous Optimization for Structure Learning"
     authors:
       - family-names: "Zheng"
