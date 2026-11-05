@@ -336,3 +336,10 @@ The outcome probabilities of an incoming categorical message are read by positio
 other than `1:K` in order are refused (`Mycelium._check_positional`, also used by cluster nodes and
 `TableFactor`). Before, labels `[2, 1]` were read as the states `[1, 2]`. Test:
 `test/switching_constraint.jl`.
+
+## 16. Cluster forms of the Gaussian factors (2026-11-05)
+
+`cluster_form` now covers `GaussianFactor` (residual $y - Ax - b$, the $y$ coefficient the identity) and
+`GaussianPrior` with learned noise, through `noise_covariance`; a noise prior is refused. The
+M-steps are in `m_steps.md` §3.
+

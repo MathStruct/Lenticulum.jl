@@ -384,3 +384,7 @@ its residual, so its free energy on data can fall without fitting (LP-022). It i
 refusal: a fit may hold the coefficients fixed in its own loop. Detection only covers data from
 `DataFactor`s. Test: Lenticulum `test/lp022.jl`.
 
+Since 2026-11-05 the hook also has a form by channel, `learns_unnormalised(factor, observed)` (the
+channels a `DataFactor` observes), which by default is the one-argument form when any channel is
+observed; `DEQFactor` overrides it to fire only with its state observed.
+

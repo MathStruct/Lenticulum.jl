@@ -47,8 +47,34 @@ puts every point on itself. `m_step` refuses it with an `ArgumentError` naming L
   reaching plain EM's fixed point.
 - **The refusal** for a sum with every coefficient learned.
 
-## 3. What it does not do
+## 3. Gaussian factors (2026-11-05)
+
+`GaussianFactor` ($y = Ax + b + \varepsilon$) and `GaussianPrior` have cluster forms now: the residual $y - Ax - b$ with the
+coefficient of $y$ fixed at the identity, and the current noise covariance (`noise_covariance`,
+the eigenvalue floor included). Learned noise is allowed in a cluster node, a noise prior is not
+(its density is not part of a cluster's free energy). Their M-steps:
+
+- `GaussianFactor`: least squares in $A$ and $b$ by the same block solve (the $y$ block fixed), and,
+  with learned noise and no prior, the residual covariance $W S_\varphi W^\top / n$. It is floored as
+  `_noise_metrics` floors it (covariance eigenvalues at least `eigenvalue_floor`) and stored in the
+  factor's own coordinates (log-precisions, or the precision's Cholesky factor).
+- `GaussianPrior`: its mean is fixed. With learned noise and no prior its covariance is
+  $\mathbb E[(x - \mu)(x - \mu)^\top]$.
+- With a noise prior the noise's M-step is a MAP problem that is not done. The noise keeps its
+  value, and $A$, $b$ are still updated, since their minimiser does not depend on $Q$.
+
+`test/em.jl`, "Gaussian factors":
+- **Regression, fully observed:** one M-step gives least squares to $10^{-10}$ and the residual
+  covariance to $10^{-8}$.
+- **Factor analysis** ($x$ latent, diagonal noise): the clustered free energy equals the
+  unclustered one to $10^{-10}$, EM does not raise it, and it stops where the gradient in $A$, $b$ and
+  the log-precisions is below $10^{-5}$.
+- **A prior's learned covariance** equals the sample covariance about its mean.
+- **The refusal** of a noise prior in a cluster.
+
+## 4. What it does not do
 
 - `LinearConstraintFactor` and `SwitchingConstraintFactor` have fixed noise, so it is not
   updated.
-- No M-step for `GaussianFactor`, `GaussianPrior` with learned noise, or the other families.
+- No MAP M-step for noise priors (Wishart, log-normal); no M-step for `NonlinearFactor`,
+  `LikelihoodFactor` (not learnable) or the other families.

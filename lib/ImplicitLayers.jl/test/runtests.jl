@@ -444,6 +444,7 @@ include("solver_numerics.jl")
 include("lp002_batch_a.jl")
 
 include("lp019.jl")
+include("lp022.jl")
 
 # Device (JLArrays) coverage is slow; it runs locally with LENTICULUM_DEVICE_TESTS=true,
 # not on every CI push.

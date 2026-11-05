@@ -5,7 +5,7 @@
 > unnormalised potential that grows without bound. What prevents it is always the same thing:
 > the factor is −log of a density **normalised in its data channels**, or it is trained by
 > comparison. This note goes through every learnable factor family, says which of them are safe,
-> which are guarded, and which are not, and lists the options.
+> which are guarded, and lists the options. Since 2026-11-05 every collapse found is at least warned.
 
 > Sources: LeCun, Chopra, Hadsell, Ranzato & Huang, *A Tutorial on Energy-Based Learning*, 2006, §2 (loss functionals) and §5 (the energy loss and flat energy surfaces); original analysis of this repository's factors. code: `src/constraint.jl` (`_coeffs`, `output`), `src/regime.jl`, `src/m_steps.jl`, `lib/Mycelium.jl/src/free_energy.jl` (`learns_unnormalised`), `lib/AlgebraicFactors.jl/src/toric.jl`, `lib/AlgebraicFactors.jl/src/polynomial.jl`, `lib/ImplicitLayers.jl/src/deq.jl`; tests: `test/lp022.jl`, `lib/AlgebraicFactors.jl/test/lp022.jl`, `test/learnable_noise.jl`
 >
@@ -68,7 +68,7 @@ ways to get there, and the factors below use each of them:
 | `TableFactor` | nothing | — | no | — |
 | `ToricFactor` | $\eta$ | only with `normalised = true` | **yes** (3) when unnormalised (the default) | a warning (since 2026-11-04) |
 | `PolynomialFactor` | $\Theta$ | no (Sampson energy) | not to $\Theta = 0$; can interpolate | Grassmann parameter; no graph free energy |
-| `DEQFactor` | the cell $g$ | no: $\tfrac12\lVert z - g(z, x)\rVert^2$ | **yes** (1) with $z$ observed: $g(z, x) = z$ | **none** |
+| `DEQFactor` | the cell $g$ | no: $\tfrac12\lVert z - g(z, x)\rVert^2$ | **yes** (1) with $z$ observed: $g(z, x) = z$ | a warning when $z$ is observed (since 2026-11-05) |
 | `NeuralODEFactor` | the field | no, but $z_1$'s coefficient is fixed | no: $\tfrac12\lVert z_1 - \Phi(z_0)\rVert^2$ is a regression | — |
 | `LuxFactor` | the layer | `residual = true`: $\tfrac12\lVert y - \mathrm{layer}(x)\rVert^2$ | no (a fixed-noise regression); default energy 0 | — |
 | `GeneratorFactor` | $G$ | energy 0 | nothing to collapse; no signal of its own | learned by comparison |
@@ -127,9 +127,13 @@ points, a nonzero polynomial can vanish on all of them. That is a choice of degr
 
 - **`DEQFactor`**: $\tfrac12\lVert r\rVert^2$ with $r = z - g_\theta(z, x)$ and no normalising term (`deq.md` §4.3). With $z$ and $x$
   both observed and the energy used as a training objective (`free_energy_gradient` scores fixed
-  incoming endpoints, `deq.md` §4.5), a cell with $g(z, x) = z$ puts every pair on the relation. This is
-  reasoned from the energy, not measured. **Nothing guards it.** It is a collapse of kind (1), because
-  the coefficient of $z$ is not fixed: $z$ appears inside $g$.
+  incoming endpoints, `deq.md` §4.5), a cell with $g(z, x) = z$ puts every pair on the relation. It is a
+  collapse of kind (1), because the coefficient of $z$ is not fixed: $z$ appears inside $g$. Measured in
+  `lib/ImplicitLayers.jl/test/lp022.jl` (50 pairs of $z = 2x + 0.3 + 0.1\varepsilon$, a linear cell
+  $g = Wz + Ux + b$): the generating relation has $F = 0.237$, the identity cell ($W = 1$, $U = b = 0$) $F = 0$, and
+  at the generating relation the gradient in $W$ is $-\sum_i r_i z_i = 0.62$, so descent moves $W$ towards 1. Since
+  2026-11-05 `learns_unnormalised(::DEQFactor, observed)` makes `free_energy_gradient` warn when the
+  state channel is observed (the input alone is the usual case and does not warn).
 - **`NeuralODEFactor`**: $r = z_1 - \Phi_\theta(z_0)$ (`neuralode.md` §4.4). The coefficient of $z_1$ is fixed, so this is a
   regression with unit noise, safe in the sense of §2.
 - **`LuxFactor`**: energy zero by default, so it delegates to other factors and has nothing to
@@ -174,11 +178,11 @@ In order of preference:
 
 | check | where | covers |
 |---|---|---|
-| warning in `free_energy_gradient` | `Mycelium.learns_unnormalised`, `_unnormalised_nodes` | the three constraint factors without `output`; `ToricFactor` without `normalised` |
+| warning in `free_energy_gradient` | `Mycelium.learns_unnormalised`, `_unnormalised_nodes` | the three constraint factors without `output`; `ToricFactor` without `normalised` (any observed channel) |
 | refusal in the closed-form M-step | `src/m_steps.jl` | constraint factors with every coefficient learned |
 | `output` | the three constraint factors | makes them conditional densities |
 | parameter validation | `validate_parameters` | an `output` coefficient passed as a parameter |
-| nothing | — | `DEQFactor` trained by its residual energy on observed $z$ |
+| warning in `free_energy_gradient`, by channel | `learns_unnormalised(f, observed)` | `DEQFactor` with its state observed |
 
 The warning fires only for data that reach the factor through a `DataFactor`. Pinned variables and
 point messages from other factors are not detected.

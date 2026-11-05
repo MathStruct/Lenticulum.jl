@@ -777,10 +777,23 @@ end
 Mycelium.cluster_switch(f::SwitchingConstraintFactor) = f.switch
 Mycelium.cluster_form(f::SwitchingConstraintFactor, ps) = Mycelium.ClusterForm(_coeffs(f, ps), ps.b, f.Q, _logweights(ps), f.switch)
 Mycelium.cluster_form(f::LinearConstraintFactor, ps) = Mycelium.ClusterForm(_coeffs(f, ps), reshape(ps.c, :, 1), f.Q, [0.0], nothing)
+# Learned noise enters through its current covariance (`noise_covariance`, the eigenvalue floor
+# included). A noise prior's density is not part of a cluster's free energy, so it is refused.
+function _cluster_noise_check(f)
+    f.noise_learning === nothing || f.noise_learning.prior === nothing || throw(ArgumentError(
+        "a $(nameof(typeof(f))) with a noise prior cannot be put in a cluster node (its prior density is not in the cluster's free energy)"))
+end
 function Mycelium.cluster_form(f::GaussianPrior, ps)
-    f.noise_learning === nothing || throw(ArgumentError("a GaussianPrior with learnable noise cannot be put in a cluster node"))
+    _cluster_noise_check(f)
     n = length(f.μ)
-    return Mycelium.ClusterForm(NamedTuple{(f.channel,)}((Matrix(1.0I, n, n),)), reshape(float.(f.μ), n, 1), Matrix(f.Σ), [0.0], nothing)
+    return Mycelium.ClusterForm(NamedTuple{(f.channel,)}((Matrix(1.0I, n, n),)), reshape(float.(f.μ), n, 1),
+                                Matrix(noise_covariance(f, ps)), [0.0], nothing)
+end
+# y = Ax + b + ε as the residual y − Ax − b, the coefficient of y fixed at the identity
+function Mycelium.cluster_form(f::GaussianFactor, ps)
+    _cluster_noise_check(f)
+    return Mycelium.ClusterForm(NamedTuple{(f.in_channel, f.out_channel)}((-ps.A, Matrix(1.0I, f.nout, f.nout))),
+                                reshape(ps.b, :, 1), Matrix(noise_covariance(f, ps)), [0.0], nothing)
 end
 
 """

@@ -784,6 +784,15 @@ default.
 """
 learns_unnormalised(::Any) = false
 
+"""
+    learns_unnormalised(factor, observed) -> Bool
+
+The same, given which of the factor's channels a `DataFactor` observes (`observed`, a set of
+channel names): by default `learns_unnormalised(factor)` when any is. A factor that collapses only
+when particular channels are observed (a DEQ, when its state is) overrides this method.
+"""
+learns_unnormalised(f, observed) = learns_unnormalised(f) && !isempty(observed)
+
 # The nodes that warrant the warning, by name: unfrozen, learnable `learns_unnormalised` factors
 # with a channel on a variable that a `DataFactor` observes; inside a cluster node, the clustered
 # factors whose channels reach such a boundary variable.
@@ -802,10 +811,10 @@ function _unnormalised_nodes(g::FactorGraph)
             paths = LenticulumCore._freeze_paths(fn.freeze)
             frozenA(k) = any(p -> p[1] === k && (length(p) == 1 || p[2] === :A), paths)
             for (f, w, nm, k) in zip(c.factors, c.wiring, c.names, c.keys)
-                LenticulumCore.islearnable(f) && learns_unnormalised(f) && !frozenA(k) && any(p -> p.second in observed, w) &&
-                    push!(names, Symbol(fn.name, "/", nm))
+                obs = Set(p.first for p in w if p.second in observed)
+                LenticulumCore.islearnable(f) && !frozenA(k) && learns_unnormalised(f, obs) && push!(names, Symbol(fn.name, "/", nm))
             end
-        elseif LenticulumCore.islearnable(fn.factor) && learns_unnormalised(fn.factor) && any(v -> v in data, values(vars))
+        elseif LenticulumCore.islearnable(fn.factor) && learns_unnormalised(fn.factor, Set(ch for (ch, v) in vars if v in data))
             push!(names, fn.name)
         end
     end
@@ -815,10 +824,11 @@ function _check_unnormalised(g::FactorGraph)
     names = _unnormalised_nodes(g)
     isempty(names) && return nothing
     shown = join(first(names, 3), ", ") * (length(names) > 3 ? " and $(length(names) - 3) more" : "")
-    @warn "free_energy_gradient: $shown learn every coefficient of a relation on observed data. Such a factor is " *
-          "normalised in its residual, not in its channels, so the free energy can fall without fitting (A = 0 puts " *
-          "every point on the relation; with learned noise it is unbounded below). Declare the data channel with " *
-          "`output = :y`, or freeze its coefficient (LP-022)." maxlog = 1
+    @warn "free_energy_gradient: $shown learn a relation on observed data that is not normalised in its data " *
+          "channels, so the free energy can fall without fitting (a constraint factor's A = 0 or an unnormalised " *
+          "toric potential, unbounded below; a DEQ cell that is the identity in its observed state). Declare an " *
+          "`output`, freeze the coefficient, normalise, or train by a loss on the solved state " *
+          "(LP-022; vault/Energy-Based/Why Learned Relations Do Not Collapse.md)." maxlog = 1
     return nothing
 end
 

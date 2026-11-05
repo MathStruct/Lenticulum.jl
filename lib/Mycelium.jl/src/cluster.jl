@@ -63,8 +63,8 @@ _at(a::AbstractArray{<:Any,3}, k) = a[:, :, k]
 The factor as a conditionally linear-Gaussian term, for [`cluster`](@ref) nodes, and the discrete
 channel it switches on (structural, without parameters). Mycelium implements them for
 `PriorFactor`s whose belief is a `CategoricalBelief` (a discrete term) or a proper
-`GaussianBelief`; Lenticulum for `LinearConstraintFactor`, `SwitchingConstraintFactor` and
-`GaussianPrior` without learnable noise. A factor without a method cannot be put in a cluster.
+`GaussianBelief`; Lenticulum for `LinearConstraintFactor`, `SwitchingConstraintFactor`,
+`RegimeFactor`, `GaussianFactor` and `GaussianPrior` (learned noise allowed, a noise prior not). A factor without a method cannot be put in a cluster.
 """
 function cluster_form(factor, ps)
     throw(ArgumentError("$(nameof(typeof(factor))) has no `Mycelium.cluster_form`, so it cannot be put in a cluster node"))

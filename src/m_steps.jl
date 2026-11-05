@@ -102,3 +102,45 @@ end
 # the fixed output coefficient enters the minimiser (W_F), so tied factors must share it
 Mycelium.m_step_signature(f::Union{LinearConstraintFactor,SwitchingConstraintFactor,RegimeFactor}) = (f.output, f.output_coeff)
 
+# --- The Gaussian factors ---------------------------------------------------------------------
+
+# Learned noise from a covariance estimate: the eigenvalue floor applied as `_noise_metrics` does
+# (covariance eigenvalues at least `floor`), then the factor's own coordinates.
+function _noise_from_cov(c, Q)
+    Q = Symmetric(Matrix(Q))
+    c.diagonal && return (noise = (log_precision = -log.(max.(diag(Q), c.floor)),),)
+    E = LinearAlgebra.eigen(Q)
+    return _noise_parameters(c, Matrix(Symmetric(E.vectors * Diagonal(max.(E.values, c.floor)) * E.vectors')))
+end
+_learns_noise(f, frozen) = f.noise_learning !== nothing && f.noise_learning.prior === nothing && !_frozen_path(frozen, :noise)
+
+# y = Ax + b + ε: weighted least squares in A and b with the coefficient of y fixed (identity), and
+# with learned noise (no prior) the residual covariance. A noise prior makes the noise's M-step a
+# MAP problem that is not done here; the noise then keeps its value.
+function Mycelium.m_step(f::GaussianFactor, st::Mycelium.MomentStats, ps, frozen)
+    cols = _channel_cols(st.dims)
+    ix = findfirst(==(f.in_channel), st.channels); iy = findfirst(==(f.out_channel), st.channels)
+    d = sum(st.dims)
+    n = only(st.n)
+    Sφ = [st.S[:, :, 1] st.m[:, 1]; st.m[:, 1]' n]
+    W = zeros(f.nout, d + 1)
+    W[:, cols[ix]] = -ps.A; W[:, cols[iy]] = Matrix(1.0I, f.nout, f.nout); W[:, d + 1] = -ps.b
+    learned = falses(d + 1)
+    _frozen_path(frozen, :A) || (learned[cols[ix]] .= true)
+    _frozen_path(frozen, :b) || (learned[d + 1] = true)
+    _solve_blocks!(W, Sφ, learned, :GaussianFactor)
+    out = merge(ps, (A = -W[:, cols[ix]], b = -W[:, d + 1]))
+    _learns_noise(f, frozen) && n > 0 && (out = merge(out, _noise_from_cov(f.noise_learning, W * Sφ * W' ./ n)))
+    return out
+end
+
+# A Gaussian prior's mean is fixed; with learned noise (no prior) its covariance is E[(x − μ)(x − μ)ᵀ].
+function Mycelium.m_step(f::GaussianPrior, st::Mycelium.MomentStats, ps, frozen)
+    _learns_noise(f, frozen) || return nothing
+    n = only(st.n)
+    n > 0 || return nothing
+    μ = float.(f.μ); m = st.m[:, 1]
+    Q = (st.S[:, :, 1] .- m * μ' .- μ * m' .+ n .* (μ * μ')) ./ n
+    return merge(ps, _noise_from_cov(f.noise_learning, Q))
+end
+

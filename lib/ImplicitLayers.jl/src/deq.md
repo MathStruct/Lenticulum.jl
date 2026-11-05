@@ -287,3 +287,15 @@ different equations. Normal inference/default diagonal training are unchanged.
 Raw ForwardDiff DEQ messages now reject dual-valued unannotated solves with an
 ArgumentError pointing to the explicit graph gradient driver, preventing accidental
 root-iteration differentiation. Ordinary primal messages are unchanged.
+
+## Trained by its residual with the state observed (2026-11-05, LP-022)
+
+$\tfrac12\lVert z - g(z, x)\rVert^2$ is not a density of $z$: with $z$ observed, a cell that is the identity in $z$ satisfies
+every pair. `test/lp022.jl` (50 pairs of $z = 2x + 0.3 + 0.1\varepsilon$, a linear cell): $F = 0.237$ at the generating
+relation, 0 at the identity cell, and the gradient in $W$ (0.62, equal to the closed form and to finite
+differences) points there. `Mycelium.learns_unnormalised(f::DEQFactor, observed)` is true when the
+state channel is observed, so `free_energy_gradient` warns; an observed input alone does not.
+Options: a residual $z - h(x)$ with $z$ outside $h$, a loss on the solved state, or the log-determinant
+$\log\lvert\det(I - \partial_z g)\rvert$ that would make the factor a density of $z$ (not implemented). See
+[[Why Learned Relations Do Not Collapse]].
+

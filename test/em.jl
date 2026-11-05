@@ -174,3 +174,79 @@ end
     s = MessageStore(gc); for _ in 1:2; sweep!(s, gc, SequentialSchedule(all_tasks(gc)), ps, NamedTuple()); end
     @test_throws r"differ in fixed structure" em_step(s, gc, ps, NamedTuple())
 end
+
+@testset "EM: Gaussian factors (regression in one step, factor analysis, a learned prior covariance)" begin
+    rng = Xoshiro(31)
+    # (a) y = A x + b + ε, both observed: one M-step is least squares and the residual covariance
+    N = 80
+    X = randn(rng, 2, N); At = [1.0 -0.5; 0.3 2.0; -1.0 0.0]; bt = [0.5, -1.0, 2.0]
+    Lq = [0.4 0.0 0.0; 0.1 0.3 0.0; -0.2 0.05 0.5]
+    Y = At * X .+ bt .+ Lq * randn(rng, 3, N)
+    function regression_graph(f)
+        b = GraphBuilder()
+        for i in 1:N
+            r(s) = replica_name(s, i)
+            variable!(b, r(:x), 2); variable!(b, r(:y), 3)
+            factor!(b, r(:dx), DataFactor(:x, X[:, i])); connect!(b, r(:dx), :x, r(:x); direction = Emitting())
+            factor!(b, r(:dy), DataFactor(:y, Y[:, i])); connect!(b, r(:dy), :y, r(:y); direction = Emitting())
+            factor!(b, r(:gf), f; params = :gf); connect!(b, r(:gf), :x, r(:x)); connect!(b, r(:gf), :y, r(:y))
+        end
+        return cluster(as_plate(build(b), :pts, N), :pts, :c, [:gf]; params = :mix)
+    end
+    f = GaussianFactor(2 => 3; noise = 1.0, learn_noise = true)
+    gc = regression_graph(f)
+    data = NamedTuple(s => NamedTuple() for i in 1:N for s in (replica_name(:dx, i), replica_name(:dy, i)))
+    ps = merge(data, (mix = (gf = LuxCore.initialparameters(Xoshiro(1), f),),))
+    s = MessageStore(gc); for _ in 1:2; sweep!(s, gc, plate_schedule(gc), ps, NamedTuple()); end
+    p1 = em_step(s, gc, ps, NamedTuple()).mix.gf
+    D = [X; ones(1, N)]; B = (Y * D') / (D * D')                      # least squares, [A b]
+    @test isapprox(p1.A, B[:, 1:2]; rtol = 1e-10) && isapprox(p1.b, B[:, 3]; rtol = 1e-10)
+    R = Y .- B * D
+    @test noise_covariance(f, p1) ≈ R * R' ./ N rtol = 1e-8
+    # (b) factor analysis: x ~ N(0, 1) latent, y ∈ R³ observed, diagonal noise; the clustered free
+    # energy equals the unclustered one, EM does not raise it and stops at a stationary point
+    Y2 = [0.8, -0.4, 1.5] * randn(rng, 1, N) .+ [0.2, 0.0, -0.5] .+ [0.3, 0.5, 0.2] .* randn(rng, 3, N)
+    fa = GaussianFactor(1 => 3; noise = [1.0, 1.0, 1.0], learn_noise = :diagonal)
+    function fa_graph(cl)
+        b = GraphBuilder()
+        for i in 1:N
+            r(s) = replica_name(s, i)
+            variable!(b, r(:x), 1); variable!(b, r(:y), 3)
+            factor!(b, r(:dy), DataFactor(:y, Y2[:, i])); connect!(b, r(:dy), :y, r(:y); direction = Emitting())
+            factor!(b, r(:pr), GaussianPrior(:x, 0.0, 1.0); params = :pr); connect!(b, r(:pr), :x, r(:x))
+            factor!(b, r(:gf), fa; params = :gf); connect!(b, r(:gf), :x, r(:x)); connect!(b, r(:gf), :y, r(:y))
+        end
+        g = build(b)
+        return cl ? cluster(as_plate(g, :pts, N), :pts, :c, [:pr, :gf]; params = :mix) : g
+    end
+    p0 = merge(LuxCore.initialparameters(Xoshiro(3), fa), (A = reshape([0.5, 0.5, 0.5], 3, 1),))
+    dy = NamedTuple(replica_name(:dy, i) => NamedTuple() for i in 1:N)
+    gu = fa_graph(false)
+    psu = merge(dy, (pr = NamedTuple(), gf = p0))
+    _, _, _, su = infer!(gu, SequentialSchedule(all_tasks(gu)), psu, NamedTuple(); maxsweeps = 50, tol = 1e-12)
+    gcf = fa_graph(true)
+    psc = merge(dy, (mix = (pr = NamedTuple(), gf = p0),))
+    sc = MessageStore(gcf); for _ in 1:2; sweep!(sc, gcf, plate_schedule(gcf), psc, NamedTuple()); end
+    @test first(scalar_free_energy(sc, gcf, psc, NamedTuple())) ≈ first(scalar_free_energy(su, gu, psu, NamedTuple())) rtol = 1e-10
+    pf, Fs, sf = fit_em(gcf, psc, NamedTuple(); schedule = plate_schedule(gcf), iters = 500, tol = 1e-11, accelerate = true)
+    @test all(diff(Fs) .<= 1e-8) && Fs[end] < Fs[1]
+    G = free_energy_gradient(sf, gcf, pf, NamedTuple(); ad = AutoForwardDiff()).mix.gf
+    @test maximum(abs, G.A) < 1e-5 && maximum(abs, G.b) < 1e-5 && maximum(abs, G.noise.log_precision) < 1e-5
+    # (c) a Gaussian prior with learned noise on observed points: the covariance about its mean
+    fp = GaussianPrior(:x, [0.5, -0.5], Matrix(1.0I, 2, 2); learn_noise = true)
+    b = GraphBuilder()
+    for i in 1:N
+        r(s) = replica_name(s, i)
+        variable!(b, r(:x), 2)
+        factor!(b, r(:dx), DataFactor(:x, X[:, i])); connect!(b, r(:dx), :x, r(:x); direction = Emitting())
+        factor!(b, r(:pr), fp; params = :pr); connect!(b, r(:pr), :x, r(:x))
+    end
+    gp = cluster(as_plate(build(b), :pts, N), :pts, :c, [:pr]; params = :mix)
+    psp = merge(NamedTuple(replica_name(:dx, i) => NamedTuple() for i in 1:N), (mix = (pr = LuxCore.initialparameters(Xoshiro(1), fp),),))
+    sp = MessageStore(gp); for _ in 1:2; sweep!(sp, gp, plate_schedule(gp), psp, NamedTuple()); end
+    Xc = X .- [0.5, -0.5]
+    @test noise_covariance(fp, em_step(sp, gp, psp, NamedTuple()).mix.pr) ≈ Xc * Xc' ./ N rtol = 1e-8
+    # a noise prior has no place in a cluster's free energy
+    fw = GaussianFactor(2 => 3; noise = 1.0, learn_noise = true, noise_prior = WishartPrecisionPrior(5.0, Matrix(1.0I, 3, 3)))
+    @test_throws ArgumentError cluster_form(fw, LuxCore.initialparameters(Xoshiro(1), fw))
+end

@@ -86,6 +86,10 @@ LenticulumCore.channels(f::DEQFactor{names}) where {names} =
     map((n, d) -> LenticulumCore.Channel(n, d), names, values(f.dims))
 
 LenticulumCore.islearnable(::DEQFactor) = true
+# With the state observed, ½‖z − g(z, x)‖² is no density of z and a cell that is the identity in z
+# satisfies every pair (LP-022, `vault/Energy-Based/Why Learned Relations Do Not Collapse.md`), so
+# `free_energy_gradient` warns. The input alone observed is the usual case and is fine.
+Mycelium.learns_unnormalised(f::DEQFactor, observed) = statechannel(f) in observed
 
 """
     LenticulumCore.supported_polarities(f::DEQFactor)

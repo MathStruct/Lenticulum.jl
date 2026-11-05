@@ -38,9 +38,8 @@ specification), *partial*, *done*. Priority: **high** (it limits something measu
 
 | feature | status | priority | source | why |
 |---|---|---|---|---|
-| A guard for `DEQFactor` trained by its residual energy with the state observed | proposed | medium | [[Why Learned Relations Do Not Collapse]] | $g(z, x) = z$ satisfies every pair; nothing warns |
 | The warning of LP-022 for data that arrive other than by `DataFactor` (pins, point messages) | proposed | low | [[LP-022 Constraint factors are normalised in their residual, not their channels]] | |
-| Closed-form M-steps for `GaussianFactor`, `GaussianPrior` with learned noise, other families | proposed | medium | `src/m_steps.md` | EM covers only the constraint factors |
+| MAP M-steps for noise priors (Wishart, log-normal); M-steps for further families | proposed | low | `src/m_steps.md` §4 | `GaussianFactor` and `GaussianPrior` have ML M-steps since 2026-11-05; with a prior their noise is not updated |
 | Stop-gradient semantics per wire, factor and parameter subset | planned | medium | [[L-SPEC-002 Stop Gradient]] | |
 | Exposed parameters: generic approximate `parameter_message`, energy taps, risk scalarisations | partial | low | [[L-SPEC-003 Exposed Parameters and Energy Channels]] §2–§3 | |
 | Explicit gradient semantics in results (envelope, finite replay, implicit fixed point) | proposed | low | ChatGPT review §4.2 | a caller should see which objective was differentiated |
@@ -63,7 +62,11 @@ specification), *partial*, *done*. Priority: **high** (it limits something measu
 | CI with a second Julia version and the device tests | proposed | medium | ChatGPT review §6 | CI runs Julia 1 on Ubuntu without device tests |
 | Benchmark regression tracking (scaling, allocations per message) | proposed | low | ChatGPT review §6 | |
 
-## Done (2026-11-04)
+## Done (2026-11-04/05)
+
+A warning for `DEQFactor`s trained by their residual with the state observed (2026-11-05; measured
+in `lib/ImplicitLayers.jl/test/lp022.jl`). Cluster forms and closed-form M-steps for
+`GaussianFactor` and `GaussianPrior`, learned noise included (2026-11-05; `test/em.jl`).
 
 Cluster nodes with per-outcome coefficients and noise (`RegimeFactor`); flat directions in
 clusters; `output` channels and the LP-022 warning (constraint and toric factors); fixes from the
