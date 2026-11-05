@@ -87,7 +87,7 @@
     <lastmod>2026-10-26T12:37:22.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Energy-Based/Why-Learned-Relations-Do-Not-Collapse</loc>
-    <lastmod>2026-11-05T00:43:47.000Z</lastmod>
+    <lastmod>2026-11-05T15:29:23.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Factor-Graphs/Acausal-Composition-is-a-Hypergraph-Category</loc>
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
@@ -189,7 +189,7 @@
     <lastmod>2026-10-26T01:19:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-11-05T14:34:50.273Z</lastmod>
+    <lastmod>2026-11-05T15:29:44.623Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-10-25T22:36:28.000Z</lastmod>
@@ -345,7 +345,7 @@
     <lastmod>2026-11-03T10:41:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog</loc>
-    <lastmod>2026-11-05T13:42:41.000Z</lastmod>
+    <lastmod>2026-11-05T15:29:23.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-001-The-vault-build-uses-GNU-only-sed</loc>
     <lastmod>2026-10-24T23:08:41.000Z</lastmod>
@@ -411,7 +411,7 @@
     <lastmod>2026-11-04T02:13:36.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-022-Constraint-factors-are-normalised-in-their-residual,-not-their-channels</loc>
-    <lastmod>2026-11-04T23:01:31.000Z</lastmod>
+    <lastmod>2026-11-05T15:29:23.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-023-Findings-of-the-external-reviews-of-2026-11-04</loc>
     <lastmod>2026-11-05T08:56:40.000Z</lastmod>
@@ -480,7 +480,7 @@
     <lastmod>2026-10-25T00:27:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Research-Questions/RQ-008-Overlays,-Mixtures-and-Tropical-Limits</loc>
-    <lastmod>2026-11-05T14:34:34.000Z</lastmod>
+    <lastmod>2026-11-05T15:29:23.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Research-Questions/Research-Questions</loc>
     <lastmod>2026-11-05T13:42:41.000Z</lastmod>
@@ -625,6 +625,9 @@
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/messages</loc>
     <lastmod>2026-11-04T13:21:11.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/overlay</loc>
+    <lastmod>2026-11-05T15:29:23.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/passing</loc>
     <lastmod>2026-11-04T23:55:26.000Z</lastmod>
