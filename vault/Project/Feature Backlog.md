@@ -45,11 +45,26 @@ specification), *partial*, *done*. Priority: **high** (it limits something measu
 | Explicit gradient semantics in results (envelope, finite replay, implicit fixed point) | proposed | low | ChatGPT review §4.2 | a caller should see which objective was differentiated |
 | Calling `validate_parameters` automatically before inference | proposed | low | LP-023 | it exists (2026-11-04) but is opt-in |
 
+## Utility factors and data (asked for 2026-11-05)
+
+Daniel: "there should be a whole bunch of utility factors that are still lacking." Mycelium has
+`DataFactor`, `PriorFactor`, `LossFactor`, `RelayFactor` (an equality between two variables),
+`OptimiserFactor`, `TableFactor` and `StraightThroughFactor`. Today the operations below are
+written by hand, from `LinearConstraintFactor`s with selection matrices or from graph code.
+
+| feature | status | priority | source | why |
+|---|---|---|---|---|
+| Data loading from `MLUtils.jl` (`DataLoader`): minibatches fed into a plate's `DataFactor`s, shuffling, epochs, as an optional extension | proposed | medium | Daniel, 2026-11-05 | every example builds one `DataFactor` per point by hand and keeps all data in the graph; minibatch training needs the plate's data swapped per batch |
+| A split / concatenate factor: one channel of dimension $d_1 + d_2$ related exactly to two channels of $d_1$ and $d_2$ (and more pieces, any index sets), with exact messages in every direction | proposed | medium | Daniel, 2026-11-05 | today a selection-matrix `LinearConstraintFactor` with tiny noise, which is neither exact nor cheap |
+| Mirrored factors: two or more factors with exactly the same channels (one factor's channel set copied onto several, a product of experts on one set of variables), declared once | proposed | medium | Daniel, 2026-11-05 | each copy is wired by hand today; open: whether the copies share parameters (tied, as plates do) or only their wiring, and whether a mirror should be one node with a product rule |
+| Further utility factors: a deterministic map (a function as an exact relation, `FunctionFactor`), a permutation or reshape of a channel, a sum or average of several channels, a constant (clamp) factor with its own schedule | proposed | low | Gemini review §4 (a `FunctionFactor`), Daniel, 2026-11-05 | the common glue of a model, written by hand each time |
+
 ## Families
 
 | feature | status | priority | source | why |
 |---|---|---|---|---|
-| Calibration benchmarks for implicit relations (spurious roots, branch recall; lemniscate, pitchfork, redundant arm, unbalanced mixtures) | proposed | medium | both reviews (LP-023) | only the circle example exists |
+| Calibration benchmarks for implicit relations | partial: circle, lemniscate, unbalanced rings (2026-11-05, `lib/VariationalDiffusion.jl/examples/calibration.md`); a pitchfork and a redundant arm remain | medium | both reviews (LP-023) | baseline measured: every off-domain query returns a root, the lemniscate's recall is at best 0.52, the 10% ring is never found |
+| Calibration remedies: off-relation detection (the full score's norm, an energy threshold, a round trip), annealing the field levels, ridge residuals | proposed | medium | both reviews; `calibration.md` | measured against the benchmark above |
 | Heteroscedastic and heavy-tailed likelihoods | proposed | low | ChatGPT review §5 | |
 | Polynomial factor: higher-degree ideal quotients, missing-data EM | planned | low | `polyfit.md` | |
 | Algebraic factors: MLE existence by LP, Markov bases, splitting large tables | planned | low | [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]] open, §2.4 | |

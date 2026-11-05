@@ -38,7 +38,10 @@ reviewed commit) before anything was changed.
   result is a proposal.
 - **Implicit-relation calibration** (ChatGPT 4.4, Gemini §5). Stable zeros of a smoothed score
   are modes of $p_t$, not points of the data manifold; `lib/VariationalDiffusion.jl/examples/circle_mlp.jl`
-  is the one manifold example, and nothing measures spurious roots or branch recall. The proposed
+  was the one manifold example. Since 2026-11-05 `lib/VariationalDiffusion.jl/examples/calibration.jl`
+  measures it on the circle, the lemniscate and unbalanced rings (`calibration.md`). Every query
+  outside a relation's range returns a root, the lemniscate's recall is at best 0.52, and a 10% ring
+  is never found. The proposed
   metrics (distance to the manifold, spurious roots, branch recall on a lemniscate, a pitchfork,
   a redundant arm, unbalanced mixtures) and remedies (annealing in $t$, ridge residuals, normal-bundle
   parameterisation) are research items, not defects.
