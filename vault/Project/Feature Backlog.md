@@ -23,7 +23,7 @@ specification), *partial*, *done*. Priority: **high** (it limits something measu
 | Mixture-reduction and EP nodes batched in plates | planned | low | [[L-SPEC-008 Expectation Propagation and Mixture Reduction]] open | edge by edge today |
 | Clusters with loops; several mean-field variables in one cluster | planned | low | [[L-SPEC-007 Hybrid Schedules]] open | |
 | Nested plates; stateful tied factors | planned | low | [[L-SPEC-006 Plates]] open | |
-| Incremental inference (reuse factorisations and beliefs after a local change, iSAM2-like) | proposed | low | ChatGPT review | online learning, SLAM-like use |
+| Incremental inference (reuse factorisations and beliefs after a local change, iSAM2-like) | proposed | low | ChatGPT review; LenticulumLM's [Incremental Next-Token Prediction](https://mathstruct.org/LenticulumLM/Design/Incremental-Next-Token-Prediction) (an idea, 2026-11-05) | online learning, SLAM-like use, and next-token prediction as appending factors; `transfer` gives warm starts today, not reuse of factorisations |
 | A lazy product-of-potentials belief with explicit approximation policies | proposed | low | ChatGPT review | learned potentials without silent Gaussian projection |
 
 ## Structure search and editing
@@ -64,6 +64,7 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 
 | feature | status | priority | source | why |
 |---|---|---|---|---|
+| Graded block levels in `ImplicitDiffusion`: a fixed noise level per block that rises with the block's age (old blocks nearly clean, recent ones noisier, free ones annealed), generalising today's annealed-or-clean blocks | proposed | low | LenticulumLM's [Incremental Next-Token Prediction](https://mathstruct.org/LenticulumLM/Design/Incremental-Next-Token-Prediction) (an idea, 2026-11-05) | the schedule of Rolling Diffusion and Diffusion Forcing as a query option; holding clamps clean already helps (`implicit.md` §9); whether untrained-for schedules help is open |
 | Calibration benchmarks for implicit relations | partial: circle, lemniscate, unbalanced rings (2026-11-05, `lib/VariationalDiffusion.jl/examples/calibration.md`); a pitchfork and a redundant arm remain | medium | both reviews (LP-023) | baseline measured: every off-domain query returns a root, the lemniscate's recall is at best 0.52, the 10% ring is never found |
 | Calibration remedies: off-relation detection (the full score's norm, an energy threshold, a round trip), annealing the field levels, ridge residuals | proposed | medium | both reviews; `calibration.md` | measured against the benchmark above |
 | Heteroscedastic and heavy-tailed likelihoods | proposed | low | ChatGPT review §5 | |
