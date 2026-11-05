@@ -217,7 +217,7 @@ In rough order of how much each buys, and none of it is done:
 Point 5 is the one to worry about. The others are engineering; that one is a theory gap, and
 it says an Optimizer built on today's free energy would minimise it happily and learn nothing.
 
-Related: [[The Two-Part Diagram]], [[Everything is a Factor]],
+Related: [[The Regulariser and the Loss]] (the sequel), [[The Two-Part Diagram]], [[Everything is a Factor]],
 [Learning Components as Parametric Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Gradient-Based-Learning-with-Parametric-Lenses), [[Inversions and Bayesian Lenses]],
 [[Acausal Composition is a Hypergraph Category]], [[Time as a Base]],
 [[Energy-Based Learning]], [[Energy-Based Factor Graphs]], [[Loopy Message Passing]],

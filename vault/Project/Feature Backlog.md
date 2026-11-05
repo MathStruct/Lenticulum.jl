@@ -49,6 +49,10 @@ needed many times.
 | Template edits of plated graphs, stable ids | planned | low | [[L-SPEC-011 Plate Edits]] | edits and `as_plate` take about 15% of a search today |
 | Moves and warm starts as library code (beam search, final refit) | proposed | low | `examples/structure_clusters.md` | the example's beam with refit reaches the best fit in 62% of the gradient search's time; a reusable driver would serve other families |
 | Collapsed M-steps as a library feature (integrate out the intermediates of a switch-over-sum) | proposed | medium | `examples/structure_clusters.md` | the per-factor M-step crawls with nearly deterministic switches |
+| Gated inclusion of edges (spike-and-slab): a binary gate and a slab per candidate edge, inferred with the rest; a structure edit becomes the rounding of a gate | proposed | medium | [[The Regulariser and the Loss]] §2, §6; Daniel, 2026-11-05 ("valuable but rarely used, or to regularise?") | separates whether an edge exists from how large it is, so a rare but large edge is not shrunk away |
+| Per-edge diagnostics: usage (posterior mass through the edge), gain when used, net value against its complexity, bootstrap stability | proposed | medium | Daniel, 2026-11-05 | tells a rare but valuable connection from one to prune; also says what an out-of-core store must keep loadable |
+| Structure scores beyond BIC: a Laplace evidence (the Hessian at the fit) and a held-out free energy | proposed | medium | [[The Regulariser and the Loss]] §6 | BIC is the crude Laplace term; held-out scores also judge parts that are not normalised densities |
+| A structure-search driver in the library: move sets (edits, gates, cluster merges), the scores above, beams, restarts and a final refit | proposed | medium | [[The Regulariser and the Loss]] §5–§6; `examples/structure_clusters.md` | every search today is example code; merges the "moves and warm starts" row above |
 
 ## Learning
 
@@ -60,6 +64,12 @@ needed many times.
 | Exposed parameters: generic approximate `parameter_message`, energy taps, risk scalarisations | partial | low | [[L-SPEC-003 Exposed Parameters and Energy Channels]] §2–§3 | |
 | Explicit gradient semantics in results (envelope, finite replay, implicit fixed point) | proposed | low | ChatGPT review §4.2 | a caller should see which objective was differentiated |
 | Calling `validate_parameters` automatically before inference | proposed | low | LP-023 | it exists (2026-11-04) but is opt-in |
+| `train!`: interleave inference sweeps and `OptimiserFactor` updates, with a check of condition (O) (a rule's fixed points are the stationary points) for user rules | proposed | medium | [[The Regulariser and the Loss]] §3; `lib/Mycelium.jl/src/factors.md` §5 | the optimiser is a factor, but no loop drives it; `GradientDescent`, `Momentum` and `Nesterov` satisfy (O) by their definitions |
+| Hyperparameters by the evidence (type-II ML): an M-step for the $\lambda$ of normalised priors inside `fit_em` | proposed | medium | [[The Regulariser and the Loss]] §2 | MacKay's evidence has an interior optimum when the prior is normalised |
+| Hypergradients through fixed points: $d\mathcal L_{\text{outer}}/d\lambda$ by the implicit function theorem, through `fit_em` and the message fixed point | proposed | low | [[The Regulariser and the Loss]] §5 | the adjoint machinery exists for implicit learners and DEQs; it would make held-out tuning of priors and loss weights a gradient problem |
+| Learned scalarisations and loss weights with condition (L) enforced: a warning, as for LP-022, when a learned weight or penalty is fitted on its own objective | proposed | low | [[The Regulariser and the Loss]] §4 | derived there: a loss weight or an unnormalised penalty fitted on the training objective goes to zero |
+| Amortised inference graph-wide, with the amortisation gap $F[q_\phi] - \min_b F$ reported | proposed | low | [[The Regulariser and the Loss]] §2; [[The Inferencer and the Optimizer]] §7 | `AmortisedInversion` exists per factor only |
+| Learned optimisers (an update lens with parameters, meta-trained on an outer criterion) | proposed | low | [[The Regulariser and the Loss]] §3 | research; needs `train!` and the outer problem first |
 
 ## Utility factors and data (asked for 2026-11-05)
 

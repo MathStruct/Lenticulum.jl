@@ -268,6 +268,11 @@
     "Sorenson, H. W.; Alspach, D. L. (1971). Recursive Bayesian Estimation Using Gaussian Sums. Automatica. https://doi.org/10.1016/0005-1098(71)90097-5",
     "Ghahramani, Zoubin; Hinton, Geoffrey E. (2000). Variational Learning for Switching State-Space Models. Neural Computation. https://doi.org/10.1162/089976600300015619",
     "Wei, Greg C. G.; Tanner, Martin A. (1990). A Monte Carlo Implementation of the EM Algorithm and the Poor Man's Data Augmentation Algorithms. Journal of the American Statistical Association. https://doi.org/10.1080/01621459.1990.10474930",
-    "Delyon, Bernard; Lavielle, Marc; Moulines, Eric (1999). Convergence of a Stochastic Approximation Version of the EM Algorithm. The Annals of Statistics. https://doi.org/10.1214/aos/1018031103"
+    "Delyon, Bernard; Lavielle, Marc; Moulines, Eric (1999). Convergence of a Stochastic Approximation Version of the EM Algorithm. The Annals of Statistics. https://doi.org/10.1214/aos/1018031103",
+    "Bissiri, P. G.; Holmes, C. C.; Walker, S. G. (2016). A General Framework for Updating Belief Distributions. Journal of the Royal Statistical Society Series B: Statistical Methodology. https://doi.org/10.1111/rssb.12158",
+    "MacKay, David J. C. (1992). Bayesian Interpolation. Neural Computation. https://doi.org/10.1162/neco.1992.4.3.415",
+    "Mitchell, T. J.; Beauchamp, J. J. (1988). Bayesian Variable Selection in Linear Regression. Journal of the American Statistical Association. https://doi.org/10.1080/01621459.1988.10478694",
+    "Lorraine, Jonathan; Vicol, Paul; Duvenaud, David (2020). Optimizing Millions of Hyperparameters by Implicit Differentiation. International Conference on Artificial Intelligence and Statistics (AISTATS). https://arxiv.org/abs/1911.02590",
+    "Andrychowicz, Marcin; Denil, Misha; Gomez, Sergio; Hoffman, Matthew W.; Pfau, David; Schaul, Tom; Shillingford, Brendan; de Freitas, Nando (2016). Learning to Learn by Gradient Descent by Gradient Descent. Advances in Neural Information Processing Systems (NeurIPS). https://arxiv.org/abs/1606.04474"
   ]
 }

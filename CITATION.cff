@@ -3465,3 +3465,79 @@ references:
     start: "94"
     end: "128"
     doi: "10.1214/aos/1018031103"
+  - type: article
+    title: "A General Framework for Updating Belief Distributions"
+    authors:
+      - family-names: "Bissiri"
+        given-names: "P. G."
+      - family-names: "Holmes"
+        given-names: "C. C."
+      - family-names: "Walker"
+        given-names: "S. G."
+    year: 2016
+    journal: "Journal of the Royal Statistical Society Series B: Statistical Methodology"
+    volume: "78"
+    issue: "5"
+    start: "1103"
+    end: "1130"
+    doi: "10.1111/rssb.12158"
+  - type: article
+    title: "Bayesian Interpolation"
+    authors:
+      - family-names: "MacKay"
+        given-names: "David J. C."
+    year: 1992
+    journal: "Neural Computation"
+    volume: "4"
+    issue: "3"
+    start: "415"
+    end: "447"
+    doi: "10.1162/neco.1992.4.3.415"
+  - type: article
+    title: "Bayesian Variable Selection in Linear Regression"
+    authors:
+      - family-names: "Mitchell"
+        given-names: "T. J."
+      - family-names: "Beauchamp"
+        given-names: "J. J."
+    year: 1988
+    journal: "Journal of the American Statistical Association"
+    volume: "83"
+    issue: "404"
+    start: "1023"
+    end: "1032"
+    doi: "10.1080/01621459.1988.10478694"
+  - type: conference-paper
+    title: "Optimizing Millions of Hyperparameters by Implicit Differentiation"
+    authors:
+      - family-names: "Lorraine"
+        given-names: "Jonathan"
+      - family-names: "Vicol"
+        given-names: "Paul"
+      - family-names: "Duvenaud"
+        given-names: "David"
+    year: 2020
+    collection-title: "International Conference on Artificial Intelligence and Statistics (AISTATS)"
+    url: "https://arxiv.org/abs/1911.02590"
+  - type: conference-paper
+    title: "Learning to Learn by Gradient Descent by Gradient Descent"
+    authors:
+      - family-names: "Andrychowicz"
+        given-names: "Marcin"
+      - family-names: "Denil"
+        given-names: "Misha"
+      - family-names: "Gomez"
+        given-names: "Sergio"
+      - family-names: "Hoffman"
+        given-names: "Matthew W."
+      - family-names: "Pfau"
+        given-names: "David"
+      - family-names: "Schaul"
+        given-names: "Tom"
+      - family-names: "Shillingford"
+        given-names: "Brendan"
+      - family-names: "de Freitas"
+        given-names: "Nando"
+    year: 2016
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/1606.04474"

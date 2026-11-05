@@ -244,6 +244,9 @@ project would look like with factor graphs attached *to* the factor graph.
   messages and parameters. Half of it already exists as `OptimiserFactor` and
   `AmortisedInversion`; it is loop-free because it is coordinate descent on one objective; and
   it is the **separation principle**, exact for linear-Gaussian and failing into *exploration*
+- [[The Regulariser and the Loss]] — the other two parts: the regulariser and the inferencer are
+  inside one joint and one free energy; the optimiser and the loss are outside it, learnable only
+  in a nested problem, with three conditions for the parts to compose
 
 ## 4. Implementation
 
