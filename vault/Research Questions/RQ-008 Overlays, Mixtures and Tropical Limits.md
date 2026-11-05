@@ -49,6 +49,7 @@ $$
 
    That is the linear constraint's convex quadratic minus a convex log-sum-exp of affine functions
    of $y$.
+
 3. **Its low-noise limit is tropical** (derived here; checked in `test/rq008.jl`). With $Q = sQ_0$,
 
 $$
@@ -61,6 +62,7 @@ $$
    So a switching factor *is* an overlay: a linear constraint plus a fixed concave, piecewise-linear
    factor (minus a tropical polynomial), with learnable offsets $b_k$. The tropical hypersurface
    separates the regions each outcome wins.
+
 4. **ReLU networks are tropical rational maps** (Zhang, Naitzat & Lim 2018), differences of two
    tropical polynomials. The same max-plus language describes switches and any piecewise-linear
    learner distilled into them.
