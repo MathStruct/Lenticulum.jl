@@ -26,6 +26,22 @@ specification), *partial*, *done*. Priority: **high** (it limits something measu
 | Incremental inference (reuse factorisations and beliefs after a local change, iSAM2-like) | proposed | low | ChatGPT review; LenticulumLM's [Incremental Next-Token Prediction](https://mathstruct.org/LenticulumLM/Design/Incremental-Next-Token-Prediction) (an idea, 2026-11-05) | online learning, SLAM-like use, and next-token prediction as appending factors; `transfer` gives warm starts today, not reuse of factorisations |
 | A lazy product-of-potentials belief with explicit approximation policies | proposed | low | ChatGPT review | learned potentials without silent Gaussian projection |
 
+## Out-of-core graphs (planned subrepository)
+
+A graph too big for memory, kept in a store and loaded where a query reaches. It is planned as its
+own package, `lib/MyceliumStore.jl` (working name), on top of Mycelium. Daniel, 2026-11-05: not only
+for language models but also for heterogeneous multi-omics or streaming time series (markets,
+sensors). Most of the computation can be avoided in most cases, while particular data is still
+needed many times.
+
+| feature | status | priority | source | why |
+|---|---|---|---|---|
+| Lazy factor nodes: a stub with a store key that loads its factor and parameters on first use (a message, a free energy), with an LRU cache and eviction; the graph's structure stays resident | planned | medium | Daniel, 2026-11-05 | a model whose parameters do not fit in memory; mixture-of-experts serving does this for its experts (offloading, memory-mapped weights) |
+| Nodes stored as description plus arrays: a registered type tag and version, the constructor's arguments as data, and `ps`/`st` in a memory-mappable format (Arrow, SafeTensors, HDF5/JLD2 datasets, `Mmap`); no serialised functions or closures (Julia's `Serialization` is not a stable format, and deserialising untrusted data is unsafe) | planned | medium | Daniel, 2026-11-05 | factors are already split the Lux way, a small description and arrays; only `init_*` closures hold code, and they are needed only for initial parameters |
+| A store interface with back ends: files keyed by node id, LMDB (memory-mapped, read-heavy), SQLite, RocksDB, Redis, object stores | planned | low | Daniel, 2026-11-05 | one interface; the choice per deployment |
+| The subgraph a query reaches: from the clamps and the query variables, the factors connected through unobserved variables (Bayes-ball / d-separation), and a schedule restricted to it; incremental appends (iSAM-like) touch only the newest factors | planned | medium | Daniel, 2026-11-05; LenticulumLM's Incremental Next-Token Prediction | what makes lazy loading pay; full loopy inference would load everything |
+| Parameters by key on demand instead of one graph-wide `NamedTuple` (the integer-slot store of the inference section), and training on a loaded subgraph with write-back of parameters and optimiser state | planned | low | Daniel, 2026-11-05; ChatGPT review | gradients are local per parameter key, so a loaded subgraph trains as a block of coordinates |
+
 ## Structure search and editing
 
 | feature | status | priority | source | why |
