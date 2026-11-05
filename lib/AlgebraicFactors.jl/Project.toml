@@ -24,4 +24,5 @@ HomotopyContinuation = "f213a82b-91d6-5c5d-acf7-10f1c761b327"
 AlgebraicFactorsHomotopyContinuationExt = "HomotopyContinuation"
 
 [compat]
+julia = "1.12"
 HomotopyContinuation = "2.22.4"

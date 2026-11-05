@@ -27,6 +27,7 @@ MyceliumGPUArraysCoreExt = "GPUArraysCore"
 MyceliumChainRulesCoreExt = "ChainRulesCore"
 
 [compat]
+julia = "1.12"
 Krylov = "0.10"
 GPUArraysCore = "0.2"
 ChainRulesCore = "1"

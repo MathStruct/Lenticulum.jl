@@ -17,3 +17,6 @@ Mycelium = {path = "../Mycelium.jl"}
 
 [workspace]
 projects = ["test"]
+
+[compat]
+julia = "1.12"

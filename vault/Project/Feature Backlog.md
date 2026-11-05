@@ -56,7 +56,7 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 |---|---|---|---|---|
 | Data loading from `MLUtils.jl` (`DataLoader`): minibatches fed into a plate's `DataFactor`s, shuffling, epochs, as an optional extension | proposed | medium | Daniel, 2026-11-05 | every example builds one `DataFactor` per point by hand and keeps all data in the graph; minibatch training needs the plate's data swapped per batch |
 | A split / concatenate factor: one channel of dimension $d_1 + d_2$ related exactly to two channels of $d_1$ and $d_2$ (and more pieces, any index sets), with exact messages in every direction | proposed | medium | Daniel, 2026-11-05 | today a selection-matrix `LinearConstraintFactor` with tiny noise, which is neither exact nor cheap |
-| Mirrored factors: two or more factors with exactly the same channels (one factor's channel set copied onto several, a product of experts on one set of variables), declared once | proposed | medium | Daniel, 2026-11-05 | each copy is wired by hand today; open: whether the copies share parameters (tied, as plates do) or only their wiring, and whether a mirror should be one node with a product rule |
+| Mirrored (overlaid) factors: two or more *different* factors acting on exactly the same variables, each with its own parameters (Daniel, 2026-11-05: "two different factors overlayed and acting on the same variables. They should have different parameters"), declared once instead of wiring each by hand | proposed | medium | Daniel, 2026-11-05 | a product of experts on one set of variables; open: whether the overlay is several nodes on shared variables (exact on a tree, a loop of length two otherwise: two factors on the same two variables form a cycle for belief propagation) or one node whose messages are the product of its members' (exact, like a cluster of the members) |
 | Further utility factors: a deterministic map (a function as an exact relation, `FunctionFactor`), a permutation or reshape of a channel, a sum or average of several channels, a constant (clamp) factor with its own schedule | proposed | low | Gemini review §4 (a `FunctionFactor`), Daniel, 2026-11-05 | the common glue of a model, written by hand each time |
 
 ## Families
@@ -74,10 +74,17 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 
 | feature | status | priority | source | why |
 |---|---|---|---|---|
-| CI with a second Julia version and the device tests | proposed | medium | ChatGPT review §6 | CI runs Julia 1 on Ubuntu without device tests |
 | Benchmark regression tracking (scaling, allocations per message) | proposed | low | ChatGPT review §6 | |
 
 ## Done (2026-11-04/05)
+
+CI with a second Julia version and the device tests (2026-11-05). The matrix runs the current
+release and 1.12, the oldest supported. Two separate jobs run the Mycelium and ImplicitLayers device
+files (JLArrays). The supported minimum was declared as 1.10 but never tested, and it was wrong:
+the packages find each other through `[sources]`, which needs 1.11, so on 1.10 every package but
+LenticulumCore fails to instantiate. On 1.11 the Enzyme backend of the DEQ solve fails
+(`MixedReturnException`, Enzyme 0.13.205); the same Enzyme passes on 1.12. All seven suites
+pass on 1.12, and every `Project.toml` now says `julia = "1.12"`.
 
 A warning for `DEQFactor`s trained by their residual with the state observed (2026-11-05; measured
 in `lib/ImplicitLayers.jl/test/lp022.jl`). Cluster forms and closed-form M-steps for

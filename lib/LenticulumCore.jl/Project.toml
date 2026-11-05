@@ -29,6 +29,7 @@ LenticulumCoreDifferentiationInterfaceExt = "DifferentiationInterface"
 LenticulumCoreExponentialFamilyExt = ["ExponentialFamily", "BayesBase", "Distributions"]
 
 [compat]
+julia = "1.12"
 GPUArraysCore = "0.2"
 ChainRulesCore = "1"
 ForwardDiff = "0.10, 1"

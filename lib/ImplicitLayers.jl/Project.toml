@@ -46,6 +46,7 @@ ImplicitLayersOrdinaryDiffEqExt = ["OrdinaryDiffEqCore", "SciMLBase"]
 ImplicitLayersOrdinaryDiffEqSDIRKExt = ["OrdinaryDiffEqCore", "OrdinaryDiffEqSDIRK"]
 
 [compat]
+julia = "1.12"
 GPUArraysCore = "0.2"
 Krylov = "0.9, 0.10"
 SciMLSensitivity = "7.106"

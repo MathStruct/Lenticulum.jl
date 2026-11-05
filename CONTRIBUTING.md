@@ -137,6 +137,8 @@ and a later release cites the paper.
 2. **Open an issue or join a discussion**, or go straight to a pull request for small changes.
 3. **Code**: each package under `lib/` has its own tests,
    `julia --project=lib/<Package>.jl -e 'using Pkg; Pkg.test()'` (the top-level package: `--project=.`).
+   Julia 1.12 or later is needed (CI tests 1.12 and the current release); the Mycelium and
+   ImplicitLayers device files run with `LENTICULUM_DEVICE_TESTS=true`, as a separate CI job does.
    Something new comes with a test against a closed form or a reference where one exists, and
    with an implementation note beside the source file: what it does, what it does not do, and
    the difficulties met on the way.
