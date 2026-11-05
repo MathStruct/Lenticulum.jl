@@ -273,6 +273,20 @@
     "MacKay, David J. C. (1992). Bayesian Interpolation. Neural Computation. https://doi.org/10.1162/neco.1992.4.3.415",
     "Mitchell, T. J.; Beauchamp, J. J. (1988). Bayesian Variable Selection in Linear Regression. Journal of the American Statistical Association. https://doi.org/10.1080/01621459.1988.10478694",
     "Lorraine, Jonathan; Vicol, Paul; Duvenaud, David (2020). Optimizing Millions of Hyperparameters by Implicit Differentiation. International Conference on Artificial Intelligence and Statistics (AISTATS). https://arxiv.org/abs/1911.02590",
-    "Andrychowicz, Marcin; Denil, Misha; Gomez, Sergio; Hoffman, Matthew W.; Pfau, David; Schaul, Tom; Shillingford, Brendan; de Freitas, Nando (2016). Learning to Learn by Gradient Descent by Gradient Descent. Advances in Neural Information Processing Systems (NeurIPS). https://arxiv.org/abs/1606.04474"
+    "Andrychowicz, Marcin; Denil, Misha; Gomez, Sergio; Hoffman, Matthew W.; Pfau, David; Schaul, Tom; Shillingford, Brendan; de Freitas, Nando (2016). Learning to Learn by Gradient Descent by Gradient Descent. Advances in Neural Information Processing Systems (NeurIPS). https://arxiv.org/abs/1606.04474",
+    "Hyvärinen, Aapo (2005). Estimation of Non-Normalized Statistical Models by Score Matching. Journal of Machine Learning Research",
+    "Gutmann, Michael; Hyvärinen, Aapo (2010). Noise-Contrastive Estimation: A New Estimation Principle for Unnormalized Statistical Models. International Conference on Artificial Intelligence and Statistics (AISTATS)",
+    "Song, Yang; Garg, Sahaj; Shi, Jiaxin; Ermon, Stefano (2019). Sliced Score Matching: A Scalable Approach to Density and Score Estimation. Conference on Uncertainty in Artificial Intelligence (UAI). https://arxiv.org/abs/1905.07088",
+    "E, Weinan; Yu, Bing (2018). The Deep Ritz Method: A Deep Learning-Based Numerical Algorithm for Solving Variational Problems. Communications in Mathematics and Statistics. https://doi.org/10.1007/s40304-018-0127-z",
+    "Gao, Ruiqi; Song, Yang; Poole, Ben; Wu, Ying Nian; Kingma, Diederik P. (2020). Learning Energy-Based Models by Diffusion Recovery Likelihood. https://arxiv.org/abs/2012.08125",
+    "Zhu, Yaxuan; Xie, Jianwen; Wu, Yingnian; Gao, Ruiqi (2023). Learning Energy-Based Models by Cooperative Diffusion Recovery Likelihood. https://arxiv.org/abs/2309.05153",
+    "Gao, Ruiqi; Nijkamp, Erik; Kingma, Diederik P.; Xu, Zhen; Dai, Andrew M.; Wu, Ying Nian (2019). Flow Contrastive Estimation of Energy-Based Models. https://arxiv.org/abs/1912.00589",
+    "Rhodes, Benjamin; Xu, Kai; Gutmann, Michael U. (2020). Telescoping Density-Ratio Estimation. https://arxiv.org/abs/2006.12204",
+    "Schröder, Tobias; Ou, Zijing; Lim, Jen Ning; Li, Yingzhen; Vollmer, Sebastian J.; Duncan, Andrew B. (2023). Energy Discrepancies: A Score-Independent Loss for Energy-Based Models. Advances in Neural Information Processing Systems (NeurIPS). https://arxiv.org/abs/2307.06431",
+    "Balcerak, Michal; Amiranashvili, Tamaz; Terpin, Antonio; Shit, Suprosanna; Bogensperger, Lea; Kaltenbach, Sebastian; Koumoutsakos, Petros; Menze, Bjoern (2025). Energy Matching: Unifying Flow Matching and Energy-Based Models for Generative Modeling. Advances in Neural Information Processing Systems (NeurIPS). https://arxiv.org/abs/2504.10612",
+    "Wang, Runqian; Du, Yilun (2025). Equilibrium Matching: Generative Modeling with Implicit Energy-Based Models. https://arxiv.org/abs/2510.02300",
+    "Gladstone, Alexi; Nanduru, Ganesh; Islam, Md Mofijul; Han, Peixuan; Ha, Hyeonjeong; Chadha, Aman; Du, Yilun; Ji, Heng; Li, Jundong; Iqbal, Tariq (2025). Energy-Based Transformers are Scalable Learners and Thinkers. https://arxiv.org/abs/2507.02092",
+    "Xu, Minkai; Geffner, Tomas; Kreis, Karsten; Nie, Weili; Xu, Yilun; Leskovec, Jure; Ermon, Stefano; Vahdat, Arash (2025). Energy-Based Diffusion Language Models for Text Generation. International Conference on Learning Representations (ICLR). https://arxiv.org/abs/2410.21357",
+    "Meng, Chenlin; Choi, Kristy; Song, Jiaming; Ermon, Stefano (2022). Concrete Score Matching: Generalized Score Matching for Discrete Data. Advances in Neural Information Processing Systems (NeurIPS). https://arxiv.org/abs/2211.00802"
   ]
 }

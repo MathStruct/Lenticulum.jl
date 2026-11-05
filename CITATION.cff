@@ -3541,3 +3541,220 @@ references:
     year: 2016
     collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
     url: "https://arxiv.org/abs/1606.04474"
+  - type: article
+    title: "Estimation of Non-Normalized Statistical Models by Score Matching"
+    authors:
+      - family-names: "Hyvärinen"
+        given-names: "Aapo"
+    year: 2005
+    journal: "Journal of Machine Learning Research"
+    volume: "6"
+    issue: "24"
+    start: "695"
+    end: "709"
+  - type: conference-paper
+    title: "Noise-Contrastive Estimation: A New Estimation Principle for Unnormalized Statistical Models"
+    authors:
+      - family-names: "Gutmann"
+        given-names: "Michael"
+      - family-names: "Hyvärinen"
+        given-names: "Aapo"
+    year: 2010
+    collection-title: "International Conference on Artificial Intelligence and Statistics (AISTATS)"
+    volume: "9"
+    start: "297"
+    end: "304"
+  - type: conference-paper
+    title: "Sliced Score Matching: A Scalable Approach to Density and Score Estimation"
+    authors:
+      - family-names: "Song"
+        given-names: "Yang"
+      - family-names: "Garg"
+        given-names: "Sahaj"
+      - family-names: "Shi"
+        given-names: "Jiaxin"
+      - family-names: "Ermon"
+        given-names: "Stefano"
+    year: 2019
+    collection-title: "Conference on Uncertainty in Artificial Intelligence (UAI)"
+    url: "https://arxiv.org/abs/1905.07088"
+  - type: article
+    title: "The Deep Ritz Method: A Deep Learning-Based Numerical Algorithm for Solving Variational Problems"
+    authors:
+      - family-names: "E"
+        given-names: "Weinan"
+      - family-names: "Yu"
+        given-names: "Bing"
+    year: 2018
+    journal: "Communications in Mathematics and Statistics"
+    volume: "6"
+    issue: "1"
+    start: "1"
+    end: "12"
+    doi: "10.1007/s40304-018-0127-z"
+  - type: generic
+    title: "Learning Energy-Based Models by Diffusion Recovery Likelihood"
+    authors:
+      - family-names: "Gao"
+        given-names: "Ruiqi"
+      - family-names: "Song"
+        given-names: "Yang"
+      - family-names: "Poole"
+        given-names: "Ben"
+      - family-names: "Wu"
+        given-names: "Ying Nian"
+      - family-names: "Kingma"
+        given-names: "Diederik P."
+    year: 2020
+    url: "https://arxiv.org/abs/2012.08125"
+  - type: generic
+    title: "Learning Energy-Based Models by Cooperative Diffusion Recovery Likelihood"
+    authors:
+      - family-names: "Zhu"
+        given-names: "Yaxuan"
+      - family-names: "Xie"
+        given-names: "Jianwen"
+      - family-names: "Wu"
+        given-names: "Yingnian"
+      - family-names: "Gao"
+        given-names: "Ruiqi"
+    year: 2023
+    url: "https://arxiv.org/abs/2309.05153"
+  - type: generic
+    title: "Flow Contrastive Estimation of Energy-Based Models"
+    authors:
+      - family-names: "Gao"
+        given-names: "Ruiqi"
+      - family-names: "Nijkamp"
+        given-names: "Erik"
+      - family-names: "Kingma"
+        given-names: "Diederik P."
+      - family-names: "Xu"
+        given-names: "Zhen"
+      - family-names: "Dai"
+        given-names: "Andrew M."
+      - family-names: "Wu"
+        given-names: "Ying Nian"
+    year: 2019
+    url: "https://arxiv.org/abs/1912.00589"
+  - type: generic
+    title: "Telescoping Density-Ratio Estimation"
+    authors:
+      - family-names: "Rhodes"
+        given-names: "Benjamin"
+      - family-names: "Xu"
+        given-names: "Kai"
+      - family-names: "Gutmann"
+        given-names: "Michael U."
+    year: 2020
+    url: "https://arxiv.org/abs/2006.12204"
+  - type: conference-paper
+    title: "Energy Discrepancies: A Score-Independent Loss for Energy-Based Models"
+    authors:
+      - family-names: "Schröder"
+        given-names: "Tobias"
+      - family-names: "Ou"
+        given-names: "Zijing"
+      - family-names: "Lim"
+        given-names: "Jen Ning"
+      - family-names: "Li"
+        given-names: "Yingzhen"
+      - family-names: "Vollmer"
+        given-names: "Sebastian J."
+      - family-names: "Duncan"
+        given-names: "Andrew B."
+    year: 2023
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/2307.06431"
+  - type: conference-paper
+    title: "Energy Matching: Unifying Flow Matching and Energy-Based Models for Generative Modeling"
+    authors:
+      - family-names: "Balcerak"
+        given-names: "Michal"
+      - family-names: "Amiranashvili"
+        given-names: "Tamaz"
+      - family-names: "Terpin"
+        given-names: "Antonio"
+      - family-names: "Shit"
+        given-names: "Suprosanna"
+      - family-names: "Bogensperger"
+        given-names: "Lea"
+      - family-names: "Kaltenbach"
+        given-names: "Sebastian"
+      - family-names: "Koumoutsakos"
+        given-names: "Petros"
+      - family-names: "Menze"
+        given-names: "Bjoern"
+    year: 2025
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/2504.10612"
+  - type: generic
+    title: "Equilibrium Matching: Generative Modeling with Implicit Energy-Based Models"
+    authors:
+      - family-names: "Wang"
+        given-names: "Runqian"
+      - family-names: "Du"
+        given-names: "Yilun"
+    year: 2025
+    url: "https://arxiv.org/abs/2510.02300"
+  - type: generic
+    title: "Energy-Based Transformers are Scalable Learners and Thinkers"
+    authors:
+      - family-names: "Gladstone"
+        given-names: "Alexi"
+      - family-names: "Nanduru"
+        given-names: "Ganesh"
+      - family-names: "Islam"
+        given-names: "Md Mofijul"
+      - family-names: "Han"
+        given-names: "Peixuan"
+      - family-names: "Ha"
+        given-names: "Hyeonjeong"
+      - family-names: "Chadha"
+        given-names: "Aman"
+      - family-names: "Du"
+        given-names: "Yilun"
+      - family-names: "Ji"
+        given-names: "Heng"
+      - family-names: "Li"
+        given-names: "Jundong"
+      - family-names: "Iqbal"
+        given-names: "Tariq"
+    year: 2025
+    url: "https://arxiv.org/abs/2507.02092"
+  - type: conference-paper
+    title: "Energy-Based Diffusion Language Models for Text Generation"
+    authors:
+      - family-names: "Xu"
+        given-names: "Minkai"
+      - family-names: "Geffner"
+        given-names: "Tomas"
+      - family-names: "Kreis"
+        given-names: "Karsten"
+      - family-names: "Nie"
+        given-names: "Weili"
+      - family-names: "Xu"
+        given-names: "Yilun"
+      - family-names: "Leskovec"
+        given-names: "Jure"
+      - family-names: "Ermon"
+        given-names: "Stefano"
+      - family-names: "Vahdat"
+        given-names: "Arash"
+    year: 2025
+    collection-title: "International Conference on Learning Representations (ICLR)"
+    url: "https://arxiv.org/abs/2410.21357"
+  - type: conference-paper
+    title: "Concrete Score Matching: Generalized Score Matching for Discrete Data"
+    authors:
+      - family-names: "Meng"
+        given-names: "Chenlin"
+      - family-names: "Choi"
+        given-names: "Kristy"
+      - family-names: "Song"
+        given-names: "Jiaming"
+      - family-names: "Ermon"
+        given-names: "Stefano"
+    year: 2022
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/2211.00802"
