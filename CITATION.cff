@@ -3758,3 +3758,71 @@ references:
     year: 2022
     collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
     url: "https://arxiv.org/abs/2211.00802"
+  - type: article
+    title: "Some Methods of Speeding Up the Convergence of Iteration Methods"
+    authors:
+      - family-names: "Polyak"
+        given-names: "Boris T."
+    year: 1964
+    journal: "USSR Computational Mathematics and Mathematical Physics"
+    volume: "4"
+    issue: "5"
+    start: "1"
+    end: "17"
+    doi: "10.1016/0041-5553(64)90137-5"
+  - type: article
+    title: "Anderson Acceleration for Fixed-Point Iterations"
+    authors:
+      - family-names: "Walker"
+        given-names: "Homer F."
+      - family-names: "Ni"
+        given-names: "Peng"
+    year: 2011
+    journal: "SIAM Journal on Numerical Analysis"
+    volume: "49"
+    issue: "4"
+    start: "1715"
+    end: "1735"
+    doi: "10.1137/10078356X"
+  - type: article
+    title: "The Information Geometry of Mirror Descent"
+    authors:
+      - family-names: "Raskutti"
+        given-names: "Garvesh"
+      - family-names: "Mukherjee"
+        given-names: "Sayan"
+    year: 2015
+    journal: "IEEE Transactions on Information Theory"
+    volume: "61"
+    issue: "3"
+    start: "1451"
+    end: "1457"
+    doi: "10.1109/TIT.2015.2388583"
+    url: "https://arxiv.org/abs/1310.7780"
+  - type: conference-paper
+    title: "Accelerated Mirror Descent in Continuous and Discrete Time"
+    authors:
+      - family-names: "Krichene"
+        given-names: "Walid"
+      - family-names: "Bayen"
+        given-names: "Alexandre"
+      - family-names: "Bartlett"
+        given-names: "Peter L."
+    year: 2015
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    volume: "28"
+  - type: article
+    title: "A Variational Perspective on Accelerated Methods in Optimization"
+    authors:
+      - family-names: "Wibisono"
+        given-names: "Andre"
+      - family-names: "Wilson"
+        given-names: "Ashia C."
+      - family-names: "Jordan"
+        given-names: "Michael I."
+    year: 2016
+    journal: "Proceedings of the National Academy of Sciences"
+    volume: "113"
+    issue: "47"
+    doi: "10.1073/pnas.1614734113"
+    url: "https://arxiv.org/abs/1603.04245"

@@ -247,6 +247,9 @@ project would look like with factor graphs attached *to* the factor graph.
 - [[The Regulariser and the Loss]] — the other two parts: the regulariser and the inferencer are
   inside one joint and one free energy; the optimiser and the loss are outside it, learnable only
   in a nested problem, with three conditions for the parts to compose
+- [[Composing Optimisers]] — damping, momentum, Anderson, SQUAREM and mirror maps as modifiers
+  of a map: fixed points compose, convergence does not, and the spectrum of the linearised sweep
+  says which modifier helps
 
 ## 4. Implementation
 

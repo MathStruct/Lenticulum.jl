@@ -218,7 +218,7 @@ And the outer problem's own structure, a beam of inner solutions, is what
 
 The rows are in [[Feature Backlog]] ("Learning" and "Structure search and editing").
 
-Related: [[The Inferencer and the Optimizer]], [[The Two-Part Diagram]], [[Everything is a Factor]],
+Related: [[Composing Optimisers]] (the optimiser's own composition), [[The Inferencer and the Optimizer]], [[The Two-Part Diagram]], [[Everything is a Factor]],
 [[Unusual Wirings]], [[L-SPEC-003 Exposed Parameters and Energy Channels]],
 [[Why Learned Relations Do Not Collapse]], [[Energy-Based Learning]],
 [[RQ-007 Risk Scalarisations and Local Decomposition]], [[L-SPEC-010 Structure Edits]]
