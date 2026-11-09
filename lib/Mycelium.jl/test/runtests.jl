@@ -200,6 +200,39 @@ end
     @test all(islegal(g2, t) for t in tasks(s2))
 end
 
+@testset "spanning-tree schedule: off-tree messages, then a tree's two sweeps" begin
+    # a loop (two relays between the same pair of variables) and a second component
+    b = GraphBuilder()
+    variable!(b, :a); variable!(b, :c); variable!(b, :z1); variable!(b, :z2)
+    factor!(b, :f, RelayFactor(:p, :q)); factor!(b, :g, RelayFactor(:p, :q)); factor!(b, :h, RelayFactor(:p, :q))
+    connect!(b, :f, :p, :a); connect!(b, :f, :q, :c)
+    connect!(b, :g, :p, :a); connect!(b, :g, :q, :c)
+    connect!(b, :h, :p, :z1); connect!(b, :h, :q, :z2)
+    g = build(b)
+    @test !istree(g)
+    s = spanning_tree_schedule(g)
+    @test s isa SequentialSchedule
+    # every legal message exactly once
+    @test sort(tasks(s); by = t -> (t.edge, t.kind)) == sort(Mycelium.all_tasks(g); by = t -> (t.edge, t.kind))
+    # the loop's closing edge is the only one off the tree, and its two messages come first
+    ts = tasks(s)
+    offtree = ts[1:2]
+    @test offtree[1].edge == offtree[2].edge
+    @test count(t -> t.edge == offtree[1].edge, ts) == 2
+    # the second component is covered
+    zedges = g.edges_of_variable[g.variable_index[:z1]]
+    @test all(any(t -> t.edge == e, ts) for e in zedges)
+
+    # on a tree it is the tree schedule's two lists
+    b = GraphBuilder()
+    variable!(b, :x); variable!(b, :y)
+    factor!(b, :f, RelayFactor(:p, :q)); factor!(b, :g, RelayFactor(:p, :q))
+    connect!(b, :f, :p, :x); connect!(b, :f, :q, :y); connect!(b, :g, :p, :y)
+    bt = build(b)
+    @test tasks(spanning_tree_schedule(bt)) == tasks(tree_schedule(bt))
+    @test tasks(spanning_tree_schedule(bt; root = :y)) == tasks(tree_schedule(bt; root = :y))
+end
+
 @testset "forward-backward on a strict DAG has an empty backward sweep" begin
     b = GraphBuilder()
     variable!(b, :x); variable!(b, :y)

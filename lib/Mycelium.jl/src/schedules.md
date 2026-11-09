@@ -23,6 +23,7 @@ emits). `islegal(g, task)` is the predicate; every generator filters on it.
 | `flooding_schedule` | nothing | all legal tasks, double-buffered |
 | `tree_schedule` | `istree` | inward (reverse BFS) + outward (BFS) |
 | `forward_backward_schedule` | `isdag` or `istree` | topological sweep for a DAG; tree inward/outward sweeps otherwise |
+| `spanning_tree_schedule` | nothing | the messages off a breadth-first spanning tree, then its inward and outward sweeps, in place |
 
 `tree_schedule` roots at a leaf, BFS to record which endpoint of each edge is the *child*, then
 emits child→parent messages in reverse BFS order and parent→child in BFS order. That ordering is
@@ -144,3 +145,31 @@ convergence criterion (`_default_criterion`).
 Repeating every cluster's sweep at the start of each sweep costs a pass per sweep but keeps the
 schedule stateless: the first pass on a fresh store is the start from the clusters' own factors,
 and later ones change nothing that is converged.
+
+## Spanning-tree schedules (2026-11-09)
+
+`spanning_tree_schedule(g; root)` is the first static schedule for loopy graphs besides flooding.
+It takes `_tree_sweeps` from the root (and from a node of every other component; `_tree_sweeps`
+already ignores an edge that closes a loop, since its far end has been seen), puts the messages of
+the edges left out first, then every component's inward sweep, then every outward sweep, and returns
+a `SequentialSchedule`. On a tree it is `tree_schedule`'s lists (tested), but `propagate!` iterates
+it instead of stopping after one sweep, because it is not a `TreeSchedule`.
+
+Why: on the resistive divider (one loop of six edges) every slow eigenvalue of a flooding sweep
+has modulus $\rho$ and a message needs six sweeps to go round the loop; an in-place order that goes
+round in one sweep converges at $\rho^6$ per sweep for the same 18 evaluations. Measured in
+`bench/bp_schedules.jl` (vault: Composing Optimisers §4.2): 0.17 to 0.18 of flooding's message
+evaluations to an error of $10^{-10}$ in four resistor settings; with `infer!` and `tol = 1e-11`
+on the test's divider, 82 sweeps against flooding's 463 (`test/runtests.jl`, "a spanning-tree
+schedule", which asserts fewer than a quarter and the same marginals).
+
+What it does not do:
+- **No guarantee.** Loopy BP stays loopy; the fixed points are flooding's, and whether it converges
+  where flooding does not is untested.
+- **One tree, chosen by breadth-first search.** On a graph with several loops a message crosses
+  the tree in one sweep but each off-tree edge only once; which tree to pick, or alternating
+  trees (tree-based reparameterisation proper), is open and unmeasured.
+- **Mean-field nodes are not separated**: their messages are scheduled like any other.
+  `hybrid_schedule` is the schedule for those graphs.
+- **Plates**: `plate_schedule` is not built on it.
+

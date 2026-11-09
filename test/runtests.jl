@@ -761,6 +761,23 @@ end
     @test [belief_mean(m2[v])[1] for v in (:v, :i1, :i2)] ≈ m2joint atol = 1e-9
 end
 
+@testset "loopy: a spanning-tree schedule reaches flooding's fixed point in fewer sweeps" begin
+    # the divider's one loop of six edges: flooding moves a message one edge per sweep, the
+    # spanning-tree order once round the loop each way (bench/bp_schedules.jl measures 0.17 of
+    # flooding's message evaluations to an error of 1e-10; Composing Optimisers §4.2)
+    g, ps, st = divider_graph(1e4)
+    mf, rf, _, _ = infer!(g, flooding_schedule(g), ps, st; maxsweeps = 2000, tol = 1e-11)
+    sp = spanning_tree_schedule(g)
+    @test length(tasks(sp)) == length(tasks(flooding_schedule(g)))
+    ms, rs, _, _ = infer!(g, sp, ps, st; maxsweeps = 2000, tol = 1e-11)
+    @test rf.converged && rs.converged
+    @test rs.sweeps < rf.sweeps / 4
+    for v in (:v, :i1, :i2)
+        @test belief_mean(ms[v]) ≈ belief_mean(mf[v]) rtol = 1e-8
+        @test belief_cov(ms[v]) ≈ belief_cov(mf[v]) rtol = 1e-8
+    end
+end
+
 @testset "the same factor, run the other way" begin
     # compact closure: swap which end is clamped and the factor still works,
     # with no change to the factor itself.

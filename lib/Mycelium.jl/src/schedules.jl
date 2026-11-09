@@ -198,6 +198,48 @@ function tree_schedule(g::FactorGraph; root = nothing)
     return _tree_sweeps(g, _resolve_tree_root(g, root))
 end
 
+"""
+    spanning_tree_schedule(g; root = nothing) -> SequentialSchedule
+
+A static schedule for a **loopy** graph: the messages on the edges outside a spanning tree, then
+the tree's inward and outward sweeps, all in place. One sweep carries information across the whole
+tree, so on a graph with one loop a message goes once round the loop each way per sweep, where
+flooding moves it one edge.
+
+The tree is the breadth-first one of [`tree_schedule`](@ref), from `root` (as there) in the
+component containing it and from a node of each other component; on a tree the schedule is
+`tree_schedule`'s inward and outward lists, but iterated like any [`SequentialSchedule`](@ref)
+rather than stopped after one sweep. These are the updates of tree-based reparameterisation
+(Wainwright, Jaakkola & Willsky, 2003).
+
+There is no convergence guarantee on a loopy graph, and the fixed points are flooding's (a
+schedule changes the map, not its fixed points). Measured on the resistive divider (one loop of
+six edges; `bench/bp_schedules.jl`, `vault/Control/Composing Optimisers.md` §4.2), it needs 0.17 to
+0.18 of flooding's message evaluations to an error of ``10^{-10}``. For graphs with
+[`MeanField`](@ref) nodes use [`hybrid_schedule`](@ref), which treats them separately.
+"""
+function spanning_tree_schedule(g::FactorGraph; root = nothing)
+    seenv = falses(nvariables(g)); seenf = falses(nfactors(g))
+    inward = MessageTask[]; outward = MessageTask[]
+    function grow!(rootnode)
+        ts = _tree_sweeps(g, rootnode)
+        rootnode[1] === :variable ? (seenv[rootnode[2]] = true) : (seenf[rootnode[2]] = true)
+        for t in vcat(ts.inward, ts.outward)
+            e = g.edges[t.edge]
+            seenv[e.variable] = true; seenf[e.factor] = true
+        end
+        # a component's inward sweep must not wait for another's outward sweep: keep them together
+        append!(inward, ts.inward); append!(outward, ts.outward)
+    end
+    grow!(_resolve_tree_root(g, root))
+    for v in 1:nvariables(g); seenv[v] || grow!((:variable, v)); end
+    for f in 1:nfactors(g); seenf[f] || grow!((:factor, f)); end
+    tree = vcat(inward, outward)
+    intree = Set(tree)
+    offtree = [t for t in all_tasks(g) if !(t in intree)]
+    return SequentialSchedule(vcat(offtree, tree))
+end
+
 # The inward and outward sweeps of the component containing `rootnode`, which must be a tree
 # (`tree_schedule` checks the whole graph; `plate_schedule` checks one component).
 function _tree_sweeps(g::FactorGraph, rootnode; skip = _ -> false)

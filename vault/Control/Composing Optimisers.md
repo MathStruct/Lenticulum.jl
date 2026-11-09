@@ -19,9 +19,13 @@
 > at ρ⁶ instead of ρ per sweep (38 sweeps instead of 326). A fixed order that goes once round the
 > loop each way, or one built from a spanning tree with no knowledge of the loop, does that at
 > flooding's cost per sweep: about six times fewer message evaluations in every setting tried
-> (§4.2, `bench/bp_schedules.jl`).
+> (§4.2, `bench/bp_schedules.jl`; now `spanning_tree_schedule` in Mycelium). Anderson acceleration
+> composes well with that order and badly with flooding: on top of the spanning-tree order it saves
+> up to half again, and where the loop gain is near 1 it turns 297 000 evaluations into 414; on top
+> of flooding it costs 1.4 to 3.8 times more in the ordinary cases, or fails (§4.3,
+> `bench/bp_anderson.jl`).
 
-> Sources: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE TIT 51(7), 2005 (BP fixed points are the stationary points of the Bethe free energy); Polyak, *Some Methods of Speeding Up the Convergence of Iteration Methods*, 1964 (heavy ball); Walker & Ni, *Anderson Acceleration for Fixed-Point Iterations*, SIAM J. Numer. Anal. 49(4), 2011; Varadhan & Roland, SQUAREM, 2008; Raskutti & Mukherjee, *The Information Geometry of Mirror Descent*, IEEE TIT 61(3), 2015; Krichene, Bayen & Bartlett, *Accelerated Mirror Descent in Continuous and Discrete Time*, NeurIPS 2015; Wibisono, Wilson & Jordan, *A Variational Perspective on Accelerated Methods in Optimization*, PNAS 113(47), 2016; Andrychowicz et al., *Learning to Learn by Gradient Descent by Gradient Descent*, NeurIPS 2016; Cruttwell, Gavranović, Ghani, Wilson & Zanasi, *Categorical Foundations of Gradient-Based Learning*, ESOP 2022 (Def. 3.14, update lenses). The composition laws and the spectral reading are original to this vault; the table in §4 is a closed-form check, §4.1 is measured by `bench/bp_spectrum.jl` and §4.2 by `bench/bp_schedules.jl`; Elidan, McGraw & Koller, *Residual Belief Propagation*, UAI 2006 (the priority queue of §4.2); Wainwright, Jaakkola & Willsky, *Tree-Based Reparameterization Framework for Analysis of Sum-Product and Related Algorithms*, IEEE TIT 49(5), 2003 (updates along spanning trees). code: `bench/bp_spectrum.jl`, `bench/bp_schedules.jl`, `bench/divider.jl`, `lib/Mycelium.jl/src/passing.jl` (`sweep!`, `damping`), `lib/Mycelium.jl/src/schedules.jl` (`AbstractSchedule`), `lib/Mycelium.jl/src/factors.jl` (`Momentum`, `Nesterov`), `lib/Mycelium.jl/src/em.jl` (SQUAREM)
+> Sources: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE TIT 51(7), 2005 (BP fixed points are the stationary points of the Bethe free energy); Polyak, *Some Methods of Speeding Up the Convergence of Iteration Methods*, 1964 (heavy ball); Walker & Ni, *Anderson Acceleration for Fixed-Point Iterations*, SIAM J. Numer. Anal. 49(4), 2011; Varadhan & Roland, SQUAREM, 2008; Raskutti & Mukherjee, *The Information Geometry of Mirror Descent*, IEEE TIT 61(3), 2015; Krichene, Bayen & Bartlett, *Accelerated Mirror Descent in Continuous and Discrete Time*, NeurIPS 2015; Wibisono, Wilson & Jordan, *A Variational Perspective on Accelerated Methods in Optimization*, PNAS 113(47), 2016; Andrychowicz et al., *Learning to Learn by Gradient Descent by Gradient Descent*, NeurIPS 2016; Cruttwell, Gavranović, Ghani, Wilson & Zanasi, *Categorical Foundations of Gradient-Based Learning*, ESOP 2022 (Def. 3.14, update lenses). The composition laws and the spectral reading are original to this vault; the table in §4 is a closed-form check, §4.1 is measured by `bench/bp_spectrum.jl` and §4.2 by `bench/bp_schedules.jl`, §4.3 by `bench/bp_anderson.jl`; Elidan, McGraw & Koller, *Residual Belief Propagation*, UAI 2006 (the priority queue of §4.2); Wainwright, Jaakkola & Willsky, *Tree-Based Reparameterization Framework for Analysis of Sum-Product and Related Algorithms*, IEEE TIT 49(5), 2003 (updates along spanning trees). code: `bench/bp_spectrum.jl`, `bench/bp_schedules.jl`, `bench/bp_anderson.jl`, `bench/divider.jl`, `lib/Mycelium.jl/src/schedules.jl` (`spanning_tree_schedule`), `lib/Mycelium.jl/src/passing.jl` (`sweep!`, `damping`), `lib/Mycelium.jl/src/schedules.jl` (`AbstractSchedule`), `lib/Mycelium.jl/src/factors.jl` (`Momentum`, `Nesterov`), `lib/Mycelium.jl/src/em.jl` (SQUAREM)
 >
 > Bibliography: [[Bibliography#^yedidia2005bethe|Yedidia et al. 2005]] · [[Bibliography#^polyak1964heavyball|Polyak 1964]] · [[Bibliography#^walker2011anderson|Walker & Ni 2011]] · [[Bibliography#^varadhan2008squarem|Varadhan & Roland 2008]] · [[Bibliography#^raskutti2015mirror|Raskutti & Mukherjee 2015]] · [[Bibliography#^krichene2015accelerated|Krichene et al. 2015]] · [[Bibliography#^wibisono2016variational|Wibisono et al. 2016]] · [[Bibliography#^andrychowicz2016learning|Andrychowicz et al. 2016]] · [[Bibliography#^cruttwell2022gradient|Cruttwell et al. 2022]] · [[Bibliography#^elidan2006residual|Elidan et al. 2006]] · [[Bibliography#^wainwright2003trp|Wainwright et al. 2003]]
 >
@@ -233,13 +237,64 @@ ho^2$ (0.8736), half.
 ho$ alone gives from an
   error of 1: the cold start puts little into the slowest modes (as for damping 0.25 in §4.1).
   The run's rates over its last six sweeps are not asymptotic and are not reported; the fixed point
-  is the loop order's run to its rounding floor, and with $1 - \rho^6 \approx 10^{-3}$ a residual at the floor
-  leaves an error about a thousand times larger, so these counts are less certain than the others.
+  is the loop order's run to its rounding floor. With $1 - \rho^6 \approx 10^{-3}$ a residual at the floor
+  could leave an error a thousand times larger; checked in §4.3, the same procedure's reference is
+  within $7.5\cdot 10^{-13}$ of a fixed point with residual $4\cdot 10^{-17}$, so the criterion of $10^{-10}$ holds.
 
 So the cheapest acceleration of BP on this graph is a change of schedule, no modifier at all: a
 spanning-tree order, a sixfold saving that keeps the fixed points (§3: a schedule changes the map,
 not its fixed points). Whether it holds on graphs with several loops, where no one tree carries
 every loop's information in one sweep, is the next measurement (a Gaussian grid, in the benchmark).
+The order is now a library schedule, `spanning_tree_schedule(g)` (Mycelium, `schedules.md`); with
+`infer!` on the test's divider it converges in 82 sweeps against flooding's 463, to the same
+marginals (`test/runtests.jl`).
+
+### 4.3 Measured: Anderson around a sweep (experiment 3)
+
+`bench/bp_anderson.jl` wraps a sweep $G$ (flooding or the spanning-tree order) in Anderson
+acceleration with memory $m$ (Walker & Ni, 2011, type II, undamped):
+$x^+ = G(x_k) - \Delta G\,\gamma$ with $\gamma$ the least-squares fit of the newest residual
+$f_k = G(x_k) - x_k$ by the differences of the last $m$. It keeps $G$'s fixed points. The least
+squares are taken in coordinates scaled per block (precisions are about $10^3$), with a ridge of
+$10^{-14}$ of the trace; a step that would make a precision non-positive is replaced by the plain
+sweep and the memory cleared (a *restart*). Cost: 18 message evaluations per iteration, as before.
+The reference fixed point, the plain spanning-tree sweep run to its rounding floor, is within
+$10^{-12}$ of Anderson(3) after 300 iterations in every setting.
+
+Message evaluations to an error $< 10^{-10}$, as a fraction of plain flooding's:
+
+| $R_1, R_2$ | base | $m = 0$ | 1 | 2 | 3 | 5 | 10 |
+|---|---|---|---|---|---|---|---|
+| 2, 3 | flooding | 1 (5 868) | 1.46 | 1.79 | 3.19 | fails | fails |
+| | spanning | 0.17 | 0.19 | **0.13** | 0.13 | 0.13 | 0.15 |
+| 1, 3 | flooding | 1 (2 196) | 1.46 | 1.95 | 2.23 | 2.38 | 3.79 |
+| | spanning | **0.18** | 0.20 | 0.19 | 0.19 | 0.19 | 0.22 |
+| 3, 2 | flooding | 1 (5 796) | 1.44 | 1.93 | 3.39 | fails | 152.9 |
+| | spanning | 0.17 | 0.11 | **0.09** | 0.09 | 0.10 | 0.12 |
+| 2, 2 | flooding | 1 (1 749 924) | 1.21 | 1.56 | 0.28 | 0.02 | 0.0019 (3 312) |
+| | spanning | 0.17 (297 108) | 4.5e-4 | 3.2e-4 | **2.4e-4 (414)** | 3.4e-4 | 4.0e-4 |
+
+("fails": not below $10^{-10}$ within 400 000 iterations, restarting tens of thousands of times.)
+
+- **Anderson composes with the order, not with flooding.** Around the spanning-tree order it loses
+  at most a fifth ($R = 1, 3$, $m = 10$: 0.22 against 0.18) and gains up to half ($R = 3, 2$: 0.09 against 0.17). Around flooding it
+  loses in all three ordinary settings, by 1.4 to 3.8 times, and with $m = 5$ or 10 it can fail outright.
+  Two pieces that each converge compose into one that does not: §3's warning, measured.
+- **Where the loop gain is near 1, Anderson is the cure.** With equal resistors ($\rho^6 = 0.99905$) the
+  spanning-tree order needs 297 108 evaluations and Anderson(3) around it 414, about 700 times fewer
+  (and 4 200 times fewer than flooding). Around flooding it needs a longer memory: $m = 10$ gives 3 312.
+  That fits §4.1's expectation (a short memory cancels a few distinct eigenvalues; flooding's ring
+  has six per block, a spanning sweep's linear part is expected to have fewer), which is not checked
+  here: the spectrum of the spanning-tree sweep is not computed.
+- **Why Anderson hurts flooding in the ordinary cases is not known.** It is not the positivity guard:
+  with $m = 1$ there are no restarts for $R = 2, 3$ and $3, 2$, and it still costs 1.46 and 1.44 times
+  flooding. A candidate is
+  the precision block, which is nonlinear and converges at $\rho^2$ from far away; untested.
+
+So the composition to use on this graph is **the spanning-tree order, with Anderson(2–3) on top when
+convergence is slow**; flooding should not be accelerated by Anderson at all. A library
+`AndersonSchedule` wrapping another schedule is the next step (the [[Feature Backlog]] row), together
+with the spectrum of the spanning-tree sweep and a graph with several loops.
 
 ## 5. The design space, and why it needs a benchmark
 
@@ -264,7 +319,7 @@ A proposed order of experiments, cheapest first:
 |---|---|---|---|
 | 1 | spectrum of the linearised flooding sweep on the divider | finite differences of `sweep!` | **done** (§4.1): all complex, on a ring; heavy ball diverges for $\beta \ge 0.07$; the schedule is what helps |
 | 2 | a loop-following sequential order, and the residual schedule with a priority queue | the cycle basis of the graph; LP-023's queue | **done on the divider** (§4.2): loop and spanning-tree orders need 0.17–0.19 of flooding's evaluations, the queue 0.24–0.31; graphs with several loops remain |
-| 3 | Anderson ($m = 3, 5, 10$) around flooding and around experiment 2's order | a schedule type wrapping `sweep!` | evaluations to tolerance; does it cancel the ring? |
+| 3 | Anderson ($m = 3, 5, 10$) around flooding and around experiment 2's order | a schedule type wrapping `sweep!` | **done on the divider** (§4.3): around the spanning-tree order 0.09–0.19 of flooding, and 414 evaluations instead of 297 000 with equal resistors; around flooding worse, or failing |
 | 4 | SQUAREM and Anderson on `fit_em` for the switch learning | `em.jl` | does Anderson beat SQUAREM on the parameter block? |
 | 5 | mirror and accelerated mirror descent on beliefs | $\nabla_b F$, a mirror map, primal beliefs | do valid-by-construction iterates fix the momentum failure? |
 | 6 | Langevin with annealed temperature | experiment 5's interface | does it leave poor fixed points on multimodal graphs? |

@@ -89,6 +89,7 @@ graph with cycles has no topological order.
 |---|---|
 | `tree_schedule(g)` | trees — **two sweeps and it is exact** |
 | `flooding_schedule(g)` | anything — iterate to convergence, no guarantees |
+| `spanning_tree_schedule(g)` | loopy graphs — a spanning tree's two sweeps per iteration; same fixed points as flooding, often far fewer sweeps, no guarantees |
 | `forward_backward_schedule(g)` | chains — this is the Kalman/RTS smoother |
 
 `istree(g)` tells you which you are entitled to. If it is `true`, use `tree_schedule` and the
