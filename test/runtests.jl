@@ -778,6 +778,29 @@ end
     end
 end
 
+@testset "loopy: Anderson acceleration around the spanning-tree schedule keeps the fixed point" begin
+    # bench/bp_anderson.jl, Composing Optimisers §4.3: Anderson(2-3) around the spanning-tree
+    # order needs fewer sweeps; a fixed point of the inner sweep is one of the accelerated sweep
+    g, ps, st = divider_graph(1e4)
+    sp = spanning_tree_schedule(g)
+    mp, rp, _, _ = infer!(g, sp, ps, st; maxsweeps = 2000, tol = 1e-11)
+    an = AndersonSchedule(sp; m = 3)
+    ma, ra, _, sa = infer!(g, an, ps, st; maxsweeps = 2000, tol = 1e-11)
+    @test rp.converged && ra.converged
+    @test ra.sweeps < rp.sweeps
+    for v in (:v, :i1, :i2)
+        @test belief_mean(ma[v]) ≈ belief_mean(mp[v]) rtol = 1e-8
+        @test belief_cov(ma[v]) ≈ belief_cov(mp[v]) rtol = 1e-8
+    end
+    @test anderson_restarts(an, sa) >= 0
+    # the memory is per store: a second store starts afresh and reaches the same answer
+    mb, rb, _, _ = infer!(g, an, ps, st; maxsweeps = 2000, tol = 1e-11)
+    @test rb.sweeps == ra.sweeps
+    @test belief_mean(mb[:v]) ≈ belief_mean(ma[:v])
+    @test_throws ArgumentError AndersonSchedule(sp; m = 0)
+    @test_throws ArgumentError AndersonSchedule(ResidualSchedule())
+end
+
 @testset "the same factor, run the other way" begin
     # compact closure: swap which end is clamped and the factor still works,
     # with no change to the factor itself.

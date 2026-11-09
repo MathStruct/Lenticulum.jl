@@ -233,6 +233,27 @@ end
     @test tasks(spanning_tree_schedule(bt; root = :y)) == tasks(tree_schedule(bt; root = :y))
 end
 
+@testset "Anderson schedule: messages it cannot mix pass through unchanged" begin
+    # relays without data carry no Gaussian messages: the accelerated sweep is the inner one
+    b = GraphBuilder()
+    variable!(b, :a); variable!(b, :c)
+    factor!(b, :f, RelayFactor(:p, :q)); factor!(b, :g, RelayFactor(:p, :q))
+    connect!(b, :f, :p, :a); connect!(b, :f, :q, :c)
+    connect!(b, :g, :p, :a); connect!(b, :g, :q, :c)
+    g = build(b)
+    ps = (f = NamedTuple(), g = NamedTuple()); st = ps
+    inner = spanning_tree_schedule(g)
+    an = AndersonSchedule(inner; m = 2)
+    s1 = MessageStore(g); s2 = MessageStore(g)
+    for _ in 1:3
+        r1, _ = sweep!(s1, g, an, ps, st); r2, _ = sweep!(s2, g, inner, ps, st)
+        @test r1 == r2
+    end
+    @test all(i -> typeof(s1.to_variable[i]) == typeof(s2.to_variable[i]), eachindex(s1.to_variable))
+    @test anderson_restarts(an, s1) == 0
+    @test Mycelium._default_criterion(an) === Mycelium._default_criterion(inner)
+end
+
 @testset "forward-backward on a strict DAG has an empty backward sweep" begin
     b = GraphBuilder()
     variable!(b, :x); variable!(b, :y)

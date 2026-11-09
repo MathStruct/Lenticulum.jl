@@ -12,7 +12,7 @@ themselves are with the graph on the [Mycelium API](@ref mycelium-api) page.
 
 ```@autodocs
 Modules = [Mycelium]
-Pages = ["schedules.jl"]
+Pages = ["schedules.jl", "anderson.jl"]
 ```
 
 ## Running inference

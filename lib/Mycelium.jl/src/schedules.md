@@ -24,6 +24,7 @@ emits). `islegal(g, task)` is the predicate; every generator filters on it.
 | `tree_schedule` | `istree` | inward (reverse BFS) + outward (BFS) |
 | `forward_backward_schedule` | `isdag` or `istree` | topological sweep for a DAG; tree inward/outward sweeps otherwise |
 | `spanning_tree_schedule` | nothing | the messages off a breadth-first spanning tree, then its inward and outward sweeps, in place |
+| `AndersonSchedule(inner; m)` | a static `inner` | `inner`'s sweep with Anderson mixing of the last $m + 1$ sweeps (`anderson.md`) |
 
 `tree_schedule` roots at a leaf, BFS to record which endpoint of each edge is the *child*, then
 emits child→parent messages in reverse BFS order and parent→child in BFS order. That ordering is

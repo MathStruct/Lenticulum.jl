@@ -96,3 +96,23 @@ study(2.0, 3.0)
 study(1.0, 3.0)
 study(3.0, 2.0)
 study(2.0, 2.0)
+
+# The library's `AndersonSchedule` (Mycelium, `anderson.jl`), run by `infer!` to its message residual
+# of 1e-11 as the tests do: sweeps, restarts, and the largest difference of the means from the plain
+# spanning-tree order's
+println("\nThe library's AndersonSchedule, by infer! (tol = 1e-11 on the message residual):")
+for (R₁, R₂) in ((2.0, 3.0), (1.0, 3.0), (3.0, 2.0), (2.0, 2.0))
+    g, ps, st = divider_graph(R₁, R₂, 1e4)
+    sp = spanning_tree_schedule(g)
+    mp, rp, _, _ = infer!(g, sp, ps, st; maxsweeps = 400_000, tol = 1e-11)
+    mf, rf, _, _ = infer!(g, flooding_schedule(g), ps, st; maxsweeps = 400_000, tol = 1e-11)
+    @printf("  R₁ = %.0f, R₂ = %.0f: flooding %d sweeps, spanning %d", R₁, R₂, rf.sweeps, rp.sweeps)
+    for (name, sc) in (("spanning+A(2)", AndersonSchedule(sp; m = 2)), ("spanning+A(3)", AndersonSchedule(sp; m = 3)),
+                       ("flooding+A(3)", AndersonSchedule(flooding_schedule(g); m = 3)))
+        m, r, _, s = infer!(g, sc, ps, st; maxsweeps = 20_000, tol = 1e-11)
+        d = maximum(abs(belief_mean(m[v])[1] - belief_mean(mp[v])[1]) for v in (:v, :i1, :i2))
+        @printf(", %s %s (%d restarts, |Δμ| %.0e)", name, r.converged ? string(r.sweeps) : "> 20000",
+                anderson_restarts(sc, s), d)
+    end
+    println()
+end
