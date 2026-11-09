@@ -39,7 +39,9 @@ There is no convergence guarantee. Measured on the resistive divider
 (`bench/bp_anderson.jl`; `vault/Control/Composing Optimisers.md` §4.3), around
 [`spanning_tree_schedule`](@ref) with `m = 2` or 3 it needs 0.09 to 0.19 of flooding's message
 evaluations, and about 700 times fewer than the plain spanning-tree order when the loop gain is
-near 1; around a flooding schedule it was slower in three of four settings, or failed. Parameter
+near 1; around a flooding schedule it was slower in three of four settings, or failed. On Gaussian
+grids (`bench/bp_grid.jl`, §4.4) it needs 5 to 19 times fewer sweeps than the plain spanning-tree
+order in the slow regime, and there it also speeds up flooding. Parameter
 gradients through an `AndersonSchedule` (schedule replay) are not supported.
 """
 struct AndersonSchedule{S<:AbstractSchedule} <: AbstractSchedule

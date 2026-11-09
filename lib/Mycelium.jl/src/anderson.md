@@ -58,6 +58,12 @@ On the resistive divider (`bench/bp_anderson.jl`, by `infer!` with `tol = 1e-11`
 | 3, 2 | 463 | 80 | 32 | 34 | 920 |
 | 2, 2 | 116 509 | 20 881 | 31 | 24 | > 20 000 |
 
+On Gaussian grids up to 20 × 20 (`bench/bp_grid.jl`), Anderson(3) around the spanning-tree order
+needs 67–296 sweeps where the plain order needs 894–1 425 ($p_v = 100$), and 124 where it does not
+converge in 20 000 ($p_v = 10^4$). Why a short memory suffices: the spanning-tree sweep factors
+through its off-tree messages, so its Jacobian has at most two nonzero eigenvalues per independent
+loop (vault: Composing Optimisers §4.4).
+
 The means agree with the plain spanning-tree order's to $10^{-14}$ (to $8\cdot 10^{-12}$ for $2, 2$, where the
 plain order's stopping point is the less accurate one). The bench's own implementation, with a
 reference fixed point, gives the same picture in message evaluations (vault: Composing Optimisers
@@ -65,8 +71,11 @@ reference fixed point, gives the same picture in message evaluations (vault: Com
 
 ## What it does not do
 
-- **Wrap flooding usefully.** Around flooding it was slower in every setting above, and with
-  $m \ge 5$ it can fail (§4.3); why is not known. Use it around `spanning_tree_schedule`.
+- **Wrap flooding reliably.** Around flooding it was slower in every divider setting above, and with
+  $m \ge 5$ it can fail (§4.3); on Gaussian grids it speeds flooding up (0.08–0.73 of its sweeps,
+  `bench/bp_grid.jl`, §4.4). Around `spanning_tree_schedule` it helped everywhere measured, with no
+  restarts on the grids. Why the divider differs is not known (its flooding spectrum is a ring of
+  equal moduli).
 - **Gradients.** Schedule replay and the implicit adjoints do not know about the mixing; parameter
   gradients through an `AndersonSchedule` are not supported.
 - **Non-Gaussian messages**, plates batched on a device, and damping of the mixed step (Walker &

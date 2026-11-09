@@ -1,5 +1,6 @@
 # The resistive divider of `test/runtests.jl` (`divider_graph`), with its resistors as arguments,
-# and the message store written as one vector. Shared by `bp_spectrum.jl` and `bp_schedules.jl`.
+# the message store written as one vector (scalar variables), and a schedule's fixed point. Shared by
+# the `bp_*.jl` benchmarks.
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, Printf
 using LenticulumCore: GaussianBelief
 
@@ -49,3 +50,16 @@ function setstate!(s, x)
     end
     return s
 end
+
+# a schedule's fixed point: its sweeps run until the residual has not improved for 200 sweeps
+# (its rounding floor), returned as a store and as a vector
+function fixed_store(g, ps, st, sched; cap = 400_000)
+    s = MessageStore(g); best, kbest = Inf, 0
+    for k in 1:cap
+        r, _ = sweep!(s, g, sched, ps, st)
+        r < best && ((best, kbest) = (r, k))
+        (r == 0 || k - kbest > 200) && break
+    end
+    return s
+end
+fixed_point(g, ps, st, sched; kw...) = getstate(fixed_store(g, ps, st, sched; kw...))

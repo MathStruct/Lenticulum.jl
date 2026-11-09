@@ -19,16 +19,6 @@
 # Run:  julia --project=. bench/bp_anderson.jl
 include("divider.jl")
 
-function fixed_point(g, ps, st, sched; cap = 400_000)
-    s = MessageStore(g); best, kbest = Inf, 0
-    for k in 1:cap
-        r, _ = sweep!(s, g, sched, ps, st)
-        r < best && ((best, kbest) = (r, k))
-        (r == 0 || k - kbest > 200) && break
-    end
-    return getstate(s)
-end
-
 # runs the sweep with Anderson(m) (m = 0: the plain sweep); evaluations to an error < 1e-10, or,
 # with `iterations`, that many iterations and the point reached with its scaled residual
 function anderson(g, ps, st, sched, xstar, m; cap = 400_000, iterations = nothing)
