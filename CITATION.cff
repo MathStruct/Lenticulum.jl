@@ -3826,3 +3826,33 @@ references:
     issue: "47"
     doi: "10.1073/pnas.1614734113"
     url: "https://arxiv.org/abs/1603.04245"
+  - type: conference-paper
+    title: "Residual Belief Propagation: Informed Scheduling for Asynchronous Message Passing"
+    authors:
+      - family-names: "Elidan"
+        given-names: "Gal"
+      - family-names: "McGraw"
+        given-names: "Ian"
+      - family-names: "Koller"
+        given-names: "Daphne"
+    year: 2006
+    collection-title: "Proceedings of the Twenty-Second Conference on Uncertainty in Artificial Intelligence (UAI)"
+    start: "165"
+    end: "173"
+    url: "https://arxiv.org/abs/1206.6837"
+  - type: article
+    title: "Tree-Based Reparameterization Framework for Analysis of Sum-Product and Related Algorithms"
+    authors:
+      - family-names: "Wainwright"
+        given-names: "Martin J."
+      - family-names: "Jaakkola"
+        given-names: "Tommi S."
+      - family-names: "Willsky"
+        given-names: "Alan S."
+    year: 2003
+    journal: "IEEE Transactions on Information Theory"
+    volume: "49"
+    issue: "5"
+    start: "1120"
+    end: "1146"
+    doi: "10.1109/TIT.2003.810642"

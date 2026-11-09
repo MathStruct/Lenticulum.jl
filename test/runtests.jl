@@ -728,7 +728,9 @@ end
     @test euler_characteristic(g) == 0          # one independent cycle
     @test_throws Exception tree_schedule(g)     # the exact schedule is simply unavailable
 
-    marg, report, _, _ = infer!(g, flooding_schedule(g), ps, st; maxsweeps = 2000, tol = 1e-13)
+    # tol: the residual is a change in messages whose precisions are about 1e3, so 1e-13 sits at
+    # the rounding floor; with R₁ = 3, R₂ = 2 flooding stalls at 2.8e-13 (bench/bp_spectrum.jl)
+    marg, report, _, _ = infer!(g, flooding_schedule(g), ps, st; maxsweeps = 2000, tol = 1e-11)
     @test report.converged
 
     mjoint, Σjoint, _ = joint_solve(divider_blocks(1e4))
@@ -750,7 +752,7 @@ end
     # 3. and the error is a property of the CYCLE, not of the factor: strengthen the priors
     #    so the loop carries less of the inference, and the discrepancy shrinks toward 1.
     g2, ps2, st2 = divider_graph(1e-2)
-    m2, r2, _, _ = infer!(g2, flooding_schedule(g2), ps2, st2; maxsweeps = 2000, tol = 1e-13)
+    m2, r2, _, _ = infer!(g2, flooding_schedule(g2), ps2, st2; maxsweeps = 2000, tol = 1e-11)
     @test r2.converged
     m2joint, Σ2, _ = joint_solve(divider_blocks(1e-2))
     ratio2 = [belief_cov(m2[v])[1] for v in (:v, :i1, :i2)] ./ [Σ2[k, k] for k in 1:3]
