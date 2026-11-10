@@ -1,6 +1,6 @@
 """
 Reproduce the explicit-integrator table in `src/neuralode.md`:
-    julia --project=parked/ImplicitLayers.jl parked/ImplicitLayers.jl/examples/flow_roundtrip.jl
+    julia --project=lib/ImplicitLayers.jl lib/ImplicitLayers.jl/examples/flow_roundtrip.jl
 
 BigFloat (256 bits) separates truncation error from cancellation/roundoff for the gentle
 RK4 case. Endpoint = 3, T = 1. Residual = |3 - forward(reverse(3))| / 3.

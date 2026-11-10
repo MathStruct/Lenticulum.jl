@@ -94,7 +94,7 @@ CITED = {}
 def citations():
     """key -> sorted note names whose generated Bibliography line links to it (link_sources.py)."""
     found = {}
-    files = list((ROOT / "vault").rglob("*.md")) + list((ROOT / "lib").glob("*/src/*.md")) + list((ROOT / "parked").glob("*/src/*.md"))
+    files = list((ROOT / "vault").rglob("*.md")) + list((ROOT / "lib").glob("*/src/*.md"))
     # two notes can share a name (lib/Lenticulum.jl/src/gaussian.md and lib/Mycelium.jl/src/gaussian.md): link those
     # by their repository path, which Obsidian resolves and docs/site/build.sh maps onto the site
     stems = {}

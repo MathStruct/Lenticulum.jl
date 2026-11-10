@@ -12,9 +12,9 @@ MyceliumLearning = "7d2f6c1e-4a93-4b0e-9c57-3e8a1f6b2d40"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [sources]
-LenticulumCore = {path = "../../lib/LenticulumCore.jl"}
-Mycelium = {path = "../../lib/Mycelium.jl"}
-MyceliumLearning = {path = "../../lib/MyceliumLearning.jl"}
+LenticulumCore = {path = "../LenticulumCore.jl"}
+Mycelium = {path = "../Mycelium.jl"}
+MyceliumLearning = {path = "../MyceliumLearning.jl"}
 
 [workspace]
 projects = ["test"]

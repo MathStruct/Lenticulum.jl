@@ -8,7 +8,7 @@
 > variety to test algebraic fitting on, and $\mathrm{Gr}(k, m)$ as a parameter space
 > ([[L-SPEC-004 Algebraic Factors Toric and Grassmannian]]).
 
-> Sources: Zhang, *Attention Is Not What You Need*, arXiv:2512.19428v1, 2025 (§3.2 for the layer, §6.4 for the limitations); Edelman, Arias & Smith, *The Geometry of Algorithms with Orthogonality Constraints*, SIAM J. Matrix Anal. Appl. 20(2), 1998; the facts about $\Lambda^2$ and the Plücker relations are standard multilinear algebra, derived below; the comparison with attention and the uses in Lenticulum are original to this vault; code: `parked/AlgebraicFactors.jl/src/plucker.jl`, `parked/AlgebraicFactors.jl/src/polyfit.jl`, `veronese.jl`, `parked/AlgebraicFactors.jl/test/runtests.jl`, `test/polynomial.jl` (forward map, moments, quadrics and real Klein nullspace fits).
+> Sources: Zhang, *Attention Is Not What You Need*, arXiv:2512.19428v1, 2025 (§3.2 for the layer, §6.4 for the limitations); Edelman, Arias & Smith, *The Geometry of Algorithms with Orthogonality Constraints*, SIAM J. Matrix Anal. Appl. 20(2), 1998; the facts about $\Lambda^2$ and the Plücker relations are standard multilinear algebra, derived below; the comparison with attention and the uses in Lenticulum are original to this vault; code: `lib/AlgebraicFactors.jl/src/plucker.jl`, `lib/AlgebraicFactors.jl/src/polyfit.jl`, `veronese.jl`, `lib/AlgebraicFactors.jl/test/runtests.jl`, `test/polynomial.jl` (forward map, moments, quadrics and real Klein nullspace fits).
 >
 > Bibliography: [[Bibliography#^zhang2025attention|Zhang 2025]] · [[Bibliography#^edelman1998geometry|Edelman et al. 1998]]
 >

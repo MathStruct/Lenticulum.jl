@@ -69,10 +69,10 @@ The library is built around three uses:
 | **B. Relation learners** | a diffusion model queried in any direction by root finding, with an adjoint backward pass, Laplace beliefs and conditional sampling | `VariationalDiffusion` |
 | **C. Structure and regimes** | switching and regime factors, hierarchical models, expectation maximisation, search over structures | `Lenticulum`, `Mycelium`, `MyceliumLearning` |
 
-Deep equilibrium models and neural ODEs (`ImplicitLayers`), exact discrete toric models
-(`AlgebraicFactors`) and implicit generative models (`Adversarial`) are in `parked/`: they work
-at the commit they were parked at and are not part of the tested core
-([the refactor note](vault/Project/Refactor%202026-11.md)).
+Three further packages are off the three paths and **not yet reviewed** as the core was: deep
+equilibrium models and neural ODEs (`ImplicitLayers`), exact discrete toric models
+(`AlgebraicFactors`) and implicit generative models (`Adversarial`). Their suites pass and run
+weekly rather than on every push ([the refactor note](vault/Project/Refactor%202026-11.md)).
 
 ## A minimal example
 
@@ -135,8 +135,8 @@ compilation come in through package extensions, for whichever backend you load.
 | `Lenticulum` | the **factors**: linear-Gaussian, nonlinear, linear constraints, switching and regime factors, likelihoods; their closed-form M-steps |
 | `VariationalDiffusion` | **diffusion models** as relations: VP-SDE, implicit inference with an adjoint backward pass, Laplace and mixture answers, conditional sampling, RED-Diff, ProxDM |
 
-`parked/` holds `ImplicitLayers`, `Adversarial` and `AlgebraicFactors`
-with their tests, notes and two tutorials; `vault/` the theory notes; `docs/` the Documenter
+`lib/` also holds `ImplicitLayers`, `Adversarial` and `AlgebraicFactors` (not yet reviewed;
+tested weekly); `vault/` the theory notes; `docs/` the Documenter
 pages and tutorials; `bench/` the benchmarks.
 
 ## How it relates to what you know

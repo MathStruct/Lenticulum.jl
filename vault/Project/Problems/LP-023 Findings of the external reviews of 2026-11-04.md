@@ -2,7 +2,7 @@
 
 > **Status: partly resolved (2026-11-04).** The concrete defects that the code confirms are fixed, each with a regression test. The architectural and theory proposals are recorded here and not started. Related: [[LP-018 Defects found in the review of the older packages]], [[LP-019 Defects found in the review of the core packages]], [[LP-022 Constraint factors are normalised in their residual, not their channels]], [[passing]], [[lens]].
 
-> Sources: two source-level reviews that Daniel supplied (ChatGPT, of `master` at `3074717`, 2026-11-03; Gemini, undated), neither of which ran code; code: `lib/Mycelium.jl/src/passing.jl`, `messages.jl`, `graph.jl`, `cluster.jl`, `lib/LenticulumCore.jl/src/lens.jl`, `open_model.jl`, `lib/Lenticulum.jl/src/switching.jl`, `lib/VariationalDiffusion.jl/src/implicit.jl`, `answers.jl`, `parked/ImplicitLayers.jl/src/deq.jl`, `neuralode.jl`; tests: listed per item
+> Sources: two source-level reviews that Daniel supplied (ChatGPT, of `master` at `3074717`, 2026-11-03; Gemini, undated), neither of which ran code; code: `lib/Mycelium.jl/src/passing.jl`, `messages.jl`, `graph.jl`, `cluster.jl`, `lib/LenticulumCore.jl/src/lens.jl`, `open_model.jl`, `lib/Lenticulum.jl/src/switching.jl`, `lib/VariationalDiffusion.jl/src/implicit.jl`, `answers.jl`, `lib/ImplicitLayers.jl/src/deq.jl`, `neuralode.jl`; tests: listed per item
 
 **Problem.** Two external reviews listed defects, risks and proposals. Neither reviewer executed
 Julia, and both say so. Each finding was checked against the code on `dev-danielb` (newer than the

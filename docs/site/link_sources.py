@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Link every note's free-text "Sources:" line to its entries in the Bibliography note.
 
-For each note (vault/, lib/*/src/*.md, parked/*/src/*.md) with a "> Sources:" line, find the works of
+For each note (vault/, lib/*/src/*.md) with a "> Sources:" line, find the works of
 docs/src/refs.bib that the line cites, recognised only by an arXiv identifier or by the work's
 title appearing in the line, or an italicised name equal to its title or its short name before
 the colon (*MACE*, *PyTorch 2*); no guessing from author names. Write, right after the
@@ -98,7 +98,6 @@ def cited(line, ms):
 def notes():
     yield from (ROOT / "vault").rglob("*.md")
     yield from (ROOT / "lib").glob("*/src/*.md")
-    yield from (ROOT / "parked").glob("*/src/*.md")
 
 
 def main(check=False):

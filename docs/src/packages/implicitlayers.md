@@ -136,7 +136,7 @@ flow_logdet(f, z₀, ps, st)
 `RK4Integrator(steps=50)` remains the default. Euler's round-trip error is ``O(h)``.
 RK4 has fourth-order forward error and an ``O(h^4)`` round-trip bound for smooth dynamics;
 the scalar linear round trip is sharper, ``O(h^5)``. Its doubling ratio is 32, while the
-forward-error ratio is 16. `parked/ImplicitLayers.jl/examples/flow_roundtrip.jl` reproduces the
+forward-error ratio is 16. `lib/ImplicitLayers.jl/examples/flow_roundtrip.jl` reproduces the
 table in the implementation note: at ``a=-5,T=1,N=50``, Euler's residual is 0.394994 with a
 20.9% start-point error, RK4's is ``6.953127\times10^{-7}``. At ``N=1`` RK4's is 895.18.
 Inverting a contracting flow separately amplifies absolute endpoint perturbations by

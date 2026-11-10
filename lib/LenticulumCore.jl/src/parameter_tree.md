@@ -45,7 +45,7 @@ device tree retains a copied empty device leaf and its element type. Array views
 from parameter reconstruction use the same device path. No active numeric value
 is inspected to select the storage behavior.
 
-`parked/ImplicitLayers.jl/test/device_arrays.jl` checks nested empty branches and
+`lib/ImplicitLayers.jl/test/device_arrays.jl` checks nested empty branches and
 all-empty device arrays in Float32/Float64, including solved-state parameter
 gradients under ForwardDiff/Zygote against dense closed forms. Scalar parameter
 leaves remain unsupported on device vectors; use one-element arrays. The final

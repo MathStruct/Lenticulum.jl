@@ -45,7 +45,7 @@ normal Documenter build produces both sites.
 | `bib2vault.py`, `bib2cff.py`, `zenodo.py`, `link_sources.py` | the bibliography note, `CITATION.cff`'s references and `.zenodo.json`, all from `docs/src/refs.bib` (and `contributors.toml`), and the Bibliography line under each note |
 
 The vault is the whole repository, so the notes live in three places — `vault/`, the
-`*.md` beside each `lib/*/src/*.jl`, and those beside each `parked/*/src/*.jl`. Quartz wants one directory, so the script
+`*.md` beside each `lib/*/src/*.jl`. Quartz wants one directory, so the script
 copies them together. Wikilinks resolve by basename, exactly as in Obsidian, so the staged
 directory structure only affects breadcrumbs.
 

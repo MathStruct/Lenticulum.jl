@@ -126,7 +126,7 @@ while retaining regular real components.
 
 ## Original homotopy implementation run (Julia 1.13.1, HC 2.22.4)
 
-`julia --project=parked/AlgebraicFactors.jl -e 'using Pkg; @time Pkg.test()'`
+`julia --project=lib/AlgebraicFactors.jl -e 'using Pkg; @time Pkg.test()'`
 passed **14099 checks with one existing LP-014 broken check**. The added file
 accounts for 95 passes: 3 extension-absence checks, 74 branch checks, 12
 small-noise checks and 6 entropy checks. The original suite took 86.377808 s

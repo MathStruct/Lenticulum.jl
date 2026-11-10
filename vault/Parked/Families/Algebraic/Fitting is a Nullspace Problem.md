@@ -4,7 +4,7 @@
 > closed-form global optimum: the bottom-$k$ eigenspace of the Veronese second-moment
 > matrix. Sampson fitting uses a different, non-convex objective and an iterative solver.
 
-> Sources: original analysis; Chojnacki, Brooks, van den Hengel & Gawley (2000), *On the fitting of surfaces to data with covariances*, §4.1–§4.2, Fig. 1; Absil, Mahony & Sepulchre (2008), *Optimization Algorithms on Matrix Manifolds*, Chapter 7, Algorithms 10–11; code: `parked/AlgebraicFactors.jl/src/polyfit.jl`, `veronese.jl`, `parked/AlgebraicFactors.jl/test/polynomial.jl`.
+> Sources: original analysis; Chojnacki, Brooks, van den Hengel & Gawley (2000), *On the fitting of surfaces to data with covariances*, §4.1–§4.2, Fig. 1; Absil, Mahony & Sepulchre (2008), *Optimization Algorithms on Matrix Manifolds*, Chapter 7, Algorithms 10–11; code: `lib/AlgebraicFactors.jl/src/polyfit.jl`, `veronese.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl`.
 >
 > Bibliography: [[Bibliography#^chojnacki2000fitting|Chojnacki et al. 2000]] · [[Bibliography#^absil2008optimization|Absil et al. 2008]]
 >

@@ -36,7 +36,7 @@ dirty = {line[3:].strip('"') for line in git("status", "--porcelain", "--untrack
 def source_of(rel: Path):
     """The repository path a staged file was copied from (see build.sh, step 3)."""
     parts = rel.parts
-    if parts[0] in ("lib", "parked") and len(parts) == 3:  # lib/<pkg>/<note>.md <- lib/<pkg>/src/<note>.md
+    if parts[0] == "lib" and len(parts) == 3:  # lib/<pkg>/<note>.md <- lib/<pkg>/src/<note>.md
         return Path(parts[0], parts[1], "src", parts[2])
     if rel == Path("README.md"):
         return rel

@@ -14,4 +14,4 @@ it.
 
 **Resolution.** The sign is corrected in both rules, the test now expects
 $0.9\cdot(-0.2) - 0.2 = -0.38$, and the tables are fixed. The Grassmannian descent test of
-`parked/AlgebraicFactors.jl` runs `Retracted(Momentum(0.04, 0.6), M)` with the corrected rule.
+`lib/AlgebraicFactors.jl` runs `Retracted(Momentum(0.04, 0.6), M)` with the corrected rule.

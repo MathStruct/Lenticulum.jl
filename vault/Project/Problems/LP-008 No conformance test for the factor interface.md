@@ -2,7 +2,7 @@
 
 > **Status: resolved (2026-10-27), for the declared exact, approximate-message and deliberately non-game domains below. The 2026-10-23 resolution named a function that did not exist.** Related: [[L-SPEC-001 The Factor Interface]], [GitHub issue #8](https://github.com/MathStruct/Lenticulum.jl/issues/8).
 
-> Sources: original to this vault; code: `lib/LenticulumCore.jl/test/support/factor_conformance.jl`, `lib/Lenticulum.jl/test/game_composition.jl`, `lib/LenticulumCore.jl/test/support/conformance_capture.jl`; package `test/conformance.jl` files; `parked/Adversarial.jl/test/transport.jl`, `parked/AlgebraicFactors.jl/test/game_exact.jl`, `lib/VariationalDiffusion.jl/test/bound.jl`.
+> Sources: original to this vault; code: `lib/LenticulumCore.jl/test/support/factor_conformance.jl`, `lib/Lenticulum.jl/test/game_composition.jl`, `lib/LenticulumCore.jl/test/support/conformance_capture.jl`; package `test/conformance.jl` files; `lib/Adversarial.jl/test/transport.jl`, `lib/AlgebraicFactors.jl/test/game_exact.jl`, `lib/VariationalDiffusion.jl/test/bound.jl`.
 >
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens).
 
@@ -239,9 +239,9 @@ Source and test changes (abbreviated paths on a package line are relative to tha
 
 - `lib/LenticulumCore.jl/test/support/factor_conformance.jl`
 - `lib/Mycelium.jl/src/factors.jl`, `test/Project.toml`, `test/runtests.jl`, `test/conformance.jl`
-- `parked/ImplicitLayers.jl/src/luxfactor.jl`, `src/deq.jl`, `test/runtests.jl`, `test/conformance.jl`
-- `parked/Adversarial.jl/src/generator.jl`, `src/ratio.jl`, `test/runtests.jl`, `test/conformance.jl`
-- `parked/AlgebraicFactors.jl/src/plucker.jl`, `test/runtests.jl`
+- `lib/ImplicitLayers.jl/src/luxfactor.jl`, `src/deq.jl`, `test/runtests.jl`, `test/conformance.jl`
+- `lib/Adversarial.jl/src/generator.jl`, `src/ratio.jl`, `test/runtests.jl`, `test/conformance.jl`
+- `lib/AlgebraicFactors.jl/src/plucker.jl`, `test/runtests.jl`
 - `lib/VariationalDiffusion.jl/test/runtests.jl`, `test/conformance.jl`
 - `lib/LenticulumCore.jl/test/runtests.jl`
 
@@ -267,7 +267,7 @@ run the full common game checker without exemptions in both polarities. Linear t
 `1/8` (DEQ) and `2` (zero flow) using `energy_jacobian` to form the Gaussian anchor precision.
 A quadratic DEQ checks cubic absolute energy error for the Gauss–Newton approximation.
 Matrix anchors, custom channel names, stopped solves, reverse-flow residuals and state
-threading have separate checks in `parked/ImplicitLayers.jl/test/conformance.jl`.
+threading have separate checks in `lib/ImplicitLayers.jl/test/conformance.jl`.
 
 All seven full package suites passed with no broken assertions, using the package commands
 above and their repository `test/runtests.jl` entry points:

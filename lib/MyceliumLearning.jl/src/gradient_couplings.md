@@ -135,7 +135,7 @@ are not claimed.
 NeuralODE factors can opt into `state_policy=:fixed`: constant incoming Lux state
 per solve and one final endpoint update. The existing diagonal graph parameter
 gradient and `parameter_step` driver use the factor's policy and fixed state
-subtree. `parked/ImplicitLayers.jl/test/lp002_batch_a.jl` checks these gradients
+subtree. `lib/ImplicitLayers.jl/test/lp002_batch_a.jl` checks these gradients
 against a state-dependent affine closed form with ForwardDiff, Zygote, Mooncake
 and runtime-activity Enzyme reverse. Default evaluation-state threading is
 unchanged; state derivatives, schedule replay backends and graph adjoint scope
@@ -144,7 +144,7 @@ are unchanged. [[flow]] records the solver/backend restrictions.
 
 ## LP-002 batch B device replay (2026-10-27)
 
-`parked/ImplicitLayers.jl/test/device_arrays.jl` extends finite static replay to
+`lib/ImplicitLayers.jl/test/device_arrays.jl` extends finite static replay to
 JLArrays Float32/Float64, with scalar indexing disabled, using ForwardDiff/Zygote.
 Dirac and diagonal Gaussian messages cover exact/pathwise/diagonal couplings,
 attachment detach, subset/all freezing, raw static `infer!` AD and parameter steps.

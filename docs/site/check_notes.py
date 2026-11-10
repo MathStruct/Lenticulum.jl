@@ -12,7 +12,7 @@ for n in notes:
         if tgt not in names: broken[tgt].add(n)
 print("BROKEN WIKILINKS (target not a tracked .md basename):",len(broken))
 for k,v in sorted(broken.items()): print("  [[%s]] <- %s"%(k,sorted(v)[:3]))
-roots=['','lib/LenticulumCore.jl/','lib/Mycelium.jl/','lib/MyceliumLearning.jl/','lib/Lenticulum.jl/','lib/VariationalDiffusion.jl/','parked/ImplicitLayers.jl/','parked/Adversarial.jl/','parked/AlgebraicFactors.jl/','docs/']
+roots=['','lib/LenticulumCore.jl/','lib/Mycelium.jl/','lib/MyceliumLearning.jl/','lib/Lenticulum.jl/','lib/VariationalDiffusion.jl/','lib/ImplicitLayers.jl/','lib/Adversarial.jl/','lib/AlgebraicFactors.jl/','docs/']
 pat=re.compile(r'`((?:lib|src|test|bench|examples|docs|ext|vault)/[^`\s<>*]+?\.(?:jl|md|py|toml|sh|bib|yml|ts))`')
 miss=collections.defaultdict(set)
 ts=set(tracked)

@@ -59,9 +59,13 @@ Five packages. Most users need `Lenticulum` (which brings the first three) or
 | [`Lenticulum`](@ref lenticulum) | the **factors**: linear-Gaussian, nonlinear, constraints, switching and regime factors, likelihoods |
 | [`VariationalDiffusion`](@ref variationaldiffusion) | a **diffusion model** as a relation (implicit inference, Laplace answers, sampling, RED-Diff, ProxDM) |
 
-Deep equilibrium models and neural ODEs (`ImplicitLayers`), implicit generative models
-(`Adversarial`) and finite toric models (`AlgebraicFactors`) are in the repository's `parked/`
-directory and are not part of this documentation.
+Three more packages sit off those paths and have not yet been reviewed as the core was:
+
+| package | what it gives you |
+|---|---|
+| [`ImplicitLayers`](@ref implicitlayers) | **DEQs and neural ODEs** as factors |
+| [`Adversarial`](@ref adversarial) | **implicit generative models**: generators and density ratios |
+| [`AlgebraicFactors`](@ref algebraicfactors) | **finite toric models**: exact discrete messages and free energy |
 
 ## Installation
 
@@ -86,7 +90,9 @@ anything here.
   [train a small diffusion model](@ref tutorial-train),
   [robot arm: one model, every direction](@ref tutorial-arm),
   [proximal diffusion models](@ref tutorial-proxdm),
+  [symmetry is not a law: learning a force field](@ref tutorial-forces),
   [a conservative score: energy-parametrised diffusion](@ref tutorial-energy),
+  [discovering a force law from particle trajectories](@ref tutorial-particles),
   [localisation as a factor graph, for GTSAM readers](@ref tutorial-localization),
   [what does the network add? a kernel baseline](@ref tutorial-kernel),
   [intersections: several learned relations at once](@ref tutorial-intersections),

@@ -1,5 +1,5 @@
-name = "AlgebraicFactors"
-uuid = "5937a757-1681-44a0-82a2-3722a0d5745f"
+name = "Adversarial"
+uuid = "5b7e1c94-8d3a-4f26-b0e1-7a9c25d4f318"
 authors = ["Daniel Boigk <dn.boigk@gmail.com>"]
 version = "0.0.1-dev"
 
@@ -11,21 +11,14 @@ Mycelium = "0a724bc2-760c-4b8c-a26e-202a6d9695cb"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [sources]
-LenticulumCore = {path = "../../lib/LenticulumCore.jl"}
-Mycelium = {path = "../../lib/Mycelium.jl"}
+LenticulumCore = {path = "../LenticulumCore.jl"}
+Mycelium = {path = "../Mycelium.jl"}
 
 [workspace]
 projects = ["test"]
-
-[weakdeps]
-HomotopyContinuation = "f213a82b-91d6-5c5d-acf7-10f1c761b327"
-
-[extensions]
-AlgebraicFactorsHomotopyContinuationExt = "HomotopyContinuation"
 
 [compat]
 LinearAlgebra = "1"
 Random = "1"
 julia = "1.12"
-HomotopyContinuation = "2.22.4"
 LuxCore = "1"

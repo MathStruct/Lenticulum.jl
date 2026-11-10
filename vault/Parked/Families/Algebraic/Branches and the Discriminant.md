@@ -5,7 +5,7 @@
 > **the set of solution branches** in the proposed multi-branch model. Target-rank
 > loss obstructs the root IFT; it need not make the full Sampson covariance singular.
 
-> Sources: original design and analysis; code: `parked/AlgebraicFactors.jl/src/polynomial.jl`, `parked/AlgebraicFactors.jl/test/polynomial.jl` (circle tangency and scalar conditioning checks), `parked/AlgebraicFactors.jl/ext/AlgebraicFactorsHomotopyContinuationExt.jl`, `parked/AlgebraicFactors.jl/test/homotopy.jl` (square isolated roots, mixtures and entropy bounds); Breiding & Timme, *HomotopyContinuation.jl: A Package for Homotopy Continuation in Julia* (2018); Breiding, Rose & Timme, *Certifying Zeros of Polynomial Systems Using Interval Arithmetic* (2023), Theorem 3.6 and Lemma 7.1.
+> Sources: original design and analysis; code: `lib/AlgebraicFactors.jl/src/polynomial.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (circle tangency and scalar conditioning checks), `lib/AlgebraicFactors.jl/ext/AlgebraicFactorsHomotopyContinuationExt.jl`, `lib/AlgebraicFactors.jl/test/homotopy.jl` (square isolated roots, mixtures and entropy bounds); Breiding & Timme, *HomotopyContinuation.jl: A Package for Homotopy Continuation in Julia* (2018); Breiding, Rose & Timme, *Certifying Zeros of Polynomial Systems Using Interval Arithmetic* (2023), Theorem 3.6 and Lemma 7.1.
 >
 > Bibliography: [[Bibliography#^breiding2018homotopycontinuation|Breiding & Timme 2018]] · [[Bibliography#^breiding2023certifying|Breiding et al. 2023]]
 >

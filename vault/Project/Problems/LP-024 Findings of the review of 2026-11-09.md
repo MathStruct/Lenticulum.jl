@@ -10,7 +10,7 @@
 
 **Problem.** The review read LenticulumCore and Mycelium in full, the Gaussian part of
 Lenticulum, `implicit.jl` and `solve.jl`, searched the rest, and rederived the mathematics behind
-the three paths ([[Refactor 2026-11]]). About half of the source was read; the parked packages
+the three paths ([[Refactor 2026-11]]). About half of the source was read; the three packages off the paths (ImplicitLayers, Adversarial, AlgebraicFactors)
 were not reviewed.
 
 ## Fixed
@@ -55,7 +55,7 @@ were not reviewed.
 | convergence of Gaussian messages is an absolute bound on natural parameters | `gaussian.jl` (Mycelium) | a change of behaviour for every schedule; `criterion = :marginals` is the way round today |
 | `AndersonSchedule` writes per edge, which unblocks a plate's rows | `anderson.jl` | by reading; not run |
 | a mixture into a Gaussian or constraint factor is collapsed to its moments, after which a tree is not exact | by design | stated in [[Bethe Free Energy]]; cluster nodes restore exactness |
-| root-solver tolerances of ImplicitLayers are absolute and written for `Float64` | `parked/ImplicitLayers.jl/src/solve.jl` | the package is parked |
+| root-solver tolerances of ImplicitLayers are absolute and written for `Float64` | `lib/ImplicitLayers.jl/src/solve.jl` | the package is off the paths and not yet reviewed |
 
 **Resolution.** The numbered defects are closed by their tests. The open rows are in the
 [[Feature Backlog]] or belong to the shared solver layer proposed in [[Refactor 2026-11]].

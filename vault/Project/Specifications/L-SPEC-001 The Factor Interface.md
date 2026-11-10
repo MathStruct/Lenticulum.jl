@@ -57,19 +57,19 @@ A factor is a subtype of `AbstractLenticulumFactor`. Like a Lux layer, it is a *
 - `lib/LenticulumCore.jl/test/support/factor_conformance.jl`: `check_factor_conformance` ([[LP-008 No conformance test for the factor interface]]), run from `test/runtests.jl` over every supported polarity of `GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor`, `NonlinearFactor`, and `LikelihoodFactor`); "GaussianFactor: the factor interface, nothing stubbed" (§1–§4 for the reference factor); "pointwise energy and free energy: one contract" (§3, for four factors);
 - `lib/LenticulumCore.jl/test/runtests.jl` (the energy algebra, `SquaredNorm` validation, `energy_jacobian`, and `gauss_newton_metric` of §3–§4);
 - `lib/Mycelium.jl/test/runtests.jl` (§5 on structural factors, including non-zero `PriorFactor` `local_free_energy`);
-- `parked/ImplicitLayers.jl/test/conformance.jl`: common default lens path for Lux forward and
+- `lib/ImplicitLayers.jl/test/conformance.jl`: common default lens path for Lux forward and
   DEQ/NeuralODE both directions, including full incoming game checks, solved-point lens
   games, linear identity and nonlinear Gauss–Newton error tests.
 - `lib/Mycelium.jl/test/conformance.jl`: common direct-message path on Data, Prior, Optimiser
   unary and Relay both directions; Loss sink path, with explicit unsupported-section reasons.
-- `parked/Adversarial.jl/test/conformance.jl`: common default lens path on NoiseSource unary,
+- `lib/Adversarial.jl/test/conformance.jl`: common default lens path on NoiseSource unary,
   Generator forward, Ratio unary; conditional point games, fixed draw and LP-016 likelihood/particle graph checks.
 - `lib/VariationalDiffusion.jl/test/conformance.jl`: common default lens path on all five binary
   assignments and unary, with fixed-node Gaussian/point fixtures and an explicit game gap.
   "Diffusion polarity enumeration and cap (LP-017)" and "Joint diffusion messages (LP-017)"
   check complete support and joint point/Gaussian/mixture messages; the four LP-017 broken
   assertions now pass.
-- `parked/AlgebraicFactors.jl/test/runtests.jl`: direct-message common checker for Toric at arities
+- `lib/AlgebraicFactors.jl/test/runtests.jl`: direct-message common checker for Toric at arities
   one to three and Plucker forward point games at r=2,4. Degree-one Polynomial additionally
   uses the common lens/game checker with independent Gaussian fixtures in `test/game_exact.jl`; nonlinear branch laws remain unsupported.
 - `lib/Lenticulum.jl/test/game_composition.jl`: common checker for collapsed Gaussian composition in both
@@ -145,7 +145,7 @@ Only declared exact linear-Gaussian components (and their independent products) 
 Correlated joint beliefs are rejected. Tensor graph wiring/inversion remains absent.
 
 Checked by `lib/Lenticulum.jl/test/game_composition.jl`, `lib/VariationalDiffusion.jl/test/bound.jl`,
-`parked/Adversarial.jl/test/transport.jl`, and `parked/AlgebraicFactors.jl/test/game_exact.jl`.
+`lib/Adversarial.jl/test/transport.jl`, and `lib/AlgebraicFactors.jl/test/game_exact.jl`.
 The common checker covers Gaussian composition in both directions, affine Gaussian
 forward generators, the exact scalar Plucker image and degree-one polynomial polarities.
 The common checker's `scope=:bound` checks evaluated bounds against independent exact

@@ -147,7 +147,7 @@ was added to refs.bib, and only generated existing-work backlinks changed.
 NeuralODE factors can opt into `state_policy=:fixed`: constant incoming Lux state
 per solve and one final endpoint update. The existing diagonal graph parameter
 gradient and `parameter_step` driver use the factor's policy and fixed state
-subtree. `parked/ImplicitLayers.jl/test/lp002_batch_a.jl` checks these gradients
+subtree. `lib/ImplicitLayers.jl/test/lp002_batch_a.jl` checks these gradients
 against a state-dependent affine closed form with ForwardDiff, Zygote, Mooncake
 and runtime-activity Enzyme reverse. Default evaluation-state threading is
 unchanged; state derivatives, schedule replay backends and graph adjoint scope
@@ -167,7 +167,7 @@ categorical device score rule, new schedule or new replay backend.
 The fixes remove host scalar parameter gathers and incompatible diagonal
 cotangents, and preserve Float32 in device optimiser coefficients. The quadratic
 Gaussian oracle includes both expected variance and Bethe entropy terms.
-Evidence: `parked/ImplicitLayers.jl/test/device_arrays.jl`; details and limits are in
+Evidence: `lib/ImplicitLayers.jl/test/device_arrays.jl`; details and limits are in
 [[gradient_couplings]]. CPU primal/default arithmetic is retained.
 
 

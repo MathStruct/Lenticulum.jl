@@ -6,7 +6,7 @@
 > residual, Sampson scalarisation, complete-data fitting and single-branch Gaussian
 > messages. Branch-index inference and the full statistical game remain planned.
 
-> Sources: original design and analysis; code: `parked/AlgebraicFactors.jl/src/polynomial.jl`, `polyfit.jl`, `veronese.jl`, `parked/AlgebraicFactors.jl/test/polynomial.jl` (residual, fitting, local messages, rank and objective checks; no branch game).
+> Sources: original design and analysis; code: `lib/AlgebraicFactors.jl/src/polynomial.jl`, `polyfit.jl`, `veronese.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (residual, fitting, local messages, rank and objective checks; no branch game).
 >
 > Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 

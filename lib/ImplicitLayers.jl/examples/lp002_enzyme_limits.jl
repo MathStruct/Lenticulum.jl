@@ -1,4 +1,4 @@
-# Run with --project=parked/ImplicitLayers.jl/test. Opt-in diagnostics: failures are
+# Run with --project=lib/ImplicitLayers.jl/test. Opt-in diagnostics: failures are
 # caught and printed, never treated as evidence of a successful derivative.
 using ImplicitLayers, LenticulumCore, LuxCore, DifferentiationInterface, ADTypes
 using ForwardDiff, Enzyme, SciMLSensitivity, OrdinaryDiffEqCore, OrdinaryDiffEqTsit5

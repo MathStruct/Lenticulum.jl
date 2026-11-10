@@ -18,7 +18,7 @@
 # VAULT_API_URL (where the API docs are; default <site>/api/dev/), VAULT_COMMENTS (0: no threads).
 #
 # The vault is the whole repository (see "vault/Start Here.md"), but its notes live in two places:
-# vault/ and the *.md files beside each lib/*/src/*.jl (and parked/*/src/*.jl). Quartz wants one content
+# vault/ and the *.md files beside each lib/*/src/*.jl. Quartz wants one content
 # directory, so this script stages them together. Wikilinks resolve by basename ("shortest"),
 # exactly as Obsidian does, so the staged directory structure is only for breadcrumbs.
 set -euo pipefail
@@ -74,14 +74,6 @@ for pkg in "$ROOT"/lib/*/; do
   if compgen -G "$pkg/src/*.md" > /dev/null; then
     mkdir -p "$CONTENT/lib/$name"
     cp "$pkg"/src/*.md "$CONTENT/lib/$name/"
-  fi
-done
-# the parked packages' notes: the vault's parked notes link to them
-for pkg in "$ROOT"/parked/*.jl/; do
-  name="$(basename "$pkg")"
-  if compgen -G "$pkg/src/*.md" > /dev/null; then
-    mkdir -p "$CONTENT/parked/$name"
-    cp "$pkg"/src/*.md "$CONTENT/parked/$name/"
   fi
 done
 
@@ -174,7 +166,7 @@ The general theory is in the [CT-ML wiki](https://mathstruct.org/CategoryTheory-
 
 - **[[Map of Content]]**: every note.
 - **[[Start Here]]**: how the vault is organised and its conventions.
-- **[[Refactor 2026-11]]**: the state of the code, what is parked and how it comes back.
+- **[[Refactor 2026-11]]**: the state of the code, what is verified and what is not yet reviewed.
 - **[[README]]**: the project pitch.
 - **[API documentation](@API@)**: the Julia packages, built with Documenter.
 

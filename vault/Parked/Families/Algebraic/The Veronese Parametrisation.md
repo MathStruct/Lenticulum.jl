@@ -3,7 +3,7 @@
 > The single structural fact that makes the algebraic family tractable: **the residual is
 > linear in the parameter.**
 
-> Sources: original to this vault (design and analysis); code: `parked/AlgebraicFactors.jl/src/veronese.jl`, `polynomial.jl`, `polyfit.jl`, `parked/AlgebraicFactors.jl/test/polynomial.jl`.
+> Sources: original to this vault (design and analysis); code: `lib/AlgebraicFactors.jl/src/veronese.jl`, `polynomial.jl`, `polyfit.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl`.
 >
 > Theory (CT-ML wiki): [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category)
 

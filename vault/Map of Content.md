@@ -2,7 +2,7 @@
 
 > Every note of the vault, grouped by the three paths the library is built around and, within
 > each, in reading order. Conventions and layout: [[Start Here]]. The state of the code after the
-> refactor of November 2026, and what is parked: [[Refactor 2026-11]]. General category theory
+> refactor of November 2026, and what is not yet reviewed: [[Refactor 2026-11]]. General category theory
 > (Para, lenses, Markov categories, statistical games) is in the
 > [CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/).
 
@@ -116,7 +116,7 @@ Design notes that cut across the paths.
 
 ## Project records
 
-- [[Refactor 2026-11]] — the layout after the refactor, what is verified, what is parked and how it comes back
+- [[Refactor 2026-11]] — the layout after the refactor, what is verified and what is not yet reviewed
 - [[Problem Log]] — `LP-nnn`: what does not work yet and needs a decision, from GitHub issues to gaps in the theory, e.g. [[LP-002 The Jacobian side is not implemented]]
 - [[Decisions]] — `L-ADR-nnnn`: what was chosen, by whom, and what follows. Among them [[L-ADR-0002 Energies are vectors, scalarised late]] and [[L-ADR-0003 Pointwise energy and free energy are separate levels]]
 - [[Specifications]] — `L-SPEC-nnn`: contracts precise enough to test against, starting with [[L-SPEC-001 The Factor Interface]]
@@ -126,12 +126,14 @@ Design notes that cut across the paths.
 ## Implementation notes
 
 One note beside each source file (`lib/*/src/*.md`); each package's overview note lists them:
-[[LenticulumCore]], [[Mycelium]], [[MyceliumLearning]], [[Lenticulum]], [[VariationalDiffusion]].
+[[LenticulumCore]], [[Mycelium]], [[MyceliumLearning]], [[Lenticulum]], [[VariationalDiffusion]]; and,
+not yet reviewed, [[ImplicitLayers]], [[Adversarial]], [[AlgebraicFactors]].
 
 ## Parked
 
 Notes on families and applications that are not on the three paths. They were not revised in the
-refactor and may describe code that is parked too (`parked/`). See [[Refactor 2026-11]].
+refactor; the code of the three families (`ImplicitLayers`, `Adversarial`, `AlgebraicFactors`)
+is in `lib/` again and passes its tests, but has not been reviewed. See [[Refactor 2026-11]].
 
 **Algebraic**
 
@@ -158,12 +160,12 @@ refactor and may describe code that is parked too (`parked/`). See [[Refactor 20
 
 - [[DEQ as a Relation]] — A deep equilibrium model is defined by a relation and shipped as a function.
 - [[NeuralODE as an Invertible Factor]] — A continuous ODE flow is invertible wherever its solution is unique in both directions.
-- [[The Equilibrium Family]] — Entry point for the second of the three [[Implicit Learners]] families, implemented in `parked/ImplicitLayers.jl`.
+- [[The Equilibrium Family]] — Entry point for the second of the three [[Implicit Learners]] families, implemented in `lib/ImplicitLayers.jl`.
 
 **Adversarial**
 
 - [[GANs as Two Factors]] — Can the GAN diagram be achieved with two factors?
-- [[Implicit Generative Models]] — Entry point for the adversarial family, implemented in `parked/Adversarial.jl`.
+- [[Implicit Generative Models]] — Entry point for the adversarial family, implemented in `lib/Adversarial.jl`.
 
 **Applications**
 

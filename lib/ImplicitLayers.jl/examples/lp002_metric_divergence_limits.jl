@@ -1,4 +1,4 @@
-# Run with --project=parked/ImplicitLayers.jl/test. This probes the original
+# Run with --project=lib/ImplicitLayers.jl/test. This probes the original
 # finite-difference algorithms directly; it adds no derivative rule.
 using ImplicitLayers, LenticulumCore, LinearAlgebra
 using ADTypes, DifferentiationInterface, ForwardDiff, Zygote

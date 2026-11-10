@@ -4,7 +4,7 @@
 > factor. Cost: one $k\times k$ linear solve. The parameter cotangent turns out to be
 > **rank at most one**.
 
-> Sources: original derivation; code: `parked/AlgebraicFactors.jl/src/polynomial.jl`, `parked/AlgebraicFactors.jl/test/polynomial.jl` (exact message Jacobians and scalar least-squares mixed-Hessian check; IFT solve derivatives are not implemented).
+> Sources: original derivation; code: `lib/AlgebraicFactors.jl/src/polynomial.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (exact message Jacobians and scalar least-squares mixed-Hessian check; IFT solve derivatives are not implemented).
 >
 > Theory (CT-ML wiki): [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 

@@ -130,7 +130,7 @@ are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].
 CPU keeps its prior comprehension; GPUArraysCore uses broadcast masks and
 `stop_gradient` for frozen entries. This avoids host scalar reads during raw
 static inference AD. Freeze indices are constant metadata. JLArrays replay and
-subset/all freeze tests live in `parked/ImplicitLayers.jl/test/device_arrays.jl`;
+subset/all freeze tests live in `lib/ImplicitLayers.jl/test/device_arrays.jl`;
 see [[gradient_couplings]] for coverage limits.
 
 ## Parameter keys and plates (2026-11-02)

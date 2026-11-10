@@ -110,7 +110,7 @@ no preferred direction; a GAN generator is the exact opposite.
 ## 5. Why this matters for the vault
 
 [[Implicit Learners]] lists three model *families* — algebraic, equilibrium, diffusion — and
-each is implicit in sense (3). The adversarial family added by `parked/Adversarial.jl` is **not**:
+each is implicit in sense (3). The adversarial family added by `lib/Adversarial.jl` is **not**:
 it is sense (1), and all three of its factors are unidirectional.
 
 So the structure is two-dimensional, and the vault had been treating it as one:

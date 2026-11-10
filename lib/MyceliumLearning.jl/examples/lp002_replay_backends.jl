@@ -1,4 +1,4 @@
-# Run with --project=parked/ImplicitLayers.jl/test, which supplies native backends.
+# Run with --project=lib/ImplicitLayers.jl/test, which supplies native backends.
 # Deliberately bypasses the public backend guard to investigate replay itself.
 using Mycelium, LenticulumCore, ADTypes, DifferentiationInterface, ForwardDiff
 using Enzyme, Mooncake

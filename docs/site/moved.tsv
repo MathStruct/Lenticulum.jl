@@ -84,26 +84,6 @@ Families/Equilibrium/NeuralODE as an Invertible Factor	Parked/Families/Equilibri
 Families/Equilibrium/The Equilibrium Family	Parked/Families/Equilibrium/The Equilibrium Family
 Types/Probabilistic Types	Design/Probabilistic Types
 Types/The Type Discipline of a Factor Graph	Design/The Type Discipline of a Factor Graph
-lib/Adversarial.jl/Adversarial	parked/Adversarial.jl/Adversarial
-lib/Adversarial.jl/generator	parked/Adversarial.jl/generator
-lib/Adversarial.jl/ratio	parked/Adversarial.jl/ratio
-lib/Adversarial.jl/transport	parked/Adversarial.jl/transport
-lib/AlgebraicFactors.jl/AlgebraicFactors	parked/AlgebraicFactors.jl/AlgebraicFactors
-lib/AlgebraicFactors.jl/fit	parked/AlgebraicFactors.jl/fit
-lib/AlgebraicFactors.jl/grassmann	parked/AlgebraicFactors.jl/grassmann
-lib/AlgebraicFactors.jl/homotopy	parked/AlgebraicFactors.jl/homotopy
-lib/AlgebraicFactors.jl/plucker	parked/AlgebraicFactors.jl/plucker
-lib/AlgebraicFactors.jl/polyfit	parked/AlgebraicFactors.jl/polyfit
-lib/AlgebraicFactors.jl/polynomial	parked/AlgebraicFactors.jl/polynomial
-lib/AlgebraicFactors.jl/toric	parked/AlgebraicFactors.jl/toric
-lib/AlgebraicFactors.jl/veronese	parked/AlgebraicFactors.jl/veronese
-lib/ImplicitLayers.jl/ImplicitLayers	parked/ImplicitLayers.jl/ImplicitLayers
-lib/ImplicitLayers.jl/deq	parked/ImplicitLayers.jl/deq
-lib/ImplicitLayers.jl/flow	parked/ImplicitLayers.jl/flow
-lib/ImplicitLayers.jl/luxfactor	parked/ImplicitLayers.jl/luxfactor
-lib/ImplicitLayers.jl/neuralode	parked/ImplicitLayers.jl/neuralode
-lib/ImplicitLayers.jl/point_game	parked/ImplicitLayers.jl/point_game
-lib/ImplicitLayers.jl/solve	parked/ImplicitLayers.jl/solve
 lib/Mycelium.jl/em	lib/MyceliumLearning.jl/em
 lib/Mycelium.jl/gradient_couplings	lib/MyceliumLearning.jl/gradient_couplings
 lib/Mycelium.jl/graph_adjoint	lib/MyceliumLearning.jl/graph_adjoint

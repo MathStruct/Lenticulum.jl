@@ -1,10 +1,10 @@
 #overview #design
 
-> The repository after the refactor of November 2026 (branch `refactor`): five packages built
-> around three paths, the rest parked. This note says what is where, what is verified and by
-> what, what is not, and how parked work comes back.
+> The repository after the refactor of November 2026: five packages built around three paths,
+> and three more that are off the paths and not yet reviewed. This note says what is where, what
+> is verified and by what, and what is not.
 
-> Sources: original to this repository; the review that preceded it is [[LP-024 Findings of the review of 2026-11-09]]; code: every `Project.toml`, `.github/workflows/CI.yml`, `docs/make.jl`
+> Sources: original to this repository; the review that preceded it is [[LP-024 Findings of the review of 2026-11-09]]; code: every `Project.toml`, `.github/workflows/CI.yml` and `Weekly.yml`, `docs/make.jl`
 
 ## The three paths
 
@@ -22,7 +22,7 @@ lib/Mycelium.jl           inference                               ← Lenticulum
 lib/MyceliumLearning.jl   gradients, EM, the optimiser step       ← Mycelium
 lib/Lenticulum.jl         the factors, their M-steps, examples    ← MyceliumLearning
 lib/VariationalDiffusion.jl  diffusion models as relations        ← Mycelium
-parked/                   ImplicitLayers, Adversarial, AlgebraicFactors, two tutorials, three docs pages
+lib/ImplicitLayers.jl, lib/Adversarial.jl, lib/AlgebraicFactors.jl   off the paths, not yet reviewed
 vault/                    Foundations, one folder per path, Design, Project, Research Questions, Parked
 docs/  bench/             as before; bench has its own environment
 ```
@@ -34,10 +34,11 @@ What changed against `dev-danielb` at `28b1a315`:
 - Mycelium was split. Inference stayed; `free_energy_gradient` of a graph, `parameter_step`, the
   couplings, the graph adjoint, EM and `sample_gradient` are `MyceliumLearning`
   ([[MyceliumLearning]] has the boundary). Mycelium's suite went from 6 minutes to 41 seconds.
-- `ImplicitLayers`, `Adversarial` and `AlgebraicFactors` are in `parked/` with their tests and
-  notes; tutorials 05 and 07 (they use `ImplicitLayers`) and the three packages' documentation
-  pages are with them. The vault notes on those families and on applications off the paths are
-  in `vault/Parked/`.
+- `ImplicitLayers`, `Adversarial` and `AlgebraicFactors` were moved to `parked/` and, the same
+  day (2026-11-10), back to `lib/` once their suites passed again; with them tutorials 05 and 07
+  and their documentation pages. They are tested weekly, on demand and when their own files change
+  (`.github/workflows/Weekly.yml`), not on every push. The vault notes on those families and on
+  applications off the paths stay in `vault/Parked/`.
 - `meta/` and `poster/` are outside the repository.
 - The shared test support (the factor conformance checker) is in
   `lib/LenticulumCore.jl/test/support/`.
@@ -80,13 +81,13 @@ The mathematics behind each row was rederived in the review; what it found is in
   tutorials execute, the API pages and the vault build, no unresolved reference). It was not run
   in CI, and nothing was deployed.
 - **The device (JLArrays) tests, the examples and the benchmarks were not run.**
-- **The parked packages' suites were not run** after the move, and two of them were broken by it:
+- **The three unreviewed packages' suites were not run** after the first move, and two of them were broken by it:
   `AlgebraicFactors`' tests included Lenticulum's source files by their old path, and
   `ImplicitLayers`' DifferentiationInterface extension extended `Mycelium._gradient_message`, which
   moved to MyceliumLearning (the extension did not load). Fixed on 2026-11-10: AlgebraicFactors
   takes Lenticulum and MyceliumLearning as test dependencies, ImplicitLayers depends on
   MyceliumLearning. All three suites pass (ImplicitLayers with and without the device files), and
-  CI runs them in a separate job. A local `Manifest.toml` from before the move still points
+  the workflow `Weekly` runs them. A local `Manifest.toml` from before the refactor may still point
   Lenticulum at the repository root (`path = "../.."`); delete it and instantiate again.
 - Expectation propagation's free-energy claim, the likelihood factors' Laplace and EP sites, and
   the learned-noise priors were not rederived.
@@ -132,28 +133,20 @@ In the order I would take them. Each is small enough to finish and has an oracle
 7. **Sorting the tests**: the graph-gradient tests on Gaussian factors are in Lenticulum's suite;
    Lenticulum's `runtests.jl` is 1 300 lines and VariationalDiffusion's 2 000.
 
-## Moving things back
+## Bringing the unreviewed packages onto a path
 
-A parked package or note comes back when it is needed on a path, or when someone takes it up,
-and it comes back **corrected**: reviewed, with an oracle test, on the current interfaces.
+`ImplicitLayers`, `Adversarial` and `AlgebraicFactors` are in `lib/` and pass their tests, but were
+not reviewed as the core was. One of them joins the core when it is needed on a path:
 
-For a package (`parked/X.jl`):
-
-1. `git mv parked/X.jl lib/X.jl`; in its `Project.toml` and `test/Project.toml` set the
-   `[sources]` paths back to `../<Package>.jl`.
-2. If it uses gradients, EM or `parameter_step`, add `MyceliumLearning` to its dependencies; the
-   names that moved are listed in [[MyceliumLearning]].
-3. Run its suite. Fix what the interface changes since it was parked broke.
-4. Review it as the core was reviewed: read it, rederive what it computes, add an oracle test on
+1. Review it as the core was reviewed: read it, rederive what it computes, add an oracle test on
    random instances for each message path, record what is found as a problem.
-5. Add it to the CI matrix, to `docs/make.jl` and `docs/Project.toml`, move its documentation
-   page back from `parked/docs/` and its tutorials from `parked/tutorials/`.
-6. Move its notes from `vault/Parked/` to the folder of the path it serves, revise them against
-   the code, and update [[Map of Content]].
+2. Add it to the CI matrix of `.github/workflows/CI.yml` and take it out of `Weekly.yml`.
+3. Move its notes from `vault/Parked/` to the folder of the path it serves (add the old and new
+   paths to `docs/site/moved.tsv`), revise them against the code, and update [[Map of Content]].
 
 Known before starting:
 
-| package | state when parked | first thing to fix |
+| package | state on 2026-11-10 | first thing to fix |
 |---|---|---|
 | `ImplicitLayers` | suite passes on 2026-11-10 after the move (20 minutes; device files included) | root-solver tolerances are absolute and written for `Float64`; its solvers duplicate VariationalDiffusion's. Bring it back as, or after, a shared solver layer (root finding, the implicit-function adjoint, one tolerance rule, one report) |
 | `AlgebraicFactors` | suite passes on 2026-11-10 after the move | not reviewed |
@@ -165,14 +158,15 @@ history rather than the subject, and give it the `tests:` entry in its sources b
 
 ## Decisions taken in the refactor that are yours to revisit
 
-- **`ImplicitLayers` is parked**, although tutorials 05 and 07 use its Picard solver. Keeping it
-  would have kept a 20-minute suite and an unreviewed package in the core.
+- **`ImplicitLayers`, `Adversarial` and `AlgebraicFactors` are in `lib/` but tested weekly.**
+  They were parked at first; moved back on 2026-11-10, since nothing in them held the core back.
+  Not on every push because `ImplicitLayers`' suite takes 20 minutes.
 - **The split of Mycelium is inference against learning.** Cluster nodes, plates, overlays and
   structure edits stayed in Mycelium: they are inference. A further split (the belief algebra
   down into LenticulumCore, cluster nodes into their own package) is possible and was not done.
 - **`Unscented` defaults to `α = 1`** and **`validate` refuses dimension mismatches**: both
   change behaviour for existing callers.
 - **The branch is pushed** (`origin/refactor`). CI passed every job on `7de4488e` (five packages on
-  Julia 1 and 1.12, two device jobs); the parked packages have their own CI job since 2026-11-10.
+  Julia 1 and 1.12, two device jobs); the three unreviewed packages have their own workflow since 2026-11-10 (`Weekly`).
 - **Versions.** The libraries are `0.0.1-dev`; Lenticulum keeps its calendar version
   (`20261015.1.0-proto`, as in `CITATION.cff`), which the refactor had changed and was restored.

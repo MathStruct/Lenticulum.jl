@@ -157,7 +157,7 @@ rate/momentum coefficients to the parameter element type. This prevents Float64
 configuration scalars from widening Float32 device parameters. CPU methods and
 all public rule signatures are unchanged. JLArrays tests compare get/put with
 the CPU formula and assert device/element-type preservation; graph tests also
-exercise the default learning rate. See `parked/ImplicitLayers.jl/test/device_arrays.jl`.
+exercise the default learning rate. See `lib/ImplicitLayers.jl/test/device_arrays.jl`.
 
 ## The relay's entropy (2026-10-29, LP-019 item 1)
 

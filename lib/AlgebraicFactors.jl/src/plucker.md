@@ -5,7 +5,7 @@
 > inputs. Gaussian output is a moment approximation to a generally non-Gaussian law.
 > The coordinate map, Jacobian and sparse quadrics implement L-SPEC-004 §5.
 
-> Sources: original derivation and implementation of [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]] §5 and the algebra in [[Grassmann Mixing and Plücker Coordinates]]; code: `plucker.jl`, `../test/runtests.jl`; the deterministic-factor interface follows `parked/Adversarial.jl/src/generator.jl`.
+> Sources: original derivation and implementation of [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]] §5 and the algebra in [[Grassmann Mixing and Plücker Coordinates]]; code: `plucker.jl`, `../test/runtests.jl`; the deterministic-factor interface follows `lib/Adversarial.jl/src/generator.jl`.
 >
 > Theory (CT-ML wiki): [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens)
 
@@ -124,7 +124,7 @@ particle outputs.
 
 ## Checks and limits
 
-`parked/AlgebraicFactors.jl/test/runtests.jl` checks small hand cases, antisymmetry,
+`lib/AlgebraicFactors.jl/test/runtests.jl` checks small hand cases, antisymmetry,
 $GL_2$ determinant scaling, Lagrange's identity, exterior-power equivariance with
 independently computed minors (including rectangular maps), and central Jacobian
 differences (`h=1e-5`, absolute tolerance `2e-10`). It checks the relation count,

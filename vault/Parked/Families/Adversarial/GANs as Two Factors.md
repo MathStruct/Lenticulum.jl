@@ -5,7 +5,7 @@
 > The wiring: yes — two *parameter sets*, three *factor nodes*, and the third is the second
 > one again under weight tying. The objective: **no**, and the obstruction is one sign.
 >
-> Implemented in `parked/Adversarial.jl`; see [[Adversarial]].
+> Implemented in `lib/Adversarial.jl`; see [[Adversarial]].
 
 > Sources: original to this vault (design and analysis; no single paper).
 >
@@ -76,7 +76,7 @@ does in effect, and it trades a node for a bookkeeping obligation.
 
 ## 3. And the whole thing is a DAG
 
-All three factors in `parked/Adversarial.jl` are unidirectional — `isunidirectional` is `true` for
+All three factors in `lib/Adversarial.jl` are unidirectional — `isunidirectional` is `true` for
 each, asserted in the test suite. So:
 
 > **A GAN uses none of Mycelium's bidirectionality.** The diagram is a DAG; it is Lux-shaped.

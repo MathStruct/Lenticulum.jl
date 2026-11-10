@@ -30,8 +30,8 @@ merged. Do not commit, push or merge unless you are asked to.
 The library is built around three paths, and work on them comes first: **A** Gaussian factor
 graphs (exact inference, state estimation), **B** relation learners (a diffusion model queried in
 any direction), **C** structure and regimes (switching factors, EM, structure search).
-`vault/Project/Refactor 2026-11.md` says what is in the core, what is parked, what is verified
-and how parked work comes back.
+`vault/Project/Refactor 2026-11.md` says what is in the core, what is verified, and what is
+not yet reviewed.
 
 | where | what |
 |---|---|
@@ -40,15 +40,15 @@ and how parked work comes back.
 | `lib/MyceliumLearning.jl/` | learning: free-energy gradients, couplings, the graph adjoint, EM, the optimiser step |
 | `lib/Lenticulum.jl/` | the factors: linear-Gaussian, nonlinear, constraint, switching, regime, likelihood; M-steps; `examples/` |
 | `lib/VariationalDiffusion.jl/` | diffusion models as implicit learners |
-| `parked/` | `ImplicitLayers`, `Adversarial`, `AlgebraicFactors`, two tutorials and their docs pages: tested in CI (a separate job), not revised; to be brought back |
+| `lib/ImplicitLayers.jl/`, `lib/Adversarial.jl/`, `lib/AlgebraicFactors.jl/` | off the three paths and **not yet reviewed**: DEQs and neural ODEs, implicit generative models, toric models. Tested weekly, on demand and when their own files change (`.github/workflows/Weekly.yml`), not on every push |
 | `vault/` | the Obsidian vault: `Foundations/`, one folder per path, `Design/`, `Project/`, `Research Questions/`, `Parked/` |
 | `lib/*/src/*.md` | implementation notes, one beside each source file |
 | `docs/` | Documenter pages, Literate tutorials (`docs/literate/`), the shared bibliography `docs/src/refs.bib`, and the Quartz build of the vault (`docs/site/`) |
 | `bench/` | benchmarks, each recorded in a note; `julia --project=bench bench/<name>.jl` (its Manifest is not tracked: `julia --project=bench -e 'using Pkg; Pkg.instantiate()'` once) |
 
 Each package has its own `Project.toml` and `test/`. Dependencies go one way:
-`LenticulumCore` ← `Mycelium` ← `MyceliumLearning` ← `Lenticulum`; `VariationalDiffusion` depends
-on the first two. `vault/Start Here.md` gives the conventions; read it before writing a note.
+`LenticulumCore` ← `Mycelium` ← `MyceliumLearning` ← `Lenticulum`; `VariationalDiffusion`,
+`Adversarial` and `AlgebraicFactors` depend on the first two, `ImplicitLayers` on the first three. `vault/Start Here.md` gives the conventions; read it before writing a note.
 
 ## Working conventions
 

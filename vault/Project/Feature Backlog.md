@@ -147,8 +147,8 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 ## Done (2026-11-10)
 
 The refactor ([[Refactor 2026-11]]): five packages (Mycelium split into inference and
-`MyceliumLearning`, the top-level package under `lib/`), three packages parked, the vault laid out
-by path. The corrections of [[LP-024 Findings of the review of 2026-11-09]]: partly flat Gaussian
+`MyceliumLearning`, the top-level package under `lib/`), three packages parked and, the same day,
+back in `lib/` with a weekly CI run (not yet reviewed), the vault laid out by path. The corrections of [[LP-024 Findings of the review of 2026-11-09]]: partly flat Gaussian
 messages, freeze paths, composition with full noise, damping, one gradient driver rule, dimension
 checks, and four corrections to the theory notes.
 
@@ -169,7 +169,7 @@ LenticulumCore fails to instantiate. On 1.11 the Enzyme backend of the DEQ solve
 pass on 1.12, and every `Project.toml` now says `julia = "1.12"`.
 
 A warning for `DEQFactor`s trained by their residual with the state observed (2026-11-05; measured
-in `parked/ImplicitLayers.jl/test/lp022.jl`). Cluster forms and closed-form M-steps for
+in `lib/ImplicitLayers.jl/test/lp022.jl`). Cluster forms and closed-form M-steps for
 `GaussianFactor` and `GaussianPrior`, learned noise included (2026-11-05; `lib/Lenticulum.jl/test/em.jl`).
 
 Cluster nodes with per-outcome coefficients and noise (`RegimeFactor`); flat directions in

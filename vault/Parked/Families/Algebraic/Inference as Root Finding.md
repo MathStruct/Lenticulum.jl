@@ -4,7 +4,7 @@
 > inference means solving a polynomial system — and everything interesting follows from
 > counting its solutions.
 
-> Sources: original to this vault (design and analysis); code: `parked/AlgebraicFactors.jl/src/polynomial.jl`, `parked/AlgebraicFactors.jl/test/polynomial.jl` (single-branch Gaussian sites, rank cases, circle and graph oracles), `parked/AlgebraicFactors.jl/ext/AlgebraicFactorsHomotopyContinuationExt.jl`, `parked/AlgebraicFactors.jl/test/homotopy.jl` (isolated square-system roots and branch mixtures); Breiding & Timme, *HomotopyContinuation.jl: A Package for Homotopy Continuation in Julia* (2018); Breiding, Rose & Timme, *Certifying Zeros of Polynomial Systems Using Interval Arithmetic* (2023), Theorem 3.6 and Lemma 7.1.
+> Sources: original to this vault (design and analysis); code: `lib/AlgebraicFactors.jl/src/polynomial.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (single-branch Gaussian sites, rank cases, circle and graph oracles), `lib/AlgebraicFactors.jl/ext/AlgebraicFactorsHomotopyContinuationExt.jl`, `lib/AlgebraicFactors.jl/test/homotopy.jl` (isolated square-system roots and branch mixtures); Breiding & Timme, *HomotopyContinuation.jl: A Package for Homotopy Continuation in Julia* (2018); Breiding, Rose & Timme, *Certifying Zeros of Polynomial Systems Using Interval Arithmetic* (2023), Theorem 3.6 and Lemma 7.1.
 >
 > Bibliography: [[Bibliography#^breiding2018homotopycontinuation|Breiding & Timme 2018]] · [[Bibliography#^breiding2023certifying|Breiding et al. 2023]]
 >

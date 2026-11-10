@@ -216,7 +216,7 @@ re-evaluates the residual's mean and covariance under it at the current paramete
 In AlgebraicFactors (2026-11-02): `ToricFactor`, whose frozen belief is the joint table over its
 states (`ToricBelief`), and the degree-one `PolynomialFactor`, whose frozen belief is the joint
 Gaussian of its free coordinates (`PolynomialBelief`); `toric.md` and `polynomial.md` give the
-formulas and the checks in `parked/AlgebraicFactors.jl/test/lp020.jl`.
+formulas and the checks in `lib/AlgebraicFactors.jl/test/lp020.jl`.
 
 **What it does not do.**
 - A factor without `factor_belief` keeps the fixed-message derivative. That is the same thing
@@ -306,7 +306,7 @@ coupled replay use the same helpers. CPU helpers retain their original arithmeti
 Device parameter steps cast GradientDescent/Momentum/Nesterov coefficients to
 parameter precision, preserving Float32 even with the default Float64 learning
 rate. Optimiser vectors still contain only active coordinates. Tests in
-`parked/ImplicitLayers.jl/test/device_arrays.jl` check closed-form Gaussian/Dirac
+`lib/ImplicitLayers.jl/test/device_arrays.jl` check closed-form Gaussian/Dirac
 objectives, cut/freeze behavior, score estimates and actual DEQ/ODE factor scoring.
 See [[gradient_couplings]] for the supported device subset and its limits.
 

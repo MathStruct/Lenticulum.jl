@@ -1,7 +1,7 @@
 #model #overview
 
 > Entry point for the second of the three [[Implicit Learners]] families, implemented in
-> `parked/ImplicitLayers.jl`.
+> `lib/ImplicitLayers.jl`.
 >
 > The claim: **SciML already builds these models out of relations, and then hands you a
 > function.** A `DeepEquilibriumNetwork` is $z = g_\theta(z,x)$ with one direction chosen and
@@ -102,7 +102,7 @@ theorem,
 $$\frac{\partial z^\ast}{\partial x} = (I - \partial_z g)^{-1}\,\partial_x g$$
 
 which is a linear system built from the Jacobian. There is no version of this that skips the
-derivative. `parked/ImplicitLayers.jl` computes it by dense finite differences and labels that a
+derivative. `lib/ImplicitLayers.jl` computes it by dense finite differences and labels that a
 test-scale tool — $O(n)$ forward passes where AD would be $O(1)$ — so the package does
 inference at any scale and sensitivity analysis only at small scale. See [[solve]] §4.1.
 
@@ -126,7 +126,7 @@ singular locus the discriminant ([[Branches and the Discriminant]]). Two of the 
 > ([[implicit_factor]] §5); the two `ImplicitLayers` rows below are still open, now as work
 > rather than as a wall. The section is kept as the record of why.
 
-Every inversion in `parked/ImplicitLayers.jl` returns a `DiracBelief`, because a root-find and an
+Every inversion in `lib/ImplicitLayers.jl` returns a `DiracBelief`, because a root-find and an
 ODE solve both produce a point. To return a *distribution* you would need somewhere to put
 one — and `GaussianBelief` lives in the top-level `Lenticulum` package, which no `lib/`
 package may depend on.

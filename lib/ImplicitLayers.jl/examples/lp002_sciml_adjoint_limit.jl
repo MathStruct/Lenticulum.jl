@@ -1,4 +1,4 @@
-# Run with --project=parked/ImplicitLayers.jl/test. Deliberately bypass the factor
+# Run with --project=lib/ImplicitLayers.jl/test. Deliberately bypass the factor
 # validation by differentiating an arbitrary outer callable, to expose SciML's
 # measured Kvaerno3/InterpolatingAdjoint error on the installed dependency stack.
 using ImplicitLayers,LenticulumCore,LuxCore,DifferentiationInterface,ADTypes,Zygote

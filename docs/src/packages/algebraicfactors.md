@@ -73,7 +73,7 @@ binomials. No Markov basis is computed. Both check probability normalisation wit
 Positive independence tables and a decomposable chain are checked against their
 closed forms by both methods; the tests also cover an arbitrary integer design,
 likelihood finite differences, the gauge, empty-row extended MLEs and independence
-minors. The implementation note `parked/AlgebraicFactors.jl/src/fit.md` gives the
+minors. The implementation note `lib/AlgebraicFactors.jl/src/fit.md` gives the
 numerical thresholds and limitations.
 
 `Grassmann(k, m)` represents a row space by a real `k × m` matrix `Θ` with
@@ -99,7 +99,7 @@ emission reads `(p=Θ, state=state)`. Nesterov and other rules are rejected:
 Nesterov's look-ahead leaves the manifold. The geometry tests check first-order
 descent and both optimisers against a known eigenplane, using `η=0.04` for
 400 iterations; they check factor-driven updates against direct `rule_put`
-at every step. The implementation note `parked/AlgebraicFactors.jl/src/grassmann.md`
+at every step. The implementation note `lib/AlgebraicFactors.jl/src/grassmann.md`
 records the exact problem, tolerances and limitations. This uses the canonical
 Grassmann metric; it does not implement a statistical model's Fisher metric.
 
@@ -133,7 +133,7 @@ Core Gaussian beliefs cannot represent singular covariance. By default the facto
 rejects it, using `λmin <= n*eps(T)*λmax` as the numerical rank threshold;
 it never adds jitter automatically. Explicit `covariance_jitter=δ > 0` adds
 absolute variance `δ*I`, giving an approximate covariance. The implementation
-note `parked/AlgebraicFactors.jl/src/plucker.md` derives the formula and explains
+note `lib/AlgebraicFactors.jl/src/plucker.md` derives the formula and explains
 this distinction from singular precision.
 
 Pointwise map energy is zero. Graph-local free energy is zero for point accounting,
@@ -166,7 +166,7 @@ Polynomial single-branch messages (§3b) and optional homotopy mixtures (§4) ar
 
 
 `ExponentTable`, `veronese`, `veronese_jacobian` and `basis_change` implement
-monomial and Chebyshev tables (see `parked/AlgebraicFactors.jl/src/veronese.md`). Ordering is increasing degree,
+monomial and Chebyshev tables (see `lib/AlgebraicFactors.jl/src/veronese.md`). Ordering is increasing degree,
 then descending lexicographic exponents. There is no implicit data scaling;
 Chebyshev is intended for [-1,1] without enforcing it. Degree-exact Chebyshev
 products need not be homogeneous; incompatible square basis conversions throw.

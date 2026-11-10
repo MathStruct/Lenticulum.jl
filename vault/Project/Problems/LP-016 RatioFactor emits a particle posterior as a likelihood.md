@@ -5,7 +5,7 @@
 > [[LP-008 No conformance test for the factor interface]], [[LP-009 Game-level free energy is declared but not implemented]],
 > [[L-SPEC-001 The Factor Interface]], [[ratio]].
 
-> Sources: original repository analysis; code: `lib/LenticulumCore.jl/src/open_model.jl`, `lib/Mycelium.jl/src/messages.jl`, `parked/Adversarial.jl/src/ratio.jl`, `parked/Adversarial.jl/test/conformance.jl`, `lib/Mycelium.jl/test/runtests.jl`
+> Sources: original repository analysis; code: `lib/LenticulumCore.jl/src/open_model.jl`, `lib/Mycelium.jl/src/messages.jl`, `lib/Adversarial.jl/src/ratio.jl`, `lib/Adversarial.jl/test/conformance.jl`, `lib/Mycelium.jl/test/runtests.jl`
 >
 > Theory (CT-ML wiki): [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
 
@@ -48,7 +48,7 @@ expectation of $-\log r$ is $1/(1+e)-1/2$.
 
 ## Verification
 
-`parked/Adversarial.jl/test/conformance.jl` replaces the three broken LP-016 checks with
+`lib/Adversarial.jl/test/conformance.jl` replaces the three broken LP-016 checks with
 passing closed-form assertions for pooling once, target exclusion, and posterior energy
 expectation. It checks the lens likelihood separately from inversion and tests a particle
 prior with two RatioFactors on one variable in both insertion orders. The marginal weights

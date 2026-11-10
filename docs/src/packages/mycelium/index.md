@@ -168,7 +168,7 @@ closed-form state-dependent SciML endpoint tests with ForwardDiff, Zygote,
 Mooncake and runtime-activity Enzyme reverse. NeuralODE factors opt into
 `state_policy=:fixed` to hold incoming Lux state constant per solve and obtain
 returned state from one final endpoint evaluation. The factor validates its
-solver/backend combination before differentiation; see the parked `ImplicitLayers` package for tested solvers and the guarded Kvaerno3/InterpolatingAdjoint
+solver/backend combination before differentiation; see the `ImplicitLayers` package for tested solvers and the guarded Kvaerno3/InterpolatingAdjoint
 limit. This extends endpoint coverage without changing schedule derivatives.
 
 ## Graph schedule adjoints (LP-002 batch C)

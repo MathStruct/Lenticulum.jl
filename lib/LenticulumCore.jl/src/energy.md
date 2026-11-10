@@ -280,7 +280,7 @@ Related: [[Scalar and Multivariate Energy]], [[Factors are Parameterized Statist
 ## Device parameter derivatives (2026-10-27)
 
 The GPUArraysCore/DI optional extension supports Float32/Float64 numeric array leaves
-with Zygote and ForwardDiff; evidence is `parked/ImplicitLayers.jl/test/device_arrays.jl`.
+with Zygote and ForwardDiff; evidence is `lib/ImplicitLayers.jl/test/device_arrays.jl`.
 `energy_gradient`, `free_energy_gradient` and `parameter_gradient` keep gradient
 arrays on the parameter device. ForwardDiff's native vector API scalar-indexes its
 seed arrays on JLArrays. The Core adapter instead seeds whole directional vectors
@@ -322,7 +322,7 @@ validation uses a spectral test before inversion. Wrapping it in outer AD is not
 a supported higher-order metric interface. A successful scalar endpoint gradient
 or `J' * M * J` test says nothing about this total derivative.
 
-`parked/ImplicitLayers.jl/examples/lp002_metric_divergence_limits.jl` reproduces the
+`lib/ImplicitLayers.jl/examples/lp002_metric_divergence_limits.jl` reproduces the
 localisation path on $r=a y^2-b$, with $y=1.3$ and no damping. Its independent
 closed form is $(a y^2-b)^2/(8a^2y^2)$. The batch C section of LP-002 records primal,
 reference-difference and backend observations separately. Nested reference

@@ -29,7 +29,6 @@ equilibrium and adversarial families, application sketches, some comparisons) is
 | `vault/Research Questions/` | open mathematical questions, self-contained (`RQ-nnn`) |
 | `vault/Parked/` | notes off the three paths |
 | `lib/*/src/*.md` | implementation notes, one beside each Julia file |
-| `parked/*/src/*.md` | implementation notes of the parked packages |
 
 The general category theory these notes build on (Para, lenses, Markov categories, Bayesian
 lenses, statistical games, free energy) is in the

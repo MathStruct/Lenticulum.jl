@@ -125,7 +125,7 @@ finite-step corrections. BigFloat at 256 bits avoids the Float64 cancellation fl
 Reproduce this table with:
 
 ```sh
-julia --project=parked/ImplicitLayers.jl parked/ImplicitLayers.jl/examples/flow_roundtrip.jl
+julia --project=lib/ImplicitLayers.jl lib/ImplicitLayers.jl/examples/flow_roundtrip.jl
 ```
 
 The script starts from endpoint 3 on $[0,1]$, reverses, then measures
