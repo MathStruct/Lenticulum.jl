@@ -196,7 +196,7 @@ factors now return Laplace Gaussians on request; the equilibrium factors still r
 <p><code>AbstractPotentialBelief</code> names improper likelihoods known through a log-density up to an
 additive constant. <code>LogPotentialBelief(logφ)</code> wraps the callable; it has no sampling, mean,
 or entropy contract. Richer subtypes can expose gradients, a parametric form, or batched
-evaluation. RatioFactor emits this type; see <a href="../parked/Adversarial.jl/ratio" class="internal" data-slug="parked/Adversarial.jl/ratio">ratio</a> and <a href="../lib/LenticulumCore.jl/open_model" class="internal" data-slug="lib/LenticulumCore.jl/open_model">open_model</a>.</p>
+evaluation. RatioFactor emits this type; see <a href="../lib/Adversarial.jl/ratio" class="internal" data-slug="lib/Adversarial.jl/ratio">ratio</a> and <a href="../lib/LenticulumCore.jl/open_model" class="internal" data-slug="lib/LenticulumCore.jl/open_model">open_model</a>.</p>
 <p><code>isexact</code> says whether a computed belief is exact rather than approximate. It defaults to
 <code>false</code> so that silence never implies exactness; only the Trivial and Dirac beliefs override it.
 A Gaussian <em>can</em> be exact (on a linear-Gaussian tree it is), but the flag does not claim it.</p>
