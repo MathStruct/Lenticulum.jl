@@ -7,6 +7,8 @@
 
 > Sources: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE Trans. Inf. Theory 51(7), 2005 (the Bethe free energy and its stationary points); Riegler, Kirkelund, Manchon, Badiu & Fleury, IEEE Trans. Inf. Theory 59(1), 2013, eq. (17) (the merged free energy with mean-field nodes); code: `lib/Mycelium.jl/src/free_energy.jl`, tests: `test/runtests.jl` ("the chain is exact at every length"), `lib/Lenticulum.jl/test/gaussian_oracle.jl`, `lib/Lenticulum.jl/test/lp020.jl`
 >
+> Bibliography: [[Bibliography#^yedidia2005bethe|Yedidia et al. 2005]] · [[Bibliography#^riegler2013merging|Riegler et al. 2013]]
+>
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
 ## The formula

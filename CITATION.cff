@@ -124,6 +124,27 @@ references:
     collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
     url: "https://arxiv.org/abs/1909.01377"
   - type: conference-paper
+    title: "The Mechanics of n-Player Differentiable Games"
+    authors:
+      - family-names: "Balduzzi"
+        given-names: "David"
+      - family-names: "Racanière"
+        given-names: "Sébastien"
+      - family-names: "Martens"
+        given-names: "James"
+      - family-names: "Foerster"
+        given-names: "Jakob"
+      - family-names: "Tuyls"
+        given-names: "Karl"
+      - family-names: "Graepel"
+        given-names: "Thore"
+    year: 2018
+    collection-title: "Proceedings of the 35th International Conference on Machine Learning"
+    volume: "80"
+    start: "354"
+    end: "363"
+    url: "https://arxiv.org/abs/1802.05642"
+  - type: conference-paper
     title: "MACE: Higher Order Equivariant Message Passing Neural Networks for Fast and Accurate Force Fields"
     authors:
       - family-names: "Batatia"
@@ -1150,6 +1171,22 @@ references:
     end: "1692"
     doi: "10.1109/TIT.2023.3328825"
     url: "https://arxiv.org/abs/2212.11719"
+  - type: conference-paper
+    title: "Characterization and computation of local Nash equilibria in continuous games"
+    authors:
+      - family-names: "Ratliff"
+        given-names: "Lillian J."
+      - family-names: "Burden"
+        given-names: "Samuel A."
+      - family-names: "Sastry"
+        given-names: "S. Shankar"
+    year: 2013
+    collection-title: "51st Annual Allerton Conference on Communication, Control, and Computing"
+    start: "917"
+    end: "924"
+    publisher:
+      name: "IEEE"
+    doi: "10.1109/Allerton.2013.6736623"
   - type: article
     title: "Maximum likelihood estimates of linear dynamic systems"
     authors:

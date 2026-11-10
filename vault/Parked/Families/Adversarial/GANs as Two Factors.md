@@ -3,11 +3,15 @@
 > **Can the GAN diagram be achieved with two factors?**
 >
 > The wiring: yes — two *parameter sets*, three *factor nodes*, and the third is the second
-> one again under weight tying. The objective: **no**, and the obstruction is one sign.
+> one again under weight tying. The objective: **not with one free energy**. A game needs a
+> scalarisation per player of a vector payoff *and* an owner for each: the parameters that
+> descend it. One player with several scalarisations is multi-objective optimisation, not a game.
 >
 > Implemented in `lib/Adversarial.jl`; see [[Adversarial]].
 
-> Sources: original to this vault (design and analysis; no single paper).
+> Sources: original to this vault (design and analysis). Open games and the parallel composite of decisions: Ghani, Hedges, Winschel & Zahn, *Compositional game theory*, LICS 2018. Local Nash equilibria of continuous games: Ratliff, Burden & Sastry, Allerton 2013. Gradient dynamics in games and symplectic gradient adjustment: Balduzzi et al., *The Mechanics of n-Player Differentiable Games*, ICML 2018. code: `lib/LenticulumCore.jl/src/energy.jl` (graded energies and scalarisations), `lib/Adversarial.jl/src/ratio.jl`
+>
+> Bibliography: [[Bibliography#^ghani2018compositional|Ghani et al. 2018]] · [[Bibliography#^ratliff2013nash|Ratliff et al. 2013]] · [[Bibliography#^balduzzi2018mechanics|Balduzzi et al. 2018]]
 >
 > Theory (CT-ML wiki): [Open Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Game) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens) · [Para Construction](https://mathstruct.org/CategoryTheory-ML-Wiki/Para-Construction) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Symmetric Monoidal Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Symmetric-Monoidal-Category)
 
@@ -87,7 +91,7 @@ algebraic models as the three implicit families. A GAN is implicit in a *differe
 formulation gains parameter management, channel names and free-energy accounting, and gains no
 directions.
 
-## 4. The obstruction: one sign
+## 4. The obstruction: one scalar
 
 Here is what the graph cannot hold.
 
@@ -113,16 +117,57 @@ This is the factor's energy contribution, with no continuous particle entropy. I
 differs from $\mathbb{E}_q[-\log r]=\mathrm{KL}(q\|p)$ and does not implement a GAN
 training objective. The graph also has no minimax training update.
 
-### The minimal patch, and why it is not enough
+### One player with several scalarisations is not a game
 
-A per-factor sign — `objective_sign(factor) ∈ {+1,-1}` — would make simultaneous gradient
-descent-ascent expressible. That is genuinely all GAN *training* does in practice.
+Lenticulum's energies are already vectors, scalarised late ([[L-ADR-0002 Energies are vectors, scalarised late]]).
+So write the payoff of an $n$-player game as one vector $u = (u_1, \dots, u_n)$ with the
+scalarisations $\sigma_i(u) = u_i$, each to be minimised. Does that represent the game? It holds
+every player's payoff, but not the game, because it says nothing about **who moves what**.
 
-It is not enough as *theory*, for a reason the vault should care about: simultaneous
-gradient descent-ascent is not guaranteed to converge to anything, and the fixed points it
-does find are not characterised by minimising any function. A sign flag would let you run the
-algorithm while telling you nothing about what it computes. The framework's whole selling
-point is that the free energy *means* something ([Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)).
+If one player moves all the parameters against all the $\sigma_i$, the problem is
+multi-objective optimisation and its solution concept is Pareto optimality. For the GAN the two
+come apart completely: with $u_2 = -u_1$, a point dominates another only if it lowers $u_1$ and
+raises it at once, so **every** point is Pareto optimal and the saddle is not singled out.
+
+What turns the vector into a game is an **owner** for each scalarisation: a block $\theta_i$ of
+the parameters that moves against $\sigma_i$ alone, the other blocks held fixed. A point
+$\theta^\ast$ is then a local Nash equilibrium when each $\theta_i^\ast$ is a local minimiser of
+$u_i(\cdot, \theta_{-i}^\ast)$. First order: $\partial u_i/\partial\theta_i = 0$ for every $i$.
+Ratliff, Burden & Sastry give a second-order version (*differential* Nash equilibria) and
+compute such points. The pairs $(\sigma_i, \theta_i)$
+are the players again; in a graph they are the "two factors" of this note's title.
+
+In Lenticulum this would be a scalarisation chosen **per parameter key** over one graded energy:
+the generator's parameters descend $\sigma_{\text{gen}}$, the discriminator's descend
+$\sigma_{\text{disc}}$. Today every learnable node descends the one scalar $F$. A per-factor sign,
+`objective_sign(factor)` $\in \{+1, -1\}$, is the special case $n = 2$, $u_2 = -u_1$; owned
+scalarisations also cover games that are not zero-sum. This is a design, not implemented.
+
+### What simultaneous gradient play computes
+
+Each block descending its own scalarisation (simultaneous gradient play) has as fixed points
+exactly the points where every player is stationary in its own parameters. They are not the
+minimisers of any one function, but they are characterised: by the per-player first-order
+conditions, and as local Nash equilibria by the second-order ones.
+
+What fails is **convergence**. The bilinear game $u_1(x, y) = xy$, $u_2 = -xy$ (player 1 moves $x$,
+player 2 moves $y$) has its only equilibrium at $0$. Simultaneous steps of size $\eta$,
+
+$$
+\begin{pmatrix} x' \\ y' \end{pmatrix} = \begin{pmatrix} 1 & -\eta \\ \eta & 1 \end{pmatrix} \begin{pmatrix} x \\ y \end{pmatrix},
+$$
+
+multiply the distance to it by $\sqrt{1 + \eta^2} > 1$ every step: the iterates spiral outwards for
+every step size, and the continuous-time flow circles. Balduzzi et al. split the Jacobian of the
+joint gradient field into a symmetric part (a potential, which descent handles) and an
+antisymmetric part (the rotation above), and correct the step for the second (symplectic gradient
+adjustment).
+
+What does **not** carry over is the meaning of the number. There is no single $F$ that decreases,
+so "on a tree the free energy is $-\log Z$" has no counterpart. What the graph computes would have
+to be read from the game: each node's own scalarisation, stationarity per player, and the
+stability of the joint Jacobian. That is a different promise from the one the rest of the vault
+makes ([Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)).
 
 > [!note] The obstruction generalises — and so does the escape
 > [[The Two-Part Diagram]] places this finding in a taxonomy: GANs are the $f = -g$ row of a
@@ -131,7 +176,8 @@ point is that the free energy *means* something ([Variational Free Energy](https
 > coordinate descent on one objective is exactly what a single-signed free energy expresses.
 >
 > So the right summary is not "the framework cannot do two-part architectures". It is "the
-> framework does the cooperative ones and not the arguing ones".
+> framework does the cooperative ones; the arguing ones need owned scalarisations, which it does
+> not have yet".
 
 ## 5. What the missing structure actually is
 
@@ -144,6 +190,12 @@ An open game is a morphism in a symmetric monoidal category with a forward *play
 backward pass carrying **coutility** and a **best-response** condition, drawn with string
 diagrams, composing sequentially and in parallel — and faithful in the sense of preserving
 Nash equilibria and off-equilibrium best responses.
+
+An $n$-player game there is not one player with $n$ payoffs. It is the parallel composite of
+$n$ one-player decisions, each reading its own component of the coutility, and the best-response
+relation of a parallel composite is the product of the components' relations. That is the
+open-game form of the ownership of §4: a decision is a scalarisation together with the strategy
+that answers to it.
 
 That completes a three-way pattern the vault is halfway through documenting:
 

@@ -6,6 +6,8 @@
 > fixed points as `inner`, one sweep of `inner` per sweep, no convergence guarantee.
 
 > Sources: Walker & Ni, *Anderson Acceleration for Fixed-Point Iterations*, SIAM J. Numer. Anal.
+>
+> Bibliography: [[Bibliography#^walker2011anderson|Walker & Ni 2011]]
 > 49(4), 2011 (the update used here, and its relation to GMRES on linear problems). code: `anderson.jl`, `bench/bp_anderson.jl`;
 > vault: Composing Optimisers §4.3.
 
