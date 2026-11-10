@@ -81,7 +81,8 @@ without breaking them; links to general concepts go to the CT-ML wiki's publishe
   [mathstruct.org/Lenticulum.jl](https://mathstruct.org/Lenticulum.jl/); the API documentation
   is under [api/dev](https://mathstruct.org/Lenticulum.jl/api/dev/).
 - **In Obsidian**: open the repository root as a vault. The *Inline TikZ* community plugin
-  renders the diagrams.
+  renders the diagrams, *Wypst* the Typst math. The vault lists both as enabled, but the plugins
+  themselves are not in the repository: install them once from Settings → Community plugins.
 
 ## Adding to it
 

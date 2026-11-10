@@ -430,3 +430,5 @@ end
     @test LenticulumCore._energy_vector(e) isa Vector{Float32}
     @test (@doc LenticulumCore.oplus) !== nothing && Base.Docs.hasdoc(LenticulumCore, :oplus)
 end
+
+include("aqua.jl")

@@ -38,7 +38,8 @@ that is a link into the vault.
 
 The vault is the repository itself. Clone it, open the root folder in
 [Obsidian](https://obsidian.md), and start from `vault/Start Here.md`. The *Inline TikZ* community plugin renders
-the diagrams (the website compiles these to SVG itself).
+the diagrams (the website compiles these to SVG itself); install it, and *Wypst*, from Obsidian's community
+plugins, since the repository lists the plugins but does not carry them.
 
 The general category theory the vault builds on (parametric lenses, Markov categories,
 Bayesian lenses, statistical games) is in the

@@ -14,3 +14,5 @@ if get(ENV, "LENTICULUM_DEVICE_TESTS", "false") == "true"
 else
     @info "Skipping device tests; set LENTICULUM_DEVICE_TESTS=true to run them."
 end
+
+include("aqua.jl")

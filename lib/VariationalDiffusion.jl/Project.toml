@@ -30,6 +30,9 @@ Mycelium = {path = "../Mycelium.jl"}
 projects = ["test"]
 
 [compat]
+Reactant = "0.2.289"
+LinearAlgebra = "1"
+Random = "1"
 julia = "1.12"
 LuxCore = "1"
 ADTypes = "1"

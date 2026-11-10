@@ -691,3 +691,5 @@ end
         @test Base.Docs.hasdoc(Mycelium, name)
     end
 end
+
+include("aqua.jl")

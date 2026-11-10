@@ -107,6 +107,7 @@ These are true of the code as it stands and are the first candidates for work on
 | a nonlinear factor's free energy is its linear model's | A | [[nonlinear]] |
 | constraint factors with every coefficient learned collapse on data | C | [[LP-022 Constraint factors are normalised in their residual, not their channels]] |
 | BIC is used as the structure score for singular (mixture) models | C | [[Finding a Factor Graph]] |
+| `Mycelium.reduce_message` for Gaussian mixtures is defined in Lenticulum (`beliefs.jl`, beside Runnalls' merge): Mycelium alone refuses to reduce one. Type piracy, declared in Lenticulum's `test/aqua.jl`; it belongs in Mycelium | A, C | this note |
 
 ## Next steps on the paths
 
@@ -156,7 +157,7 @@ Known before starting:
 |---|---|---|
 | `ImplicitLayers` | suite passes on 2026-11-10 after the move (20 minutes; device files included) | root-solver tolerances are absolute and written for `Float64`; its solvers duplicate VariationalDiffusion's. Bring it back as, or after, a shared solver layer (root finding, the implicit-function adjoint, one tolerance rule, one report) |
 | `AlgebraicFactors` | suite passes on 2026-11-10 after the move | not reviewed |
-| `Adversarial` | suite passes on 2026-11-10 after the move | not reviewed; the least connected to the rest |
+| `Adversarial` | suite passes on 2026-11-10 after the move | not reviewed; the least connected to the rest. `belief_mean` and `belief_cov` of LenticulumCore's `SampleBelief` are defined here (type piracy, declared in `test/aqua.jl`): move them to LenticulumCore |
 
 For a note: move it, check every claim against a test or a script, remove what describes
 history rather than the subject, and give it the `tests:` entry in its sources block

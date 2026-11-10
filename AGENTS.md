@@ -66,6 +66,10 @@ header (everything before the outer `@testset`) plus that testset as a script. T
 against closed forms (Gaussian mixtures, linear-Gaussian models, enumeration) wherever one
 exists; keep it that way.
 
+**Static checks.** Every suite ends with `test/aqua.jl` (Aqua.jl: ambiguities, unbound type
+parameters, undefined exports, stale dependencies, compat bounds, piracy, persistent tasks). An
+exception goes into that file with its reason; a new dependency needs a `[compat]` entry.
+
 **A new factor type, or a new message path, comes with an oracle test on random instances.**
 The defects of the reviews so far sat where a feature was added without one
 (`lib/Lenticulum.jl/test/gaussian_oracle.jl` is the model: random trees against the dense joint

@@ -72,6 +72,7 @@ using Random: Random, AbstractRNG
 using LuxCore: LuxCore
 using LenticulumCore: LenticulumCore
 using Mycelium: Mycelium
+using MyceliumLearning: MyceliumLearning     # the coupled replay of a DEQ (ext/ImplicitLayersDifferentiationInterfaceExt.jl)
 
 # --- Shared belief helpers -------------------------------------------------
 # Reading a *point* out of an incoming message. Every factor here needs it, and none of them

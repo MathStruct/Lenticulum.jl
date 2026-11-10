@@ -18,6 +18,16 @@ Mycelium = {path = "../Mycelium.jl"}
 MyceliumLearning = {path = "../MyceliumLearning.jl"}
 
 [compat]
+Aqua = "0.8"
+BayesBase = "1.6"
+Distributions = "0.25"
+ExponentialFamily = "2.9"
+RxInfer = "6.1"
+Zygote = "0.7"
+LinearAlgebra = "1"
+Random = "1"
+Printf = "1"
+Test = "1"
 ChainRulesCore = "1"
 ForwardDiff = "0.10, 1"
 SpecialFunctions = "2"
@@ -27,6 +37,7 @@ ADTypes = "1"
 DifferentiationInterface = "0.7"
 
 [extras]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
 DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
@@ -39,7 +50,7 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["ADTypes", "DifferentiationInterface", "ForwardDiff", "Zygote", "Test", "BayesBase", "Distributions", "ExponentialFamily", "RxInfer", "Printf"]
+test = ["Aqua", "ADTypes", "DifferentiationInterface", "ForwardDiff", "Zygote", "Test", "BayesBase", "Distributions", "ExponentialFamily", "RxInfer", "Printf"]
 
 [weakdeps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"

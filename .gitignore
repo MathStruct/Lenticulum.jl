@@ -17,3 +17,8 @@ __pycache__/
 /parked/*/test/*/Manifest.toml
 /parked/*/examples/*/Manifest.toml
 /bench/Manifest.toml
+
+# Obsidian: the plugin list (.obsidian/community-plugins.json) is tracked, the plugins are not;
+# workspace*.json is one person's window layout
+/.obsidian/plugins/
+/.obsidian/workspace*.json
