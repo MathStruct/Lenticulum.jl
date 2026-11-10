@@ -1,0 +1,60 @@
+name = "ImplicitLayers"
+uuid = "3c0d5f2a-7b41-4e88-9a6d-1f5c8e2b4471"
+authors = ["Daniel Boigk <dn.boigk@gmail.com>"]
+version = "0.0.1-dev"
+
+[deps]
+LenticulumCore = "1ac3b398-e9e9-400d-83fd-862c57ff485d"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+LuxCore = "bb33d45b-7691-41d6-9220-0943567d0623"
+Mycelium = "0a724bc2-760c-4b8c-a26e-202a6d9695cb"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+
+[sources]
+LenticulumCore = {path = "../../lib/LenticulumCore.jl"}
+Mycelium = {path = "../../lib/Mycelium.jl"}
+
+[workspace]
+projects = ["test"]
+
+[weakdeps]
+GPUArraysCore = "46192b85-c4d5-4398-a991-12ede77f4527"
+Krylov = "ba0b0d4f-ebba-5204-a429-3ac8c609bfb7"
+SciMLSensitivity = "1ed8b502-d754-442c-8d5d-10ac956f44a1"
+EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
+Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
+DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
+ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+SciMLBase = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
+OrdinaryDiffEqCore = "bbf590c4-e513-4bbe-9b18-05decba2e5d8"
+OrdinaryDiffEqSDIRK = "2d112036-d095-4a1e-ab9a-08536f3ecdbf"
+
+[extensions]
+ImplicitLayersGPUArraysCoreExt = "GPUArraysCore"
+ImplicitLayersSDIRKSensitivityExt = ["OrdinaryDiffEqSDIRK", "SciMLSensitivity", "DifferentiationInterface"]
+ImplicitLayersKrylovExt = ["Krylov", "DifferentiationInterface"]
+ImplicitLayersSciMLSensitivityExt = ["SciMLSensitivity", "SciMLBase", "OrdinaryDiffEqCore"]
+ImplicitLayersEnzymeCoreActivityExt = ["DifferentiationInterface", "EnzymeCore"]
+ImplicitLayersEnzymeCoreExt = ["DifferentiationInterface", "EnzymeCore", "ForwardDiff"]
+ImplicitLayersMooncakeExt = ["DifferentiationInterface", "Mooncake", "ForwardDiff"]
+ImplicitLayersDifferentiationInterfaceExt = "DifferentiationInterface"
+ImplicitLayersChainRulesCoreExt = ["DifferentiationInterface", "ChainRulesCore"]
+ImplicitLayersForwardDiffExt = ["DifferentiationInterface", "ForwardDiff"]
+ImplicitLayersOrdinaryDiffEqExt = ["OrdinaryDiffEqCore", "SciMLBase"]
+ImplicitLayersOrdinaryDiffEqSDIRKExt = ["OrdinaryDiffEqCore", "OrdinaryDiffEqSDIRK"]
+
+[compat]
+julia = "1.12"
+GPUArraysCore = "0.2"
+Krylov = "0.9, 0.10"
+SciMLSensitivity = "7.106"
+EnzymeCore = "0.8"
+Mooncake = "0.5.60"
+DifferentiationInterface = "0.7"
+ChainRulesCore = "1"
+ForwardDiff = "0.10, 1"
+SciMLBase = "2, 3"
+OrdinaryDiffEqCore = "3, 4"
+OrdinaryDiffEqSDIRK = "1, 2"
+LuxCore = "1"

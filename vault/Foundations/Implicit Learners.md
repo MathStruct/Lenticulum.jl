@@ -131,7 +131,7 @@ What is still open is collected in [[Open Problems in Implicit Diffusion Learnin
 
 ## 5. Not to be confused with implicit generative models
 
-`lib/Adversarial.jl` adds implicit **generative** models (GANs). They are implicit in a
+`parked/Adversarial.jl` adds implicit **generative** models (GANs). They are implicit in a
 different sense: what is missing is the *density*, not the direction, and their factors run one
 way. The word "implicit" names three independent properties; see [[Three Senses of Implicit]].
 

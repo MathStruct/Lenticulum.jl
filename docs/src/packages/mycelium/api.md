@@ -68,13 +68,6 @@ Modules = [Mycelium]
 Pages = ["exposure.jl"]
 ```
 
-## [Gradient couplings](@id mycelium-api-couplings)
-
-```@autodocs
-Modules = [Mycelium]
-Pages = ["gradient_couplings.jl"]
-```
-
 ## Everything else
 
 ```@autodocs

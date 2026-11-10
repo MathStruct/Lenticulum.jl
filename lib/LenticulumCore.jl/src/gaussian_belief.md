@@ -62,7 +62,7 @@ returns structural `diag` cotangents. A dense precision cotangent conflicted wit
 Zygote when the same belief contributed moments and variance terms. The analytic
 rules are $\bar\eta=\bar\mu/\lambda$, $\bar\lambda=-\bar\eta\,\mu$ and
 $\bar\lambda=-\operatorname{diag}(\bar\Sigma)/\lambda^2$, elementwise.
-Tests in `lib/ImplicitLayers.jl/test/device_arrays.jl` compare Gaussian graph
+Tests in `parked/ImplicitLayers.jl/test/device_arrays.jl` compare Gaussian graph
 expectation derivatives with closed forms and CPU references. Singular diagonal
 beliefs are still valid likelihood messages, but moment/density requests reject them.
 

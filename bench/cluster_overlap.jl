@@ -10,8 +10,9 @@
 #   - clusters of the same 4 switches without the partial sum (they meet only at the sum node).
 #
 # Recorded in `lib/Mycelium.jl/src/cluster.md` and L-SPEC-009 §6.
-# Run:  julia --project=. bench/cluster_overlap.jl
+# Run:  julia --project=bench bench/cluster_overlap.jl
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, Printf, Statistics
+using MyceliumLearning
 
 const d, L, B, N = 8, 8, 4, 100
 const E = Matrix(1.0I, d, d)

@@ -56,12 +56,9 @@ include("free_energy.jl")
 include("factors.jl")
 include("exposure.jl")
 include("gaussian.jl")
-include("gradient_couplings.jl")
-include("graph_adjoint.jl")
 include("sampling.jl")
 include("cluster.jl")
 include("cluster_batch.jl")
-include("em.jl")
 include("overlay.jl")
 include("edits.jl")
 
@@ -70,7 +67,6 @@ export FactorGraph, GraphBuilder, VariableNode, FactorNode, Edge
 export AbstractMessageRule, BeliefPropagation, MeanField, ExpectationPropagationRule, MixtureReduction
 export ep_message, ep_project, ep_divide, ep_block, mixture_message, reduce_message
 export OverlayFactor
-export em_step, fit_em, m_step, m_step_signature, moment_statistics, MomentStats
 export cluster, as_cluster, ClusterFactor, ClusterForm, TableFactor, FrozenClusterBeliefs, cluster_form, cluster_switch, cluster_parameters, cluster_marginal, overlap_groups, FrozenClusterBelief
 export remove_factor!, remove_variable!, disconnect!, replace_factor!, transfer
 export variable!, factor!, connect!, build, validate, validate_parameters
@@ -105,7 +101,7 @@ export ConvergenceReport
 export sample_belief, GibbsSampler, GibbsState, gibbs_init, gibbs_sweep!, gibbs_points
 export factor_residual_moments, AbstractSampleFilter, WindowFilter, DecayFilter
 export SampleBuffer, record!, advance!, sample_weights, energy_moments, free_energy_mean
-export residual_moments, sample_gradient
+export residual_moments
 
 # --- Free energy -----------------------------------------------------------
 export counting_number, bp_degree, counting_numbers, total_counting_number, variable_entropy
@@ -117,7 +113,6 @@ export learns_unnormalised, local_free_energy, local_free_energies, factor_belie
 export DataFactor, PriorFactor, LossFactor, RelayFactor, OptimiserFactor
 export ExposedFactor, expose, supports_parameter_polarity, parameter_message, parameter_free_energy
 export AbstractUpdateRule, GradientDescent, Momentum, Nesterov
-export rule_get, rule_put, optimiser_step, parameter_step
-export GradientEstimate, StraightThroughFactor
+export rule_get, rule_put, optimiser_step
 
 end # module

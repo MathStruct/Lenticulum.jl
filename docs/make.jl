@@ -15,12 +15,8 @@ const ROOT = dirname(@__DIR__)
 const LITERATE = joinpath(@__DIR__, "literate")
 const TUTORIALS = joinpath(@__DIR__, "src", "tutorials")
 const CACHE = joinpath(@__DIR__, "cache", "tutorials")
-const PKGDIRS = Dict("Lenticulum" => ROOT, "LenticulumCore" => joinpath(ROOT, "lib", "LenticulumCore.jl"),
-                     "Mycelium" => joinpath(ROOT, "lib", "Mycelium.jl"),
-                     "VariationalDiffusion" => joinpath(ROOT, "lib", "VariationalDiffusion.jl"),
-                     "ImplicitLayers" => joinpath(ROOT, "lib", "ImplicitLayers.jl"),
-                     "Adversarial" => joinpath(ROOT, "lib", "Adversarial.jl"),
-                     "AlgebraicFactors" => joinpath(ROOT, "lib", "AlgebraicFactors.jl"))
+const PKGDIRS = Dict(name => joinpath(ROOT, "lib", name * ".jl") for name in
+                     ("Lenticulum", "LenticulumCore", "Mycelium", "MyceliumLearning", "VariationalDiffusion"))
 
 function sources(dir)
     files = String[]
@@ -88,16 +84,13 @@ end
 using Lenticulum
 using LenticulumCore
 using Mycelium
+using MyceliumLearning
 using VariationalDiffusion
-using ImplicitLayers
-using Adversarial
-using AlgebraicFactors
-using HomotopyContinuation # activate AlgebraicFactors' optional branch solver
 
 # Where this build lives (see the vault section at the end): master's site, or the preview of
 # the development branch. The pages link to the vault through LENTICULUM_VAULT_URL.
 const SITE = "https://mathstruct.org/Lenticulum.jl"
-const PREVIEW_BRANCH = "dev-danielb"
+const PREVIEW_BRANCH = "dev-danielb"   # `refactor` builds without deploying, like `dev`
 const BRANCH = get(ENV, "GITHUB_REF_NAME", "")
 const DEVURL = BRANCH == PREVIEW_BRANCH ? "preview" : "dev"
 const VAULT_URL = DEVURL == "dev" ? "$(SITE)/" : "$(SITE)/preview/"
@@ -115,10 +108,8 @@ makedocs(;
         Lenticulum,
         LenticulumCore,
         Mycelium,
+        MyceliumLearning,
         VariationalDiffusion,
-        ImplicitLayers,
-        Adversarial,
-        AlgebraicFactors,
     ],
     format = Documenter.HTML(;
         canonical = "https://mathstruct.org/Lenticulum.jl/api/dev",
@@ -143,6 +134,7 @@ makedocs(;
                 "API: schedules and inference" => "packages/mycelium/api_inference.md",
                 "API: plates and blocks" => "packages/mycelium/api_plates.md",
             ],
+            "MyceliumLearning" => "packages/myceliumlearning.md",
             "Lenticulum" => "packages/lenticulum.md",
             "VariationalDiffusion" => [
                 "Overview" => "packages/variationaldiffusion/index.md",
@@ -151,9 +143,6 @@ makedocs(;
                 "Factors" => "packages/variationaldiffusion/factors.md",
                 "ProxDM" => "packages/variationaldiffusion/proxdm.md",
             ],
-            "ImplicitLayers" => "packages/implicitlayers.md",
-            "Adversarial" => "packages/adversarial.md",
-            "AlgebraicFactors" => "packages/algebraicfactors.md",
         ],
     ],
     # Docstrings cite the Obsidian vault with [[wiki links]] and reference notes that are not

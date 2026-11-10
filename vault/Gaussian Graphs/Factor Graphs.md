@@ -85,7 +85,7 @@ the correct behaviour rather than an artefact: `isdag(g)` is precisely the predi
 graph could have been written in Lux"*.
 
 The supervised example above is a **tree that is not a DAG** — exact inference, not
-Lux-expressible. That combination is the whole point of the library.
+Lux-expressible. That combination is the point of the library.
 
 ## The Euler characteristic
 

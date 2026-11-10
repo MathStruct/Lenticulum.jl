@@ -670,3 +670,7 @@ function _pin_coordinates(θ, indices)
     mask = _active_mask(length(θ), indices)
     return [mask[i] ? θ[i] : LenticulumCore.stop_gradient(θ[i]) for i in eachindex(θ)]
 end
+
+# Whether a state tree holds nothing: tied factors and the implicit graph adjoint require it.
+_empty_graph_state(x::Union{Tuple,NamedTuple}) = all(_empty_graph_state, x)
+_empty_graph_state(x) = false

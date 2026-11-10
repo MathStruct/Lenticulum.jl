@@ -136,6 +136,11 @@ Here the names *do* come from the graph in one step (factor names, variable name
 
 Related: [[Bethe Free Energy]], [[Scalar and Multivariate Energy]], [[energy]], [[graph]]
 
+> [!note] The gradient code moved (2026-11-10)
+> `free_energy_gradient` of a graph and `parameter_step` are now in `MyceliumLearning`
+> ([[gradient]]). The sections below on parameter training describe that code; the free energy
+> itself, the checks and the belief hooks are still in this file.
+
 ## Parameter training at fixed beliefs (LP-002, 2026-10-26)
 
 > [!note] Superseded in part by LP-020 (2026-11-01)
@@ -211,7 +216,7 @@ re-evaluates the residual's mean and covariance under it at the current paramete
 In AlgebraicFactors (2026-11-02): `ToricFactor`, whose frozen belief is the joint table over its
 states (`ToricBelief`), and the degree-one `PolynomialFactor`, whose frozen belief is the joint
 Gaussian of its free coordinates (`PolynomialBelief`); `toric.md` and `polynomial.md` give the
-formulas and the checks in `lib/AlgebraicFactors.jl/test/lp020.jl`.
+formulas and the checks in `parked/AlgebraicFactors.jl/test/lp020.jl`.
 
 **What it does not do.**
 - A factor without `factor_belief` keeps the fixed-message derivative. That is the same thing
@@ -288,7 +293,7 @@ factors have no optimiser key. Score steps return their GradientEstimate as a fo
 entry. Factor free-energy evaluation uses a functional map with the same per-factor
 state threading, so reverse AD avoids mutating a values array.
 
-Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+Evidence: `lib/MyceliumLearning.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
 are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].
 
@@ -301,7 +306,7 @@ coupled replay use the same helpers. CPU helpers retain their original arithmeti
 Device parameter steps cast GradientDescent/Momentum/Nesterov coefficients to
 parameter precision, preserving Float32 even with the default Float64 learning
 rate. Optimiser vectors still contain only active coordinates. Tests in
-`lib/ImplicitLayers.jl/test/device_arrays.jl` check closed-form Gaussian/Dirac
+`parked/ImplicitLayers.jl/test/device_arrays.jl` check closed-form Gaussian/Dirac
 objectives, cut/freeze behavior, score estimates and actual DEQ/ODE factor scoring.
 See [[gradient_couplings]] for the supported device subset and its limits.
 

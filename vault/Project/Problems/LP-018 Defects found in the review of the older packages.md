@@ -1,6 +1,6 @@
 #open-problem
 
-> **Status: resolved (2026-10-29), reviewed by Claude.** Related: [[LP-013 Defects found in the review of master]], [[L-SPEC-001 The Factor Interface]], [[src/likelihood|likelihood]], [[reddiff]], [[proxdm]], [[schedule]], [[krylov]], [[src/beliefs|beliefs]].
+> **Status: resolved (2026-10-29), reviewed by Claude.** Related: [[LP-013 Defects found in the review of master]], [[L-SPEC-001 The Factor Interface]], [[lib/Lenticulum.jl/src/likelihood|likelihood]], [[reddiff]], [[proxdm]], [[schedule]], [[krylov]], [[lib/Lenticulum.jl/src/beliefs|beliefs]].
 
 **Problem.** Codex ran a read-only review (2026-10-29) of the packages the LP-002/LP-011 work did not touch: VariationalDiffusion, the top-level `Lenticulum`, AlgebraicFactors and Adversarial. It reported 13 defects. Claude reproduced or re-derived each one before it was recorded here. The reproducers are scratch scripts outside the repository (`~/.julia/lenticulum-runs/review-older/`). Each fix must therefore add a regression test with the failing input below.
 
@@ -14,7 +14,7 @@ Code defects, most severe first:
 6. **`MixtureProx` can return a strict local maximum** (`proxdm.jl`, `proximal(::MixtureProx, …)`). The residual test runs before any curvature check. Equal mixture means `[-2, 2]`, width 0.2, `v = 0`, `t = 0`, `λ = 1`: it returns `u = 0`, with objective 49.3095 and second derivative −2474. At `u ≈ 1.923` the objective is 1.9257. The docstring promises "the local minimiser reached from `v`". The failure needs a stationary starting point, so it is an edge case.
 7. **Constraint and nonlinear constructors accept invalid noise covariances** (`src/constraint.jl`, `src/nonlinear.jl`). They test `isposdef(Symmetric(Q))`, which reads only one triangle. So `[1 0.2; 10 1]` is accepted, although its symmetric part has eigenvalues −4.1 and 6.1. A residual of dimension 2 also accepts `noise = [1.0]`, which leaves a one-dimensional energy space. `GaussianFactor` validates both shape and symmetry.
 8. **Narrow ordinal categories lose all precision** (`src/likelihood.jl`, `OrdinalProbitLikelihood`). $\Phi(b) - \Phi(a)$ cancels. Cutpoints `[-1e-20, 1e-20]`, category 2, predictor 0 give log-likelihood `-Inf` with NaN derivatives; the true value is $\log(2\cdot10^{-20}) - \tfrac12\log 2\pi = -46.2775$. Narrow intervals far in a tail fail the same way.
-9. **Finite particle weights can overflow during normalisation** (`lib/Adversarial.jl/src/ratio.jl`, `src/beliefs.jl`). Particles `{1, 3}` with weights `[1e308, 1e308]` give mean 0, covariance 0 and ESS `Inf`, instead of 2, 1 and 2. The ratio energy raises a false disjoint-support error, and `moment_match` reports a singular covariance. Dividing by the largest weight first avoids all three.
+9. **Finite particle weights can overflow during normalisation** (`parked/Adversarial.jl/src/ratio.jl`, `src/beliefs.jl`). Particles `{1, 3}` with weights `[1e308, 1e308]` give mean 0, covariance 0 and ESS `Inf`, instead of 2, 1 and 2. The ratio energy raises a false disjoint-support error, and `moment_match` reports a singular covariance. Dividing by the largest weight first avoids all three.
 
 Wrong claims in notes and docstrings:
 
@@ -41,7 +41,7 @@ Analytic-mixture batching and the constraint polarity shortlist were excluded as
 The pre-existing LP-002, LP-018 and Problem Log edits were retained. No checkout, clean,
 reset, stash, commit, push or merge was run. Each item has an owning-suite regression in
 `test/lp018.jl` (top-level), `lib/VariationalDiffusion.jl/test/lp018.jl` (VD), or
-`lib/Adversarial.jl/test/lp018.jl`, with the particle-distance copy covered in
+`parked/Adversarial.jl/test/lp018.jl`, with the particle-distance copy covered in
 `lib/Mycelium.jl/test/lp018.jl`; the interop regressions are in top-level
 `test/lp018_interop.jl`. Logs are under `~/.julia/lenticulum-runs/lp018/`.
 

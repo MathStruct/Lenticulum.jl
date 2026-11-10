@@ -166,7 +166,7 @@ composed. And its scope is exactly the scope of this project's exactness results
 > that trade-off has a name, **dual control** (Feldbaum, 1960), and a familiar face in machine
 > learning: **exploration**.
 >
-> So the honest statement of the proposal's validity is: **the Inferencer/Optimizer split is
+> So the statement of the proposal's validity is: **the Inferencer/Optimizer split is
 > exact in the linear-Gaussian case and approximate otherwise, and the approximation error is
 > exploration.** That is a strong result, not a weak one — it is the same boundary every other
 > exactness claim in this vault sits on.

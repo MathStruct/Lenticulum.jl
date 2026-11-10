@@ -1,5 +1,9 @@
 #implementation
 
+> [!note] Split in November 2026
+> Gradients, couplings, the graph adjoint and EM are in [[MyceliumLearning]]; this package is
+> inference only. Where a section below describes them, it describes code that now lives there.
+
 > Sources: code: `Mycelium.jl`, `factors.jl`, `free_energy.jl`, `gaussian.jl`, `graph.jl`, `messages.jl`, `passing.jl`, `polarity_resolution.jl`, `schedules.jl`
 >
 > Theory (CT-ML wiki): [Lax Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Lax-Functor) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens)
@@ -143,6 +147,6 @@ StraightThroughFactor are implemented in the documented static CPU domains. See
 [[gradient_couplings]] for mixed semantics, uncertainty returns and explicit restrictions.
 The former option-2 limitations above are historical.
 
-Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+Evidence: `lib/MyceliumLearning.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
 are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].

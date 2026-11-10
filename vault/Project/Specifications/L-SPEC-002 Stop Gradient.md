@@ -90,7 +90,7 @@ returns an estimate of the same endpoint derivative, including a baseline contro
 > the fixed-posterior EM M-step; on the Gaussian tree of `test/gradient_couplings.jl` it agrees
 > with the exact coupling. See [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]].
 
-**Evidence:** `lib/Mycelium.jl/test/gradient_couplings.jl` and
+**Evidence:** `lib/MyceliumLearning.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`; final suite counts/timings are recorded in the LP-011 note.
 No new paper citation was introduced; the ADEV wiki note was read for estimator semantics.
 
@@ -107,7 +107,7 @@ pinned while message derivatives through their factors survive. The new
 [[graph_adjoint]] note specifies the linear system, convergence/invertibility
 conditions, solver costs, empty-state restriction and unsupported cases.
 
-Evidence: `lib/Mycelium.jl/test/graph_adjoint.jl`, `graph_adjoint_devices.jl`.
+Evidence: `lib/MyceliumLearning.jl/test/graph_adjoint.jl`, `graph_adjoint_devices.jl`.
 JLArrays tests cover new replay schedules; implicit device coordinates and
 native Enzyme/Mooncake replay remain unsupported. See LP-002's dated batch C
 section for measurements and reproducers. Existing defaults are unchanged.

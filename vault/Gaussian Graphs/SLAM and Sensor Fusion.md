@@ -57,7 +57,7 @@ which is what a robust back end needs in order to reject it.
 
 ## What would be hard
 
-- **Loop closures make the graph loopy**, which is the whole point of them. Loopy message
+- **Loop closures make the graph loopy**, which is the point of them. Loopy message
   passing gives exact means and wrong variances ([[Loopy Message Passing]]) — and in SLAM the
   covariance is used for data association, so a wrong covariance causes wrong associations,
   which cause wrong loop closures. The failure compounds.
@@ -71,7 +71,7 @@ which is what a robust back end needs in order to reject it.
   marginalised, false loop closures are switched off. Lenticulum's graphs are built once and
   frozen; what changing them would take is [[Dynamic Graphs]].
 
-The honest niche is therefore not "another SLAM back end" but **SLAM with learned components
+The niche is therefore not "another SLAM back end" but **SLAM with learned components
 and calibrated uncertainty over both halves** — which is the part the existing tools are least
 equipped for.
 

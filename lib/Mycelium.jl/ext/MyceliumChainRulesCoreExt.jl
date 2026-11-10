@@ -15,7 +15,6 @@ ChainRulesCore.@non_differentiable Mycelium.parameter_keys(g)
 ChainRulesCore.@non_differentiable Mycelium.tied_factors(g, key)
 ChainRulesCore.@non_differentiable Mycelium._key_node(g, key)
 ChainRulesCore.@non_differentiable Mycelium._check_tied_state(g, st)
-ChainRulesCore.@non_differentiable Mycelium._frozen_beliefs(s, g, ps, st)
 ChainRulesCore.@non_differentiable Mycelium._energy_rows(s, g)
 ChainRulesCore.@non_differentiable Mycelium._has_rows(s, g)
 
@@ -35,24 +34,8 @@ _edge_tangent(Δ) = Δ
 ChainRulesCore.@non_differentiable Mycelium.resolve_polarity(g, fid, target, available)
 ChainRulesCore.@non_differentiable Mycelium.check_legal(g, fid, p)
 ChainRulesCore.@non_differentiable Mycelium.MessageStore(g::FactorGraph)
-ChainRulesCore.@non_differentiable Mycelium._ReplayStore(g::FactorGraph)
 ChainRulesCore.@non_differentiable Mycelium._check_energy_edges(g)
-ChainRulesCore.@non_differentiable Mycelium._check_unnormalised(g)
 function ChainRulesCore.rrule(::typeof(available_channels), s, g, fid; kwargs...)
     return available_channels(s,g,fid;kwargs...), _ -> (NoTangent(),NoTangent(),NoTangent(),NoTangent())
-end
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(infer!), g::FactorGraph, schedule, ps, st; kwargs...)
-    chosen = MessageTask[]
-    result = schedule isa ResidualSchedule ?
-        infer!(g, schedule, ps, st; kwargs..., record=chosen) : infer!(g, schedule, ps, st; kwargs...)
-    damping = get(kwargs, :damping, 0.0)
-    ts = schedule isa ResidualSchedule ? chosen :
-        Mycelium._realised_tasks(g, schedule, result[2].sweeps, ps, st; damping)
-    _, back = rrule_via_ad(config, Mycelium._functional_infer, g, ts, ps, st, result[2], damping)
-    function pullback(dy)
-        d = back(dy)
-        return NoTangent(), NoTangent(), NoTangent(), d[4], NoTangent()
-    end
-    return result, pullback
 end
 end

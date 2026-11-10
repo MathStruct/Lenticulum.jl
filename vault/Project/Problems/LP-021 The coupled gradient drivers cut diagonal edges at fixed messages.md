@@ -2,7 +2,7 @@
 
 > **Status: resolved (2026-11-02), by option 1 below (Daniel's choice); the mixed case resolved 2026-11-04 by option 3 of the follow-up (Daniel's choice).** Found while testing plates ([[L-SPEC-006 Plates]]); measured and now checked in `test/lp021.jl`. Related: [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]], [[LP-011 Gradient couplings and isfrozen are declared but unused]], [[graph_adjoint]], [[gradient_couplings]], [[free_energy]].
 
-> Sources: original repository analysis; code: `lib/Mycelium.jl/src/graph_adjoint.jl` (`_graph_update`, `_graph_loss`), `lib/Mycelium.jl/src/gradient_couplings.jl` (`_coupled_gradient`, `_replay`), `lib/Mycelium.jl/src/free_energy.jl` (`free_energy_gradient`); tests: `test/lp021.jl`
+> Sources: original repository analysis; code: `lib/MyceliumLearning.jl/src/graph_adjoint.jl` (`_graph_update`, `_graph_loss`), `lib/MyceliumLearning.jl/src/gradient_couplings.jl` (`_coupled_gradient`, `_replay`), `lib/Mycelium.jl/src/free_energy.jl` (`free_energy_gradient`); tests: `test/lp021.jl`
 >
 > Theory (CT-ML wiki): [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 

@@ -6,7 +6,7 @@
 > Grassmannian projection, QR retraction and wrapped GD/momentum are implemented;
 > polynomial residuals, their Sampson scalarisation and fitting are implemented too.
 
-> Sources: original to this vault (design and analysis); Edelman, Arias & Smith (1998), *The Geometry of Algorithms with Orthogonality Constraints*; Absil, Mahony & Sepulchre (2008), *Optimization Algorithms on Matrix Manifolds*; code: `lib/AlgebraicFactors.jl/src/grassmann.jl`, `lib/AlgebraicFactors.jl/src/polynomial.jl`, `polyfit.jl`, `lib/AlgebraicFactors.jl/test/runtests.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (real factor gauge invariance and full Sampson gradient checks).
+> Sources: original to this vault (design and analysis); Edelman, Arias & Smith (1998), *The Geometry of Algorithms with Orthogonality Constraints*; Absil, Mahony & Sepulchre (2008), *Optimization Algorithms on Matrix Manifolds*; code: `parked/AlgebraicFactors.jl/src/grassmann.jl`, `parked/AlgebraicFactors.jl/src/polynomial.jl`, `polyfit.jl`, `parked/AlgebraicFactors.jl/test/runtests.jl`, `parked/AlgebraicFactors.jl/test/polynomial.jl` (real factor gauge invariance and full Sampson gradient checks).
 >
 > Bibliography: [[Bibliography#^edelman1998geometry|Edelman et al. 1998]] · [[Bibliography#^absil2008optimization|Absil et al. 2008]]
 >

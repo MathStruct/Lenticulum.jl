@@ -4,7 +4,7 @@
 > `NeuralODEFactor` exposes both endpoint integrations, but explicit numerical time reversal
 > does not invert the discrete forward map. Exactness depends on the integrator and grid.
 >
-> Implemented in `lib/ImplicitLayers.jl/src/neuralode.jl`; see [[neuralode]] and [[flow]].
+> Implemented in `parked/ImplicitLayers.jl/src/neuralode.jl`; see [[neuralode]] and [[flow]].
 
 > Sources: Hairer, Lubich, Wanner, *Geometric Numerical Integration*, 2nd ed., II.3 (adjoint and symmetric methods); Chen, Rubanova, Bettencourt, Duvenaud, *Neural Ordinary Differential Equations*, NeurIPS 2018; Grathwohl, Chen, Bettencourt, Sutskever, Duvenaud, *FFJORD*, ICLR 2019; [DiffEqFlux.jl NeuralDELayers](https://docs.sciml.ai/DiffEqFlux/stable/layers/NeuralDELayers/)
 >
@@ -64,7 +64,7 @@ RK4 has $O(h^4)$ forward error and a corresponding round-trip bound, but this sc
 round trip is actually $O(h^5)$: its step polynomial satisfies
 $R(x)R(-x)=1+x^6/72+x^8/576$. The measured doubling ratios are therefore 2 and 32; 16 belongs
 to RK4's forward error. [[neuralode]] §4.3 gives the derivation, tested convergence tolerances
-and the table from `lib/ImplicitLayers.jl/examples/flow_roundtrip.jl`.
+and the table from `parked/ImplicitLayers.jl/examples/flow_roundtrip.jl`.
 
 At $a=-5,T=1,N=50$, the script measures Euler's residual as 0.394994 (start point 20.9%
 off), RK4's as $6.953127\times10^{-7}$; RK4 at $N=1$ gives 895.18. These are truncation

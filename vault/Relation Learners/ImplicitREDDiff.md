@@ -42,7 +42,7 @@ How do we learn a relation?
 | **Layer connections** | directed acyclic graph | arbitrary connected graph |
 
 Implicit layers, deep equilibrium networks (DEQs) and neural ODEs realise this to a limited
-degree; see `lib/ImplicitLayers.jl`.
+degree; see `parked/ImplicitLayers.jl`.
 
 ## Implicit RED-Diff
 

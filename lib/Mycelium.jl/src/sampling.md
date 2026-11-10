@@ -73,6 +73,7 @@ The queries obey the averaging requirement of [[Extending Mycelium]] §6b:
   $\mathbb E\lVert r\rVert^2_W = \lVert \bar r\rVert^2_W + \operatorname{tr}(W \operatorname{Cov} r)$.
 - `free_energy_mean`: the weighted mean of the totals, each $-\log p(\text{data}, \text{pins})$ on an exact
   pinned graph.
+- (`sample_gradient` is in `MyceliumLearning`, [[sample_gradient]], since 2026-11-10.)
 - `sample_gradient`: the weighted mean of each sample's gradient of its total at the current
   parameters.
 

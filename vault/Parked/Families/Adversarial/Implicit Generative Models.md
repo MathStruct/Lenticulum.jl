@@ -1,6 +1,6 @@
 #model #annotation
 
-> Entry point for the adversarial family, implemented in `lib/Adversarial.jl`.
+> Entry point for the adversarial family, implemented in `parked/Adversarial.jl`.
 >
 > The paper's thesis in one line: **without a likelihood you must learn by comparison**, and
 > every way of comparing two distributions you can only sample from reduces to estimating a

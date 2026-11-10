@@ -22,7 +22,7 @@ but freezing a different metric at each target/iteration does not by itself defi
 a normalised joint branch model or exact entropy. No game or graph-local free
 energy is claimed for it. The full common conformance checker therefore remains
 inapplicable; all supported degree-one polarities have independent lens/site/posterior
-checks in `lib/AlgebraicFactors.jl/test/polynomial.jl` ([[polynomial]]).
+checks in `parked/AlgebraicFactors.jl/test/polynomial.jl` ([[polynomial]]).
 
 
 ## Decisions and checks, 2026-10-26
@@ -71,7 +71,7 @@ unchanged; scoring a prior does not turn it into a prior-conditioned posterior.
 
 For a residual affine in the unknown `u`, vanishing at `u*`, the incoming energy equals
 the solved residual energy plus the anchor centered at `u₀`, with precision `J_u'J_u`.
-`energy_jacobian` computes that precision in `lib/ImplicitLayers.jl/test/conformance.jl`.
+`energy_jacobian` computes that precision in `parked/ImplicitLayers.jl/test/conformance.jl`.
 For `g=z/2+x`, `x=1,z₀=3` gives root `2`, Jacobian `1/2`, and `½(3-2)²/4=1/8`;
 reverse `z=3,x₀=1` gives root `3/2`, Jacobian `-1`, and `½(1-3/2)²=1/8`.
 For `dz/dt=0`, endpoints `1,3` give `½(3-1)²=2` in either direction.
@@ -126,21 +126,21 @@ the general distributional games are solved.
    game entropies. Dirac/finite supported laws are Lebesgue-singular even if a Jacobian
    expectation can be a finite exact sum. Non-invertible maps throw. The built-in
    standard-normal NoiseSource has exact unconditional entropy without resampling;
-   custom samplers still supply no density law. Tests: `lib/Adversarial.jl/test/transport.jl`,
+   custom samplers still supply no density law. Tests: `parked/Adversarial.jl/test/transport.jl`,
    including Gaussian closed forms, a nonlinear bijection with analytic Jacobian expectation,
    and common conformance for the affine Gaussian game. See [[transport]] and [[generator]].
    **Ratio:** non-Dirac games remain unsupported: arbitrary ratio networks have no analytic
    normaliser/reweighted entropy contract, and empirical weights are not a Lebesgue density.
    **Plucker:** an exact distributional case does exist at $r=2$, with one fixed nonzero
    vector and one proper Gaussian: its scalar image is Gaussian. Entropy/free energy and
-   direct-message conformance are checked in `lib/AlgebraicFactors.jl/test/game_exact.jl`.
+   direct-message conformance are checked in `parked/AlgebraicFactors.jl/test/game_exact.jl`.
    Higher-dimensional fixed-vector images are singular; two Gaussian inputs are generally
    non-Gaussian. Jitter is an approximation and is refused by the exact game. See [[plucker]].
 4. **Polynomial:** degree one with `branches=:single`, a square nonsingular last-channel
    block, SPD constant residual covariance and a proper pooled posterior defines an exact
    normalised linear-Gaussian conditional. Its normaliser includes the output log-Jacobian.
    Game/graph quantities use the Gaussian grading; `π` is on the first channel and `y`
-   names all others. `lib/AlgebraicFactors.jl/test/game_exact.jl` derives the closed form,
+   names all others. `parked/AlgebraicFactors.jl/test/game_exact.jl` derives the closed form,
    checks both polarities with the common checker, and checks basis/gauge/damping cases.
    Other degrees, branch mixtures and unsolvable normalised output blocks throw. See
    [[polynomial]]; no local metric is promoted to a nonlinear density.

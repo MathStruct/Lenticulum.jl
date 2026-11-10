@@ -142,7 +142,7 @@ Gaussian `ComposedFactor(a,b; coupling)` is a collapsed endpoint game. Its histo
 diagonal, exact and analytic pathwise gradients all differentiate that collapsed law;
 there is no exposed internal message to cut. Score coupling currently requires Dirac
 input/endpoint beliefs, explicit `rng` and `nsamples >= 2`, and a fixed scalar baseline.
-It samples the exact internal posterior and returns `Mycelium.GradientEstimate` with
+It samples the exact internal posterior and returns `MyceliumLearning.GradientEstimate` with
 componentwise standard errors. The baseline equal to the reference endpoint NLL cancels
 the posterior score noise. ForwardDiff/Zygote and reference differences support the
 analytic gradients; the score estimator uses the documented schedule-backend whitelist.

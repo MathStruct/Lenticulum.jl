@@ -120,7 +120,7 @@ interconnect with the plant, restricting the joint behaviour to what you want.
 Which means the controller/plant loop, in this project's terms, is *two factors sharing two
 variables* — and nothing about that is hard. The vault demonstrated exactly this shape
 already, and found it loopy in the graph-theoretic sense: the resistive divider in
-[[ModelingToolkit as an Acausal Relation]] §6 is a three-factor cycle, and the honest finding
+[[ModelingToolkit as an Acausal Relation]] §6 is a three-factor cycle, and the finding
 there was that message passing handles it badly compared to a direct solve.
 
 So the difficulty with control in Lenticulum is not the feedback. It is that a loopy graph

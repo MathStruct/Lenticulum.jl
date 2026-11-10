@@ -47,7 +47,7 @@ data-driven split, then a removal) the search continues to (3, 2) at 1 299.17 (9
   graph whose replicas are named `x[i]` gets its plate back with `as_plate` (2026-11-04).
 - Moves and warm starts are the caller's; the example's compound split-and-remove with a data-driven
   split is one choice that works on the tree (`examples/structure_clusters.md`), not a general rule.
-- Fitting: closed-form M-steps from cluster beliefs (`Mycelium.fit_em`, SQUAREM) since 2026-11-04,
+- Fitting: closed-form M-steps from cluster beliefs (`MyceliumLearning.fit_em`, SQUAREM) since 2026-11-04,
   about 7× faster per warm fit than 300 gradient steps; a search is now limited by compiling each
   new structure's inference code and by slow EM on over-parameterised candidates (`em.md`). Frozen
   paths inside cluster nodes: done 2026-11-04.

@@ -91,6 +91,6 @@ parameter freezing lives in the parameter/gradient driver and preserves input
 cotangents. The 2026-10-26 frozen-factor rejection described above is historical.
 Polarity legality and direction checks remain unchanged.
 
-Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+Evidence: `lib/MyceliumLearning.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
 are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].

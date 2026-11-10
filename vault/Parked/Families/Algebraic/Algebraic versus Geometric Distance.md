@@ -5,7 +5,7 @@
 > [[Scalar and Multivariate Energy|scalarisation]] — and shows what the energy space $E$
 > *is*: the space the noise lives in.
 
-> Sources: original analysis; Chojnacki, Brooks, van den Hengel & Gawley (2000), *On the fitting of surfaces to data with covariances*, §4.1–§4.2, Fig. 1; Absil, Mahony & Sepulchre (2008), *Optimization Algorithms on Matrix Manifolds*, Chapter 7, Algorithms 10–11; code: `lib/LenticulumCore.jl/src/energy.jl` (`SampsonNorm`, `localise`, `sampson_damping`), `lib/LenticulumCore.jl/test/runtests.jl` (circle closed form), `lib/AlgebraicFactors.jl/src/polynomial.jl`, `polyfit.jl`, `lib/AlgebraicFactors.jl/test/polynomial.jl` (real factor gauge/basis tests and fitting).
+> Sources: original analysis; Chojnacki, Brooks, van den Hengel & Gawley (2000), *On the fitting of surfaces to data with covariances*, §4.1–§4.2, Fig. 1; Absil, Mahony & Sepulchre (2008), *Optimization Algorithms on Matrix Manifolds*, Chapter 7, Algorithms 10–11; code: `lib/LenticulumCore.jl/src/energy.jl` (`SampsonNorm`, `localise`, `sampson_damping`), `lib/LenticulumCore.jl/test/runtests.jl` (circle closed form), `parked/AlgebraicFactors.jl/src/polynomial.jl`, `polyfit.jl`, `parked/AlgebraicFactors.jl/test/polynomial.jl` (real factor gauge/basis tests and fitting).
 >
 > Bibliography: [[Bibliography#^chojnacki2000fitting|Chojnacki et al. 2000]] · [[Bibliography#^absil2008optimization|Absil et al. 2008]]
 >

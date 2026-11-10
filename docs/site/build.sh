@@ -17,8 +17,8 @@
 # Environment (set by docs/make.jl): VAULT_BASEURL (default mathstruct.org/Lenticulum.jl),
 # VAULT_API_URL (where the API docs are; default <site>/api/dev/), VAULT_COMMENTS (0: no threads).
 #
-# The vault is the whole repository (see "vault/Start Here.md"), but its notes live in three places:
-# vault/, the *.md files beside each lib/*/src/*.jl, and src/*.md. Quartz wants one content
+# The vault is the whole repository (see "vault/Start Here.md"), but its notes live in two places:
+# vault/ and the *.md files beside each lib/*/src/*.jl (and parked/*/src/*.jl). Quartz wants one content
 # directory, so this script stages them together. Wikilinks resolve by basename ("shortest"),
 # exactly as Obsidian does, so the staged directory structure is only for breadcrumbs.
 set -euo pipefail
@@ -76,7 +76,14 @@ for pkg in "$ROOT"/lib/*/; do
     cp "$pkg"/src/*.md "$CONTENT/lib/$name/"
   fi
 done
-mkdir -p "$CONTENT/src" && cp "$ROOT"/src/*.md "$CONTENT/src/"
+# the parked packages' notes: the vault's parked notes link to them
+for pkg in "$ROOT"/parked/*.jl/; do
+  name="$(basename "$pkg")"
+  if compgen -G "$pkg/src/*.md" > /dev/null; then
+    mkdir -p "$CONTENT/parked/$name"
+    cp "$pkg"/src/*.md "$CONTENT/parked/$name/"
+  fi
+done
 
 # A link written with its repository path, [[lib/<package>/src/<note>|…]] (needed where two notes
 # share a name, e.g. the two gaussian.md), points at lib/<package>/<note> on the site, where the
@@ -108,64 +115,68 @@ title: Lenticulum — theory vault
 
 [Lenticulum.jl](https://github.com/MathStruct/Lenticulum.jl) learns **relations instead of
 functions**: a model of a joint space $Z = X \times Y \times U$ that decides at query time which
-coordinates are inputs $X$, outputs $Y$ and latents $U$. This vault is the larger half of the
-project: the mathematics, the papers, the design decisions, and an honest record of what does
-not work yet. Pick the door that matches what you already know.
+coordinates are inputs $X$, outputs $Y$ and latents $U$. This vault holds the mathematics, the
+papers, the design decisions and the record of what does not work yet. The library is built
+around three uses; start with the one you came for.
 
-## Coming from machine learning
+## A. Gaussian factor graphs
 
-You know neural networks, backpropagation, perhaps diffusion models and deep equilibrium
-models. The short version: a trained denoiser defines a vector field whose stable roots are a
-relation; inference is root-finding with the inputs clamped, as a DEQ is evaluated; the
-backward pass is the implicit function theorem, one adjoint solve, nothing unrolled. The
-networks are **small** (a few thousand parameters over a handful of coordinates), and any Lux
-model with any AD backend works.
+Smoothing and state estimation on linear-Gaussian graphs, as in GTSAM, with factors that can be
+learned. Every factor is a joint model whose conditioning direction is chosen per query; message
+passing is Bayesian inversion of each factor; on a tree the results are exact and tested against
+the dense solve.
 
-1. [[Implicit Learners]] — what "learning a relation" means, and the three families
-2. [[Implicit Diffusion Learners]] — a diffusion model as a relation; the residual field
-3. [[Backpropagation through Implicit Inference]] — the adjoint, and a parabola learned from a circle
-4. [[DEQ as a Relation]] — the same idea for equilibrium models
-5. [[backends]] — Zygote, Enzyme or Reactant; a 5k-parameter MLP end to end
+1. [[Factor Graphs]] and [[Everything is a Factor]]: the setting
+2. [[Beliefs]]: what flows along the edges
+3. [[The Linear Gaussian Chain]]: the case where everything is exact
+4. [[Messages are Inversions]] and [[Bethe Free Energy]]: inference and its objective
+5. [[Loopy Message Passing]]: what changes on a loop
+
+## B. Relation learners
+
+A trained denoiser defines a vector field whose stable roots are a relation. Inference is root
+finding with the inputs clamped; the backward pass is the implicit function theorem, one adjoint
+solve. The networks are small, and any Lux model with any AD backend works.
+
+1. [[Implicit Learners]]: what learning a relation means
+2. [[Implicit Diffusion Learners]]: a diffusion model as a relation; the residual field and its bias
+3. [[Backpropagation through Implicit Inference]]: the adjoint
+4. [[Universal Approximation for Implicit Diffusion Learners]]: what the learner can represent
+5. [[Open Problems in Implicit Diffusion Learning]]: what does not work yet
 
 Or start with code: the [tutorials](@API@tutorials/01_circle/) (also Jupyter notebooks).
 
-## Coming from statistics or robotics
+## C. Structure and regimes
 
-You know Bayesian inference, Gaussian posteriors, perhaps factor graphs and GTSAM. The short
-version: every factor is a joint model whose conditioning direction is chosen per query;
-message passing on a factor graph is Bayesian inversion of each factor; the exact results are
-on the linear-Gaussian fragment, and the learned factors (diffusion, equilibrium, adversarial)
-plug into the same graph.
+Mixtures of linear relations, regimes with their own coefficients and noise, hierarchical
+models, and the search for the structure itself, by expectation maximisation on exact cluster
+beliefs.
 
-1. [[Factor Graphs]] and [[Everything is a Factor]] — the setting
-2. [[Beliefs]] — what flows along the edges: Gaussian, Dirac, samples
-3. [[The Linear Gaussian Chain]] — the case where everything is exact and checked
-4. [[Messages are Inversions]] and [[Bethe Free Energy]] — inference and its objective
-5. [[SLAM and Sensor Fusion]] — the application that motivates the design
+1. [[Switching Constraint Factors]]: a relation chosen by a discrete outcome
+2. [[Hierarchical Models]]: plates and tied parameters
+3. [[Finding a Factor Graph]]: structure search and its scores
+4. [[The Regulariser and the Loss]]: what may be learned on which objective
 
-## Coming from category theory
+## The foundations, for readers from category theory
 
-You know lenses, Para, Markov categories, perhaps AutoBayes' statistical games. The short
-version: a factor is a parameterized statistical game once a polarity is chosen, and a
-Bayesian lens after that; acausal composition is a hypergraph category; the code mirrors these
-definitions type for type. Notation note: this vault's inputs $X$ are AutoBayes' $Y$ and
-vice versa ([[Channels and Polarity]] §"Notation").
+A factor is a parameterized statistical game once a polarity is chosen, and a Bayesian lens after
+that. Notation: this vault's inputs $X$ are AutoBayes' $Y$ and vice versa
+([[Channels and Polarity]] §"Notation").
 
-1. [[Factors are Parameterized Statistical Games]] — the central correspondence
-2. [[Channels and Polarity]] — open models, cups and caps, and why direction is chosen late
-3. [[Inversions and Bayesian Lenses]] — what inference is, categorically
-4. [[Acausal Composition is a Hypergraph Category]] — how factors compose
-5. [[The Implicit Diffusion Factor as a Statistical Game]] — a learned factor, checked against the definitions
+1. [[Factors are Parameterized Statistical Games]]
+2. [[Channels and Polarity]]
+3. [[Inversions and Bayesian Lenses]]
+4. [[Acausal Composition is a Hypergraph Category]]
 
-The general theory these notes build on is in the
-[CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/).
+The general theory is in the [CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/).
 
 ## Everything else
 
-- **[[Map of Content]]** — every note, in reading order.
-- **[[Start Here]]** — how the vault is organised, its conventions, and how to read it in Obsidian.
-- **[[README]]** — the project pitch.
-- **[API documentation](@API@)** — the Julia packages themselves, built with Documenter.
+- **[[Map of Content]]**: every note.
+- **[[Start Here]]**: how the vault is organised and its conventions.
+- **[[Refactor 2026-11]]**: the state of the code, what is parked and how it comes back.
+- **[[README]]**: the project pitch.
+- **[API documentation](@API@)**: the Julia packages, built with Documenter.
 
 The vault is written for [Obsidian](https://obsidian.md) and rendered here with
 [Quartz](https://quartz.jzhao.xyz), including its `tikz` diagrams, which are compiled to SVG

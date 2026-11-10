@@ -40,7 +40,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: docs/cache
-          key: tutorials-${{ hashFiles('docs/literate/**', 'lib/*/src/**', 'lib/*/ext/**', 'src/**', 'docs/Project.toml') }}
+          key: tutorials-${{ hashFiles('docs/literate/**', 'lib/*/src/**', 'lib/*/ext/**', 'docs/Project.toml') }}
           restore-keys: tutorials-
       - name: Instantiate docs environment
         run: julia --project=docs -e 'using Pkg; Pkg.instantiate()'

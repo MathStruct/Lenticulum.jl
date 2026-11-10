@@ -46,7 +46,7 @@ loss edges — exactly **4 of the 12** messages are pruned.
 
 > [!warning] Pruning weakens exactness, deliberately
 > A `LossFactor` on absorbing edges never tells its input variable anything, because in
-> *belief* terms a sink is genuinely uninformative about what it consumes. What a loss tells
+> *belief* terms a sink is uninformative about what it consumes. What a loss tells
 > its input is a **cotangent**. The separate
 > [`AbstractGradientCoupling`](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients)
 > backward machinery is planned, not implemented. Non-default couplings fail at construction
@@ -54,7 +54,7 @@ loss edges — exactly **4 of the 12** messages are pruned.
 >
 > So `pruned > 0` does not mean the schedule is broken; it means part of the graph is
 > explicit rather than implicit. It is surfaced as a field rather than swallowed so that a
-> genuinely mis-wired graph — an implicit factor accidentally given a unidirectional edge —
+> mis-wired graph — an implicit factor accidentally given a unidirectional edge —
 > is visible instead of quietly under-informed.
 
 **This was found by running the tests, not by design.** The first version generated all $2|E|$

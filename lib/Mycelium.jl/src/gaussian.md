@@ -45,7 +45,7 @@ Julia's generic diagonal logabsdet reduction has no GPU neutral element for dual
 pairs, which broke ForwardDiff replay even when the counting coefficient was zero.
 Elementwise positive-diagonal algebra avoids this reduction. Exact/pathwise and
 terminal score tests with JLArrays compare against CPU and closed-form derivatives
-in `lib/ImplicitLayers.jl/test/device_arrays.jl`. Dense device precision remains
+in `parked/ImplicitLayers.jl/test/device_arrays.jl`. Dense device precision remains
 unsupported. See [[gaussian_belief]] and [[gradient_couplings]].
 
 Device density/entropy specialisations use only diagonal fields and typed scalar

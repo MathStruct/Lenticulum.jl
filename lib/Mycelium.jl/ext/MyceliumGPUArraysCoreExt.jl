@@ -21,12 +21,6 @@ function M._pin_coordinates(θ::AbstractGPUArray, indices)
     mask = collect(M._active_mask(length(θ), indices))
     return ifelse.(M._index_metadata(θ, mask) .!= 0, θ, stop_gradient(θ))
 end
-function M._replace_coordinates(θ::AbstractGPUArray, indices, active)
-    positions = Dict(i => k for (k,i) in enumerate(indices))
-    ii = [haskey(positions,i) ? length(θ)+positions[i] : i for i in eachindex(θ)]
-    return M._gather_active(vcat(θ, active), ii)
-end
-
 # Device parameters retain their precision even with the default Float64 rule.
 M.rule_put(r::M.GradientDescent, state, p::AbstractGPUArray, g) =
     (state, p .- convert(eltype(p), r.η) .* g)
@@ -38,15 +32,6 @@ for Rule in (:Momentum, :Nesterov)
         return s, p .+ s
     end
 end
-function M._draw(rng, b::GaussianBelief{<:AbstractGPUArray,<:Diagonal{T,<:AbstractGPUArray}}) where {T}
-    isproper(b) || throw(ArgumentError("score sampling requires a proper Gaussian message"))
-    μ = belief_mean(b)
-    # Explicit host RNG context, one bulk transfer; no hardware RNG claim.
-    noise = similar(μ)
-    copyto!(noise, randn(rng, length(μ)))
-    return μ .+ noise ./ sqrt.(b.Λ.diag)
-end
-
 function M.belief_distance(a::GaussianBelief{<:AbstractGPUArray,<:Diagonal{T,<:AbstractGPUArray}},
         b::GaussianBelief{<:AbstractGPUArray,<:Diagonal{S,<:AbstractGPUArray}}) where {T,S}
     dimension(a)==dimension(b) || return Inf

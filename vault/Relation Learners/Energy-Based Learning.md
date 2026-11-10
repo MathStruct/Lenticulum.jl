@@ -169,7 +169,7 @@ considered, and for a Dirac-valued graph it is not even an approximation — see
 
 ## 6. What this reframes
 
-The honest summary of where the project sits relative to this paper:
+The summary of where the project sits relative to this paper:
 
 - **The architecture is LeCun's.** Relations, energies, factor graphs, no normalisation,
   inference by minimisation. [[README]]'s table is his table.

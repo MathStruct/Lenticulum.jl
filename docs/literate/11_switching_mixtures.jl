@@ -11,6 +11,7 @@
 # and [Composing Stochastic Factors](https://mathstruct.org/Lenticulum.jl/Design/Composing-Stochastic-Factors).)
 
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, Printf
+using MyceliumLearning
 using CairoMakie: CairoMakie, Figure, Axis, heatmap!, DataAspect
 CairoMakie.activate!(type = "png") #hide
 

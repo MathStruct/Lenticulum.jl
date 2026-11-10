@@ -117,7 +117,7 @@ This also explains a result that looks wrong at first: on a strictly unidirectio
 ## `combine` is the hard part, and it is deliberately partial
 
 Pooling two beliefs about the same variable is the product of densities. What can be done
-honestly with the belief types that currently exist:
+with the belief types that currently exist:
 
 | case | result |
 |---|---|

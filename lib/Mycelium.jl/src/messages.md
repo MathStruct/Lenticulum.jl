@@ -233,7 +233,7 @@ and excluded-marginal reads enforce detach even on externally populated stores.
 A Gaussian belief covariance ChainRules rule uses the inverse-matrix derivative,
 avoiding differentiation through a mutating Cholesky inverse.
 
-Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+Evidence: `lib/MyceliumLearning.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
 are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].
 

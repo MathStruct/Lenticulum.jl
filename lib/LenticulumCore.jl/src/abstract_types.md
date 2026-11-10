@@ -102,6 +102,6 @@ All four built-in gradient couplings are accepted; unknown subtypes still throw.
 Graph parameter gradients dispatch per boundary, with explicit finite replay for
 non-diagonal edges. The old option-2 guards described above are historical.
 
-Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+Evidence: `lib/MyceliumLearning.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
 are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].

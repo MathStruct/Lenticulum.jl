@@ -18,7 +18,7 @@
 # its source node on the other edges); mean-field and EP nodes read more, and are not covered.
 #
 # Recorded in `vault/Control/Composing Optimisers.md` §4.2.
-# Run:  julia --project=. bench/bp_schedules.jl
+# Run:  julia --project=bench bench/bp_schedules.jl
 include("divider.jl")
 
 relerr(x, xstar, ηi, Λi, sη, sΛ) = any(isnan, x) ? Inf :

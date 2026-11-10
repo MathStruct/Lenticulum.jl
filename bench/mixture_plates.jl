@@ -1,7 +1,7 @@
 # The E-step of a Gaussian mixture through a Mycelium plate of switching factors, against the
 # responsibilities by hand, and the free energy and its gradient on message blocks against the
 # same messages per edge. Recorded in `src/switching.md` §10 and L-SPEC-006 §7.
-# Run:  julia --project=. bench/mixture_plates.jl
+# Run:  julia --project=bench bench/mixture_plates.jl
 #
 # Model: x_i = b_{k_i} + ε, ε ~ N(0, Q), P(k) = softmax(logw); one replica per point: the data, a
 # `SwitchingConstraintFactor((z = d,), K, d)` and the outcome k_i. The E-step is P(k_i | x_i).
@@ -9,6 +9,7 @@
 # sweep, sequential (edge by edge, as before message blocks) or grouped (`plate_schedule`), and the responsibilities read from it are checked against
 # the hand-written ones outside the timings.
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, Printf
+using MyceliumLearning
 
 const D, K = 2, 3
 const Q = [0.3 0.05; 0.05 0.2]

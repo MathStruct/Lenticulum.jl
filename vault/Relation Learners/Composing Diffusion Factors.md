@@ -77,7 +77,7 @@ unaffected (checked against finite differences, [[product]] §3).
 
 Where the relations cross transversally, $\sum_i\beta_iJ_i$ is well conditioned and the answer
 is sharp. Where they touch, it is nearly singular along the common tangent. The Laplace
-covariance then becomes long in that direction, which is the honest answer: the data barely
+covariance then becomes long in that direction, which is the answer: the data barely
 determine the point. This is the composite version of the branch points of a single relation
 (T3).
 

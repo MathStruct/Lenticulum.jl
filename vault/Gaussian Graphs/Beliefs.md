@@ -47,7 +47,7 @@ A Gaussian *can* be exact (on a linear-Gaussian tree it is), but the flag does n
 
 Pooling two beliefs about one variable is the pointwise product of their densities, the
 **sum–product** step at a variable node ([[Messages are Inversions]]). `Mycelium.combine`
-implements exactly the cases it can do honestly:
+implements exactly the cases it can do exactly:
 
 | combine | result | why |
 |---|---|---|

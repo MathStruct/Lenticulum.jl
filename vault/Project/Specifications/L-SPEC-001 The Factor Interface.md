@@ -54,22 +54,22 @@ A factor is a subtype of `AbstractLenticulumFactor`. Like a Lux layer, it is a *
 
 ## Checked by
 
-- `test/factor_conformance.jl`: `check_factor_conformance` ([[LP-008 No conformance test for the factor interface]]), run from `test/runtests.jl` over every supported polarity of `GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor`, `NonlinearFactor`, and `LikelihoodFactor`); "GaussianFactor: the factor interface, nothing stubbed" (§1–§4 for the reference factor); "pointwise energy and free energy: one contract" (§3, for four factors);
+- `lib/LenticulumCore.jl/test/support/factor_conformance.jl`: `check_factor_conformance` ([[LP-008 No conformance test for the factor interface]]), run from `test/runtests.jl` over every supported polarity of `GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor`, `NonlinearFactor`, and `LikelihoodFactor`); "GaussianFactor: the factor interface, nothing stubbed" (§1–§4 for the reference factor); "pointwise energy and free energy: one contract" (§3, for four factors);
 - `lib/LenticulumCore.jl/test/runtests.jl` (the energy algebra, `SquaredNorm` validation, `energy_jacobian`, and `gauss_newton_metric` of §3–§4);
 - `lib/Mycelium.jl/test/runtests.jl` (§5 on structural factors, including non-zero `PriorFactor` `local_free_energy`);
-- `lib/ImplicitLayers.jl/test/conformance.jl`: common default lens path for Lux forward and
+- `parked/ImplicitLayers.jl/test/conformance.jl`: common default lens path for Lux forward and
   DEQ/NeuralODE both directions, including full incoming game checks, solved-point lens
   games, linear identity and nonlinear Gauss–Newton error tests.
 - `lib/Mycelium.jl/test/conformance.jl`: common direct-message path on Data, Prior, Optimiser
   unary and Relay both directions; Loss sink path, with explicit unsupported-section reasons.
-- `lib/Adversarial.jl/test/conformance.jl`: common default lens path on NoiseSource unary,
+- `parked/Adversarial.jl/test/conformance.jl`: common default lens path on NoiseSource unary,
   Generator forward, Ratio unary; conditional point games, fixed draw and LP-016 likelihood/particle graph checks.
 - `lib/VariationalDiffusion.jl/test/conformance.jl`: common default lens path on all five binary
   assignments and unary, with fixed-node Gaussian/point fixtures and an explicit game gap.
   "Diffusion polarity enumeration and cap (LP-017)" and "Joint diffusion messages (LP-017)"
   check complete support and joint point/Gaussian/mixture messages; the four LP-017 broken
   assertions now pass.
-- `lib/AlgebraicFactors.jl/test/runtests.jl`: direct-message common checker for Toric at arities
+- `parked/AlgebraicFactors.jl/test/runtests.jl`: direct-message common checker for Toric at arities
   one to three and Plucker forward point games at r=2,4. Degree-one Polynomial additionally
   uses the common lens/game checker with independent Gaussian fixtures in `test/game_exact.jl`; nonlinear branch laws remain unsupported.
 - `test/game_composition.jl`: common checker for collapsed Gaussian composition in both
@@ -77,7 +77,7 @@ A factor is a subtype of `AbstractLenticulumFactor`. Like a Lux layer, it is a *
   Core "Container conformance scope (LP-008/009)" verifies that unsupported component laws
   still reject games and do not invent channels or assembled inversions.
 
-The checker is included from the single repository `test/factor_conformance.jl` file.
+The checker is included from the single repository `lib/LenticulumCore.jl/test/support/factor_conformance.jl` file.
 Its default checks are retained. Nonempty `pointwise_gap`, `game_gap`, `message_gap`, `polarity_gap` reasons
 omit only the named section, and `p=nothing` represents a sink. Game/graph checks compare
 energy coordinates as well as scalarisations. A passing partial run is not a claim of a
@@ -145,7 +145,7 @@ Only declared exact linear-Gaussian components (and their independent products) 
 Correlated joint beliefs are rejected. Tensor graph wiring/inversion remains absent.
 
 Checked by `test/game_composition.jl`, `lib/VariationalDiffusion.jl/test/bound.jl`,
-`lib/Adversarial.jl/test/transport.jl`, and `lib/AlgebraicFactors.jl/test/game_exact.jl`.
+`parked/Adversarial.jl/test/transport.jl`, and `parked/AlgebraicFactors.jl/test/game_exact.jl`.
 The common checker covers Gaussian composition in both directions, affine Gaussian
 forward generators, the exact scalar Plucker image and degree-one polynomial polarities.
 The common checker's `scope=:bound` checks evaluated bounds against independent exact
@@ -158,7 +158,7 @@ The audited rollout table and deliberately retained exemptions are in [[LP-008 N
 
 ## LP-011 factor addition (2026-10-27)
 
-`Mycelium.StraightThroughFactor` is a new parameterless directed structural factor.
+`MyceliumLearning.StraightThroughFactor` is a new parameterless directed structural factor.
 Its pointwise energy, game free energy and entropy are zero, and its forward message
 is a Dirac at the forward callable's value. Its separate surrogate derivative is
 specified in [[L-SPEC-002 Stop Gradient]]. The shared checker now exercises this

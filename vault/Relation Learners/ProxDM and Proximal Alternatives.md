@@ -108,7 +108,7 @@ $\varepsilon_\theta$ for the free energy and the prox network for the inversion.
 factor in this project with the structure the vault uses to argue that a factor cannot be a Lux
 layer ([[Inversions and Bayesian Lenses]], the `AmortisedInversion` case).
 
-## 5. The honest ranking
+## 5. The ranking
 
 For the problems this repository can currently test — small, Gaussian, closed-form —
 RED-Diff's bias is measurable and its convergence is adequate, and ProxDM's sampler and

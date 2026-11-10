@@ -80,7 +80,7 @@ The table's silence on degree is the table's silence on depth.
 
 **The best row in the table.** It is the observation El Ghaoui's implicit deep learning
 does not make and this framework does — that a relation need not have a solution, may have
-several, and that the honest output is then a projection onto the variety rather than a
+several, and that the output is then a projection onto the variety rather than a
 point on it ([[Algebraic versus Geometric Distance]], [[Branches and the Discriminant]]).
 Everything in the well-posedness literature of the repository grows from this row.
 
@@ -115,7 +115,7 @@ vocabulary, and "polarity is a property of the query, not the factor" is the rig
 
 And the claim is stronger than most of the implementation delivers. A `GaussianFactor`
 supports both polarities of a two-channel relation — it is *bidirectional*. Only
-`LinearConstraintFactor` is genuinely acausal in the $n$-channel sense, with every
+`LinearConstraintFactor` is acausal in the $n$-channel sense, with every
 polarity of every channel available ([[The Structural Gap to ModelingToolkit]]). "No
 distinguished input/output" is the design goal; "either channel may be the output" is what
 most factors actually do.

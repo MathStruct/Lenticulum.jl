@@ -188,7 +188,7 @@ arrays without selecting host concatenation. CPU arithmetic is unchanged.
 `GaussianBelief(η, Diagonal(λ))` and `Gaussian(μ, Diagonal(σ²))` support diagonal
 device moment/density/entropy and log-partition operations without factorisation. Dense device
 covariance/precision is rejected explicitly. See the JLArrays tests in
-`lib/ImplicitLayers.jl/test/device_arrays.jl`; no hardware GPU support is asserted.
+`parked/ImplicitLayers.jl/test/device_arrays.jl`; no hardware GPU support is asserted.
 
 
 ## Sampson localisation derivative boundary (LP-002 batch C)
@@ -200,7 +200,7 @@ $w^\top dr-\frac12w^\top(dA)w$. Localisation still uses the default mutable
 central-difference Jacobian unless the factor overrides it; supplying `ad` to
 an outer parameter derivative does not replace that inner algorithm.
 Generic AD through finite-difference localisation remains unsupported. The
-probe `lib/ImplicitLayers.jl/examples/lp002_metric_divergence_limits.jl` uses
+probe `parked/ImplicitLayers.jl/examples/lp002_metric_divergence_limits.jl` uses
 $r=a y^2-b$ and its analytic scalar energy/gradient to separate reference
 cancellation error from backend failures. LP-002 records the measured results.
 No Sampson metric, rank threshold or Gauss–Newton default changes in batch C.

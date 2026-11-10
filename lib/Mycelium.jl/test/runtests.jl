@@ -668,19 +668,8 @@ include("conformance.jl")
     @test isempty(Test.detect_ambiguities(Mycelium, LenticulumCore; recursive=true))
 end
 
-include("gradient_couplings.jl")
-
-include("graph_adjoint.jl")
 include("lp018.jl")
 include("lp019.jl")
-# Device (JLArrays) coverage is slow; it runs locally with LENTICULUM_DEVICE_TESTS=true,
-# not on every CI push.
-if get(ENV, "LENTICULUM_DEVICE_TESTS", "false") == "true"
-    include("graph_adjoint_devices.jl")
-else
-    @info "Skipping device tests; set LENTICULUM_DEVICE_TESTS=true to run them."
-end
-
 # review of 2026-11-09
 @testset "damping keeps a message's improper declaration" begin
     a = GaussianBelief([1.0, 0.0], [1.0 0.0; 0.0 0.0], true); b = GaussianBelief([2.0, 0.0], [1.0 0.0; 0.0 0.0], true)

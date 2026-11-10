@@ -79,7 +79,7 @@ The pre-existing LP-008 changes in other package tests, the shared checker,
 
 ## Estimator measurements (2026-10-27)
 
-`lib/Mycelium.jl/test/gradient_couplings.jl`, CPU, `Xoshiro(11)`, 4,000 draws
+`lib/MyceliumLearning.jl/test/gradient_couplings.jl`, CPU, `Xoshiro(11)`, 4,000 draws
 per estimate, Gaussian mean 0.8, unit variance and terminal cost `(x+0.2)^2/2`.
 The exact mean gradient is 1.0. Common random draws give:
 
@@ -147,7 +147,7 @@ was added to refs.bib, and only generated existing-work backlinks changed.
 NeuralODE factors can opt into `state_policy=:fixed`: constant incoming Lux state
 per solve and one final endpoint update. The existing diagonal graph parameter
 gradient and `parameter_step` driver use the factor's policy and fixed state
-subtree. `lib/ImplicitLayers.jl/test/lp002_batch_a.jl` checks these gradients
+subtree. `parked/ImplicitLayers.jl/test/lp002_batch_a.jl` checks these gradients
 against a state-dependent affine closed form with ForwardDiff, Zygote, Mooncake
 and runtime-activity Enzyme reverse. Default evaluation-state threading is
 unchanged; state derivatives, schedule replay backends and graph adjoint scope
@@ -167,7 +167,7 @@ categorical device score rule, new schedule or new replay backend.
 The fixes remove host scalar parameter gathers and incompatible diagonal
 cotangents, and preserve Float32 in device optimiser coefficients. The quadratic
 Gaussian oracle includes both expected variance and Bethe entropy terms.
-Evidence: `lib/ImplicitLayers.jl/test/device_arrays.jl`; details and limits are in
+Evidence: `parked/ImplicitLayers.jl/test/device_arrays.jl`; details and limits are in
 [[gradient_couplings]]. CPU primal/default arithmetic is retained.
 
 
@@ -226,7 +226,7 @@ implicit device coordinates are explicitly rejected.
 Native Enzyme/Mooncake replay probes and the divergence/metric interpretation
 are recorded with reproducers in LP-002's batch C section. Terminal score and
 straight-through restrictions stay as specified above. Tests are
-`lib/Mycelium.jl/test/graph_adjoint.jl` and `graph_adjoint_devices.jl`.
+`lib/MyceliumLearning.jl/test/graph_adjoint.jl` and `graph_adjoint_devices.jl`.
 
 
 The resumed batch C Mycelium suite passes 1,265 assertions, including 480 new

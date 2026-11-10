@@ -16,7 +16,7 @@
 # are not counted.
 #
 # Recorded in `vault/Control/Composing Optimisers.md` §4.3.
-# Run:  julia --project=. bench/bp_anderson.jl
+# Run:  julia --project=bench bench/bp_anderson.jl
 include("divider.jl")
 
 # runs the sweep with Anderson(m) (m = 0: the plain sweep); evaluations to an error < 1e-10, or,

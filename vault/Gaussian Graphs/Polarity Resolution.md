@@ -32,7 +32,7 @@ messages" below.
 
 ## Two independent legality checks
 
-A resolved polarity must pass **both**, and they are genuinely different things:
+A resolved polarity must pass **both**, and they are different things:
 
 | check | a property of | what it means |
 |---|---|---|
@@ -54,7 +54,7 @@ wiring is wrong, whereas `supports_polarity` returning `false` tells you only th
 rather than derived, and gives the reason: a polarity may be mathematically invertible but
 computationally hopeless, and only the author knows.
 
-There is one family where it is genuinely decidable — the algebraic one. There the condition is
+There is one family where it is decidable — the algebraic one. There the condition is
 a Jacobian rank ([[Inference as Root Finding]]), and in the differential case it is
 **structural identifiability**, computed by differential elimination
 ([[Differential Algebra and DAE Factors]]). So `supports_polarity` is a declaration in general
@@ -74,7 +74,7 @@ abstraction:
 ## Joint messages: the known limitation
 
 One channel is `Unobserved()` per message, so a factor always reports about one variable at a
-time. When a factor's inversion genuinely couples several unobserved channels, sending them
+time. When a factor's inversion couples several unobserved channels, sending them
 separately **discards the correlation between them** — which is precisely the mean-field
 laxness of [Remark 16](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens#parallel-composition-is-lax), reappearing at the message level and
 measured by the same mutual information.

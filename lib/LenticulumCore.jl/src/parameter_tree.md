@@ -30,7 +30,7 @@ coordinates in the existing flatten order. Optimiser state allocates only these
 coordinates. `stop_gradient` is identity on primal values with optional ForwardDiff
 and ChainRules zero-derivative rules. Shape/index computations are nondifferentiable.
 
-Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+Evidence: `lib/MyceliumLearning.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
 are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].
 
@@ -45,7 +45,7 @@ device tree retains a copied empty device leaf and its element type. Array views
 from parameter reconstruction use the same device path. No active numeric value
 is inspected to select the storage behavior.
 
-`lib/ImplicitLayers.jl/test/device_arrays.jl` checks nested empty branches and
+`parked/ImplicitLayers.jl/test/device_arrays.jl` checks nested empty branches and
 all-empty device arrays in Float32/Float64, including solved-state parameter
 gradients under ForwardDiff/Zygote against dense closed forms. Scalar parameter
 leaves remain unsupported on device vectors; use one-element arrays. The final

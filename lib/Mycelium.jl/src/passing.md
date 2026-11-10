@@ -167,7 +167,7 @@ static sweep count without damping; it returns no state/report cotangents. It do
 differentiate convergence decisions. The former statement that all coupling gradients
 are unimplemented is superseded by the separate parameter driver.
 
-Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+Evidence: `lib/MyceliumLearning.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
 are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].
 

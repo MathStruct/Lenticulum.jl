@@ -158,12 +158,12 @@ refactor and may describe code that is parked too (`parked/`). See [[Refactor 20
 
 - [[DEQ as a Relation]] — A deep equilibrium model is defined by a relation and shipped as a function.
 - [[NeuralODE as an Invertible Factor]] — A continuous ODE flow is invertible wherever its solution is unique in both directions.
-- [[The Equilibrium Family]] — Entry point for the second of the three [[Implicit Learners]] families, implemented in `lib/ImplicitLayers.jl`.
+- [[The Equilibrium Family]] — Entry point for the second of the three [[Implicit Learners]] families, implemented in `parked/ImplicitLayers.jl`.
 
 **Adversarial**
 
 - [[GANs as Two Factors]] — Can the GAN diagram be achieved with two factors?
-- [[Implicit Generative Models]] — Entry point for the adversarial family, implemented in `lib/Adversarial.jl`.
+- [[Implicit Generative Models]] — Entry point for the adversarial family, implemented in `parked/Adversarial.jl`.
 
 **Applications**
 

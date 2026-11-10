@@ -72,7 +72,7 @@ one in, so messages, free energies, cluster forms and `partial_sums` see the ful
 - `partial_sums` keeps a sum factor's output and refuses to move the output channel into a partial
   sum. This is not tested.
 - The same issue in other families (2026-11-04): unnormalised `ToricFactor`s on observed states
-  (now warned too; `lib/AlgebraicFactors.jl/test/lp022.jl`) and `DEQFactor`s trained by their
+  (now warned too; `parked/AlgebraicFactors.jl/test/lp022.jl`) and `DEQFactor`s trained by their
   residual energy with the state observed (not guarded). Every family is gone through in
   [[Why Learned Relations Do Not Collapse]].
 - A second fix (2026-11-05): `OverlayFactor(:rel => f; normalise = :y)` normalises a relation in its

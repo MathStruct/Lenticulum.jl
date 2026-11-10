@@ -13,7 +13,7 @@
 # sweeps by `infer!` to a message residual of 1e-11, at most 20 000.
 #
 # Recorded in `vault/Control/Composing Optimisers.md` §4.4.
-# Run:  julia --project=. bench/bp_grid.jl
+# Run:  julia --project=bench bench/bp_grid.jl
 include("divider.jl")
 using Random
 

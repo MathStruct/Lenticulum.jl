@@ -96,7 +96,7 @@ st = (prior = NamedTuple(), odo1 = NamedTuple(), odo2 = NamedTuple(),
 marg, report, st, store = infer!(g, tree_schedule(g), ps, st)
 ```
 
-and that is the whole program. `marg.x1`, `marg.x2`, `marg.x3` are
+and that is the program. `marg.x1`, `marg.x2`, `marg.x3` are
 `GaussianBelief`s; `marg.z` is the `DiracBelief` the clamp put there.
 
 ### The odometry factor is the Gaussian factor with $A = I$
@@ -152,7 +152,7 @@ $$
 with $G_\pi = e_1^\top$, $G_{\mathrm{odo}_k} = e_{k+1}^\top - e_k^\top$ and
 $G_{\mathrm{gps}} = e_3^\top$. That $\Lambda$ is the sparse Hessian a nonlinear factor-graph
 library builds by linearisation, and its tridiagonality *is* the chain structure written
-down — a loop closure is exactly what would put entries in the corners. Here it is dense and unapologetic, because being *obviously* right
+down — a loop closure is exactly what would put entries in the corners. Here it is dense, because being *obviously* right
 matters more than being fast in an oracle.
 
 $$
@@ -271,7 +271,7 @@ is the smallest example where it is visible.
 - **The odometry measurements are parameters.** $u_k$ sits in `ps` and
   `islearnable(::GaussianFactor)` is `true`, so a gradient step would happily *edit the
   odometry readings* to fit the GPS better. Nothing in the type system distinguishes "measured
-  input" from "learnable weight". That is the honest state of the library, not a design
+  input" from "learnable weight". That is the state of the library, not a design
   position, and it is the gap [[Everything is a Factor]] is pointing at when it says data
   should be factors: $u_k$ ought to be a clamped variable on a third channel, not an entry
   in `ps`.

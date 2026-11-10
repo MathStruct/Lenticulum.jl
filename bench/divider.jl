@@ -2,6 +2,7 @@
 # the message store written as one vector (scalar variables), and a schedule's fixed point. Shared by
 # the `bp_*.jl` benchmarks.
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, Printf
+using MyceliumLearning
 using LenticulumCore: GaussianBelief
 
 const Vs = 10.0

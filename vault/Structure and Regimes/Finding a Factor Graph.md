@@ -88,7 +88,7 @@ score can additionally favour or reject loops because of normaliser error.
 Run from the repository root:
 
 ```sh
-julia --project=. examples/gaussian_structure_search.jl
+julia --project=docs lib/Lenticulum.jl/examples/gaussian_structure_search.jl
 ```
 
 It lives in the top-level package's `examples/` because it needs both `GaussianFactor` /

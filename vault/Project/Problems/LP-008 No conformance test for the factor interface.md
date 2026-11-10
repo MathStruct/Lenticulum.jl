@@ -2,7 +2,7 @@
 
 > **Status: resolved (2026-10-27), for the declared exact, approximate-message and deliberately non-game domains below. The 2026-10-23 resolution named a function that did not exist.** Related: [[L-SPEC-001 The Factor Interface]], [GitHub issue #8](https://github.com/MathStruct/Lenticulum.jl/issues/8).
 
-> Sources: original to this vault; code: `test/factor_conformance.jl`, `test/game_composition.jl`, `test/conformance_capture.jl`; package `test/conformance.jl` files; `lib/Adversarial.jl/test/transport.jl`, `lib/AlgebraicFactors.jl/test/game_exact.jl`, `lib/VariationalDiffusion.jl/test/bound.jl`.
+> Sources: original to this vault; code: `lib/LenticulumCore.jl/test/support/factor_conformance.jl`, `test/game_composition.jl`, `lib/LenticulumCore.jl/test/support/conformance_capture.jl`; package `test/conformance.jl` files; `parked/Adversarial.jl/test/transport.jl`, `parked/AlgebraicFactors.jl/test/game_exact.jl`, `lib/VariationalDiffusion.jl/test/bound.jl`.
 >
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens).
 
@@ -12,7 +12,7 @@
 1. A conformance test: a function `check_factor(f, ps, st, samples)` in a test utility that runs every applicable part of [[L-SPEC-001 The Factor Interface]] (§1–§5) and the consistency conditions between them, called from each package's tests for each factor type.
 2. Keep per-factor tests and add the cross-checks by hand.
 
-**Resolution through 2026-10-25 (history).** The `review-argon` commits claimed option 1 (`check_factor_conformance`) but only added a loop over traits; the function did not exist ([[LP-013 Defects found in the review of master]]). Since bb3af9e9 it does, in `test/factor_conformance.jl`: for a factor and polarity it checks the testable parts of [[L-SPEC-001 The Factor Interface]] §1–§5 (traits, `invert` = `combine(π, likelihood_message)`, the pointwise energy and its scalarisation, game-level `free_energy` and `entropy` in `energyspace`). It runs over every supported polarity of `GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor`, `NonlinearFactor` and `LikelihoodFactor` (297 checks). Since 2026-10-25 the checker also has a direct-message path (`direct_message = true`, with independently computed site and posterior fixtures) for factors that implement `factor_message` without a lens; `AlgebraicFactors.ToricFactor` runs through it over every supported polarity at arities one to three. **Open as of 2026-10-25:** the factors of `Mycelium`, `ImplicitLayers`, `VariationalDiffusion` and `Adversarial` are not run through it yet.
+**Resolution through 2026-10-25 (history).** The `review-argon` commits claimed option 1 (`check_factor_conformance`) but only added a loop over traits; the function did not exist ([[LP-013 Defects found in the review of master]]). Since bb3af9e9 it does, in `lib/LenticulumCore.jl/test/support/factor_conformance.jl`: for a factor and polarity it checks the testable parts of [[L-SPEC-001 The Factor Interface]] §1–§5 (traits, `invert` = `combine(π, likelihood_message)`, the pointwise energy and its scalarisation, game-level `free_energy` and `entropy` in `energyspace`). It runs over every supported polarity of `GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor`, `NonlinearFactor` and `LikelihoodFactor` (297 checks). Since 2026-10-25 the checker also has a direct-message path (`direct_message = true`, with independently computed site and posterior fixtures) for factors that implement `factor_message` without a lens; `AlgebraicFactors.ToricFactor` runs through it over every supported polarity at arities one to three. **Open as of 2026-10-25:** the factors of `Mycelium`, `ImplicitLayers`, `VariationalDiffusion` and `Adversarial` are not run through it yet.
 
 ## 2026-10-27: exact-domain conformance and complete subtype audit
 
@@ -160,7 +160,7 @@ its restoration hook was removed before either build. No local working material 
 
 ## 2026-10-26 rollout (history)
 
-The single checker stays in `test/factor_conformance.jl` and is included by relative path
+The single checker stays in `lib/LenticulumCore.jl/test/support/factor_conformance.jl` and is included by relative path
 from each package. This is the least invasive reuse: test environments already have its
 libraries; Mycelium's test project only needs direct LuxCore/Random visibility. It adds
 nonempty reason-string opt-outs `pointwise_gap`, `game_gap`, `message_gap`, `polarity_gap`, plus `p=nothing`
@@ -237,11 +237,11 @@ those checks with two explicit games and the identity linking them.
 
 Source and test changes (abbreviated paths on a package line are relative to that package):
 
-- `test/factor_conformance.jl`
+- `lib/LenticulumCore.jl/test/support/factor_conformance.jl`
 - `lib/Mycelium.jl/src/factors.jl`, `test/Project.toml`, `test/runtests.jl`, `test/conformance.jl`
-- `lib/ImplicitLayers.jl/src/luxfactor.jl`, `src/deq.jl`, `test/runtests.jl`, `test/conformance.jl`
-- `lib/Adversarial.jl/src/generator.jl`, `src/ratio.jl`, `test/runtests.jl`, `test/conformance.jl`
-- `lib/AlgebraicFactors.jl/src/plucker.jl`, `test/runtests.jl`
+- `parked/ImplicitLayers.jl/src/luxfactor.jl`, `src/deq.jl`, `test/runtests.jl`, `test/conformance.jl`
+- `parked/Adversarial.jl/src/generator.jl`, `src/ratio.jl`, `test/runtests.jl`, `test/conformance.jl`
+- `parked/AlgebraicFactors.jl/src/plucker.jl`, `test/runtests.jl`
 - `lib/VariationalDiffusion.jl/test/runtests.jl`, `test/conformance.jl`
 - `lib/LenticulumCore.jl/test/runtests.jl`
 
@@ -267,7 +267,7 @@ run the full common game checker without exemptions in both polarities. Linear t
 `1/8` (DEQ) and `2` (zero flow) using `energy_jacobian` to form the Gaussian anchor precision.
 A quadratic DEQ checks cubic absolute energy error for the Gauss–Newton approximation.
 Matrix anchors, custom channel names, stopped solves, reverse-flow residuals and state
-threading have separate checks in `lib/ImplicitLayers.jl/test/conformance.jl`.
+threading have separate checks in `parked/ImplicitLayers.jl/test/conformance.jl`.
 
 All seven full package suites passed with no broken assertions, using the package commands
 above and their repository `test/runtests.jl` entry points:

@@ -168,7 +168,7 @@ closed-form state-dependent SciML endpoint tests with ForwardDiff, Zygote,
 Mooncake and runtime-activity Enzyme reverse. NeuralODE factors opt into
 `state_policy=:fixed` to hold incoming Lux state constant per solve and obtain
 returned state from one final endpoint evaluation. The factor validates its
-solver/backend combination before differentiation; see [ImplicitLayers](@ref implicitlayers) for tested solvers and the guarded Kvaerno3/InterpolatingAdjoint
+solver/backend combination before differentiation; see the parked `ImplicitLayers` package for tested solvers and the guarded Kvaerno3/InterpolatingAdjoint
 limit. This extends endpoint coverage without changing schedule derivatives.
 
 ## Graph schedule adjoints (LP-002 batch C)
@@ -225,7 +225,7 @@ scales with message dimension. Both methods also pay reference inference and
 functional store-copy costs; neither differentiates the reference iterations.
 Finite replay retains its sweep-dependent tape/copy cost.
 
-`lib/Mycelium.jl/test/graph_adjoint.jl` supplies dense Gaussian tree oracles,
+`lib/MyceliumLearning.jl/test/graph_adjoint.jl` supplies dense Gaussian tree oracles,
 reconverged loopy Bethe differences and unrolled convergence measurements.
 `graph_adjoint_devices.jl` tests the new replay with diagonal Gaussian JLArrays
 in Float32/Float64 and scalar indexing disabled; implicit device calls reject

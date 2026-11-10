@@ -1,6 +1,7 @@
 # Scaling and allocation behaviour of `infer!` on a linear-Gaussian chain.
-# Run:  julia --project=. bench/scaling.jl
+# Run:  julia --project=bench bench/scaling.jl
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, Printf
+using MyceliumLearning
 
 const Id = fill(1.0, 1, 1)
 const Q  = fill(0.25, 1, 1)

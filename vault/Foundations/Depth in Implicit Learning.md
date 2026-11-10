@@ -105,7 +105,7 @@ exponentially in width. Implicit learning has the identical trade with degree in
 
 ## 5. The real distinction: two things called depth
 
-Here is why the question is genuinely subtle rather than merely answerable.
+Here is why the question is subtle rather than merely answerable.
 
 In explicit deep learning the computation graph **is** the function. The forward pass, the
 hypothesis class and the architecture are one object, so "depth" means all three at once.
@@ -150,7 +150,7 @@ infinitely deep weight-tied network. So:
 > one into the other is exactly the move from a function to a relation.
 
 Depth and implicitness are two currencies for the same thing, and the DEQ is the exchange rate
-made explicit. Which suggests the honest slogan is not "implicit learning has no depth" but:
+made explicit. Which suggests the slogan is not "implicit learning has no depth" but:
 
 > **Implicit learning trades depth for latency of a different kind.** Explicit models pay in
 > layers; implicit models pay in solver iterations, in eliminated latents, or in degree.

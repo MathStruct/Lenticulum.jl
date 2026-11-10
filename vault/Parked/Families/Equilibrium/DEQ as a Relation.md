@@ -3,7 +3,7 @@
 > A deep equilibrium model is defined by a relation and shipped as a function. This note is
 > about the difference, and about what it costs to get the relation back.
 >
-> Implemented as `DEQFactor` in `lib/ImplicitLayers.jl/src/deq.jl`; see [[deq]].
+> Implemented as `DEQFactor` in `parked/ImplicitLayers.jl/src/deq.jl`; see [[deq]].
 
 > Sources: original to this vault (design and analysis; no single paper).
 >
@@ -105,7 +105,7 @@ And unlike [[The Diffusion Family]], which escaped automatic differentiation ent
 RED-Diff's stop-gradient, **there is no version of this that skips the Jacobian.** The IFT is
 the Jacobian.
 
-`lib/ImplicitLayers.jl` computes both Jacobians by dense finite differences and says plainly
+`parked/ImplicitLayers.jl` computes both Jacobians by dense finite differences and says plainly
 that this is a test-scale tool: $O(n)$ forward passes where a VJP would be $O(1)$. It exists
 so the IFT can be checked against $(I-W)^{-1}U$, not so it can be used.
 

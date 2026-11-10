@@ -1,12 +1,12 @@
 #design
 
-> **Status: partly implemented (2026-10-26): §0, §1.1–§1.7, §2.1–§2.3, §3(a,b), §4 and §5; §2.4 remains planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `lib/AlgebraicFactors.jl/src/toric.jl`, `fit.jl`, `grassmann.jl`, `plucker.jl`, `veronese.jl`, `polynomial.jl` and `polyfit.jl`, tested in `lib/AlgebraicFactors.jl/test/runtests.jl`. §2.3 also uses `lib/LenticulumCore.jl/src/energy.jl` and its core tests. Mycelium supplies the public `combine_with_overlap` rule shared by mixture pooling and homotopy branch weights.
+> **Status: partly implemented (2026-10-26): §0, §1.1–§1.7, §2.1–§2.3, §3(a,b), §4 and §5; §2.4 remains planned.** Originally planned on Daniel's request (2026-10-25, "Could you plan for that?"), following Gemini's suggestion to begin with toric models and the Grassmannian. Related: [[Toric Models as Factors]], [[Grassmann Mixing and Plücker Coordinates]], [[The Parameter is a Grassmannian]], [[Algebraic Implicit Learners]], [[Open Problems in Algebraic Implicit Learning]], [[L-SPEC-001 The Factor Interface]], [[L-SPEC-003 Exposed Parameters and Energy Channels]]. Code: `parked/AlgebraicFactors.jl/src/toric.jl`, `fit.jl`, `grassmann.jl`, `plucker.jl`, `veronese.jl`, `polynomial.jl` and `polyfit.jl`, tested in `parked/AlgebraicFactors.jl/test/runtests.jl`. §2.3 also uses `lib/LenticulumCore.jl/src/energy.jl` and its core tests. Mycelium supplies the public `combine_with_overlap` rule shared by mixture pooling and homotopy branch weights.
 
 ## Scope
 
 The first code for the algebraic family ([[Algebraic Implicit Learners]]) implements finite
 toric factors, Grassmannian parameter updates and forward Plücker transport; polynomial residuals, complete-data fitting and single-branch Gaussian messages are implemented. Gemini's review (Proposal 7 of `05_Architectural_Design_Proposals.md` in
-the review folder) sketches a whole package `lib/AlgebraicFactors.jl`; this specification orders
+the review folder) sketches a whole package `parked/AlgebraicFactors.jl`; this specification orders
 it so that the cases where everything is exact or cheap come first:
 
 1. toric factors ([[Toric Models as Factors]]): exact discrete factors with known implicit
@@ -35,7 +35,7 @@ binding when it is implemented with its tests.
 
 ## The proposed contract
 
-**§0 Package.** `lib/AlgebraicFactors.jl`, depending on LenticulumCore, Mycelium and
+**§0 Package.** `parked/AlgebraicFactors.jl`, depending on LenticulumCore, Mycelium and
 LinearAlgebra, plus LuxCore and Random for the parameter/state interface, until §4 adds a package extension. Tests and docs are wired like the other
 packages under `lib/`.
 
@@ -215,7 +215,7 @@ The 400-point Klein-quadric check now exercises §3(a)
 
 ## Checked by
 
-Implemented §0 and §1.1–§1.5: `lib/AlgebraicFactors.jl/test/runtests.jl` checks hand-written
+Implemented §0 and §1.1–§1.5: `parked/AlgebraicFactors.jl/test/runtests.jl` checks hand-written
 independence columns, state order, energies, messages with labelled/Dirac/categorical/latent
 inputs, local and game quantities, and five-variable trees with three toric factors against
 independent enumeration. The conformance checker
@@ -287,7 +287,7 @@ uses 200000 independent pairs, `Xoshiro(5104)`, at $r=4$: normalised mean error
 Singular rejection, rank $r-1$ for fixed nonzero input, and explicitly regularised
 messages are checked; no silent jitter or claim of exact Gaussian law is made.
 
-Implemented §3(a): `lib/AlgebraicFactors.jl/test/polynomial.jl`, included from
+Implemented §3(a): `parked/AlgebraicFactors.jl/test/polynomial.jl`, included from
 `runtests.jl`, checks basis counts/order/invalid inputs, homogeneous indices,
 hand-written monomials, exact rational evaluation, Float32 type preservation,
 Chebyshev cosine references and central Jacobian differences through degree six,
@@ -334,7 +334,7 @@ are checked too. No naive-reweighting counterexample is claimed.
 Still planned: §2.4 exposed manifold channels. §4 below adds an optional weak dependency;
 these earlier steps needed no LenticulumCore or Mycelium changes or dependencies.
 
-Implemented §3(b): `lib/AlgebraicFactors.jl/test/polynomial.jl` checks 144 seeded
+Implemented §3(b): `parked/AlgebraicFactors.jl/test/polynomial.jl` checks 144 seeded
 linear cases against the actual `LinearConstraintFactor`, with Θ=[−c B₁ … Bₙ],
 Q=JΣ_fJᵀ+λΘΘᵀ, all polarities, Dirac/Gaussian inputs and k below/equal/above
 target dimension. Maximum information/precision discrepancies are 3.00e−15 and
@@ -354,7 +354,7 @@ and exact run fixtures.
 
 Implemented §4:
 
-`lib/AlgebraicFactors.jl/test/homotopy.jl`, included from `runtests.jl`, checks
+`parked/AlgebraicFactors.jl/test/homotopy.jl`, included from `runtests.jl`, checks
 optional-dependency absence before loading HC, circle roots and posterior/site
 separation, the singular circle double root, cubic real counts on both sides of
 the discriminant, product conics, row gauges and Chebyshev conversion. It checks

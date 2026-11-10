@@ -103,7 +103,7 @@ by the parameter gradient driver, with mixed boundary cuts. Flooding/residual re
 currently throws rather than changing their update semantics. Ordinary scheduling is
 unchanged; the old statement that non-default annotations fail at construction is historical.
 
-Evidence: `lib/Mycelium.jl/test/gradient_couplings.jl` and
+Evidence: `lib/MyceliumLearning.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
 are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].
 

@@ -1,6 +1,6 @@
 # The E-step of factor analysis through Mycelium, one graph per point against one plate.
 # Recorded in `lib/Mycelium.jl/src/plates.md` ("Speed") and L-SPEC-006.
-# Run:  julia --project=. bench/plates.jl
+# Run:  julia --project=bench bench/plates.jl
 #
 # Model: z ~ N(0, I_k), x = W z + c + ε, ε ~ N(0, σ² I_d); the E-step is the posterior of every
 # z_i. Five ways: a graph built and run per point (as `fit_hybrid` did on `experiment-qm`), the
@@ -10,6 +10,7 @@
 # message passing only (a fresh store and one sweep); reading the posterior means out of the
 # stores is checked against the closed form outside the timings.
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, Printf
+using MyceliumLearning
 
 const D, K, σ2 = 3, 2, 0.7
 

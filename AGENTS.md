@@ -22,21 +22,33 @@ together, by pull request; `dev-danielb` is the maintainer's own branch, and a
 push to it deploys a preview of the site, the vault to `<site>/preview/` and the API docs to
 `<site>/api/preview/` (`docs/make.jl` chooses from the branch; `docs/site/README.md`).
 Working for the maintainer, use `dev-danielb`; working for anyone else, use a branch of your
-own and target `dev`. Do not commit, push or merge unless you are asked to.
+own and target `dev`. `refactor` (November 2026) holds the restructured repository until it is
+merged. Do not commit, push or merge unless you are asked to.
 
 ## The repository
 
+The library is built around three paths, and work on them comes first: **A** Gaussian factor
+graphs (exact inference, state estimation), **B** relation learners (a diffusion model queried in
+any direction), **C** structure and regimes (switching factors, EM, structure search).
+`vault/Project/Refactor 2026-11.md` says what is in the core, what is parked, what is verified
+and how parked work comes back.
+
 | where | what |
 |---|---|
-| `src/` | the top-level package `Lenticulum` (linear-Gaussian and constraint factors) |
-| `lib/*.jl/` | the other packages: `LenticulumCore`, `Mycelium` (graphs, messages, free energy), `VariationalDiffusion` (diffusion models as implicit learners), `ImplicitLayers`, `Adversarial`, `AlgebraicFactors` (exact discrete toric factors); each with its own `Project.toml`, `test/` and, for some, `examples/` and `ext/` |
-| `vault/` | the Obsidian vault: concept, design and application notes |
-| `lib/*/src/*.md`, `src/*.md` | implementation notes, one beside each source file |
+| `lib/LenticulumCore.jl/` | what a factor is: channels, polarities, energies, the belief types |
+| `lib/Mycelium.jl/` | inference: graphs, messages, schedules, plates, cluster nodes, the free energy |
+| `lib/MyceliumLearning.jl/` | learning: free-energy gradients, couplings, the graph adjoint, EM, the optimiser step |
+| `lib/Lenticulum.jl/` | the factors: linear-Gaussian, nonlinear, constraint, switching, regime, likelihood; M-steps; `examples/` |
+| `lib/VariationalDiffusion.jl/` | diffusion models as implicit learners |
+| `parked/` | `ImplicitLayers`, `Adversarial`, `AlgebraicFactors`, two tutorials and their docs pages: not in CI, not revised |
+| `vault/` | the Obsidian vault: `Foundations/`, one folder per path, `Design/`, `Project/`, `Research Questions/`, `Parked/` |
+| `lib/*/src/*.md` | implementation notes, one beside each source file |
 | `docs/` | Documenter pages, Literate tutorials (`docs/literate/`), the shared bibliography `docs/src/refs.bib`, and the Quartz build of the vault (`docs/site/`) |
-| `bench/` | benchmarks, each recorded in a note |
-| `meta/` | the author's local working material; untracked, never commit it |
+| `bench/` | benchmarks, each recorded in a note; `julia --project=bench bench/<name>.jl` |
 
-`vault/Start Here.md` gives the conventions; read it before writing a note.
+Each package has its own `Project.toml` and `test/`. Dependencies go one way:
+`LenticulumCore` ← `Mycelium` ← `MyceliumLearning` ← `Lenticulum`; `VariationalDiffusion` depends
+on the first two. `vault/Start Here.md` gives the conventions; read it before writing a note.
 
 ## Working conventions
 
@@ -44,14 +56,23 @@ own and target `dev`. Do not commit, push or merge unless you are asked to.
 `[sources]` paths:
 
 ```sh
-julia --project=lib/VariationalDiffusion.jl -e 'using Pkg; Pkg.test()'   # one package
-julia --project=. -e 'using Pkg; Pkg.test()'                              # the top-level package
+julia --project=lib/Lenticulum.jl -e 'using Pkg; Pkg.test()'             # one package
+julia --project=lib/VariationalDiffusion.jl -e 'using Pkg; Pkg.test()'
 ```
 
-The VariationalDiffusion suite takes about ten minutes. To iterate on one testset, run the
-file's header (everything before the outer `@testset`) plus that testset as a script with
-`--project=lib/VariationalDiffusion.jl/test`. Tests compare against closed forms (Gaussian
-mixtures, linear-Gaussian models) wherever one exists; keep it that way.
+Run times (2026-11-10, one machine): LenticulumCore 1 min, Mycelium 1 min, MyceliumLearning
+6 min, VariationalDiffusion 6 min, Lenticulum 14 min. To iterate on one testset, run the file's
+header (everything before the outer `@testset`) plus that testset as a script. Tests compare
+against closed forms (Gaussian mixtures, linear-Gaussian models, enumeration) wherever one
+exists; keep it that way.
+
+**A new factor type, or a new message path, comes with an oracle test on random instances.**
+The defects of the reviews so far sat where a feature was added without one
+(`lib/Lenticulum.jl/test/gaussian_oracle.jl` is the model: random trees against the dense joint
+solve). A known limit is recorded as `@test_broken`, not only in a note.
+
+**Say what you did not check.** A commit message or a note that reports results ends with what
+was not run or not read.
 
 **Implementation notes.** Something new in `lib/*/src/x.jl` gets or extends `x.md` beside it:
 the theory, the implementation, what it does not do, and the difficulties met on the way.
@@ -61,6 +82,10 @@ Numbers in a note come from a script in the repository (an example, a benchmark,
 exact theorem numbers, then `code:`) and `> Theory (CT-ML wiki):`. Display math has its `$$`
 fences on their own lines (the build refuses truncating blocks); write `t_{\min}`, not `t_\min`,
 for KaTeX. Wikilinks resolve by note name.
+
+**Checking notes.** `python3 docs/site/check_notes.py` lists wikilinks without a target, file paths in
+notes that do not exist, and source files without a note. Its wikilink hits on escaped pipes
+(`[[Name\|alias]]` in tables), `[[wikilinks]]` and the templates are false.
 
 **Citations.** Add the work to `docs/src/refs.bib` first, with metadata checked against arXiv or
 Crossref. Then:
@@ -89,8 +114,8 @@ KaTeX, the TikZ diagrams); Obsidian's rendering differs in places. Both builds m
   rejects it); cast constants to the element type of the input.
 - Indexing a device array with an index vector inside AD scalar-indexes; use broadcasting.
 - Device code is tested with JLArrays and `JLArrays.allowscalar(false)`. The Mycelium and
-  ImplicitLayers device files run only with `LENTICULUM_DEVICE_TESTS=true` (about 17 minutes);
-  run them before committing device-facing changes.
+  MyceliumLearning device files run only with `LENTICULUM_DEVICE_TESTS=true`; run them before
+  committing device-facing changes.
 - Since Julia 1.12 the main thread is in the `:interactive` pool; a busy task spawned there can
   starve it (`bench/jit_latency.jl`).
 

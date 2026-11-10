@@ -12,3 +12,8 @@ __pycache__/
 /meta/
 /lib/*/examples/*/Manifest.toml
 /docs/vault-build/
+/parked/*/Manifest.toml
+/parked/*/test/Manifest.toml
+/parked/*/test/*/Manifest.toml
+/parked/*/examples/*/Manifest.toml
+/bench/Manifest.toml

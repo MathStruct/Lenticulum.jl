@@ -3,7 +3,7 @@
 > **Status: closed (2026-10-26), option 2.** Found while checking `AlgebraicFactors.ToricFactor` ([[L-SPEC-004 Algebraic Factors Toric and Grassmannian]]). Related: [[free_energy]], [[toric]], [[L-SPEC-001 The Factor Interface]]. Code: `lib/Mycelium.jl/src/free_energy.jl` (`messages_into`, `factor_free_energies`), `lib/Mycelium.jl/src/factors.jl` (`PriorFactor`).
 
 > Sources: original analysis; code: `lib/Mycelium.jl/src/factors.jl`, `free_energy.jl`,
-> `lib/Mycelium.jl/test/runtests.jl`, `lib/AlgebraicFactors.jl/test/runtests.jl`.
+> `lib/Mycelium.jl/test/runtests.jl`, `parked/AlgebraicFactors.jl/test/runtests.jl`.
 >
 > Theory (CT-ML wiki): [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
@@ -34,7 +34,7 @@ are unaffected (the outgoing message is right), but the Bethe free energy is wro
 On a tree of `ToricFactor`s with a categorical `PriorFactor` on one leaf, the free energy
 matches $-\log Z$ by enumeration when the prior's edge is `Bidirectional()`, and differs by an
 amount of order one when it is `Emitting()`; the testset "tree BP and Bethe partition function"
-in `lib/AlgebraicFactors.jl/test/runtests.jl` records both (the second as `@test_broken`). A
+in `parked/AlgebraicFactors.jl/test/runtests.jl` records both (the second as `@test_broken`). A
 `DataFactor` on an `Emitting()` edge is not affected: its belief is a Dirac either way.
 
 Connecting a prior with `Emitting()` is the natural way to write it, and nothing warns.

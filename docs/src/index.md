@@ -48,20 +48,20 @@ inference is **message passing** rather than a forward pass. That is the whole d
 
 ## The packages
 
-The project is one umbrella package alongside six smaller ones. Most users need the top two rows.
+Five packages. Most users need `Lenticulum` (which brings the first three) or
+`VariationalDiffusion`.
 
 | package | what it gives you |
 |---|---|
 | [`LenticulumCore`](@ref lenticulumcore) | what a **factor** is: channels, polarities, beliefs, energies |
-| [`Mycelium`](@ref mycelium) | how factors are **wired and scheduled**: graphs, messages, free energy |
-| [`Lenticulum`](@ref lenticulum) | **linear-Gaussian**, nonlinear and likelihood factors, and linear constraints |
-| [`VariationalDiffusion`](@ref variationaldiffusion) | a **diffusion model** as a factor (VP-SDE, RED-Diff) |
-| [`ImplicitLayers`](@ref implicitlayers) | **DEQs and neural ODEs** as factors |
-| [`Adversarial`](@ref adversarial) | **implicit generative models** — generators and density ratios |
-| [`AlgebraicFactors`](@ref algebraicfactors) | **finite toric models** — exact discrete messages and free energy |
+| [`Mycelium`](@ref mycelium) | **inference**: graphs, messages, schedules, plates, cluster nodes, the free energy |
+| [`MyceliumLearning`](@ref myceliumlearning) | **learning**: free-energy gradients, expectation maximisation, the optimiser step |
+| [`Lenticulum`](@ref lenticulum) | the **factors**: linear-Gaussian, nonlinear, constraints, switching and regime factors, likelihoods |
+| [`VariationalDiffusion`](@ref variationaldiffusion) | a **diffusion model** as a relation (implicit inference, Laplace answers, sampling, RED-Diff, ProxDM) |
 
-`LenticulumCore` and `Mycelium` between them define the framework; the remaining packages are factor
-libraries built on it, and each can be ignored if you do not need that model family.
+Deep equilibrium models and neural ODEs (`ImplicitLayers`), implicit generative models
+(`Adversarial`) and finite toric models (`AlgebraicFactors`) are in the repository's `parked/`
+directory and are not part of this documentation.
 
 ## Installation
 
@@ -69,11 +69,8 @@ Not registered. From a clone:
 
 ```julia
 using Pkg
-Pkg.develop(path = "/path/to/Lenticulum.jl")
-
-# the factor libraries live under lib/ and are separate packages
-Pkg.develop(path = "/path/to/Lenticulum.jl/lib/Mycelium.jl")
-Pkg.develop(path = "/path/to/Lenticulum.jl/lib/ImplicitLayers.jl")
+Pkg.develop(path = "/path/to/Lenticulum.jl/lib/Lenticulum.jl")             # Gaussian graphs, structure and regimes
+Pkg.develop(path = "/path/to/Lenticulum.jl/lib/VariationalDiffusion.jl")   # relation learners
 ```
 
 Every package depends on **LuxCore**, not Lux, so wrapping a Lux model costs nothing and

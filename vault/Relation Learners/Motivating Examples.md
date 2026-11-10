@@ -4,7 +4,7 @@
 > built for.
 >
 > These are **motivating sketches, not case studies.** Nothing here has been implemented; the
-> library is a prototype ([[Related Julia Projects]] §10 is the honest state of it). The point
+> library is a prototype ([[Related Julia Projects]] §10 is the state of it). The point
 > is to show what kind of problem the machinery is aimed at.
 
 > Sources: original to this vault (design and analysis; no single paper).
@@ -105,7 +105,7 @@ output rather than a diagnostic.
 
 ## What would have to be true
 
-Being honest about the gap between the shape and the software:
+The gap between the shape and the software:
 
 - **Scale.** Climate and MD are $10^6$–$10^9$ variables. Metabolic networks and grids are
   $10^3$–$10^5$. SLAM and trading graphs are the ones the current implementation could

@@ -55,7 +55,7 @@ $$
 and these are required to be compatible with $\otimes$. In pictures, $\delta$ is a wire
 splitting and $\mu$ is two wires merging.
 
-### The spider theorem is the whole point
+### The spider theorem is the point
 
 The Frobenius axioms have a striking consequence: **any connected diagram built from
 $\mu,\eta,\delta,\epsilon$ with $m$ inputs and $n$ outputs equals the canonical
@@ -115,7 +115,7 @@ This is not decoration. It makes two pieces of `Mycelium` into named categorical
 
 `messages.md`'s claim that `combine` is "the hardest operation in the package" is, in this
 light, the statement that **the Frobenius multiplication is the hard part of being a
-hypergraph category** — and for most belief representations it is genuinely unavailable, which
+hypergraph category** — and for most belief representations it is unavailable, which
 is why `combine` throws for everything but Gaussians and Diracs.
 
 ## 3. Where the vault already was: compact closed $\subsetneq$ hypergraph
@@ -134,7 +134,7 @@ cup is a binary operation, and it does not give you a $d$-way merge for $d > 2$.
 | compact closed | a DAG with feedback loops (bend a wire) | [[Open Models and Latent Channels]] |
 | **hypergraph** | an arbitrary undirected (hyper)graph; $d$-way junctions | this note |
 
-So the honest reading of the vault's own history: [[Open Models and Latent Channels]] got Lenticulum out
+So the reading of the vault's own history: [[Open Models and Latent Channels]] got Lenticulum out
 of the DAG, and this note says that what it actually needs — because a factor graph variable
 has arbitrary degree — is one rung further up.
 
@@ -272,7 +272,7 @@ to its interface, presented as one factor.
 > (`combine`, and the improper beliefs it needs) and which absences are structural rather than
 > accidental.
 
-Specific gaps, stated honestly:
+Specific gaps:
 
 1. **`combine` is only a $\mu$ for Gaussians and Diracs.** For every other belief type it
    throws. So Lenticulum is a hypergraph category on the Gaussian fragment and a partial

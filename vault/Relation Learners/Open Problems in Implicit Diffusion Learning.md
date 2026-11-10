@@ -1,6 +1,6 @@
 #open-problem
 
-> The honest ledger of the implicit diffusion learner, in two parts. **Theoretical problems**
+> The ledger of the implicit diffusion learner, in two parts. **Theoretical problems**
 > are open questions or intrinsic limits: nobody knows the answer, or there is provably no free
 > lunch. **Missing implementation** is work whose design is known and that simply has not been
 > done. Each entry links to where it was observed or measured.

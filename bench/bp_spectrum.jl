@@ -9,7 +9,7 @@
 # μ² − (λ + β)μ + β. The predictions are checked against real runs.
 #
 # Recorded in `vault/Control/Composing Optimisers.md` §4 (experiment 1 of §5).
-# Run:  julia --project=. bench/bp_spectrum.jl
+# Run:  julia --project=bench bench/bp_spectrum.jl
 
 include("divider.jl")
 

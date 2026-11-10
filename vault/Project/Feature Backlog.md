@@ -11,6 +11,27 @@ Status: *planned* (specified or asked for, not started), *proposed* (an idea wit
 specification), *partial*, *done*. Priority: **high** (it limits something measured now),
 **medium**, **low**.
 
+## First, on the three paths (2026-11-10)
+
+After the refactor ([[Refactor 2026-11]]) work on the paths comes before everything below. The
+rows here are the ones that review asked for; rows further down that serve the same end are
+named.
+
+| feature | path | status | source | why |
+|---|---|---|---|---|
+| A belief type for linear relations: a Gaussian part and flat directions, with exact `combine`, marginalisation and pushforward through linear maps | A, C | proposed | [[LP-024 Findings of the review of 2026-11-09]]; [[constraint]] §4.1 | `_split_moments`, `_flat_message` and the `improper` flag are three partial representations of it; hard linear constraints, split/concatenate and affine factors (below, "Utility factors") become exact |
+| Skip the state update of a stateless factor in a sweep, then the integer-slot store (below, "Inference") | A | proposed | LP-024: 7.7, 25.8, 102 ms for the free energy of 601, 1 201, 2 401 factors | the cost is quadratic in the number of parameter keys |
+| One benchmark against RxInfer and the dense solve: a linear-Gaussian chain and a mixture of regressions, times and free energies | A, C | proposed | review of 2026-11-09 | no external baseline exists; `RxInfer` is already a test dependency |
+| Element type in, element type out: the graph free energy in the element type of its messages, with a test | A | partial: LenticulumCore (2026-11-10) | LP-024 | `Float32` graphs are promoted to `Float64` in the total |
+| A relative convergence criterion for Gaussian messages | A | proposed | LP-024 | the bound on natural parameters is absolute |
+| `noisefree_nodes` against `field_nodes` on the calibration benchmark; a default for the nodes | B | proposed | [[Implicit Diffusion Learners]] §5 (2026-11-10) | nodes with noise have twice the smoothing bias at a level |
+| A query report: converged, stable, the roots from other starts, the conditioning of the answer, on or off the relation | B | proposed | review of 2026-11-09; "Calibration remedies" below | every query returns a root today, and nothing says how far it can be trusted |
+| `density_lambda` as the default for non-point messages | B | partial: a warning (2026-11-10) | LP-024 | uncalibrated covariances reach the graph silently |
+| The exactness condition checked at run time: `propagate!` does not report "exact" for a tree on which a mixture is collapsed | A, C | proposed | [[Bethe Free Energy]] | the report is wrong for such graphs |
+| A structure-search driver and scores beyond BIC (below, "Structure search") | C | proposed | as below | every search is example code |
+| A shared solver layer (root finding, the implicit-function adjoint, one tolerance rule, one report) before `ImplicitLayers` returns | B | proposed | [[Refactor 2026-11]] | three implementations with three conventions |
+| `Aqua.jl` in every suite; a coverage report; a job that runs examples and benchmarks at small size | all | proposed | review of 2026-11-09 | the stale dependency and the missing compat bounds would have been caught |
+
 ## Inference and graph execution
 
 | feature | status | priority | source | why |
@@ -123,6 +144,14 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 | A benchmark of inference and learning problems for optimiser design: problems with exact or reference answers where today's methods are slow or fail, run by one script that records sweeps, wall time, error against the reference, the free energy reached, and failures. Candidates: the loopy divider (flooding: 326 sweeps to an error of 1e-10, and 97 224 with equal resistors; `bench/bp_spectrum.jl`, `bench/bp_schedules.jl`), a small discrete Ising grid (exact by junction tree), Gaussian grids near the walk-summability limit (measured 2026-11-09 for schedules and Anderson, `bench/bp_grid.jl`), the switch learning of `examples/structure_clusters.jl` (EM with SQUAREM, restarts, beam), the calibration benchmark, MNIST in both directions. Methods and compositions to compare: damping, SQUAREM, Anderson acceleration, heavy ball, mirror and accelerated mirror descent, Langevin, learned optimisers ([[The Regulariser and the Loss]] §3); the composition laws and an order of experiments are in [[Composing Optimisers]] | proposed | medium | Daniel, 2026-11-07 ("needs a serious learning problem to test various methods or compositions") | every optimiser idea so far was tried on one graph or one example; a fixed set of problems makes them comparable and keeps a method that wins on one from being adopted on that alone |
 | Benchmark regression tracking (scaling, allocations per message) | proposed | low | ChatGPT review §6 | |
 
+## Done (2026-11-10)
+
+The refactor ([[Refactor 2026-11]]): five packages (Mycelium split into inference and
+`MyceliumLearning`, the top-level package under `lib/`), three packages parked, the vault laid out
+by path. The corrections of [[LP-024 Findings of the review of 2026-11-09]]: partly flat Gaussian
+messages, freeze paths, composition with full noise, damping, one gradient driver rule, dimension
+checks, and four corrections to the theory notes.
+
 ## Done (2026-11-04/05)
 
 Overlaid ("mirrored") factors (2026-11-05): `Mycelium.OverlayFactor`, several factors with their own
@@ -140,7 +169,7 @@ LenticulumCore fails to instantiate. On 1.11 the Enzyme backend of the DEQ solve
 pass on 1.12, and every `Project.toml` now says `julia = "1.12"`.
 
 A warning for `DEQFactor`s trained by their residual with the state observed (2026-11-05; measured
-in `lib/ImplicitLayers.jl/test/lp022.jl`). Cluster forms and closed-form M-steps for
+in `parked/ImplicitLayers.jl/test/lp022.jl`). Cluster forms and closed-form M-steps for
 `GaussianFactor` and `GaussianPrior`, learned noise included (2026-11-05; `test/em.jl`).
 
 Cluster nodes with per-outcome coefficients and noise (`RegimeFactor`); flat directions in

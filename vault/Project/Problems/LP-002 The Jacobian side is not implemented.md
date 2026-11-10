@@ -2,7 +2,7 @@
 
 > **Status: batches A/B retained; batch C adds realised flooding/residual/damped replay and opt-in CPU message fixed-point adjoints (2026-10-28). Final batch C verification is recorded below. Native replay backends, device implicit coordinates and general divergence/metric sensitivities remain limited; full scope is in Remaining.** Related: [[energy]] §"Implementation difficulties" 6, [[Scalar and Multivariate Energy]] §6, [[L-ADR-0002 Energies are vectors, scalarised late]], [Fisher information metric (CT-ML wiki)](https://mathstruct.org/CategoryTheory-ML-Wiki/Fisher-Information-Metric).
 
-> Sources: original implementation; Montoison and Orban (2023), *Krylov.jl*, p. 1; Rackauckas et al. (2020), *Universal Differential Equations for Scientific Machine Learning* (SciMLSensitivity software citation); code: `lib/LenticulumCore.jl/src/energy.jl`, `lib/LenticulumCore.jl/test/parameter_ad.jl`, `lib/ImplicitLayers.jl/test/parameter_ad.jl`, `lib/ImplicitLayers.jl/test/lp002_followups.jl`, `lib/ImplicitLayers.jl/test/solver_numerics.jl`, `lib/Mycelium.jl/src/free_energy.jl`, `lib/ImplicitLayers.jl/test/device_arrays.jl`
+> Sources: original implementation; Montoison and Orban (2023), *Krylov.jl*, p. 1; Rackauckas et al. (2020), *Universal Differential Equations for Scientific Machine Learning* (SciMLSensitivity software citation); code: `lib/LenticulumCore.jl/src/energy.jl`, `lib/LenticulumCore.jl/test/parameter_ad.jl`, `parked/ImplicitLayers.jl/test/parameter_ad.jl`, `parked/ImplicitLayers.jl/test/lp002_followups.jl`, `parked/ImplicitLayers.jl/test/solver_numerics.jl`, `lib/Mycelium.jl/src/free_energy.jl`, `parked/ImplicitLayers.jl/test/device_arrays.jl`
 >
 > Bibliography: [[Bibliography#^montoison2023krylov|Montoison & Orban 2023]] · [[Bibliography#^rackauckas2020universal|Rackauckas et al. 2020]]
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
@@ -46,7 +46,7 @@ opts into endpoint scoring while preserving the default zero-energy wrapper.
   scalar gradients, parameter metrics and fixed state, with ForwardDiff, Zygote and FD.
 - `test/runtests.jl`, Gaussian parameter derivative test: analytic residual Jacobian,
   precision-weighted gradient and metric, using the FD reference.
-- `lib/ImplicitLayers.jl/test/parameter_ad.jl`: linear-cell solved-state parameter/input
+- `parked/ImplicitLayers.jl/test/parameter_ad.jl`: linear-cell solved-state parameter/input
   derivatives against $(I-W)^{-1}(\delta Wz^*+\delta Ux+\delta b)$ and FD; a nonzero
   downstream solve loss; discrete linear Euler/RK4 derivatives; stateful stages; Lux
   scoring; graph convergence to a generating ODE coefficient; Nesterov look-ahead.
@@ -159,27 +159,27 @@ in the local environment. `git diff --check` passed.
 - `docs/src/packages/implicitlayers.md`
 - `docs/src/packages/lenticulumcore.md`
 - `docs/src/packages/mycelium.md`
-- `lib/AlgebraicFactors.jl/src/polynomial.jl`
-- `lib/AlgebraicFactors.jl/src/polynomial.md`
-- `lib/AlgebraicFactors.jl/test/polynomial.jl`
-- `lib/ImplicitLayers.jl/Project.toml`
-- `lib/ImplicitLayers.jl/ext/ImplicitLayersChainRulesCoreExt.jl`
-- `lib/ImplicitLayers.jl/ext/ImplicitLayersDifferentiationInterfaceExt.jl`
-- `lib/ImplicitLayers.jl/ext/ImplicitLayersForwardDiffExt.jl`
-- `lib/ImplicitLayers.jl/src/ImplicitLayers.jl`
-- `lib/ImplicitLayers.jl/src/ImplicitLayers.md`
-- `lib/ImplicitLayers.jl/src/deq.jl`
-- `lib/ImplicitLayers.jl/src/deq.md`
-- `lib/ImplicitLayers.jl/src/flow.md`
-- `lib/ImplicitLayers.jl/src/luxfactor.jl`
-- `lib/ImplicitLayers.jl/src/luxfactor.md`
-- `lib/ImplicitLayers.jl/src/neuralode.jl`
-- `lib/ImplicitLayers.jl/src/neuralode.md`
-- `lib/ImplicitLayers.jl/src/solve.jl`
-- `lib/ImplicitLayers.jl/src/solve.md`
-- `lib/ImplicitLayers.jl/test/Project.toml`
-- `lib/ImplicitLayers.jl/test/parameter_ad.jl`
-- `lib/ImplicitLayers.jl/test/runtests.jl`
+- `parked/AlgebraicFactors.jl/src/polynomial.jl`
+- `parked/AlgebraicFactors.jl/src/polynomial.md`
+- `parked/AlgebraicFactors.jl/test/polynomial.jl`
+- `parked/ImplicitLayers.jl/Project.toml`
+- `parked/ImplicitLayers.jl/ext/ImplicitLayersChainRulesCoreExt.jl`
+- `parked/ImplicitLayers.jl/ext/ImplicitLayersDifferentiationInterfaceExt.jl`
+- `parked/ImplicitLayers.jl/ext/ImplicitLayersForwardDiffExt.jl`
+- `parked/ImplicitLayers.jl/src/ImplicitLayers.jl`
+- `parked/ImplicitLayers.jl/src/ImplicitLayers.md`
+- `parked/ImplicitLayers.jl/src/deq.jl`
+- `parked/ImplicitLayers.jl/src/deq.md`
+- `parked/ImplicitLayers.jl/src/flow.md`
+- `parked/ImplicitLayers.jl/src/luxfactor.jl`
+- `parked/ImplicitLayers.jl/src/luxfactor.md`
+- `parked/ImplicitLayers.jl/src/neuralode.jl`
+- `parked/ImplicitLayers.jl/src/neuralode.md`
+- `parked/ImplicitLayers.jl/src/solve.jl`
+- `parked/ImplicitLayers.jl/src/solve.md`
+- `parked/ImplicitLayers.jl/test/Project.toml`
+- `parked/ImplicitLayers.jl/test/parameter_ad.jl`
+- `parked/ImplicitLayers.jl/test/runtests.jl`
 - `lib/LenticulumCore.jl/Project.toml`
 - `lib/LenticulumCore.jl/ext/LenticulumCoreDifferentiationInterfaceExt.jl`
 - `lib/LenticulumCore.jl/src/LenticulumCore.jl`
@@ -204,7 +204,7 @@ in the local environment. `git diff --check` passed.
 
 ## SciML sensitivities and matrix-free IFT validation (2026-10-26)
 
-Julia 1.13.1, CPU. `lib/ImplicitLayers.jl/test/lp002_followups.jl` supplies
+Julia 1.13.1, CPU. `parked/ImplicitLayers.jl/test/lp002_followups.jl` supplies
 closed-form and finite-difference oracles for both follow-ups. Final full runs use
 `julia --project=<package> -e 'using Pkg; @time Pkg.test()'`; counts sum the
 top-level test summaries, and times include test startup and compilation:
@@ -355,7 +355,7 @@ Krylov conventions were checked against its installed `gmres.jl` documentation.
   ChainRules reverse pullbacks get clear `ArgumentError`s. Arbitrary native
   Enzyme/Mooncake tape nesting is not a supported second-order API.
 
-`lib/ImplicitLayers.jl/test/solver_numerics.jl` is the reproducible evidence:
+`parked/ImplicitLayers.jl/test/solver_numerics.jl` is the reproducible evidence:
 full Broyden traces and allocation scaling; both existing linear hard cases;
 reverse-input linear/nonlinear closed forms, active warm starts, fixed state,
 singular/nonconverged errors and reference differences; ill-conditioned diagonal
@@ -374,20 +374,20 @@ continues to track SciML, graph and metric work separately.
 
 Files changed in the solver numerics group:
 
-- `lib/ImplicitLayers.jl/src/solve.jl`, `solve.md`: compact primal, preconditioner API,
+- `parked/ImplicitLayers.jl/src/solve.jl`, `solve.md`: compact primal, preconditioner API,
   convergence and storage limits, derivations.
-- `lib/ImplicitLayers.jl/src/deq.jl`, `deq.md`: reverse-input problem adapter,
+- `parked/ImplicitLayers.jl/src/deq.jl`, `deq.md`: reverse-input problem adapter,
   dedicated HVP entry point, polarity/state contract and second-order theory.
-- `lib/ImplicitLayers.jl/src/ImplicitLayers.jl`, `ImplicitLayers.md`: exports and tables;
+- `parked/ImplicitLayers.jl/src/ImplicitLayers.jl`, `ImplicitLayers.md`: exports and tables;
   the module note also corrects stale claims about missing SciMLSensitivity support.
-- `lib/ImplicitLayers.jl/ext/ImplicitLayersKrylovExt.jl`: preconditioners and diagnostics.
-- `lib/ImplicitLayers.jl/ext/ImplicitLayersForwardDiffExt.jl`: second-order adjoint,
+- `parked/ImplicitLayers.jl/ext/ImplicitLayersKrylovExt.jl`: preconditioners and diagnostics.
+- `parked/ImplicitLayers.jl/ext/ImplicitLayersForwardDiffExt.jl`: second-order adjoint,
   nested-primitive guard.
-- `lib/ImplicitLayers.jl/ext/ImplicitLayersChainRulesCoreExt.jl`: explicit nested
+- `parked/ImplicitLayers.jl/ext/ImplicitLayersChainRulesCoreExt.jl`: explicit nested
   reverse guard, preserving the first-order pullback calculation.
-- `lib/ImplicitLayers.jl/ext/ImplicitLayersDifferentiationInterfaceExt.jl`: error messages
+- `parked/ImplicitLayers.jl/ext/ImplicitLayersDifferentiationInterfaceExt.jl`: error messages
   cover both solve polarities. Native Enzyme/Mooncake rules are reused unchanged.
-- `lib/ImplicitLayers.jl/test/solver_numerics.jl`, `test/runtests.jl`: closed forms,
+- `parked/ImplicitLayers.jl/test/solver_numerics.jl`, `test/runtests.jl`: closed forms,
   reference differences, iteration/allocation measurements and suite inclusion.
 - `docs/src/packages/implicitlayers.md`, this note and `Problem Log.md`: public API,
   status, evidence and remaining work.
@@ -582,32 +582,32 @@ not general backend nesting or scalable second-order claims.
 
 - `docs/src/packages/mycelium.md`
 - `docs/src/packages/implicitlayers.md`
-- `lib/ImplicitLayers.jl/Project.toml`
-- `lib/ImplicitLayers.jl/examples/lp002_enzyme_limits.jl`
-- `lib/ImplicitLayers.jl/examples/lp002_sciml_adjoint_limit.jl`
-- `lib/ImplicitLayers.jl/ext/ImplicitLayersChainRulesCoreExt.jl`
-- `lib/ImplicitLayers.jl/ext/ImplicitLayersDifferentiationInterfaceExt.jl`
-- `lib/ImplicitLayers.jl/ext/ImplicitLayersEnzymeCoreActivityExt.jl`
-- `lib/ImplicitLayers.jl/ext/ImplicitLayersEnzymeCoreExt.jl`
-- `lib/ImplicitLayers.jl/ext/ImplicitLayersForwardDiffExt.jl`
-- `lib/ImplicitLayers.jl/ext/ImplicitLayersKrylovExt.jl`
-- `lib/ImplicitLayers.jl/ext/ImplicitLayersMooncakeExt.jl`
-- `lib/ImplicitLayers.jl/ext/ImplicitLayersSDIRKSensitivityExt.jl`
-- `lib/ImplicitLayers.jl/ext/ImplicitLayersSciMLSensitivityExt.jl`
-- `lib/ImplicitLayers.jl/src/ImplicitLayers.jl`
-- `lib/ImplicitLayers.jl/src/ImplicitLayers.md`
-- `lib/ImplicitLayers.jl/src/deq.jl`
-- `lib/ImplicitLayers.jl/src/deq.md`
-- `lib/ImplicitLayers.jl/src/flow.jl`
-- `lib/ImplicitLayers.jl/src/flow.md`
-- `lib/ImplicitLayers.jl/src/neuralode.jl`
-- `lib/ImplicitLayers.jl/src/neuralode.md`
-- `lib/ImplicitLayers.jl/src/solve.jl`
-- `lib/ImplicitLayers.jl/src/solve.md`
-- `lib/ImplicitLayers.jl/test/Project.toml`
-- `lib/ImplicitLayers.jl/test/lp002_batch_a.jl`
-- `lib/ImplicitLayers.jl/test/runtests.jl`
-- `lib/Mycelium.jl/src/gradient_couplings.md`
+- `parked/ImplicitLayers.jl/Project.toml`
+- `parked/ImplicitLayers.jl/examples/lp002_enzyme_limits.jl`
+- `parked/ImplicitLayers.jl/examples/lp002_sciml_adjoint_limit.jl`
+- `parked/ImplicitLayers.jl/ext/ImplicitLayersChainRulesCoreExt.jl`
+- `parked/ImplicitLayers.jl/ext/ImplicitLayersDifferentiationInterfaceExt.jl`
+- `parked/ImplicitLayers.jl/ext/ImplicitLayersEnzymeCoreActivityExt.jl`
+- `parked/ImplicitLayers.jl/ext/ImplicitLayersEnzymeCoreExt.jl`
+- `parked/ImplicitLayers.jl/ext/ImplicitLayersForwardDiffExt.jl`
+- `parked/ImplicitLayers.jl/ext/ImplicitLayersKrylovExt.jl`
+- `parked/ImplicitLayers.jl/ext/ImplicitLayersMooncakeExt.jl`
+- `parked/ImplicitLayers.jl/ext/ImplicitLayersSDIRKSensitivityExt.jl`
+- `parked/ImplicitLayers.jl/ext/ImplicitLayersSciMLSensitivityExt.jl`
+- `parked/ImplicitLayers.jl/src/ImplicitLayers.jl`
+- `parked/ImplicitLayers.jl/src/ImplicitLayers.md`
+- `parked/ImplicitLayers.jl/src/deq.jl`
+- `parked/ImplicitLayers.jl/src/deq.md`
+- `parked/ImplicitLayers.jl/src/flow.jl`
+- `parked/ImplicitLayers.jl/src/flow.md`
+- `parked/ImplicitLayers.jl/src/neuralode.jl`
+- `parked/ImplicitLayers.jl/src/neuralode.md`
+- `parked/ImplicitLayers.jl/src/solve.jl`
+- `parked/ImplicitLayers.jl/src/solve.md`
+- `parked/ImplicitLayers.jl/test/Project.toml`
+- `parked/ImplicitLayers.jl/test/lp002_batch_a.jl`
+- `parked/ImplicitLayers.jl/test/runtests.jl`
+- `lib/MyceliumLearning.jl/src/gradient_couplings.md`
 - `vault/Project/Problems/LP-002 The Jacobian side is not implemented.md`
 - `vault/Project/Problems/LP-011 Gradient couplings and isfrozen are declared but unused.md`
 - `vault/Project/Problems/Problem Log.md`
@@ -665,7 +665,7 @@ suite summary, diagnostics and the disposable Quartz copy are under
 
 ## Batch B: device-array coverage (2026-10-27)
 
-`lib/ImplicitLayers.jl/test/device_arrays.jl` is the reproducible evidence, using
+`parked/ImplicitLayers.jl/test/device_arrays.jl` is the reproducible evidence, using
 JLArrays with `allowscalar(false)` throughout, Float32 and Float64. No hardware
 GPU is available. GPUArraysCore weak extensions carry storage-specific behavior;
 no new public API or mandatory GPU dependency is added. CPU defaults and primal
@@ -771,11 +771,11 @@ performance measurements.
 
 ### Batch B files
 
-- Optional extensions: `lib/ImplicitLayers.jl/ext/ImplicitLayersGPUArraysCoreExt.jl`;
+- Optional extensions: `parked/ImplicitLayers.jl/ext/ImplicitLayersGPUArraysCoreExt.jl`;
   `lib/LenticulumCore.jl/ext/LenticulumCoreGPUArraysCoreExt.jl`,
   `LenticulumCoreGPUArraysCoreDIExt.jl`, `LenticulumCoreGPUArraysCoreChainRulesExt.jl`;
   `lib/Mycelium.jl/ext/MyceliumGPUArraysCoreExt.jl`.
-- Implicit primitives: `lib/ImplicitLayers.jl/src/solve.jl`, `deq.jl`, `flow.jl`,
+- Implicit primitives: `parked/ImplicitLayers.jl/src/solve.jl`, `deq.jl`, `flow.jl`,
   `neuralode.jl`; `ext/ImplicitLayersChainRulesCoreExt.jl`,
   `ImplicitLayersDifferentiationInterfaceExt.jl`, `ImplicitLayersForwardDiffExt.jl`,
   `ImplicitLayersKrylovExt.jl`; corresponding implementation notes and module note.
@@ -785,7 +785,7 @@ performance measurements.
   `gradient_couplings.jl`, `graph.jl`; their notes and `factors.md`;
   `ext/MyceliumChainRulesCoreExt.jl`.
 - Environments/tests: the three packages' `Project.toml` files;
-  `lib/ImplicitLayers.jl/test/Project.toml`, `runtests.jl`, `device_arrays.jl`.
+  `parked/ImplicitLayers.jl/test/Project.toml`, `runtests.jl`, `device_arrays.jl`.
 - Top-level replay adapters: `src/gaussian.jl`, `composition.jl` and their notes
   thread the new constant backend context through existing Gaussian message rules.
 - `lib/VariationalDiffusion.jl/test/runtests.jl`: clarify that JLArrays emulation
@@ -1022,7 +1022,7 @@ spectral SPD validation. An outer `ad` does not replace that inner algorithm.
 Gauss–Newton intentionally freezes the metric and is unchanged. Mixed residual
 partials, a checked rank/acceptance policy and a functional/analytic localiser
 would be needed for a general AD contract. The independent probe
-`lib/ImplicitLayers.jl/examples/lp002_metric_divergence_limits.jl` uses
+`parked/ImplicitLayers.jl/examples/lp002_metric_divergence_limits.jl` uses
 $r=a y^2-b$ and $(a y^2-b)^2/(8a^2y^2)$, quadratic-field trace $2a\sum u_j$, and
 linear integrated trace $naT$. Its measured observations and backend replay
 probes are recorded with the final validation below; these items are documented
@@ -1030,9 +1030,9 @@ precisely rather than declared implemented by endpoint tests.
 
 ### Batch C files
 
-- Graph source/API: `lib/Mycelium.jl/src/graph_adjoint.jl`,
+- Graph source/API: `lib/MyceliumLearning.jl/src/graph_adjoint.jl`,
   `gradient_couplings.jl`, `schedules.jl` (docstrings), `passing.jl`, `free_energy.jl`, `Mycelium.jl`;
-  `ext/MyceliumKrylovExt.jl`, `MyceliumChainRulesCoreExt.jl`,
+  `ext/MyceliumLearningKrylovExt.jl`, `MyceliumChainRulesCoreExt.jl`,
   `MyceliumGPUArraysCoreExt.jl`; package and test `Project.toml`.
 - Tests/reproducers: Mycelium `test/graph_adjoint.jl`, `graph_adjoint_devices.jl`,
   `gradient_couplings.jl`, `runtests.jl`, `examples/lp002_replay_backends.jl`;
@@ -1054,8 +1054,8 @@ paper citation or contributor metadata is introduced.
 
 Julia 1.13.1, Enzyme 0.13.216, Mooncake 0.5.65, ForwardDiff 1.4.6,
 Zygote 0.7.14. The repository reproducer
-`lib/Mycelium.jl/examples/lp002_replay_backends.jl` deliberately bypasses the
-public backend guard. Run it with `--project=lib/ImplicitLayers.jl/test`, selecting
+`lib/MyceliumLearning.jl/examples/lp002_replay_backends.jl` deliberately bypasses the
+public backend guard. Run it with `--project=parked/ImplicitLayers.jl/test`, selecting
 `forward`, `reverse` or `mooncake`; append `gaussian` for the Gaussian case.
 Both Enzyme modes use runtime activity and `function_annotation=Enzyme.Const`.
 
@@ -1070,7 +1070,7 @@ Both Enzyme modes use runtime activity and `function_annotation=Enzyme.Const`.
   does not establish Gaussian Bethe or general graph support, so the public
   native-backend guard is retained. No new backend is advertised.
 
-`lib/ImplicitLayers.jl/examples/lp002_metric_divergence_limits.jl` directly probes
+`parked/ImplicitLayers.jl/examples/lp002_metric_divergence_limits.jl` directly probes
 the existing numerical programs. The references differentiate independent analytic
 formulas. Euclidean parameter-gradient errors in this run are:
 
@@ -1267,8 +1267,8 @@ which suggests an uninitialised shadow of the product, the family of Enzyme.jl#3
 
 ## Device tests opt-in; review of batches A–C (2026-10-28, Claude)
 
-Since commit 29cc5bdd, `lib/Mycelium.jl/test/graph_adjoint_devices.jl` and
-`lib/ImplicitLayers.jl/test/device_arrays.jl` run only with `LENTICULUM_DEVICE_TESTS=true`.
+Since commit 29cc5bdd, `lib/MyceliumLearning.jl/test/graph_adjoint_devices.jl` and
+`parked/ImplicitLayers.jl/test/device_arrays.jl` run only with `LENTICULUM_DEVICE_TESTS=true`.
 In the 2026-10-28 run they took about 17 minutes together. The suite counts and times above
 (25,857 assertions; Mycelium 1,265 in 1367 s) were measured with them included, so a
 default `Pkg.test()` now runs fewer assertions.

@@ -1,4 +1,4 @@
-include(joinpath(@__DIR__, "../../../test/factor_conformance.jl"))
+include(joinpath(@__DIR__, "../../LenticulumCore.jl/test/support/factor_conformance.jl"))
 @testset "Diffusion factor partial conformance" begin
     nt = (;)
     # Isotropic N(0,I), one fixed noise-free node: g(z)=c*z, c=λ*σ².

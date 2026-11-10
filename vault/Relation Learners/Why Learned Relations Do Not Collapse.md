@@ -7,7 +7,7 @@
 > comparison. This note goes through every learnable factor family, says which of them are safe,
 > which are guarded, and lists the options. Since 2026-11-05 every collapse found is at least warned.
 
-> Sources: LeCun, Chopra, Hadsell, Ranzato & Huang, *A Tutorial on Energy-Based Learning*, 2006, §2 (loss functionals) and §5 (the energy loss and flat energy surfaces); original analysis of this repository's factors. code: `src/constraint.jl` (`_coeffs`, `output`), `src/regime.jl`, `src/m_steps.jl`, `lib/Mycelium.jl/src/free_energy.jl` (`learns_unnormalised`), `lib/AlgebraicFactors.jl/src/toric.jl`, `lib/AlgebraicFactors.jl/src/polynomial.jl`, `lib/ImplicitLayers.jl/src/deq.jl`; tests: `test/lp022.jl`, `lib/AlgebraicFactors.jl/test/lp022.jl`, `test/learnable_noise.jl`
+> Sources: LeCun, Chopra, Hadsell, Ranzato & Huang, *A Tutorial on Energy-Based Learning*, 2006, §2 (loss functionals) and §5 (the energy loss and flat energy surfaces); original analysis of this repository's factors. code: `src/constraint.jl` (`_coeffs`, `output`), `src/regime.jl`, `src/m_steps.jl`, `lib/Mycelium.jl/src/free_energy.jl` (`learns_unnormalised`), `parked/AlgebraicFactors.jl/src/toric.jl`, `parked/AlgebraicFactors.jl/src/polynomial.jl`, `parked/ImplicitLayers.jl/src/deq.jl`; tests: `test/lp022.jl`, `parked/AlgebraicFactors.jl/test/lp022.jl`, `test/learnable_noise.jl`
 >
 > Bibliography: [[Bibliography#^lecun2006tutorial|LeCun et al. 2006]]
 >
@@ -105,7 +105,7 @@ constrained M-step.
 ### Toric factors
 
 `ToricFactor` is the log-linear potential $\exp(\eta^\top a(x))$, unnormalised by default. On observed states
-its energy $-\eta^\top a(x)$ has no lower bound. Measured in `lib/AlgebraicFactors.jl/test/lp022.jl` (two
+its energy $-\eta^\top a(x)$ has no lower bound. Measured in `parked/AlgebraicFactors.jl/test/lp022.jl` (two
 binary variables observed, $\eta = t\, a(x_{\text{obs}})$): $F = -3.34, -30.0, -300.0$ for $t = 1, 10, 100$. With
 `normalised = true` the log partition is included and $F = -\log p(x_{\text{obs}}) \ge 0$; it is 0.0 there, the
 single observation fitted perfectly. The gradient shows the same thing (`toric.md`):
@@ -129,7 +129,7 @@ points, a nonzero polynomial can vanish on all of them. That is a choice of degr
   both observed and the energy used as a training objective (`free_energy_gradient` scores fixed
   incoming endpoints, `deq.md` §4.5), a cell with $g(z, x) = z$ puts every pair on the relation. It is a
   collapse of kind (1), because the coefficient of $z$ is not fixed: $z$ appears inside $g$. Measured in
-  `lib/ImplicitLayers.jl/test/lp022.jl` (50 pairs of $z = 2x + 0.3 + 0.1\varepsilon$, a linear cell
+  `parked/ImplicitLayers.jl/test/lp022.jl` (50 pairs of $z = 2x + 0.3 + 0.1\varepsilon$, a linear cell
   $g = Wz + Ux + b$): the generating relation has $F = 0.237$, the identity cell ($W = 1$, $U = b = 0$) $F = 0$, and
   at the generating relation the gradient in $W$ is $-\sum_i r_i z_i = 0.62$, so descent moves $W$ towards 1. Since
   2026-11-05 `learns_unnormalised(::DEQFactor, observed)` makes `free_energy_gradient` warn when the

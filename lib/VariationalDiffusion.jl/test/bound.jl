@@ -1,4 +1,4 @@
-include(joinpath(@__DIR__, "../../../test/conformance_capture.jl"))
+include(joinpath(@__DIR__, "../../LenticulumCore.jl/test/support/conformance_capture.jl"))
 
 @testset "LP-009 diffusion ELBO: bounds and exact Gaussian score" begin
     sched = VPSDE(βmin=0.3,βmax=3.0)

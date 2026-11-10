@@ -10,6 +10,7 @@
 # closed form. What Lenticulum cannot do yet for real robots is listed at the end.
 
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, Random, Printf
+using MyceliumLearning
 using CairoMakie
 using Mycelium: connect!                       # Makie exports a `connect!` too; we mean the graph one
 CairoMakie.activate!(type = "png") #hide
