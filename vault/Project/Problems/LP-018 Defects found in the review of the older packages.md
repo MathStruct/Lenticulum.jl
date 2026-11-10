@@ -6,22 +6,22 @@
 
 Code defects, most severe first:
 
-1. **Poisson predictive free energy can hang** (`src/likelihood.jl`, `_poisson_entropy`). The loop stops only when `1 - mass < 1e-14`, so termination depends on the rounding of the accumulated mass. At $\lambda = 500$ (`x = log(500)`, `LikelihoodFactor(PoissonLikelihood(), 1)`, no observation) the mass stalls at `0.9999999999998282`. Once the later terms have underflowed, the loop never returns; a 60-second timeout killed Claude's rerun. The expected entropy is ≈ 4.5260757487. The bivariate `_conditional_entropy` has the same stopping rule and doubles `N` each time round, so it would allocate ever larger arrays instead.
+1. **Poisson predictive free energy can hang** (`lib/Lenticulum.jl/src/likelihood.jl`, `_poisson_entropy`). The loop stops only when `1 - mass < 1e-14`, so termination depends on the rounding of the accumulated mass. At $\lambda = 500$ (`x = log(500)`, `LikelihoodFactor(PoissonLikelihood(), 1)`, no observation) the mass stalls at `0.9999999999998282`. Once the later terms have underflowed, the loop never returns; a 60-second timeout killed Claude's rerun. The expected entropy is ≈ 4.5260757487. The bivariate `_conditional_entropy` has the same stopping rule and doubles `N` each time round, so it would allocate ever larger arrays instead.
 2. **RED-Diff calibration omits the time-distribution normalisation** (`lib/VariationalDiffusion.jl/src/reddiff.jl`, `calibrate_lambda`). `regulariser_gradient` averages over $t \sim U[t_{\min}, 1]$, so the shrinkage is $\kappa = \frac{\lambda}{1 - t_{\min}}\int_{t_{\min}}^1 \frac{\sigma_t^2}{\alpha_t^2 v_0 + \sigma_t^2}\,dt$, not the integral alone. The returned $\lambda$ is too large by the factor $1/(1 - t_{\min})$ (direction corrected during resolution). That is 0.1% at the default `tmin = 1e-3`; at `tmin = 0.5` the gradient doubles (`2x` instead of `x`), and a unit-Gaussian posterior moves from 1/2 to 1/3. The quadrature reference in the tests repeats the missing factor.
 3. **Energy-network Jacobian blocks use the first column's noise scale** (`energy_network.jl`, `epsilon_jacobian_block` via `_sigma_rows`, which reads `t[owner[idx], 1]`). It scales the weighted sum of Hessians by one σ per row, instead of weighting each column's Hessian by its own σ. Test case: $E(x) = \|x\|^2/2$, times `[0.1 0.2 0.3; 0.4 0.5 0.6]`, weights `[0.2, 0.3, 0.5]`. The diagonal comes out as `(0.32205, 0.89692)` against `(0.62824, 0.96069)`. `ImplicitDiffusion` passes per-node times here, so the implicit solve can reach this code.
 4. **The generic batched input VJP passes the whole time matrix to each column** (`analytic.jl`). For $\varepsilon(X, T) = X \odot T$ with two noise blocks and three columns it throws `DimensionMismatch: times of size (2, 3) for 2 blocks and 1 columns`; the expected VJP is $T$. A scalar time fails too, after expansion.
 5. **Pointwise energy ignores violated hard clamps** (`factor.jl`, `LenticulumCore.energy(::DiffusionFactor, …)`). With `(x = Observed(), y = Unobserved())`, reference `[0, 0]` and state `[1, 0]`, it returns `clamp = 0` for a violated hard coordinate. Finite precisions give costs that grow without bound as the precision increases, but an infinite precision gives zero.
 6. **`MixtureProx` can return a strict local maximum** (`proxdm.jl`, `proximal(::MixtureProx, …)`). The residual test runs before any curvature check. Equal mixture means `[-2, 2]`, width 0.2, `v = 0`, `t = 0`, `λ = 1`: it returns `u = 0`, with objective 49.3095 and second derivative −2474. At `u ≈ 1.923` the objective is 1.9257. The docstring promises "the local minimiser reached from `v`". The failure needs a stationary starting point, so it is an edge case.
-7. **Constraint and nonlinear constructors accept invalid noise covariances** (`src/constraint.jl`, `src/nonlinear.jl`). They test `isposdef(Symmetric(Q))`, which reads only one triangle. So `[1 0.2; 10 1]` is accepted, although its symmetric part has eigenvalues −4.1 and 6.1. A residual of dimension 2 also accepts `noise = [1.0]`, which leaves a one-dimensional energy space. `GaussianFactor` validates both shape and symmetry.
-8. **Narrow ordinal categories lose all precision** (`src/likelihood.jl`, `OrdinalProbitLikelihood`). $\Phi(b) - \Phi(a)$ cancels. Cutpoints `[-1e-20, 1e-20]`, category 2, predictor 0 give log-likelihood `-Inf` with NaN derivatives; the true value is $\log(2\cdot10^{-20}) - \tfrac12\log 2\pi = -46.2775$. Narrow intervals far in a tail fail the same way.
-9. **Finite particle weights can overflow during normalisation** (`parked/Adversarial.jl/src/ratio.jl`, `src/beliefs.jl`). Particles `{1, 3}` with weights `[1e308, 1e308]` give mean 0, covariance 0 and ESS `Inf`, instead of 2, 1 and 2. The ratio energy raises a false disjoint-support error, and `moment_match` reports a singular covariance. Dividing by the largest weight first avoids all three.
+7. **Constraint and nonlinear constructors accept invalid noise covariances** (`lib/Lenticulum.jl/src/constraint.jl`, `lib/Lenticulum.jl/src/nonlinear.jl`). They test `isposdef(Symmetric(Q))`, which reads only one triangle. So `[1 0.2; 10 1]` is accepted, although its symmetric part has eigenvalues −4.1 and 6.1. A residual of dimension 2 also accepts `noise = [1.0]`, which leaves a one-dimensional energy space. `GaussianFactor` validates both shape and symmetry.
+8. **Narrow ordinal categories lose all precision** (`lib/Lenticulum.jl/src/likelihood.jl`, `OrdinalProbitLikelihood`). $\Phi(b) - \Phi(a)$ cancels. Cutpoints `[-1e-20, 1e-20]`, category 2, predictor 0 give log-likelihood `-Inf` with NaN derivatives; the true value is $\log(2\cdot10^{-20}) - \tfrac12\log 2\pi = -46.2775$. Narrow intervals far in a tail fail the same way.
+9. **Finite particle weights can overflow during normalisation** (`parked/Adversarial.jl/src/ratio.jl`, `lib/Lenticulum.jl/src/beliefs.jl`). Particles `{1, 3}` with weights `[1e308, 1e308]` give mean 0, covariance 0 and ESS `Inf`, instead of 2, 1 and 2. The ratio energy raises a false disjoint-support error, and `moment_match` reports a singular covariance. Dividing by the largest weight first avoids all three.
 
 Wrong claims in notes and docstrings:
 
 10. **The ELBO weighting** (`lib/VariationalDiffusion.jl/src/schedule.md` §3; also `reddiff.md` §3 and *The VP-SDE*). The weight on $\|\hat\varepsilon - \varepsilon\|^2$ in the continuous likelihood bound is $-\tfrac12\,\frac{d}{dt}\log\mathrm{SNR}_t$ with $\mathrm{SNR}_t = \alpha_t^2/\sigma_t^2$. For the VP-SDE that is $\beta(t)/(2\sigma_t^2)$, not $\sigma_t^2/\alpha_t^2$. Gaussian KL steps give 10.0754 at $t = 0.1$, where the claim gives 0.1157; at $t = 0.9$ they give 9.008 against 3460.6. The table also uses SNR inconsistently (`1/SNR²` in one row, `σ/α = 1/SNR` in the next), and `reddiff.md` §3 still contains a "— wait, that grows too —" from drafting.
 11. **"RED-Diff's weight grows without bound as $t \to 1$"** (`reddiff.md` §3, `reddiff_weight` docstring, the vault). For the default VP-SDE, $\alpha_1 = e^{-5.025} > 0$, so $\lambda\sigma_t/\alpha_t \to 152.17\,\lambda$, which is finite. It grows steeply, but it stays bounded unless the schedule's terminal signal vanishes.
 12. **"Exact at small sizes" for the log-determinant** (`krylov.md`, `KrylovSolve` docstring). Unit-vector probes remove the trace-sampling error but not the Lanczos truncation error. With `S = [2 1; 1 2]`, `lanczos = 1`, `probes = 2` it returns $2\log 2 = 1.386$ instead of $\log 3 = 1.099$. Exactness needs `lanczos ≥ n` as well, which the defaults (30 ≥ 8) happen to satisfy.
-13. **"Pruning changes the moments by at most the pruned weight"** (`src/beliefs.md`, `reduce_mixture` docstring). Unit components at 0 and `1e12`, with weights `1 - 1e-10` and `1e-10`: pruning removes mass `1e-10` and moves the mean from 100 to 0. The pruned mass bounds the total-variation change, not the change in moments.
+13. **"Pruning changes the moments by at most the pruned weight"** (`lib/Lenticulum.jl/src/beliefs.md`, `reduce_mixture` docstring). Unit components at 0 and `1e12`, with weights `1 - 1e-10` and `1e-10`: pruning removes mass `1e-10` and moves the mean from 100 to 0. The pruned mass bounds the total-variation change, not the change in moments.
 
 **Checked and found correct** (Codex, 2026-10-29):
 - dense Gaussian conditioning, constraint equivalence and the three graded free-energy coordinates against an independent dense reference;
@@ -40,10 +40,10 @@ Analytic-mixture batching and the constraint polarity shortlist were excluded as
 
 The pre-existing LP-002, LP-018 and Problem Log edits were retained. No checkout, clean,
 reset, stash, commit, push or merge was run. Each item has an owning-suite regression in
-`test/lp018.jl` (top-level), `lib/VariationalDiffusion.jl/test/lp018.jl` (VD), or
+`lib/Lenticulum.jl/test/lp018.jl` (top-level), `lib/VariationalDiffusion.jl/test/lp018.jl` (VD), or
 `parked/Adversarial.jl/test/lp018.jl`, with the particle-distance copy covered in
 `lib/Mycelium.jl/test/lp018.jl`; the interop regressions are in top-level
-`test/lp018_interop.jl`. Logs are under `~/.julia/lenticulum-runs/lp018/`.
+`lib/Lenticulum.jl/test/lp018_interop.jl`. Logs are under `~/.julia/lenticulum-runs/lp018/`.
 
 Before fixing code, each reported code defect produced a failed assertion or error
 in its regression test, as recorded in `top-before.log`, `diffusion-before.log` and
@@ -58,7 +58,7 @@ copy failed its two assertions in `Mycelium-final.log` before its normaliser was
 `mycelium-regression-after.log` records the focused passing rerun; the subsequent
 vector/tuple checks pass in `mycelium-containers-after.log`.
 
-1. **Poisson entropy.** `src/likelihood.jl` and `src/likelihood.md`: sum relative pmfs
+1. **Poisson entropy.** `lib/Lenticulum.jl/src/likelihood.jl` and `lib/Lenticulum.jl/src/likelihood.md`: sum relative pmfs
    about the mode, normalise afterwards, and stop using geometric mass/entropy tail
    bounds, with a throwing iteration cap. Bivariate entropy uses geometric marginal
    bounds, separate rectangular supports and a throwing grid-size cap. Regression:
@@ -95,12 +95,12 @@ vector/tuple checks pass in `mycelium-containers-after.log`.
    on solver failure. Regression: “LP-018.6 symmetric mixture prox escapes a maximum”,
    independent two-normal objective and curvature; the existing ProxDM testsets retain
    the one-Gaussian closed forms, samplers and inference checks.
-7. **Covariances.** `src/constraint.jl`, `src/nonlinear.jl` and their implementation
+7. **Covariances.** `lib/Lenticulum.jl/src/constraint.jl`, `lib/Lenticulum.jl/src/nonlinear.jl` and their implementation
    notes: require exact residual dimension and symmetry before positive definiteness,
    with clear `ArgumentError`s. Regression: “LP-018.7 residual covariance validation”,
    the reported asymmetric covariance and short noise vector, plus rectangular,
    indefinite and valid SPD cases for both constructors.
-8. **Ordinal intervals.** `src/likelihood.jl` and `src/likelihood.md`: symmetric tail
+8. **Ordinal intervals.** `lib/Lenticulum.jl/src/likelihood.jl` and `lib/Lenticulum.jl/src/likelihood.md`: symmetric tail
    log differences with `expm1`, a midpoint expansion for narrow intervals, and its
    matching analytic gradient/Hessian and EP moments. Preserve cutpoint width before
    shifting by the predictor. Regression: “LP-018.8 ordinal narrow intervals and both
@@ -140,7 +140,7 @@ vector/tuple checks pass in `mycelium-containers-after.log`.
     the unit-vector branch, rather than merely weakening the claim. Other branches
     retain the requested depth and all defaults are unchanged. Regression: “LP-018.12
     exact unit-vector logdet uses full depth”, the recorded 2x2 case, `log(3)`.
-13. **Pruning.** `src/beliefs.jl`'s docstring and `src/beliefs.md`: removed mass bounds
+13. **Pruning.** `lib/Lenticulum.jl/src/beliefs.jl`'s docstring and `lib/Lenticulum.jl/src/beliefs.md`: removed mass bounds
     total variation after renormalisation; moments need bounds on locations/covariances.
     Regression: “LP-018.13 pruning bounds mass, not moments”, the recorded mean change
     100 to 0 on removing mass 1e-10, and the corrected documented contract.

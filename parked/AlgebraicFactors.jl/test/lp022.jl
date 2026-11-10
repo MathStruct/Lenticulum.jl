@@ -1,6 +1,6 @@
 # LP-022 for toric factors: unnormalised, a learned potential on observed states has no lower bound;
 # normalised (with its log partition) it is −log of a probability, never below 0.
-using AlgebraicFactors, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, Test
+using AlgebraicFactors, LenticulumCore, Mycelium, MyceliumLearning, LinearAlgebra, LuxCore, Random, Test
 
 @testset "LP-022: toric factors on observed data" begin
     A = vcat(independence((:a, :b), (2, 2)), [0 1 1 0])           # with one interaction row

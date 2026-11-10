@@ -69,7 +69,7 @@ $$
 
 MAP learning: the regulariser is an added energy and no longer a complexity term. That is why
 structures cannot be compared by $F(b_z, \theta)$ alone; the structure examples add BIC's penalty
-($2F + p \log N$, `examples/structure_clusters.md`), the crude Laplace approximation of the missing
+($2F + p \log N$, `lib/Lenticulum.jl/examples/structure_clusters.md`), the crude Laplace approximation of the missing
 entropy.
 
 **The regulariser subgraph.** It is the factors on $\theta$, $\lambda$ and $G$:
@@ -204,7 +204,7 @@ $\theta$ lacks (BIC today). Three ways to make it sharper, all from §2 and §5:
 - **held-out scoring**, which also judges structures whose parts are not normalised densities.
 
 And the outer problem's own structure, a beam of inner solutions, is what
-`examples/structure_clusters.jl` already runs by hand.
+`lib/Lenticulum.jl/examples/structure_clusters.jl` already runs by hand.
 
 ## 7. What exists, and what would be built
 

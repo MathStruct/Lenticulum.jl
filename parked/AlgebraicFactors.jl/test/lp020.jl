@@ -1,4 +1,4 @@
-using AlgebraicFactors, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, Test
+using AlgebraicFactors, LenticulumCore, Mycelium, MyceliumLearning, LinearAlgebra, LuxCore, Random, Test
 using ADTypes, DifferentiationInterface, ForwardDiff, Zygote
 
 # LP-020 for the algebraic factors: `ToricFactor` and the degree-one `PolynomialFactor` hold their

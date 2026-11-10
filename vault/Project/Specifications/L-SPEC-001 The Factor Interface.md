@@ -72,7 +72,7 @@ A factor is a subtype of `AbstractLenticulumFactor`. Like a Lux layer, it is a *
 - `parked/AlgebraicFactors.jl/test/runtests.jl`: direct-message common checker for Toric at arities
   one to three and Plucker forward point games at r=2,4. Degree-one Polynomial additionally
   uses the common lens/game checker with independent Gaussian fixtures in `test/game_exact.jl`; nonlinear branch laws remain unsupported.
-- `test/game_composition.jl`: common checker for collapsed Gaussian composition in both
+- `lib/Lenticulum.jl/test/game_composition.jl`: common checker for collapsed Gaussian composition in both
   endpoint polarities and soft Gaussian games, plus independent/nested tensor product games.
   Core "Container conformance scope (LP-008/009)" verifies that unsupported component laws
   still reject games and do not invent channels or assembled inversions.
@@ -144,7 +144,7 @@ branch-graded game energies/entropies and component states; scalarisation sums c
 Only declared exact linear-Gaussian components (and their independent products) are accepted.
 Correlated joint beliefs are rejected. Tensor graph wiring/inversion remains absent.
 
-Checked by `test/game_composition.jl`, `lib/VariationalDiffusion.jl/test/bound.jl`,
+Checked by `lib/Lenticulum.jl/test/game_composition.jl`, `lib/VariationalDiffusion.jl/test/bound.jl`,
 `parked/Adversarial.jl/test/transport.jl`, and `parked/AlgebraicFactors.jl/test/game_exact.jl`.
 The common checker covers Gaussian composition in both directions, affine Gaussian
 forward generators, the exact scalar Plucker image and degree-one polynomial polarities.

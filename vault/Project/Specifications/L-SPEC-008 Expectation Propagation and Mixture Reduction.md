@@ -1,8 +1,8 @@
 #design
 
-> **Status: draft (2026-11-03, Claude), implemented as described.** Related: [[Extending Mycelium]] §4, [[L-ADR-0009 Factor nodes carry a message rule]], [[L-SPEC-005 The Hybrid Free Energy]], [[L-SPEC-006 Plates]] §7–§8. Code: `lib/Mycelium.jl/src/graph.jl` (the rules), `passing.jl` (`_rule_message`, `ep_message`, `mixture_message`, `reduce_message`, `_tree_exact`), `gaussian.jl` (`ep_project`, `ep_divide`, products of improper components), `free_energy.jl`; Lenticulum `src/switching.jl` (`mixture_message`, the switching blocks), `src/beliefs.jl` (`reduce_message`), `src/constraint.jl`.
+> **Status: draft (2026-11-03, Claude), implemented as described.** Related: [[Extending Mycelium]] §4, [[L-ADR-0009 Factor nodes carry a message rule]], [[L-SPEC-005 The Hybrid Free Energy]], [[L-SPEC-006 Plates]] §7–§8. Code: `lib/Mycelium.jl/src/graph.jl` (the rules), `passing.jl` (`_rule_message`, `ep_message`, `mixture_message`, `reduce_message`, `_tree_exact`), `gaussian.jl` (`ep_project`, `ep_divide`, products of improper components), `free_energy.jl`; Lenticulum `lib/Lenticulum.jl/src/switching.jl` (`mixture_message`, the switching blocks), `lib/Lenticulum.jl/src/beliefs.jl` (`reduce_message`), `lib/Lenticulum.jl/src/constraint.jl`.
 
-> Sources: Minka, *Expectation Propagation for approximate Bayesian inference*, UAI 2001 (arXiv:1301.2294), the algorithm and the clutter problem; Runnalls, *Kullback-Leibler Approach to Gaussian Mixture Reduction*, IEEE Trans. Aerosp. Electron. Syst. 43(3), 2007, the merge cost. code: `lib/Mycelium.jl/src/passing.jl`, `lib/Mycelium.jl/src/gaussian.jl`, `lib/Mycelium.jl/src/free_energy.jl`, `src/switching.jl`, `src/beliefs.jl`; tests: `test/mixture_rules.jl`, `test/plates.jl`; benchmark: `bench/mixture_plates.jl`
+> Sources: Minka, *Expectation Propagation for approximate Bayesian inference*, UAI 2001 (arXiv:1301.2294), the algorithm and the clutter problem; Runnalls, *Kullback-Leibler Approach to Gaussian Mixture Reduction*, IEEE Trans. Aerosp. Electron. Syst. 43(3), 2007, the merge cost. code: `lib/Mycelium.jl/src/passing.jl`, `lib/Mycelium.jl/src/gaussian.jl`, `lib/Mycelium.jl/src/free_energy.jl`, `lib/Lenticulum.jl/src/switching.jl`, `lib/Lenticulum.jl/src/beliefs.jl`; tests: `lib/Lenticulum.jl/test/mixture_rules.jl`, `lib/Lenticulum.jl/test/plates.jl`; benchmark: `bench/mixture_plates.jl`
 >
 > Bibliography: [[Bibliography#^minka2001ep|Minka 2001]] · [[Bibliography#^runnalls2007kl|Runnalls 2007]]
 >
@@ -57,7 +57,7 @@ with $\log Z = 0$ otherwise.
 
 ## Checked by
 
-`test/mixture_rules.jl`:
+`lib/Lenticulum.jl/test/mixture_rules.jl`:
 
 - the clutter problem ($D = 1$, $w = 0.5$, variances 100 and 10, data from the model): belief
   propagation's $2^N$-component marginal against enumeration to $10^{-12}$; the rule at the fixed
@@ -76,7 +76,7 @@ with $\log Z = 0$ otherwise.
   the free energy refused; `reduce_message`'s cases;
 - the product of two improper components against its closed form.
 
-`test/plates.jl` checks the switching plates of L-SPEC-006 §7.
+`lib/Lenticulum.jl/test/plates.jl` checks the switching plates of L-SPEC-006 §7.
 
 ## Open
 

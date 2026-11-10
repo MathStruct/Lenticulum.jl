@@ -152,7 +152,7 @@ the general distributional games are solved.
    the corresponding complete channel game. Branch-graded results scalarise to the sum.
    Correlated joint beliefs and undeclared/nonlinear components throw. Tensor graph wiring,
    nested composed chains and composition with noise hyperpriors remain unsupported.
-   Tests: `test/game_composition.jl`. See [[composition]] and [[statistical_game]].
+   Tests: `lib/Lenticulum.jl/test/game_composition.jl`. See [[composition]] and [[statistical_game]].
 
 The interface amendment is appended to [[L-SPEC-001 The Factor Interface]], not made into
 an ADR. The original conditional point games and their conformance coverage remain in place.

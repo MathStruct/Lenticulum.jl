@@ -249,19 +249,10 @@ end
     @test isfinite(fit_sampson(tab,zeros(2,1),1;Θ0=singular,λ=0.1,maxiter=0).cost)
 end
 
-# Load the actual linear templates, without adding a test/package dependency on
-# Lenticulum (or its unrelated SpecialFunctions dependency). No copied oracle code.
-module PolynomialLinearOracle
-using LinearAlgebra, Random, LuxCore
-using LenticulumCore: LenticulumCore, GaussianBelief, Gaussian, uninformative,
-    belief_mean, belief_cov, isproper, logpartition, dimension, _chol
-using Mycelium: Mycelium
-# gaussian.jl's opt-in noise parameters live in noise.jl; only its unused Wishart
-# penalty names SpecialFunctions, so fixed-noise templates load without it.
-include(joinpath(@__DIR__, "../../../src/noise.jl"))
-include(joinpath(@__DIR__, "../../../src/gaussian.jl"))
-include(joinpath(@__DIR__, "../../../src/constraint.jl"))
-end
+# The oracle is Lenticulum's linear constraint factor itself, loaded as a test dependency (until
+# the refactor of 2026-11 its source files were included here by path; that broke when the
+# package moved to lib/Lenticulum.jl and came to depend on MyceliumLearning).
+import Lenticulum as PolynomialLinearOracle
 
 @testset "Polynomial degree-one messages and lens contract" begin
     rng = Xoshiro(3004)

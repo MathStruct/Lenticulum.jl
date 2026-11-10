@@ -40,11 +40,11 @@ and how parked work comes back.
 | `lib/MyceliumLearning.jl/` | learning: free-energy gradients, couplings, the graph adjoint, EM, the optimiser step |
 | `lib/Lenticulum.jl/` | the factors: linear-Gaussian, nonlinear, constraint, switching, regime, likelihood; M-steps; `examples/` |
 | `lib/VariationalDiffusion.jl/` | diffusion models as implicit learners |
-| `parked/` | `ImplicitLayers`, `Adversarial`, `AlgebraicFactors`, two tutorials and their docs pages: not in CI, not revised |
+| `parked/` | `ImplicitLayers`, `Adversarial`, `AlgebraicFactors`, two tutorials and their docs pages: tested in CI (a separate job), not revised; to be brought back |
 | `vault/` | the Obsidian vault: `Foundations/`, one folder per path, `Design/`, `Project/`, `Research Questions/`, `Parked/` |
 | `lib/*/src/*.md` | implementation notes, one beside each source file |
 | `docs/` | Documenter pages, Literate tutorials (`docs/literate/`), the shared bibliography `docs/src/refs.bib`, and the Quartz build of the vault (`docs/site/`) |
-| `bench/` | benchmarks, each recorded in a note; `julia --project=bench bench/<name>.jl` |
+| `bench/` | benchmarks, each recorded in a note; `julia --project=bench bench/<name>.jl` (its Manifest is not tracked: `julia --project=bench -e 'using Pkg; Pkg.instantiate()'` once) |
 
 Each package has its own `Project.toml` and `test/`. Dependencies go one way:
 `LenticulumCore` ← `Mycelium` ← `MyceliumLearning` ← `Lenticulum`; `VariationalDiffusion` depends

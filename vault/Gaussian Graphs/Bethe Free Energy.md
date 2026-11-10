@@ -5,7 +5,7 @@
 > loopy graph it is the Bethe approximation, whose stationary points are the fixed points of
 > belief propagation.
 
-> Sources: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE Trans. Inf. Theory 51(7), 2005 (the Bethe free energy and its stationary points); Riegler, Kirkelund, Manchon, Badiu & Fleury, IEEE Trans. Inf. Theory 59(1), 2013, eq. (17) (the merged free energy with mean-field nodes); code: `lib/Mycelium.jl/src/free_energy.jl`, tests: `test/runtests.jl` ("the chain is exact at every length"), `test/gaussian_oracle.jl`, `test/lp020.jl`
+> Sources: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE Trans. Inf. Theory 51(7), 2005 (the Bethe free energy and its stationary points); Riegler, Kirkelund, Manchon, Badiu & Fleury, IEEE Trans. Inf. Theory 59(1), 2013, eq. (17) (the merged free energy with mean-field nodes); code: `lib/Mycelium.jl/src/free_energy.jl`, tests: `test/runtests.jl` ("the chain is exact at every length"), `lib/Lenticulum.jl/test/gaussian_oracle.jl`, `lib/Lenticulum.jl/test/lp020.jl`
 >
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
@@ -64,10 +64,10 @@ Exactness on a tree holds when **every message is in a family its receiver takes
 
 | situation | exact? |
 |---|---|
-| Gaussian, Dirac and categorical messages between the Gaussian, constraint and table factors | yes (`test/gaussian_oracle.jl`: random trees against the dense joint, means, covariances, free energy and gradient) |
+| Gaussian, Dirac and categorical messages between the Gaussian, constraint and table factors | yes (`lib/Lenticulum.jl/test/gaussian_oracle.jl`: random trees against the dense joint, means, covariances, free energy and gradient) |
 | a rank-deficient (flat) Gaussian message, e.g. from a partial observation | yes since 2026-11-10; before, `GaussianFactor` threw or returned wrong marginals ([[LP-024 Findings of the review of 2026-11-09]]) |
 | a mixture message from a switching factor into a Gaussian or constraint factor | **no**: the receiver collapses the mixture to its moments. The fixed point is then one of assumed-density filtering and is not a stationary point of this free energy |
-| the same graph with the switch and the variables its mixture reaches in one cluster node | yes ([[cluster]]; `test/cluster.jl` against enumeration) |
+| the same graph with the switch and the variables its mixture reaches in one cluster node | yes ([[cluster]]; `lib/Lenticulum.jl/test/cluster.jl` against enumeration) |
 | `NonlinearFactor` | no: its messages and its free energy are those of a local linear model ([[nonlinear]]) |
 | `MixtureReduction` nodes | no free energy is defined; refused |
 
@@ -116,7 +116,7 @@ does not apply; `fit_em` then need not descend.
 the Shannon entropy for a categorical, and 0 for a `DiracBelief`
 ([[LP-006 Gaussian entropies are relative to Lebesgue measure]]). The value 0 for a point is
 the convention for a clamped variable: the factor beliefs then range over the other variables
-only, and the sum is $-\log p$ of the clamped values (checked in `test/gaussian_oracle.jl`).
+only, and the sum is $-\log p$ of the clamped values (checked in `lib/Lenticulum.jl/test/gaussian_oracle.jl`).
 
 Two consequences:
 

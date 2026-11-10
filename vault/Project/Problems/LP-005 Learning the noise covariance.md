@@ -1,6 +1,6 @@
 #open-problem
 
-> **Status: resolved (2026-10-26).** Related: `src/gaussian.jl` (`GaussianFactor`, `GaussianPrior`), [[Scalar and Multivariate Energy]] §8 ("Normalised or not").
+> **Status: resolved (2026-10-26).** Related: `lib/Lenticulum.jl/src/gaussian.jl` (`GaussianFactor`, `GaussianPrior`), [[Scalar and Multivariate Energy]] §8 ("Normalised or not").
 
 **Problem.** In `GaussianFactor` the noise covariance $Q$ is a fixed hyperparameter, and `GaussianPrior`'s $\Sigma$ is not learnable either: learning them needs a positive-definite parametrisation, which the code defers. It matters beyond convenience. The pointwise energy $\tfrac12 r^\top Q^{-1} r$ leaves out the normaliser $\tfrac12 \log\det(2\pi Q)$, a constant only while $Q$ is fixed; once $Q$ is learned, only the free energy, which keeps it as the complexity summand, is a valid objective.
 
@@ -41,7 +41,7 @@ per dataset, rather than accidentally once per sample.
 
 ## Verification results — 2026-10-26
 
-`test/learnable_noise.jl` contributes **115 passing checks**, with ForwardDiff and
+`lib/Lenticulum.jl/test/learnable_noise.jl` contributes **115 passing checks**, with ForwardDiff and
 Zygote compared to central finite differences and densities compared to
 Distributions.jl. It checks:
 

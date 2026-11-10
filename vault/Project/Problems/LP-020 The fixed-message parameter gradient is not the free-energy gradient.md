@@ -1,8 +1,8 @@
 #open-problem
 
-> **Status: resolved (2026-11-01), by option 1 below.** Found while building Mycelium's sampler; measured and now checked in `test/lp020.jl`. Related: [[free_energy]], [[gradient_couplings]], [[sampling]], [[Extending Mycelium]], [[LP-002 The Jacobian side is not implemented]].
+> **Status: resolved (2026-11-01), by option 1 below.** Found while building Mycelium's sampler; measured and now checked in `lib/Lenticulum.jl/test/lp020.jl`. Related: [[free_energy]], [[gradient_couplings]], [[sampling]], [[Extending Mycelium]], [[LP-002 The Jacobian side is not implemented]].
 
-> Sources: original repository analysis; code: `lib/Mycelium.jl/src/free_energy.jl` (`free_energy_gradient`, `parameter_step`), `lib/Mycelium.jl/src/factors.jl` (`factor_belief`, `belief_free_energy`), `src/gaussian.jl` (`FrozenGaussianBelief`), `parked/AlgebraicFactors.jl/src/toric.jl` (`ToricBelief`), `parked/AlgebraicFactors.jl/src/polynomial.jl` (`PolynomialBelief`), `lib/Mycelium.jl/src/sampling.jl` (`sample_gradient`); tests: `test/lp020.jl`, `parked/AlgebraicFactors.jl/test/lp020.jl`
+> Sources: original repository analysis; code: `lib/Mycelium.jl/src/free_energy.jl` (`free_energy_gradient`, `parameter_step`), `lib/Mycelium.jl/src/factors.jl` (`factor_belief`, `belief_free_energy`), `lib/Lenticulum.jl/src/gaussian.jl` (`FrozenGaussianBelief`), `parked/AlgebraicFactors.jl/src/toric.jl` (`ToricBelief`), `parked/AlgebraicFactors.jl/src/polynomial.jl` (`PolynomialBelief`), `lib/Mycelium.jl/src/sampling.jl` (`sample_gradient`); tests: `lib/Lenticulum.jl/test/lp020.jl`, `parked/AlgebraicFactors.jl/test/lp020.jl`
 >
 > Theory (CT-ML wiki): [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
@@ -17,7 +17,7 @@ $F_c(\theta; \mu) = -\log Z_c(\theta; \mu) + \mathbb E_{b_c}[\log \prod_i \mu_i]
   energy is stationary in the beliefs, so they are held fixed, not the messages);
 - the fixed-message derivative adds $\sum_c \partial_\theta\, \mathbb E_{b_c}[\log \prod_i \mu_i]$, which is not zero in general.
 
-Measured in `test/lp020.jl`, on the smallest example: $u \sim \mathcal N(0, 1)$, $z = a u + c + \varepsilon$,
+Measured in `lib/Lenticulum.jl/test/lp020.jl`, on the smallest example: $u \sim \mathcal N(0, 1)$, $z = a u + c + \varepsilon$,
 $\varepsilon \sim \mathcal N(0, 0.3)$, $z = 1.7$ observed. On this tree the Bethe free energy equals $-\log p(z)$ exactly. At
 $a = 0.8$, $c = 0.4$:
 
@@ -56,7 +56,7 @@ composite, through one frozen joint Gaussian of each factor's non-point channels
 (`FrozenGaussianBelief`). Theory and limits: [[free_energy]], section "Fixed beliefs, not fixed
 messages".
 
-Checked in `test/lp020.jl`:
+Checked in `lib/Lenticulum.jl/test/lp020.jl`:
 - on the example above the gradient is now $(0.679, -1.383)$, and alternating inference with it
   converges to the maximum-likelihood $a = 1.179$;
 - on four trees (this one; a Gaussian factor and prior with learnable noise; the composite; a
@@ -71,4 +71,4 @@ Checked in `test/lp020.jl`:
   `PriorFactor` needs none, since its energy does not read the parameters.
 - `sample_gradient` now uses the fixed-belief gradient per sample by default (one inference per
   sample); differentiating through inference stays as `through_inference = true`, and the two agree
-  to $10^{-6}$ in `test/switching_constraint.jl` ([[sampling]]).
+  to $10^{-6}$ in `lib/Lenticulum.jl/test/switching_constraint.jl` ([[sampling]]).

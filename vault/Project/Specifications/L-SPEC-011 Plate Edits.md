@@ -2,7 +2,7 @@
 
 > **Status: planned (2026-11-04, Claude); not implemented.** Related: [[L-SPEC-010 Structure Edits]], [[L-SPEC-006 Plates]], [[L-SPEC-009 Cluster Nodes]], [[Feature Backlog]]. Code (today's workaround): `lib/Mycelium.jl/src/edits.jl` (`GraphBuilder(g)`, which refuses plates), `lib/Mycelium.jl/src/plates.jl` (`as_plate`).
 
-> Sources: original to this repository. code: `lib/Mycelium.jl/src/edits.jl`, `lib/Mycelium.jl/src/plates.jl`; examples: `examples/structure_edits.jl`, `examples/structure_clusters.jl`
+> Sources: original to this repository. code: `lib/Mycelium.jl/src/edits.jl`, `lib/Mycelium.jl/src/plates.jl`; examples: `lib/Lenticulum.jl/examples/structure_edits.jl`, `lib/Lenticulum.jl/examples/structure_clusters.jl`
 >
 > Theory (CT-ML wiki): [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
@@ -16,7 +16,7 @@ by replaying the named replicas through `plate!`. This specification proposes th
 leaves open the representation of removed nodes (§4) and whether cluster nodes are edited directly
 (§6).
 
-**Why, and how much.** In `examples/structure_edits.jl` with EM fits (200 replicas, 2026-11-04,
+**Why, and how much.** In `lib/Lenticulum.jl/examples/structure_edits.jl` with EM fits (200 replicas, 2026-11-04,
 an instrumented scratch copy), the edits took 3.9 s and clustering plus `as_plate` 2.9 s of a
 35-second search; the fits took the rest. The edits themselves are linear in the replicas, but each
 one rebuilds the graph and replays the plate. The gain is therefore at most about 15% of that search
@@ -78,10 +78,10 @@ energy and messages are then the same to rounding.
   label (the two structure examples' moves): nodes, edges, plate records after `compact`, and free
   energies to $10^{-14}$.
 - `transfer` across a template edit keeps every surviving message, and the warm start reaches the
-  cold start's fixed point (as `test/structure_edits.jl` does by name today).
+  cold start's fixed point (as `lib/Lenticulum.jl/test/structure_edits.jl` does by name today).
 - Refusals: an edit by name of one replica, removing a shared node a plate still uses, replicas
   that disagree after `unplate!` edits when `build` re-plates them.
-- `examples/structure_edits.jl` and `examples/structure_clusters.jl` rewritten with template edits
+- `lib/Lenticulum.jl/examples/structure_edits.jl` and `lib/Lenticulum.jl/examples/structure_clusters.jl` rewritten with template edits
   give the same search paths and scores, faster by the edit and `as_plate` time measured above.
 
 ## Open

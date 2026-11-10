@@ -78,7 +78,7 @@ implicit graph fixed-point adjoint remain outside this implementation.
 an EM M-step was inaccurate: it holds cavity messages fixed while Gaussian factors
 recompute their local posteriors. This existing derivative is preserved. At a true exact
 posterior, fixed-posterior EM and the marginal-likelihood gradient coincide; requiring
-these two to differ would be an incorrect oracle. `test/gradient_couplings.jl` derives
+these two to differ would be an incorrect oracle. `lib/Lenticulum.jl/test/gradient_couplings.jl` derives
 all three quantities independently. `ComposedFactor`'s Gaussian endpoint game already
 collapses its internal channel, so its legacy diagonal, analytic pathwise and exact
 endpoint gradients coincide. Its score rule samples the exact internal posterior and
@@ -87,11 +87,11 @@ returns an estimate of the same endpoint derivative, including a baseline contro
 > [!note] Amended 2026-11-01 (LP-020)
 > The preserved fixed-cavity derivative was not the free-energy gradient, and its fixed points
 > were not maximum likelihood. The diagonal driver now holds each factor's belief fixed, which is
-> the fixed-posterior EM M-step; on the Gaussian tree of `test/gradient_couplings.jl` it agrees
+> the fixed-posterior EM M-step; on the Gaussian tree of `lib/Lenticulum.jl/test/gradient_couplings.jl` it agrees
 > with the exact coupling. See [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]].
 
 **Evidence:** `lib/MyceliumLearning.jl/test/gradient_couplings.jl` and
-`test/gradient_couplings.jl`; final suite counts/timings are recorded in the LP-011 note.
+`lib/Lenticulum.jl/test/gradient_couplings.jl`; final suite counts/timings are recorded in the LP-011 note.
 No new paper citation was introduced; the ADEV wiki note was read for estimator semantics.
 
 

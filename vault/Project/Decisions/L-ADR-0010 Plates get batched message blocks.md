@@ -1,6 +1,6 @@
 #design
 
-> **Status: accepted (2026-11-03, Daniel: "I accept option 1!"; proposed the same day by Claude; implemented the same day, both steps).** Related: [[L-SPEC-006 Plates]], [[Extending Mycelium]] §2, [[L-ADR-0009 Factor nodes carry a message rule]], [[L-SPEC-001 The Factor Interface]]. Code it would change: `lib/Mycelium.jl/src/messages.jl` (`MessageStore`), `plates.jl`, `passing.jl` (`factor_messages`), `free_energy.jl`; `src/constraint.jl`, `src/gaussian.jl`.
+> **Status: accepted (2026-11-03, Daniel: "I accept option 1!"; proposed the same day by Claude; implemented the same day, both steps).** Related: [[L-SPEC-006 Plates]], [[Extending Mycelium]] §2, [[L-ADR-0009 Factor nodes carry a message rule]], [[L-SPEC-001 The Factor Interface]]. Code it would change: `lib/Mycelium.jl/src/messages.jl` (`MessageStore`), `plates.jl`, `passing.jl` (`factor_messages`), `free_energy.jl`; `lib/Lenticulum.jl/src/constraint.jl`, `lib/Lenticulum.jl/src/gaussian.jl`.
 
 > Sources: original to this repository; measurements: `bench/plates.jl`, `lib/Mycelium.jl/src/plates.md` ("Speed").
 >

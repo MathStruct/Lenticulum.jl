@@ -282,7 +282,14 @@ end
 # message is a likelihood that is flat in some directions, and it is declared improper: left to
 # rounding, a Cholesky factorisation of such a precision sometimes succeeds, and the next factor
 # then computes with a covariance of order 1/eps (wrong marginals on a tree, without an error).
-_rank_deficient(A) = size(A, 1) < size(A, 2) || _projected_rank(A, A) < size(A, 2)
+# One SVD, with the threshold of `_projected_rank` (constraint.jl); that function computes the
+# singular values twice, which made this test half the cost of a backward message.
+function _rank_deficient(A)
+    size(A, 1) < size(A, 2) && return true
+    s = LinearAlgebra.svdvals(LenticulumCore.stop_gradient(A))
+    isempty(s) && return false
+    return count(>(maximum(size(A)) * eps(Float64) * first(s)), s) < size(A, 2)
+end
 
 # An input that is informative in some directions and flat in others: a declared-improper or
 # singular Gaussian. (Zero precision is "no input", handled by the callers.)

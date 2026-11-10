@@ -62,7 +62,7 @@ Suites run on 2026-11-10 (Julia 1.13.1), after the restructure:
 | A: frozen coordinates | a brute-force mask | LenticulumCore `runtests.jl` |
 | B: the field is the gradient of the stated potential; the Jacobian is symmetric | a Gaussian mixture's closed-form score | VariationalDiffusion `runtests.jl` |
 | B: the adjoint | central differences | VariationalDiffusion `runtests.jl` |
-| B: the smoothing bias, noise-free nodes and nodes with noise | the two formulas of [[Implicit Diffusion Learners]] §5 | `examples/ring_bias.jl` (a script, not a test) |
+| B: the smoothing bias, noise-free nodes and nodes with noise | the two formulas of [[Implicit Diffusion Learners]] §5 | `lib/VariationalDiffusion.jl/examples/ring_bias.jl` (a script, not a test) |
 | C: switching chains: marginals, `−log p`, gradient | enumeration of the switch sequences | `lib/Lenticulum.jl/test/cluster.jl`, `switching_constraint.jl` |
 | C: mean-field and hybrid free energies | closed forms, Monte Carlo, enumeration | `mean_field_free_energy.jl` |
 | C: EM does not increase the free energy with exact beliefs | monotonicity, known optima | `em.jl` |
@@ -80,10 +80,14 @@ The mathematics behind each row was rederived in the review; what it found is in
   tutorials execute, the API pages and the vault build, no unresolved reference). It was not run
   in CI, and nothing was deployed.
 - **The device (JLArrays) tests, the examples and the benchmarks were not run.**
-- **The parked packages' suites were not run** after the move. The three packages load from
-  `parked/`; their `[sources]` paths and their references to moved names were updated
-  mechanically, and tests that call `parameter_step` or `fit_em` unqualified will need
-  `using MyceliumLearning`.
+- **The parked packages' suites were not run** after the move, and two of them were broken by it:
+  `AlgebraicFactors`' tests included Lenticulum's source files by their old path, and
+  `ImplicitLayers`' DifferentiationInterface extension extended `Mycelium._gradient_message`, which
+  moved to MyceliumLearning (the extension did not load). Fixed on 2026-11-10: AlgebraicFactors
+  takes Lenticulum and MyceliumLearning as test dependencies, ImplicitLayers depends on
+  MyceliumLearning. All three suites pass (ImplicitLayers with and without the device files), and
+  CI runs them in a separate job. A local `Manifest.toml` from before the move still points
+  Lenticulum at the repository root (`path = "../.."`); delete it and instantiate again.
 - Expectation propagation's free-energy claim, the likelihood factors' Laplace and EP sites, and
   the learned-noise priors were not rederived.
 
@@ -98,7 +102,7 @@ These are true of the code as it stands and are the first candidates for work on
 | `excluded_marginal` is quadratic in a variable's degree outside plates | A, C | LP-024 |
 | the graph free energy accumulates in `Float64` | A | LP-024 |
 | Gaussian message convergence is an absolute bound on natural parameters | A | LP-024 |
-| nodes with noise double the smoothing bias; every query returns a root, on the relation or not | B | [[Implicit Diffusion Learners]] §5, `examples/calibration.md` |
+| nodes with noise double the smoothing bias; every query returns a root, on the relation or not | B | [[Implicit Diffusion Learners]] §5, `lib/VariationalDiffusion.jl/examples/calibration.md` |
 | Gaussian and mixture answers are calibrated only for `λ = density_lambda` (a warning otherwise) | B | [[implicit]] §5 |
 | a nonlinear factor's free energy is its linear model's | A | [[nonlinear]] |
 | constraint factors with every coefficient learned collapse on data | C | [[LP-022 Constraint factors are normalised in their residual, not their channels]] |
@@ -150,9 +154,9 @@ Known before starting:
 
 | package | state when parked | first thing to fix |
 |---|---|---|
-| `ImplicitLayers` | suite passed on 2026-11-09 (20 minutes) | root-solver tolerances are absolute and written for `Float64`; its solvers duplicate VariationalDiffusion's. Bring it back as, or after, a shared solver layer (root finding, the implicit-function adjoint, one tolerance rule, one report) |
-| `AlgebraicFactors` | suite passed on 2026-11-09 | not reviewed |
-| `Adversarial` | suite passed on 2026-11-09 | not reviewed; the least connected to the rest |
+| `ImplicitLayers` | suite passes on 2026-11-10 after the move (20 minutes; device files included) | root-solver tolerances are absolute and written for `Float64`; its solvers duplicate VariationalDiffusion's. Bring it back as, or after, a shared solver layer (root finding, the implicit-function adjoint, one tolerance rule, one report) |
+| `AlgebraicFactors` | suite passes on 2026-11-10 after the move | not reviewed |
+| `Adversarial` | suite passes on 2026-11-10 after the move | not reviewed; the least connected to the rest |
 
 For a note: move it, check every claim against a test or a script, remove what describes
 history rather than the subject, and give it the `tests:` entry in its sources block
@@ -167,4 +171,7 @@ history rather than the subject, and give it the `tests:` entry in its sources b
   down into LenticulumCore, cluster nodes into their own package) is possible and was not done.
 - **`Unscented` defaults to `α = 1`** and **`validate` refuses dimension mismatches**: both
   change behaviour for existing callers.
-- **Commits on `refactor` are local.** Nothing was pushed.
+- **The branch is pushed** (`origin/refactor`). CI passed every job on `7de4488e` (five packages on
+  Julia 1 and 1.12, two device jobs); the parked packages have their own CI job since 2026-11-10.
+- **Versions.** The libraries are `0.0.1-dev`; Lenticulum keeps its calendar version
+  (`20261015.1.0-proto`, as in `CITATION.cff`), which the refactor had changed and was restored.

@@ -2,7 +2,7 @@
 
 > **Status: draft (2026-11-03, Claude), implemented as described.** Related: [[Extending Mycelium]] §3, [[L-SPEC-005 The Hybrid Free Energy]], [[L-SPEC-006 Plates]], [[L-ADR-0009 Factor nodes carry a message rule]]. Code: `lib/Mycelium.jl/src/schedules.jl` (`hybrid_schedule`, `HybridSchedule`), `passing.jl` (`propagate!`'s `criterion`), `messages.jl` (`_moment_distance`), `plates.jl` (`plate_schedule(g)` for hybrid templates).
 
-> Sources: Riegler, Kirkelund, Manchon, Badiu & Fleury, *Merging Belief Propagation and the Mean Field Approximation: A Free Energy Approach*, IEEE Trans. Inf. Theory 59(1), 2013 (arXiv:1112.0467v3), §III, the message passing (21)–(22) and Theorem 2. code: `lib/Mycelium.jl/src/schedules.jl`, `lib/Mycelium.jl/src/passing.jl`, `lib/Mycelium.jl/src/messages.jl`, `lib/Mycelium.jl/src/plates.jl`; tests: `test/switching_constraint.jl`, `test/mean_field_free_energy.jl`, `test/plates.jl`
+> Sources: Riegler, Kirkelund, Manchon, Badiu & Fleury, *Merging Belief Propagation and the Mean Field Approximation: A Free Energy Approach*, IEEE Trans. Inf. Theory 59(1), 2013 (arXiv:1112.0467v3), §III, the message passing (21)–(22) and Theorem 2. code: `lib/Mycelium.jl/src/schedules.jl`, `lib/Mycelium.jl/src/passing.jl`, `lib/Mycelium.jl/src/messages.jl`, `lib/Mycelium.jl/src/plates.jl`; tests: `lib/Lenticulum.jl/test/switching_constraint.jl`, `lib/Lenticulum.jl/test/mean_field_free_energy.jl`, `lib/Lenticulum.jl/test/plates.jl`
 >
 > Bibliography: [[Bibliography#^riegler2013merging|Riegler et al. 2013]]
 >
@@ -47,13 +47,13 @@ and lifts replica 1's.
 
 ## Checked by
 
-- `test/switching_constraint.jl`, the two-block switching hybrid at 8 points: converged at
+- `lib/Lenticulum.jl/test/switching_constraint.jl`, the two-block switching hybrid at 8 points: converged at
   `tol = 1e-10` on marginals (the hand-written schedule used `1e-6` on messages); outcome
   probabilities within $10^{-6}$ of the structured mean-field oracle and $10^{-9}$ of the hand-written
   schedule; the merged free energy non-increasing over 30 sweeps to $10^{-10}$ with components of width
   $10^{-3}$; a cluster with a loop refused.
-- `test/mean_field_free_energy.jl`: naive mean field reaches the closed-form free energy to $10^{-10}$.
-- `test/plates.jl`: the default schedule of a plate of hybrid graphs is hybrid and reaches the
+- `lib/Lenticulum.jl/test/mean_field_free_energy.jl`: naive mean field reaches the closed-form free energy to $10^{-10}$.
+- `lib/Lenticulum.jl/test/plates.jl`: the default schedule of a plate of hybrid graphs is hybrid and reaches the
   hand-lifted schedule's free energy to $10^{-10}$.
 
 ## Open

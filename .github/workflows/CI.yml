@@ -51,3 +51,23 @@ jobs:
         env:
           LENTICULUM_DEVICE_TESTS: 'true'
         run: julia --project=${{ matrix.package }} -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
+  # The parked packages (vault/Project/Refactor 2026-11.md): not part of the core, but kept passing so
+  # that each can come back. Current release only.
+  parked:
+    name: ${{ matrix.package }} · parked
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - parked/ImplicitLayers.jl
+          - parked/Adversarial.jl
+          - parked/AlgebraicFactors.jl
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      - name: Test ${{ matrix.package }}
+        run: julia --project=${{ matrix.package }} -e 'using Pkg; Pkg.instantiate(); Pkg.test()'

@@ -72,19 +72,19 @@ needed many times.
 | feature | status | priority | source | why |
 |---|---|---|---|---|
 | Template edits of plated graphs, stable ids | planned | low | [[L-SPEC-011 Plate Edits]] | edits and `as_plate` take about 15% of a search today |
-| Moves and warm starts as library code (beam search, final refit) | proposed | low | `examples/structure_clusters.md` | the example's beam with refit reaches the best fit in 62% of the gradient search's time; a reusable driver would serve other families |
-| Collapsed M-steps as a library feature (integrate out the intermediates of a switch-over-sum) | proposed | medium | `examples/structure_clusters.md` | the per-factor M-step crawls with nearly deterministic switches |
+| Moves and warm starts as library code (beam search, final refit) | proposed | low | `lib/Lenticulum.jl/examples/structure_clusters.md` | the example's beam with refit reaches the best fit in 62% of the gradient search's time; a reusable driver would serve other families |
+| Collapsed M-steps as a library feature (integrate out the intermediates of a switch-over-sum) | proposed | medium | `lib/Lenticulum.jl/examples/structure_clusters.md` | the per-factor M-step crawls with nearly deterministic switches |
 | Gated inclusion of edges (spike-and-slab): a binary gate and a slab per candidate edge, inferred with the rest; a structure edit becomes the rounding of a gate | proposed | medium | [[The Regulariser and the Loss]] §2, §6; Daniel, 2026-11-05 ("valuable but rarely used, or to regularise?") | separates whether an edge exists from how large it is, so a rare but large edge is not shrunk away |
 | Per-edge diagnostics: usage (posterior mass through the edge), gain when used, net value against its complexity, bootstrap stability | proposed | medium | Daniel, 2026-11-05 | tells a rare but valuable connection from one to prune; also says what an out-of-core store must keep loadable |
 | Structure scores beyond BIC: a Laplace evidence (the Hessian at the fit) and a held-out free energy | proposed | medium | [[The Regulariser and the Loss]] §6 | BIC is the crude Laplace term; held-out scores also judge parts that are not normalised densities |
-| A structure-search driver in the library: move sets (edits, gates, cluster merges), the scores above, beams, restarts and a final refit | proposed | medium | [[The Regulariser and the Loss]] §5–§6; `examples/structure_clusters.md` | every search today is example code; merges the "moves and warm starts" row above |
+| A structure-search driver in the library: move sets (edits, gates, cluster merges), the scores above, beams, restarts and a final refit | proposed | medium | [[The Regulariser and the Loss]] §5–§6; `lib/Lenticulum.jl/examples/structure_clusters.md` | every search today is example code; merges the "moves and warm starts" row above |
 
 ## Learning
 
 | feature | status | priority | source | why |
 |---|---|---|---|---|
 | The warning of LP-022 for data that arrive other than by `DataFactor` (pins, point messages) | proposed | low | [[LP-022 Constraint factors are normalised in their residual, not their channels]] | |
-| MAP M-steps for noise priors (Wishart, log-normal); M-steps for further families | proposed | low | `src/m_steps.md` §4 | `GaussianFactor` and `GaussianPrior` have ML M-steps since 2026-11-05; with a prior their noise is not updated |
+| MAP M-steps for noise priors (Wishart, log-normal); M-steps for further families | proposed | low | `lib/Lenticulum.jl/src/m_steps.md` §4 | `GaussianFactor` and `GaussianPrior` have ML M-steps since 2026-11-05; with a prior their noise is not updated |
 | Stop-gradient semantics per wire, factor and parameter subset | planned | medium | [[L-SPEC-002 Stop Gradient]] | |
 | Exposed parameters: generic approximate `parameter_message`, energy taps, risk scalarisations | partial | low | [[L-SPEC-003 Exposed Parameters and Energy Channels]] §2–§3 | |
 | Explicit gradient semantics in results (envelope, finite replay, implicit fixed point) | proposed | low | ChatGPT review §4.2 | a caller should see which objective was differentiated |
@@ -114,7 +114,7 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 | Data loading from `MLUtils.jl` (`DataLoader`): minibatches fed into a plate's `DataFactor`s, shuffling, epochs, as an optional extension | proposed | medium | Daniel, 2026-11-05 | every example builds one `DataFactor` per point by hand and keeps all data in the graph; minibatch training needs the plate's data swapped per batch |
 | A split / concatenate factor: one channel of dimension $d_1 + d_2$ related exactly to two channels of $d_1$ and $d_2$ (and more pieces, any index sets), with exact messages in every direction | proposed | medium | Daniel, 2026-11-05 | today a selection-matrix `LinearConstraintFactor` with tiny noise, which is neither exact nor cheap |
 | A normalising change of variables: an affine factor $z = (x - b) \oslash s$ (per coordinate or per group) with exact messages both ways and the log-Jacobian $\sum_i \log\lvert s_i\rvert$ in its free energy; fixed $b$, $s$ from the data (standardising data channels) or learned with data-dependent initialisation (Glow's ActNorm) | proposed | medium | Daniel, 2026-11-05 (batchnorm and group norm in deep-learning libraries) | conditioning: the flat-direction threshold, eigenvalue floors and EM are relative to scale. Without the log-Jacobian a learned scale collapses like LP-022 (squash $x$, raise the density of $z$). Test: a chain with and without it differs by exactly $\sum \log\lvert s_i\rvert$ (mind the deterministic factor's Bethe bookkeeping, as for the relay in LP-019) |
-| Shared plate statistics: a constructor for a plate whose replicas share mean and scale variables ($x_i \sim \mathcal N(\mu, \sigma^2)$), the probabilistic reading of batchnorm's batch statistics | proposed | low | Daniel, 2026-11-05 | expressible today (`examples/hierarchical_models.jl`); the posterior over $\mu, \sigma$ replaces running averages at test time. Not batchnorm's forward pass, which couples every replica through a non-local factor and is no density |
+| Shared plate statistics: a constructor for a plate whose replicas share mean and scale variables ($x_i \sim \mathcal N(\mu, \sigma^2)$), the probabilistic reading of batchnorm's batch statistics | proposed | low | Daniel, 2026-11-05 | expressible today (`lib/Lenticulum.jl/examples/hierarchical_models.jl`); the posterior over $\mu, \sigma$ replaces running averages at test time. Not batchnorm's forward pass, which couples every replica through a non-local factor and is no density |
 | Further utility factors: a deterministic map (a function as an exact relation, `FunctionFactor`), a permutation or reshape of a channel, a sum or average of several channels, a constant (clamp) factor with its own schedule | proposed | low | Gemini review §4 (a `FunctionFactor`), Daniel, 2026-11-05 | the common glue of a model, written by hand each time |
 
 ## Families
@@ -141,7 +141,7 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 
 | feature | status | priority | source | why |
 |---|---|---|---|---|
-| A benchmark of inference and learning problems for optimiser design: problems with exact or reference answers where today's methods are slow or fail, run by one script that records sweeps, wall time, error against the reference, the free energy reached, and failures. Candidates: the loopy divider (flooding: 326 sweeps to an error of 1e-10, and 97 224 with equal resistors; `bench/bp_spectrum.jl`, `bench/bp_schedules.jl`), a small discrete Ising grid (exact by junction tree), Gaussian grids near the walk-summability limit (measured 2026-11-09 for schedules and Anderson, `bench/bp_grid.jl`), the switch learning of `examples/structure_clusters.jl` (EM with SQUAREM, restarts, beam), the calibration benchmark, MNIST in both directions. Methods and compositions to compare: damping, SQUAREM, Anderson acceleration, heavy ball, mirror and accelerated mirror descent, Langevin, learned optimisers ([[The Regulariser and the Loss]] §3); the composition laws and an order of experiments are in [[Composing Optimisers]] | proposed | medium | Daniel, 2026-11-07 ("needs a serious learning problem to test various methods or compositions") | every optimiser idea so far was tried on one graph or one example; a fixed set of problems makes them comparable and keeps a method that wins on one from being adopted on that alone |
+| A benchmark of inference and learning problems for optimiser design: problems with exact or reference answers where today's methods are slow or fail, run by one script that records sweeps, wall time, error against the reference, the free energy reached, and failures. Candidates: the loopy divider (flooding: 326 sweeps to an error of 1e-10, and 97 224 with equal resistors; `bench/bp_spectrum.jl`, `bench/bp_schedules.jl`), a small discrete Ising grid (exact by junction tree), Gaussian grids near the walk-summability limit (measured 2026-11-09 for schedules and Anderson, `bench/bp_grid.jl`), the switch learning of `lib/Lenticulum.jl/examples/structure_clusters.jl` (EM with SQUAREM, restarts, beam), the calibration benchmark, MNIST in both directions. Methods and compositions to compare: damping, SQUAREM, Anderson acceleration, heavy ball, mirror and accelerated mirror descent, Langevin, learned optimisers ([[The Regulariser and the Loss]] §3); the composition laws and an order of experiments are in [[Composing Optimisers]] | proposed | medium | Daniel, 2026-11-07 ("needs a serious learning problem to test various methods or compositions") | every optimiser idea so far was tried on one graph or one example; a fixed set of problems makes them comparable and keeps a method that wins on one from being adopted on that alone |
 | Benchmark regression tracking (scaling, allocations per message) | proposed | low | ChatGPT review §6 | |
 
 ## Done (2026-11-10)
@@ -170,11 +170,11 @@ pass on 1.12, and every `Project.toml` now says `julia = "1.12"`.
 
 A warning for `DEQFactor`s trained by their residual with the state observed (2026-11-05; measured
 in `parked/ImplicitLayers.jl/test/lp022.jl`). Cluster forms and closed-form M-steps for
-`GaussianFactor` and `GaussianPrior`, learned noise included (2026-11-05; `test/em.jl`).
+`GaussianFactor` and `GaussianPrior`, learned noise included (2026-11-05; `lib/Lenticulum.jl/test/em.jl`).
 
 Cluster nodes with per-outcome coefficients and noise (`RegimeFactor`); flat directions in
 clusters; `output` channels and the LP-022 warning (constraint and toric factors); fixes from the
 external reviews (LP-023); frozen paths inside cluster nodes; closed-form M-steps and
 SQUAREM-accelerated EM (`fit_em`), batched over plates; the message loop no longer specialised on
 the parameter tree; `validate_parameters`; beam search and final refit in
-`examples/structure_clusters.jl`.
+`lib/Lenticulum.jl/examples/structure_clusters.jl`.

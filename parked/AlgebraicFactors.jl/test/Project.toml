@@ -3,11 +3,17 @@ ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
 DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 HomotopyContinuation = "f213a82b-91d6-5c5d-acf7-10f1c761b327"
+Lenticulum = "80a378fd-9e01-49e8-9939-ada6559002ad"
 AlgebraicFactors = "5937a757-1681-44a0-82a2-3722a0d5745f"
 LenticulumCore = "1ac3b398-e9e9-400d-83fd-862c57ff485d"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LuxCore = "bb33d45b-7691-41d6-9220-0943567d0623"
 Mycelium = "0a724bc2-760c-4b8c-a26e-202a6d9695cb"
+MyceliumLearning = "7d2f6c1e-4a93-4b0e-9c57-3e8a1f6b2d40"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
+
+[sources]
+Lenticulum = {path = "../../../lib/Lenticulum.jl"}
+MyceliumLearning = {path = "../../../lib/MyceliumLearning.jl"}

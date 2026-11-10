@@ -133,7 +133,7 @@ small factor of hand-written code.
 **Status: implemented (2026-11-03)**, [[L-SPEC-007 Hybrid Schedules]]. `hybrid_schedule(g)` as
 described, `propagate!(...; criterion = :marginals)` comparing marginals by their moments (the
 default for hybrid schedules), and `plate_schedule(g)` for hybrid templates. It reproduces the
-hand-ordered hybrid of `test/switching_constraint.jl` to $10^{-9}$ at a tolerance of $10^{-10}$ (the hand
+hand-ordered hybrid of `lib/Lenticulum.jl/test/switching_constraint.jl` to $10^{-9}$ at a tolerance of $10^{-10}$ (the hand
 schedule needed $10^{-6}$ on messages), and the free energy does not increase along it with
 components of width $10^{-3}$. Tutorial 11 uses it.
 
@@ -142,7 +142,7 @@ mean-field node, and mean-field nodes updated in turn. It replaces the hand-writ
 current tests. Convergence would be measured on beliefs (marginals), not only on messages, because
 mixtures of very narrow components have a rounding floor in `belief_distance`.
 
-**Test.** It reproduces the hand-ordered hybrid of `test/switching_constraint.jl`, and the free energy
+**Test.** It reproduces the hand-ordered hybrid of `lib/Lenticulum.jl/test/switching_constraint.jl`, and the free energy
 of §1 decreases along it.
 
 ## 4. Expectation propagation and mixture reduction as rules
@@ -226,8 +226,8 @@ where exact inference is available.
 as a builder, edited by name and rebuilt; `transfer` carries the shared edges' messages. The test
 in part: the add and remove moves of the additive wiring ($J = 1$), as edits of one graph holding 200
 points as tied cluster nodes (exact scores), find the 8-mode grid's three switches by the branch's
-path (`examples/structure_edits.md`), in 166 s (with the clusters as a plate, 2026-11-04; 734 s before) against the branch's 3.6–13 s with closed-form EM.
-The split and merge moves ($J > 1$) followed the same day (`examples/structure_clusters.md`):
+path (`lib/Lenticulum.jl/examples/structure_edits.md`), in 166 s (with the clusters as a plate, 2026-11-04; 734 s before) against the branch's 3.6–13 s with closed-form EM.
+The split and merge moves ($J > 1$) followed the same day (`lib/Lenticulum.jl/examples/structure_clusters.md`):
 the switch over sums as a graph needs a discrete factor tying each switch's outcome to the cluster
 label (`TableFactor`), and the cluster nodes drop the assignments it rules out. On the branch's
 tree the four moves end at $(2, 3)$, BIC 1 355.84, worse than the generating $(3, 2)$ at 1 299.15; a

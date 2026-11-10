@@ -135,7 +135,7 @@ Without it, minimising $\tfrac12 r^\top Q^{-1}r$ drives $Q\to\infty$: the precis
 and fit energy shrink to zero. Earlier text here reversed that direction and claimed
 that the normaliser stops $Q\to0$; that claim was wrong. At an exact fit the normaliser
 itself is unbounded below as $Q\to0$, so a noise prior or floor is still necessary.
-`test/learnable_noise.jl` checks both failures and the two guards.
+`lib/Lenticulum.jl/test/learnable_noise.jl` checks both failures and the two guards.
 
 `GaussianFactor.energy` remains the residual; its scalarisation is quadratic fit only.
 Its free energy carries the normaliser and optional noise-prior density. Adding a

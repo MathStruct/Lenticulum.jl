@@ -2,7 +2,7 @@
 
 > **Status: resolved (2026-10-27), for the declared exact, approximate-message and deliberately non-game domains below. The 2026-10-23 resolution named a function that did not exist.** Related: [[L-SPEC-001 The Factor Interface]], [GitHub issue #8](https://github.com/MathStruct/Lenticulum.jl/issues/8).
 
-> Sources: original to this vault; code: `lib/LenticulumCore.jl/test/support/factor_conformance.jl`, `test/game_composition.jl`, `lib/LenticulumCore.jl/test/support/conformance_capture.jl`; package `test/conformance.jl` files; `parked/Adversarial.jl/test/transport.jl`, `parked/AlgebraicFactors.jl/test/game_exact.jl`, `lib/VariationalDiffusion.jl/test/bound.jl`.
+> Sources: original to this vault; code: `lib/LenticulumCore.jl/test/support/factor_conformance.jl`, `lib/Lenticulum.jl/test/game_composition.jl`, `lib/LenticulumCore.jl/test/support/conformance_capture.jl`; package `test/conformance.jl` files; `parked/Adversarial.jl/test/transport.jl`, `parked/AlgebraicFactors.jl/test/game_exact.jl`, `lib/VariationalDiffusion.jl/test/bound.jl`.
 >
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens).
 
@@ -56,12 +56,12 @@ The table records fixture domains, not a claim about every belief family or dime
 | Concrete factor | Checker path and fixture domain | Deliberate semantic boundary / test location |
 |---|---|---|
 | GaussianFactor | lens; both directions | Gaussian/Dirac incoming games; top-level `test/runtests.jl`; exact Gaussian reference |
-| GaussianPrior | lens; unary; also tensor game component | Gaussian/point pooling; top-level `test/runtests.jl`, `test/game_composition.jl` |
+| GaussianPrior | lens; unary; also tensor game component | Gaussian/point pooling; top-level `test/runtests.jl`, `lib/Lenticulum.jl/test/game_composition.jl` |
 | LinearConstraintFactor | lens; every supported fixture polarity | linear-Gaussian residual; top-level `test/runtests.jl` |
 | NonlinearFactor | lens; both directions | declared Gauss–Newton message algorithm, not an exact nonlinear posterior; top-level `test/runtests.jl` |
 | LikelihoodFactor | lens; both directions | declared quadrature/moment projection, not universal exact integration; top-level `test/runtests.jl` |
-| ComposedFactor | lens; Gaussian pair both endpoint directions; game with Dirac and soft Gaussian observations | collapsed endpoint law, no internal-channel path game; unsupported components/nested compositions/noise hyperpriors explicitly rejected; `test/game_composition.jl`, Core scope tests |
-| TensorFactor | game; independent Gaussian/point branches and nested products | independent game combinator, deliberately no graph/channel wiring or correlated-joint projection; `test/game_composition.jl`, Core scope tests |
+| ComposedFactor | lens; Gaussian pair both endpoint directions; game with Dirac and soft Gaussian observations | collapsed endpoint law, no internal-channel path game; unsupported components/nested compositions/noise hyperpriors explicitly rejected; `lib/Lenticulum.jl/test/game_composition.jl`, Core scope tests |
+| TensorFactor | game; independent Gaussian/point branches and nested products | independent game combinator, deliberately no graph/channel wiring or correlated-joint projection; `lib/Lenticulum.jl/test/game_composition.jl`, Core scope tests |
 | DataFactor | direct; unary | constant-zero clamped-source accounting; Mycelium `test/conformance.jl` |
 | PriorFactor | direct; unary categorical, separate Dirac identity | arbitrary `nlogp` has no generic Gaussian expectation; Mycelium `test/conformance.jl` |
 | LossFactor | wired sink; scalar/vector terminal point games | named observations have no canonical x/a/y split or outgoing message; pointwise/message gaps retained; Mycelium `test/conformance.jl` |

@@ -1,0 +1,121 @@
+# Site addresses of notes that moved, old<TAB>new, as repository-relative note paths without .md
+# (vault/ dropped, lib/<pkg>/src/ written lib/<pkg>/, as docs/site/build.sh stages them).
+# The refactor of 2026-11 (28b1a315 -> refactor); redirects.py writes a stub at each old address.
+Applications/Climate and Dynamical Systems	Parked/Applications/Climate and Dynamical Systems
+Applications/Energy Markets and Power Grids	Parked/Applications/Energy Markets and Power Grids
+Applications/Language Models	Parked/Applications/Language Models
+Applications/MNIST in Both Directions	Relation Learners/MNIST in Both Directions
+Applications/Metabolomics and Proteomics	Parked/Applications/Metabolomics and Proteomics
+Applications/Molecular Dynamics	Parked/Applications/Molecular Dynamics
+Applications/Motivating Examples	Relation Learners/Motivating Examples
+Applications/SLAM and Sensor Fusion	Gaussian Graphs/SLAM and Sensor Fusion
+Applications/Trading and Financial Markets	Parked/Applications/Trading and Financial Markets
+Comparisons/Geometric Deep Learning and Physical Laws	Parked/Comparisons/Geometric Deep Learning and Physical Laws
+Comparisons/Kernel Methods for Implicit Learning	Relation Learners/Kernel Methods for Implicit Learning
+Comparisons/ModelingToolkit as an Acausal Relation	Parked/Comparisons/ModelingToolkit as an Acausal Relation
+Comparisons/Prolog and Logic Programming	Parked/Comparisons/Prolog and Logic Programming
+Comparisons/Related Julia Projects	Design/Related Julia Projects
+Control/Composing Optimisers	Gaussian Graphs/Composing Optimisers
+Control/The Inferencer and the Optimizer	Structure and Regimes/The Inferencer and the Optimizer
+Control/The Regulariser and the Loss	Structure and Regimes/The Regulariser and the Loss
+Control/The Two-Part Diagram	Structure and Regimes/The Two-Part Diagram
+Energy-Based/Energy-Based Factor Graphs	Relation Learners/Energy-Based Factor Graphs
+Energy-Based/Energy-Based Learning	Relation Learners/Energy-Based Learning
+Energy-Based/Training Energy-Based Models	Relation Learners/Training Energy-Based Models
+Energy-Based/Why Learned Relations Do Not Collapse	Relation Learners/Why Learned Relations Do Not Collapse
+Factor Graphs/Acausal Composition is a Hypergraph Category	Gaussian Graphs/Acausal Composition is a Hypergraph Category
+Factor Graphs/Belief Algebra	Gaussian Graphs/Belief Algebra
+Factor Graphs/Beliefs	Gaussian Graphs/Beliefs
+Factor Graphs/Bethe Free Energy	Gaussian Graphs/Bethe Free Energy
+Factor Graphs/Categorical Belief	Gaussian Graphs/Beliefs/Categorical Belief
+Factor Graphs/Dirac Belief	Gaussian Graphs/Beliefs/Dirac Belief
+Factor Graphs/Dynamic Graphs	Gaussian Graphs/Dynamic Graphs
+Factor Graphs/Everything is a Factor	Gaussian Graphs/Everything is a Factor
+Factor Graphs/Factor Graphs	Gaussian Graphs/Factor Graphs
+Factor Graphs/Factor Graphs and Schemes	Gaussian Graphs/Factor Graphs and Schemes
+Factor Graphs/Finding a Factor Graph	Structure and Regimes/Finding a Factor Graph
+Factor Graphs/Gaussian Belief	Gaussian Graphs/Beliefs/Gaussian Belief
+Factor Graphs/Hierarchical Models	Structure and Regimes/Hierarchical Models
+Factor Graphs/Loopy Message Passing	Gaussian Graphs/Loopy Message Passing
+Factor Graphs/Messages are Inversions	Gaussian Graphs/Messages are Inversions
+Factor Graphs/Mixture Belief	Gaussian Graphs/Beliefs/Mixture Belief
+Factor Graphs/Polarity Resolution	Gaussian Graphs/Polarity Resolution
+Factor Graphs/Sample Belief	Gaussian Graphs/Beliefs/Sample Belief
+Factor Graphs/Schedules	Gaussian Graphs/Schedules
+Factor Graphs/Switching Constraint Factors	Structure and Regimes/Switching Constraint Factors
+Factor Graphs/The Linear Gaussian Chain	Gaussian Graphs/The Linear Gaussian Chain
+Factor Graphs/Trivial Belief	Gaussian Graphs/Beliefs/Trivial Belief
+Factor Graphs/Unusual Wirings	Gaussian Graphs/Unusual Wirings
+Families/Adversarial/GANs as Two Factors	Parked/Families/Adversarial/GANs as Two Factors
+Families/Adversarial/Implicit Generative Models	Parked/Families/Adversarial/Implicit Generative Models
+Families/Algebraic/Algebraic Implicit Learners	Parked/Families/Algebraic/Algebraic Implicit Learners
+Families/Algebraic/Algebraic Statistics Bridge	Parked/Families/Algebraic/Algebraic Statistics Bridge
+Families/Algebraic/Algebraic versus Geometric Distance	Parked/Families/Algebraic/Algebraic versus Geometric Distance
+Families/Algebraic/Backpropagation by the Implicit Function Theorem	Parked/Families/Algebraic/Backpropagation by the Implicit Function Theorem
+Families/Algebraic/Branches and the Discriminant	Parked/Families/Algebraic/Branches and the Discriminant
+Families/Algebraic/Composition is Elimination	Parked/Families/Algebraic/Composition is Elimination
+Families/Algebraic/Differential Algebra and DAE Factors	Parked/Families/Algebraic/Differential Algebra and DAE Factors
+Families/Algebraic/Fitting is a Nullspace Problem	Parked/Families/Algebraic/Fitting is a Nullspace Problem
+Families/Algebraic/Inference as Root Finding	Parked/Families/Algebraic/Inference as Root Finding
+Families/Algebraic/Open Problems in Algebraic Implicit Learning	Parked/Families/Algebraic/Open Problems in Algebraic Implicit Learning
+Families/Algebraic/Symbolic Implicit Learning	Parked/Families/Algebraic/Symbolic Implicit Learning
+Families/Algebraic/The Algebraic Factor as a Statistical Game	Parked/Families/Algebraic/The Algebraic Factor as a Statistical Game
+Families/Algebraic/The Parameter is a Grassmannian	Parked/Families/Algebraic/The Parameter is a Grassmannian
+Families/Algebraic/The Veronese Parametrisation	Parked/Families/Algebraic/The Veronese Parametrisation
+Families/Algebraic/Toric Models as Factors	Parked/Families/Algebraic/Toric Models as Factors
+Families/Algebraic/Universal Approximation by Nash-Tognoli	Parked/Families/Algebraic/Universal Approximation by Nash-Tognoli
+Families/Algebraic/Varieties Ideals and Real Nullstellensatz	Parked/Families/Algebraic/Varieties Ideals and Real Nullstellensatz
+Families/Diffusion/Backpropagation through Implicit Inference	Relation Learners/Backpropagation through Implicit Inference
+Families/Diffusion/Composing Diffusion Factors	Relation Learners/Composing Diffusion Factors
+Families/Diffusion/Deterministic Relaxation	Relation Learners/Deterministic Relaxation
+Families/Diffusion/Implicit Diffusion Learners	Relation Learners/Implicit Diffusion Learners
+Families/Diffusion/ImplicitREDDiff	Relation Learners/ImplicitREDDiff
+Families/Diffusion/Inference Signatures	Relation Learners/Inference Signatures
+Families/Diffusion/Open Problems in Implicit Diffusion Learning	Relation Learners/Open Problems in Implicit Diffusion Learning
+Families/Diffusion/ProxDM and Proximal Alternatives	Relation Learners/ProxDM and Proximal Alternatives
+Families/Diffusion/RED-Diff as a Statistical Game	Relation Learners/RED-Diff as a Statistical Game
+Families/Diffusion/The Diffusion Factor	Relation Learners/The Diffusion Factor
+Families/Diffusion/The Diffusion Family	Relation Learners/The Diffusion Family
+Families/Diffusion/The Implicit Diffusion Factor as a Statistical Game	Relation Learners/The Implicit Diffusion Factor as a Statistical Game
+Families/Diffusion/The VP-SDE	Relation Learners/The VP-SDE
+Families/Diffusion/Universal Approximation for Implicit Diffusion Learners	Relation Learners/Universal Approximation for Implicit Diffusion Learners
+Families/Equilibrium/DEQ as a Relation	Parked/Families/Equilibrium/DEQ as a Relation
+Families/Equilibrium/NeuralODE as an Invertible Factor	Parked/Families/Equilibrium/NeuralODE as an Invertible Factor
+Families/Equilibrium/The Equilibrium Family	Parked/Families/Equilibrium/The Equilibrium Family
+Types/Probabilistic Types	Design/Probabilistic Types
+Types/The Type Discipline of a Factor Graph	Design/The Type Discipline of a Factor Graph
+lib/Adversarial.jl/Adversarial	parked/Adversarial.jl/Adversarial
+lib/Adversarial.jl/generator	parked/Adversarial.jl/generator
+lib/Adversarial.jl/ratio	parked/Adversarial.jl/ratio
+lib/Adversarial.jl/transport	parked/Adversarial.jl/transport
+lib/AlgebraicFactors.jl/AlgebraicFactors	parked/AlgebraicFactors.jl/AlgebraicFactors
+lib/AlgebraicFactors.jl/fit	parked/AlgebraicFactors.jl/fit
+lib/AlgebraicFactors.jl/grassmann	parked/AlgebraicFactors.jl/grassmann
+lib/AlgebraicFactors.jl/homotopy	parked/AlgebraicFactors.jl/homotopy
+lib/AlgebraicFactors.jl/plucker	parked/AlgebraicFactors.jl/plucker
+lib/AlgebraicFactors.jl/polyfit	parked/AlgebraicFactors.jl/polyfit
+lib/AlgebraicFactors.jl/polynomial	parked/AlgebraicFactors.jl/polynomial
+lib/AlgebraicFactors.jl/toric	parked/AlgebraicFactors.jl/toric
+lib/AlgebraicFactors.jl/veronese	parked/AlgebraicFactors.jl/veronese
+lib/ImplicitLayers.jl/ImplicitLayers	parked/ImplicitLayers.jl/ImplicitLayers
+lib/ImplicitLayers.jl/deq	parked/ImplicitLayers.jl/deq
+lib/ImplicitLayers.jl/flow	parked/ImplicitLayers.jl/flow
+lib/ImplicitLayers.jl/luxfactor	parked/ImplicitLayers.jl/luxfactor
+lib/ImplicitLayers.jl/neuralode	parked/ImplicitLayers.jl/neuralode
+lib/ImplicitLayers.jl/point_game	parked/ImplicitLayers.jl/point_game
+lib/ImplicitLayers.jl/solve	parked/ImplicitLayers.jl/solve
+lib/Mycelium.jl/em	lib/MyceliumLearning.jl/em
+lib/Mycelium.jl/gradient_couplings	lib/MyceliumLearning.jl/gradient_couplings
+lib/Mycelium.jl/graph_adjoint	lib/MyceliumLearning.jl/graph_adjoint
+src/Lenticulum	lib/Lenticulum.jl/Lenticulum
+src/beliefs	lib/Lenticulum.jl/beliefs
+src/composition	lib/Lenticulum.jl/composition
+src/constraint	lib/Lenticulum.jl/constraint
+src/exposure	lib/Lenticulum.jl/exposure
+src/gaussian	lib/Lenticulum.jl/gaussian
+src/likelihood	lib/Lenticulum.jl/likelihood
+src/m_steps	lib/Lenticulum.jl/m_steps
+src/noise	lib/Lenticulum.jl/noise
+src/nonlinear	lib/Lenticulum.jl/nonlinear
+src/regime	lib/Lenticulum.jl/regime
+src/switching	lib/Lenticulum.jl/switching

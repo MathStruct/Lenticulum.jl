@@ -2,7 +2,7 @@
 
 > **Status: open (2026-11-05).** Area: probabilistic graphical models, tropical geometry, topological data analysis · Prerequisites: [[Switching Constraint Factors]], [[Why Learned Relations Do Not Collapse]] · Related: [[Feature Backlog]] (overlaid factors), `lib/VariationalDiffusion.jl/examples/calibration.md`, [[LP-022 Constraint factors are normalised in their residual, not their channels]].
 
-> Sources: Zhang, Naitzat & Lim, *Tropical Geometry of Deep Neural Networks*, ICML 2018 (ReLU networks are tropical rational maps); original analysis of this repository. code: `src/switching.jl`; tests: `test/rq008.jl`
+> Sources: Zhang, Naitzat & Lim, *Tropical Geometry of Deep Neural Networks*, ICML 2018 (ReLU networks are tropical rational maps); original analysis of this repository. code: `lib/Lenticulum.jl/src/switching.jl`; tests: `lib/Lenticulum.jl/test/rq008.jl`
 >
 > Bibliography: [[Bibliography#^zhang2018tropical|Zhang et al. 2018]]
 >
@@ -41,7 +41,7 @@ $$
    sets are convex and its mode is unique if any term is strictly convex. Such an overlay cannot
    represent a mixture, and it cannot replace a switching factor.
 2. **The summed-out switch is a soft-min, and a difference of convex functions** (derived here;
-   checked in `test/rq008.jl` against the graph's exact free energy to $10^{-12}$). With $y = Az$,
+   checked in `lib/Lenticulum.jl/test/rq008.jl` against the graph's exact free energy to $10^{-12}$). With $y = Az$,
 
 $$
 E_{\mathrm{sw}}(z) = \tfrac12 y^\top Q^{-1} y \;-\; \operatorname{logsumexp}_k\Bigl(b_k^\top Q^{-1} y - \tfrac12 b_k^\top Q^{-1} b_k + \log w_k\Bigr) + \tfrac12 \log\det 2\pi Q .
@@ -50,7 +50,7 @@ $$
    That is the linear constraint's convex quadratic minus a convex log-sum-exp of affine functions
    of $y$.
 
-3. **Its low-noise limit is tropical** (derived here; checked in `test/rq008.jl`). With $Q = sQ_0$,
+3. **Its low-noise limit is tropical** (derived here; checked in `lib/Lenticulum.jl/test/rq008.jl`). With $Q = sQ_0$,
 
 $$
 s\,E_{\mathrm{sw}}(z) \;\longrightarrow\; \tfrac12 y^\top Q_0^{-1} y - \max_k\Bigl(b_k^\top Q_0^{-1} y - \tfrac12 b_k^\top Q_0^{-1} b_k\Bigr), \qquad s \to 0,
@@ -109,7 +109,7 @@ $$
   polynomial.
 - **The overlay node** exists since 2026-11-05 for members with a cluster form (`OverlayFactor`,
   `lib/Mycelium.jl/src/overlay.md`), with the normaliser per joint outcome; it equals a cluster node
-  of the members and the closed forms (`test/overlay.jl`). Open: members with nonlinear energies
+  of the members and the closed forms (`lib/Lenticulum.jl/test/overlay.jl`). Open: members with nonlinear energies
   (EP or Laplace), and the normalisation of the whole product, which gates the outcomes by $x$.
 - **Dequantisation.** The passage from log-sum-exp to max as $s \to 0$ is Maslov's dequantisation. The
   temperature $s$ is the switch's noise, so annealing the noise is a path from a smooth mixture to its

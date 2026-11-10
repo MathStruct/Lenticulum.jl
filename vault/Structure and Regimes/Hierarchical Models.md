@@ -6,7 +6,7 @@
 > and pooling) from one factor. Only a hierarchy over the **parameters** of learned factors needs
 > the wiring of [[Unusual Wirings]]. Three examples, each checked against a dense Gaussian.
 
-> Sources: Rubin, *Estimation in Parallel Randomized Experiments*, Journal of Educational Statistics 6(4), 1981 (the eight-schools data); Weiss & Freeman, *Correctness of Belief Propagation in Gaussian Graphical Models of Arbitrary Topology*, Neural Computation 13(10), 2001 (converged loopy Gaussian BP has exact means); the analysis is original to this vault. code: `examples/hierarchical_models.jl`, `test/hierarchical_models.jl`
+> Sources: Rubin, *Estimation in Parallel Randomized Experiments*, Journal of Educational Statistics 6(4), 1981 (the eight-schools data); Weiss & Freeman, *Correctness of Belief Propagation in Gaussian Graphical Models of Arbitrary Topology*, Neural Computation 13(10), 2001 (converged loopy Gaussian BP has exact means); the analysis is original to this vault. code: `lib/Lenticulum.jl/examples/hierarchical_models.jl`, `lib/Lenticulum.jl/test/hierarchical_models.jl`
 >
 > Bibliography: [[Bibliography#^rubin1981parallel|Rubin 1981]] · [[Bibliography#^weiss2001gaussian|Weiss & Freeman 2001]]
 >
@@ -69,7 +69,7 @@ likelihood used to choose the population variance.
 **The eight schools.** Rubin's (1981) coaching experiments: eight schools, an estimated effect
 $y_j$ with known standard error $s_j$ each. The model is $y_j \sim \mathcal N(\theta_j, s_j^2)$,
 $\theta_j \sim \mathcal N(\mu, \tau^2)$, $\mu \sim \mathcal N(0, 100^2)$. For each $\tau$ the graph is
-linear-Gaussian, and the posterior means (from `examples/hierarchical_models.jl`) move from the
+linear-Gaussian, and the posterior means (from `lib/Lenticulum.jl/examples/hierarchical_models.jl`) move from the
 raw estimates towards the pooled mean as $\tau$ falls:
 
 | school | $y_j$ | $s_j$ | $\tau = 100$ | $\tau = 25$ | $\tau = 10$ | $\tau = 5$ | $\tau = 0.5$ |
@@ -122,7 +122,7 @@ an ordinary one-observation regression factor into a channel; connecting every o
 group $j$ to one variable $\beta_j$ ties the weight, and the population factor attaches to
 $\beta_j$ as before. With the same data this graph (thirty observation factors) agrees with the
 dense reference to rtol $10^{-9}$ in the means and $10^{-10}$ in $-\log p(y)$
-(`test/exposure.jl`). For a neural network the message to the weights would no longer be exact
+(`lib/Lenticulum.jl/test/exposure.jl`). For a neural network the message to the weights would no longer be exact
 (a network is not linear in its weights; [[Unusual Wirings]] §2), and no approximate one is
 implemented yet.
 

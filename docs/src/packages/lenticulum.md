@@ -46,7 +46,7 @@ exact. By default parameters are `(A, b)` and `noise` is fixed. Opt-in
 `learn_noise=true` (full covariance) or `:diagonal` adds positive-precision noise
 coordinates; train them with normalised free energy, not the residual norm alone.
 GaussianPrior supports the same covariance-learning options with its mean fixed.
-`test/learnable_noise.jl` checks these parameter derivatives against references.
+`lib/Lenticulum.jl/test/learnable_noise.jl` checks these parameter derivatives against references.
 
 `LinearConstraintFactor` is the **acausal** generalisation — one equation over `n` channels,
 none of them distinguished, with one supported polarity per channel. It subsumes

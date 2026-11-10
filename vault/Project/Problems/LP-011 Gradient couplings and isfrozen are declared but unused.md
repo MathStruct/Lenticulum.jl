@@ -65,10 +65,10 @@ this implementation does not claim those capabilities.
 - Mycelium: `Project.toml`, `src/Mycelium.jl`, `graph.jl`, `polarity_resolution.jl`,
   `messages.jl`, `passing.jl`, `schedules.jl`, `free_energy.jl`, new `gradient_couplings.jl` and notes;
   new ChainRules extension; test project, construction/conformance tests and new
-  `test/gradient_couplings.jl`.
-- Lenticulum: `src/gaussian.jl`, `composition.jl` and notes,
-  `ext/LenticulumChainRulesCoreExt.jl`, `test/runtests.jl`, new
-  `test/gradient_couplings.jl`.
+  `lib/Lenticulum.jl/test/gradient_couplings.jl`.
+- Lenticulum: `lib/Lenticulum.jl/src/gaussian.jl`, `composition.jl` and notes,
+  `lib/Lenticulum.jl/ext/LenticulumChainRulesCoreExt.jl`, `test/runtests.jl`, new
+  `lib/Lenticulum.jl/test/gradient_couplings.jl`.
 - Documentation: package pages for Core/Mycelium/Lenticulum, Backward Signatures,
   Factors are Parameterized Statistical Games, L-SPEC-002, LP-011, LP-002,
   Problem Log, generated bibliography backlinks, and an appended L-SPEC-001 entry
@@ -94,7 +94,7 @@ claim that every baseline improves variance. The categorical test (`Xoshiro(13)`
 with `-3 + log(0.7/0.3)`: expected point cost plus the toy graph's analytic Bethe
 entropy correction. Both estimator means satisfy their stated standard-error tests.
 
-`test/gradient_couplings.jl` samples the exact internal Gaussian posterior with
+`lib/Lenticulum.jl/test/gradient_couplings.jl` samples the exact internal Gaussian posterior with
 `Xoshiro(47)`, 3,000 draws. A fixed baseline equal to the reference collapsed NLL
 (1.4130896953500565 in that fixture) cancels the posterior score term; its componentwise
 standard errors are asserted below `1e-12`. The expectation gradient and analytic

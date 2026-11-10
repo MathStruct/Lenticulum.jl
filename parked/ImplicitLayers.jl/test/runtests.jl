@@ -2,6 +2,7 @@ using ImplicitLayers
 using LenticulumCore
 using LenticulumCore: DiracBelief, TrivialBelief, Observed, Unobserved, Polarity
 using Mycelium
+using MyceliumLearning
 using LuxCore
 using LinearAlgebra
 using Random

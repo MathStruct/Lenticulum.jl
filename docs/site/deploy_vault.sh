@@ -8,7 +8,8 @@
 # api/ (deploydocs' dirname). The root belongs to the vault except for what others own: api/
 # (Documenter), preview/, the old release folders and versions.js from before the move. A root
 # deploy also rewrites dev/, the site's address until October 2026, as redirect stubs to the new
-# addresses (docs/site/redirects.py), so links into the old site keep working.
+# addresses (docs/site/redirects.py), so links into the old site keep working. Notes that moved
+# inside the vault get stubs at their old addresses too (docs/site/redirects_moved.py, moved.tsv).
 #
 # Needs GITHUB_TOKEN and GITHUB_REPOSITORY (set in GitHub Actions); DRYRUN=1 stops before pushing.
 set -euo pipefail
@@ -30,6 +31,7 @@ case "$TARGET" in
   preview)
     rm -rf preview
     cp -a "$VAULT" preview
+    python3 "$HERE/redirects_moved.py" "$VAULT" preview --prefix preview/
     ;;
   root)
     # everything at the root is the vault's, except what others own
@@ -42,6 +44,7 @@ case "$TARGET" in
     cp -a "$VAULT/." ./
     rm -rf dev
     python3 "$HERE/redirects.py" "$VAULT" "$API" dev
+    python3 "$HERE/redirects_moved.py" "$VAULT" . --dev     # notes that moved in the refactor of 2026-11
     ;;
   *)
     echo "unknown target $TARGET (root or preview)" >&2; exit 1 ;;

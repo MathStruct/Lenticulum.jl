@@ -24,7 +24,7 @@ Wrong claims in notes:
 
 Found while verifying the fixes (Claude, 2026-10-29):
 
-13. **LP-018 item 7 rejects covariances that are symmetric up to rounding** (`src/constraint.jl`, `src/nonlinear.jl`). The LP-018 fix tests `issymmetric(Q)`, which is exact. AlgebraicFactors builds $Q = J S J^\top + \lambda\Theta\Theta^\top$, which rounds asymmetrically, and its "Polynomial degree-one messages and lens contract" testset errors with "noise covariance must be symmetric". LP-018's verification ran five suites, not AlgebraicFactors, so this reached `master` with commit 5513f457.
+13. **LP-018 item 7 rejects covariances that are symmetric up to rounding** (`lib/Lenticulum.jl/src/constraint.jl`, `lib/Lenticulum.jl/src/nonlinear.jl`). The LP-018 fix tests `issymmetric(Q)`, which is exact. AlgebraicFactors builds $Q = J S J^\top + \lambda\Theta\Theta^\top$, which rounds asymmetrically, and its "Polynomial degree-one messages and lens contract" testset errors with "noise covariance must be symmetric". LP-018's verification ran five suites, not AlgebraicFactors, so this reached `master` with commit 5513f457.
 
 **Checked and found correct** (Codex, 2026-10-29):
 - Mycelium: 546 existing assertions; 458 new ones over six Gaussian trees (different roots; tree, flooding and residual schedules) agreeing with dense references in means, variances, cavity exclusion, counting numbers and Bethe free energy; dense and Krylov implicit graph gradients.
@@ -42,7 +42,7 @@ Documented limits (dropped categorical labels, legacy state threading) were excl
 Each item got a regression test with the input above, run and seen to fail before its fix:
 `lib/Mycelium.jl/test/lp019.jl` (items 1, 2, 5, 6, 9), `lib/LenticulumCore.jl/test/lp019.jl`
 (item 3), `parked/ImplicitLayers.jl/test/lp019.jl` (items 4, 10) and the top-level
-`test/lp019_interop.jl` (items 7, 8, 13; the ChainRulesCore and ExponentialFamily extensions do
+`lib/Lenticulum.jl/test/lp019_interop.jl` (items 7, 8, 13; the ChainRulesCore and ExponentialFamily extensions do
 not load in LenticulumCore's own test environment).
 
 1. `RelayFactor` contributes $-H(q)$, $q$ the pooled incoming messages, and `uses_cavity` is

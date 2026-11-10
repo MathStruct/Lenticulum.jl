@@ -1,8 +1,8 @@
 #design
 
-> **Status: draft (2026-11-03, Claude), implemented as described.** Related: [[Extending Mycelium]] §6, [[L-SPEC-009 Cluster Nodes]], [[Composing Stochastic Factors]] (structure search on `experiment-qm`). Code: `lib/Mycelium.jl/src/edits.jl`; example: `examples/structure_edits.jl`.
+> **Status: draft (2026-11-03, Claude), implemented as described.** Related: [[Extending Mycelium]] §6, [[L-SPEC-009 Cluster Nodes]], [[Composing Stochastic Factors]] (structure search on `experiment-qm`). Code: `lib/Mycelium.jl/src/edits.jl`; example: `lib/Lenticulum.jl/examples/structure_edits.jl`.
 
-> Sources: original to this repository. code: `lib/Mycelium.jl/src/edits.jl`; tests: `test/structure_edits.jl`, `lib/Mycelium.jl/test/edits.jl`; example: `examples/structure_edits.jl`
+> Sources: original to this repository. code: `lib/Mycelium.jl/src/edits.jl`; tests: `lib/Lenticulum.jl/test/structure_edits.jl`, `lib/Mycelium.jl/test/edits.jl`; example: `lib/Lenticulum.jl/examples/structure_edits.jl`
 >
 > Theory (CT-ML wiki): [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
@@ -30,11 +30,11 @@ nodes, trees).
 
 ## Checked by
 
-`test/structure_edits.jl`: edits reproduce the graphs built directly (nodes and edges by name, exact
+`lib/Lenticulum.jl/test/structure_edits.jl`: edits reproduce the graphs built directly (nodes and edges by name, exact
 free energy to $10^{-14}$) for adding and removing a switch; `transfer` keeps the surviving messages and
-the warm start reaches the cold start's fixed point. `examples/structure_edits.jl`: greedy search over
+the warm start reaches the cold start's fixed point. `lib/Lenticulum.jl/examples/structure_edits.jl`: greedy search over
 $L$ switches on E3's 8-mode grid (200 points, exact scores through tied per-point cluster nodes, fits by
-gradient steps at the exact beliefs) finds $L = 3$ by three additions, the branch's path, in 166 s (clusters as a plate). `examples/structure_clusters.jl`: the switch over sums ($J$ clusters,
+gradient steps at the exact beliefs) finds $L = 3$ by three additions, the branch's path, in 166 s (clusters as a plate). `lib/Lenticulum.jl/examples/structure_clusters.jl`: the switch over sums ($J$ clusters,
 labels tied to switch outcomes by `TableFactor`s) with all four of the branch's moves; split and
 merge re-add the label and outcome variables with new state counts. On the branch's tree (200
 points) greedy goes (1, 0) → (1, 1) → (2, 1) → (2, 2) → (2, 3), BIC 1 355.84 in 441 s, while the
@@ -46,7 +46,7 @@ data-driven split, then a removal) the search continues to (3, 2) at 1 299.17 (9
 - Editing plates directly; stable ids (append-only growth with masks) instead of rebuilding. An edited
   graph whose replicas are named `x[i]` gets its plate back with `as_plate` (2026-11-04).
 - Moves and warm starts are the caller's; the example's compound split-and-remove with a data-driven
-  split is one choice that works on the tree (`examples/structure_clusters.md`), not a general rule.
+  split is one choice that works on the tree (`lib/Lenticulum.jl/examples/structure_clusters.md`), not a general rule.
 - Fitting: closed-form M-steps from cluster beliefs (`MyceliumLearning.fit_em`, SQUAREM) since 2026-11-04,
   about 7× faster per warm fit than 300 gradient steps; a search is now limited by compiling each
   new structure's inference code and by slow EM on over-parameterised candidates (`em.md`). Frozen

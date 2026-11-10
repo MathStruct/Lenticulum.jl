@@ -107,7 +107,7 @@ Lenticulum's `RegimeFactor`), and [`as_cluster`](@ref) makes one factor a cluste
 A built graph is edited by opening it as a builder: `GraphBuilder(g)`, then `variable!`,
 `factor!`, `connect!`, [`remove_factor!`](@ref), [`remove_variable!`](@ref), [`disconnect!`](@ref) and
 [`replace_factor!`](@ref) by name, then `build`. [`transfer`](@ref) carries the messages of the edges
-both graphs share into a store for the new graph, as a warm start. `examples/structure_edits.jl`
+both graphs share into a store for the new graph, as a warm start. `lib/Lenticulum.jl/examples/structure_edits.jl`
 runs a greedy structure search over switch wirings this way, scored by the exact free energy.
 
 Points can be passed instead of beliefs. `GibbsSampler(g, sampled)` draws the named variables (for

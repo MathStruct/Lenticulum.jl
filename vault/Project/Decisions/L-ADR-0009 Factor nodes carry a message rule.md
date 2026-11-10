@@ -65,7 +65,7 @@ Implemented:
   inference still refuse mean-field nodes.
 
 Tests: Mycelium's `test/message_rules.jl` (the default; that a mean-field node sees marginals, not
-cavities; the refusals; the missing-method error) and Lenticulum's `test/switching_constraint.jl` (the
+cavities; the refusals; the missing-method error) and Lenticulum's `lib/Lenticulum.jl/test/switching_constraint.jl` (the
 two rules against their formulas and Monte Carlo; a hybrid graph against an independent
 structured-mean-field implementation to $10^{-6}$).
 

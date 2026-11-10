@@ -16,11 +16,11 @@
 ## 2026-10-27 — pipeline note and measured Gaussian example
 
 The 2026-10-26 decision is carried out in [[Finding a Factor Graph]] and
-`examples/gaussian_structure_search.jl` (top-level example because it uses Lenticulum's
+`lib/Lenticulum.jl/examples/gaussian_structure_search.jl` (top-level example because it uses Lenticulum's
 Gaussian factors and Mycelium's graph machinery). It samples a known sparse Gaussian
 chain, refits single-edge proposals and scores normalised data likelihoods using BP/Bethe;
 the comparator is a small ADMM graphical lasso with exact refitted BIC selection.
-`test/structure_search.jl` checks true-chain recovery on a separate six-variable sample,
+`lib/Lenticulum.jl/test/structure_search.jl` checks true-chain recovery on a separate six-variable sample,
 forest scores against dense integration, a nonzero loop error and glasso KKT conditions.
 
 The note records the complete penalised trajectory and precision/recall. Its eight-variable

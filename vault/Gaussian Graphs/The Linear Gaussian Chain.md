@@ -194,7 +194,7 @@ widens without bound (`_flat_message`; [[lib/Lenticulum.jl/src/gaussian|gaussian
 Until 2026-11-10 this case threw, or for some $H$ returned wrong marginals without an error
 ([[LP-024 Findings of the review of 2026-11-09]]). It is now tested against the dense joint
 solve on random trees with rectangular coefficients and on the position-only smoother
-(`test/gaussian_oracle.jl`).
+(`lib/Lenticulum.jl/test/gaussian_oracle.jl`).
 
 > [!note] This is why factors are relations, not functions
 > A `Lux.jl` layer has one direction and its reverse pass carries a gradient. `odo1` here has

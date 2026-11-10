@@ -1,8 +1,8 @@
 #design
 
-> **Status: draft (2026-11-02, Claude), implemented as described.** Related: [[Extending Mycelium]] §1, [[L-ADR-0009 Factor nodes carry a message rule]], [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]], [[Bethe Free Energy]]. Code: `lib/Mycelium.jl/src/free_energy.jl` (`counting_number`, `bp_degree`, `marginals_into`, `factor_free_energies`, `free_energy_gradient`), `passing.jl` (`mean_field_energy`), `src/constraint.jl` and `src/switching.jl` (the methods).
+> **Status: draft (2026-11-02, Claude), implemented as described.** Related: [[Extending Mycelium]] §1, [[L-ADR-0009 Factor nodes carry a message rule]], [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]], [[Bethe Free Energy]]. Code: `lib/Mycelium.jl/src/free_energy.jl` (`counting_number`, `bp_degree`, `marginals_into`, `factor_free_energies`, `free_energy_gradient`), `passing.jl` (`mean_field_energy`), `lib/Lenticulum.jl/src/constraint.jl` and `lib/Lenticulum.jl/src/switching.jl` (the methods).
 
-> Sources: Riegler, Kirkelund, Manchon, Badiu & Fleury, *Merging Belief Propagation and the Mean Field Approximation: A Free Energy Approach*, IEEE Trans. Inf. Theory 59(1), 2013 (arXiv:1112.0467v3): §III, the regions and counting numbers (16), the free energy (17), Theorem 2 (stationary points are the fixed points of the message passing (21)–(22)). code: `lib/Mycelium.jl/src/free_energy.jl`, `lib/Mycelium.jl/src/passing.jl`, `src/constraint.jl`, `src/switching.jl`; tests: `test/mean_field_free_energy.jl`, `lib/Mycelium.jl/test/message_rules.jl`
+> Sources: Riegler, Kirkelund, Manchon, Badiu & Fleury, *Merging Belief Propagation and the Mean Field Approximation: A Free Energy Approach*, IEEE Trans. Inf. Theory 59(1), 2013 (arXiv:1112.0467v3): §III, the regions and counting numbers (16), the free energy (17), Theorem 2 (stationary points are the fixed points of the message passing (21)–(22)). code: `lib/Mycelium.jl/src/free_energy.jl`, `lib/Mycelium.jl/src/passing.jl`, `lib/Lenticulum.jl/src/constraint.jl`, `lib/Lenticulum.jl/src/switching.jl`; tests: `lib/Lenticulum.jl/test/mean_field_free_energy.jl`, `lib/Mycelium.jl/test/message_rules.jl`
 >
 > Bibliography: [[Bibliography#^riegler2013merging|Riegler et al. 2013]]
 >
@@ -54,7 +54,7 @@ throws everywhere.
 
 ## Checked by
 
-`test/mean_field_free_energy.jl`:
+`lib/Lenticulum.jl/test/mean_field_free_energy.jl`:
 
 - counting numbers count belief-propagation neighbours only;
 - naive mean field over $(u, v)$ with $y = u + v + c + \varepsilon$: the converged free energy equals

@@ -231,7 +231,7 @@ and MTK's choice to solve rather than propagate is not a limitation but the corr
 
 ## 7. What was implemented
 
-`LinearConstraintFactor` (`src/constraint.jl`, note in `constraint.md`): the acausal linear
+`LinearConstraintFactor` (`lib/Lenticulum.jl/src/constraint.jl`, note in `constraint.md`): the acausal linear
 equation
 
 $$0 \;=\; \sum_i A_i x_i - c + \varepsilon, \qquad \varepsilon\sim\mathcal{N}(0,Q)$$

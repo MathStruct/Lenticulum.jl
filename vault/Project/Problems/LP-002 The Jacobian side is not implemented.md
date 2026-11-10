@@ -194,8 +194,8 @@ in the local environment. `git diff --check` passed.
 - `lib/Mycelium.jl/src/free_energy.jl`
 - `lib/Mycelium.jl/src/free_energy.md`
 - `lib/VariationalDiffusion.jl/ext/VariationalDiffusionDifferentiationInterfaceExt.jl`
-- `src/gaussian.jl`
-- `src/gaussian.md`
+- `lib/Lenticulum.jl/src/gaussian.jl`
+- `lib/Lenticulum.jl/src/gaussian.md`
 - `test/runtests.jl`
 - `vault/Project/Decisions/L-ADR-0002 Energies are vectors, scalarised late.md`
 - `vault/Project/Problems/LP-002 The Jacobian side is not implemented.md`
@@ -786,7 +786,7 @@ performance measurements.
   `ext/MyceliumChainRulesCoreExt.jl`.
 - Environments/tests: the three packages' `Project.toml` files;
   `parked/ImplicitLayers.jl/test/Project.toml`, `runtests.jl`, `device_arrays.jl`.
-- Top-level replay adapters: `src/gaussian.jl`, `composition.jl` and their notes
+- Top-level replay adapters: `lib/Lenticulum.jl/src/gaussian.jl`, `composition.jl` and their notes
   thread the new constant backend context through existing Gaussian message rules.
 - `lib/VariationalDiffusion.jl/test/runtests.jl`: clarify that JLArrays emulation
   does not establish hardware CUDA support; assertions are unchanged.

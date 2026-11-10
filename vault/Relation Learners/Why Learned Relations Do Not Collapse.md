@@ -7,7 +7,7 @@
 > comparison. This note goes through every learnable factor family, says which of them are safe,
 > which are guarded, and lists the options. Since 2026-11-05 every collapse found is at least warned.
 
-> Sources: LeCun, Chopra, Hadsell, Ranzato & Huang, *A Tutorial on Energy-Based Learning*, 2006, §2 (loss functionals) and §5 (the energy loss and flat energy surfaces); original analysis of this repository's factors. code: `src/constraint.jl` (`_coeffs`, `output`), `src/regime.jl`, `src/m_steps.jl`, `lib/Mycelium.jl/src/free_energy.jl` (`learns_unnormalised`), `parked/AlgebraicFactors.jl/src/toric.jl`, `parked/AlgebraicFactors.jl/src/polynomial.jl`, `parked/ImplicitLayers.jl/src/deq.jl`; tests: `test/lp022.jl`, `parked/AlgebraicFactors.jl/test/lp022.jl`, `test/learnable_noise.jl`
+> Sources: LeCun, Chopra, Hadsell, Ranzato & Huang, *A Tutorial on Energy-Based Learning*, 2006, §2 (loss functionals) and §5 (the energy loss and flat energy surfaces); original analysis of this repository's factors. code: `lib/Lenticulum.jl/src/constraint.jl` (`_coeffs`, `output`), `lib/Lenticulum.jl/src/regime.jl`, `lib/Lenticulum.jl/src/m_steps.jl`, `lib/Mycelium.jl/src/free_energy.jl` (`learns_unnormalised`), `parked/AlgebraicFactors.jl/src/toric.jl`, `parked/AlgebraicFactors.jl/src/polynomial.jl`, `parked/ImplicitLayers.jl/src/deq.jl`; tests: `test/lp022.jl`, `parked/AlgebraicFactors.jl/test/lp022.jl`, `lib/Lenticulum.jl/test/learnable_noise.jl`
 >
 > Bibliography: [[Bibliography#^lecun2006tutorial|LeCun et al. 2006]]
 >
@@ -58,7 +58,7 @@ ways to get there, and the factors below use each of them:
 
 | factor | learned | normalised in its data? | can it collapse? | guard |
 |---|---|---|---|---|
-| `GaussianFactor` | $A$, $b$, optionally $Q$ | yes: $p(y \mid x)$, $A_y = I$ | no; with learned $Q$, an exact fit drives $Q \to 0$ | noise prior or floor (`test/learnable_noise.jl`) |
+| `GaussianFactor` | $A$, $b$, optionally $Q$ | yes: $p(y \mid x)$, $A_y = I$ | no; with learned $Q$, an exact fit drives $Q \to 0$ | noise prior or floor (`lib/Lenticulum.jl/test/learnable_noise.jl`) |
 | `GaussianPrior` | the noise, optionally | yes | as above | as above |
 | `NonlinearFactor`, `LikelihoodFactor` | nothing (`islearnable = false`) | yes | no | — |
 | `LinearConstraintFactor` | $A$, $c$ | only in the residual | **yes**: $A = 0$ (1) | `output = :y`; a warning; `m_step` refuses |
@@ -97,7 +97,7 @@ and the noise's scale lowers $F$ by $N m \log 2$ exactly (2).
 
 **Cluster nodes** inherit this. A cluster's free energy is $-\log p(\text{data})$ only when its factors
 are normalised. A parameterisation that ties several factors must keep the normalisation itself. In
-`examples/structure_clusters.jl` the switches' weights are normalised per cluster so that the
+`lib/Lenticulum.jl/examples/structure_clusters.jl` the switches' weights are normalised per cluster so that the
 tables' $\log J$ makes the joint a mixture. An unconstrained per-factor M-step would break that,
 and its free energy would no longer be $-\log p$. The example's EM therefore uses its own
 constrained M-step.
@@ -182,7 +182,7 @@ In order of preference:
 | check | where | covers |
 |---|---|---|
 | warning in `free_energy_gradient` | `Mycelium.learns_unnormalised`, `_unnormalised_nodes` | the three constraint factors without `output`; `ToricFactor` without `normalised` (any observed channel) |
-| refusal in the closed-form M-step | `src/m_steps.jl` | constraint factors with every coefficient learned |
+| refusal in the closed-form M-step | `lib/Lenticulum.jl/src/m_steps.jl` | constraint factors with every coefficient learned |
 | `output` | the three constraint factors | makes them conditional densities |
 | parameter validation | `validate_parameters` | an `output` coefficient passed as a parameter |
 | warning in `free_energy_gradient`, by channel | `learns_unnormalised(f, observed)` | `DEQFactor` with its state observed |

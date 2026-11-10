@@ -1,8 +1,8 @@
 #design
 
-> **Status: draft (2026-11-02, Claude), implemented as described; §5–§6 added 2026-11-03 with [[L-ADR-0010 Plates get batched message blocks]], §7 the same day with [[L-SPEC-008 Expectation Propagation and Mixture Reduction]], and §8, planned first, implemented later that day.** Related: [[Extending Mycelium]] §2, [[L-SPEC-003 Exposed Parameters and Energy Channels]], [[L-SPEC-005 The Hybrid Free Energy]], [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]], [[LP-021 The coupled gradient drivers cut diagonal edges at fixed messages]]. Code: `lib/Mycelium.jl/src/plates.jl`, `blocks.jl`, `graph.jl` (parameter keys), `passing.jl` (`factor_messages`), `free_energy.jl`, `src/constraint.jl`, `src/gaussian.jl`, `src/switching.jl`.
+> **Status: draft (2026-11-02, Claude), implemented as described; §5–§6 added 2026-11-03 with [[L-ADR-0010 Plates get batched message blocks]], §7 the same day with [[L-SPEC-008 Expectation Propagation and Mixture Reduction]], and §8, planned first, implemented later that day.** Related: [[Extending Mycelium]] §2, [[L-SPEC-003 Exposed Parameters and Energy Channels]], [[L-SPEC-005 The Hybrid Free Energy]], [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]], [[LP-021 The coupled gradient drivers cut diagonal edges at fixed messages]]. Code: `lib/Mycelium.jl/src/plates.jl`, `blocks.jl`, `graph.jl` (parameter keys), `passing.jl` (`factor_messages`), `free_energy.jl`, `lib/Lenticulum.jl/src/constraint.jl`, `lib/Lenticulum.jl/src/gaussian.jl`, `lib/Lenticulum.jl/src/switching.jl`.
 
-> Sources: original to this repository. code: `lib/Mycelium.jl/src/plates.jl`, `lib/Mycelium.jl/src/graph.jl`, `lib/Mycelium.jl/src/passing.jl`, `lib/Mycelium.jl/src/free_energy.jl`, `src/constraint.jl`; tests: `test/plates.jl`; benchmarks: `bench/plates.jl`, `bench/mixture_plates.jl`
+> Sources: original to this repository. code: `lib/Mycelium.jl/src/plates.jl`, `lib/Mycelium.jl/src/graph.jl`, `lib/Mycelium.jl/src/passing.jl`, `lib/Mycelium.jl/src/free_energy.jl`, `lib/Lenticulum.jl/src/constraint.jl`; tests: `lib/Lenticulum.jl/test/plates.jl`; benchmarks: `bench/plates.jl`, `bench/mixture_plates.jl`
 >
 > Theory (CT-ML wiki): [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
@@ -114,7 +114,7 @@ allocations of small matrix products were what cost (`blocks.md`).
 
 ## Checked by
 
-`test/plates.jl`:
+`lib/Lenticulum.jl/test/plates.jl`:
 
 - the builder: names, the record, keys, untied replicas; refusals for unequal replicas, $n = 0$,
   duplicate plates, references into another replica, tied factors of different types, and a key

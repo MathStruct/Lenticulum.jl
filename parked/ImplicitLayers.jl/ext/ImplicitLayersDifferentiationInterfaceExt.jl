@@ -2,7 +2,7 @@ module ImplicitLayersDifferentiationInterfaceExt
 using ImplicitLayers: ImplicitLayers as IL
 using LenticulumCore: LenticulumCore as LC
 using DifferentiationInterface: DifferentiationInterface as DI
-using Mycelium: Mycelium as MY
+using MyceliumLearning: MyceliumLearning as ML
 function LC._check_factor_ad(ad::DI.ADTypes.AbstractADType, f::IL.NeuralODEFactor, st)
     if f.integrator isa IL.SciMLIntegrator && f.state_policy !== :fixed && !IL._empty_flow_state(st)
         throw(ArgumentError(
@@ -40,16 +40,18 @@ function IL._solve_state(ad::DI.ADTypes.AbstractADType, f, x, ps, st, z0)
     return z, IL._public_report(rep), state
 end
 
+# Since the split of Mycelium (2026-11) the coupled replay, and with it `_gradient_message`,
+# is MyceliumLearning's.
 # Coupled graph replay must select the same implicit primitive as direct solves,
 # rather than tracing a derivative-free root iteration in factor_message.
-function MY._gradient_message(ad::DI.ADTypes.AbstractADType, f::IL.DEQFactor,
+function ML._gradient_message(ad::DI.ADTypes.AbstractADType, f::IL.DEQFactor,
         target, polarity, inputs, prior, ps, st)
     target === IL.inchannel(f) && !IL._empty_flow_state(st) && throw(ArgumentError(
         "DEQ input-message AD replay requires empty Lux state: primal input inversion threads state, while its IFT fixes state"))
     return IL._solve_for(f, target, inputs, prior, ps, st; ad)
 end
-function MY._gradient_message(::Val{:chainrules}, f::IL.DEQFactor,
+function ML._gradient_message(::Val{:chainrules}, f::IL.DEQFactor,
         target, polarity, inputs, prior, ps, st)
-    return MY._gradient_message(DI.ADTypes.AutoZygote(), f, target, polarity, inputs, prior, ps, st)
+    return ML._gradient_message(DI.ADTypes.AutoZygote(), f, target, polarity, inputs, prior, ps, st)
 end
 end

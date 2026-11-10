@@ -1,8 +1,8 @@
 #design
 
-> **Status: draft (2026-11-03, Claude), implemented as described.** Related: [[Extending Mycelium]] §5, [[L-SPEC-008 Expectation Propagation and Mixture Reduction]], [[Switching Constraint Factors]], [[Composing Stochastic Factors]] (E7). Code: `lib/Mycelium.jl/src/cluster.jl`; Lenticulum `src/switching.jl` (`cluster_form` methods).
+> **Status: draft (2026-11-03, Claude), implemented as described.** Related: [[Extending Mycelium]] §5, [[L-SPEC-008 Expectation Propagation and Mixture Reduction]], [[Switching Constraint Factors]], [[Composing Stochastic Factors]] (E7). Code: `lib/Mycelium.jl/src/cluster.jl`; Lenticulum `lib/Lenticulum.jl/src/switching.jl` (`cluster_form` methods).
 
-> Sources: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE Trans. Inf. Theory 51(7), 2005, the region free energy (here regions are solved exactly, not approximated). code: `lib/Mycelium.jl/src/cluster.jl`, `src/switching.jl`; tests: `test/cluster.jl`, `lib/Mycelium.jl/test/cluster.jl`
+> Sources: Yedidia, Freeman & Weiss, *Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms*, IEEE Trans. Inf. Theory 51(7), 2005, the region free energy (here regions are solved exactly, not approximated). code: `lib/Mycelium.jl/src/cluster.jl`, `lib/Lenticulum.jl/src/switching.jl`; tests: `lib/Lenticulum.jl/test/cluster.jl`, `lib/Mycelium.jl/test/cluster.jl`
 >
 > Bibliography: [[Bibliography#^yedidia2005bethe|Yedidia et al. 2005]]
 >
@@ -88,14 +88,14 @@ belief.
 
 ## Checked by
 
-`test/cluster.jl`: a switching chain in one cluster against enumeration (free energy $= -\log p(y)$ to
+`lib/Lenticulum.jl/test/cluster.jl`: a switching chain in one cluster against enumeration (free energy $= -\log p(y)$ to
 $10^{-12}$, marginal moments to $10^{-12}$, the gradient in tied offsets against central differences);
 three switches in one cluster against E7's block factor (messages to $10^{-12}$, marginals of the
 same loopy schedule and local free energies to $10^{-10}$); the cluster of the sum and the switches
 has $-\log p(z)$ where the plain graph has no free energy; the refusals. `lib/Mycelium.jl/test/cluster.jl`:
 the same on Mycelium's own prior factors.
 
-Grouping (`test/cluster.jl`, `bench/cluster_overlap.jl`): `switch_overlaps` equals E7's normalised
+Grouping (`lib/Lenticulum.jl/test/cluster.jl`, `bench/cluster_overlap.jl`): `switch_overlaps` equals E7's normalised
 Gram to $10^{-12}$ and `overlap_groups` E7's `overlap_blocks` for block sizes 2–4; on eight switches in
 overlapping pairs, blocks of 4 by overlap (with partial sums, made by `partial_sums`) cut the mean error of the switch
 posteriors from 0.092 to 0.031, blocks in index order to 0.092.
@@ -104,13 +104,13 @@ Tables (`lib/Mycelium.jl/test/cluster.jl`): three categorical variables and two 
 entries in one cluster against enumeration ($F = -\log Z$ and marginals to $10^{-12}$), and belief
 propagation through the tables on the same tree.
 
-Per-outcome forms (Lenticulum `test/regime.jl`): a mixture of factor analysers with three
+Per-outcome forms (Lenticulum `lib/Lenticulum.jl/test/regime.jl`): a mixture of factor analysers with three
 precisions in one cluster against the closed form ($F = -\log p(z)$, the regime posterior and the
 posteriors of $x$ to $10^{-12}$; the gradient in $A$, $b$, $\log w$ and the noise against central differences
 to $10^{-6}$, ForwardDiff and Zygote), the one-factor cluster's messages against the closed form, and
 a plate of four points.
 
-Flat directions (Lenticulum `test/cluster_flat.jl`): free energies, switch posteriors, gradients and
+Flat directions (Lenticulum `lib/Lenticulum.jl/test/cluster_flat.jl`): free energies, switch posteriors, gradients and
 messages against the same graphs with a vague prior ($s = 10^4$, corrected for its constant) and
 against closed forms; the refusals.
 

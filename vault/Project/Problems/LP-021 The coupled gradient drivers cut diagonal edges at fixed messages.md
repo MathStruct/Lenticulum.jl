@@ -1,8 +1,8 @@
 #open-problem
 
-> **Status: resolved (2026-11-02), by option 1 below (Daniel's choice); the mixed case resolved 2026-11-04 by option 3 of the follow-up (Daniel's choice).** Found while testing plates ([[L-SPEC-006 Plates]]); measured and now checked in `test/lp021.jl`. Related: [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]], [[LP-011 Gradient couplings and isfrozen are declared but unused]], [[graph_adjoint]], [[gradient_couplings]], [[free_energy]].
+> **Status: resolved (2026-11-02), by option 1 below (Daniel's choice); the mixed case resolved 2026-11-04 by option 3 of the follow-up (Daniel's choice).** Found while testing plates ([[L-SPEC-006 Plates]]); measured and now checked in `lib/Lenticulum.jl/test/lp021.jl`. Related: [[LP-020 The fixed-message parameter gradient is not the free-energy gradient]], [[LP-011 Gradient couplings and isfrozen are declared but unused]], [[graph_adjoint]], [[gradient_couplings]], [[free_energy]].
 
-> Sources: original repository analysis; code: `lib/MyceliumLearning.jl/src/graph_adjoint.jl` (`_graph_update`, `_graph_loss`), `lib/MyceliumLearning.jl/src/gradient_couplings.jl` (`_coupled_gradient`, `_replay`), `lib/Mycelium.jl/src/free_energy.jl` (`free_energy_gradient`); tests: `test/lp021.jl`
+> Sources: original repository analysis; code: `lib/MyceliumLearning.jl/src/graph_adjoint.jl` (`_graph_update`, `_graph_loss`), `lib/MyceliumLearning.jl/src/gradient_couplings.jl` (`_coupled_gradient`, `_replay`), `lib/Mycelium.jl/src/free_energy.jl` (`free_energy_gradient`); tests: `lib/Lenticulum.jl/test/lp021.jl`
 >
 > Theory (CT-ML wiki): [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
@@ -13,7 +13,7 @@ free energy. The coupled drivers, which run when any edge is non-diagonal or wit
 **message**, so a factor whose edges are all cut contributes the fixed-message derivative that
 LP-020 showed is not the free-energy gradient.
 
-Measured in `test/lp021.jl` on a tree: $z \sim \mathcal N(0, I_2)$, $x = W z + c + \varepsilon$ with $x \in \mathbb R^3$
+Measured in `lib/Lenticulum.jl/test/lp021.jl` on a tree: $z \sim \mathcal N(0, I_2)$, $x = W z + c + \varepsilon$ with $x \in \mathbb R^3$
 observed, every parameter at its default initialisation. Against central differences of the
 converged free energy:
 
@@ -49,13 +49,13 @@ both drivers (a cut row of the implicit update map, a reference belief in the re
 changes its own term only; the variable terms and the factors with a derivative path are as
 before. A factor without `factor_belief` keeps the fixed-message term.
 
-Checked in `test/lp021.jl` against central differences of the converged free energy, all below
+Checked in `lib/Lenticulum.jl/test/lp021.jl` against central differences of the converged free energy, all below
 $10^{-8}$: `adjoint = :implicit` with every edge diagonal (0.58 before), the same graph with one
 `ExactCoupling()` edge (the data edge) under the unrolled replay and the implicit adjoint, and
 every edge exact. The existing coupled-gradient tests pass unchanged.
 
 **The mixed case (2026-11-04).** A factor with some edges cut and some differentiated. Measured on
-the graph above and on a chain $z_1 \to z_2 \to x$ (scratch scripts, then checked in `test/lp021.jl`),
+the graph above and on a chain $z_1 \to z_2 \to x$ (scratch scripts, then checked in `lib/Lenticulum.jl/test/lp021.jl`),
 maximum error against central differences, gradients of size 1.1–1.5:
 
 | graph | fixed cut messages (the replay) | any cut factor at its belief |
@@ -84,6 +84,6 @@ returns the envelope gradient at its converged fixed point (`_mixed_cuts`: a cut
 differentiated edge, both carrying parameter-dependent messages; edges of observed variables do not
 count). A replay (`schedule`) still differentiates the replayed computation, and on a mixed graph it
 warns that this is not the free-energy gradient. Score-function couplings and straight-through
-factors keep their replay semantics. Checked in `test/lp021.jl` ("mixed cuts give the envelope
+factors keep their replay semantics. Checked in `lib/Lenticulum.jl/test/lp021.jl` ("mixed cuts give the envelope
 gradient"): three mixed chains, below $10^{-8}$ without `schedule` and with `adjoint = :implicit`,
 the replay warned and more than 0.1 off.

@@ -95,7 +95,7 @@ Changes to the current interface should not make these harder:
 
 ## Checked by
 
-§1, in `test/exposure.jl` (2026-10-30):
+§1, in `lib/Lenticulum.jl/test/exposure.jl` (2026-10-30):
 - §1.1: clamped exposure of `GaussianFactor` (`A`, `b`, both, renamed) in both polarities, and of
   `LinearConstraintFactor`'s constant, give the original messages and graded local free energy;
   a whole graph gives the same marginal and Bethe free energy. Not yet run over every factor in

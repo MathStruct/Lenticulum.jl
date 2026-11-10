@@ -2,7 +2,7 @@
 
 Every Lenticulum factor carries, next to its forward kernel, an **inversion** — the backward half of a [Bayesian lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens). The inversion's extra input is a **prior**, exactly as a lens's backward pass takes the cached forward input: *the prior plays the role of the linearisation point* ([Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion)). Because Bayesian inversion satisfies a chain rule, one may attach an *approximate* inversion to each factor locally and still obtain a correctly structured posterior for the whole graph — the inference analogue of "define an `rrule` per primitive".
 
-> Sources: *AutoBayes* (arXiv:2503.18608) §3, Definitions 9–16, Theorem 13, Remark 11, footnotes 3–4; St Clere Smithe, *Bayesian Updates Compose Optically* (arXiv:2006.01631) Theorem 5.2; code: `lib/LenticulumCore.jl/src/lens.jl` ([[lens]]), `src/gaussian.jl`, `lib/Mycelium.jl/src/passing.jl` ([[passing]]).
+> Sources: *AutoBayes* (arXiv:2503.18608) §3, Definitions 9–16, Theorem 13, Remark 11, footnotes 3–4; St Clere Smithe, *Bayesian Updates Compose Optically* (arXiv:2006.01631) Theorem 5.2; code: `lib/LenticulumCore.jl/src/lens.jl` ([[lens]]), `lib/Lenticulum.jl/src/gaussian.jl`, `lib/Mycelium.jl/src/passing.jl` ([[passing]]).
 >
 > Bibliography: [[Bibliography#^stclere2025autobayes|St Clere Smithe & Perin 2025]] · [[Bibliography#^stclere2020optics|St Clere Smithe 2020]]
 >

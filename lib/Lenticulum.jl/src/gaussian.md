@@ -243,6 +243,15 @@ factorisation of the rank-deficient precision through, returned wrong marginals 
 random trees with rectangular coefficients, and that smoother, with the dense joint solve
 ([[LP-024 Findings of the review of 2026-11-09]]).
 
+**What the checks cost.** Both run on every message. `_partly_flat` is one `isproper` (a symmetry
+test and a Cholesky factorisation of the input's precision): 0.19 μs at dimension 2 and 0.41 μs at 6,
+against 1.6 and 3.8 μs for a forward message. `_rank_deficient` is one SVD of `A` on every
+backward message: 0.71 and 2.6 μs, against 2.4 and 6.6 μs for the whole message. It first called
+`_projected_rank(A, A)`, which computes the singular values twice, and was half the cost of a
+backward message (`bench/gaussian_message_cost.jl`, 2026-11-10, best of five runs of 20 000
+calls, one machine). `A` is a parameter, so the rank could be cached per parameter
+tree; that has not been done.
+
 **The constructor accepts a covariance that is symmetric up to rounding** (the tolerance of
 `LenticulumCore._nearly_symmetric`) and uses its symmetric part. The collapsed factor of a
 composition has the noise $B Q_a B^\top + Q_b$, which is not exactly symmetric; the exact test
