@@ -115,6 +115,7 @@ makedocs(;
         canonical = "https://mathstruct.org/Lenticulum.jl/api/dev",
         edit_link = "master",
         assets = String[],
+        inventory_version = "0.0.1-dev",    # the packages have no root Project.toml to read it from
         # LenticulumCore and Mycelium have large interfaces, so their reference pages are
         # genuinely long. They are split into sections by source file rather than paginated.
         size_threshold_warn = 150 * 1024,

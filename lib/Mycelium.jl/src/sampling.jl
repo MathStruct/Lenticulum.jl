@@ -183,7 +183,7 @@ weight, and the parameter step at which it was drawn. The `filter` weighs the sa
 samples drawn more than `horizon` parameter steps ago are forgotten ([`advance!`](@ref)).
 
 Queries: [`sample_weights`](@ref), [`energy_moments`](@ref), [`residual_moments`](@ref),
-[`free_energy_mean`](@ref), [`sample_gradient`](@ref).
+[`free_energy_mean`](@ref), `MyceliumLearning.sample_gradient`.
 """
 mutable struct SampleBuffer{F<:AbstractSampleFilter}
     filter::F

@@ -5,8 +5,8 @@
 # gradient of anything. Whether to model the energy or the score is the question of
 # [salimans2021ebm](@citet); energy parametrisations are also what makes diffusion models
 # composable [du2023reduce](@cite).
-# The [force-field tutorial](@ref tutorial-forces) showed what a direct model of a gradient
-# costs. Here is the fix inside diffusion: the network outputs a **scalar energy**
+# A direct model of a gradient has no reason to be one (the parked force-field tutorial,
+# `parked/tutorials/05_symmetry_is_not_a_law.jl`, shows what that costs). Here is the fix inside diffusion: the network outputs a **scalar energy**
 # ``E_\theta(x, t)`` and the noise prediction is its gradient,
 #
 # ```math

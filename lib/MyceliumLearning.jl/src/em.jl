@@ -228,6 +228,17 @@ function _push_stats!(acc, key, f, stats, frozen)
     end
 end
 
+# An extrapolated point can leave the domain (a covariance that is not positive definite); that is
+# a rejected step. Anything else is an error and is not swallowed.
+function _try_estep(estep, p)
+    try
+        return estep(p)
+    catch err
+        err isa Union{ArgumentError,DomainError,LinearAlgebra.PosDefException,LinearAlgebra.SingularException} || rethrow()
+        return Inf
+    end
+end
+
 """
     fit_em(g, ps, st; schedule, sweeps = 2, iters = 100, tol = 1e-8, store = nothing, accelerate = false,
            mstep = em_step) -> (ps, Fs, store)
@@ -249,17 +260,6 @@ takes the long steps EM will not (`em.md`). `Fs` then holds one entry per cycle.
 constraints the factors' `m_step`s do not know (built on [`moment_statistics`](@ref)); it must
 return parameters of the same tree shape.
 """
-# An extrapolated point can leave the domain (a covariance that is not positive definite); that is
-# a rejected step. Anything else is an error and is not swallowed.
-function _try_estep(estep, p)
-    try
-        return estep(p)
-    catch err
-        err isa Union{ArgumentError,DomainError,LinearAlgebra.PosDefException,LinearAlgebra.SingularException} || rethrow()
-        return Inf
-    end
-end
-
 function fit_em(g::FactorGraph, ps, st; schedule, sweeps::Int = 2, iters::Int = 100, tol::Real = 1e-8,
                 store = nothing, accelerate::Bool = false, mstep = em_step)
     s = store === nothing ? MessageStore(g) : store

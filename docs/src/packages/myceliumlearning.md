@@ -20,26 +20,26 @@ the gradient of ``-\log p`` of the data; the condition is in the vault's *Bethe 
 
 ```@autodocs
 Modules = [MyceliumLearning]
-Pages = ["gradient.jl"]
+Pages = ["src/gradient.jl"]
 ```
 
 ## [Gradient couplings](@id mycelium-api-couplings)
 
 ```@autodocs
 Modules = [MyceliumLearning]
-Pages = ["gradient_couplings.jl", "graph_adjoint.jl"]
+Pages = ["src/gradient_couplings.jl", "src/graph_adjoint.jl"]
 ```
 
 ## Expectation maximisation
 
 ```@autodocs
 Modules = [MyceliumLearning]
-Pages = ["em.jl"]
+Pages = ["src/em.jl"]
 ```
 
 ## Sample gradients
 
 ```@autodocs
 Modules = [MyceliumLearning]
-Pages = ["sample_gradient.jl", "MyceliumLearning.jl"]
+Pages = ["src/sample_gradient.jl", "src/MyceliumLearning.jl"]
 ```

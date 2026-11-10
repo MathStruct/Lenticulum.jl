@@ -76,12 +76,14 @@ The mathematics behind each row was rederived in the review; what it found is in
   the Gaussian, nonlinear, composition, constraint and switching factors, `m_steps.jl`,
   `implicit.jl`, `answers.jl`, `sampler.jl`, `schedule.jl`. Searched only: `likelihood.jl`,
   `regime.jl`, `noise.jl`, `exposure.jl`, and the other files of VariationalDiffusion.
-- **The documentation build was not run** after the restructure. `docs/make.jl`,
-  `docs/Project.toml`, the pages and `docs/site/build.sh` were edited for the new layout by
-  reading them. Expect to fix what the first build reports.
+- **The documentation build passes locally** (`julia --project=docs docs/make.jl`: the nine
+  tutorials execute, the API pages and the vault build, no unresolved reference). It was not run
+  in CI, and nothing was deployed.
 - **The device (JLArrays) tests, the examples and the benchmarks were not run.**
-- **The parked packages were not run** after the move; their `[sources]` paths and their
-  references to moved names were updated mechanically.
+- **The parked packages' suites were not run** after the move. The three packages load from
+  `parked/`; their `[sources]` paths and their references to moved names were updated
+  mechanically, and tests that call `parameter_step` or `fit_em` unqualified will need
+  `using MyceliumLearning`.
 - Expectation propagation's free-energy claim, the likelihood factors' Laplace and EP sites, and
   the learned-noise priors were not rederived.
 
