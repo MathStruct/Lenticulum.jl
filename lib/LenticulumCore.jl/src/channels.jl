@@ -106,6 +106,7 @@ Polarity(; kwargs...) = Polarity(NamedTuple(kwargs))
 Base.getindex(p::Polarity, name::Symbol) = getfield(p.assignment, name)
 Base.keys(p::Polarity{names}) where {names} = names
 Base.:(==)(a::Polarity, b::Polarity) = a.assignment == b.assignment && a.precisions == b.precisions
+Base.hash(p::Polarity, h::UInt) = hash(values(p.precisions), hash(values(p.assignment), hash(keys(p), hash(:Polarity, h))))
 
 """
     channel_precision(p::Polarity, name::Symbol)

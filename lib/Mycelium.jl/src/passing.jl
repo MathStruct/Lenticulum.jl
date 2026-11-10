@@ -50,18 +50,6 @@ function factor_messages(factors::AbstractVector, target, polarity, inputs::Abst
     return beliefs, st
 end
 
-"""
-    mean_field_message(factor, target::Symbol, polarity, beliefs::NamedTuple, ps, st)
-        -> (belief, st)
-
-The outgoing message of a [`MeanField`](@ref) node on channel `target`:
-``\\exp \\mathbb E_{\\prod_{i \\ne t} q_i}[\\log f(x)]`` as a function of ``x_t``, where `beliefs` holds the
-current marginals ``q_i`` of the other channels' variables (not their cavity messages).
-
-There is no generic implementation, because the expectation needs the factor's form; factors
-opt in by adding a method. Lenticulum implements it for `LinearConstraintFactor` and
-`SwitchingConstraintFactor`.
-"""
 # Block inputs (a plate sweep on message blocks, `blocks.jl`): `inputs` is a NamedTuple of
 # `BeliefBlock`s and the result one block. The default takes each replica's column and calls the
 # method above, so a factor type opts in to block arithmetic by adding a method of this form.
@@ -176,6 +164,18 @@ function reduce_message(m::LenticulumCore.MixtureBelief, maxcomponents::Integer)
         "no mixture reduction for $(typeof(m)): implement `Mycelium.reduce_message` for it"))
 end
 
+"""
+    mean_field_message(factor, target::Symbol, polarity, beliefs::NamedTuple, ps, st)
+        -> (belief, st)
+
+The outgoing message of a [`MeanField`](@ref) node on channel `target`:
+``\\exp \\mathbb E_{\\prod_{i \\ne t} q_i}[\\log f(x)]`` as a function of ``x_t``, where `beliefs` holds the
+current marginals ``q_i`` of the other channels' variables (not their cavity messages).
+
+There is no generic implementation, because the expectation needs the factor's form; factors
+opt in by adding a method. Lenticulum implements it for `LinearConstraintFactor` and
+`SwitchingConstraintFactor`.
+"""
 function mean_field_message(factor, target, polarity, beliefs, ps, st)
     throw(ArgumentError(
         "$(nameof(typeof(factor))) has no mean-field message: implement `Mycelium.mean_field_message` \
@@ -495,9 +495,10 @@ function propagate!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, ps
 end
 
 """
-    infer!(g, sched, ps, st; kwargs...) -> (marginals::NamedTuple, report, st)
+    infer!(g, sched, ps, st; kwargs...) -> (marginals::NamedTuple, report, st, store)
 
-Convenience: fresh store, propagate, read out every variable's marginal.
+Convenience: fresh store, propagate, read out every variable's marginal. The store is returned
+for the free energy and the gradients.
 """
 function infer!(g::FactorGraph, sched::AbstractSchedule, ps, st; kwargs...)
     s = MessageStore(g)

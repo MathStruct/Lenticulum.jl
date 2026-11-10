@@ -26,3 +26,4 @@ AlgebraicFactorsHomotopyContinuationExt = "HomotopyContinuation"
 [compat]
 julia = "1.12"
 HomotopyContinuation = "2.22.4"
+LuxCore = "1"

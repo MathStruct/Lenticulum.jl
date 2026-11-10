@@ -84,21 +84,24 @@ function _trainable_indices(ps, freeze)
     paths = _freeze_paths(freeze)
     paths === :all && return Int[]
     frozen = Int[]
-    offsets = offset_tree(ps)
     for path in paths
-        x, o = ps, offsets
+        # The start of the frozen range is accumulated while walking the path: the flat length of
+        # every sibling before the key at each level. Reading it off the subtree's first leaf is
+        # wrong when that subtree begins with an empty entry (a parameterless first layer).
+        x, start = ps, 1
         for key in path
             valid = x isa NamedTuple ? key in keys(x) : x isa Tuple && key isa Int && 1 <= key <= length(x)
             valid || throw(ArgumentError("freeze path $path does not exist in the parameter tree"))
-            x, o = x[key], o[key]
+            for (k, y) in pairs(x)
+                k == key && break
+                start += _flatlen(y)
+            end
+            x = x[key]
         end
-        start = o isa Int ? o : _firstoffset(o)
         append!(frozen, start:(start + _flatlen(x) - 1))
     end
     return setdiff(1:_flatlen(ps), frozen)
 end
-_firstoffset(o::Int) = o
-_firstoffset(o::Union{NamedTuple,Tuple}) = isempty(o) ? 1 : _firstoffset(first(o))
 
 """
     stop_gradient(x)

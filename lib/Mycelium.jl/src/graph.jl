@@ -441,10 +441,11 @@ edges_of_factor(g::FactorGraph, fid::Int) = g.edges_of_factor[fid]
 edges_of_variable(g::FactorGraph, vid::Int) = g.edges_of_variable[vid]
 
 """
-    degree(g, ::Val{:variable}, vid) -> Int
+    variable_degree(g, vid) -> Int
+    factor_degree(g, fid) -> Int
 
-The number of edges incident to a variable. This is the ``d_v`` of the Bethe counting
-number ``1 - d_v``; see `free_energy.jl`.
+The number of edges incident to a variable or a factor. For a variable this is the ``d_v`` of the
+Bethe counting number ``1 - d_v``; see `free_energy.jl`.
 """
 variable_degree(g::FactorGraph, vid::Int) = length(g.edges_of_variable[vid])
 factor_degree(g::FactorGraph, fid::Int) = length(g.edges_of_factor[fid])

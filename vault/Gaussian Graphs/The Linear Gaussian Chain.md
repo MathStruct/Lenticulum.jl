@@ -177,9 +177,24 @@ $$
 
 which is the **backward sweep** of `tree_schedule`, and requires each `odo` factor to be run
 with $y$ observed and $x$ unobserved — the opposite of the direction it was written in. A
-filter would report $\operatorname{Var}(x_1) = 1$; a smoother reports $0.5$. Getting the
-smoother for free from the schedule, rather than as a second algorithm, is the payoff of
-[[Messages are Inversions]].
+filter would report $\operatorname{Var}(x_1) = 1$; a smoother reports $0.5$. The smoother is
+the same schedule run to its end, not a second algorithm ([[Messages are Inversions]]).
+
+### Vector states and partial observations
+
+The example above has scalar poses. With a vector state and an observation of fewer
+dimensions (position measured, velocity not: $y = Hx + v$ with $H$ of size $1 \times 2$), the
+backward message of the observation factor has the precision $H^\top R^{-1} H$, of rank one: it
+says something about one direction of $x$ and nothing about the other. Such a message is a
+likelihood, not a distribution. `GaussianFactor` declares it improper, and a factor that
+receives a partly flat message integrates the flat directions out in the limit of a prior that
+widens without bound (`_flat_message`; [[lib/Lenticulum.jl/src/gaussian|gaussian]] §"Improper inputs"; the derivation is in
+[[constraint]] §4.1).
+
+Until 2026-11-10 this case threw, or for some $H$ returned wrong marginals without an error
+([[LP-024 Findings of the review of 2026-11-09]]). It is now tested against the dense joint
+solve on random trees with rectangular coefficients and on the position-only smoother
+(`test/gaussian_oracle.jl`).
 
 > [!note] This is why factors are relations, not functions
 > A `Lux.jl` layer has one direction and its reverse pass carries a gradient. `odo1` here has

@@ -249,6 +249,17 @@ takes the long steps EM will not (`em.md`). `Fs` then holds one entry per cycle.
 constraints the factors' `m_step`s do not know (built on [`moment_statistics`](@ref)); it must
 return parameters of the same tree shape.
 """
+# An extrapolated point can leave the domain (a covariance that is not positive definite); that is
+# a rejected step. Anything else is an error and is not swallowed.
+function _try_estep(estep, p)
+    try
+        return estep(p)
+    catch err
+        err isa Union{ArgumentError,DomainError,LinearAlgebra.PosDefException,LinearAlgebra.SingularException} || rethrow()
+        return Inf
+    end
+end
+
 function fit_em(g::FactorGraph, ps, st; schedule, sweeps::Int = 2, iters::Int = 100, tol::Real = 1e-8,
                 store = nothing, accelerate::Bool = false, mstep = em_step)
     s = store === nothing ? MessageStore(g) : store
@@ -283,10 +294,10 @@ function fit_em(g::FactorGraph, ps, st; schedule, sweeps::Int = 2, iters::Int = 
         α = min(-LinearAlgebra.norm(r) / nv, -1.0)
         # plain arrays, not views of the flat vector: a new parameter type recompiles inference
         pext = merge(ps, _dense(LenticulumCore._unflatten(θ0 .- 2α .* r .+ α^2 .* v, learned(ps))))
-        Fext = try estep(pext) catch; Inf end
+        Fext = _try_estep(estep, pext)
         if isfinite(Fext)
             pnew = mstep(s, g, pext, st)
-            Fnew = try estep(pnew) catch; Inf end
+            Fnew = _try_estep(estep, pnew)
             Fnew <= F && (ps = pnew; continue)
         end
         ps = p2                                   # the extrapolation went uphill: plain EM

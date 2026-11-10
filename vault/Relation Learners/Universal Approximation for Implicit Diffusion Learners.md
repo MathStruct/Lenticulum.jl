@@ -50,10 +50,14 @@ $G = \nabla\Psi$ with $\Psi \in C^2$. The query turns it into a residual $r_G$ i
 residual $r$, $C^1$ on an open set $N \supset Q\times Y$, is **regular on $(Q, Y)$** if
 
 - (R1) at every zero $(p, y) \in Q\times Y$, $J = \partial_y r(p, y)$ is invertible and
-  $\operatorname{sym}J$ has no zero eigenvalue;
+  $\lambda_{\min}(\operatorname{sym}J) \ne 0$;
 - (R2) $r(p, y) \neq 0$ for $p \in Q$ and $y \in \partial Y$.
 
-(R1) says every answer is nondegenerate and is clearly stable or clearly unstable. For a
+(R1) says every answer is nondegenerate and is clearly stable ($\lambda_{\min} > 0$) or clearly
+unstable ($\lambda_{\min} < 0$). Only the smallest eigenvalue of $\operatorname{sym}J$ enters: the
+constant $\mu$ of Lemma 1 controls it and $\sigma_{\min}(J)$, and nothing else is used. (An earlier
+version asked that $\operatorname{sym}J$ have no zero eigenvalue at all, which $\mu$ does not
+control at an unstable answer; review of 2026-11-10.) For a
 gradient, $J$ is the Hessian block and (R1) says that every critical point in the fibre is
 nondegenerate (a Morse condition on the fibres). It excludes branch points (§5).
 

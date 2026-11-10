@@ -38,7 +38,9 @@ Checks:
 3. every variable has at least one edge;
 4. no variable is written by two `Emitting` edges *and* read by none — a variable that is
    only ever produced is a dangling output, which is legal but almost always a wiring bug,
-   so it is reported as a warning rather than an error.
+   so it is reported as a warning rather than an error;
+5. a channel and its variable agree in dimension where both declare one, and a `DataFactor`'s
+   vector has its variable's length.
 """
 function validate(g::FactorGraph)
     for (i, e) in enumerate(g.edges)
@@ -50,6 +52,7 @@ function validate(g::FactorGraph)
             throw(PolarityError(fn.name, e.channel,
                 "not a declared channel of this factor; declared: $(decl)"))
         end
+        _check_dimension(g, fn, e)
     end
     for f in g.factors
         isempty(g.edges_of_factor[f.id]) &&
@@ -65,6 +68,29 @@ function validate(g::FactorGraph)
         end
     end
     return g
+end
+
+# A channel and its variable must agree in dimension when both declare one (an integer space), and
+# a `DataFactor`'s vector must have the variable's length: a mismatch otherwise broadcasts
+# silently inside a message.
+function _check_dimension(g::FactorGraph, fn::FactorNode, e::Edge)
+    sv = g.variables[e.variable].space
+    sv isa Integer || return nothing
+    vname = g.variables[e.variable].name
+    if fn.factor isa DataFactor
+        v = fn.factor.value
+        v isa AbstractVector && length(v) != sv && throw(DimensionMismatch(
+            "data factor :$(fn.name) holds $(length(v)) values, variable :$vname has dimension $sv"))
+        return nothing
+    end
+    hasmethod(LenticulumCore.channels, Tuple{typeof(fn.factor)}) || return nothing
+    for c in LenticulumCore.channels(fn.factor)
+        LenticulumCore.channelname(c) === e.channel || continue
+        sc = LenticulumCore.channelspace(c)
+        sc isa Integer && sc != sv && throw(DimensionMismatch(
+            "channel :$(e.channel) of factor :$(fn.name) has dimension $sc, variable :$vname has dimension $sv"))
+    end
+    return nothing
 end
 
 """

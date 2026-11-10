@@ -38,7 +38,6 @@ source file.
 """
 module Mycelium
 
-using DispatchDoctor: @stable
 using Random: Random, AbstractRNG
 using LuxCore: LuxCore
 using LenticulumCore: LenticulumCore, AbstractGradientCoupling, DiagonalCoupling,

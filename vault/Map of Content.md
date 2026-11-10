@@ -1,336 +1,181 @@
 #overview
 
-> Every note of the Lenticulum vault, in reading order. How the vault is organised and what
-> its conventions are: [[Start Here]]. The general category theory — Para, lenses, Markov
-> categories, Bayesian lenses, statistical games — is in the
-> [CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/); links to it below are ordinary
-> web links, links within this vault are wikilinks.
+> Every note of the vault, grouped by the three paths the library is built around and, within
+> each, in reading order. Conventions and layout: [[Start Here]]. The state of the code after the
+> refactor of November 2026, and what is parked: [[Refactor 2026-11]]. General category theory
+> (Para, lenses, Markov categories, statistical games) is in the
+> [CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/).
 
-**Three** papers are the backbone, and one bridge layer connects them to Julia:
+**References:** [[Bibliography]], generated from `docs/src/refs.bib`.
 
-- **[Categorical Foundations of Gradient-Based Learning](https://arxiv.org/html/2103.01931v2)**
-  (Cruttwell, Gavranović, Ghani, Wilson, Zanasi) — how *ordinary* deep learning is a
-  **parametric lens**. This is the theory Lux.jl already implements without saying so.
-- **[AutoBayes](https://arxiv.org/html/2503.18608v2)** (St Clere Smithe & Perin) — how
-  *Bayesian* inference is a **statistical game**, which is a parametric lens whose
-  backward pass is a posterior rather than a gradient. This is what Lenticulum.jl
-  implements.
-- **[A Tutorial on Energy-Based Learning](http://yann.lecun.com/exdb/publis/pdf/lecun-06.pdf)**
-  (LeCun, Chopra, Hadsell, Ranzato, Huang) — how learning works with **no normalisation at
-  all**: an energy, an argmin, and a factor graph. Read after the other two, but it is the
-  layer [[README]]'s own table was written from, and the one most of the implementation
-  actually runs in.
+## Foundations
 
-Read in this order.
+What a factor is, independent of any family: channels, polarity, energies, inversions.
 
+- [[Implicit Learners]] — the three model families, and why the multivariate energy is what makes them work
+- [[Factors are Parameterized Statistical Games]] — Definitions 20 and 27: the definition Lenticulum factors satisfy, and what actually gets optimised
+- [[Channels and Polarity]] — reconciling AutoBayes' X/⟦c⟧/Y with the README's $P_{in} + P_{out} + P_{latent} = \mathrm{Id}$
+- [[Inversions and Bayesian Lenses]] — Definitions 9–11: Bayes' law as a chain rule, and the inversion as a free choice
+- [[Open Models and Latent Channels]] — Definitions 1–8: a kernel with an explicit latent space, and how the DAG restriction is lifted
+- [[Energies and Entropies]] — The vault and the code use "energy" for at least seven different objects and "entropy" for five, and they are easy to confuse.
+- [[Scalar and Multivariate Energy]] — the design decision that is ours, not the paper's: two energies, and the chain rule adapted to the multivariate one
+- [[AutoBayes Examples as Factor Graphs]] — Appendix A, worked through
+- [[AutoBayes to Lenticulum]] — the full naming dictionary paper → Julia
+- [[Depth in Implicit Learning]] — is there a "no deep learning theorem"? Yes on the linear-Gaussian fragment and no elsewhere — it is the $d=1$ case of a degree bound the vault already derived; and depth-as-computation and depth-as-expressivity come apart
+- [[Lux as a Parametric Lens]] — the concrete Lux.jl ↔ lens dictionary
+- [[The Table Revisited]] — the README's table is an illustrating example (polynomials → varieties, the one pair where every slot becomes a theorem), read row by row. Holds up; the one real caveat is the Loss row collapses without a contrastive term; "symmetric" means *acausal*; the whole table is the $T\to0$ limit of the AutoBayes layer
+- [[Three Senses of Implicit]] — the word means three independent things: implicit likelihood, implicit computation, implicit relation. Only the third buys you a polarity
 
-**References:** [[Bibliography]], every work cited in the vault, the implementation notes and the
-tutorials, generated from one `.bib` file that the documentation also uses.
+## Path A: Gaussian factor graphs
 
-## 1. The classical story (what Lux.jl is)
+Exact inference on linear-Gaussian graphs: beliefs, messages, schedules, the Bethe free energy,
+and what changes on a loop. Code: `LenticulumCore`, `Mycelium`, `Lenticulum` (`gaussian.jl`, `nonlinear.jl`).
 
-1. [Para](https://mathstruct.org/CategoryTheory-ML-Wiki/Para-Construction) — parameters as a categorical construction
-2. [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens) — forward/backward pairs, `get` and `put`
-3. [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens) — Definition 2.5, the object Lux layers really are
-4. [Cartesian Reverse Differential Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category) — where the gradient comes from
-5. [Learning Components as Parametric Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Gradient-Based-Learning-with-Parametric-Lenses) — model, loss, learning rate, optimiser
-6. [[Lux as a Parametric Lens]] — **the concrete Lux.jl ↔ lens dictionary**
-
-## 2. The Bayesian story (what Lenticulum.jl is)
-
-7. [[Open Models and Latent Channels]] — Definitions 1–8: a kernel with an explicit latent
-   space, and how the DAG restriction is lifted
-8. [Composition of Open Models](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model#composition-without-integration-definition-4) — Definitions 4–7
-9. [[Inversions and Bayesian Lenses]] — Definitions 9–11: Bayes' law as a chain rule, and the
-   inversion as a free choice
-10. [Composition of Bayesian Lenses](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens#the-chain-rule-bayesian-inversion-is-functorial) — Definition 12, Theorem 13
-11. [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) — Definition 17, Proposition 18: the energy/entropy split
-12. [[Factors are Parameterized Statistical Games]] — Definitions 20 and 27: **the definition
-    Lenticulum factors satisfy**, and what actually gets optimised
-13. [Composition of Statistical Games](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#composition-energies-add-entropies-chain-definition-22) — Definition 22, Theorem 23 (the chain rule)
-14. [Composition of Gradients](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#parameterized-statistical-games-and-their-gradients) — Definitions 28–29, Remark 30: laxness
-15. [[AutoBayes Examples as Factor Graphs]] — Appendix A, worked through
-
-## 2b. The energy story (what is left when you stop normalising)
-
-LeCun's tutorial and the modern EBM literature. Structurally *below* AutoBayes: drop the
-partition function and a statistical game becomes an energy-based factor graph.
-
-**Read [[Energies and Entropies]] first**: the seven things this vault calls "energy" and the
-five it calls "entropy", side by side, with the confusions they invite.
-
-16. [[Energy-Based Learning]] — the framework; why [[README]]'s table is this paper's table;
-    **loss functionals**, the concept Lenticulum has no slot for; and the collapse problem,
-    which `gaussian.jl` already guards against under the name `complexity`
-17. [[Energy-Based Factor Graphs]] — LeCun §6 is `Mycelium` without the beliefs. **min-sum is
-    the $T\to0$ limit of sum-product**, so a `DiracBelief` message is a min-sum message and
-    three packages' "missing entropy" is the Bethe form degenerating correctly
-18. [[Training Energy-Based Models]] — Song & Kingma, Du & Mordatch. Two of the three standard
-    EBM training methods are already implemented here under other names: **score matching is
-    `VariationalDiffusion`**, **NCE is `Adversarial.RatioFactor`** — and NCE with a known noise
-    distribution is the `belief_logdensity` [[messages]] §1 has always wanted
-19. [[Why Learned Relations Do Not Collapse]] — how each learnable factor family avoids (or does
-    not avoid) learning a relation that holds everywhere: normalisation in the data channels, the
-    `output` option, log partitions, comparison; what is guarded and what is not (the DEQ)
-
-## 2c. Types
-
-What kind of type theory this is, and what the code's own types are doing.
-
-19. [[Probabilistic Types]] — "probabilistic type" names three different things. Beliefs are
-    **not** the probability monad (the merge operation is not monadic), but
-    $r_\theta \approx 0$ **is** a graded type judgment with the energy as its grade — and the
-    grade lives in a semiring, which is the temperature
-20. [[The Type Discipline of a Factor Graph]] — a factor graph is neither linear nor cartesian
-    but **Frobenius**; putting polarity in the type domain already caught a real bug; and five
-    separately-recorded gaps turn out to be **one typing problem**
-
-## 3. The bridge to Lenticulum.jl
-
-21. [[Channels and Polarity]] — reconciling AutoBayes' X/⟦c⟧/Y with the README's
-    $P_{in} + P_{out} + P_{latent} = \mathrm{Id}$
-22. [[Scalar and Multivariate Energy]] — **the design decision that is ours, not the
-    paper's**: two energies, and the chain rule adapted to the multivariate one
-23. [[Implicit Learners]] — the three model families, and why the multivariate energy
-    is what makes them work
-24. [[AutoBayes to Lenticulum]] — the full naming dictionary paper → Julia
-25. [[ModelingToolkit as an Acausal Relation]] — **the other bridge**: MTK is the implicit
-    column of [[README]]'s table minus the probability; Willems' behaviors; why MTK's
-    incidence graph *is* a factor graph, and why MTK solves where Mycelium propagates
-26. [[Acausal Composition is a Hypergraph Category]] — how much structure it takes to wire an
-    arbitrary graph rather than a DAG; a variable node is a **Frobenius spider**, and improper
-    Gaussian beliefs are what make that work
-27. [[The Structural Gap to ModelingToolkit]] — the question in the other direction: **what
-    does MTK contain that Lenticulum does not?** Five ranked items; two are not addable
-28. [[Time as a Base]] — **the design note**: what an MTK × Lenticulum extension with a time
-    dimension would be. A base change, not a redesign — variables carry trajectories, and a
-    belief over a trajectory *is* a chain factor graph
-29. [[Three Senses of Implicit]] — the word means **three independent things**: implicit
-    likelihood, implicit computation, implicit relation. Only the third buys you a polarity
-30. [[Depth in Implicit Learning]] — is there a "no deep learning theorem"? **Yes on the
-    linear-Gaussian fragment and no elsewhere** — it is the $d=1$ case of a degree bound the
-    vault already derived; and depth-as-computation and depth-as-expressivity come apart
-31. [[Prolog and Logic Programming]] — "the Prolog of machine learning", scored honestly.
-    **Modes are polarities exactly**; Prolog is the *boolean* semiring of the same framework;
-    and the shortfall is one thing — **schemas versus ground instances**
-32. [[Geometric Deep Learning and Physical Laws]] — equivariance constrains the **map**, a
-    law constrains the **configuration**; $\dot x=-x$ is equivariant and conserves nothing.
-    The measured case: **direct-force equivariant potentials are unstable in MD**
-    (Bigi–Langer–Ceriotti, ICML 2025). And the converse — this project has no equivariance
-33. [[The Table Revisited]] — the README's table is an **illustrating example** (polynomials → varieties,
-    the one pair where every slot becomes a theorem), read row by row. Holds up; the one
-    real caveat is the **Loss row collapses without a contrastive term**; "symmetric" means
-    *acausal*; the whole table is the $T\to0$ limit of the AutoBayes layer
-
-## 3b. The algebraic family, worked out
-
-The first of the three [[Implicit Learners]] families in full detail — the case where every
-abstract slot of the framework becomes computable, so the framework can be checked.
-Entry point: [[Algebraic Implicit Learners]].
-
-- *model class*: [[Varieties Ideals and Real Nullstellensatz]], [[The Veronese Parametrisation]],
-  [[Universal Approximation by Nash-Tognoli]]
-- *learning*: [[Fitting is a Nullspace Problem]], [[The Parameter is a Grassmannian]],
-  [[Algebraic versus Geometric Distance]]
-- *inference*: [[Inference as Root Finding]], [[Branches and the Discriminant]],
-  [[Backpropagation by the Implicit Function Theorem]]
-- *structure*: [[Composition is Elimination]], [[Differential Algebra and DAE Factors]],
-  [[Algebraic Statistics Bridge]]
-- *first to build*: [[Toric Models as Factors]] (exact discrete factors with known binomial
-  equations), [[Grassmann Mixing and Plücker Coordinates]] (a Plücker-feature alternative to
-  attention, and what it offers here); the plan is [[L-SPEC-004 Algebraic Factors Toric and Grassmannian]]
-- *verdict*: [[The Algebraic Factor as a Statistical Game]],
-  [[Open Problems in Algebraic Implicit Learning]]
-- *kernels*: [[Kernel Methods for Implicit Learning]] — RBF and GP implicit surfaces, kernel PCA, density
-  ridges (the first tutorial's model is a kernel density estimate), kernel exponential families
-- *later*: [[Symbolic Implicit Learning]] — relations as formulas found by search (noted, not built)
-
-## 3c. Factor graphs and message passing
-
-`Mycelium.jl` — how factors are wired and in what order they talk. The layer with no
-counterpart in Lux.
-
-- [[Beliefs]] — what travels on an edge: [[Trivial Belief]], [[Dirac Belief]], [[Gaussian Belief]],
-  [[Sample Belief]], [[Categorical Belief]], [[Mixture Belief]], and how they pool (`combine`)
-- [[Belief Algebra]] — every other operation (addition, mixture, logic, projection, tempering) as a
-  factor whose messages are the operation; what exists, what is missing, what to build first
-- [[Factor Graphs]] — bipartite structure; the **two** acyclicity notions (`istree` vs `isdag`)
+- [[Factor Graphs]] — bipartite structure; the two acyclicity notions (`istree` vs `isdag`)
 - [[Everything is a Factor]] — data, priors, losses and optimisers as graph nodes, forced by Remark 24
-- [[Unusual Wirings]] — an output into a weight, an energy into an input, beliefs on weights and energies; risk measures as scalarisations
-- [[Hierarchical Models]] — a hyperprior is one more factor on a shared variable; partial pooling is two polarities; eight schools, random slopes, crossed effects
-- [[Switching Constraint Factors]] — a linear constraint whose right-hand side a discrete outcome chooses: the smallest factor that leaves the Gaussian class, closed form in every direction; compositions are exactly the finite mixtures; mean-field messages
-- [[Composing Stochastic Factors]] — what the experiments of the branch `experiment-qm` showed: wiring, not depth, buys expressivity; the diffusion bound pins switching chains; learning needs exact blocks and mean-field iteration
-- [[Extending Mycelium]] — the plan: a free energy per message rule, plates, rule-aware schedules, EP and mixture reduction, cluster nodes, structure edits
-- [[Messages are Inversions]] — a factor → variable message **is** $c'_\pi$; both exclusion principles
+- [[Beliefs]] — what travels on an edge: [[Trivial Belief]], [[Dirac Belief]], [[Gaussian Belief]], [[Sample Belief]], [[Categorical Belief]], [[Mixture Belief]], and how they pool (`combine`)
+- [[Belief Algebra]] — every other operation (addition, mixture, logic, projection, tempering) as a factor whose messages are the operation; what exists, what is missing, what to build first
+- [[Messages are Inversions]] — a factor → variable message is $c'_\pi$; both exclusion principles
 - [[Polarity Resolution]] — target + available messages → a `Polarity`; the two legality checks
 - [[Schedules]] — the schedule zoo; tree exactness; pruning by edge direction
+- [[The Linear Gaussian Chain]] — the worked example: GTSAM's `OdometryExample`, exact marginals against the joint information matrix, and what this library is *not*
 - [[Bethe Free Energy]] — Theorem 23 generalised to graphs; energies add, entropies get a counting correction
 - [[Loopy Message Passing]] — what breaks off a tree, and the monodromy problem
-- [[Finding a Factor Graph]] — explore, propose, fit and revise; Gaussian structure search,
-  graphical lasso, and measured limits of Bethe + BIC
+- [[Composing Optimisers]] — damping, momentum, Anderson, SQUAREM and mirror maps as modifiers of a map: fixed points compose, convergence does not, and the spectrum of the linearised sweep says which modifier helps
+- [[SLAM and Sensor Fusion]] — The canonical factor-graph application, and the one this project already has a worked example of ([[The Linear Gaussian Chain]]).
+- [[Acausal Composition is a Hypergraph Category]] — how much structure it takes to wire an arbitrary graph rather than a DAG; a variable node is a Frobenius spider, and improper Gaussian beliefs are what make that work
+- [[Dynamic Graphs]] — adding and deleting factors while the graph runs (SLAM); the Bethe free energy as the criterion; edges of a diffusion factor as noise levels
 - [[Factor Graphs and Schemes]] — singular evidence, dual-number tangents and linear sheaf consistency
-- [[Dynamic Graphs]] — adding and deleting factors while the graph runs (SLAM); the Bethe free
-  energy as the criterion; edges of a diffusion factor as noise levels
-- [[The Linear Gaussian Chain]] — **the worked example**: GTSAM's `OdometryExample`, exact
-  marginals against the joint information matrix, and what this library is *not*
+- [[Unusual Wirings]] — an output into a weight, an energy into an input, beliefs on weights and energies; risk measures as scalarisations
 
-## 3d. The equilibrium family, worked out
+The belief types, one note each:
 
-The second of the three [[Implicit Learners]] families — SciML's deep equilibrium networks
-and neural ODEs, wrapped as factors. Entry point: [[The Equilibrium Family]].
+- [[Trivial Belief]] — `TrivialBelief()` is the belief that carries no information: the unit of [[Beliefs|`combine`]].
+- [[Dirac Belief]] — `DiracBelief(x)` is a point mass $\delta_x$: certainty about a value.
+- [[Gaussian Belief]] — `GaussianBelief(η, Λ)` is a Gaussian in canonical (information) form, $\mathcal N^{-1}(\eta, \Lambda) \propto \exp(-\tfrac12 x^\top\Lambda x + \eta^\top x)$, with precision $\Lambda = \Sigma^{-1}$ and
+- [[Categorical Belief]] — `CategoricalBelief(p)` is a distribution over a finite set of states: a vector of probabilities, stored as log-probabilities.
+- [[Mixture Belief]] — `MixtureBelief(components, weights)` is a weighted sum ``\sum_k w_k\,b_k`` of beliefs of one type.
+- [[Sample Belief]] — `SampleBelief(samples, weights)` represents a distribution by weighted particles: the general-purpose fallback when no closed form is available, and the natural output of a sampler.
 
-- *the fixed point*: [[DEQ as a Relation]] — a DEQ is defined by a relation and shipped as a
-  function; the reverse solve; the contraction caveat made testable; why the IFT brings
-  automatic differentiation back
-- *the flow*: [[NeuralODE as an Invertible Factor]] — continuous versus numerical inverses,
-  symmetric integrators, inverse conditioning, and the continuous density correction
+## Path B: relation learners
 
-## 3e. The diffusion family, worked out
+A diffusion model as a relation: the residual field, inference by root finding, the adjoint,
+what the learner can represent, and what does not work yet. Code: `VariationalDiffusion`.
 
-The third of the three [[Implicit Learners]] families — the case where the inversion is
-neither exact nor a root-find but a **proximal solve**. Entry point:
-[[The Diffusion Family]].
-
-- *the origin*: [[ImplicitREDDiff]] — the founding note of the project: relations instead of
-  functions, input and output as masks chosen at inference time, and the energy the code computes
-- *the forward process*: [[The VP-SDE]] — Song et al. 2021; the perturbation kernel, the score
-  identity, Tweedie's denoiser, and the `tmin` floor nobody documents
-- *the inversion*: [[RED-Diff as a Statistical Game]] — variational inference with a point-mass
-  posterior; the stop-gradient; and **λ is derivable, not merely tunable**
-- *the factor*: [[The Diffusion Factor]] — $P_{in}+P_{out}+P_{latent}=\mathrm{Id}$ becomes a
-  `Polarity`; what a Dirac-valued message does to a factor graph
-- *the implicit learner*: [[Implicit Diffusion Learners]] — the stop-gradient field is the exact
-  gradient of a smoothed log-density; inference is a proximal point; the smoothing scale decides
-  the relation · [[Inference Signatures]] · [[Backpropagation through Implicit Inference]] — the
-  Lagrangian worked out, and a parabola learned from a circle by the adjoint alone ·
-  [[Deterministic Relaxation]] — a DEQ whose layer is the denoiser ·
-  [[The Implicit Diffusion Factor as a Statistical Game]]
-- *composition*: [[Composing Diffusion Factors]] — intersections of learned relations by adding
-  fields (a product of experts); conditioning as a special case; exactness at $t > 0$
-- *expressiveness*: [[Universal Approximation for Implicit Diffusion Learners]] — the answers of
-  any target with nondegenerate answers are reached, with an explicit constant; training,
-  consistency and branch points stay open
-- *verdict*: [[Open Problems in Implicit Diffusion Learning]] — theoretical problems (open or
-  intrinsic) separated from missing implementation, each with its evidence
-- *alternatives*: [[ProxDM and Proximal Alternatives]] — DPS, ΠGDM, ProxDM, plug-and-play, and
-  why RED-Diff was implemented first; ProxDM is now implemented ([[proxdm]])
-- *a conservative score*: [[energy_network]] — the network outputs an energy, $\varepsilon = \sigma_t\nabla E$;
-  the learned relation gets a scalar energy, trained without nested AD in the loop
-- *small networks, any AD backend*: [[backends]] — Zygote, Enzyme, ForwardDiff or Reactant
-  through one field; a 5k-parameter MLP trained, inferred with and differentiated through
-
-## 3f. The adversarial family, worked out
-
-Implicit **generative** models — the case where what is missing is the *density* rather than
-the direction, so every factor is unidirectional. Entry point:
-[[Implicit Generative Models]].
-
-- *the paper*: [[Implicit Generative Models]] — Mohamed & Lakshminarayanan; learning by
-  comparison; the four estimators; and why a density ratio is the answer to [[messages]] §1
-- *the diagram*: [[GANs as Two Factors]] — two parameter sets, three nodes, and **one sign the
-  Bethe free energy cannot hold**; the missing structure is an open game
-- *the vocabulary*: [[Three Senses of Implicit]] — filed under §3 above, and the reason this
-  family has no polarities
-
-## 3g. Two-part architectures, and the meta-graph
-
-Where GANs, reinforcement learning and control theory draw the same diagram — and what the
-project would look like with factor graphs attached *to* the factor graph.
-
-- [[The Two-Part Diagram]] — the shared shape is the **wiring**, which is a trace and already
-  solved. What differs is the **objective**: one function (EM, VAE, active inference, LQG) fits
-  the Bethe free energy; minimax (GANs) and general bilevel (actor–critic) do not
-- [[The Inferencer and the Optimizer]] — **the design note**: meta-graphs over the base graph's
-  messages and parameters. Half of it already exists as `OptimiserFactor` and
-  `AmortisedInversion`; it is loop-free because it is coordinate descent on one objective; and
-  it is the **separation principle**, exact for linear-Gaussian and failing into *exploration*
-- [[The Regulariser and the Loss]] — the other two parts: the regulariser and the inferencer are
-  inside one joint and one free energy; the optimiser and the loss are outside it, learnable only
-  in a nested problem, with three conditions for the parts to compose
-- [[Composing Optimisers]] — damping, momentum, Anderson, SQUAREM and mirror maps as modifiers
-  of a map: fixed points compose, convergence does not, and the spectrum of the linearised sweep
-  says which modifier helps
-
-## 4. Implementation
-
-Implementation notes live next to the code, per [[Start Here]]:
-
-**LenticulumCore.jl** — [[LenticulumCore]], [[abstract_types]], [[channels]], [[energy]],
-[[open_model]], [[lens]], [[statistical_game]]
-
-**Mycelium.jl** — [[Mycelium]], [[graph]], [[polarity_resolution]], [[messages]],
-[[schedules]], [[passing]], [[free_energy]], [[factors]]
-
-**Lenticulum.jl** — [[constraint]], [[nonlinear]], [[likelihood]] (`beliefs.md` and `gaussian.md` are not yet written)
-
-**VariationalDiffusion.jl** — [[VariationalDiffusion]], [[schedule]], [[predictor]],
-[[reddiff]], [[factor]], [[analytic]], [[implicit]], [[implicit_factor]], [[energy_network]], [[proxdm]], [[backends]],
-[[krylov]], [[sampler]], [[coverage]]
-
-**ImplicitLayers.jl** — [[ImplicitLayers]], [[solve]], [[deq]], [[flow]], [[neuralode]],
-[[luxfactor]]
-
-**Adversarial.jl** — [[Adversarial]], [[generator]], [[ratio]]
-
-**AlgebraicFactors.jl** — [[AlgebraicFactors]], [[toric]]
-
-## 5. Project records
-
-Decisions, problems and specifications, numbered so that notes, commits and issues can cite
-them; the same layout as Moonkale's and Sophia's vaults.
-
-- [[Decisions]] — `L-ADR-nnnn`: what was chosen, by whom, and what follows. Among them
-  [[L-ADR-0002 Energies are vectors, scalarised late]] and
-  [[L-ADR-0003 Pointwise energy and free energy are separate levels]]
-- [[Problem Log]] — `LP-nnn`: what does not work yet and needs a decision, from GitHub issues
-  to gaps in the theory, e.g. [[LP-002 The Jacobian side is not implemented]]
-- [[Specifications]] — `L-SPEC-nnn`: contracts precise enough to test against, starting with
-  [[L-SPEC-001 The Factor Interface]]
-- [[Feature Backlog]] — every feature still to implement, with its source, its motivation and a
-  proposed priority
-
-## 6. Research questions
-
-Open mathematical and statistical questions, each stated so that it can be worked on without
-the rest of the vault: [[Research Questions]] (`RQ-nnn`). Among them
-[[RQ-001 One Potential, Every Polarity]] (when one density answers every query direction) and
-[[RQ-003 When Local Gradients Are Exact]] (the gradient terms AutoBayes drops).
-
-## Where this would be useful
-
-Six domains with the same shape — a network of relations, sparse asynchronous observations,
-some parts known and some fitted, and a residual that means something in the domain itself.
-
+- [[The VP-SDE]] — Implemented in `lib/VariationalDiffusion.jl/src/schedule.jl`; see [[schedule]].
+- [[The Diffusion Family]] — Entry point for the third of the three [[Implicit Learners]] families, worked out the way [[Algebraic Implicit Learners]] works out the first.
+- [[Implicit Diffusion Learners]] — The derivation behind [[ImplicitREDDiff]], carried through.
+- [[Inference Signatures]] — "Inference" for an implicit diffusion learner is not one map.
+- [[Backpropagation through Implicit Inference]] — The Lagrangian of the original sketch, carried through: state equation, adjoint equation and gradient for an implicit diffusion learner.
+- [[Deterministic Relaxation]] — The implicit diffusion learner with its randomness removed.
+- [[Universal Approximation for Implicit Diffusion Learners]] — What an implicit diffusion learner can represent.
+- [[The Diffusion Factor]] — Where [[ImplicitREDDiff]]'s selection matrices stop being notation.
+- [[The Implicit Diffusion Factor as a Statistical Game]] — Is an implicit diffusion learner a [parameterized statistical game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)?
+- [[Composing Diffusion Factors]] — Several learned relations on the same variables can be pooled: add their fields, and the answers of the sum are the configurations that satisfy all of them, e.g.
+- [[Open Problems in Implicit Diffusion Learning]] — The honest ledger of the implicit diffusion learner, in two parts.
+- [[MNIST in Both Directions]] — (later) one model of (image, label): classify, draw, and inpaint-and-classify by choosing ρ; the interfaces it needs first
+- [[Energy-Based Factor Graphs]] — LeCun §6 is `Mycelium` without the beliefs. min-sum is the $T\to0$ limit of sum-product, so a `DiracBelief` message is a min-sum message and three packages' "missing entropy" is the Bethe form degenerating correctly
+- [[Energy-Based Learning]] — the framework; why [[README]]'s table is this paper's table; loss functionals, the concept Lenticulum has no slot for; and the collapse problem, which `gaussian.jl` already guards against under the name `complexity`
+- [[ImplicitREDDiff]] — The founding note of the project.
+- [[Kernel Methods for Implicit Learning]] — Can kernel methods learn relations?
 - [[Motivating Examples]] — the overview, and the six properties they share
-- [[SLAM and Sensor Fusion]] · [[Trading and Financial Markets]] ·
-  [[Energy Markets and Power Grids]]
-- [[Metabolomics and Proteomics]] · [[Molecular Dynamics]] ·
-  [[Climate and Dynamical Systems]]
-- [[Language Models]] — a **product** of diffusion experts, not a mixture; why the framing
-  clarifies and the machinery does not
-- [[MNIST in Both Directions]] — (later) one model of (image, label): classify, draw, and
-  inpaint-and-classify by choosing ρ; the interfaces it needs first
+- [[ProxDM and Proximal Alternatives]] — [[ImplicitREDDiff]] ends: *"Alternatively use [ProxDM](https://arxiv.org/pdf/2507.08956) to achieve a prox."* This note is what that alternative is, and how the whole family of diffusion-based inverse
+- [[RED-Diff as a Statistical Game]] — Implemented in `lib/VariationalDiffusion.jl/src/reddiff.jl`; see [[reddiff]].
+- [[Training Energy-Based Models]] — Song & Kingma, Du & Mordatch. Two of the three standard EBM training methods are already implemented here under other names: score matching is `VariationalDiffusion`, NCE is `Adversarial.RatioFactor` — and NCE with a known noise distribution is the `belief_logdensity` [[messages]] §1 has always wanted
+- [[Why Learned Relations Do Not Collapse]] — how each learnable factor family avoids (or does not avoid) learning a relation that holds everywhere: normalisation in the data channels, the `output` option, log partitions, comparison; what is guarded and what is not (the DEQ)
 
-## Orientation
+## Path C: structure and regimes
 
-- [[Related Julia Projects]] — where this sits in the Julia ecosystem, and **when to use
-  something else**. The nearest neighbour is `RxInfer.jl`; `IncrementalInference.jl`
-  has already solved the `combine` gap by kernel-density BP; and Catlab's `oapply` is the
-  subgraph-as-factor operation the vault records as missing
-- [[RxInfer as a Backend]] — the nearest neighbour as an engine: gains for the probabilistic part,
-  five things a replacement would lose, and a connector with learned relations as RxInfer nodes
-- [[Sharing Types with RxInfer]] — (later) wrap ExponentialFamily types as beliefs instead of
-  converting; reuse RxInfer's linearisation and unscented code for hand-written nonlinear factors
-  (`NonlinearFactor` now does both itself)
-- [[Backward Signatures]] — the backward pass at solver, factor and graph level: forward
-  arguments + forward result + cotangent; `rrule`s on top (the solver's is built); unrolled vs adjoint message passing
-- [[Why Julia]] — why not C++, Rust, PyTorch, JAX or Mojo: in Julia ordinary code *is* the compiled,
-  differentiable computation graph, with evidence from this repository and the costs stated
-- [[Parallelism and Compilation]] — parallelism, GPUs and XLA/MLIR in a *dynamic* SLAM
-  setting. There is no junction tree and no parallelism today; a sweep is **quadratic in the
-  number of factors** (measured); and the compile-vs-dynamic tension dissolves if you
-  **compile the factor types, not the graph**
-- [Moonkale](https://github.com/MathStruct/Moonkale) — a sister project in Rust: a graph-native
-  editor for code and notes, meant to become a diagram editor for these factor graphs (prototype;
-  [the plan](https://mathstruct.github.io/Moonkale/architecture/Julia-and-Lenticulum))
-- [[README]] — the pitch
+Switching and regime factors, hierarchical models, expectation maximisation and the search over
+structures. Code: `Lenticulum` (`constraint.jl`, `switching.jl`, `regime.jl`, `m_steps.jl`), `Mycelium`
+(`cluster.jl`, `plates.jl`), `MyceliumLearning` (`em.jl`).
+
+- [[Switching Constraint Factors]] — a linear constraint whose right-hand side a discrete outcome chooses: the smallest factor that leaves the Gaussian class, closed form in every direction; compositions are exactly the finite mixtures; mean-field messages
+- [[Hierarchical Models]] — a hyperprior is one more factor on a shared variable; partial pooling is two polarities; eight schools, random slopes, crossed effects
+- [[Finding a Factor Graph]] — explore, propose, fit and revise; Gaussian structure search, graphical lasso, and measured limits of Bethe + BIC
+- [[The Regulariser and the Loss]] — the other two parts: the regulariser and the inferencer are inside one joint and one free energy; the optimiser and the loss are outside it, learnable only in a nested problem, with three conditions for the parts to compose
+- [[The Inferencer and the Optimizer]] — the design note: meta-graphs over the base graph's messages and parameters. Half of it already exists as `OptimiserFactor` and `AmortisedInversion`; it is loop-free because it is coordinate descent on one objective; and it is the separation principle, exact for linear-Gaussian and failing into *exploration*
+- [[The Two-Part Diagram]] — the shared shape is the wiring, which is a trace and already solved. What differs is the objective: one function (EM, VAE, active inference, LQG) fits the Bethe free energy; minimax (GANs) and general bilevel (actor–critic) do not
+
+## Design
+
+Design notes that cut across the paths.
+
+- [[Backward Signatures]] — the backward pass at solver, factor and graph level: forward arguments + forward result + cotangent; `rrule`s on top (the solver's is built); unrolled vs adjoint message passing
+- [[Composing Stochastic Factors]] — what the experiments of the branch `experiment-qm` showed: wiring, not depth, buys expressivity; the diffusion bound pins switching chains; learning needs exact blocks and mean-field iteration
+- [[Extending Mycelium]] — the plan: a free energy per message rule, plates, rule-aware schedules, EP and mixture reduction, cluster nodes, structure edits
+- [[Parallelism and Compilation]] — parallelism, GPUs and XLA/MLIR in a *dynamic* SLAM setting. There is no junction tree and no parallelism today; a sweep is quadratic in the number of factors (measured); and the compile-vs-dynamic tension dissolves if you compile the factor types, not the graph
+- [[Probabilistic Types]] — "probabilistic type" names three different things. Beliefs are not the probability monad (the merge operation is not monadic), but $r_\theta \approx 0$ is a graded type judgment with the energy as its grade — and the grade lives in a semiring, which is the temperature
+- [[Related Julia Projects]] — where this sits in the Julia ecosystem, and when to use something else. The nearest neighbour is `RxInfer.jl`; `IncrementalInference.jl` has already solved the `combine` gap by kernel-density BP; and Catlab's `oapply` is the subgraph-as-factor operation the vault records as missing
+- [[RxInfer as a Backend]] — the nearest neighbour as an engine: gains for the probabilistic part, five things a replacement would lose, and a connector with learned relations as RxInfer nodes
+- [[Sharing Types with RxInfer]] — (later) wrap ExponentialFamily types as beliefs instead of converting; reuse RxInfer's linearisation and unscented code for hand-written nonlinear factors (`NonlinearFactor` now does both itself)
+- [[The Structural Gap to ModelingToolkit]] — the question in the other direction: what does MTK contain that Lenticulum does not? Five ranked items; two are not addable
+- [[The Type Discipline of a Factor Graph]] — a factor graph is neither linear nor cartesian but Frobenius; putting polarity in the type domain already caught a real bug; and five separately-recorded gaps turn out to be one typing problem
+- [[Time as a Base]] — the design note: what an MTK × Lenticulum extension with a time dimension would be. A base change, not a redesign — variables carry trajectories, and a belief over a trajectory *is* a chain factor graph
+- [[Why Julia]] — why not C++, Rust, PyTorch, JAX or Mojo: in Julia ordinary code *is* the compiled, differentiable computation graph, with evidence from this repository and the costs stated
+
+## Project records
+
+- [[Refactor 2026-11]] — the layout after the refactor, what is verified, what is parked and how it comes back
+- [[Problem Log]] — `LP-nnn`: what does not work yet and needs a decision, from GitHub issues to gaps in the theory, e.g. [[LP-002 The Jacobian side is not implemented]]
+- [[Decisions]] — `L-ADR-nnnn`: what was chosen, by whom, and what follows. Among them [[L-ADR-0002 Energies are vectors, scalarised late]] and [[L-ADR-0003 Pointwise energy and free energy are separate levels]]
+- [[Specifications]] — `L-SPEC-nnn`: contracts precise enough to test against, starting with [[L-SPEC-001 The Factor Interface]]
+- [[Feature Backlog]] — every feature still to implement, with its source, its motivation and a proposed priority
+- [[Research Questions]] — open mathematical questions (`RQ-nnn`)
+
+## Implementation notes
+
+One note beside each source file (`lib/*/src/*.md`); each package's overview note lists them:
+[[LenticulumCore]], [[Mycelium]], [[MyceliumLearning]], [[Lenticulum]], [[VariationalDiffusion]].
+
+## Parked
+
+Notes on families and applications that are not on the three paths. They were not revised in the
+refactor and may describe code that is parked too (`parked/`). See [[Refactor 2026-11]].
+
+**Algebraic**
+
+- [[Algebraic Implicit Learners]] — Entry point for the first of the three families in [[Implicit Learners]]: the approximator is an algebraic variety, inference is root finding, and the backward pass is the implicit function theorem (p
+- [[Algebraic Statistics Bridge]] — The observation that makes this whole family more than a curiosity for Lenticulum: conditional independence is a polynomial constraint, so a Bayesian network *is* an algebraic variety, and marginalisa
+- [[Algebraic versus Geometric Distance]] — Derivation.
+- [[Backpropagation by the Implicit Function Theorem]] — Derivation.
+- [[Branches and the Discriminant]] — The most satisfying concrete grounding in this note set: for an algebraic factor, the abstract latent space $\llbracket c \rrbracket$ of [Definition 1](https://mathstruct.org/CategoryTheory-ML-Wiki/Op
+- [[Composition is Elimination]] — Composing two algebraic factors into one is a Gröbner basis computation.
+- [[Differential Algebra and DAE Factors]] — Where differential algebra genuinely belongs — and it is not backpropagation.
+- [[Fitting is a Nullspace Problem]] — Derivation and implementation.
+- [[Grassmann Mixing and Plücker Coordinates]] — Zhang (2025) replaces self-attention by features of the 2-planes spanned by pairs of token states, written in Plücker coordinates.
+- [[Inference as Root Finding]] — The forward pass of an algebraic factor.
+- [[Open Problems in Algebraic Implicit Learning]] — The honest ledger.
+- [[Symbolic Implicit Learning]] — Learn a relation $r(z) = 0$ as a formula: not a polynomial with fixed monomials, not a network, but a short symbolic expression found by search.
+- [[The Algebraic Factor as a Statistical Game]] — Assembling everything into [AutoBayes Definition 20](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) and [Definition 27](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game#
+- [[The Parameter is a Grassmannian]] — Derivation.
+- [[The Veronese Parametrisation]] — The single structural fact that makes the algebraic family tractable: the residual is linear in the parameter.
+- [[Toric Models as Factors]] — A toric model is a discrete exponential family whose sufficient statistics are integer vectors: $p(x) \propto \theta^{a_x}$, a monomial in the parameters.
+- [[Universal Approximation by Nash-Tognoli]] — [[README]]'s table claims the implicit analogue of Weierstraß is "compact smooth manifolds via Nash–Tognoli".
+- [[Varieties Ideals and Real Nullstellensatz]] — The minimum algebra needed, and the three places where working over $\mathbb{R}$ — which we must — breaks the textbook complex picture.
+
+**Equilibrium**
+
+- [[DEQ as a Relation]] — A deep equilibrium model is defined by a relation and shipped as a function.
+- [[NeuralODE as an Invertible Factor]] — A continuous ODE flow is invertible wherever its solution is unique in both directions.
+- [[The Equilibrium Family]] — Entry point for the second of the three [[Implicit Learners]] families, implemented in `lib/ImplicitLayers.jl`.
+
+**Adversarial**
+
+- [[GANs as Two Factors]] — Can the GAN diagram be achieved with two factors?
+- [[Implicit Generative Models]] — Entry point for the adversarial family, implemented in `lib/Adversarial.jl`.
+
+**Applications**
+
+- [[Climate and Dynamical Systems]] — Data assimilation is factor-graph inference with different vocabulary, an enormous state, and a sixty-year head start.
+- [[Energy Markets and Power Grids]] — The domain where the physics and the economics are both networks of constraints, and where the standard method is already a factor graph under another name.
+- [[Language Models]] — a product of diffusion experts, not a mixture; why the framing clarifies and the machinery does not
+- [[Metabolomics and Proteomics]] — Where the exact relation is stoichiometry, the system is famously underdetermined, and a posterior therefore says something a point estimate structurally cannot.
+- [[Molecular Dynamics]] — The domain where the energy-based reading is not an analogy — a force field already *is* a sum of local energy terms over a graph, which is [[Energy-Based Factor Graphs]] §1 written in chemistry.
+- [[Trading and Financial Markets]] — The domain where the residual is the product.
+
+**Comparisons**
+
+- [[Geometric Deep Learning and Physical Laws]] — equivariance constrains the map, a law constrains the configuration; $\dot x=-x$ is equivariant and conserves nothing. The measured case: direct-force equivariant potentials are unstable in MD (Bigi–Langer–Ceriotti, ICML 2025). And the converse — this project has no equivariance
+- [[ModelingToolkit as an Acausal Relation]] — the other bridge: MTK is the implicit column of [[README]]'s table minus the probability; Willems' behaviors; why MTK's incidence graph *is* a factor graph, and why MTK solves where Mycelium propagates
+- [[Prolog and Logic Programming]] — "the Prolog of machine learning", scored honestly. Modes are polarities exactly; Prolog is the *boolean* semiring of the same framework; and the shortfall is one thing — schemas versus ground instances

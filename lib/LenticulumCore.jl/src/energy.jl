@@ -44,6 +44,13 @@ struct GradedEnergySpace{names,T<:Tuple} <: AbstractEnergySpace
     parts::NamedTuple{names,T}
 end
 
+function _check_disjoint_keys(a::NamedTuple, b::NamedTuple)
+    common = intersect(keys(a), keys(b))
+    isempty(common) || throw(ArgumentError(
+        "cannot take direct sum ⊕ of graded objects with overlapping keys $(Tuple(common))"))
+    return nothing
+end
+
 """
     ⊕(a::AbstractEnergySpace, b::AbstractEnergySpace)
     oplus(a, b)
@@ -51,12 +58,7 @@ end
 Direct sum of energy spaces. Named summands are merged; unnamed ones are wrapped under
 `:left` / `:right`.
 """
-function _check_disjoint_keys(a::NamedTuple, b::NamedTuple)
-    common = intersect(keys(a), keys(b))
-    isempty(common) || throw(ArgumentError(
-        "cannot take direct sum ⊕ of graded objects with overlapping keys $(Tuple(common))"))
-    return nothing
-end
+function oplus end
 
 oplus(a::GradedEnergySpace, b::GradedEnergySpace) =
     (_check_disjoint_keys(a.parts, b.parts); GradedEnergySpace(merge(a.parts, b.parts)))
@@ -325,7 +327,7 @@ scalarise(σ::SquaredNorm, e) = dot_quadratic(σ.M, e) / 2
 function scalarise(σ::GradedScalarisation{names}, e::GradedEnergy{names}) where {names}
     # Avoid sum(::Tuple; init), which has no working Zygote rule in the tested stack.
     parts = map(scalarise, values(σ.parts), values(e.parts))
-    return isempty(parts) ? 0.0 : 0.0 + sum(parts)
+    return isempty(parts) ? 0.0 : sum(parts)     # keeps the parts' element type (Float32 stays Float32)
 end
 
 dot_quadratic(M, e) = dot(e, M, e)
@@ -501,7 +503,7 @@ _check_factor_ad(ad, f, st) = _check_factor_ad(ad, f)
 
 _energy_vector(r::Number) = [r]
 _energy_vector(r::AbstractArray) = vec(r)
-_energy_vector(r::GradedEnergy) = reduce(vcat, map(_energy_vector, values(r.parts)); init = Float64[])
+_energy_vector(r::GradedEnergy) = isempty(r.parts) ? Float64[] : reduce(vcat, map(_energy_vector, values(r.parts)))
 # Dispatch on coordinates before entering AD, so Enzyme's static activity analysis
 # never has to merge an active vector with a constant input/parameter tree.
 _energy_at(u, f, x, a, y, ps, offs, st, ::Val{:ps}) =

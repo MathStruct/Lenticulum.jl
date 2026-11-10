@@ -680,3 +680,25 @@ if get(ENV, "LENTICULUM_DEVICE_TESTS", "false") == "true"
 else
     @info "Skipping device tests; set LENTICULUM_DEVICE_TESTS=true to run them."
 end
+
+# review of 2026-11-09
+@testset "damping keeps a message's improper declaration" begin
+    a = GaussianBelief([1.0, 0.0], [1.0 0.0; 0.0 0.0], true); b = GaussianBelief([2.0, 0.0], [1.0 0.0; 0.0 0.0], true)
+    @test damp(a, b, 0.5).improper
+    a1 = GaussianBelief([1.0], fill(1.0, 1, 1), true); b1 = GaussianBelief([2.0], fill(1.0, 1, 1), true)
+    @test !LenticulumCore.isproper(damp(a1, b1, 0.5))
+    @test !damp(a1, GaussianBelief([2.0], fill(1.0, 1, 1)), 0.5).improper      # one proper side decides
+end
+
+@testset "clamps that differ by rounding are one clamp" begin
+    @test combine(DiracBelief(0.1 + 0.2), DiracBelief(0.3)).value == 0.1 + 0.2
+    @test combine(DiracBelief([0.1 + 0.2, 1.0]), DiracBelief([0.3, 1.0])).value == [0.1 + 0.2, 1.0]
+    @test_throws ArgumentError combine(DiracBelief(0.3), DiracBelief(0.3001))
+    @test_throws ArgumentError combine(DiracBelief([0.3]), DiracBelief([0.3, 0.3]))
+end
+
+@testset "docstrings sit on what they describe" begin
+    for name in (:MessageStore, :mean_field_message, :variable_degree)
+        @test Base.Docs.hasdoc(Mycelium, name)
+    end
+end

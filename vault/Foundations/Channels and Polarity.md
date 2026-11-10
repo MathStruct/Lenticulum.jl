@@ -52,9 +52,11 @@ $$
 | $Z$, $z$ | the joint space of a factor, a point of it | | $\mathrm{Id}$ | — |
 | $X$, $x$ | **inputs**: clamped to evidence | `Observed()` | $P_{in}$ | $Y$ |
 | $Y$, $y$ | **outputs**: solved for | `Unobserved()` | $P_{out}$ | $X$ |
-| $U$, $u$ | **latents**: internal | `Latent()` | $P_{latent}$ | $\llbracket crbracket$ |
+| $U$, $u$ | **latents**: internal | `Latent()` | $P_{latent}$ | $\llbracket c
+rbracket$ |
 | $z_0$ | the evidence: clamp values on $X$, anchors elsewhere | | | |
-| $ho$ | per-coordinate precision; $\infty$ = hard clamp, $0$ = free | | $P = \operatorname{diag}(\rho)$ | |
+| $
+ho$ | per-coordinate precision; $\infty$ = hard clamp, $0$ = free | | $P = \operatorname{diag}(\rho)$ | |
 
 So **our $X$ is AutoBayes' $Y$ and our $Y$ is AutoBayes' $X$**. Notes that quote AutoBayes
 definitions use its letters and say so; everywhere else the table above holds. Papers with
@@ -74,7 +76,10 @@ $R_\theta \subseteq X_1 \times \cdots \times X_n$ and has none: the same factor
 $x^2 + y^2 = 1$ can be asked for $y$ given $x$, or $x$ given $y$, or neither given nothing.
 
 Categorically this is [compact closure](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Model#copiers-cups-and-caps-remark-8): the cup and cap let you
-bend any leg from unobserved to observed and back. Operationally it means a factor's
+bend any leg from unobserved to observed and back. The cups and caps live among **unnormalised**
+kernels (potentials, or relations): a cap $\delta(x_1 = x_2)$ is not a Markov kernel, and
+normalising after bending a leg is conditioning, which is what an inversion computes.
+Operationally it means a factor's
 `get`/`put` pair *does not exist until you choose*. Hence:
 
 ```

@@ -42,7 +42,6 @@ each source file, per `vault/Start Here.md`.
 """
 module VariationalDiffusion
 
-using DispatchDoctor: @stable
 using LinearAlgebra: LinearAlgebra, I, norm, dot, Diagonal, Symmetric, isposdef
 using Random: Random, AbstractRNG, randn, rand
 using LuxCore: LuxCore

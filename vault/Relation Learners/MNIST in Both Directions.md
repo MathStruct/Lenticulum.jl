@@ -275,6 +275,11 @@ temperature alone, which can only widen it, makes the answers underconfident. Wi
 position gives calibrated probabilities, as calibrated as the discriminative baseline's, at its
 lower accuracy. The hard reading loses the 2% of roots that lie between codes.
 
+A factor of about two is what the nodes' noise predicts: averaging the log-density over the
+nodes' shifts smooths a second time ([[Implicit Diffusion Learners]] §5), so the potential's
+curvature is that of a density smoothed twice. This is a conjecture for this model: it has not
+been checked here by repeating the fit with `noisefree_nodes`.
+
 **Modes with the label held** (784 free coordinates, `KrylovSolve`, 50 iterations per stage):
 
 | start | continuation | converged and stable | judged as the label | median residual | time per mode |

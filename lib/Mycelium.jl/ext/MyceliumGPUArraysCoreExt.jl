@@ -72,7 +72,7 @@ function M._damp(a::GaussianBelief{<:AbstractGPUArray,<:Diagonal{T,<:AbstractGPU
         b::GaussianBelief{<:AbstractGPUArray,<:Diagonal{S,<:AbstractGPUArray}}, α::Real) where {T,S}
     w = convert(T, α)
     return GaussianBelief(w .* a.η .+ (one(w) - w) .* b.η,
-        Diagonal(w .* a.Λ.diag .+ (one(w) - w) .* b.Λ.diag))
+        Diagonal(w .* a.Λ.diag .+ (one(w) - w) .* b.Λ.diag), a.improper && b.improper)
 end
 function M.variable_entropy(b::GaussianBelief{<:AbstractGPUArray,<:Diagonal{T,<:AbstractGPUArray}}) where {T}
     isproper(b) || throw(ArgumentError("variable_entropy requires a proper Gaussian message"))

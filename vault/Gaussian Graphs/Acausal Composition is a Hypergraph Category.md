@@ -278,13 +278,16 @@ Specific gaps, stated honestly:
    throws. So Lenticulum is a hypergraph category on the Gaussian fragment and a partial
    mess elsewhere — which is the same conclusion `messages.md` §1 reaches from the other
    direction.
-2. **The `special` axiom $\mu\delta = 1$ is not checked and probably fails.** $\mu\delta$ on a
-   Gaussian belief squares the density: $\Lambda \mapsto 2\Lambda$. So `combine(b, b) != b` —
-   copying a belief and immediately merging it double-counts. This is the *same bug* the
-   exclusion principle of [[Messages are Inversions]] exists to prevent, seen from the
-   categorical side. Belief propagation's exclusion is what restores speciality by hand.
-   **That is a genuinely useful reframing: the exclusion principle is the special-Frobenius
-   axiom, enforced by the scheduler because the beliefs do not satisfy it themselves.**
+2. **Marginals do not represent a copied state.** The special axiom $\mu\delta = 1$ holds for
+   potentials: $\delta$ applied to a state $b$ is the joint on $X \times X$ supported on the
+   diagonal, and merging that joint gives $b$ back. What `combine(b, b)` computes is something
+   else, $\mu\circ(b \otimes b)$, the merge of two *independent* copies, which squares the density
+   ($\Lambda \mapsto 2\Lambda$ for a Gaussian). Message passing stores a copied variable as
+   separate marginals, i.e. it replaces $\delta(b)$ by $b \otimes b$, and merging those counts
+   the evidence twice. The exclusion principle of [[Messages are Inversions]] and the counting
+   numbers $1 - d_v$ of [[Bethe Free Energy]] are the corrections for that representation, the
+   same ones as the separator potentials of a junction tree. (An earlier version of this item
+   read the squaring as a failure of the special axiom; review of 2026-11-10.)
 3. **No hyperedges.** A `FactorGraph` variable has arbitrary degree, so the *spider* part is
    there; but factors connect to variables one channel at a time and there is no notion of a
    factor sharing one channel with several variables.

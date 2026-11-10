@@ -7,6 +7,9 @@ using LinearAlgebra
 # fixed; only the parameters move.
 ChainRulesCore.@non_differentiable LT._product_belief(names, dims, marginals)
 ChainRulesCore.@non_differentiable LT._switch_product_belief(f, marginals)
+# rank tests: structure, not values
+ChainRulesCore.@non_differentiable LT._rank_deficient(A)
+ChainRulesCore.@non_differentiable LT._partly_flat(b)
 
 function ChainRulesCore.rrule(::typeof(LT._prior_precision), Σ)
     P = LT._prior_precision(Σ)

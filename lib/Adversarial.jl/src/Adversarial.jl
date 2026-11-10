@@ -53,7 +53,6 @@ Concept notes: [[Implicit Generative Models]], [[GANs as Two Factors]],
 """
 module Adversarial
 
-using DispatchDoctor: @stable
 using LinearAlgebra: LinearAlgebra
 using Random: Random, AbstractRNG, randn
 using LuxCore: LuxCore

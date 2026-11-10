@@ -108,9 +108,10 @@ inversion $c^\dagger_\pi(y)$ as the **posterior** (including $\pi$). `GaussianFa
 
 - **Improper backward messages.** When $A$ has fewer rows than columns ($n_{\text{out}} < n_{\text{in}}$)
   or is rank-deficient, the backward precision $A^\top (Q + S_y)^{-1} A$ is positive semidefinite
-  but singular. `GaussianBelief(η, Λ)` stores canonical parameters so the likelihood message can be
-  represented without inverting `Λ`; moment conversion (`belief_mean`, `belief_cov`) is deferred
-  until a proper prior or cavity message is combined via `Mycelium.combine`.
+  but singular. The message is declared improper (`GaussianBelief(η, Λ, true)`, `_rank_deficient`):
+  left to rounding, a Cholesky factorisation of such a precision sometimes succeeds, and the
+  receiver then computes with a covariance of order $1/\varepsilon$. A factor that receives a
+  partly flat message does not convert it to moments; see "Improper inputs" below.
 - **Clamped channels (`DiracBelief`) in `residual_statistics`.** A `DiracBelief` has infinite
   precision and cannot be converted to canonical parameters `(η, Λ)`. `residual_statistics`
   Therefore branches explicitly on the four combinations of `(xd, yd)` so clamped channels are
@@ -225,9 +226,27 @@ unchanged and still serves `GaussianFactor`, the composites and the nonlinear fa
 relation factors (`LinearConstraintFactor`, `SwitchingConstraintFactor`) read the split. A
 proper Gaussian takes the same path as `_moments`, and `isproper` is non-differentiable, so the
 differentiated code is unchanged for proper inputs. The theory and the tolerances are in
-`constraint.md` §4.1. `GaussianFactor` still returns `TrivialBelief()` for a flat input and
-refuses a partially improper one (`belief_mean` throws); it is the two-channel case of `LinearConstraintFactor` and could call the same code,
-which has not been done.
+`constraint.md` §4.1.
+
+**`GaussianFactor` takes partly flat inputs (2026-11-10).** A `GaussianFactor` is the relation
+$-Ax + y = b + \varepsilon$, the two-channel case of `LinearConstraintFactor`. When its input is
+informative in some directions and flat in others (`_partly_flat`: a declared-improper or
+singular Gaussian with nonzero precision), `_message` calls `_flat_message`, which hands the
+relation and the input's split to `_linear_message`. Proper inputs take the old path, with the
+same arithmetic. `NonlinearFactor` does the same for a partly flat input on `y`, through its
+local linear model. A fully flat input (no message) still gives `TrivialBelief()`.
+
+Before this, a chain with a partially observed vector state (a Kalman smoother with position-only
+measurements) threw `belief_mean needs a proper belief`, or, when rounding let the Cholesky
+factorisation of the rank-deficient precision through, returned wrong marginals without an error
+(for $H = [0.1\ \ 0.3]$ the mean of $x_0$ was off by 0.049). `test/gaussian_oracle.jl` compares
+random trees with rectangular coefficients, and that smoother, with the dense joint solve
+([[LP-024 Findings of the review of 2026-11-09]]).
+
+**The constructor accepts a covariance that is symmetric up to rounding** (the tolerance of
+`LenticulumCore._nearly_symmetric`) and uses its symmetric part. The collapsed factor of a
+composition has the noise $B Q_a B^\top + Q_b$, which is not exactly symmetric; the exact test
+refused it for most parameters when $Q_a$ was not diagonal.
 
 ## Batched factor beliefs (2026-11-03)
 

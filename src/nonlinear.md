@@ -95,3 +95,29 @@ definiteness. This prevents a one-dimensional metric on a two-dimensional residu
 prevents `Symmetric(Q)` from accepting an asymmetric covariance by reading one triangle.
 Shape and symmetry failures are `ArgumentError`s with clear messages. Evidence:
 `test/lp018.jl`, “LP-018.7 residual covariance validation”, for both constraint and nonlinear constructors.
+
+## Review of 2026-11-10
+
+**The default spread of `Unscented` is `α = 1`.** The sigma points lie at
+$\bar x \pm \alpha\sqrt{n + \kappa}$ standard deviations. Wan & van der Merwe's $\alpha = 10^{-3}$,
+the former default, puts them a thousandth of a standard deviation from the mean, with a centre
+weight of about $-10^6$: the regression then sees $f$ only where it is locally quadratic, so the
+linear model and its residual covariance $\Omega$ carry nothing of the nonlinearity at the scale
+of the belief, and the weights cost about six digits to cancellation. With $\alpha = 1$,
+$\kappa = 0$, $\beta = 2$ the centre weight of the mean is 0, that of the covariance is 2, and
+$\Omega$ is positive semidefinite without the clamp. The suite's check ($y = x^2$:
+$\mathbb E y = m^2 + s^2$, $\operatorname{Var} y = 4m^2s^2 + 2s^4$) holds for both settings.
+
+**The free energy is the linear model's.** `local_free_energy` returns the free energy of the
+local linear model with noise $Q + \Omega$, including $\tfrac12\log\det 2\pi(Q + \Omega)$: the
+evidence of the approximating model, as an extended or unscented Kalman filter reports it. It is
+neither a bound on nor an estimate of $\mathbb E_b[-\log\mathcal N(y; f(x), Q)] - H(b)$. It is
+linearised at the incoming message on $x$, while a backward message with `iterations > 1` is
+linearised at the posterior; with more than one iteration the messages and the free energy
+therefore describe two linear models, and the free energy is not stationary at the fixed point
+the messages reach.
+
+**Partly flat inputs.** A partly flat message on `y` (a rank-deficient likelihood from further
+down the graph) goes through the linear model's relation and the flat-direction limit, as for
+`GaussianFactor` ([[lib/Lenticulum.jl/src/gaussian|gaussian]], "Improper inputs"); the backward message is declared
+improper when the linear model's coefficient is rank-deficient.

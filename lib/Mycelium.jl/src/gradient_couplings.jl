@@ -151,9 +151,7 @@ function _graph_scalar(s, g, ps, st, frozen = nothing)
             _local_scalar(_subtree(ps, f.params), f.factor, messages_into(s, g, f.id), _subtree(st, f.params)) :
             _belief_scalar(_subtree(ps, f.params), f.factor, b, _subtree(st, f.params))
     end
-    correction = sum(map(_variable_nodes(g)) do v
-        counting_number(g, v.id) * variable_free_energy(marginal(s, g, v.id))
-    end)
+    correction = sum(map(v -> _variable_term(s, g, v.id), _variable_nodes(g)))
     return sum(terms) + correction
 end
 

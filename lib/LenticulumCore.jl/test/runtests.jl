@@ -389,3 +389,44 @@ end
 
 include("parameter_ad.jl")
 include("lp019.jl")
+
+# review of 2026-11-09
+@testset "freeze paths against a brute-force mask" begin
+    # label every leaf coordinate with its path; the frozen coordinates are those under the path
+    function labelled(x, path = ())
+        x isa AbstractArray && return Tuple[path for _ in vec(x)]
+        x isa Number && return Tuple[path]
+        return reduce(vcat, [labelled(v, (path..., k)) for (k, v) in pairs(x)]; init = Tuple[])
+    end
+    under(p, path) = length(p) >= length(path) && p[1:length(path)] == path
+    trees = (
+        (first = (W = ones(2, 2), b = ones(2)), second = (act = (;), W = ones(3), b = ones(1))),
+        (a = ones(3), blk = (empty = (;), w = ones(2))),
+        (a = (;), b = (c = (;), d = (e = (;), f = ones(2, 3))), g = (ones(2), (;), ones(1))),
+        (layer_1 = (;), layer_2 = (weight = ones(4, 2), bias = ones(4)), layer_3 = (;), layer_4 = (weight = ones(1, 4), bias = ones(1))),
+    )
+    paths(x, path = ()) = x isa Union{NamedTuple,Tuple} ?
+        reduce(vcat, [Tuple[(path..., k), paths(v, (path..., k))...] for (k, v) in pairs(x)]; init = Tuple[]) : Tuple[]
+    for ps in trees
+        labels = labelled(ps)
+        for path in paths(ps)
+            expected = [i for i in eachindex(labels) if !under(labels[i], path)]
+            @test LenticulumCore._trainable_indices(ps, path) == expected
+        end
+    end
+    @test_throws ArgumentError LenticulumCore._trainable_indices(trees[1], (:third,))
+end
+
+@testset "Polarity: equal values hash equally" begin
+    p1 = Polarity((x = Observed(),), (x = 1,)); p2 = Polarity((x = Observed(),), (x = 1.0,))
+    @test p1 == p2 && hash(p1) == hash(p2)
+    @test length(Dict(p1 => 1, p2 => 2)) == 1
+end
+
+@testset "graded energies keep their element type" begin
+    σ = GradedScalarisation((a = IdentityScalarisation(), b = SquaredNorm()))
+    e = GradedEnergy((a = 1f0, b = Float32[1, 2]))
+    @test scalarise(σ, e) isa Float32
+    @test LenticulumCore._energy_vector(e) isa Vector{Float32}
+    @test (@doc LenticulumCore.oplus) !== nothing && Base.Docs.hasdoc(LenticulumCore, :oplus)
+end

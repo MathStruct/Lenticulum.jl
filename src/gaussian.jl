@@ -74,7 +74,9 @@ function GaussianFactor(
     nin, nout = dims
     Q = _as_cov(noise, nout)
     size(Q) == (nout, nout) || throw(DimensionMismatch("noise must have size ($nout, $nout)"))
-    issymmetric(Q) || throw(ArgumentError("noise covariance must be symmetric"))
+    # symmetric up to rounding: a product such as B Q Bᵀ is not exactly symmetric
+    LenticulumCore._nearly_symmetric(Q) || throw(ArgumentError("noise covariance must be symmetric"))
+    Q = Matrix(LenticulumCore._symmetric_part(Q))
     isposdef(Symmetric(Q)) || throw(ArgumentError("noise covariance Q must be positive definite"))
     learning = _noise_learning(Q, learn_noise, noise_prior, eigenvalue_floor)
     return GaussianFactor(nin, nout, channels[1], channels[2], Q, init_weight, init_bias, learning)
@@ -258,6 +260,7 @@ function _message(f::GaussianFactor, target::Symbol, inputs, ps, st)
     A, b = ps.A, ps.b
     if target === f.out_channel
         src = _get(inputs, f.in_channel)
+        _partly_flat(src) && return _flat_message(f, target, f.in_channel, f.nin, src, ps, st)
         m, S = _moments(src, f.nin)
         m === nothing && return (LenticulumCore.TrivialBelief(), st)
         Σ = A * S * A' + noise_covariance(f, ps)
@@ -265,13 +268,33 @@ function _message(f::GaussianFactor, target::Symbol, inputs, ps, st)
         return (GaussianBelief(Λ * (A * m .+ b), Λ), st)
     elseif target === f.in_channel
         src = _get(inputs, f.out_channel)
+        _partly_flat(src) && return _flat_message(f, target, f.out_channel, f.nout, src, ps, st)
         m, S = _moments(src, f.nout)
         m === nothing && return (LenticulumCore.TrivialBelief(), st)
         R = noise_covariance(f, ps) + S
         Ri = inv(_chol(R, "Q + Sᵧ"))
-        return (GaussianBelief(A' * (Ri * (m .- b)), A' * Ri * A), st)
+        return (GaussianBelief(A' * (Ri * (m .- b)), A' * Ri * A, _rank_deficient(A)), st)
     end
     throw(ArgumentError("channel :$target is not a channel of this GaussianFactor"))
+end
+
+# The backward precision AᵀR⁻¹A has the rank of A. When that is below the input dimension the
+# message is a likelihood that is flat in some directions, and it is declared improper: left to
+# rounding, a Cholesky factorisation of such a precision sometimes succeeds, and the next factor
+# then computes with a covariance of order 1/eps (wrong marginals on a tree, without an error).
+_rank_deficient(A) = size(A, 1) < size(A, 2) || _projected_rank(A, A) < size(A, 2)
+
+# An input that is informative in some directions and flat in others: a declared-improper or
+# singular Gaussian. (Zero precision is "no input", handled by the callers.)
+_partly_flat(b) = false
+_partly_flat(b::GaussianBelief) = !all(iszero, b.Λ) && !isproper(b)
+
+# The message for a partly flat input, through the relation −A x + y = b + ε and the
+# flat-direction limit of the constraint factors (`constraint.md` §4.1): the flat directions are
+# integrated out under a prior that widens without bound.
+function _flat_message(f::GaussianFactor, target, other, dim, src, ps, st)
+    return _linear_message(_gaussian_blocks(f, ps), float.(ps.b), noise_covariance(f, ps), target,
+                           [(other, _split_moments(src, dim))], st)
 end
 
 _get(inputs, k) = haskey(inputs, k) ? getfield(inputs, k) : nothing
@@ -279,6 +302,9 @@ _get(inputs, k) = haskey(inputs, k) ? getfield(inputs, k) : nothing
 # Functional schedule AD avoids the mutating inverse-of-Cholesky implementation.
 # Ordinary message passing retains its established arithmetic.
 function Mycelium._gradient_message(ad, f::GaussianFactor, target::Symbol, pol, inputs, prior, ps, st)
+    if _partly_flat(_get(inputs, target === f.out_channel ? f.in_channel : f.out_channel))
+        return _message(f, target, inputs, ps, st)
+    end
     if target === f.out_channel
         m,S=_moments(_get(inputs,f.in_channel),f.nin)
         m === nothing && return LenticulumCore.TrivialBelief(),st
@@ -289,7 +315,7 @@ function Mycelium._gradient_message(ad, f::GaussianFactor, target::Symbol, pol, 
         m,S=_moments(_get(inputs,f.out_channel),f.nout)
         m === nothing && return LenticulumCore.TrivialBelief(),st
         Ri=inv(Symmetric(noise_covariance(f,ps)+S))
-        return GaussianBelief(ps.A'*(Ri*(m-ps.b)),ps.A'*Ri*ps.A),st
+        return GaussianBelief(ps.A'*(Ri*(m-ps.b)),ps.A'*Ri*ps.A,_rank_deficient(ps.A)),st
     end
     throw(ArgumentError("unknown Gaussian target :$target"))
 end

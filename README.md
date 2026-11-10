@@ -61,18 +61,18 @@ $\{z : r_\theta(z) = 0\}$, an algebraic variety:
 4. **Backpropagation is the implicit function theorem**: one adjoint linear solve gives the
    gradients for the parameters, the inputs and the precisions. Nothing is unrolled.
 
-Three model families provide the residual:
+The library is built around three uses:
 
-| family | residual comes from | inference |
+| path | what you get | packages |
 |---|---|---|
-| **diffusion models** | a trained denoiser (its score) | a proximal step, or a fixed point of the denoiser |
-| **equilibrium models** (DEQ, neural ODE) | a learned layer | fixed-point / root solve |
-| **algebraic** (polynomials → varieties) | polynomial equations | root finding |
+| **A. Gaussian factor graphs** | exact smoothing and state estimation on linear-Gaussian graphs, nonlinear measurements by linearisation, the free energy and its gradient (as in [GTSAM](https://gtsam.org/), the project's inspiration, with factors that can be learned) | `LenticulumCore`, `Mycelium`, `Lenticulum` |
+| **B. Relation learners** | a diffusion model queried in any direction by root finding, with an adjoint backward pass, Laplace beliefs and conditional sampling | `VariationalDiffusion` |
+| **C. Structure and regimes** | switching and regime factors, hierarchical models, expectation maximisation, search over structures | `Lenticulum`, `Mycelium`, `MyceliumLearning` |
 
-and **factor graphs** wire many relations together. Where a neural network is a DAG of
-layers, this is an undirected graph of factors, solved by message passing (as in
-[GTSAM](https://gtsam.org/), the project's inspiration: GTSAM with learnable, non-Gaussian
-factors).
+Deep equilibrium models and neural ODEs (`ImplicitLayers`), exact discrete toric models
+(`AlgebraicFactors`) and implicit generative models (`Adversarial`) are in `parked/`: they work
+at the commit they were parked at and are not part of the tested core
+([the refactor note](vault/Project/Refactor%202026-11.md)).
 
 ## A minimal example
 
@@ -97,19 +97,18 @@ learned from a circle) is worked through in the vault.
 
 | you are | start with |
 |---|---|
-| **who learns by running code** | the [tutorials](https://mathstruct.org/Lenticulum.jl/api/dev/tutorials/01_circle/) (also as Jupyter notebooks): the circle, a trained MLP, a robot arm, ProxDM, equivariant vs. conservative force fields, an energy-parametrised diffusion model, a force law discovered from particle trajectories, GTSAM-style localisation, a kernel baseline the network has to beat, and intersections of separately trained models |
-| **from machine learning** | [Implicit Diffusion Learners](https://mathstruct.org/Lenticulum.jl/Families/Diffusion/Implicit-Diffusion-Learners) → [Backpropagation through Implicit Inference](https://mathstruct.org/Lenticulum.jl/Families/Diffusion/Backpropagation-through-Implicit-Inference) → [DEQ as a Relation](https://mathstruct.org/Lenticulum.jl/Families/Equilibrium/DEQ-as-a-Relation) |
-| **from statistics / robotics** | the [localisation tutorial](https://mathstruct.org/Lenticulum.jl/api/dev/tutorials/08_localization/) (GTSAM's odometry example: smoothing vs filtering, noise estimated from the marginal likelihood) → [Beliefs](https://mathstruct.org/Lenticulum.jl/Factor-Graphs/Beliefs) → [Bethe Free Energy](https://mathstruct.org/Lenticulum.jl/Factor-Graphs/Bethe-Free-Energy) |
+| **who learns by running code** | the [tutorials](https://mathstruct.org/Lenticulum.jl/api/dev/tutorials/01_circle/) (also as Jupyter notebooks): the circle, a trained MLP, a robot arm, ProxDM, an energy-parametrised diffusion model, GTSAM-style localisation, a kernel baseline the network has to beat, intersections of separately trained models, and switching mixtures |
+| **from machine learning** | [Implicit Diffusion Learners](https://mathstruct.org/Lenticulum.jl/Relation-Learners/Implicit-Diffusion-Learners) → [Backpropagation through Implicit Inference](https://mathstruct.org/Lenticulum.jl/Relation-Learners/Backpropagation-through-Implicit-Inference) |
+| **from statistics / robotics** | the [localisation tutorial](https://mathstruct.org/Lenticulum.jl/api/dev/tutorials/08_localization/) → [The Linear Gaussian Chain](https://mathstruct.org/Lenticulum.jl/Gaussian-Graphs/The-Linear-Gaussian-Chain) → [Bethe Free Energy](https://mathstruct.org/Lenticulum.jl/Gaussian-Graphs/Bethe-Free-Energy) |
 | **from category theory** | [Factors are Parameterized Statistical Games](https://mathstruct.org/Lenticulum.jl/Foundations/Factors-are-Parameterized-Statistical-Games), with the background in the [CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/) (Track E) |
 | **looking for an API** | the [API documentation](https://mathstruct.org/Lenticulum.jl/api/dev/) |
 
 The **theory vault** ([website](https://mathstruct.org/Lenticulum.jl/); also this
-repository opened in [Obsidian](https://obsidian.md), starting from `vault/Start Here.md`) is the
-larger half of the project: the derivations, the papers, the design decisions, and an honest list
-of what does not work yet.
+repository opened in [Obsidian](https://obsidian.md), starting from `vault/Start Here.md`) holds
+the derivations, the papers, the design decisions and the list of what does not work yet.
 
-**References.** Every work cited in the tutorials, the notes and the vault (150 papers, books and
-software packages) is in one BibTeX file, [`docs/src/refs.bib`](docs/src/refs.bib). It is rendered
+**References.** Every work cited in the tutorials, the notes and the vault (about 260 papers, books
+and software packages) is in one BibTeX file, [`docs/src/refs.bib`](docs/src/refs.bib). It is rendered
 as the documentation's [References](https://mathstruct.org/Lenticulum.jl/api/dev/references/)
 page and the vault's [Bibliography](https://mathstruct.org/Lenticulum.jl/Bibliography),
 and it is the reference list of [`CITATION.cff`](CITATION.cff). To cite Lenticulum itself, use
@@ -124,20 +123,21 @@ prototype; the vault can already be browsed in it as a graph.
 
 ## What is in the repository
 
-One umbrella package alongside six smaller ones. All depend on **LuxCore** only — not Lux, Zygote
-or Optimisers — so any Lux model wraps as a factor without pulling them in. Automatic
-differentiation and Reactant compilation come in through package extensions, for whichever
-backend you load.
+Five packages under `lib/`. All depend on **LuxCore** only (not Lux, Zygote or Optimisers), so
+any Lux model wraps as a factor without pulling them in. Automatic differentiation and Reactant
+compilation come in through package extensions, for whichever backend you load.
 
 | package | gives you |
 |---|---|
-| `LenticulumCore` | what a **factor** is: channels, polarities, energies; all **belief** types (Gaussian, categorical, mixture, Dirac, sample), convertible to RxInfer's |
-| `Mycelium` | how factors are **wired and scheduled**: graphs, messages, free energy |
-| `Lenticulum` | **linear-Gaussian**, nonlinear and likelihood factors, linear constraints and belief projections |
-| `VariationalDiffusion` | **diffusion models** as relations: VP-SDE, RED-Diff, ProxDM, deterministic implicit inference with an adjoint backward pass |
-| `ImplicitLayers` | **deep equilibrium models and neural ODEs** as factors |
-| `Adversarial` | **implicit generative models**: generators and density-ratio factors |
-| `AlgebraicFactors` | **finite toric models**: exact discrete messages and free energy |
+| `LenticulumCore` | what a **factor** is: channels, polarities, energies; the **belief** types (Gaussian, categorical, mixture, Dirac, sample), convertible to RxInfer's |
+| `Mycelium` | **inference**: graphs, messages, schedules, plates, cluster nodes, the free energy |
+| `MyceliumLearning` | **learning** on a graph: free-energy gradients, expectation maximisation, the optimiser step |
+| `Lenticulum` | the **factors**: linear-Gaussian, nonlinear, linear constraints, switching and regime factors, likelihoods; their closed-form M-steps |
+| `VariationalDiffusion` | **diffusion models** as relations: VP-SDE, implicit inference with an adjoint backward pass, Laplace and mixture answers, conditional sampling, RED-Diff, ProxDM |
+
+`parked/` holds `ImplicitLayers`, `Adversarial` and `AlgebraicFactors`
+with their tests, notes and two tutorials; `vault/` the theory notes; `docs/` the Documenter
+pages and tutorials; `bench/` the benchmarks.
 
 ## How it relates to what you know
 
@@ -162,20 +162,19 @@ Not registered. From a clone:
 
 ```julia
 using Pkg
-Pkg.develop(path = "/path/to/Lenticulum.jl")
-Pkg.develop(path = "/path/to/Lenticulum.jl/lib/VariationalDiffusion.jl")   # and the others under lib/
+Pkg.develop(path = "/path/to/Lenticulum.jl/lib/Lenticulum.jl")             # paths A and C
+Pkg.develop(path = "/path/to/Lenticulum.jl/lib/VariationalDiffusion.jl")   # path B
 ```
 
 Tests, per package:
 
 ```sh
-julia --project=.                              -e 'using Pkg; Pkg.test()'
+julia --project=lib/Lenticulum.jl              -e 'using Pkg; Pkg.test()'
 julia --project=lib/VariationalDiffusion.jl    -e 'using Pkg; Pkg.test()'
-# ... likewise for lib/LenticulumCore.jl, lib/Mycelium.jl, lib/ImplicitLayers.jl, lib/Adversarial.jl, lib/AlgebraicFactors.jl
+# ... likewise for lib/LenticulumCore.jl, lib/Mycelium.jl, lib/MyceliumLearning.jl
 ```
 
-The JLArrays device tests in Mycelium and ImplicitLayers take about 17 minutes, so CI skips
-them; run them locally with `LENTICULUM_DEVICE_TESTS=true` set.
+The JLArrays device tests of Mycelium run only with `LENTICULUM_DEVICE_TESTS=true` set.
 
 Documentation, API and vault together:
 
@@ -187,14 +186,25 @@ docs/site/build.sh --serve                 # just the vault, live-previewed (Nod
 
 ## Status and limits
 
-A prototype. Exactness results are on the linear-Gaussian fragment and on closed-form test
-models. Learned networks are small by design (a factor's joint space has a handful of
-coordinates, so a few-thousand-parameter MLP is enough); one is trained, queried and
-differentiated through its own inference in `lib/VariationalDiffusion.jl/examples/circle_mlp.jl`,
-with the AD backend chosen per model (Zygote, Enzyme, ForwardDiff, Mooncake, or Reactant for
-compiled XLA). Point inference returns one branch of a multivalued relation; sampling-based
-*conditional* inference is not implemented (ProxDM's unconditional sampler is). The vault's *Related Julia Projects* says what to use instead when you need only
-one of the things this combines.
+A prototype. What is exact is tested against closed forms: random linear-Gaussian trees
+against the dense joint solve, switching chains against enumeration, the diffusion field against
+a Gaussian mixture's score. Known limits:
+
+- a mixture message into a Gaussian or constraint factor is collapsed to its moments unless the
+  switch and what it reaches are in one cluster node; a tree is exact only in the second case;
+- the cost of inference grows quadratically with the number of separately parametrised factors
+  (thousands of them are slow; plates with tied parameters are not affected);
+- the implicit learner recovers the ridge of a smoothed density, not the data's support, and
+  every query returns a root, on the relation or not (the calibration benchmark in
+  `lib/VariationalDiffusion.jl/examples/calibration.md`);
+- point inference returns one branch of a multivalued relation; `implicit_roots` and
+  `implicit_mixture` collect several, and `implicit_sample` samples a query by replacement.
+
+Learned networks are small by design (a factor's joint space has a handful of coordinates); one
+is trained, queried and differentiated through its own inference in
+`lib/VariationalDiffusion.jl/examples/circle_mlp.jl`, with the AD backend chosen per model
+(Zygote, Enzyme, ForwardDiff, Mooncake, or Reactant). The vault's *Related Julia Projects* says
+what to use instead when you need only one of the things this combines.
 
 ## Contributing
 

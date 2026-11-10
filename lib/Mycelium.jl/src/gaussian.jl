@@ -77,7 +77,7 @@ end
 # convex, so a damped message is still a valid (possibly improper) Gaussian.
 can_damp(::GaussianBelief, ::GaussianBelief) = true
 _damp(a::GaussianBelief, b::GaussianBelief, α::Real) =
-    GaussianBelief(α .* a.η .+ (1 - α) .* b.η, α .* a.Λ .+ (1 - α) .* b.Λ)
+    GaussianBelief(α .* a.η .+ (1 - α) .* b.η, α .* a.Λ .+ (1 - α) .* b.Λ, a.improper && b.improper)
 
 # Product rule for mixture components: the pooled Gaussian and the log of the overlap
 # ∫ p_c p_d. An improper d (a likelihood message exp(ηᵀx − xᵀΛx/2)) has no normaliser; the

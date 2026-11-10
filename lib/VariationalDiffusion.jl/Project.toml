@@ -5,7 +5,6 @@ version = "0.0.1-dev"
 
 
 [deps]
-DispatchDoctor = "8d63f2c5-f18a-4cf2-ba9d-b3f60fc568c8"
 LenticulumCore = "1ac3b398-e9e9-400d-83fd-862c57ff485d"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Mycelium = "0a724bc2-760c-4b8c-a26e-202a6d9695cb"
@@ -32,3 +31,7 @@ projects = ["test"]
 
 [compat]
 julia = "1.12"
+LuxCore = "1"
+ADTypes = "1"
+ChainRulesCore = "1"
+DifferentiationInterface = "0.7"

@@ -623,14 +623,19 @@ function LenticulumCore.free_energy_gradient(s::MessageStore, g::FactorGraph, ps
     _check_energy_edges(g)
     _check_unnormalised(g)
     adjoint in (:unrolled, :implicit) || throw(ArgumentError("adjoint must be :unrolled or :implicit"))
-    coupled = adjoint === :implicit || any(e -> !(e.coupling isa DiagonalCoupling), g.edges)
-    # LP-021, option 3: without a replay (no `schedule`) the couplings do not change the free-energy
-    # gradient, which at a fixed point is the envelope one; they matter for a replay only.
-    if coupled && !(adjoint === :unrolled && schedule === nothing && _deterministic_couplings(g))
+    if _uses_coupled_driver(g, adjoint, schedule)
         return _coupled_gradient(s, g, ps, st; ad, ε, schedule, nsweeps, rng, nsamples,
             damping, adjoint, maxsweeps, tol, linear_solver, linear_tol, linear_maxiter)
     end
     return _envelope_gradient(s, g, ps, st; ad, ε)
+end
+
+# Which driver a gradient request takes; one rule for `free_energy_gradient` and `parameter_step`.
+# LP-021, option 3: without a replay (no `schedule`) the couplings do not change the free-energy
+# gradient, which at a fixed point is the envelope one; they matter for a replay only.
+function _uses_coupled_driver(g, adjoint, schedule)
+    coupled = adjoint === :implicit || any(e -> !(e.coupling isa DiagonalCoupling), g.edges)
+    return coupled && !(adjoint === :unrolled && schedule === nothing && _deterministic_couplings(g))
 end
 
 # The free-energy gradient at the store's beliefs (LP-020): each factor's term differentiated at
@@ -661,7 +666,7 @@ function _envelope_gradient(s, g, ps, st; ad = nothing, ε = 1e-6)
 end
 
 """
-    parameter_step(store, g, ps, st; ad, rule = GradientDescent(0.01), optimiser_state = nothing)
+    parameter_step(store, g, ps, st; ad = nothing, rule = GradientDescent(0.01), optimiser_state = nothing)
         -> (ps_new, st_new, optimiser_state_new)
 
 One graph free-energy parameter step with an explicit AD backend (`nothing` selects
@@ -681,7 +686,7 @@ replicate; other replicates do not accumulate Lux state. This does not update th
 message store or exposed OptimiserFactor wires.
 """
 function parameter_step(s::MessageStore, g::FactorGraph, ps, st;
-                        ad, rule = GradientDescent(0.01), optimiser_state = nothing,
+                        ad = nothing, rule = GradientDescent(0.01), optimiser_state = nothing,
                         kwargs...)
     fs = Tuple(f for f in map(k -> _key_node(g, k), parameter_keys(g))
                if !isempty(_active_indices(f, _subtree(ps, f.params))))
@@ -697,8 +702,7 @@ function parameter_step(s::MessageStore, g::FactorGraph, ps, st;
         _replace_active(_subtree(ps, f.params), ii, rule_get(rule, os[f.params], θ))
     end
     at = merge(ps, NamedTuple{names}(look))
-    coupled = get(kwargs, :adjoint, :unrolled) === :implicit || any(e -> !(e.coupling isa DiagonalCoupling), g.edges)
-    if coupled
+    if _uses_coupled_driver(g, get(kwargs, :adjoint, :unrolled), get(kwargs, :schedule, nothing))
         result, stnew = _coupled_gradient(s,g,at,st;ad,return_state=true,kwargs...)
     else
         result = LenticulumCore.free_energy_gradient(s, g, at, st; ad, kwargs...)

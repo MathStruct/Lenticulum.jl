@@ -3,9 +3,11 @@
 > **The derivation behind [[ImplicitREDDiff]], carried through.** A diffusion model defines a
 > relation $R_\theta \subseteq Z$ as the zero set of a residual field. Inference is root-finding on
 > that field and backpropagation is the adjoint of the root. Read through Tweedie's formula,
-> RED-Diff's stop-gradient field turns out to be the **exact gradient** of a smoothed
-> log-density. So the scalar energy and the multivariate energy of the original sketch are
-> one object, and inference is a proximal step.
+> RED-Diff's stop-gradient field is the **exact gradient** of a potential: a weighted average of
+> the negative log-densities of the noised marginals, evaluated at the nodes' shifted points. So
+> the scalar energy and the multivariate energy of the original sketch are one object, and
+> inference is a proximal step. The potential is smoother than the data density, twice over when
+> the nodes carry noise (§5).
 >
 > Implemented in `lib/VariationalDiffusion.jl/src/implicit.jl` and `analytic.jl`; see [[implicit]], [[analytic]].
 
@@ -92,9 +94,13 @@ Consequences:
    $$
    \mathcal E(z) \;=\; \Phi(z) + \tfrac12\lVert P(z - z_0)\rVert^2,
    $$
-   and the residual is its gradient. $\Phi$ is a *mixture of Gaussian-smoothed negative
-   log-densities*: each noise level contributes $-\log p_t$ at scale $\sigma_t/\alpha_t$, with
-   weight $\lambda\sigma_t^2/\alpha_t^2$.
+   and the residual is its gradient. $\Phi$ is a weighted *average of negative log-densities*
+   of the noised marginals: each node contributes $-\log p_t(\alpha_t z + \sigma_t\varepsilon_k)$
+   with weight $\lambda\sigma_t^2/\alpha_t^2$. As a function of $z$, $p_t(\alpha_t z)$ is the data
+   density smoothed at scale $\sigma_t/\alpha_t$; averaging its logarithm over the shifts
+   $\sigma_t\varepsilon_k/\alpha_t$ smooths once more (§5). $e^{-\Phi}$ is a geometric mean of
+   those densities, flatter than any of them, and is a density scale only for
+   $\lambda = $ `density_lambda` ([[implicit]] §5).
 2. **RED-Diff is not "biased" in the sense the vault used to say.** Its field is not the gradient
    of the regulariser it starts from. It *is* the exact gradient of $\Phi$, a different and
    well-defined prior. ([[RED-Diff as a Statistical Game]] §6 called it "approximate at its
@@ -112,13 +118,16 @@ machine precision (test suite, "the deterministic field is the gradient of a smo
 ## 4. Inference is a proximal point
 
 With $\mathcal E = \Phi + \tfrac12\lVert P(z - z_0)\rVert^2$, a root of $r_F$ with $z_C = z_{0,C}$ is a
-stationary point of
+stationary point of the problem
 
 $$
-z^\star \;\in\; \arg\min_{z_C = z_{0,C}}\; \Phi(z) + \tfrac12 \lVert P(z - z_0)\rVert^2 \;=\; \operatorname{prox}^{P^2}_{\Phi}(z_0)\ \text{restricted to the clamp},
+\min_{z_C = z_{0,C}}\; \Phi(z) + \tfrac12 \lVert P(z - z_0)\rVert^2 ,
 $$
 
-i.e. the **proximal operator of the smoothed log-prior in the metric $P^2$**. This makes
+whose minimisers are $\operatorname{prox}^{P^2}_{\Phi}(z_0)$ restricted to the clamp: the
+**proximal operator of the smoothed log-prior in the metric $P^2$**. $\Phi$ is not convex, so the
+proximal operator is set-valued and a root need not be a minimiser; the stable roots (§5) are
+the local minimisers, and the solver returns the one its start leads to. This makes
 precise the slogan of [[The Diffusion Family]] ("a statistical game whose inversion is a
 proximal operator") and connects it to [[ProxDM and Proximal Alternatives]]. ProxDM *learns* a
 prox; here the prox is induced by a learned score.
@@ -138,15 +147,43 @@ gradient, stability is the second-order condition for a local minimum.
 ### The smoothing scale decides what relation you get
 
 $\Phi$ smooths the data density at scales $\sigma_t/\alpha_t$, so the recovered relation is the
-**ridge of a smoothed density**, not the support of the data. For a thin ring of radius $R$
-(mixture components of width $s$) smoothed at a single level, the radial mode moves inward by,
-to first order,
+**ridge of a smoothed density**, not the support of the data. How much depends on the nodes.
+
+*A noise-free node* ($\varepsilon = 0$, `noisefree_nodes`) evaluates $-\log p_t(\alpha_t z)$, the
+density smoothed once. For a thin ring of radius $R$ (mixture components of width $s$) the
+radial mode moves inward to, to first order,
 
 $$
 r^\star \;\approx\; R - \frac{s^2 + \sigma_t^2/\alpha_t^2}{2R}.
 $$
 
-Measured on the unit circle, inferring $y$ at $x = 0$:
+*Nodes with noise* (`field_nodes`, the default) average the **logarithm** over the shifts. To
+second order
+
+$$
+\mathbb E_\varepsilon\bigl[-\log p_t(\alpha_t z + \sigma_t\varepsilon)\bigr] \;\approx\; -\log p_t(\alpha_t z) \;-\; \frac{\sigma_t^2}{2\alpha_t^2}\,\Delta_z \log p_t(\alpha_t z),
+$$
+
+a second smoothing of the same size, and for the ring
+
+$$
+r^\star \;\approx\; R - \frac{s^2 + 2\sigma_t^2/\alpha_t^2}{2R}.
+$$
+
+So at one level, nodes with noise have about twice the bias of a noise-free node. Measured on
+the unit circle ($s = 0.05$, 400 components, inferring $y$ at $x = 0$, 2 000 antithetic pairs at
+one level, five seeds; `lib/VariationalDiffusion.jl/examples/ring_bias.jl`):
+
+| level $t$ | $\sigma_t^2/\alpha_t^2$ | noise-free node | first formula | nodes with noise | second formula |
+|---|---|---|---|---|---|
+| 0.03 | 0.0120 | 0.9927 | 0.9927 | 0.9863 ± 0.0005 | 0.9867 |
+| 0.06 | 0.0427 | 0.9766 | 0.9774 | 0.9509 ± 0.0014 | 0.9560 |
+
+With few nodes the second term is a Hutchinson-type estimate of the Laplacian: unbiased, with
+its mass in the directions the nodes span and a variance that grows with $n/K$;
+`field_nodes(…; orthogonal = true)` reduces that variance.
+
+Over several levels (nodes with noise, the package's `field_nodes`), inferring $y$ at $x = 0$:
 
 | noise levels used | largest $\sigma_t$ | inferred radius |
 |---|---|---|
@@ -156,15 +193,16 @@ Measured on the unit circle, inferring $y$ at $x = 0$:
 | $t \le 0.2$ | 0.584 | 0.658 |
 | $t \le 1$ (RED-Diff's training range) | 1.000 | **0.000** |
 
-A single noise-free level at $t = 0.03$ gives $0.9927$ and the formula predicts $0.9927$; at
-$t = 0.06$, $0.9766$ against $0.977$.
+For the default levels the energy-weighted mean of $\sigma_t^2/\alpha_t^2$ is 0.020, and the second
+formula gives 0.979.
 
 **RED-Diff's own weighting, $\lambda_t \propto \sigma_t/\alpha_t$ over $t\in[t_{\min},1]$, smooths a circle until its
 density peaks at the centre**, and then the relation is a single point. For implicit learning
 the noise levels used *at inference* must stay below the curvature scale of the relation.
 That is a design parameter (`levels` in `field_nodes`), and it is a bias–conditioning
 trade-off: small $\sigma_t$ means little bias but a stiff, ill-conditioned field ($\varepsilon^\ast$
-scales like $1/\sigma_t$ near the data).
+scales like $1/\sigma_t$ near the data). Noise-free nodes halve the bias at a given level and
+give up the averaging that smooths the field.
 
 ## 6. Multi-valued relations and branches
 

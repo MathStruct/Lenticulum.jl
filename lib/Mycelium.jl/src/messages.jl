@@ -23,13 +23,14 @@ struct Message{B}
     iteration::Int
 end
 
+abstract type AbstractMessageStore end
+
 """
     MessageStore(g)
 
 Per-edge storage for both message directions. `nothing` means "not yet computed", which is
 distinct from "computed and uninformative" (the latter is `TrivialBelief()`).
 """
-abstract type AbstractMessageStore end
 mutable struct MessageStore <: AbstractMessageStore
     to_variable::EdgeMessages
     to_factor::EdgeMessages
@@ -125,12 +126,17 @@ combine(::LenticulumCore.TrivialBelief, b::LenticulumCore.AbstractBelief) = b
 combine(a::LenticulumCore.AbstractBelief, ::LenticulumCore.TrivialBelief) = a
 
 function combine(a::LenticulumCore.DiracBelief, b::LenticulumCore.DiracBelief)
-    a.value == b.value && return a
+    (a.value == b.value || _same_point(a.value, b.value)) && return a
     throw(ArgumentError(
         "contradictory hard clamps on one variable: $(a.value) vs $(b.value). \
          Two Dirac beliefs disagreeing is a wiring error — soften one of them \
          (a finite Observed precision) if disagreement is expected."))
 end
+# Two clamps to one computed value may differ by rounding; that is not a contradiction.
+_same_point(a::T, b::T) where {T<:AbstractFloat} = isapprox(a, b; rtol = sqrt(eps(T)), atol = eps(T))
+_same_point(a::AbstractArray{T}, b::AbstractArray{T}) where {T<:AbstractFloat} =
+    size(a) == size(b) && isapprox(a, b; rtol = sqrt(eps(T)), atol = eps(T))
+_same_point(a, b) = false
 combine(a::LenticulumCore.DiracBelief, ::LenticulumCore.AbstractBelief) = a
 combine(::LenticulumCore.AbstractBelief, b::LenticulumCore.DiracBelief) = b
 combine(a::LenticulumCore.DiracBelief, ::LenticulumCore.TrivialBelief) = a

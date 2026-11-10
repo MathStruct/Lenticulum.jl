@@ -25,7 +25,6 @@ file.
 """
 module LenticulumCore
 
-using DispatchDoctor: @stable
 using Random: Random, AbstractRNG
 using LuxCore: LuxCore
 using LinearAlgebra: LinearAlgebra, Diagonal, Hermitian, Symmetric, cholesky, dot, eigvals, isposdef, issymmetric, issuccess, logdet

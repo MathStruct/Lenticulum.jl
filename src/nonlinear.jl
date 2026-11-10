@@ -29,7 +29,7 @@ Base.@kwdef struct Linearization
 end
 
 """
-    Unscented(; α = 1e-3, β = 2.0, κ = 0.0, iterations = 1)
+    Unscented(; α = 1.0, β = 2.0, κ = 0.0, iterations = 1)
 
 Approximate a nonlinear factor's messages by the unscented transform: ``2n+1`` sigma points of
 the expansion belief, pushed through ``f``, fitted by a linear model with a residual covariance
@@ -37,9 +37,15 @@ the expansion belief, pushed through ``f``, fitted by a linear model with a resi
 for smooth ``f``; it needs a covariance at the expansion point (from the incoming belief), and
 falls back to linearisation at a point. `α, β, κ` are the usual scaling parameters (Wan & van
 der Merwe 2000); `iterations` as for [`Linearization`](@ref) (posterior linearisation).
+
+The sigma points lie at ``m \\pm \\alpha\\sqrt{n + \\kappa}`` standard deviations. The default
+`α = 1` spreads them over the belief, so the regression sees the nonlinearity at the scale of the
+uncertainty and the centre weight is not negative. Wan & van der Merwe's `α = 1e-3` puts them a
+thousandth of a standard deviation out, which makes the transform a local, second-order
+linearisation with weights of order ``10^6`` (review of 2026-11-10).
 """
 Base.@kwdef struct Unscented
-    α::Float64 = 1e-3
+    α::Float64 = 1.0
     β::Float64 = 2.0
     κ::Float64 = 0.0
     iterations::Int = 1
@@ -228,10 +234,16 @@ function _nl_message(f::NonlinearFactor, target::Symbol, inputs, prior)
         Λ = inv(_chol(A * S * A' + Ω + f.Q, "ASAᵀ + Ω + Q"))
         return GaussianBelief(Λ * (A * m .+ b), Λ)
     elseif target === f.in_channel
-        my, Sy = _moments(_get(inputs, f.out_channel), f.nout)
-        my === nothing && return LenticulumCore.TrivialBelief()
+        src = _get(inputs, f.out_channel)
         x̄, P = _expansion(f, prior)
         x̄ === nothing && return LenticulumCore.TrivialBelief()
+        if _partly_flat(src)                      # the linear model's relation, flat directions integrated out
+            A, b, Ω = linearize(f, x̄, P)
+            blocks = NamedTuple{(f.in_channel, f.out_channel)}((-A, Matrix{eltype(A)}(I, f.nout, f.nout)))
+            return first(_linear_message(blocks, b, f.Q .+ Ω, target, [(f.out_channel, _split_moments(src, f.nout))], nothing))
+        end
+        my, Sy = _moments(src, f.nout)
+        my === nothing && return LenticulumCore.TrivialBelief()
         return _likelihood(f, my, Sy, x̄, P)
     end
     throw(ArgumentError("channel :$target is not a channel of this NonlinearFactor"))
@@ -240,7 +252,7 @@ end
 function _likelihood(f, my, Sy, x̄, P)
     A, b, Ω = linearize(f, x̄, P)
     Ri = inv(_chol(f.Q + Ω + Sy, "Q + Ω + Sᵧ"))
-    return GaussianBelief(A' * (Ri * (my .- b)), A' * Ri * A)
+    return GaussianBelief(A' * (Ri * (my .- b)), A' * Ri * A, _rank_deficient(A))
 end
 
 # --- The lens: the posterior, relinearised `iterations` times -------------------------
@@ -281,6 +293,7 @@ end
 function _nl_iterated_message(f, target, inputs, π)
     msg = _nl_message(f, target, inputs, π)
     target === f.in_channel || return msg
+    _partly_flat(_get(inputs, f.out_channel)) && return msg      # the flat path is not iterated
     my, Sy = _moments(_get(inputs, f.out_channel), f.nout)
     my === nothing && return msg
     for _ in 2:f.method.iterations

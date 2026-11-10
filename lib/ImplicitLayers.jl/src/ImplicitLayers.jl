@@ -67,7 +67,6 @@ through `deq_sensitivity`) is possible but not built yet. See [[The Equilibrium 
 """
 module ImplicitLayers
 
-using DispatchDoctor: @stable
 using LinearAlgebra: LinearAlgebra, I, dot, lu, issuccess, SingularException, tr
 using Random: Random, AbstractRNG
 using LuxCore: LuxCore
