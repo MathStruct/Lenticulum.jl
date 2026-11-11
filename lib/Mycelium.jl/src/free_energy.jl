@@ -133,14 +133,20 @@ function _factor_terms(s::AbstractMessageStore, g::FactorGraph, @nospecialize(ps
     _check_tied_state(g, st)
     rows = _energy_rows(s, g)
     isempty(rows) || return _factor_terms_rows(s, g, ps, st, rows)
+    # Each result is (energy, new state, the state read), so the write-back can skip an unchanged
+    # state without looking the key up again; no array is written, for Zygote. Every factor here
+    # reads the original tree, so for a key that may be shared (`params` other than the factor's
+    # name) the last factor writes, changed or not, as before.
     results = map(_factor_nodes(g)) do f
         psf = _factor_parameters(f, _subtree(ps, f.params))
-        stf = _subtree(st, f.params)
-        f.rule isa MeanField && return mean_field_energy(f.factor, marginals_into(s, g, f.id), psf, stf)
-        local_free_energy(f.factor, messages_into(s, g, f.id), psf, stf)
+        stf0 = _stored(st, f.params); stf = something(stf0, NamedTuple())
+        Ff, stnew = f.rule isa MeanField ? mean_field_energy(f.factor, marginals_into(s, g, f.id), psf, stf) :
+                    local_free_energy(f.factor, messages_into(s, g, f.id), psf, stf)
+        (Ff, stnew, stf0)
     end
     stnew = foldl(zip(g.factors,results); init=st) do acc, item
-        _setsubtree(acc, item[1].params, item[2][2])
+        f, (_, new, old) = item
+        _writeback(acc, f.params, f.params === f.name ? old : nothing, new)
     end
     return map(first, results), stnew
 end
@@ -254,7 +260,8 @@ function _factor_terms_rows(s, g, @nospecialize(ps), @nospecialize(st), rows; sc
         f1 = g.factors[first(row.fids)]
         psf = _factor_parameters(f1, _subtree(ps, f1.params))
         factors = identity.([g.factors[i].factor for i in row.fids])
-        E, stf = local_free_energies(factors, msgs, psf, _subtree(st, f1.params))
+        stf0 = _stored(st, f1.params)
+        E, stf = local_free_energies(factors, msgs, psf, something(stf0, NamedTuple()))
         length(E) == length(row.fids) || throw(ArgumentError(
             "local_free_energies of $(nameof(typeof(f1.factor))) returned $(length(E)) energies for $(length(row.fids)) replicas"))
         if scalar
@@ -265,16 +272,16 @@ function _factor_terms_rows(s, g, @nospecialize(ps), @nospecialize(st), rows; sc
             end
         end
         covered[row.fids] .= true
-        st = _setsubtree(st, f1.params, stf)
+        st = _writeback(st, f1.params, stf0, stf)
     end
     for f in g.factors
         covered[f.id] && continue
         psf = _factor_parameters(f, _subtree(ps, f.params))
-        stf = _subtree(st, f.params)
+        stf0 = _stored(st, f.params); stf = something(stf0, NamedTuple())
         Ff, stf = f.rule isa MeanField ? mean_field_energy(f.factor, marginals_into(s, g, f.id), psf, stf) :
                   local_free_energy(f.factor, messages_into(s, g, f.id), psf, stf)
         scalar ? (total += LenticulumCore.scalarise(LenticulumCore.scalarisation(f.factor), Ff)) : (results[f.id] = Ff)
-        st = _setsubtree(st, f.params, stf)
+        st = _writeback(st, f.params, stf0, stf)
     end
     return scalar ? total : results, st
 end
@@ -526,8 +533,14 @@ end
 # on evaluation order, so it is refused (`plates.md`).
 function _check_tied_state(g, st)
     st isa NamedTuple || return nothing
+    # One pass over the factors: counting per key made this O(keys × factors), half the cost of
+    # the free energy of a 2 401-factor chain (`bench/state_scaling.jl`).
+    nodes = Dict{Symbol,Int}()
+    for f in g.factors
+        nodes[f.params] = get(nodes, f.params, 0) + 1
+    end
     for k in parameter_keys(g)
-        count(f -> f.params === k, g.factors) > 1 || continue
+        get(nodes, k, 0) > 1 || continue
         _empty_graph_state(_subtree(st, k)) || throw(ArgumentError(
             "the factors tied to parameters :$k have a non-empty state; tied factors must be stateless"))
     end

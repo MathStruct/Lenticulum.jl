@@ -282,6 +282,9 @@ import Lenticulum as PolynomialLinearOracle
             π = Gaussian(randn(rng,dims[t]),Matrix(0.7I,dims[t],dims[t]))
             site,st = factor_message(f,t,p,incoming,π,(;Θ),(;))
             exact,_ = factor_message(linear,t,p,incoming,π,linear_ps,(;))
+            # The oracle sends a rank-deficient message as an `ExtendedGaussian` (2026-11-11), this
+            # factor as an improper `GaussianBelief`; compare in the canonical form.
+            exact isa LenticulumCore.ExtendedGaussian && (exact = LenticulumCore.GaussianBelief(exact))
             push!(errors_h,norm(site.η-exact.η,Inf))
             push!(errors_Λ,norm(site.Λ-exact.Λ,Inf))
             @test site.η ≈ exact.η atol=3e-13 rtol=3e-13

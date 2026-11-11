@@ -49,7 +49,7 @@ were not reviewed.
 
 | finding | where | why not |
 |---|---|---|
-| the cost of a sweep and of the free energy grows quadratically with the number of parameter keys (7.7, 25.8, 102 ms for 601, 1 201, 2 401 factors) | `passing.jl` (`_setsubtree`), `free_energy.jl` | the backlog's integer-slot store; a partial fix is to skip `_setsubtree` when the factor's state is unchanged |
+| the cost of a sweep and of the free energy grows quadratically with the number of parameter keys (7.7, 25.8, 102 ms for 601, 1 201, 2 401 factors) | `passing.jl` (`_setsubtree`), `free_energy.jl` | the backlog's integer-slot store. Partly fixed 2026-11-11: the main cost of the free energy was `_check_tied_state` (O(keys × factors)), not `_setsubtree`; it is linear now and an unchanged state is not written back, so the free energy is 1.5–2.3 times faster (more for larger graphs) and a sweep unchanged, both still quadratic through the lookups by name (`lib/Mycelium.jl/src/passing.md`, "The state tree") |
 | `excluded_marginal` recombines the other messages for each edge: quadratic in a variable's degree | `messages.jl` | needs prefix products or division; not a correctness problem |
 | the graph free energy accumulates in `Float64` whatever the element type | `free_energy.jl` | touches every energy path; wants the element-type test first |
 | convergence of Gaussian messages is an absolute bound on natural parameters | `gaussian.jl` (Mycelium) | a change of behaviour for every schedule; `criterion = :marginals` is the way round today |

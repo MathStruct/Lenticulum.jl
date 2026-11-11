@@ -332,10 +332,12 @@ form with the flag serves AD, batches and mixtures; the extended form is the exa
 only one with hard directions. The crossings between the two are untested ([[Feature Backlog]],
 P1).
 
-**What changed downstream: nothing but two tests.** Run with the change, VariationalDiffusion
+**What changed downstream: nothing but three tests.** Run with the change, VariationalDiffusion
 passed and the Lenticulum suite failed in exactly two places, both tests that read the old
 representation: the smoother test asserted `msg.improper`, and a comparison helper in
-`test/extended_inputs.jl` read `η`. Every consumer of these messages already takes extended
+`test/extended_inputs.jl` read `η`. AlgebraicFactors, not run then, had a third: its polynomial test
+compares with `LinearConstraintFactor`'s message through `η` and `Λ`, and now converts an extended
+oracle message with `GaussianBelief` first (found 2026-11-11). Every consumer of these messages already takes extended
 Gaussians: `combine`, the store's distance and damping, the relation factors' inputs, and the free
 energy. The random trees with rectangular coefficients of `test/gaussian_oracle.jl` still match the
 dense joint solve, marginals and free energy, with these messages on their backward edges: in its

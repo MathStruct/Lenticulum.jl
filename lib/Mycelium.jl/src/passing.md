@@ -106,9 +106,9 @@ name silently yields empty parameters** rather than an error. That is the single
 way to get a confusingly wrong answer from this file: a factor trains on nothing and nobody
 says so.
 
-`_setsubtree` also `merge`s into the state tree on every message, allocating a fresh
-`NamedTuple` each time. Correct (states must not be mutated in place if the caller holds the old
-one) but wasteful in the inner loop.
+`_setsubtree` `merge`s into the state tree, allocating a fresh `NamedTuple`. Correct (states
+must not be mutated in place if the caller holds the old one); since 2026-11-11 it runs only when a
+factor changed its state ("The state tree" below).
 
 A `validate_parameters(g, ps)` pre-flight check — every learnable factor has an entry, no
 entries without a factor — is missing and would be cheap.
@@ -333,3 +333,65 @@ stay specialised (their dual-number types change per structure anyway). Measured
 script on `examples/structure_edits.jl`'s graphs: the free energy, `em_step` and a five-step
 `fit_em` on a new structure took 1.8 s, now 1.14 s (0.31 s warm); the warm per-call times are
 unchanged. The structure search with EM went from 34.9 s to 31.3 s, the same path and scores.
+
+## The state tree (2026-11-11)
+
+LP-024 measured the free energy of a Kalman chain at 7.7, 25.8, 102 ms for 601, 1 201, 2 401
+factors, quadratic, and put it down to `_setsubtree`, which `merge`s the graph-wide state tree
+once per message. A profile of the free energy at 2 401 factors (20 calls, 1 699 samples) put the
+time elsewhere: 830 samples in `_check_tied_state`, which counted the factors of every parameter
+key (O(keys × factors)) on every call; 484 in `_subtree`, the lookups of `ps` and `st` by name; and
+242 in `_setsubtree`. A lookup in a `NamedTuple` by a run-time `Symbol` scans its names, so every
+lookup is O(keys), and a sweep or a free energy does O(factors) of them.
+
+Two changes. `_check_tied_state` counts in one pass. `_writeback(st, key, old, new)` writes a
+node's state only when `new !== old`, `old` being what the caller read with `_stored`; a stateless
+factor hands back the empty `NamedTuple` it was given, so a stateless graph's tree is never
+rebuilt. `_stored` returns `nothing` for a missing key, which no returned state is `===`, so a
+missing key is still added: callers read `st[name]` after `infer!` (`lib/Lenticulum.jl/test/lp020.jl`
+failed when a first version left missing keys out). Every write-back site goes through it:
+`step!`, the factor terms of the free energy (with and without blocks), the plate paths.
+
+**Tied nodes.** Several factors that share a parameter key read one state. In the free energy's
+factor terms they all read the original tree, so a factor whose `params` is not its own name
+always writes back there, changed or not: the last factor's state is kept, as before. Skipping
+there kept the last *changed* state instead, which Mistral's second review reproduced
+(`test/state_tree.jl`, "tied factors that create state"). Sweeps read the current tree at every
+step and needed nothing. `plates.md` excludes stateful tied factors anyway; `_check_tied_state`
+checks the input state only.
+
+`bench/state_scaling.jl` (best of 5 runs; position-velocity chain with three factors per step):
+
+| factors | sweep before (ms) | sweep after (ms) | free energy before (ms) | free energy after (ms) |
+|---|---|---|---|---|
+| 301 | 3.50 | 3.35 | 2.63 | 1.74 |
+| 601 | 8.93 | 8.24 | 8.28 | 4.50 |
+| 1 201 | 24.70 | 23.35 | 26.74 | 13.12 |
+| 2 401 | 77.46 | 74.76 | 95.15 | 42.88 |
+| 4 801 | 258.70 | 261.55 | 352.59 | 150.48 |
+
+The free energy is 1.5 times faster at 301 factors and 2.3 times at 4 801; the sweep is unchanged
+within the noise (−1 to 8%). Both are still quadratic: what is left is
+the lookup by name, which only the integer-slot store removes ([[Feature Backlog]], I5).
+`test/state_tree.jl` times `_check_tied_state` at 2 000 and 8 000 factors (at 500 and 2 000 the
+old code took 17 times as long; under 8 is required). Its other tests check that a stateless sweep
+and free energy return the same tree, that a stateful factor's state is still written, that
+missing keys are added, and that tied nodes with state are refused. The first of these would pass
+on the old code too: immutable `NamedTuple`s compare by content under `===`, so a `merge` of the
+same values is `===` the original. The plate paths with a stateful factor are not tested here.
+
+**Review (Mistral, by reading; it could not run Julia).** (1) The tied-node difference above:
+right, recorded, not changed. (2) Missing tests for absent keys, a stateful free energy and the
+tied-state error: right for absent keys and the error, both added; a stateful factor through the
+free energy is tested only in MyceliumLearning (`test/gradient_couplings.jl`). Plate paths: not
+added. (3) The timing test at tens of microseconds could be flaky: plausible, the sizes are four
+times larger now.
+
+**Second review (Mistral, with Julia, in its worktree).** It compared old and new semantics on
+the same scenarios by redefining `_writeback` as the old unconditional write: identical for
+stateless and stateful graphs, missing keys, plates; Zygote and ForwardDiff gradients of the free
+energy with a stateful factor match central differences. (1) The tied-node difference: reproduced,
+fixed as above, its scenario kept as a test. (2) Zygote through `scalar_free_energy` on a plate
+with block rows fails in `_row_scalar` (`sum(...; init = 0.0)` has no rrule): the same before
+this change, recorded in the [[Feature Backlog]] (P20). (3) A factor returning `nothing` as its
+state would no longer be stored for a missing key: no factor does; not reproduced.

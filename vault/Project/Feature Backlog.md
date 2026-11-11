@@ -50,8 +50,8 @@ graph LR
 
 F2 is *partial*; its present problems (circle, lemniscate, rings) suffice for P10, F3, F4 and L15.
 
-**Proposed order (2026-11-11, until Daniel sets one):** P7 and then I5, the measured scaling gap
-against RxInfer ([[Benchmark against RxInfer]]); P1, small and closes the extended-Gaussian
+**Proposed order (2026-11-11, until Daniel sets one):** I5, the measured scaling gap against
+RxInfer ([[Benchmark against RxInfer]]; P7 is done); P1, small and closes the extended-Gaussian
 work; P17, P18 and P19, mechanical and suited to a helper in its own worktree; then P11 with F3 for
 path B, and I6 for path C.
 
@@ -63,13 +63,12 @@ named. The structure-search driver (path C) is S7.
 
 | id | feature | path | status | needs | source | why |
 |---|---|---|---|---|---|---|
-| P1 | Tests where the two forms of a flat likelihood meet: an `improper` `GaussianBelief` (the canonical form, kept for AD, plate blocks and mixtures; "Done (2026-11-11)") and an `ExtendedGaussian` (the host form of the relation factors). The same edge carries the extended form on values and the flagged one under ForwardDiff: the dual path's values equal the value path's message; `combine`, the store's distance and `damp` across the two forms; one `_split_moments` rule for both | A, C | proposed | — | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Improper messages as extended Gaussians" | the two forms are each tested, the crossings between them are not |
+| P1 | Tests where the two forms of a flat likelihood meet: an `improper` `GaussianBelief` (the canonical form, kept for AD, plate blocks and mixtures; "Done (2026-11-11)") and an `ExtendedGaussian` (the host form of the relation factors). The same edge carries the extended form on values and the flagged one under ForwardDiff: the dual path's values equal the value path's message; `combine`, the store's distance and `damp` across the two forms; one `_split_moments` rule for both | A, C | proposed | — | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Improper messages as extended Gaussians" | the two forms are each tested, the crossings between them are not. One crossing broke a test unnoticed: AlgebraicFactors' polynomial test read `η` of an extended oracle message (fixed 2026-11-11) |
 | P2 | Hard inputs in the free energies of `SwitchingConstraintFactor`, the plate paths and the frozen beliefs of the gradient | A, C | proposed | P4 | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Free energy with hard inputs" | refused or untested there |
 | P3 | A `TrivialBelief()` input (no message) to `GaussianFactor` takes the exact flat path, as an everywhere-flat `ExtendedGaussian` does | A | proposed | — | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Extended Gaussian inputs" (2026-11-11) | with $n_{\text{in}} < n_{\text{out}}$ the shortcut returns no message where the exact one fixes $y$ off $\operatorname{range}(A)$; changes the first sweep of every schedule, so measure it on the existing tests first |
 | P4 | Extended-Gaussian inputs in plates and in the AD message paths (`_gradient_message`) | A, C | proposed | P1 | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Extended Gaussian inputs" | untested there |
 | P5 | `HardConstraintFactor` with a singular nonzero noise in the free energy (hard along its null space, soft along its range); learnable (its term needs an SVD, which ForwardDiff lacks) | A, C | proposed | — | [[hard_constraint]] "Free energy" (2026-11-11) | refused today |
 | P6 | `HardConstraintFactor` in plates (a `factor_messages` block method) and in `MeanField()` nodes | A, C | proposed | P4 | [[hard_constraint]] "What it does not do" | a plate of hard constraints runs per replica; mean-field nodes refuse it |
-| P7 | Skip the state update of a stateless factor in a sweep, then the integer-slot store (below, "Inference") | A | proposed | — | LP-024: 7.7, 25.8, 102 ms for the free energy of 601, 1 201, 2 401 factors; [[Benchmark against RxInfer]] (2026-11-11): on a Kalman smoother from $T = 1000$ to $2000$ build ×3.7, free energy ×3.6, `infer!` ×3.0, against RxInfer's ×2.5–2.6, so 4.3–5.8 times slower in total | the cost is quadratic in the number of parameter keys |
 | P8 | Element type in, element type out: the graph free energy in the element type of its messages, with a test | A | partial: LenticulumCore (2026-11-10) | — | LP-024 | `Float32` graphs are promoted to `Float64` in the total |
 | P9 | A relative convergence criterion for Gaussian messages | A | proposed | — | LP-024 | the bound on natural parameters is absolute |
 | P10 | `noisefree_nodes` against `field_nodes` on the calibration benchmark; a default for the nodes | B | proposed | F2 | [[Implicit Diffusion Learners]] §5 (2026-11-10) | nodes with noise have twice the smoothing bias at a level |
@@ -82,6 +81,7 @@ named. The structure-search driver (path C) is S7.
 | P17 | Move `Mycelium.reduce_message` for Gaussian mixtures from Lenticulum (`beliefs.jl`) into Mycelium | A, C | proposed | — | Aqua (2026-11-10), declared in Lenticulum's `test/aqua.jl` | type piracy: Mycelium without Lenticulum refuses to reduce a Gaussian mixture |
 | P18 | Move `belief_mean`/`belief_cov` of `SampleBelief` from Adversarial (`ratio.jl`) into LenticulumCore | — | proposed | — | Aqua (2026-11-10), declared in Adversarial's `test/aqua.jl` | type piracy: the moments of a sample belief exist only with Adversarial loaded |
 | P19 | Cache the rank of a `GaussianFactor`'s coefficient per parameter tree | A | proposed | — | [[lib/Lenticulum.jl/src/gaussian|gaussian]] "What the checks cost" (2026-11-10) | `_rank_deficient` takes an SVD of `A` on every backward message: 0.7 of 2.4 μs at dimension 2, 2.6 of 6.6 μs at 6 (`bench/gaussian_message_cost.jl`) |
+| P20 | Zygote through `scalar_free_energy` on plates with block rows: `_row_scalar` calls `sum(...; init = 0.0)`, for which ChainRules has no rrule (`MethodError`) | A, C | proposed | — | Mistral's review of 2026-11-11 (`lib/Mycelium.jl/src/passing.md`, "The state tree") | a defect, not a feature: the gradient of a plated free energy by Zygote fails; found by running, the same before and after P7 |
 
 ## Inference and graph execution
 
@@ -91,7 +91,7 @@ named. The structure-search driver (path C) is S7.
 | I2 | Typed execution plans: factors grouped by type and rule, kernels compiled once per signature | proposed | — | medium | both reviews (LP-023) | the graph stores factors abstractly; plates are the first step |
 | I3 | A spanning-tree schedule for loopy graphs (`spanning_tree_schedule(g)`: the messages off a spanning tree, then the tree's inward and outward sweeps, in place; the updates of tree-based reparameterisation) | partial: done in Mycelium (2026-11-09; `schedules.md`); the choice of tree and alternating trees remain | — | high | [[Composing Optimisers]] §4.2 (2026-11-09) | measured on the divider (`bench/bp_schedules.jl`): 0.17–0.18 of flooding's message evaluations to an error of 1e-10, in all four settings, with no knowledge of the loop; with `infer!` 82 sweeps against 463 (`test/runtests.jl`). On Gaussian grids up to 20 × 20 (`bench/bp_grid.jl`, 2026-11-09): 0.17–0.29 of flooding's sweeps; its Jacobian has at most two nonzero eigenvalues per independent loop ([[Composing Optimisers]] §4.4). Untested: graphs where BP oscillates, non-Gaussian graphs |
 | I4 | A dependency-aware priority queue for `ResidualSchedule` | proposed | — | medium | ChatGPT review (LP-023) | each sweep probes every task, $O(T^2)$ evaluations: 2.1 times flooding's on the divider. A queue prototype in `bench/bp_schedules.jl` needs 0.24–0.31 of flooding's, behind the spanning-tree order ([[Composing Optimisers]] §4.2) |
-| I5 | Graph-wide parameters by integer slot instead of `NamedTuple` lookup by symbol | proposed | — | medium | ChatGPT review, [[Parallelism and Compilation]] | quadratic scaling with the number of keys |
+| I5 | Graph-wide parameters and state by integer slot instead of `NamedTuple` lookup by symbol | proposed | — | high (proposed) | ChatGPT review, [[Parallelism and Compilation]]; LP-024; `lib/Mycelium.jl/src/passing.md` "The state tree" (2026-11-11) | the last quadratic term of a sweep and of the free energy: a lookup by a run-time `Symbol` scans the names, O(keys), once or twice per factor. After P7, at 2 401 factors a sweep takes 74.8 ms and the free energy 42.9 ms, both still growing ×3.3–3.5 per doubling (`bench/state_scaling.jl`); [[Benchmark against RxInfer]]: 4.3–5.8 times slower than RxInfer at $T = 1000$–$2000$ |
 | I6 | Batched cluster nodes with per-outcome forms over a plate | planned | — | medium | [[L-SPEC-009 Cluster Nodes]] open; [[Benchmark against RxInfer]] (2026-11-11) | `RegimeFactor` plates go replica by replica: `fit_em` on a mixture of two regressions takes 1.2 s at $N = 300$ and 32 s at 3 000, against 0.6 and 6.5 ms for closed-form EM and 0.13 and 3.2 s for RxInfer's VMP |
 | I7 | Mixture-reduction and EP nodes batched in plates | planned | P17 | low | [[L-SPEC-008 Expectation Propagation and Mixture Reduction]] open | edge by edge today |
 | I8 | Clusters with loops; several mean-field variables in one cluster | planned | — | low | [[L-SPEC-007 Hybrid Schedules]] open | |
@@ -211,6 +211,13 @@ directions. What is left is P1, the tests where the two meet. The former first r
 (below and 2026-11-10).
 
 The backlog got ids and a *needs* column, and the dependency graph above.
+
+P7, the free energy and the state tree: the main cost was `_check_tied_state`, which counted the
+factors of every key on every call (O(keys × factors)), not the write-back of the state that LP-024
+suspected. It is linear now, and a factor's state is written back only when it changed. The free
+energy is 1.5–2.3 times faster (42.9 instead of 95.2 ms at 2 401 factors), a sweep unchanged; both
+stay quadratic until I5 (`lib/Mycelium.jl/src/passing.md`, "The state tree"; `bench/state_scaling.jl`;
+`lib/Mycelium.jl/test/state_tree.jl`).
 
 An external baseline: [[Benchmark against RxInfer]] (`bench/rxinfer_baseline.jl`). A Kalman smoother:
 both exact to $10^{-10}$; Lenticulum within a factor 1.7 up to $T = 100$, 4.3–5.8 times slower at

@@ -287,7 +287,7 @@ function _step!(s::MessageStore, g::FactorGraph, t::MessageTask, @nospecialize(p
             "edge is Absorbing; a factor -> variable message is not legal here"))
         fn = factornode(g, e.factor)
         psf = _factor_parameters(fn, _subtree(ps, fn.params))
-        stf = _subtree(st, fn.params)
+        stf0 = _stored(st, fn.params); stf = something(stf0, NamedTuple())
         # EXCLUSION, factor side: the target channel's own incoming message must not be
         # used to compute the outgoing message on that same channel. Without this the
         # target would be resolved as both Observed and Unobserved, and even if it were
@@ -316,7 +316,7 @@ function _step!(s::MessageStore, g::FactorGraph, t::MessageTask, @nospecialize(p
             @warn "factor :$(fn.name) skipped an expectation-propagation update on :$(e.channel): the cavity \
                    or the tilted belief is not a proper Gaussian; the edge keeps its previous message" maxlog = 1
             return (old === nothing ? LenticulumCore.TrivialBelief() : old.belief), (old === nothing ? Inf : 0.0),
-                   _setsubtree(st, fn.params, stf), true
+                   _writeback(st, fn.params, stf0, stf), true
         end
         if old !== nothing && damping > 0
             belief = damp(belief, old.belief, 1 - damping)
@@ -326,7 +326,7 @@ function _step!(s::MessageStore, g::FactorGraph, t::MessageTask, @nospecialize(p
         if commit
             s.to_variable[t.edge] = Message(belief, s.iteration)
         end
-        return belief, res, _setsubtree(st, fn.params, stf), false
+        return belief, res, _writeback(st, fn.params, stf0, stf), false
     end
 end
 
@@ -334,6 +334,16 @@ _subtree(nt::NamedTuple, name::Symbol) = haskey(nt, name) ? getfield(nt, name) :
 _subtree(::Nothing, ::Symbol) = NamedTuple()
 _setsubtree(nt::NamedTuple, name::Symbol, v) = merge(nt, NamedTuple{(name,)}((v,)))
 _setsubtree(::Nothing, ::Symbol, v) = NamedTuple()
+
+# Write a node's state back only if its factor changed it. `old` is what the caller read with
+# `_stored`: the stored state, or `nothing` for a missing key, which is never `===` a returned state,
+# so a missing key is added as before (callers read `st[name]` directly). Every stateless factor
+# hands back the empty `NamedTuple` it was given, and `merge` copies all keys of the tree, so
+# writing it back on every message cost O(keys) per message (LP-024; `passing.md`, "The state
+# tree").
+_stored(nt::NamedTuple, name::Symbol) = haskey(nt, name) ? getfield(nt, name) : nothing
+_stored(::Nothing, ::Symbol) = nothing
+_writeback(st, name::Symbol, old, new) = new === old ? st : _setsubtree(st, name, new)
 
 """
     sweep!(store, g, sched, ps, st; damping = 0.0) -> (maxresidual, st)

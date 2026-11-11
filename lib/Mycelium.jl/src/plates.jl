@@ -555,7 +555,7 @@ function _step_group!(s, g, grp, ps, st, damping)
     pol = resolve_polarity(g, e1.factor, e1.channel, chans)
     foreach(t -> check_legal(g, g.edges[t.edge].factor, pol), grp)   # edge directions may differ
     psf = _factor_parameters(fn, _subtree(ps, fn.params))
-    stf = _subtree(st, fn.params)
+    stf0 = _stored(st, fn.params); stf = something(stf0, NamedTuple())
     inputs = [_inputs(s, g, g.edges[t.edge].factor, chans) for t in grp]
     priors = _LazyPriors(s, g, grp)
     factors = [factornode(g, g.edges[t.edge].factor).factor for t in grp]
@@ -573,7 +573,7 @@ function _step_group!(s, g, grp, ps, st, damping)
         maxres = max(maxres, belief_distance(old === nothing ? nothing : old.belief, belief))
         s.to_variable[t.edge] = Message(belief, s.iteration)
     end
-    return maxres, _setsubtree(st, fn.params, stf)
+    return maxres, _writeback(st, fn.params, stf0, stf)
 end
 
 # The `priors` of a group, computed when a factor reads them (most ignore them). Read before
@@ -613,12 +613,12 @@ function _step_planned!(s, g, grp, plan::_GroupPlan, @nospecialize(ps), @nospeci
         return _step_each!(s, g, grp, ps, st, damping)
     check_legal(g, e1.factor, pol)
     psf = _factor_parameters(fn, _subtree(ps, fn.params))
-    stf = _subtree(st, fn.params)
+    stf0 = _stored(st, fn.params); stf = something(stf0, NamedTuple())
     inputs = _gather_inputs(NamedTuple{chans}, s.to_factor, E, js)
     beliefs, stf = factor_messages(plan.factors, e1.channel, pol, inputs, _LazyPriors(s, g, grp), psf, stf)
     length(beliefs) == n || throw(ArgumentError(
         "factor_messages of $(nameof(typeof(fn.factor))) returned $(length(beliefs)) messages for $n replicas"))
-    return _commit_group!(s, g, grp, beliefs, damping), _setsubtree(st, fn.params, stf)
+    return _commit_group!(s, g, grp, beliefs, damping), _writeback(st, fn.params, stf0, stf)
 end
 
 # The planned group on blocks: inputs are the rows' blocks, the result is one block for the target
@@ -645,7 +645,7 @@ function _step_blocks!(s, g, grp, plan::_GroupPlan, @nospecialize(ps), @nospecia
     isempty(chans) && !issink(fn.factor) && !LenticulumCore.supports_polarity(fn.factor, pol) && return nothing
     check_legal(g, e1.factor, pol)
     psf = _factor_parameters(fn, _subtree(ps, fn.params))
-    stf = _subtree(st, fn.params)
+    stf0 = _stored(st, fn.params); stf = something(stf0, NamedTuple())
     inputs = NamedTuple{chans}(Tuple(blocks[js]))
     if plan.ep !== nothing                 # an EP update would be skipped, or a pin: the per-edge path decides
         isempty(s.pins) && !any(_indefinite_block, blocks[js]) || return nothing
@@ -660,7 +660,7 @@ function _step_blocks!(s, g, grp, plan::_GroupPlan, @nospecialize(ps), @nospecia
         out = ep_block(out, cav)
         out === nothing && return nothing
     end
-    st = _setsubtree(st, fn.params, stf)
+    st = _writeback(st, fn.params, stf0, stf)
     if damping > 0 || plan.detach
         return _commit_group!(s, g, grp, replicas(out), damping), st
     end
