@@ -22,8 +22,19 @@ together, by pull request; `dev-danielb` is the maintainer's own branch, and a
 push to it deploys a preview of the site, the vault to `<site>/preview/` and the API docs to
 `<site>/api/preview/` (`docs/make.jl` chooses from the branch; `docs/site/README.md`).
 Working for the maintainer, use `dev-danielb`; working for anyone else, use a branch of your
-own and target `dev`. `refactor` (November 2026) holds the restructured repository until it is
-merged. Do not commit, push or merge unless you are asked to.
+own and target `dev`. The restructured repository (`refactor`, November 2026) is merged into
+`dev-danielb`; `master` follows when the maintainer merges it. Do not commit, push or merge
+unless you are asked to.
+
+**Helper agents and worktrees.** An agent that implements a work package for the maintainer
+(another model, a subagent) works in its own worktree beside this one,
+`../Lenticulum.jl-<agent>`, on a branch `<agent>/<topic>` made from `dev-danielb`
+(`git worktree add ../Lenticulum.jl-mistral -b mistral/<topic> dev-danielb`). The Manifests are
+not tracked, so instantiate each environment there before testing. It does not commit unless the
+brief says so, and never pushes; the maintainer's session reads the branch and merges it. A
+reviewer that only reads needs no worktree. Reviews never go into the repository: a reviewer
+writes its answer to a folder next to it, `../Lenticulum.jl-Review-<date>/` (one file for a
+small review), and the findings are then triaged in the vault (see Reviews below).
 
 ## The repository
 
@@ -56,13 +67,18 @@ Each package has its own `Project.toml` and `test/`. Dependencies go one way:
 `[sources]` paths:
 
 ```sh
-julia --project=lib/Lenticulum.jl -e 'using Pkg; Pkg.test()'             # one package
-julia --project=lib/VariationalDiffusion.jl -e 'using Pkg; Pkg.test()'
+export JULIA_NUM_THREADS=auto   # Pkg.test starts a new process; it takes threads from here, not from -t
+julia -t auto --project=lib/Lenticulum.jl -e 'using Pkg; Pkg.test()'             # one package
+julia -t auto --project=lib/VariationalDiffusion.jl -e 'using Pkg; Pkg.test()'
 ```
 
-Run times (2026-11-10, one machine): LenticulumCore 1 min, Mycelium 1 min, MyceliumLearning
-6 min, VariationalDiffusion 6 min, Lenticulum 14 min. To iterate on one testset, run the file's
-header (everything before the outer `@testset`) plus that testset as a script. Tests compare
+Run times (2026-11-10, one machine, thread count not recorded): LenticulumCore 1 min, Mycelium
+1 min, MyceliumLearning 6 min, VariationalDiffusion 6 min, Lenticulum 14 min. The suites are
+independent; run up to three at once, each with its output sent to a file, and read the tail of
+a file only when its suite failed. While working, run the narrowest gate that covers the change:
+to iterate on one testset, run the file's header (everything before the outer `@testset`) plus
+that testset as a script. Run the suites of every package the change touches, and of the
+packages that depend on it, once before a commit. Tests compare
 against closed forms (Gaussian mixtures, linear-Gaussian models, enumeration) wherever one
 exists; keep it that way.
 
@@ -74,6 +90,16 @@ exception goes into that file with its reason; a new dependency needs a `[compat
 The defects of the reviews so far sat where a feature was added without one
 (`lib/Lenticulum.jl/test/gaussian_oracle.jl` is the model: random trees against the dense joint
 solve). A known limit is recorded as `@test_broken`, not only in a note.
+
+**Reviews.** The findings of a review, by a person or a model, are triaged in a problem note
+under `vault/Project/Problems/` (LP-023 and LP-024 are the model): each finding, whether it was
+right, what was done, and the test that shows it. A finding is a claim until a test reproduces
+it; one that cannot be reproduced is recorded as such, not fixed. The test of a fix stays as its
+regression test.
+
+**Feature backlog.** `vault/Project/Feature Backlog.md` is kept current without being asked: a
+feature asked for by a specification, a problem, a review or a measurement gets a row, and the
+row moves to "done" with the commit that implements it.
 
 **Say what you did not check.** A commit message or a note that reports results ends with what
 was not run or not read.
@@ -117,9 +143,9 @@ KaTeX, the TikZ diagrams); Obsidian's rendering differs in places. Both builds m
 - On a GPU, a `Float64` constant in a Float32 computation widens it to Float64 (and cuDNN
   rejects it); cast constants to the element type of the input.
 - Indexing a device array with an index vector inside AD scalar-indexes; use broadcasting.
-- Device code is tested with JLArrays and `JLArrays.allowscalar(false)`. The Mycelium and
-  MyceliumLearning device files run only with `LENTICULUM_DEVICE_TESTS=true`; run them before
-  committing device-facing changes.
+- Device code is tested with JLArrays and `JLArrays.allowscalar(false)`. The device tests of
+  Mycelium, MyceliumLearning and ImplicitLayers run only with `LENTICULUM_DEVICE_TESTS=true`;
+  run them before committing device-facing changes.
 - Since Julia 1.12 the main thread is in the `:interactive` pool; a busy task spawned there can
   starve it (`bench/jit_latency.jl`).
 
