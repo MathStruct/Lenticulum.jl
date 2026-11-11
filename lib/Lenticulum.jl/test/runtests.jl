@@ -1330,4 +1330,6 @@ include("gaussian_oracle.jl")
 
 include("hard_constraint.jl")
 
+include("extended_inputs.jl")
+
 include("aqua.jl")

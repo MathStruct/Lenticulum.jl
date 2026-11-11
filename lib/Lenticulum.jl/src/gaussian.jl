@@ -295,6 +295,11 @@ end
 # singular Gaussian. (Zero precision is "no input", handled by the callers.)
 _partly_flat(b) = false
 _partly_flat(b::GaussianBelief) = !all(iszero, b.Λ) && !isproper(b)
+# An extended Gaussian with any flat direction takes the flat path, also when it is flat
+# everywhere: with nin < nout the exact forward message still fixes y off range(A), which the
+# `TrivialBelief()` shortcut of `_moments` (no input, no message) gives up (gaussian.md,
+# "Extended Gaussian inputs").
+_partly_flat(b::LenticulumCore.ExtendedGaussian) = size(b.D, 2) > 0
 
 # The message for a partly flat input, through the relation −A x + y = b + ε and the
 # flat-direction limit of the constraint factors (`constraint.md` §4.1): the flat directions are
@@ -339,11 +344,28 @@ end
 # step of assumed-density filtering). The message is then exact for the collapsed input, not for
 # the mixture: an approximation, documented in `gaussian.md` §"Mixture inputs".
 _moments(b::LenticulumCore.MixtureBelief{<:GaussianBelief}, n) = _moments(moment_match(b), n)
+# An extended Gaussian without flat directions is its moments (Σ singular along its hard
+# directions, which the noise of every relation factor covers); everywhere flat it carries no
+# information. Partly flat ones go through `_split_moments` (callers test `_partly_flat` first).
+function _moments(b::LenticulumCore.ExtendedGaussian, n)
+    _check_dim(b, n)
+    k = size(b.D, 2)
+    k == 0 && return (b.μ, b.Σ)
+    k == n && return (nothing, nothing)
+    throw(ArgumentError("an extended Gaussian with flat directions has no moments; this path \
+        needs a proper input or the flat-direction path of the relation factors"))
+end
+_check_dim(b::LenticulumCore.ExtendedGaussian, n) = length(b.μ) == n ||
+    throw(DimensionMismatch("an extended Gaussian of dimension $(length(b.μ)) on a channel of dimension $n"))
 
 # An input as a Gaussian part and a flat part, for the relation factors (`constraint.md` §4.1):
 # (mean, covariance, N), the input flat along the columns of N (`nothing`: nowhere).
 _split_moments(b, n) = (r = _moments(b, n); r[1] === nothing ? _flat_part(n) : (r[1], r[2], nothing))
 _flat_part(n) = (zeros(n), zeros(n, n), Matrix(1.0LinearAlgebra.I, n, n))
+function _split_moments(b::LenticulumCore.ExtendedGaussian, n)
+    _check_dim(b, n)
+    return (b.μ, b.Σ, size(b.D, 2) == 0 ? nothing : b.D)
+end
 function _split_moments(b::GaussianBelief, n)
     all(iszero, b.Λ) && return _flat_part(n)
     isproper(b) && return (belief_mean(b), belief_cov(b), nothing)
@@ -423,6 +445,9 @@ end
 _canon(b::GaussianBelief, n) = (b.η, b.Λ)
 _canon(::LenticulumCore.TrivialBelief, n) = (zeros(n), zeros(n, n))
 _canon(::Nothing, n) = (zeros(n), zeros(n, n))
+# Flat directions are zero precision (an improper Gaussian); hard ones have no canonical form,
+# and `GaussianBelief(::ExtendedGaussian)` refuses them (the entropy row of the Feature Backlog).
+_canon(b::LenticulumCore.ExtendedGaussian, n) = (_check_dim(b, n); _canon(GaussianBelief(b), n))
 
 function _blockdiag(A1, A2)
     n1, n2 = size(A1, 1), size(A2, 1)

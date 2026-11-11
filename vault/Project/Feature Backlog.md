@@ -19,8 +19,10 @@ named.
 
 | feature | path | status | source | why |
 |---|---|---|---|---|
-| A belief type for linear relations: a Gaussian part and flat directions, with exact `combine`, marginalisation and pushforward through linear maps | A, C | partial: `ExtendedGaussian` in LenticulumCore with exact pushforward, `marginalise`, product (Mycelium's `combine`) and conversions, tested against the limit of proper Gaussians; `_improper_split` uses it (2026-11-10); the message store takes it and `HardConstraintFactor` emits it (2026-11-11) ([[extended_gaussian]], [[hard_constraint]]) | [[LP-024 Findings of the review of 2026-11-09]]; [[constraint]] §4.1 | the rows below finish it |
-| The relation factors (`LinearConstraintFactor`, `SwitchingConstraintFactor`, `GaussianFactor`, `NonlinearFactor`) take and emit `ExtendedGaussian`s; `_split_moments` and the `improper` flag of `GaussianBelief` retired | A, C | proposed | [[extended_gaussian]] "What it does not do" | three partial representations of one object remain |
+| A belief type for linear relations: a Gaussian part and flat directions, with exact `combine`, marginalisation and pushforward through linear maps | A, C | partial: `ExtendedGaussian` in LenticulumCore with exact pushforward, `marginalise`, product (Mycelium's `combine`) and conversions, tested against the limit of proper Gaussians; `_improper_split` uses it (2026-11-10); the message store takes it and `HardConstraintFactor` emits it; every relation factor takes it as input (2026-11-11) ([[extended_gaussian]], [[hard_constraint]], [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Extended Gaussian inputs") | [[LP-024 Findings of the review of 2026-11-09]]; [[constraint]] §4.1 | the rows below finish it |
+| The relation factors (`LinearConstraintFactor`, `SwitchingConstraintFactor`, `GaussianFactor`, `NonlinearFactor`) emit `ExtendedGaussian`s; `_split_moments` and the `improper` flag of `GaussianBelief` retired | A, C | partial: they take them as input (2026-11-11); emitting waits on the entropy row below, since the Bethe terms read the messages | [[extended_gaussian]] "What it does not do" | three partial representations of one object remain |
+| A `TrivialBelief()` input (no message) to `GaussianFactor` takes the exact flat path, as an everywhere-flat `ExtendedGaussian` does | A | proposed | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Extended Gaussian inputs" (2026-11-11) | with $n_{\text{in}} < n_{\text{out}}$ the shortcut returns no message where the exact one fixes $y$ off $\operatorname{range}(A)$; changes the first sweep of every schedule, so measure it on the existing tests first |
+| Extended-Gaussian inputs in plates and in the AD message paths (`_gradient_message`) | A, C | proposed | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Extended Gaussian inputs" | untested there |
 | `HardConstraintFactor` in plates (a `factor_messages` block method) and in `MeanField()` nodes | A, C | proposed | [[hard_constraint]] "What it does not do" | a plate of hard constraints runs per replica; mean-field nodes refuse it |
 | The entropy and free-energy contribution of an extended Gaussian (Gaussian part only; what flat and hard directions contribute) | A, C | proposed | [[extended_gaussian]]; [[Bethe Free Energy]] | the free energy cannot take a belief with flat or hard directions |
 | Skip the state update of a stateless factor in a sweep, then the integer-slot store (below, "Inference") | A | proposed | LP-024: 7.7, 25.8, 102 ms for the free energy of 601, 1 201, 2 401 factors | the cost is quadratic in the number of parameter keys |
@@ -158,6 +160,11 @@ The message store takes extended Gaussians (`belief_distance` on moments and the
 messages `preimage(pushforward(…))` of extended Gaussians, tested against `LinearConstraintFactor`
 with noise, against the Gaussian conditioned on the equality, and in graphs under tree and damped
 flooding schedules ([[hard_constraint]]). Messages only; no free energy.
+
+Every relation factor takes an `ExtendedGaussian` input, so a `HardConstraintFactor` can share a
+variable with them; before, it threw a `MethodError`. Tested against `HardConstraintFactor` with
+the same noise on inputs mixing flat, hard and Gaussian directions, and in a tree against the
+dense conditioned Gaussian ([[lib/Lenticulum.jl/src/gaussian|gaussian]] "Extended Gaussian inputs").
 
 ## Done (2026-11-10)
 

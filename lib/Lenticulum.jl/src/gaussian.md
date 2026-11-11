@@ -231,8 +231,8 @@ differentiated code is unchanged for proper inputs. The theory and the tolerance
 Since 2026-11-10 the split of an improper input is the input as a `LenticulumCore.ExtendedGaussian`
 (`_improper_split` calls `extended`, which has the tolerances and refusals described there): the
 mean and covariance are its Gaussian part, `N` an orthonormal basis of its flat directions. The
-relation factors still take the tuple; making them take and emit the extended Gaussian itself is
-the next step ([[Feature Backlog]]).
+relation factors still compute with the tuple; since 2026-11-11 they also take an extended
+Gaussian as input (below).
 
 **`GaussianFactor` takes partly flat inputs (2026-11-10).** A `GaussianFactor` is the relation
 $-Ax + y = b + \varepsilon$, the two-channel case of `LinearConstraintFactor`. When its input is
@@ -262,6 +262,50 @@ tree; that has not been done.
 `LenticulumCore._nearly_symmetric`) and uses its symmetric part. The collapsed factor of a
 composition has the noise $B Q_a B^\top + Q_b$, which is not exactly symmetric; the exact test
 refused it for most parameters when $Q_a$ was not diagonal.
+
+## Extended Gaussian inputs (2026-11-11)
+
+Every relation factor takes a `LenticulumCore.ExtendedGaussian` as input, which is what
+`HardConstraintFactor` sends and what Mycelium's `combine` makes of it. Before, an extended
+Gaussian reaching `GaussianFactor`, `LinearConstraintFactor`, `SwitchingConstraintFactor` or
+`NonlinearFactor` threw `MethodError: no method matching _moments(::ExtendedGaussian, ::Int64)`,
+so a hard relation could not share a variable with them. Four methods do it:
+
+- `_split_moments(b::ExtendedGaussian, n)` is `(μ, Σ, D)`, its own representation: the tuple was
+  this object already. `Σ` may be singular along hard directions; the noise of every relation
+  factor is positive definite, so the residual metric $Q + \sum_i A_i S_i A_i^\top$ stays positive
+  definite.
+- `_moments` takes an extended Gaussian without flat directions (its `μ`, `Σ`), or one flat
+  everywhere (no information); one partly flat throws, as no caller reaches it after
+  `_partly_flat`.
+- `_partly_flat(b::ExtendedGaussian)` is true for **any** flat direction, also when it is flat
+  everywhere, so `GaussianFactor` computes that message exactly. With $n_{\text{in}} < n_{\text{out}}$
+  an everywhere-flat input on $x$ still fixes $y$ off $\operatorname{range}(A)$, up to the noise.
+  The `TrivialBelief()` input (no message) keeps the old shortcut, which returns `TrivialBelief()`
+  and drops that information. Whether it should also take the exact path is a row of the
+  [[Feature Backlog]]: it changes the first sweep of every schedule.
+- `_canon(b::ExtendedGaussian, n)`, for the free energy, goes through `GaussianBelief(b)`: zero
+  precision along flat directions, and an `ArgumentError` for hard ones, which have no canonical
+  form (the entropy row of the backlog). `_mf_split` takes it for mean-field nodes.
+
+Messages are unchanged: the relation factors still emit `GaussianBelief`s (improper where they
+were before). Emitting extended Gaussians and retiring the `improper` flag waits on the free
+energy of an extended Gaussian, since the Bethe terms read those messages.
+
+**Measured** (`test/extended_inputs.jl`): `LinearConstraintFactor` with random extended-Gaussian
+inputs that mix flat, hard and Gaussian directions (80 factors, 2–3 channels of dimension 1–3,
+1–3 equations; 208 messages) and `GaussianFactor` in both directions (60 factors, 120 messages)
+agree with `HardConstraintFactor` with the same positive definite noise, an independent path
+(pushforward and preimage), to $10^{-7}$ absolute and $10^{-9}$ relative. For all four relation
+factors an input given as a point, proper or improper Gaussian and the same input as `extended(b)`
+give the same message (40 trials, 279 checks). A tree of a prior, a `GaussianFactor` and a
+`HardConstraintFactor` (20 random instances) matches the dense Gaussian conditioned on the
+relation under `infer!` with a tree schedule. Run against the code before this change, the first
+testset fails with the `MethodError` above.
+
+Not checked: extended inputs in plates (`_block_parts` returns `nothing` for them, which should
+send a plate down the per-replica path; not run), in the AD paths (`_gradient_message`), and to
+`NonlinearFactor` with a partly flat cavity, which `_expansion` refuses through `_moments`.
 
 ## Batched factor beliefs (2026-11-03)
 
