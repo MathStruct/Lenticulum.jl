@@ -63,7 +63,9 @@ ps = (A = (i1 = ones(1,1), i2 = ones(1,1), i3 = ones(1,1)), c = [0.0])
 The `noise = 1e-8` there stands in for a relation that holds exactly. `HardConstraintFactor`
 holds it exactly: its messages are `ExtendedGaussian`s (LenticulumCore), hard along what the
 equation fixes and flat along what it cannot see, so `HardConstraintFactor((i1 = 1, i2 = 1, i3 = 1), 1)`
-with the same parameters is Kirchhoff's law itself. It has messages only, no free energy.
+with the same parameters is Kirchhoff's law itself. Its free energy is the finite limit of the
+noisy relation's as the noise vanishes (`hard_constraint.md`, "Free energy"); on trees the Bethe
+free energy of a graph with it is ``-\log Z``.
 
 `SwitchingConstraintFactor` lets one discrete outcome choose the right-hand side: a
 measurement of the linear observable ``\sum_i A_i x_i``. It is the smallest factor that leaves

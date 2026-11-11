@@ -120,6 +120,13 @@ the Shannon entropy for a categorical, and 0 for a `DiracBelief`
 the convention for a clamped variable: the factor beliefs then range over the other variables
 only, and the sum is $-\log p$ of the clamped values (checked in `lib/Lenticulum.jl/test/gaussian_oracle.jl`).
 
+The same convention extends to beliefs that a relation fixes in some directions only
+(`ExtendedGaussian`s with hard directions, from a `HardConstraintFactor`): each entropy is taken
+relative to Lebesgue measure on the belief's own support (`support_entropy`), and a point gets 0
+as before. The relation's own term is the finite limit of the noisy relation's,
+$\tfrac12\log\det\tilde G\tilde G^\top - H_R(b_f)$. With these the sum is $-\log Z$ on trees
+(`lib/Lenticulum.jl/test/hard_free_energy.jl`; [[hard_constraint]] "Free energy").
+
 Two consequences:
 
 - Free energies are comparable across graphs only when the same variables are clamped. A

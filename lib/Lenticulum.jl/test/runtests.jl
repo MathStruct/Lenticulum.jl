@@ -1332,4 +1332,6 @@ include("hard_constraint.jl")
 
 include("extended_inputs.jl")
 
+include("hard_free_energy.jl")
+
 include("aqua.jl")

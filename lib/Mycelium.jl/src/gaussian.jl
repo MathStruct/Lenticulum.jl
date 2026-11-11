@@ -40,6 +40,17 @@ combine(a::_EG, b::LenticulumCore.DiracBelief) = (LenticulumCore._conjoin(a, Len
 combine(a::LenticulumCore.DiracBelief, b::_EG) = (LenticulumCore._conjoin(LenticulumCore.extended(a), b); a)
 
 """
+    variable_entropy(b::ExtendedGaussian)
+
+[`LenticulumCore.support_entropy`](@ref): the entropy relative to Lebesgue measure on the
+belief's support. A variable that a hard constraint fixes in some directions has a finite term
+in the Bethe counting correction, consistent with the hard factor's own term; a point gets `0`,
+as a `DiracBelief` does. Flat directions (an improper marginal) throw. See `gaussian.md`,
+"Extended Gaussians".
+"""
+variable_entropy(b::_EG) = LenticulumCore.support_entropy(b)
+
+"""
     belief_distance(a::ExtendedGaussian, b::ExtendedGaussian)
 
 The largest of ``\\|\\Delta\\mu\\|_\\infty``, ``\\|\\Delta\\Sigma\\|_\\infty`` and ``\\|\\Delta P_D\\|_\\infty``, with

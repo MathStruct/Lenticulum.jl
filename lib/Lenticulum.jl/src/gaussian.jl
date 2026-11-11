@@ -487,9 +487,23 @@ is what the Bethe formula asks for, and getting it wrong is the bug recorded in
 `free_energy.md` §7.
 """
 function Mycelium.local_free_energy(f::GaussianFactor, msgs, ps, st)
+    any(_is_hard, values(msgs)) && return _hard_input_free_energy(f, msgs, ps), st
     r̄, Cr, H = residual_statistics(f, msgs, ps)
     Qi, logdetQ = _noise_metrics(f.noise_learning, f.Q, ps)
     return _graded_free_energy(f, r̄, Cr, H, Qi, logdetQ), st
+end
+
+# A message with hard directions (from a `HardConstraintFactor`): the relation −Ax + y = b + ε
+# with those directions substituted out (`_reduced_relation`, constraint.jl), the entropy relative
+# to the support of the factor belief (gaussian.md, "Free energy with hard inputs").
+function _hard_input_free_energy(f::GaussianFactor, msgs, ps)
+    f.noise_learning === nothing || throw(ArgumentError(
+        "a GaussianFactor with a learned noise does not take hard messages in its free energy"))
+    names = (f.in_channel, f.out_channel)
+    blocks = NamedTuple{names}((-ps.A, Matrix{eltype(ps.A)}(I, f.nout, f.nout)))
+    G, c, canon = _reduced_relation(blocks, ps.b, msgs, NamedTuple{names}((f.nin, f.nout)), names)
+    r̄, Cr, H = _reduced_residual_statistics(G, c, canon, f.Q)
+    return _graded_free_energy(f, r̄, Cr, H, inv(_chol(f.Q, "Q")), nothing)
 end
 
 # (fit, complexity, negentropy) from the residual's mean and covariance under the factor
@@ -654,6 +668,15 @@ function Mycelium.local_free_energy(f::GaussianPrior, msgs, ps, st)
     incoming = _get(msgs, f.channel)
     complexity = f.noise_learning === nothing ? logdet(_chol(2π .* f.Σ, "2πΣ")) / 2 :
         (length(f.μ) * log(2π) + logdetQ) / 2 + _noise_penalty(f.noise_learning.prior, Λ0, logdetQ)
+    if _is_hard(incoming)                          # gaussian.md, "Free energy with hard inputs"
+        f.noise_learning === nothing || throw(ArgumentError(
+            "a GaussianPrior with a learned covariance does not take hard messages in its free energy"))
+        G, c, canon = _reduced_relation(NamedTuple{(f.channel,)}((Matrix{eltype(f.Σ)}(I, length(f.μ), length(f.μ)),)),
+                                        f.μ, msgs, NamedTuple{(f.channel,)}((length(f.μ),)), (f.channel,))
+        r̄, Cr, H = _reduced_residual_statistics(G, c, canon, f.Σ)
+        fit = (r̄' * (Λ0 * r̄) + tr(Λ0 * Cr)) / 2
+        return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -H)), st
+    end
     if incoming isa LenticulumCore.DiracBelief
         d = _vec(incoming.value) .- f.μ
         fit = (d' * (Λ0 * d)) / 2

@@ -605,28 +605,54 @@ so the belief is the one the outgoing messages were computed from (assumed-densi
 not the exact mixture belief.
 """
 function residual_statistics(f::LinearConstraintFactor{names}, msgs, ps) where {names}
-    c_eff = float.(ps.c)
-    free = Symbol[]
+    G, c_eff, canon = _reduced_relation(_coeffs(f, ps), ps.c, msgs, f.dims, names)
+    return _reduced_residual_statistics(G, c_eff, canon, f.Q)
+end
+
+# The relation Σᵢ Aᵢxᵢ = c over the channels `names`, its incoming messages substituted where they
+# are exact: a point moves into the constant (c ↦ c − Aⱼvⱼ), and an extended Gaussian with hard
+# directions is written x = x0 + U s along its other directions (`LenticulumCore._hard_reduction`),
+# moving A x0 into the constant and leaving A U as the channel's block. Returns the stacked
+# blocks G (over the coordinates left), the constant, and each block's message in canonical form.
+# A mixture is collapsed to its moments (gaussian.md, "Mixture inputs").
+function _reduced_relation(A, c, msgs, dims, names)
+    c_eff = float.(c)
+    Gs = Any[]
+    canon = Any[]
     for n in names
-        b = _get(msgs, n)
+        b = _collapse(_get(msgs, n))
+        An = getfield(A, n)
         if b isa LenticulumCore.DiracBelief
-            c_eff = c_eff .- _coeffs(f, ps)[n] * _vec(b.value)
+            c_eff = c_eff .- An * _vec(b.value)
+        elseif _is_hard(b)
+            _check_dim(b, dims[n])
+            x0, U, ηs, Λs = LenticulumCore._hard_reduction(b)
+            c_eff = c_eff .- An * x0
+            size(U, 2) == 0 && continue
+            push!(Gs, An * U); push!(canon, (ηs, Λs))
         else
-            push!(free, n)
+            push!(Gs, An); push!(canon, _canon(b, dims[n]))
         end
     end
-    isempty(free) && return (-c_eff, zeros(f.m, f.m), 0.0)
+    G = isempty(Gs) ? zeros(eltype(c_eff), length(c_eff), 0) : reduce(hcat, Gs)
+    return G, c_eff, canon
+end
+_is_hard(b) = false
+_is_hard(b::LenticulumCore.ExtendedGaussian) = size(LenticulumCore.hard_directions(b), 2) > 0
 
-    G = reduce(hcat, (_coeffs(f, ps)[n] for n in free))
-    # A mixture message is collapsed to its moments, as `factor_message` collapses it (gaussian.md,
-    # "Mixture inputs"); the factor belief is then the one the message was computed from.
-    canon = [_canon(_collapse(_get(msgs, n)), f.dims[n]) for n in free]
-    Qi = inv(_chol(f.Q, "Q"))
+# Mean and covariance of the residual G s − c' under the factor belief ∝ N(G s; c', Q) ∏ messages,
+# and that belief's entropy (in the reduced coordinates, which are orthonormal, so the entropy is
+# relative to Lebesgue measure on the belief's support). With every coordinate substituted the
+# residual is deterministic and the entropy zero.
+function _reduced_residual_statistics(G, c_eff, canon, Q)
+    m = length(c_eff)
+    size(G, 2) == 0 && return (-c_eff, zeros(m, m), 0.0)
+    Qi = inv(_chol(Q, "Q"))
     Λ = G' * Qi * G + _blockdiag(map(last, canon))
     η = G' * (Qi * c_eff) + reduce(vcat, map(first, canon))
     bel = GaussianBelief(η, Λ)
-    m, Σ = belief_mean(bel), belief_cov(bel)
-    return (G * m .- c_eff, G * Σ * G', Mycelium.variable_entropy(bel))
+    mb, Σ = belief_mean(bel), belief_cov(bel)
+    return (G * mb .- c_eff, G * Σ * G', Mycelium.variable_entropy(bel))
 end
 
 # n-ary block diagonal. `gaussian.jl`'s `_blockdiag` takes exactly two blocks.

@@ -307,6 +307,25 @@ Not checked: extended inputs in plates (`_block_parts` returns `nothing` for the
 send a plate down the per-replica path; not run), in the AD paths (`_gradient_message`), and to
 `NonlinearFactor` with a partly flat cavity, which `_expansion` refuses through `_moments`.
 
+## Free energy with hard inputs (2026-11-11)
+
+A message from a `HardConstraintFactor` can have hard directions: the relation fixes the variable
+along them. The free energies of `GaussianFactor`, `GaussianPrior` and `LinearConstraintFactor`
+take such a message. They substitute its hard directions out, as they substitute a point
+(`_reduced_relation`, `constraint.jl`): the input becomes $x = x_0 + U s$, with $U$ orthonormal
+along its other directions, and the factor's residual becomes $\tilde G s - \tilde c$. The factor
+belief's entropy is then taken in $s$, relative to Lebesgue measure on its support, as for the
+variables (`lib/LenticulumCore.jl/src/extended_gaussian.md`, "Entropy").
+
+`LinearConstraintFactor.residual_statistics` is this computation for every input
+(`_reduced_residual_statistics`). It is the old arithmetic term for term: a point is substituted,
+and anything else enters with $U = I$. `GaussianFactor` and `GaussianPrior` keep their own code and
+call it only when a message is hard (`_is_hard`). With a learned noise or covariance they refuse a
+hard message in the free energy. Checked by the tree oracle of `test/hard_free_energy.jl`, where
+hard messages reach both (`hard_constraint.md`, "Measured"). Not handled: `SwitchingConstraintFactor`
+(its `_canon` refuses hard directions), the plate paths, the frozen beliefs of the gradient
+(`factor_belief`), and the exposed-parameter rules.
+
 ## Batched factor beliefs (2026-11-03)
 
 `FrozenGaussianBeliefs` is `FrozenGaussianBelief` for the $n$ replicas of a plate row: points as

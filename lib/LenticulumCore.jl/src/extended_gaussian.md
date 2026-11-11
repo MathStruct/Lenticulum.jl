@@ -99,6 +99,30 @@ extended Gaussians is therefore always one, or a contradiction.
   outputs are the same up to the basis of the flat directions, which the callers use only through
   its span.
 
+## Entropy (2026-11-11)
+
+A belief with hard directions has no density with respect to Lebesgue measure on $\mathbb R^n$, but
+it has one on its support, the affine subspace $\mu + \operatorname{range}\Sigma$. `support_entropy(b)`
+is the entropy relative to Lebesgue measure there, in orthonormal coordinates:
+
+$$
+H(b) \;=\; \tfrac r2 (1 + \log 2\pi) + \tfrac12 \textstyle\sum_{i \le r} \log \lambda_i ,
+$$
+
+over the $r$ nonzero eigenvalues of $\Sigma$. It is the finite part of the entropy of
+$\mathcal N(\mu, \Sigma + \varepsilon I)$, whose divergent part is $\tfrac{n-r}{2}\log(2\pi e\varepsilon)$.
+A point gets $0$, the convention [[Bethe Free Energy]] already uses for clamped variables. With flat
+directions the belief is improper and has no entropy; `support_entropy` throws.
+
+This is a convention, and the Bethe sum is only meaningful if every term follows it: each
+belief's entropy relative to its own support. A factor with a smooth density whose input has hard
+directions works in the input's coordinates along the other directions. `_hard_reduction(b)`
+returns $x = x_0 + U s$, with $x_0$ the point fixed along the hard directions, $U$ an orthonormal
+basis of the rest, and the Gaussian part in $s$ in canonical form, $(U^\top\eta,\ U^\top\Lambda U)$,
+zero along the flat directions. The hard relation's own term is in `HardConstraintFactor`'s note.
+On trees the result is $-\log Z$ (Lenticulum `test/hard_free_energy.jl`), which is what makes the
+convention the right one there.
+
 ## Measured
 
 `test/extended_gaussian.jl`:
@@ -110,21 +134,25 @@ extended Gaussians is therefore always one, or a contradiction.
   agree to $10^{-9}$; along them the reference variance exceeds $10^{15}$.
 - **Laws:** commutativity, associativity, the flat belief as unit, pushforward composing
   (`pushforward(pushforward(b, M₁), M₂) = pushforward(b, M₂M₁)`), `marginalise` as a pushforward.
+- **`support_entropy` against the limit**, 60 random beliefs (dimension 1–5, 0 to $n$ hard
+  directions): the entropy of $\mathcal N(\mu, \Sigma + \varepsilon I)$ minus $\tfrac h2\log(2\pi e\varepsilon)$ at
+  $\varepsilon = 10^{-20}$ in 512-bit arithmetic, with $\Sigma = GWG^\top$ formed there from the
+  generator's factors (exactly of rank $n - h$), agrees to $10^{-9}$. **`_hard_reduction`**, 40 random
+  beliefs with flat and hard directions: $U$ orthonormal and orthogonal to the hard directions,
+  $x_0$ the fixed point along them, the precision $U^\top\Sigma^+U$, zero along the flat directions.
 - **Conversions and refusals:** round trips with `GaussianBelief`, the clamp, contradictory
   constraints, $\eta$ outside $\operatorname{range}\Lambda$, a covariance that is not positive semidefinite.
 
 ## What it does not do
 
-- **Density, entropy, log-partition.** A belief with a flat or hard direction has no density with
-  respect to Lebesgue measure on $\mathbb R^n$, so `variable_entropy`, `belief_logdensity` and the free
-  energy do not take it. The Gaussian part's entropy on $D^\perp \cap \operatorname{range}\Sigma$ is
-  well defined; what the Bethe sum should do with the rest is the open question of [[Bethe Free Energy]]
-  for clamped and flat variables.
-- **Factors.** One factor emits it (`HardConstraintFactor`); the message store's distance and
-  damping take it (Mycelium `gaussian.jl`). The other relation factors still carry their own
-  representation (`_split_moments` returns `(μ, Σ, N)`), and `GaussianBelief`'s `improper` flag
-  remains. Replacing both, an exact noise-free constraint factor, and split/concatenate and affine
-  factors are the next steps ([[Feature Backlog]]).
+- **Density and log-partition.** A belief with a flat or hard direction has no density with
+  respect to Lebesgue measure on $\mathbb R^n$; `belief_logdensity` does not take it. Its entropy is
+  relative to its support (above); with flat directions there is none.
+- **Factors.** `HardConstraintFactor` emits it; the message store's distance and damping take it
+  (Mycelium `gaussian.jl`); every relation factor takes it as input, and `GaussianFactor`,
+  `GaussianPrior`, `LinearConstraintFactor` and `HardConstraintFactor` take hard inputs in their
+  free energies. The relation factors still emit `GaussianBelief`s, and the `improper` flag remains
+  ([[Feature Backlog]]).
 - **Gradients.** The SVDs and eigendecompositions are on values; nothing differentiates through
   this type, and ForwardDiff fails on it (as on `_improper_split` before).
 - **Device arrays.** Host `Matrix` only.

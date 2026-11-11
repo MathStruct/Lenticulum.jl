@@ -126,3 +126,49 @@ end
     p = LenticulumCore._conjoin(a, c)
     @test p.μ ≈ [5.0, 1.0] && all(x -> abs(x) < 1e-12, p.Σ)
 end
+
+@testset "extended Gaussians: support_entropy is the finite part of the ε-limit" begin
+    EO = ExtendedGaussianOracle
+    rng = Xoshiro(17)
+    # H(N(μ, Σ + εI)) − (h/2) log(2πeε) → support_entropy as ε → 0, with h hard directions. The
+    # reference covariance is G W Gᵀ formed in 512-bit BigFloat from the generator's factors, so it
+    # has rank n − h exactly; Σ rounded to Float64 has eigenvalues of order 1e-16 along the hard
+    # directions, far above ε = 1e-20. The remainder of the limit is then about ε·tr(Σ⁺).
+    for trial in 1:60
+        n = rand(rng, 1:5); h = rand(rng, 0:n)
+        Q = Matrix(qr(randn(rng, n, n)).Q)
+        G = Q[:, (h + 1):n]
+        M = randn(rng, n - h, n - h); W = M * M' + 0.3I
+        ref = setprecision(BigFloat, 512) do
+            Gb = BigFloat.(G)
+            S = Gb * BigFloat.(W) * Gb' + EO.ε * I
+            H = n * (1 + log(2 * BigFloat(π))) / 2 + logdet(cholesky(Symmetric(S))) / 2
+            Float64(H - h * log(2 * BigFloat(π) * exp(BigFloat(1)) * EO.ε) / 2)
+        end
+        b = ExtendedGaussian(randn(rng, n), G * W * G')
+        @test support_entropy(b) ≈ ref atol = 1e-9 * (1 + abs(ref))
+    end
+    # no hard direction: the Gaussian entropy; every direction hard: 0, as for a point
+    Σ = [2.0 0.3; 0.3 1.0]
+    @test support_entropy(ExtendedGaussian([1.0, 2.0], Σ)) ≈ (1 + log(2π)) + logdet(Σ) / 2
+    @test support_entropy(ExtendedGaussian([1.0, 2.0], zeros(2, 2))) == 0
+    @test_throws ArgumentError support_entropy(ExtendedGaussian([1.0, 2.0], Σ, reshape([1.0, 0.0], 2, 1)))
+end
+
+@testset "extended Gaussians: the hard reduction" begin
+    EO = ExtendedGaussianOracle
+    rng = Xoshiro(18)
+    for trial in 1:40
+        n = rand(rng, 1:5); k = rand(rng, 0:n); h = rand(rng, 0:(n - k))
+        b = EO.random_extended(rng, n, k, h)
+        x0, U, ηs, Λs = LenticulumCore._hard_reduction(b)
+        H = hard_directions(b)
+        @test size(U, 2) == n - h && U' * U ≈ I(n - h) && norm(U' * H) < 1e-10
+        @test H' * x0 ≈ H' * b.μ atol = 1e-10            # x0 is the point fixed along H …
+        @test norm(U' * x0) < 1e-10                        # … and nothing else
+        # in s the Gaussian part: precision UᵀΣ⁺U, zero along the flat directions, mean Uᵀμ
+        @test Λs ≈ U' * pinv(b.Σ; atol = 1e-10) * U atol = 1e-8
+        @test norm(Λs * (U' * b.D)) < 1e-8
+        @test ηs ≈ Λs * (U' * b.μ) atol = 1e-8
+    end
+end

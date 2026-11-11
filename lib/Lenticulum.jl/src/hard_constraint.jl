@@ -74,6 +74,18 @@ function LenticulumCore.supports_polarity(f::HardConstraintFactor{names}, p::Len
     return length(LenticulumCore.unobserved_channels(p)) == 1
 end
 LenticulumCore.islearnable(::HardConstraintFactor) = false
+# The grading of `LinearConstraintFactor`: with a noise the free energy is that factor's; without,
+# `fit` is 0 and the finite remainder is `complexity` and `negentropy` (`local_free_energy`).
+LenticulumCore.energyspace(::HardConstraintFactor) = LenticulumCore.GradedEnergySpace((
+    fit = LenticulumCore.ScalarEnergySpace(),
+    complexity = LenticulumCore.ScalarEnergySpace(),
+    negentropy = LenticulumCore.ScalarEnergySpace(),
+))
+LenticulumCore.scalarisation(::HardConstraintFactor) = LenticulumCore.GradedScalarisation((
+    fit = LenticulumCore.IdentityScalarisation(),
+    complexity = LenticulumCore.IdentityScalarisation(),
+    negentropy = LenticulumCore.IdentityScalarisation(),
+))
 
 # an input as an extended Gaussian of dimension n
 _as_extended(b, n) = LenticulumCore.extended(b, n)
@@ -109,11 +121,59 @@ function Mycelium.factor_message(f::HardConstraintFactor{names}, target::Symbol,
     return LenticulumCore.preimage(r, Matrix(getfield(A, target))), st
 end
 
+Mycelium.uses_cavity(::HardConstraintFactor) = true
+
 """
     Mycelium.local_free_energy(f::HardConstraintFactor, msgs, ps, st)
 
-Not defined: a relation imposed exactly has no finite free energy in closed form. Throws.
+The factor's Bethe term at its incoming messages. Points and the hard directions of incoming
+extended Gaussians are substituted out, leaving the relation ``\\tilde G s = \\tilde c`` on the
+remaining coordinates ``s`` (orthonormal along each input's support).
+
+- **Without noise** (`noise = 0`), the limit of `LinearConstraintFactor` with noise
+  ``\\varepsilon I`` as ``\\varepsilon \\to 0``, whose divergent parts cancel:
+
+  ```math
+  F_f \\;=\\; \\tfrac12 \\log\\det\\bigl(\\tilde G \\tilde G^\\top\\bigr) \\;-\\; H_R(b_f),
+  ```
+
+  with ``H_R`` the entropy of the factor belief relative to Lebesgue measure on the solution set
+  ``R`` of the relation (`complexity` and `negentropy`; `fit` is `0`). It needs ``\\tilde G`` of
+  full row rank: redundant equations, or equations on directions an input already fixes exactly,
+  have an infinite free energy, and throw. So does a factor belief that is flat along ``R``.
+- **With a positive definite noise**, `LinearConstraintFactor`'s free energy.
+
+A noise that is singular but not zero is not implemented. See `hard_constraint.md`, "Free energy".
 """
-Mycelium.local_free_energy(::HardConstraintFactor, msgs, ps, st) = throw(ArgumentError(
-    "HardConstraintFactor has no free energy: an exact relation has none in closed form. Use \
-     LinearConstraintFactor with a noise for a free energy"))
+function Mycelium.local_free_energy(f::HardConstraintFactor{names}, msgs, ps, st) where {names}
+    G, c, canon = _reduced_relation(ps.A, ps.c, msgs, f.dims, names)
+    if !iszero(f.Q)
+        isposdef(Symmetric(f.Q)) || throw(ArgumentError(
+            "HardConstraintFactor: the free energy with a singular nonzero noise is not implemented"))
+        r̄, Cr, H = _reduced_residual_statistics(G, c, canon, f.Q)
+        Qi = inv(_chol(f.Q, "Q"))
+        fit = (r̄' * (Qi * r̄) + tr(Qi * Cr)) / 2
+        complexity = logdet(_chol(2π .* f.Q, "2πQ")) / 2
+        return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -H)), st
+    end
+    m, k = size(G)
+    F = LinearAlgebra.svd(G; full = true)
+    tol = maximum(size(G)) * eps(Float64) * maximum(F.S; init = 0.0)
+    (k >= m && count(>(tol), F.S) == m) || throw(ArgumentError(
+        "HardConstraintFactor: its $m equations have rank $(count(>(tol), F.S)) on the directions its \
+         inputs leave free (redundant equations, or equations on directions an input fixes \
+         exactly); the free energy is infinite"))
+    N = F.V[:, (m + 1):k]                                # R = s0 + range(N), any solution s0
+    complexity = sum(log, F.S; init = 0.0)               # ½ log det(G Gᵀ)
+    H = 0.0                                              # k = m: R is a point
+    if k > m                                             # the entropy needs only the precision on R
+        Λs = _blockdiag(map(last, canon))
+        Λz = Symmetric(N' * Λs * N)
+        C = cholesky(Λz; check = false)
+        LinearAlgebra.issuccess(C) && minimum(LinearAlgebra.eigvals(Λz)) > LenticulumCore._eig_tol(LinearAlgebra.eigvals(Λz)) ||
+            throw(ArgumentError("HardConstraintFactor: the factor belief is flat along the relation's \
+                solution set (an improper posterior); it has no free energy"))
+        H = (k - m) * (1 + log(2π)) / 2 - logdet(C) / 2
+    end
+    return LenticulumCore.GradedEnergy((fit = 0.0, complexity = complexity, negentropy = -H)), st
+end

@@ -153,3 +153,10 @@ directions, gradual on directions flat on one side, the weighted average of two 
 `HardConstraintFactor` (Lenticulum) emits extended Gaussians under any schedule. Tests:
 `test/runtests.jl`, "combine with extended Gaussians" and "the message store takes extended
 Gaussians".
+
+**Entropy (2026-11-11).** `variable_entropy` of an extended Gaussian is
+`LenticulumCore.support_entropy`: the entropy relative to Lebesgue measure on the belief's support,
+`0` for a point, as for a `DiracBelief`. A variable that a hard constraint fixes in some directions
+therefore has a finite counting term, and flat directions (an improper marginal) throw. On trees
+with a hard relation the Bethe free energy is then $-\log Z$ (Lenticulum `test/hard_free_energy.jl`;
+the convention is in `lib/LenticulumCore.jl/src/extended_gaussian.md`, "Entropy").

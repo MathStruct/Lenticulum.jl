@@ -31,9 +31,10 @@ must be positive semidefinite up to rounding.
 Operations: [`pushforward`](@ref)`(b, M, c, Q)` (exact through affine maps, with optional
 added noise), [`preimage`](@ref)`(b, M, c)` (the likelihood of `x` when `b` is about `Mx + c`),
 [`marginalise`](@ref), conversion from and to `GaussianBelief` ([`extended`](@ref),
-`GaussianBelief(b)`), [`flat_directions`](@ref), [`hard_directions`](@ref). The product of two
-beliefs is Mycelium's `combine`. There is no density, entropy or log-partition: a belief with
-flat or hard directions has none in closed form.
+`GaussianBelief(b)`), [`flat_directions`](@ref), [`hard_directions`](@ref),
+[`support_entropy`](@ref). The product of two beliefs is Mycelium's `combine`. A belief with
+flat directions has no density and no entropy; one with hard directions has them only relative
+to the measure on its support (`support_entropy`).
 """
 struct ExtendedGaussian{T<:AbstractFloat} <: AbstractBelief
     μ::Vector{T}
@@ -101,6 +102,46 @@ function hard_directions(b::ExtendedGaussian{T}) where {T}
     size(U, 2) == 0 && return zeros(T, n, 0)
     E = eigen(Symmetric(U' * b.Σ * U))
     return U * E.vectors[:, E.values .<= _eig_tol(E.values)]
+end
+
+"""
+    support_entropy(b::ExtendedGaussian) -> Real
+
+The differential entropy of `b` relative to Lebesgue measure on its support, the affine subspace
+``\\mu + \\operatorname{range}(\\Sigma)``, in orthonormal coordinates:
+
+```math
+H \\;=\\; \\tfrac r2\\,(1 + \\log 2\\pi) \\;+\\; \\tfrac12 \\textstyle\\sum_{i=1}^{r} \\log \\lambda_i ,
+```
+
+over the ``r`` nonzero eigenvalues of ``\\Sigma``. Without hard directions it is the Gaussian
+entropy; a point (every direction hard) has entropy `0`, the convention for clamped variables.
+It is the finite part of the entropy of ``\\mathcal N(\\mu, \\Sigma + \\varepsilon I)`` as
+``\\varepsilon \\to 0``, after removing ``\\tfrac{n-r}{2}\\log(2\\pi e\\varepsilon)``; the Bethe free
+energy of a graph with hard constraints is finite with it (`extended_gaussian.md`, "Entropy").
+A belief with flat directions has no entropy (it is improper): `ArgumentError`.
+"""
+function support_entropy(b::ExtendedGaussian)
+    size(b.D, 2) == 0 || throw(ArgumentError(
+        "an extended Gaussian with flat directions is improper and has no entropy"))
+    λ = isempty(b.Σ) ? eltype(b.Σ)[] : eigvals(Symmetric(b.Σ))
+    keep = λ .> _eig_tol(λ)
+    r = count(keep)
+    return r * (1 + log(2π)) / 2 + sum(log, λ[keep]; init = zero(eltype(λ))) / 2
+end
+
+# The belief in coordinates along its non-hard directions: x = x0 + U s, with x0 the point it
+# fixes along its hard directions H (x0 = HHᵀμ) and U an orthonormal basis of H⊥ (its Gaussian
+# and flat directions). In s it is the Gaussian part in canonical form, (η_s, Λ_s) = (Uᵀη, UᵀΛU)
+# with (η, Λ) = `_canonical_part(b)`: zero precision along the flat directions. Substituting the
+# hard directions out is how a factor with a smooth density takes a hard input, as it takes a
+# point (`extended_gaussian.md`, "Entropy").
+function _hard_reduction(b::ExtendedGaussian)
+    H = hard_directions(b)
+    U = _complement(H)
+    η, Λ = _canonical_part(b)
+    Λs = U' * Λ * U
+    return H * (H' * b.μ), U, U' * η, (Λs + Λs') / 2
 end
 
 # The quadratic part on the Gaussian directions: Λ = Σ⁺ (zero on the flat and hard directions)

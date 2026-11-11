@@ -73,7 +73,7 @@ export OpenModelResult, DiracBelief, SampleBelief, TrivialBelief
 export AbstractPotentialBelief, LogPotentialBelief
 export CategoricalBelief, MixtureBelief, probabilities, bernoulli, mixture_weights
 export GaussianBelief, Gaussian, uninformative, isuninformative, belief_mean, belief_cov, isproper, logpartition
-export ExtendedGaussian, extended, flat_directions, hard_directions, marginalise, preimage
+export ExtendedGaussian, extended, flat_directions, hard_directions, marginalise, preimage, support_entropy
 export as_distribution, as_belief
 export forward, logdensity, pushforward, isexact, ispure
 export latentspace, observedspace, unobservedspace

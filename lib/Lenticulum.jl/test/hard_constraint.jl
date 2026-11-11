@@ -118,27 +118,30 @@ end
     end
 end
 
-@testset "HardConstraintFactor: refusals and the free energy" begin
+@testset "HardConstraintFactor: refusals" begin
     f = HardConstraintFactor((x = 2,), 1)
     @test_throws ArgumentError HardConstraintFactor((x = 2,), 1; noise = -1.0)
     @test_throws ArgumentError Mycelium.factor_message(HardConstraintFactor((x = 1, y = 1), 1), :y, nothing,
         (x = LenticulumCore.MixtureBelief([Gaussian([0.0], fill(1.0, 1, 1)), Gaussian([1.0], fill(1.0, 1, 1))], [0.5, 0.5]),), nothing,
         (A = (x = ones(1, 1), y = ones(1, 1)), c = [0.0]), NamedTuple())
+    # no input: the factor belief is flat along the solution set, an improper posterior
     @test_throws ArgumentError Mycelium.local_free_energy(f, NamedTuple(), (A = (x = ones(1, 2),), c = [0.0]), NamedTuple())
     @test !LenticulumCore.islearnable(f)
 end
 
-@testset "HardConstraintFactor: the factor contract (conformance, no free energy)" begin
+@testset "HardConstraintFactor: the factor contract (conformance)" begin
     isdefined(@__MODULE__, :check_factor_conformance) ||
         include(joinpath(@__DIR__, "../../LenticulumCore.jl/test/support/factor_conformance.jl"))
     f = HardConstraintFactor((x = 1, y = 1), 1)
     ps = (A = (x = ones(1, 1), y = ones(1, 1)), c = [1.0])
     p = LenticulumCore.Polarity((x = LenticulumCore.Observed(), y = LenticulumCore.Unobserved()))
-    # x + y = 1 with x clamped at 0.25: y = 0.75 exactly, whatever the prior on y
+    # x + y = 1 with x clamped at 0.25: y = 0.75 exactly, whatever the prior on y. The factor belief
+    # is that point: ½ log det(G̃G̃ᵀ) = 0 with G̃ = [1], and entropy 0 (hard_constraint.md, "Free energy")
     check_factor_conformance(f, p; inputs = (x = DiracBelief([0.25]),), π = Gaussian([0.0], fill(1.0, 1, 1)),
         ps, st = NamedTuple(), direct_message = true,
         expected_site = ExtendedGaussian([0.75], zeros(1, 1)), expected_posterior = ExtendedGaussian([0.75], zeros(1, 1)),
+        msgs = (x = DiracBelief([0.25]), y = Gaussian([0.0], fill(1.0, 1, 1))),
+        expected_free_energy = LenticulumCore.GradedEnergy((fit = 0.0, complexity = 0.0, negentropy = -0.0)),
         pointwise_gap = "an exact relation has no pointwise energy",
-        game_gap = "an exact relation has no game free energy",
-        free_energy_gap = "an exact relation has no free energy in closed form")
+        game_gap = "an exact relation has no game free energy")
 end
