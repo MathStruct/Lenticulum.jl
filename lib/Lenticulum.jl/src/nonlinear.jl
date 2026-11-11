@@ -252,7 +252,7 @@ end
 function _likelihood(f, my, Sy, x̄, P)
     A, b, Ω = linearize(f, x̄, P)
     Ri = inv(_chol(f.Q + Ω + Sy, "Q + Ω + Sᵧ"))
-    return GaussianBelief(A' * (Ri * (my .- b)), A' * Ri * A, _rank_deficient(A))
+    return _likelihood_message(A' * (Ri * (my .- b)), A' * Ri * A, _rank_deficient(A))
 end
 
 # --- The lens: the posterior, relinearised `iterations` times -------------------------

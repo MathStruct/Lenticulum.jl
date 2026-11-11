@@ -32,6 +32,7 @@ function same_belief(a, b; atol = 1e-8)
         return isapprox(a.logw, b.logw; atol) && all(same_belief(x, y; atol) for (x, y) in zip(a.components, b.components))
     a isa LenticulumCore.CategoricalBelief && return isapprox(LenticulumCore.probabilities(a), LenticulumCore.probabilities(b); atol)
     a isa LenticulumCore.TrivialBelief && return b isa LenticulumCore.TrivialBelief
+    (a isa ExtendedGaussian || b isa ExtendedGaussian) && return same(extended(a), extended(b); atol)
     return isapprox(a.η, b.η; atol) && isapprox(a.Λ, b.Λ; atol) && isproper(a) == isproper(b)
 end
 
@@ -175,6 +176,41 @@ end
             @test e.Σ ≈ Σp[r, r] atol = 1e-7 rtol = 1e-9
         end
     end
+end
+
+@testset "improper messages are extended Gaussians, flat exactly along the null space" begin
+    EO = ExtendedInputsOracle
+    rng = Xoshiro(55)
+    nflat = 0
+    for trial in 1:60
+        # GaussianFactor backwards with A of rank r < nin, and LinearConstraintFactor with fewer
+        # equations than the target's dimension; the oracle is the canonical formula
+        nin = rand(rng, 2:4); nout = rand(rng, 1:4); r = rand(rng, 1:min(nout, nin - 1))
+        A = randn(rng, nout, r) * randn(rng, r, nin)
+        Q = EO.spd(rng, nout)
+        f = GaussianFactor(nin => nout; noise = Q)
+        y, Sy = randn(rng, nout), EO.spd(rng, nout)
+        msg, _ = Mycelium.factor_message(f, :x, nothing, (y = Gaussian(y, Sy),), nothing, (A = A, b = zeros(nout)), NamedTuple())
+        @test msg isa ExtendedGaussian
+        N = nullspace(A)
+        @test size(msg.D, 2) == size(N, 2)
+        @test msg.D * msg.D' ≈ N * N' atol = 1e-8
+        Ri = inv(Q + Sy)
+        Λ = A' * Ri * A; η = A' * Ri * y
+        @test pinv(msg.Σ; atol = 1e-10) ≈ Λ atol = 1e-7 rtol = 1e-7      # the precision on range(Aᵀ)
+        @test pinv(msg.Σ; atol = 1e-10) * msg.μ ≈ η atol = 1e-7 rtol = 1e-7
+        nflat += size(msg.D, 2)
+        # a full-rank square A gives a proper GaussianBelief, as before
+        g = GaussianFactor(nin => nin; noise = EO.spd(rng, nin))
+        full, _ = Mycelium.factor_message(g, :x, nothing, (y = Gaussian(randn(rng, nin), EO.spd(rng, nin)),), nothing,
+            (A = randn(rng, nin, nin), b = zeros(nin)), NamedTuple())
+        @test full isa GaussianBelief && LenticulumCore.isproper(full)
+    end
+    @test nflat > 60
+    # under ForwardDiff the message stays a declared-improper GaussianBelief (no eigendecomposition
+    # for dual numbers)
+    @test Lenticulum._likelihood_message([1.0, 0.0], [1.0 0; 0 0], true) isa ExtendedGaussian
+    @test Lenticulum._likelihood_message(Real[1, 0], Real[1 0; 0 0], true) isa GaussianBelief
 end
 
 @testset "extended-Gaussian inputs: refusals" begin

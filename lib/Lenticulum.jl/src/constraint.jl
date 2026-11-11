@@ -292,8 +292,9 @@ both of [`GaussianFactor`](@ref)'s messages exactly, forward and backward.
 
 The message is **improper** whenever ``A_t`` is not full column rank — an equation
 constrains only the directions it can see, and with fewer equations than unknowns
-(``m < \\dim x_t``) that is the normal case, not an edge case. Only the canonical form can
-say this; see `beliefs.md`.
+(``m < \\dim x_t``) that is the normal case, not an edge case. Such a message is an
+[`ExtendedGaussian`](@ref), flat along the directions the equation cannot see; a message that is
+not flat anywhere is a `GaussianBelief`.
 
 A non-target channel that carries no information (no message, `TrivialBelief()`, a
 `Latent()` channel) is integrated out under a flat prior, the limit ``\\tau \\to \\infty`` of
@@ -302,8 +303,9 @@ with ``G`` stacking those channels' ``A``'s, the same limit for every ``\\Sigma_
 improper Gaussian input splits into a proper part on the range of its precision, which enters
 ``d`` and ``R``, and a flat part on its null space ``N``, which adds ``A_i N`` to ``G``. The
 equation then still constrains the directions ``G`` cannot reach. The message is
-`TrivialBelief()` when nothing is left, as when ``G`` has full row rank, and is declared improper
-(`GaussianBelief(η, Λ, true)`) whenever the (projected) ``A_t`` is rank-deficient
+`TrivialBelief()` when nothing is left, as when ``G`` has full row rank, and an `ExtendedGaussian`
+whenever the (projected) ``A_t`` is rank-deficient (under ForwardDiff a declared-improper
+`GaussianBelief(η, Λ, true)` instead)
 (`constraint.md` §4.1). The flat case is not differentiable by ForwardDiff: the projection
 needs an SVD, which has no method for dual numbers, and it fails rather than give a derivative
 that ignores how the flat directions move.
@@ -327,13 +329,13 @@ function _linear_message(A, c, Q, target, parts, st)
     if isempty(G)
         Ri = inv(_chol(R, "Q + Σ AᵢSᵢAᵢᵀ"))
         improper = _projected_rank(At, At) < size(At, 2)          # rank(L⁻¹Aₜ) = rank(Aₜ)
-        return (GaussianBelief(At' * (Ri * d), At' * Ri * At, improper), st)
+        return (_likelihood_message(At' * (Ri * d), At' * Ri * At, improper), st)
     end
     T, Li = _residual_metric(R, G, "Q + Σ AᵢSᵢAᵢᵀ")
     Ta = T * At
     rt = _projected_rank(Ta, Li * At)
     rt == 0 && return (LenticulumCore.TrivialBelief(), st)
-    return (GaussianBelief(Ta' * (T * d), Ta' * Ta, rt < size(At, 2)), st)
+    return (_likelihood_message(Ta' * (T * d), Ta' * Ta, rt < size(At, 2)), st)
 end
 
 """

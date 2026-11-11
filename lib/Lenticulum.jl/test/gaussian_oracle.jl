@@ -131,7 +131,7 @@ end
     # a square observation matrix of rank one
     f = GaussianFactor(2 => 2; noise = 0.5)
     msg, _ = Mycelium.factor_message(f, :x, nothing, (y = DiracBelief([1.0, 2.0]),), nothing, (A = [1.0 2.0; 2.0 4.0], b = zeros(2)), NamedTuple())
-    @test msg.improper && !LenticulumCore.isproper(msg)
+    @test msg isa ExtendedGaussian && size(flat_directions(msg), 2) == 1     # flat along null(A)
     full, _ = Mycelium.factor_message(f, :x, nothing, (y = DiracBelief([1.0, 2.0]),), nothing, (A = [1.0 0.5; 0.2 1.0], b = zeros(2)), NamedTuple())
     @test LenticulumCore.isproper(full)
 end

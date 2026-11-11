@@ -247,8 +247,8 @@ writing ``R = Q + S_y``:
 
 Note the backward message is generally **improper** — ``A^\\top R^{-1} A`` is rank-deficient
 whenever `A` is not full column rank, because a likelihood constrains only the directions the
-model can see. The moment form cannot express this; the canonical form does, which is the
-second reason `beliefs.jl` uses it.
+model can see. It is then an [`ExtendedGaussian`](@ref), flat along ``\\operatorname{null}(A)``
+(a declared-improper `GaussianBelief` under ForwardDiff); otherwise a `GaussianBelief`.
 
 The `prior` argument is *deliberately unused*: including it would double-count. See
 [`LenticulumCore.invert`](@ref) above.
@@ -273,13 +273,14 @@ function _message(f::GaussianFactor, target::Symbol, inputs, ps, st)
         m === nothing && return (LenticulumCore.TrivialBelief(), st)
         R = noise_covariance(f, ps) + S
         Ri = inv(_chol(R, "Q + Sᵧ"))
-        return (GaussianBelief(A' * (Ri * (m .- b)), A' * Ri * A, _rank_deficient(A)), st)
+        return (_likelihood_message(A' * (Ri * (m .- b)), A' * Ri * A, _rank_deficient(A)), st)
     end
     throw(ArgumentError("channel :$target is not a channel of this GaussianFactor"))
 end
 
 # The backward precision AᵀR⁻¹A has the rank of A. When that is below the input dimension the
-# message is a likelihood that is flat in some directions, and it is declared improper: left to
+# message is a likelihood that is flat in some directions, and it is returned as such (an extended
+# Gaussian, `_likelihood_message`), decided by this rank test and not by rounding: left to
 # rounding, a Cholesky factorisation of such a precision sometimes succeeds, and the next factor
 # then computes with a covariance of order 1/eps (wrong marginals on a tree, without an error).
 # One SVD, with the threshold of `_projected_rank` (constraint.jl); that function computes the
@@ -310,6 +311,14 @@ function _flat_message(f::GaussianFactor, target, other, dim, src, ps, st)
 end
 
 _get(inputs, k) = haskey(inputs, k) ? getfield(inputs, k) : nothing
+
+# A likelihood message in canonical form. When the rank test says it is flat in some directions it
+# is returned as an `ExtendedGaussian`, flat along null(Λ) (gaussian.md, "Improper messages as
+# extended Gaussians"); otherwise as a `GaussianBelief`. With dual numbers (ForwardDiff) it stays
+# a declared-improper `GaussianBelief`: the extended form needs an eigendecomposition, which has
+# no method for them.
+_likelihood_message(η, Λ, improper::Bool) = improper && eltype(Λ) <: AbstractFloat ?
+    LenticulumCore.extended(GaussianBelief(η, Λ, true)) : GaussianBelief(η, Λ, improper)
 
 # Functional schedule AD avoids the mutating inverse-of-Cholesky implementation.
 # Ordinary message passing retains its established arithmetic.

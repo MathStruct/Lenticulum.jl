@@ -288,9 +288,7 @@ so a hard relation could not share a variable with them. Four methods do it:
   precision along flat directions, and an `ArgumentError` for hard ones, which have no canonical
   form (the entropy row of the backlog). `_mf_split` takes it for mean-field nodes.
 
-Messages are unchanged: the relation factors still emit `GaussianBelief`s (improper where they
-were before). Emitting extended Gaussians and retiring the `improper` flag waits on the free
-energy of an extended Gaussian, since the Bethe terms read those messages.
+Messages were unchanged by this step; the next section changes them.
 
 **Measured** (`test/extended_inputs.jl`): `LinearConstraintFactor` with random extended-Gaussian
 inputs that mix flat, hard and Gaussian directions (80 factors, 2–3 channels of dimension 1–3,
@@ -306,6 +304,42 @@ testset fails with the `MethodError` above.
 Not checked: extended inputs in plates (`_block_parts` returns `nothing` for them, which should
 send a plate down the per-replica path; not run), in the AD paths (`_gradient_message`), and to
 `NonlinearFactor` with a partly flat cavity, which `_expansion` refuses through `_moments`.
+
+## Improper messages as extended Gaussians (2026-11-11)
+
+A likelihood message that the rank test finds flat in some directions is returned as an
+`ExtendedGaussian`, flat along $\operatorname{null}(\Lambda)$, instead of a `GaussianBelief` with
+`improper = true` (`_likelihood_message`). This covers the backward message of `GaussianFactor` and
+of `NonlinearFactor`'s local linear model when $A$ is rank-deficient, and `LinearConstraintFactor`'s
+message (also from `MeanField()` nodes, which share `_linear_message`) when the projected $A_t$ is.
+Proper messages stay `GaussianBelief`s. The rank test decides, as before, and the conversion is
+`LenticulumCore.extended`, so the flat directions are those of $\Lambda$ at its tolerance.
+
+**Where the flag remains.** Four paths still return `GaussianBelief(η, Λ, true)`:
+
+- the ForwardDiff paths, where the values are dual numbers. `_likelihood_message` checks the
+  element type, since the extended form needs an eigendecomposition, which has no method for
+  them;
+- `_gradient_message`, the functional message for schedule AD;
+- the block messages of plates (`factor_messages`, `GaussianBlock`'s `improper` vector);
+- the components of `SwitchingConstraintFactor`'s mixture messages, which Mycelium's mixture
+  product weights as likelihoods.
+
+The flag can go once extended Gaussians have mixtures, blocks and a differentiable flat-direction
+test ([[Feature Backlog]]).
+
+**What changed downstream: nothing but two tests.** Run with the change, VariationalDiffusion
+passed and the Lenticulum suite failed in exactly two places, both tests that read the old
+representation: the smoother test asserted `msg.improper`, and a comparison helper in
+`test/extended_inputs.jl` read `η`. Every consumer of these messages already takes extended
+Gaussians: `combine`, the store's distance and damping, the relation factors' inputs, and the free
+energy. The random trees with rectangular coefficients of `test/gaussian_oracle.jl` still match the
+dense joint solve, marginals and free energy, with these messages on their backward edges: in its
+first testset 152 of the 336 likelihood messages are extended Gaussians (counted once, 2026-11-11).
+`test/extended_inputs.jl`, "improper messages are extended Gaussians": on 60 random factors with
+rank-deficient $A$ the backward message is flat exactly along $\operatorname{null}(A)$, and its
+precision and $\eta$ off it are the canonical formula's, to $10^{-7}$; a full-rank square $A$ still
+gives a proper `GaussianBelief`, and dual numbers keep the flag.
 
 ## Free energy with hard inputs (2026-11-11)
 

@@ -20,7 +20,8 @@ named.
 | feature | path | status | source | why |
 |---|---|---|---|---|
 | A belief type for linear relations: a Gaussian part and flat directions, with exact `combine`, marginalisation and pushforward through linear maps | A, C | partial: `ExtendedGaussian` in LenticulumCore with exact pushforward, `marginalise`, product (Mycelium's `combine`) and conversions, tested against the limit of proper Gaussians; `_improper_split` uses it (2026-11-10); the message store takes it and `HardConstraintFactor` emits it; every relation factor takes it as input (2026-11-11) ([[extended_gaussian]], [[hard_constraint]], [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Extended Gaussian inputs") | [[LP-024 Findings of the review of 2026-11-09]]; [[constraint]] §4.1 | the rows below finish it |
-| The relation factors (`LinearConstraintFactor`, `SwitchingConstraintFactor`, `GaussianFactor`, `NonlinearFactor`) emit `ExtendedGaussian`s; `_split_moments` and the `improper` flag of `GaussianBelief` retired | A, C | partial: they take them as input; `GaussianFactor`, `GaussianPrior` and `LinearConstraintFactor` take hard ones in their free energies (2026-11-11). Next: emit them, and the same in `SwitchingConstraintFactor`, the plate paths and the frozen beliefs of the gradient | [[extended_gaussian]] "What it does not do" | three partial representations of one object remain |
+| Retire the `improper` flag of `GaussianBelief`: extended Gaussians in the four places that still use it (the ForwardDiff paths and `_gradient_message`, plate blocks, `SwitchingConstraintFactor`'s mixture components), and `_split_moments` | A, C | partial: the relation factors take extended Gaussians and emit them for improper messages (2026-11-11). Needs mixtures and blocks of extended Gaussians and a flat-direction test with a derivative ([[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Improper messages as extended Gaussians") | [[extended_gaussian]] "What it does not do" | two representations of a flat likelihood remain |
+| Hard inputs in the free energies of `SwitchingConstraintFactor`, the plate paths and the frozen beliefs of the gradient | A, C | proposed | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Free energy with hard inputs" | refused or untested there |
 | A `TrivialBelief()` input (no message) to `GaussianFactor` takes the exact flat path, as an everywhere-flat `ExtendedGaussian` does | A | proposed | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Extended Gaussian inputs" (2026-11-11) | with $n_{\text{in}} < n_{\text{out}}$ the shortcut returns no message where the exact one fixes $y$ off $\operatorname{range}(A)$; changes the first sweep of every schedule, so measure it on the existing tests first |
 | Extended-Gaussian inputs in plates and in the AD message paths (`_gradient_message`) | A, C | proposed | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Extended Gaussian inputs" | untested there |
 | `HardConstraintFactor` with a singular nonzero noise in the free energy (hard along its null space, soft along its range); learnable (its term needs an SVD, which ForwardDiff lacks) | A, C | proposed | [[hard_constraint]] "Free energy" (2026-11-11) | refused today |
@@ -171,6 +172,11 @@ belief's support, 0 for a point) as `variable_entropy`, and `HardConstraintFacto
 $\tfrac12\log\det\tilde G\tilde G^\top - H_R(b_f)$, the finite limit of the noisy relation's.
 Smooth factors substitute hard inputs out. On 40 random trees the Bethe free energy is $-\log Z$
 ([[hard_constraint]] "Free energy", [[extended_gaussian]] "Entropy").
+
+The relation factors emit an `ExtendedGaussian` where they declared a message improper
+(`GaussianFactor` and `NonlinearFactor` backwards, `LinearConstraintFactor`); the suites needed only
+two tests changed, which read the old representation ([[lib/Lenticulum.jl/src/gaussian|gaussian]]
+"Improper messages as extended Gaussians").
 
 ## Done (2026-11-10)
 
