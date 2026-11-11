@@ -26,8 +26,7 @@ named.
 | Extended-Gaussian inputs in plates and in the AD message paths (`_gradient_message`) | A, C | proposed | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Extended Gaussian inputs" | untested there |
 | `HardConstraintFactor` with a singular nonzero noise in the free energy (hard along its null space, soft along its range); learnable (its term needs an SVD, which ForwardDiff lacks) | A, C | proposed | [[hard_constraint]] "Free energy" (2026-11-11) | refused today |
 | `HardConstraintFactor` in plates (a `factor_messages` block method) and in `MeanField()` nodes | A, C | proposed | [[hard_constraint]] "What it does not do" | a plate of hard constraints runs per replica; mean-field nodes refuse it |
-| Skip the state update of a stateless factor in a sweep, then the integer-slot store (below, "Inference") | A | proposed | LP-024: 7.7, 25.8, 102 ms for the free energy of 601, 1 201, 2 401 factors | the cost is quadratic in the number of parameter keys |
-| One benchmark against RxInfer and the dense solve: a linear-Gaussian chain and a mixture of regressions, times and free energies | A, C | proposed | review of 2026-11-09 | no external baseline exists; `RxInfer` is already a test dependency |
+| Skip the state update of a stateless factor in a sweep, then the integer-slot store (below, "Inference") | A | proposed | LP-024: 7.7, 25.8, 102 ms for the free energy of 601, 1 201, 2 401 factors; [[Benchmark against RxInfer]] (2026-11-11): on a Kalman smoother from $T = 1000$ to $2000$ build ×3.7, free energy ×3.6, `infer!` ×3.0, against RxInfer's ×2.5–2.6, so 4.3–5.8 times slower in total | the cost is quadratic in the number of parameter keys |
 | Element type in, element type out: the graph free energy in the element type of its messages, with a test | A | partial: LenticulumCore (2026-11-10) | LP-024 | `Float32` graphs are promoted to `Float64` in the total |
 | A relative convergence criterion for Gaussian messages | A | proposed | LP-024 | the bound on natural parameters is absolute |
 | `noisefree_nodes` against `field_nodes` on the calibration benchmark; a default for the nodes | B | proposed | [[Implicit Diffusion Learners]] §5 (2026-11-10) | nodes with noise have twice the smoothing bias at a level |
@@ -51,7 +50,7 @@ named.
 | A spanning-tree schedule for loopy graphs (`spanning_tree_schedule(g)`: the messages off a spanning tree, then the tree's inward and outward sweeps, in place; the updates of tree-based reparameterisation) | partial: done in Mycelium (2026-11-09; `schedules.md`); the choice of tree and alternating trees remain | high | [[Composing Optimisers]] §4.2 (2026-11-09) | measured on the divider (`bench/bp_schedules.jl`): 0.17–0.18 of flooding's message evaluations to an error of 1e-10, in all four settings, with no knowledge of the loop; with `infer!` 82 sweeps against 463 (`test/runtests.jl`). On Gaussian grids up to 20 × 20 (`bench/bp_grid.jl`, 2026-11-09): 0.17–0.29 of flooding's sweeps; its Jacobian has at most two nonzero eigenvalues per independent loop ([[Composing Optimisers]] §4.4). Untested: graphs where BP oscillates, non-Gaussian graphs |
 | A dependency-aware priority queue for `ResidualSchedule` | proposed | medium | ChatGPT review (LP-023) | each sweep probes every task, $O(T^2)$ evaluations: 2.1 times flooding's on the divider. A queue prototype in `bench/bp_schedules.jl` needs 0.24–0.31 of flooding's, behind the spanning-tree order ([[Composing Optimisers]] §4.2) |
 | Graph-wide parameters by integer slot instead of `NamedTuple` lookup by symbol | proposed | medium | ChatGPT review, [[Parallelism and Compilation]] | quadratic scaling with the number of keys |
-| Batched cluster nodes with per-outcome forms over a plate | planned | medium | [[L-SPEC-009 Cluster Nodes]] open | `RegimeFactor` plates go replica by replica |
+| Batched cluster nodes with per-outcome forms over a plate | planned | medium | [[L-SPEC-009 Cluster Nodes]] open; [[Benchmark against RxInfer]] (2026-11-11) | `RegimeFactor` plates go replica by replica: `fit_em` on a mixture of two regressions takes 1.2 s at $N = 300$ and 32 s at 3 000, against 0.6 and 6.5 ms for closed-form EM and 0.13 and 3.2 s for RxInfer's VMP |
 | Mixture-reduction and EP nodes batched in plates | planned | low | [[L-SPEC-008 Expectation Propagation and Mixture Reduction]] open | edge by edge today |
 | Clusters with loops; several mean-field variables in one cluster | planned | low | [[L-SPEC-007 Hybrid Schedules]] open | |
 | Nested plates; stateful tied factors | planned | low | [[L-SPEC-006 Plates]] open | |
@@ -155,6 +154,11 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 | Benchmark regression tracking (scaling, allocations per message) | proposed | low | ChatGPT review §6 | |
 
 ## Done (2026-11-11)
+
+An external baseline: [[Benchmark against RxInfer]] (`bench/rxinfer_baseline.jl`). A Kalman smoother:
+both exact to $10^{-10}$; Lenticulum within a factor 1.7 up to $T = 100$, 4.3–5.8 times slower at
+1 000–2 000. A mixture of regressions: `fit_em` is exact EM, 9–10 times slower than RxInfer's VMP,
+which is slightly worse in likelihood.
 
 The message store takes extended Gaussians (`belief_distance` on moments and the flat projector;
 `damp` as the geometric mixture). `HardConstraintFactor`: the linear relation imposed exactly, its

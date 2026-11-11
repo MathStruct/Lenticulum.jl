@@ -12,6 +12,9 @@
 >
 > Theory (CT-ML wiki): [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)
 
+Measured side by side (2026-11-11): [[Benchmark against RxInfer]]. Both are exact on a Kalman
+smoother; RxInfer is faster on large graphs and on a mixture of regressions.
+
 ## 1. What RxInfer is
 
 RxInfer does Bayesian inference by **reactive message passing** on Forney-style factor graphs,
