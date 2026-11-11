@@ -32,9 +32,12 @@ unless you are asked to.
 (`git worktree add ../Lenticulum.jl-mistral -b mistral/<topic> dev-danielb`). The Manifests are
 not tracked, so instantiate each environment there before testing. It does not commit unless the
 brief says so, and never pushes; the maintainer's session reads the branch and merges it. A
-reviewer that only reads needs no worktree. Reviews never go into the repository: a reviewer
-writes its answer to a folder next to it, `../Lenticulum.jl-Review-<date>/` (one file for a
-small review), and the findings are then triaged in the vault (see Reviews below).
+reviewer that runs tests uses the same worktree (`../Lenticulum.jl-mistral`, branch
+`mistral/review`): the change under review is applied there, and scratch tests that show a
+finding are written there, never in the maintainer's checkout. Reviews never go into the
+repository: a reviewer writes its answer to a folder next to it, `../Lenticulum.jl-Review-<date>/`
+(one file for a small review), or the maintainer's scratch directory, and the findings are then
+triaged in the vault (see Reviews below).
 
 ## The repository
 
