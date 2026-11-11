@@ -152,7 +152,8 @@ convention the right one there.
   (Mycelium `gaussian.jl`); every relation factor takes it as input, and `GaussianFactor`,
   `GaussianPrior`, `LinearConstraintFactor` and `HardConstraintFactor` take hard inputs in their
   free energies. `GaussianFactor`, `NonlinearFactor` and `LinearConstraintFactor` emit it for
-  improper messages; the `improper` flag remains for AD, plates and mixtures ([[Feature Backlog]]).
+  improper messages; the `improper` flag of `GaussianBelief` remains, by decision, for AD, plates and mixtures
+  ([[Feature Backlog]], "Done (2026-11-11)").
 - **Gradients.** The SVDs and eigendecompositions are on values; nothing differentiates through
   this type, and ForwardDiff fails on it (as on `_improper_split` before).
 - **Device arrays.** Host `Matrix` only.

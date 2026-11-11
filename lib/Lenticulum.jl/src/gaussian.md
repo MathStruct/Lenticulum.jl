@@ -325,8 +325,12 @@ Proper messages stay `GaussianBelief`s. The rank test decides, as before, and th
 - the components of `SwitchingConstraintFactor`'s mixture messages, which Mycelium's mixture
   product weights as likelihoods.
 
-The flag can go once extended Gaussians have mixtures, blocks and a differentiable flat-direction
-test ([[Feature Backlog]]).
+The flag stays (2026-11-11): `ExtendedGaussian` holds only `AbstractFloat` values and finds its flat
+directions by eigendecompositions that dual numbers have no method for, plate blocks share one
+$\Lambda$ across replicas, and mixture weights rest on the canonical form's constants. The canonical
+form with the flag serves AD, batches and mixtures; the extended form is the exact host form, the
+only one with hard directions. The crossings between the two are untested ([[Feature Backlog]],
+P1).
 
 **What changed downstream: nothing but two tests.** Run with the change, VariationalDiffusion
 passed and the Lenticulum suite failed in exactly two places, both tests that read the old
