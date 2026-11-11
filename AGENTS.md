@@ -5,6 +5,9 @@ Instructions for AI coding agents working in this repository. Humans: see
 
 ## Read this first
 
+`vault/Project/Status.md` says where the work stands: the branch, what is next and with which
+facts, what is open. Read it after this file; update it before a session ends.
+
 The author moved fast and did not check everything. Much of the code and many of the notes were
 written quickly, a lot of it with AI agents, and not all of it has been reviewed by a person.
 
