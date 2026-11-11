@@ -28,6 +28,42 @@ _zero_precision(b::GaussianBelief) = all(iszero, b.Λ)
 combine(a::LenticulumCore.DiracBelief, ::GaussianBelief) = a
 combine(::GaussianBelief, b::LenticulumCore.DiracBelief) = b
 
+# Extended Gaussians (`LenticulumCore/src/extended_gaussian.jl`): the product is exact for flat,
+# hard and Gaussian directions alike. A Gaussian joins as its extended form. A clamp still
+# dominates, but is checked against the hard constraints of the other side first: a clamp that
+# violates one is a contradiction, as two unequal clamps are.
+const _EG = LenticulumCore.ExtendedGaussian
+combine(a::_EG, b::_EG) = LenticulumCore._conjoin(a, b)
+combine(a::_EG, b::GaussianBelief) = LenticulumCore._conjoin(a, LenticulumCore.extended(b))
+combine(a::GaussianBelief, b::_EG) = LenticulumCore._conjoin(LenticulumCore.extended(a), b)
+combine(a::_EG, b::LenticulumCore.DiracBelief) = (LenticulumCore._conjoin(a, LenticulumCore.extended(b)); b)
+combine(a::LenticulumCore.DiracBelief, b::_EG) = (LenticulumCore._conjoin(LenticulumCore.extended(a), b); a)
+
+"""
+    belief_distance(a::ExtendedGaussian, b::ExtendedGaussian)
+
+The largest of ``\\|\\Delta\\mu\\|_\\infty``, ``\\|\\Delta\\Sigma\\|_\\infty`` and ``\\|\\Delta P_D\\|_\\infty``, with
+``P_D`` the orthogonal projector onto the flat directions: in moments, which an extended Gaussian
+has also where it is hard, and independent of the basis chosen for its flat directions. A
+`GaussianBelief`, `DiracBelief` or `TrivialBelief` on the other side is compared as its extended
+form, so a message that changes kind still converges.
+"""
+function belief_distance(a::_EG, b::_EG)
+    LenticulumCore.dimension(a) == LenticulumCore.dimension(b) || return Inf
+    return max(maximum(abs, a.μ .- b.μ; init = 0.0), maximum(abs, a.Σ .- b.Σ; init = 0.0),
+               maximum(abs, a.D * a.D' .- b.D * b.D'; init = 0.0))
+end
+belief_distance(a::_EG, b::Union{GaussianBelief,LenticulumCore.DiracBelief}) = belief_distance(a, LenticulumCore.extended(b))
+belief_distance(a::Union{GaussianBelief,LenticulumCore.DiracBelief}, b::_EG) = belief_distance(LenticulumCore.extended(a), b)
+belief_distance(a::_EG, ::LenticulumCore.TrivialBelief) = belief_distance(a, LenticulumCore.extended(LenticulumCore.TrivialBelief(), LenticulumCore.dimension(a)))
+belief_distance(::LenticulumCore.TrivialBelief, b::_EG) = belief_distance(b, LenticulumCore.TrivialBelief())
+
+# Damping is the geometric mixture new^α · old^(1-α), as for canonical Gaussians: precisions mix,
+# a direction flat on one side becomes informative gradually, and hard directions take the
+# weighted average of the two values (`LenticulumCore._damp_extended`).
+can_damp(::_EG, ::_EG) = true
+_damp(a::_EG, b::_EG, α::Real) = LenticulumCore._damp_extended(a, b, α)
+
 """
     belief_logdensity(b::GaussianBelief, x)
 

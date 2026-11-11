@@ -19,7 +19,10 @@ named.
 
 | feature | path | status | source | why |
 |---|---|---|---|---|
-| A belief type for linear relations: a Gaussian part and flat directions, with exact `combine`, marginalisation and pushforward through linear maps | A, C | proposed | [[LP-024 Findings of the review of 2026-11-09]]; [[constraint]] §4.1 | `_split_moments`, `_flat_message` and the `improper` flag are three partial representations of it; hard linear constraints, split/concatenate and affine factors (below, "Utility factors") become exact |
+| A belief type for linear relations: a Gaussian part and flat directions, with exact `combine`, marginalisation and pushforward through linear maps | A, C | partial: `ExtendedGaussian` in LenticulumCore with exact pushforward, `marginalise`, product (Mycelium's `combine`) and conversions, tested against the limit of proper Gaussians; `_improper_split` uses it (2026-11-10); the message store takes it and `HardConstraintFactor` emits it (2026-11-11) ([[extended_gaussian]], [[hard_constraint]]) | [[LP-024 Findings of the review of 2026-11-09]]; [[constraint]] §4.1 | the rows below finish it |
+| The relation factors (`LinearConstraintFactor`, `SwitchingConstraintFactor`, `GaussianFactor`, `NonlinearFactor`) take and emit `ExtendedGaussian`s; `_split_moments` and the `improper` flag of `GaussianBelief` retired | A, C | proposed | [[extended_gaussian]] "What it does not do" | three partial representations of one object remain |
+| `HardConstraintFactor` in plates (a `factor_messages` block method) and in `MeanField()` nodes | A, C | proposed | [[hard_constraint]] "What it does not do" | a plate of hard constraints runs per replica; mean-field nodes refuse it |
+| The entropy and free-energy contribution of an extended Gaussian (Gaussian part only; what flat and hard directions contribute) | A, C | proposed | [[extended_gaussian]]; [[Bethe Free Energy]] | the free energy cannot take a belief with flat or hard directions |
 | Skip the state update of a stateless factor in a sweep, then the integer-slot store (below, "Inference") | A | proposed | LP-024: 7.7, 25.8, 102 ms for the free energy of 601, 1 201, 2 401 factors | the cost is quadratic in the number of parameter keys |
 | One benchmark against RxInfer and the dense solve: a linear-Gaussian chain and a mixture of regressions, times and free energies | A, C | proposed | review of 2026-11-09 | no external baseline exists; `RxInfer` is already a test dependency |
 | Element type in, element type out: the graph free energy in the element type of its messages, with a test | A | partial: LenticulumCore (2026-11-10) | LP-024 | `Float32` graphs are promoted to `Float64` in the total |
@@ -29,8 +32,12 @@ named.
 | `density_lambda` as the default for non-point messages | B | partial: a warning (2026-11-10) | LP-024 | uncalibrated covariances reach the graph silently |
 | The exactness condition checked at run time: `propagate!` does not report "exact" for a tree on which a mixture is collapsed | A, C | proposed | [[Bethe Free Energy]] | the report is wrong for such graphs |
 | A structure-search driver and scores beyond BIC (below, "Structure search") | C | proposed | as below | every search is example code |
-| A shared solver layer (root finding, the implicit-function adjoint, one tolerance rule, one report) before `ImplicitLayers` returns | B | proposed | [[Refactor 2026-11]] | three implementations with three conventions |
-| `Aqua.jl` in every suite; a coverage report; a job that runs examples and benchmarks at small size | all | proposed | review of 2026-11-09 | the stale dependency and the missing compat bounds would have been caught |
+| A shared solver layer (root finding, the implicit-function adjoint, one tolerance rule, one report), shared by `VariationalDiffusion` and `ImplicitLayers` | B | proposed | [[Refactor 2026-11]] | three implementations with three conventions; `ImplicitLayers`' tolerances are absolute and written for `Float64`. Its first fix, now that it is back in `lib/` |
+| A coverage report; a job that runs the examples and benchmarks at small size | all | proposed | review of 2026-11-09 | which branches no test reaches is unknown; examples and benchmarks are run by nothing (`Aqua.jl` in every suite: done 2026-11-10) |
+| Owned scalarisations: one graded energy, a scalarisation chosen per parameter key (each block descends its own), for games such as a GAN; with a stability check of the joint Jacobian | — | proposed | [[GANs as Two Factors]] §4 (2026-11-10) | every learnable node descends the one scalar $F$, so no game is expressible; a per-factor sign is the zero-sum special case |
+| Move `Mycelium.reduce_message` for Gaussian mixtures from Lenticulum (`beliefs.jl`) into Mycelium | A, C | proposed | Aqua (2026-11-10), declared in Lenticulum's `test/aqua.jl` | type piracy: Mycelium without Lenticulum refuses to reduce a Gaussian mixture |
+| Move `belief_mean`/`belief_cov` of `SampleBelief` from Adversarial (`ratio.jl`) into LenticulumCore | — | proposed | Aqua (2026-11-10), declared in Adversarial's `test/aqua.jl` | type piracy: the moments of a sample belief exist only with Adversarial loaded |
+| Cache the rank of a `GaussianFactor`'s coefficient per parameter tree | A | proposed | [[lib/Lenticulum.jl/src/gaussian|gaussian]] "What the checks cost" (2026-11-10) | `_rank_deficient` takes an SVD of `A` on every backward message: 0.7 of 2.4 μs at dimension 2, 2.6 of 6.6 μs at 6 (`bench/gaussian_message_cost.jl`) |
 
 ## Inference and graph execution
 
@@ -144,6 +151,14 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 | A benchmark of inference and learning problems for optimiser design: problems with exact or reference answers where today's methods are slow or fail, run by one script that records sweeps, wall time, error against the reference, the free energy reached, and failures. Candidates: the loopy divider (flooding: 326 sweeps to an error of 1e-10, and 97 224 with equal resistors; `bench/bp_spectrum.jl`, `bench/bp_schedules.jl`), a small discrete Ising grid (exact by junction tree), Gaussian grids near the walk-summability limit (measured 2026-11-09 for schedules and Anderson, `bench/bp_grid.jl`), the switch learning of `lib/Lenticulum.jl/examples/structure_clusters.jl` (EM with SQUAREM, restarts, beam), the calibration benchmark, MNIST in both directions. Methods and compositions to compare: damping, SQUAREM, Anderson acceleration, heavy ball, mirror and accelerated mirror descent, Langevin, learned optimisers ([[The Regulariser and the Loss]] §3); the composition laws and an order of experiments are in [[Composing Optimisers]] | proposed | medium | Daniel, 2026-11-07 ("needs a serious learning problem to test various methods or compositions") | every optimiser idea so far was tried on one graph or one example; a fixed set of problems makes them comparable and keeps a method that wins on one from being adopted on that alone |
 | Benchmark regression tracking (scaling, allocations per message) | proposed | low | ChatGPT review §6 | |
 
+## Done (2026-11-11)
+
+The message store takes extended Gaussians (`belief_distance` on moments and the flat projector;
+`damp` as the geometric mixture). `HardConstraintFactor`: the linear relation imposed exactly, its
+messages `preimage(pushforward(…))` of extended Gaussians, tested against `LinearConstraintFactor`
+with noise, against the Gaussian conditioned on the equality, and in graphs under tree and damped
+flooding schedules ([[hard_constraint]]). Messages only; no free energy.
+
 ## Done (2026-11-10)
 
 The refactor ([[Refactor 2026-11]]): five packages (Mycelium split into inference and
@@ -151,6 +166,12 @@ The refactor ([[Refactor 2026-11]]): five packages (Mycelium split into inferenc
 back in `lib/` with a weekly CI run (not yet reviewed), the vault laid out by path. The corrections of [[LP-024 Findings of the review of 2026-11-09]]: partly flat Gaussian
 messages, freeze paths, composition with full noise, damping, one gradient driver rule, dimension
 checks, and four corrections to the theory notes.
+Also: the parked packages pass again and are tested weekly (`.github/workflows/Weekly.yml`);
+redirect stubs for the notes that moved (`docs/site/moved.tsv`, live on the site); `Aqua.jl` in
+every suite, with the compat bounds it asked for; the Obsidian plugin bundles untracked;
+`GaussianFactor` backward messages 22–29% faster (one SVD instead of two); [[GANs as Two Factors]]
+§4–5 rewritten (players are scalarisations with an owner). `ExtendedGaussian`: the belief type for linear
+relations, with exact pushforward and product (first part of the row above).
 
 ## Done (2026-11-04/05)
 

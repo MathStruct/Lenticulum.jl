@@ -27,7 +27,7 @@ module LenticulumCore
 
 using Random: Random, AbstractRNG
 using LuxCore: LuxCore
-using LinearAlgebra: LinearAlgebra, Diagonal, Hermitian, Symmetric, cholesky, dot, eigvals, isposdef, issymmetric, issuccess, logdet
+using LinearAlgebra: LinearAlgebra, Diagonal, Hermitian, Symmetric, cholesky, dot, eigen, eigvals, I, isposdef, issymmetric, issuccess, logdet, norm, svd
 
 include("abstract_types.jl")
 include("channels.jl")
@@ -35,6 +35,7 @@ include("parameter_tree.jl")
 include("energy.jl")
 include("open_model.jl")
 include("gaussian_belief.jl")
+include("extended_gaussian.jl")
 include("interop.jl")
 include("lens.jl")
 include("statistical_game.jl")
@@ -72,6 +73,7 @@ export OpenModelResult, DiracBelief, SampleBelief, TrivialBelief
 export AbstractPotentialBelief, LogPotentialBelief
 export CategoricalBelief, MixtureBelief, probabilities, bernoulli, mixture_weights
 export GaussianBelief, Gaussian, uninformative, isuninformative, belief_mean, belief_cov, isproper, logpartition
+export ExtendedGaussian, extended, flat_directions, hard_directions, marginalise, preimage
 export as_distribution, as_belief
 export forward, logdensity, pushforward, isexact, ispure
 export latentspace, observedspace, unobservedspace

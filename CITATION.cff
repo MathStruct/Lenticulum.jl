@@ -1392,6 +1392,19 @@ references:
     year: 2024
     url: "https://arxiv.org/abs/2403.02284"
   - type: article
+    title: "A Categorical Treatment of Open Linear Systems"
+    authors:
+      - family-names: "Stein"
+        given-names: "Dario"
+      - family-names: "Samuelson"
+        given-names: "Richard"
+    year: 2025
+    journal: "Logical Methods in Computer Science"
+    volume: "21"
+    issue: "3"
+    doi: "10.46298/lmcs-21(3:11)2025"
+    url: "https://arxiv.org/abs/2403.03934"
+  - type: article
     title: "Accurate Approximations for Posterior Moments and Marginal Densities"
     authors:
       - family-names: "Tierney"

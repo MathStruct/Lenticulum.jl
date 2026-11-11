@@ -134,3 +134,22 @@ improper case).
 The normalisation subtracts no log-partitions from each other, but it does compute
 $\tfrac12 \eta^\top \Lambda^{-1} \eta$ directly, which is large when the product is far from the origin; the LP-019
 care for proper pairs (the convolution form) has no counterpart here.
+
+## Extended Gaussians (2026-11-10)
+
+`combine` takes `LenticulumCore.ExtendedGaussian`s (`lib/LenticulumCore.jl/src/extended_gaussian.md`):
+two of them, or one and a `GaussianBelief`, combine by the exact product (`_conjoin`, beside the
+type), which stacks hard constraints, adds precisions on what they leave free, and keeps the
+directions flat in both. A `DiracBelief` still dominates, as against a Gaussian, but is checked
+first against the hard constraints of the other side: a clamp that violates one is an
+`ArgumentError`, like two unequal clamps. The result of a product with an extended Gaussian is an
+extended Gaussian, also when both inputs were representable in canonical form.
+
+**The store takes them (2026-11-11).** `belief_distance` compares $\mu$, $\Sigma$ and the projector onto
+the flat directions (independent of their basis); against a `GaussianBelief`, `DiracBelief` or
+`TrivialBelief` it compares the other's extended form, so a message that changes kind converges.
+`damp` is the geometric mixture `LenticulumCore._damp_extended`: the canonical rule on Gaussian
+directions, gradual on directions flat on one side, the weighted average of two hard values.
+`HardConstraintFactor` (Lenticulum) emits extended Gaussians under any schedule. Tests:
+`test/runtests.jl`, "combine with extended Gaussians" and "the message store takes extended
+Gaussians".

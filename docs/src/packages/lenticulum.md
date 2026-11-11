@@ -36,6 +36,7 @@ pseudo-mean.
 | `GaussianFactor` | ``p(y \mid x) = \mathcal{N}(y; Ax+b, Q)`` | two, named |
 | `GaussianPrior` | ``\mathcal{N}(\mu, \Sigma)`` on one channel | one |
 | `LinearConstraintFactor` | ``0 = \sum_i A_i x_i - c + \varepsilon`` | **any number** |
+| `HardConstraintFactor` | ``\sum_i A_i x_i = c`` **exactly**; messages are `ExtendedGaussian`s | any number |
 | `SwitchingConstraintFactor` | ``0 = \sum_i A_i x_i - b_k + \varepsilon``, outcome ``k`` of weight ``w_k`` | any number, plus the outcome |
 | `RegimeFactor` | ``0 = \sum_i A_{i,k} x_i - b_k + \varepsilon_k``, ``\varepsilon_k \sim \mathcal{N}(0, Q_k)``: coefficients and noise per outcome | any number, plus the outcome |
 | `NonlinearFactor` | ``p(y \mid x) = \mathcal{N}(y; f(x), Q)``, ``f`` given | two, named |
@@ -58,6 +59,11 @@ laws, balance equations and anything written as a relation rather than an assign
 f  = LinearConstraintFactor((i1 = 1, i2 = 1, i3 = 1), 1; noise = 1e-8)
 ps = (A = (i1 = ones(1,1), i2 = ones(1,1), i3 = ones(1,1)), c = [0.0])
 ```
+
+The `noise = 1e-8` there stands in for a relation that holds exactly. `HardConstraintFactor`
+holds it exactly: its messages are `ExtendedGaussian`s (LenticulumCore), hard along what the
+equation fixes and flat along what it cannot see, so `HardConstraintFactor((i1 = 1, i2 = 1, i3 = 1), 1)`
+with the same parameters is Kirchhoff's law itself. It has messages only, no free energy.
 
 `SwitchingConstraintFactor` lets one discrete outcome choose the right-hand side: a
 measurement of the linear observable ``\sum_i A_i x_i``. It is the smallest factor that leaves
@@ -111,8 +117,6 @@ probabilities(p)            # P(y = 1), P(y = 2), P(y = 3)
 
 - Covariance learning is opt-in for GaussianFactor/GaussianPrior; other factor
   families retain their own noise restrictions.
-- A `LinearConstraintFactor` returns an uninformative message if any non-target channel is
-  unconstrained, which is blunter than necessary.
 - A loopy graph of constraint factors cannot bootstrap without a weak prior on every variable.
 
 ## API

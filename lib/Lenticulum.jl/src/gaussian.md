@@ -228,6 +228,12 @@ proper Gaussian takes the same path as `_moments`, and `isproper` is non-differe
 differentiated code is unchanged for proper inputs. The theory and the tolerances are in
 `constraint.md` §4.1.
 
+Since 2026-11-10 the split of an improper input is the input as a `LenticulumCore.ExtendedGaussian`
+(`_improper_split` calls `extended`, which has the tolerances and refusals described there): the
+mean and covariance are its Gaussian part, `N` an orthonormal basis of its flat directions. The
+relation factors still take the tuple; making them take and emit the extended Gaussian itself is
+the next step ([[Feature Backlog]]).
+
 **`GaussianFactor` takes partly flat inputs (2026-11-10).** A `GaussianFactor` is the relation
 $-Ax + y = b + \varepsilon$, the two-channel case of `LinearConstraintFactor`. When its input is
 informative in some directions and flat in others (`_partly_flat`: a declared-improper or

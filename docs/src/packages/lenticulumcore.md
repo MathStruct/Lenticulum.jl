@@ -120,7 +120,7 @@ Pages = ["channels.jl"]
 
 ```@autodocs
 Modules = [LenticulumCore]
-Pages = ["open_model.jl", "gaussian_belief.jl", "interop.jl"]
+Pages = ["open_model.jl", "gaussian_belief.jl", "extended_gaussian.jl", "interop.jl"]
 ```
 
 ### Bayesian lenses

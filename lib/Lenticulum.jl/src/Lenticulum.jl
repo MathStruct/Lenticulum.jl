@@ -46,7 +46,7 @@ using Mycelium: Mycelium
 using MyceliumLearning: MyceliumLearning
 using SpecialFunctions: SpecialFunctions
 using LenticulumCore: GaussianBelief, Gaussian, uninformative, belief_mean, belief_cov, isproper,
-    logpartition, dimension, _chol, _improper_check
+    logpartition, dimension, _chol, _improper_check, ExtendedGaussian
 
 include("beliefs.jl")
 include("noise.jl")
@@ -55,6 +55,7 @@ include("exposure.jl")
 include("composition.jl")
 include("nonlinear.jl")
 include("constraint.jl")
+include("hard_constraint.jl")
 include("likelihood.jl")
 include("switching.jl")
 include("regime.jl")
@@ -67,6 +68,7 @@ export GaussianFactor, GaussianPrior, LinearGaussianModel
 export WishartPrecisionPrior, LogNormalVariancePrior, noise_covariance
 export NonlinearFactor, NonlinearGaussianModel, Linearization, Unscented, linearize
 export LinearConstraintFactor, LinearConstraintModel
+export HardConstraintFactor, ExtendedGaussian
 export residual, residual_statistics
 export SwitchingConstraintFactor, SwitchingConstraintModel, switch_statistics, switch_overlaps, partial_sums
 export RegimeFactor, regime_covariances

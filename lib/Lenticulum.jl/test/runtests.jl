@@ -1328,4 +1328,6 @@ include("lp018_interop.jl")
 include("lp019_interop.jl")
 include("gaussian_oracle.jl")
 
+include("hard_constraint.jl")
+
 include("aqua.jl")

@@ -431,4 +431,6 @@ end
     @test (@doc LenticulumCore.oplus) !== nothing && Base.Docs.hasdoc(LenticulumCore, :oplus)
 end
 
+include("extended_gaussian.jl")
+
 include("aqua.jl")

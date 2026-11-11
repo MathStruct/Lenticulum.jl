@@ -19,6 +19,10 @@ f = GaussianFactor(2 => 3; noise = 0.5)      # the description
 ps, st = LuxCore.setup(rng, f)               # an inhabitant
 ```
 
+A factor that imposes a linear relation exactly, `HardConstraintFactor`, sends `ExtendedGaussian`
+messages (below, "Belief"): the relation's hard directions are part of the belief, not a noise
+of `1e-8`.
+
 ## Channel
 
 A named port. `LenticulumCore.Channel(:x, 2)` is a channel called `:x` carrying a
@@ -56,13 +60,15 @@ What travels along an edge: a distribution over a channel's values. The concrete
 | type | is | where it comes from |
 |---|---|---|
 | `DiracBelief` | a point | clamped data; any solver that returns a point |
-| `GaussianBelief` | a Gaussian, in **canonical form** (`η`, `Λ`) | `Lenticulum` |
+| `GaussianBelief` | a Gaussian, in **canonical form** (`η`, `Λ`) | `LenticulumCore` (type), `Mycelium` (rules) |
+| `ExtendedGaussian` | a Gaussian made flat along a subspace, with hard (zero-variance) directions allowed: the belief of a linear relation; exact `pushforward`, `marginalise` and product (`combine`) | `LenticulumCore`; `extended(b)` converts the others |
 | `SampleBelief` | a weighted particle set | `Adversarial` generators |
 | `TrivialBelief` | "no information" | the identity for pooling |
 
 `GaussianBelief` stores information form rather than mean/covariance, which makes pooling two
 beliefs into one simple addition and lets a belief be *improper* (`Λ` singular) — which is what
-a likelihood that constrains only some directions looks like.
+a likelihood that constrains only some directions looks like. It cannot hold a direction with no variance (a
+hard constraint); `ExtendedGaussian` holds both kinds.
 
 ## Message
 

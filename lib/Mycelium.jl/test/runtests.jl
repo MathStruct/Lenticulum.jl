@@ -692,4 +692,51 @@ end
     end
 end
 
+@testset "combine with extended Gaussians: exact for flat and hard directions" begin
+    LC = LenticulumCore
+    # a Gaussian on (x₁, x₂) and a constraint x₁ = 1 with x₂ flat: the product conditions on x₁
+    g = LC.Gaussian([0.0, 0.0], [1.0 0.5; 0.5 1.0])
+    h = LC.ExtendedGaussian([1.0, 0.0], zeros(2, 2), reshape([0.0, 1.0], 2, 1))
+    p = combine(g, h)
+    @test p isa LC.ExtendedGaussian && combine(h, g).μ ≈ p.μ
+    @test p.μ ≈ [1.0, 0.5] && p.Σ ≈ [0.0 0.0; 0.0 0.75] && size(p.D, 2) == 0
+    # two proper Gaussians: the same as the canonical sum
+    g2 = LC.Gaussian([1.0, -1.0], [2.0 0.0; 0.0 1.0])
+    e = combine(LC.extended(g), LC.extended(g2))
+    c = combine(g, g2)
+    @test e.μ ≈ belief_mean(c) && e.Σ ≈ belief_cov(c)
+    # an improper site: its flat direction passes through
+    s = combine(LC.extended(GaussianBelief([2.0, 0.0], [2.0 0.0; 0.0 0.0], true)), LC.extended(LC.TrivialBelief(), 2))
+    @test size(s.D, 2) == 1 && s.μ ≈ [1.0, 0.0]
+    # a clamp dominates, but not one that violates a hard constraint
+    @test combine(h, LC.DiracBelief([1.0, 7.0])) isa LC.DiracBelief
+    @test_throws ArgumentError combine(h, LC.DiracBelief([2.0, 7.0]))
+    @test_throws ArgumentError combine(LC.DiracBelief([2.0, 7.0]), h)
+end
+
+@testset "the message store takes extended Gaussians: distance and damping" begin
+    LC = LenticulumCore
+    a = LC.ExtendedGaussian([1.0, 2.0], [1.0 0.0; 0.0 0.0])                               # x₂ = 2 hard
+    b = LC.ExtendedGaussian([3.0, 0.0], [2.0 0.0; 0.0 0.0], reshape([0.0, 1.0], 2, 1))     # x₂ flat
+    @test belief_distance(a, a) == 0
+    # the flat directions are compared as a projector, independent of their basis
+    @test belief_distance(b, LC.ExtendedGaussian([3.0, 0.0], [2.0 0.0; 0.0 0.0], reshape([0.0, -1.0], 2, 1))) ≈ 0 atol = 1e-15
+    @test belief_distance(a, b) ≈ 2.0                                                       # |Δμ₁| = 2 (μ₂ of b is projected away)
+    # other kinds are compared as their extended form
+    g = LC.Gaussian([1.0, 2.0], [1.0 0.0; 0.0 1.0])
+    @test belief_distance(LC.extended(g), g) ≈ 0 atol = 1e-15
+    @test belief_distance(LC.extended(LC.TrivialBelief(), 2), LC.TrivialBelief()) == 0
+    # damping: the geometric mixture; on Gaussian directions it is the canonical rule
+    @test can_damp(a, b)
+    d = Mycelium.damp(a, b, 0.5)
+    ga, gb = LC.Gaussian([1.0], fill(1.0, 1, 1)), LC.Gaussian([3.0], fill(2.0, 1, 1))
+    gd = Mycelium.damp(ga, gb, 0.5)
+    @test d.μ[1] ≈ belief_mean(gd)[1] && d.Σ[1, 1] ≈ belief_cov(gd)[1, 1]
+    @test d.μ[2] ≈ 2.0                                                                      # hard on one side, flat on the other: hard
+    @test abs(d.Σ[2, 2]) < 1e-15
+    # two hard values are averaged with the damping weights, not refused
+    a2 = LC.ExtendedGaussian([1.0, 4.0], [1.0 0.0; 0.0 0.0])
+    @test Mycelium.damp(a, a2, 0.25).μ[2] ≈ 0.25 * 2.0 + 0.75 * 4.0
+end
+
 include("aqua.jl")

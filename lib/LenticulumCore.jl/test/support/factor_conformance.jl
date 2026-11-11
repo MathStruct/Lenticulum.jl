@@ -37,6 +37,8 @@ inversion would also need a joint latent posterior).
 The optional `pointwise_gap`, `game_gap`, and `message_gap` strings explicitly omit only
 that section for a documented unsupported contract. `polarity_gap` omits only enumeration
 membership for a polarity accepted by `supports_polarity` but missing from the list.
+`free_energy_gap` omits the graph free-energy check for a factor that has none (a relation
+without noise, `HardConstraintFactor`); `local_free_energy` must then throw an `ArgumentError`.
 Callers must test/record the gap separately; these runs are partial conformance.
 In wired scope, `p = nothing` is reserved for sinks (no polarities), with an explicit `message_gap`.
 Independent site/posterior fixtures may also be given on the lens path. A joint lens
@@ -65,11 +67,11 @@ function check_factor_conformance(f, p; π = nothing, inputs = nothing, ps, st, 
                                   expected_free_energy = nothing, expected_entropy = nothing,
                                   scope = :wired, bound = nothing,
                                   pointwise_gap = nothing, game_gap = nothing,
-                                  message_gap = nothing, polarity_gap = nothing)
+                                  message_gap = nothing, polarity_gap = nothing, free_energy_gap = nothing)
     scope in (:wired, :game, :bound) || throw(ArgumentError("unknown conformance scope"))
     if scope !== :wired
         p === nothing || throw(ArgumentError("game/bound scope requires p=nothing"))
-        all(isnothing, (pointwise_gap, game_gap, message_gap, polarity_gap)) ||
+        all(isnothing, (pointwise_gap, game_gap, message_gap, polarity_gap, free_energy_gap)) ||
             throw(ArgumentError("game/bound scope does not accept wired-section gaps"))
     end
     if scope === :game
@@ -81,7 +83,7 @@ function check_factor_conformance(f, p; π = nothing, inputs = nothing, ps, st, 
         bound.kwargs isa NamedTuple && bound.exact isa Real && isfinite(bound.exact) ||
             throw(ArgumentError("bound fixture requires keyword NamedTuple and finite exact value"))
     end
-    for gap in (pointwise_gap, game_gap, message_gap, polarity_gap)
+    for gap in (pointwise_gap, game_gap, message_gap, polarity_gap, free_energy_gap)
         gap === nothing || (gap isa AbstractString && !isempty(gap)) ||
             throw(ArgumentError("conformance gaps must be nonempty documented reasons"))
     end
@@ -186,11 +188,16 @@ function check_factor_conformance(f, p; π = nothing, inputs = nothing, ps, st, 
 
             end
 
-            local_F, _ = local_free_energy(f, msgs, ps, st)
-            @test _in_energyspace(local_F, energyspace(f))
-            @test isfinite(scalarise(scalarisation(f), local_F))
-            if expected_free_energy !== nothing
-                @test _energy_isapprox(local_F, expected_free_energy)
+            if free_energy_gap === nothing
+                local_F, _ = local_free_energy(f, msgs, ps, st)
+                @test _in_energyspace(local_F, energyspace(f))
+                @test isfinite(scalarise(scalarisation(f), local_F))
+                if expected_free_energy !== nothing
+                    @test _energy_isapprox(local_F, expected_free_energy)
+                end
+            else
+                # a documented gap: the factor has no graph free energy (it must refuse, not guess)
+                @test_throws ArgumentError local_free_energy(f, msgs, ps, st)
             end
         end # wired scope
         if scope === :game || (scope === :wired && game_gap === nothing)
