@@ -105,7 +105,7 @@
     <lastmod>2026-11-10T10:22:23.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Gaussian-Graphs/Bethe-Free-Energy</loc>
-    <lastmod>2026-11-10T22:17:44.000Z</lastmod>
+    <lastmod>2026-11-11T09:25:39.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Gaussian-Graphs/Composing-Optimisers</loc>
     <lastmod>2026-11-10T10:53:33.000Z</lastmod>
@@ -204,7 +204,7 @@
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Parked/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-11-11T01:15:43.468Z</lastmod>
+    <lastmod>2026-11-11T09:25:56.820Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Parked/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
@@ -276,7 +276,7 @@
     <lastmod>2026-11-10T18:39:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog</loc>
-    <lastmod>2026-11-11T01:15:26.000Z</lastmod>
+    <lastmod>2026-11-11T09:25:39.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-001-The-vault-build-uses-GNU-only-sed</loc>
     <lastmod>2026-10-24T23:08:41.000Z</lastmod>
@@ -585,10 +585,10 @@
     <lastmod>2026-11-10T10:53:33.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Lenticulum.jl/gaussian</loc>
-    <lastmod>2026-11-11T01:15:26.000Z</lastmod>
+    <lastmod>2026-11-11T09:25:39.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Lenticulum.jl/hard_constraint</loc>
-    <lastmod>2026-11-11T00:51:20.000Z</lastmod>
+    <lastmod>2026-11-11T09:25:39.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Lenticulum.jl/likelihood</loc>
     <lastmod>2026-11-10T10:53:33.000Z</lastmod>
@@ -621,7 +621,7 @@
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/extended_gaussian</loc>
-    <lastmod>2026-11-11T00:51:20.000Z</lastmod>
+    <lastmod>2026-11-11T09:25:39.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/gaussian_belief</loc>
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
@@ -666,7 +666,7 @@
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/gaussian</loc>
-    <lastmod>2026-11-11T00:51:20.000Z</lastmod>
+    <lastmod>2026-11-11T09:25:39.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/graph</loc>
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
