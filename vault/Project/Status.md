@@ -16,7 +16,9 @@
 | `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | clean, pushed with the I18 commit; `master` is behind (merge on request) |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | the helper worktree for Mistral (`AGENTS.md`, "Helper agents and worktrees"); at `15db235d` with the I18 diff applied for Mistral's review (before the fixes of LP-026), and Mistral's scratch tests in `scratch/` (untracked). An old draft of the polarity-cache notes is in the stash `mistral-wt-polarity-cache-draft-2026-11-12` (superseded by the commit; drop it). Bring the worktree to `dev-danielb` and apply the change before a review |
 
-Pushing: the `mathstruct` SSH key is often rejected; push over HTTPS with `gh`'s credentials
+Pushing: a plain `git push origin dev-danielb` works from every shell. Since 2026-11-12
+`~/.ssh/config` maps `github.com` to the `mathstruct` key; before that, only fish loaded it. If
+GitHub itself rejects the key, push over HTTPS with `gh`'s credentials
 (`git -c credential.helper= -c credential.helper='!gh auth git-credential' push https://github.com/MathStruct/Lenticulum.jl.git dev-danielb`).
 
 ## Done: I18 in part
