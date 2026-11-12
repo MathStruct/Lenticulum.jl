@@ -1221,6 +1221,54 @@ end
     @test_throws ArgumentError implicit_laplace(mc, bad, [Inf, 0.0], pc, sc)
 end
 
+@testset "round trip: answers on the relation stay, projections walk back" begin
+    # the ring's smoothed density is radial, so the slice modes of x | y and of y | x both lie on
+    # its mode circle r = R′: an answer on the relation sends back to its own clamp exactly
+    m = ImplicitDiffusion(RING, field_nodes(Xoshiro(1), 2; samples = 8))
+    roots, _ = implicit_roots(m, [0.6, 0.0], HARDX, RPS, RST)
+    @test length(roots) == 2
+    for r in roots
+        rt, _ = round_trip(m, r, [0.6, 0.0], HARDX, RPS, RST)
+        @test rt.distance < 1e-2
+        @test rt.solution.z[2] == r.z[2]                   # the answer is clamped in the reversed query
+    end
+    # off the relation: x = 1.3 has a root on the ridge (y ≈ 0); clamping y = 0 walks x back to R′ ≈ 1
+    off, _ = implicit_roots(m, [1.3, 0.0], HARDX, RPS, RST)
+    @test !isempty(off)
+    for r in off
+        rt, _ = round_trip(m, r, [1.3, 0.0], HARDX, RPS, RST)
+        R′ = abs(rt.solution.z[1])
+        @test 0.95 < R′ < 1.0
+        @test rt.distance ≈ 1.3 - R′ atol = 1e-6
+    end
+    # any precision vector `implicit_infer` takes (LP-030 F1: an element type `Any` threw)
+    for ρ in (Any[Inf, 0.0], view([Inf, 0.0, 9.0], 1:2), Float32[Inf, 0])
+        r, _ = implicit_infer(m, [0.6, 0.5], ρ, RPS, RST)
+        rt, _ = round_trip(m, r, [0.6, 0.5], ρ, RPS, RST)
+        @test rt.distance < 1e-2
+    end
+    # soft evidence on y pulls the answer inside the ring, off the relation; the reversed query
+    # clamps y there and walks x back onto the mode circle, the farther the stronger the evidence
+    R′ = norm(roots[1].z)
+    d = map((0.1, 0.5, 2.0)) do ρy
+        r, _ = implicit_infer(m, [0.6, 0.5], [Inf, ρy], RPS, RST)
+        rt, _ = round_trip(m, r, [0.6, 0.5], [Inf, ρy], RPS, RST)
+        @test r.converged && rt.solution.z[2] == r.z[2]
+        @test norm(rt.solution.z) ≈ R′ atol = 2e-3
+        rt.distance
+    end
+    @test issorted(collect(d)) && d[end] > 0.2
+    # a query without hard clamps has nothing to send back
+    s, _ = implicit_infer(m, [0.6, 0.8], [1.0, 1.0], RPS, RST)
+    rt, _ = round_trip(m, s, [0.6, 0.8], [1.0, 1.0], RPS, RST)
+    @test rt.distance == 0 && rt.solution === nothing
+    # an unstable answer of the reversed query counts as off the relation: the query clamps y = 0,
+    # so the reversed one clamps x = 0 and solves for y from 0, the maximum of that slice
+    c = ImplicitSolution([0.0, 0.0], 0.0, 0, true, true)
+    rt, _ = round_trip(m, c, [0.0, 0.0], [0.0, Inf], RPS, RST; maxiters = 5)
+    @test rt.distance == Inf
+end
+
 @testset "categorical answers: classification as a query" begin
     # three classes in the plane, each a ring of 8 components plus its centre, with the label as
     # a one-hot code: the exact posterior p(class | x) is a ratio of Gaussian sums

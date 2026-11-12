@@ -103,6 +103,25 @@ distance to the nearest data point, the denoiser's reconstruction error and the 
 a p-value against held-out points. A clamp off the relation still converges, and is flagged
 there ([[coverage]]).
 
+**`round_trip`** (F3) asks the same question of the model alone, in data units. It reverses the
+query: the hard-clamped coordinates $C$ are freed, every other one is clamped at the answer, and
+`implicit_infer` solves back from the answer. The result is $\lVert z'_C - z_{0,C}\rVert$, how far the
+clamps move. An answer on the relation is already a root of the reversed query and stays; a
+query off the relation ($x = 1.3$ on the circle) has its root on the smoothed density's ridge,
+and the reversed query walks $x$ back onto the relation. For a radially symmetric density the
+modes of both slices lie on the same mode circle, so on the closed-form ring the distance of an
+answer on the relation is zero up to the field's discreteness, and from $x = 1.3$ it is $1.3 - R'$
+with $R' \approx 0.99$ the smoothed ring's mode radius (test "round trip: …"). A reversed solve that
+does not converge to a stable root gives `Inf`.
+
+It costs one more solve per answer and needs no data and no reference set, unlike `coverage`.
+What it does not see: an answer on a wrong branch is on the relation and passes (T1), and with
+a smoothing bias larger than the tolerance an answer on the relation fails. It also fails answers
+where the relation runs parallel to the clamped coordinates (the top of the circle for "$y$ given
+$x$"): the reversed query is ill-conditioned there and does not return to the clamp, so the check
+asks for local invertibility in the reverse direction as well as membership. Its effect on the
+calibration benchmark is in `examples/calibration.md`.
+
 What is still missing: λ chosen for calibration is not always the λ one wants for balancing soft
 evidence.
 

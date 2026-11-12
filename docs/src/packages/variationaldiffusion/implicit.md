@@ -22,7 +22,9 @@ b = implicit_pullback(m, sol, z₀, ρ, z̄, ps, st)   # gradients by the adjoin
 `implicit_laplace` and `laplace_belief` give the Laplace covariance at an answer;
 `implicit_mixture` combines all answers into a `MixtureBelief` whose weights are Laplace mass
 estimates when the model has an energy. Build the model with `λ = density_lambda(schedule,
-nodes)` for covariances in data units.
+nodes)` for covariances in data units. `round_trip` checks an answer against the relation:
+it frees the clamped coordinates, clamps the rest at the answer and solves back; an answer on the
+relation stays, a projection of a query off the relation moves its clamps.
 
 ## Many free coordinates
 

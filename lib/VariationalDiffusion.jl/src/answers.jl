@@ -52,6 +52,41 @@ function implicit_roots(m::AbstractImplicitRelation, z₀, ρ, ps, st; nstarts::
     return (roots, st)
 end
 
+"""
+    round_trip(m, sol::ImplicitSolution, z₀, ρ, ps, st; kwargs...) -> (NamedTuple, st)
+
+Is the answer `sol` to the query `(z₀, ρ)` on the relation, or a projection onto it? The query
+is reversed: the coordinates it clamped hard (``\\rho_i = \\infty``) are freed, every other one is
+clamped hard at the answer, and [`implicit_infer`](@ref) solves back from the answer itself
+(`kwargs` are passed on). An answer on the relation is already a root of the reversed query, so
+the clamped coordinates do not move; a query off the relation (``x = 1.3`` on the unit circle)
+has a root on the smoothed density's ridge, from which the reversed query walks back onto the
+relation (``x \\approx 1``).
+
+Returns `(distance, solution)`: `distance` is ``\\lVert z'_C - z_{0,C}\\rVert``, the displacement of
+the clamped coordinates ``C``, in data units, and `solution` the reversed query's
+[`ImplicitSolution`](@ref). When it did not converge or is not stable, `distance` is `Inf`: no
+stable point of the relation was found through the answer. A query without hard clamps has
+nothing to send back and returns `distance = 0` and `solution = nothing`.
+
+Soft evidence (``0 < \\rho_i < \\infty``) pulls an answer off the relation towards its targets; the
+reversed query clamps those coordinates at the answer, so `distance` then measures how far the
+evidence pulled, a conflict between the evidence and the relation, as well as a query off it.
+
+The answer is called on the relation when `distance` is below a tolerance in the data's units,
+such as a few noise widths of the data. The smoothing bias of the field moves even an exact
+answer a little (``O(\\sigma_t^2\\kappa)``, `implicit.md`), so the tolerance must be above it.
+"""
+function round_trip(m::AbstractImplicitRelation, sol::ImplicitSolution, z₀, ρ, ps, st; kwargs...)
+    hard = isinf.(ρ)
+    any(hard) || return ((distance = 0.0, solution = nothing), st)
+    T = float(eltype(sol.z))                     # not eltype(ρ): a precision vector may be a Vector{Any}
+    ρ′ = map(h -> h ? zero(T) : T(Inf), hard)
+    back, st = implicit_infer(m, sol.z, ρ′, ps, st; z_init = sol.z, kwargs...)
+    d = (back.converged && back.stable) ? norm(back.z[hard] .- z₀[hard]) : Inf
+    return ((distance = float(d), solution = back), st)
+end
+
 _has_energy(m) = false
 _has_energy(::ImplicitDiffusion{<:NoisePredictor{<:EnergyNetwork}}) = true
 _has_energy(::ImplicitDiffusion{<:NoisePredictor{<:GaussianMixtureEps}}) = true

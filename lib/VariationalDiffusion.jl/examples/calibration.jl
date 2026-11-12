@@ -2,7 +2,7 @@
 # field recover a known relation. Recorded in `examples/calibration.md`.
 #
 #     cd lib/VariationalDiffusion.jl
-#     julia -t auto --project=test examples/calibration.jl        (about 70 minutes on a CPU, mostly the queries)
+#     julia -t auto --project=test examples/calibration.jl        (on all threads; the queries take most of the time)
 #
 # Three relations in R², each learned by the 3-layer MLP of `circle_mlp.jl` (denoising score
 # matching, 6000 Adam steps, data noise 0.02):
@@ -27,6 +27,7 @@ embed(t) = vcat(sin.((2π .* t) .* FREQ), cos.((2π .* t) .* FREQ))
 input(x, t) = vcat(x, embed(t) .* ones(eltype(x), 1, size(x, 2)))
 const mlp = Chain(Dense(12 => 64, swish), Dense(64 => 64, swish), Dense(64 => 2))
 const τ = 0.1
+const SMOKE = get(ENV, "CALIBRATION_SMOKE", "") == "1"   # a run at small size, to check the script
 
 # --- the relations: a sampler and the branches y(x) --------------------------------------------
 circle_sample(rng, B) = (θ = 2π .* rand(rng, B); vcat(cos.(θ)', sin.(θ)'))
@@ -51,7 +52,7 @@ function batch(rng, sample, B)
     xₜ = alpha.(Ref(sched), t) .* x₀ .+ sigma.(Ref(sched), t) .* ε
     return (Float32.(vcat(xₜ, embed(t))), Float32.(ε))
 end
-function train(rng, sample; steps = 6000)
+function train(rng, sample; steps = SMOKE ? 200 : 6000)
     ps, st = Lux.setup(rng, mlp)
     ts = Training.TrainState(mlp, ps, st, Optimisers.Adam(1.0f-3))
     loss = NaN
@@ -62,13 +63,29 @@ function train(rng, sample; steps = 6000)
 end
 f64(x::AbstractArray) = Float64.(x); f64(x::NamedTuple) = map(f64, x); f64(x) = x
 
-# --- the metrics over one query grid ------------------------------------------------------------
-function calibrate(m, ps, st, rel; spread = 1.5)
+# --- the roots of one query grid, with the remedies' verdicts -----------------------------------
+# Each root carries two verdicts of F3 (the calibration remedies): `round_trip` (clamp the root's y,
+# solve back for x, keep it if x moves by at most τ) and `coverage` (keep it unless flagged at
+# p < 0.05 against held-out data). The queries run on all threads.
+function query_grid(m, ps, st, rel, ref; spread = 1.5, continuation = ())
+    out = Vector{Any}(undef, length(rel.xs))
+    Threads.@threads for q in eachindex(rel.xs)
+        x = rel.xs[q]
+        SMOKE && q % 7 != 1 && (out[q] = []; continue)
+        z₀, ρ = [x, 0.0], [Inf, 0.0]
+        sols, _ = implicit_roots(m, z₀, ρ, ps, st; nstarts = 32, spread, rng = Xoshiro(q), continuation)
+        out[q] = [(y = s.z[2], trip = first(round_trip(m, s, z₀, ρ, ps, st)).distance ≤ τ,
+                   cov = !coverage(ref, s).flagged) for s in sols]
+    end
+    return out
+end
+
+# --- the metrics over one query grid, for the roots a filter keeps ------------------------------
+function calibrate(rel, grid, keep)
     found, total, roots, spurious, offdomain, offqueries, dists, radial = 0, 0, 0, 0, 0, 0, Float64[], Float64[]
     minority_found, minority_total = 0, 0
     for (q, x) in enumerate(rel.xs)
-        sols, _ = implicit_roots(m, [x, 0.0], [Inf, 0.0], ps, st; nstarts = 32, spread, rng = Xoshiro(q))
-        ys = [s.z[2] for s in sols]
+        ys = [r.y for r in grid[q] if keep(r)]
         br = rel.branches(x)
         roots += length(ys)
         if isempty(br)
@@ -100,8 +117,12 @@ function calibrate(m, ps, st, rel; spread = 1.5)
             minority = minority_total == 0 ? NaN : minority_found / minority_total)
 end
 
-const LEVELS = (("low, t ≤ 0.01", range(0.001, 0.01; length = 8)), ("default, t ≤ 0.05", range(0.002, 0.05; length = 8)),
-                ("high, t ≤ 0.2", range(0.01, 0.2; length = 8)))
+const LEVELS = (("low, t ≤ 0.01", range(0.001, 0.01; length = 8), ()),
+                ("default, t ≤ 0.05", range(0.002, 0.05; length = 8), ()),
+                ("high, t ≤ 0.2", range(0.01, 0.2; length = 8), ()),
+                ("low, annealed", range(0.001, 0.01; length = 8), (16.0, 4.0)))   # t ≤ 0.16, then 0.04, then 0.01
+const FILTERS = (("all roots", r -> true), ("round trip", r -> r.trip), ("coverage", r -> r.cov),
+                 ("both", r -> r.trip && r.cov))
 
 for (k, rel) in enumerate(RELATIONS)
     t0 = time()
@@ -109,9 +130,18 @@ for (k, rel) in enumerate(RELATIONS)
     ps = f64(ps)
     @printf "\n%s: trained in %.0f s, final denoising loss %.4f\n" rel.name time() - t0 loss
     pred = NoisePredictor(mlp, sched; input, ad = AutoZygote())
-    for (label, levels) in LEVELS
+    rng = Xoshiro(200 + k)                                  # coverage: held-out data, not the training draws
+    data = rel.sample(rng, 2000) .+ 0.02 .* randn(rng, 2, 2000)
+    cal = rel.sample(rng, 300) .+ 0.02 .* randn(rng, 2, 300)
+    for (label, levels, continuation) in LEVELS
+        t1 = time()
         m = ImplicitDiffusion(pred, field_nodes(Xoshiro(1), 2; samples = 8, levels))
-        r = calibrate(m, ps, st, rel; spread = rel.name == "two circles (0.9 / 0.1)" ? 2.5 : 1.5)
-        @printf "  %-18s recall %.3f  spurious %.3f (%d roots)  off-domain %d/%d  dist %.4f  radial %+.4f%s\n" label r.recall r.spurious r.roots r.offdomain r.offqueries r.dist r.radial (isnan(r.minority) ? "" : @sprintf("  minority recall %.3f", r.minority))
+        ref = coverage_reference(m, data, ps, st; t = 0.01, calibration = cal)
+        grid = query_grid(m, ps, st, rel, ref; spread = rel.name == "two circles (0.9 / 0.1)" ? 2.5 : 1.5, continuation)
+        @printf "  %s (%.0f s)\n" label time() - t1
+        for (fname, keep) in FILTERS
+            r = calibrate(rel, grid, keep)
+            @printf "    %-11s recall %.3f  spurious %.3f (%d roots)  off-domain %d/%d  dist %.4f  radial %+.4f%s\n" fname r.recall r.spurious r.roots r.offdomain r.offqueries r.dist r.radial (isnan(r.minority) ? "" : @sprintf("  minority recall %.3f", r.minority))
+        end
     end
 end

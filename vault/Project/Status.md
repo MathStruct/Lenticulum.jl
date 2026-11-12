@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-12, after P17 and P18 (committed and pushed).
+**Last updated:** 2026-11-12, after F3 in part (not committed).
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P1 (`597dc8e2`) and P17/P18 (`fbbb6cdf`) committed and pushed, with the rest of I18; `master` is behind (merge on request) |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `597dc8e2`, with P17/P18 applied for Mistral's review, its scratch scripts in `scratch/p1/` and `scratch/p17-18/` (untracked). Two stale stashes: `mistral-wt-polarity-cache-draft-2026-11-12` and `mistral-wt-i18-predfix-2026-11-12`; both can be dropped |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at `883f8655` (pushed), with F3 in part **uncommitted** (below); `master` is behind (merge on request) |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | fast-forwarded to `883f8655`, with the `round_trip` diff applied for Mistral's review (before the LP-030 fix), its scratch scripts in `scratch/f3/` (untracked). Three stale stashes, all droppable: `mistral-wt-p17-18-stale-2026-11-12` (an older copy of P17/P18), `mistral-wt-polarity-cache-draft-2026-11-12`, `mistral-wt-i18-predfix-2026-11-12` |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -22,17 +22,19 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 
 ## Done today
 
-- **P1** (`597dc8e2`): tests where the flagged and the extended form meet, and three fixes
-  ([[LP-028 Findings of the review of P1]]). Left over: P21 (`@test_broken`).
-- **P17, P18**: `reduce_mixture`/`reduce_message` of Gaussian mixtures moved from Lenticulum to
-  Mycelium (`gaussian.jl`; Lenticulum re-exports `reduce_mixture`); `belief_mean`/`belief_cov` of
-  `SampleBelief` moved from Adversarial to LenticulumCore (`gaussian_belief.jl`). The two Aqua piracy
-  exceptions are gone. Tests: Mycelium `test/mixture_reduction.jl` (Mycelium alone), LenticulumCore
-  `test/sample_moments.jl`. Review: Mistral, no code defect ([[LP-029 Findings of the review of P17 and P18]]).
-- Verified for P17/P18: all eight suites passed (`~/.cache/lenticulum/p17-18/`), LenticulumCore and
-  Adversarial again after the last rename, and the docs build. Not run: device tests (no device code changed).
-- Next: by the proposed order in [[Feature Backlog]]: P11 with F3 for
-  path B, and I6 for path C; or I16/I17, P21.
+- Committed and pushed earlier today: P1 (`597dc8e2`), P17/P18 (`fbbb6cdf`), the rest of I18.
+- **F3 in part, uncommitted:** `round_trip(m, sol, z₀, ρ, ps, st)` in VariationalDiffusion
+  (`answers.jl`, exported; `implicit.md` §5), with the testset "round trip: …"; the calibration
+  benchmark measures the round trip, `coverage` and annealing as filters, its queries run on all
+  threads, `CALIBRATION_SMOKE=1` runs it small (`examples/calibration.md` "Remedies"). Review:
+  Mistral, one defect fixed ([[LP-030 Findings of the review of round_trip]]); LP-028 and LP-029
+  added to the Problem Log, which lacked them.
+- Verified: VariationalDiffusion suite 909/909 and Aqua (`~/.cache/lenticulum/f3/vd-suite.log`), the
+  benchmark (`~/.cache/lenticulum/f3/calibration.log`), the docs build. Not run: device tests (no device
+  code), the other suites (no other package changed).
+- Next: commit F3 if Daniel agrees; then P11 (the query report), built on `round_trip` and `coverage`,
+  or a ridge residual (the rest of F3: the round trip fails where the relation is parallel to the
+  clamped coordinates); I6 for path C.
 
 ## Open
 
