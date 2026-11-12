@@ -64,8 +64,9 @@ end
 f64(x::AbstractArray) = Float64.(x); f64(x::NamedTuple) = map(f64, x); f64(x) = x
 
 # --- the roots of one query grid, with the remedies' verdicts -----------------------------------
-# Each root carries two verdicts of F3 (the calibration remedies): `round_trip` (clamp the root's y,
-# solve back for x, keep it if x moves by at most τ) and `coverage` (keep it unless flagged at
+# Each root carries three verdicts of F3 (the calibration remedies): `round_trip` (clamp the root's y,
+# solve back for x, keep it if x moves by at most τ), `ridge_residual` (keep it if the normal Newton
+# step to the ridge, codimension 1, is at most τ) and `coverage` (keep it unless flagged at
 # p < 0.05 against held-out data). The queries run on all threads.
 function query_grid(m, ps, st, rel, ref; spread = 1.5, continuation = ())
     out = Vector{Any}(undef, length(rel.xs))
@@ -75,6 +76,7 @@ function query_grid(m, ps, st, rel, ref; spread = 1.5, continuation = ())
         z₀, ρ = [x, 0.0], [Inf, 0.0]
         sols, _ = implicit_roots(m, z₀, ρ, ps, st; nstarts = 32, spread, rng = Xoshiro(q), continuation)
         out[q] = [(y = s.z[2], trip = first(round_trip(m, s, z₀, ρ, ps, st)).distance ≤ τ,
+                   ridge = first(ridge_residual(m, s, ρ, ps, st)).distance ≤ τ,
                    cov = !coverage(ref, s).flagged) for s in sols]
     end
     return out
@@ -121,8 +123,8 @@ const LEVELS = (("low, t ≤ 0.01", range(0.001, 0.01; length = 8), ()),
                 ("default, t ≤ 0.05", range(0.002, 0.05; length = 8), ()),
                 ("high, t ≤ 0.2", range(0.01, 0.2; length = 8), ()),
                 ("low, annealed", range(0.001, 0.01; length = 8), (16.0, 4.0)))   # t ≤ 0.16, then 0.04, then 0.01
-const FILTERS = (("all roots", r -> true), ("round trip", r -> r.trip), ("coverage", r -> r.cov),
-                 ("both", r -> r.trip && r.cov))
+const FILTERS = (("all roots", r -> true), ("round trip", r -> r.trip), ("ridge", r -> r.ridge),
+                 ("coverage", r -> r.cov), ("both", r -> r.trip && r.cov), ("ridge+cov", r -> r.ridge && r.cov))
 
 for (k, rel) in enumerate(RELATIONS)
     t0 = time()

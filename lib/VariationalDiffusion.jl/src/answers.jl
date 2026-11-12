@@ -87,6 +87,68 @@ function round_trip(m::AbstractImplicitRelation, sol::ImplicitSolution, z₀, ρ
     return ((distance = float(d), solution = back), st)
 end
 
+"""
+    ridge_residual(m, z, ps, st; codim) -> (NamedTuple, st)
+    ridge_residual(m, sol::ImplicitSolution, ρ, ps, st; codim = count(!isinf, ρ)) -> (NamedTuple, st)
+
+Is the point `z` on the relation, judged by the field at `z` alone? The relation is the ridge of
+the smoothed density, of codimension `codim`: across it (``k`` = `codim` directions) the field
+pulls back, along it the field may still drift, since the density varies along the relation. Let
+``S = \\operatorname{sym}\\,\\partial g/\\partial z`` be the symmetric part of the field's full
+Jacobian ([`prior_jacobian`](@ref), all coordinates, clamped ones included), ``V`` its
+eigenvectors of the ``k`` largest eigenvalues ``\\Lambda`` (the normal directions) and ``g`` the
+field ([`prior_field`](@ref)). Then
+
+```math
+\\delta = V\\Lambda^{-1}V^\\top g(z)
+```
+
+is a Newton step projected on the normal directions (subspace-constrained mean shift, Ozertem &
+Erdogmus 2011, projects the mean-shift vector the same way), and its length is the first-order **distance** to the
+ridge, in data units: exact for a Gaussian (an affine field with a symmetric Jacobian), and
+unchanged by the field's weight `λ`. The tangential part of ``g`` is dropped, so an answer on the
+relation where the density changes along it is not rejected; nor is one where the relation is
+parallel to a clamped coordinate, where [`round_trip`](@ref) fails (`calibration.md`, "Remedies").
+
+For an answer `sol` to a query with precisions `ρ`, the codimension is by default the number of
+free coordinates: the relation is taken to determine them from the clamped ones.
+
+Returns `(distance, residual, curvature, gap, normal)`:
+
+- `distance` ``\\lVert\\delta\\rVert``; `Inf` when a normal curvature is not positive (``\\Lambda_{\\min} \\le 0``):
+  the field does not pull back across in every normal direction, so `z` is on no ridge of this
+  codimension;
+- `residual` ``\\lVert V^\\top g\\rVert``, the normal component of the field, in the field's units;
+- `curvature` ``\\Lambda``, ascending;
+- `gap` the smallest normal minus the largest tangential eigenvalue (`Inf` when `codim` is the
+  dimension). Where it is small the normal directions are not well determined (a crossing of two
+  branches, an isotropic blob), and so neither is `distance`;
+- `normal` ``V``, the normal directions as columns.
+
+`codim = 0` gives `distance = 0`. Soft evidence that pulls an answer off the relation shows in
+`distance` as it does in the round trip's. The Jacobian is formed in full, one derivative pass per
+coordinate and noise level, so this is for states of moderate dimension; there is no matrix-free
+version. The answer is called on the relation when `distance` is below a tolerance in data units,
+above the smoothing bias (``O(\\sigma_t^2\\kappa)``, `implicit.md`).
+"""
+function ridge_residual(m::AbstractImplicitRelation, z, ps, st; codim::Integer)
+    n = length(z)
+    0 ≤ codim ≤ n || throw(ArgumentError("codim must lie in 0:$n, got $codim"))
+    g, st = prior_field(m, z, ps, st)
+    J = Matrix(prior_jacobian(m, z, ps, st))
+    T = float(eltype(J))
+    E = eigen(Symmetric((J .+ J') ./ 2))                     # ascending eigenvalues
+    N = (n - codim + 1):n
+    V, Λ = E.vectors[:, N], E.values[N]
+    gap = codim == 0 ? T(-Inf) : codim == n ? T(Inf) : E.values[n - codim + 1] - E.values[n - codim]
+    c = V' * Array(g)
+    d = codim == 0 ? zero(T) : all(>(0), Λ) ? norm(c ./ Λ) : T(Inf)
+    return ((distance = d, residual = norm(c), curvature = Λ, gap = gap, normal = V), st)
+end
+
+ridge_residual(m::AbstractImplicitRelation, sol::ImplicitSolution, ρ, ps, st; codim::Integer = count(!isinf, ρ)) =
+    ridge_residual(m, sol.z, ps, st; codim)
+
 _has_energy(m) = false
 _has_energy(::ImplicitDiffusion{<:NoisePredictor{<:EnergyNetwork}}) = true
 _has_energy(::ImplicitDiffusion{<:NoisePredictor{<:GaussianMixtureEps}}) = true

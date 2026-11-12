@@ -25,6 +25,10 @@ estimates when the model has an energy. Build the model with `λ = density_lambd
 nodes)` for covariances in data units. `round_trip` checks an answer against the relation:
 it frees the clamped coordinates, clamps the rest at the answer and solves back; an answer on the
 relation stays, a projection of a query off the relation moves its clamps.
+`ridge_residual` checks it from the field at the answer alone: the field's component across the
+relation (the eigenvectors of the Jacobian's largest curvatures, as many as the codimension),
+divided by those curvatures, is the first-order distance to the ridge in data units. Unlike the
+round trip it does not reject an answer where the relation runs parallel to a clamped coordinate.
 
 ## Many free coordinates
 
@@ -80,12 +84,13 @@ fresh data points get `p < 0.05`, and the answer to the clamp $x = 1.3$, which c
 `query_report(m, z₀, ρ, ps, st)` answers the query and gathers these checks into one
 `QueryReport`: whether the solve converged to a stable root, the other stable roots reached from
 random starts and where the answer stands among them, the conditioning of the free-coordinate
-Jacobian (the test `implicit_pullback` applies, and the smallest curvature), the round trip, and,
+Jacobian (the test `implicit_pullback` applies, and the smallest curvature), the round trip, the
+ridge distance (with the dense solver), and,
 with `reference = coverage_reference(...)`, the coverage p-value. `r.flags` lists what failed
 (`:not_converged`, `:unstable`, `:other_roots`, `:not_lowest`, `:ill_conditioned`,
-`:round_trip`, `:atypical`); `trusted(r)` is true when it is empty. A round trip that finds no
-stable point is always flagged; a finite distance only against `round_trip_tol`, a tolerance in
-data units that the caller supplies.
+`:round_trip`, `:off_ridge`, `:atypical`); `trusted(r)` is true when it is empty. A round trip
+that finds no stable point, and a ridge distance of `Inf`, are always flagged; a finite distance
+only against `round_trip_tol` or `ridge_tol`, tolerances in data units that the caller supplies.
 
 ## Samples, not only modes
 

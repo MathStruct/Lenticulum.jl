@@ -80,13 +80,16 @@ relations whose branches are known?
   as recall. Precision is the spurious fraction.
 - Starts are random (33 per query); a branch missed by every start is counted as not recalled.
 
-## Remedies (F3, measured 2026-11-12)
+## Remedies (F3, measured 2026-11-12; the ridge residual 2026-11-13)
 
 The same models, queries and seeds; the "all roots" rows reproduce the table above exactly. Each root
-then gets two verdicts, and the metrics are recomputed for the roots each one keeps:
+then gets three verdicts, and the metrics are recomputed for the roots each one keeps:
 
 - **round trip** (`round_trip`, `implicit.md` §5): clamp the root's $y$, free $x$, solve back from the
   root; keep the root if $x$ moves by at most $\tau$. Needs the model only.
+- **ridge** (`ridge_residual`, `implicit.md` §5): keep the root if its first-order distance to the
+  ridge of codimension 1, from the field and its Jacobian at the root, is at most $\tau$. Needs the
+  model only, and no further solve.
 - **coverage** (`coverage`, [[coverage]]): keep the root unless flagged, $p < 0.05$, against 300
   held-out points, with the nearest-neighbour distance to 2000 more and the reconstruction score at
   $t = 0.01$. Needs data from the relation.
@@ -99,18 +102,22 @@ Low levels ($t \le 0.01$), the best setting of every relation above:
 |---|---|---|---|---|
 | circle | all roots | 0.857 | 0.234 (47) | 8/8 |
 | circle | round trip | 0.738 | 0.088 (34) | 0/8 |
+| circle | ridge | 0.857 | 0.077 (39) | 0/8 |
 | circle | coverage | 0.857 | 0.053 (38) | 0/8 |
 | lemniscate | all roots | 0.524 | 0.621 (58) | 8/8 |
 | lemniscate | round trip | 0.119 | 0.375 (8) | 0/8 |
+| lemniscate | ridge | 0.524 | 0.421 (38) | 0/8 |
 | lemniscate | coverage | 0.310 | 0.000 (13) | 0/8 |
 | two circles | all roots | 0.282 | 0.739 (134) | 8/8 |
 | two circles | round trip | 0.161 | 0.130 (23) | 0/8 |
+| two circles | ridge | 0.282 | 0.435 (62) | 0/8 |
 | two circles | coverage | 0.282 | 0.079 (38) | 0/8 |
 
 Annealed, against the low levels unannealed (all roots): circle recall 0.762 against 0.857, spurious
 0.238 against 0.234; lemniscate **no root at all** (0 of 58); two circles recall 0.218 against 0.282,
 spurious 0.518 against 0.739. The default and high levels, and both filters together, are in the log
-of the run (`~/.cache/lenticulum/f3/calibration.log`, not in the repository); they change none of
+of the runs (`~/.cache/lenticulum/f3/calibration.log` and, with the ridge rows,
+`calibration-ridge.log`, not in the repository); they change none of
 the conclusions below.
 
 What it shows:
@@ -126,22 +133,33 @@ What it shows:
    0.14 to 0.24 away). There "$x$ given $y$" is ill-conditioned: the $x$-slice through a point near
    the top is flat along the circle, so the reversed query has no well-determined answer. The round trip
    thus tests that the relation is locally invertible in the reverse direction, as well as that the
-   root is on it. A ridge residual (the field's component normal to the relation) would test
-   membership alone; it is not implemented.
-4. **Annealing as tried here hurts.** At $t \le 0.16$ the branches merge (the "high" rows above), so
+   root is on it.
+4. **The ridge residual tests membership alone, and loses no recall at the low levels.** It keeps
+   every matched root on all three relations (36, 22 and 35 of them) and removes every off-domain
+   root, against the round trip's recall losses (0.86 to 0.74, 0.52 to 0.12, 0.28 to 0.16). It removes
+   fewer spurious roots than coverage: 8 of 11 on the circle, 20 of 36 on the lemniscate, 72 of 99 on
+   the two circles, against coverage's 9, 36 and 96. On the lemniscate it does not cost recall at the
+   crossing, where coverage does (0.52 to 0.31); combined with coverage it gives coverage's rows
+   exactly at the low levels, so there coverage's rejections include all of the ridge's. At the
+   default levels it costs the lemniscate one branch (recall 0.29 to 0.26), and the combination
+   differs from coverage: on the lemniscate it keeps 6 roots instead of 11 (spurious 0.455 to 0.167,
+   recall 0.14 to 0.12), on the two circles one spurious root fewer (0.079 to 0.054). At the high levels,
+   where the branches have merged, it keeps no matched root. Why the remaining spurious roots pass
+   (a ridge of the learned field that is not on the relation, or within $\tau$ of one) was not
+   examined.
+5. **Annealing as tried here hurts.** At $t \le 0.16$ the branches merge (the "high" rows above), so
    the starts reach fewer basins, and the low-level solves from there recover fewer branches. On the
    lemniscate no start ends converged and stable; why was not examined (each stage takes at most 200
    iterations, and the last one starts at the merged blob near the crossing). A schedule with more,
    smaller steps, or one that tracks every root as it splits, was not tried.
-5. **No remedy finds what the queries miss.** The minority circle is still never recalled, and the
+6. **No remedy finds what the queries miss.** The minority circle is still never recalled, and the
    lemniscate's recall is at best 0.52 before any filter.
 
-Not checked: one seed per relation, one $\tau$, the round trip's tolerance equal to $\tau$, coverage's
+Not checked: one seed per relation, one $\tau$, the round trip's and the ridge's tolerances equal to $\tau$, the ridge's codimension fixed at 1, coverage's
 $\alpha = 0.05$, and one annealing schedule.
 
 ## What would improve it (not tried here)
 
-Tried above: annealing, the round trip, and rejection by coverage (reconstruction and distance; these
-models have no energy). Not tried: ridge residuals (only the score's component normal to the
-relation), an energy threshold (needs an energy network), or a relation trained as a codimension-$k$
+Tried above: annealing, the round trip, the ridge residual, and rejection by coverage (reconstruction
+and distance; these models have no energy). Not tried: an energy threshold (needs an energy network), or a relation trained as a codimension-$k$
 residual. Each is a row in [[Feature Backlog]]; this example is the benchmark to measure them against.

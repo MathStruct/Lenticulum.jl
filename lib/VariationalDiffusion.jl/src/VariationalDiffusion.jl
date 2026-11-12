@@ -42,7 +42,7 @@ each source file, per `vault/Start Here.md`.
 """
 module VariationalDiffusion
 
-using LinearAlgebra: LinearAlgebra, I, norm, dot, Diagonal, Symmetric, isposdef
+using LinearAlgebra: LinearAlgebra, I, norm, dot, Diagonal, Symmetric, isposdef, eigen
 using Random: Random, AbstractRNG, randn, rand
 using LuxCore: LuxCore
 using LenticulumCore: LenticulumCore
@@ -97,7 +97,7 @@ export ImplicitProx, implicit_solution, implicit_factor_pullback
 
 # --- Proximal diffusion models (ProxDM) ----------------------------------------
 export EnergyNetwork, GaussianReference, energy, implicit_energy, denoising_gradient, block_times
-export implicit_roots, round_trip, implicit_laplace, density_lambda, laplace_belief, implicit_mixture, implicit_sample
+export implicit_roots, round_trip, ridge_residual, implicit_laplace, density_lambda, laplace_belief, implicit_mixture, implicit_sample
 export categorical_answer, code_posterior, calibrate_temperature, implicit_classify, implicit_infer_many
 export pass_costs, root_cost, classifier_cost, break_even_classes
 export CoverageReference, coverage_reference, coverage

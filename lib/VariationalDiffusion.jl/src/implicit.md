@@ -5,9 +5,9 @@
 > gradients for parameters, inputs, anchors and precisions. The theory is in
 > [[Implicit Diffusion Learners]] and [[Backpropagation through Implicit Inference]].
 
-> Sources: code: `implicit.jl`; the trust-region solver (§11): Nocedal & Wright, *Numerical Optimization*, 2nd ed., ch. 4 and 7; Steihaug 1983
+> Sources: code: `implicit.jl`; the trust-region solver (§11): Nocedal & Wright, *Numerical Optimization*, 2nd ed., ch. 4 and 7; Steihaug 1983; the ridge residual (§5): Genovese et al. 2014, Ozertem & Erdogmus 2011 (the ridge as the set where the gradient projected on the Hessian's normal eigenvectors vanishes; SCMS moves along the same projection of the mean-shift vector, here it is a Newton step)
 >
-> Bibliography: [[Bibliography#^nocedal2006numopt|Nocedal & Wright 2006]] · [[Bibliography#^steihaug1983cg|Steihaug 1983]] · [[Bibliography#^li2023diffclassifier|Li et al. 2023]]
+> Bibliography: [[Bibliography#^nocedal2006numopt|Nocedal & Wright 2006]] · [[Bibliography#^steihaug1983cg|Steihaug 1983]] · [[Bibliography#^genovese2014ridge|Genovese et al. 2014]] · [[Bibliography#^ozertem2011scms|Ozertem & Erdogmus 2011]] · [[Bibliography#^li2023diffclassifier|Li et al. 2023]]
 >
 > Theory (CT-ML wiki): [Least Fixed Point](https://mathstruct.org/CategoryTheory-ML-Wiki/Least-Fixed-Point) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Reverse Derivative Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Reverse-Derivative-Category)
 
@@ -121,6 +121,37 @@ where the relation runs parallel to the clamped coordinates (the top of the circ
 $x$"): the reversed query is ill-conditioned there and does not return to the clamp, so the check
 asks for local invertibility in the reverse direction as well as membership. Its effect on the
 calibration benchmark is in `examples/calibration.md`.
+
+**`ridge_residual`** (F3) tests membership alone, from the field at the answer, with no further
+solve. The relation is the ridge of the smoothed density (Genovese et al. 2014; Ozertem & Erdogmus
+2011): across it the field pulls back, along it the field may still
+drift where the density varies along the relation. With $S$ the symmetric part of the full Jacobian
+$\partial g/\partial z$ (clamped coordinates included), $V$ its eigenvectors of the $k$ largest
+eigenvalues $\Lambda$ ($k$ the codimension, by default the number of free coordinates) and $g$ the
+field, the normal Newton step
+
+$$
+\delta = V\Lambda^{-1}V^\top g(z)
+$$
+
+is the first-order displacement to the ridge, and $\lVert\delta\rVert$ its distance in data units. The
+tangential part of $g$ is dropped, and that is the difference from the full score's norm. For a
+Gaussian the field is affine with a symmetric Jacobian that shares the covariance's eigenvectors,
+so the step is exact: the distance to the major axis through the root (codimension 1), or to the
+root itself (codimension 2), to $10^{-8}$; the weight λ scales $g$ and $S$ alike and cancels (test
+"ridge residual: …"). On the closed-form ring the answers for $x = 0$ and $x = 0.6$ are within
+$2\cdot10^{-3}$ of the ridge with a radial normal, the projection from $x = 1.3$ is $1.3 - R'$ away to
+$0.01$, and at $x = 0$, the top, the round trip moves the clamp by about 0.2 where the ridge
+residual passes. When a normal curvature is not positive the field does not pull back across, and
+the distance is `Inf` (the ring's centre). The result also carries the eigengap between normal and
+tangential curvatures: where it is small (a crossing of two branches, an isotropic blob) the normal
+directions, and so the distance, are not well determined.
+
+What it does not do: the Jacobian is formed in full, one derivative pass per coordinate and level,
+so there is no matrix-free version for a state as large as MNIST's (`query_report` skips it with
+`KrylovSolve`); the codimension must be known or assumed; a non-conservative field (a trained
+ε-network) is judged by its Jacobian's symmetric part; and, like the round trip, an answer on a
+wrong branch passes. Its effect on the calibration benchmark is in `examples/calibration.md`.
 
 What is still missing: λ chosen for calibration is not always the λ one wants for balancing soft
 evidence.

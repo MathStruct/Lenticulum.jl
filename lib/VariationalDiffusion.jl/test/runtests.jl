@@ -1269,6 +1269,95 @@ end
     @test rt.distance == Inf
 end
 
+# a linear field g = A z, A not necessarily symmetric: a relation with a known, non-conservative Jacobian
+struct RidgeTestField{M} <: AbstractImplicitRelation
+    A::M
+end
+VariationalDiffusion.prior_field(m::RidgeTestField, z, ps, st) = (m.A * z, st)
+VariationalDiffusion.prior_jacobian(m::RidgeTestField, z, ps, st; coords = Colon()) = Matrix(m.A)[coords, coords]
+
+@testset "ridge residual: the field across the relation, from the answer alone (F3)" begin
+    # a rotated Gaussian: the field is affine, g = A(z - z*), with A sharing Σ's eigenvectors, so the
+    # normal Newton step is exact: codim 1 gives the distance to the major axis through the root z*,
+    # codim 2 the distance to z* itself; the weight λ scales g and A alike and leaves it unchanged
+    θ = 0.4
+    R = [cos(θ) -sin(θ); sin(θ) cos(θ)]
+    Σ = R * Diagonal([2.0, 0.05]) * R'
+    G = NoisePredictor(AnalyticEps(SCHED, Σ), SCHED)
+    pg, sg = LuxCore.setup(Xoshiro(0), G)
+    nodes = field_nodes(Xoshiro(2), 2; samples = 3)
+    for λ in (0.7, 3.0)
+        mg = ImplicitDiffusion(G, nodes; λ)
+        zs, _ = implicit_infer(mg, [0.0, 0.0], [0.0, 0.0], pg, sg; tol = 1e-12)   # the root, every coordinate free
+        for z in ([0.7, -0.3], [-1.2, 0.4], zs.z .+ 2.0 .* R[:, 1])
+            r1, _ = ridge_residual(mg, z, pg, sg; codim = 1)
+            @test r1.distance ≈ abs(dot(R[:, 2], z .- zs.z)) atol = 1e-8
+            @test abs(dot(r1.normal[:, 1], R[:, 2])) ≈ 1 atol = 1e-10
+            @test r1.gap > 0 && r1.curvature[1] > 0
+            r2, _ = ridge_residual(mg, z, pg, sg; codim = 2)
+            @test r2.distance ≈ norm(z .- zs.z) atol = 1e-8
+            @test r2.gap == Inf && issorted(r2.curvature)
+            r0, _ = ridge_residual(mg, z, pg, sg; codim = 0)
+            @test r0.distance == 0 && r0.residual == 0 && size(r0.normal) == (2, 0)
+        end
+        @test first(ridge_residual(mg, zs.z .+ 2.0 .* R[:, 1], pg, sg; codim = 1)).distance < 1e-8   # on the axis
+    end
+    mg = ImplicitDiffusion(G, nodes)
+    @test_throws ArgumentError ridge_residual(mg, [0.0, 0.0], pg, sg; codim = 3)
+    @test_throws ArgumentError ridge_residual(mg, [0.0, 0.0], pg, sg; codim = -1)
+
+    # the ring: answers on it are on the ridge, the projection off it (x = 1.3) is 1.3 - R′ away;
+    # at the top (x = 0) the round trip moves x by about 0.2, the ridge residual does not reject
+    m = ImplicitDiffusion(RING, field_nodes(Xoshiro(1), 2; samples = 8))
+    for x in (0.0, 0.6)
+        roots, _ = implicit_roots(m, [x, 0.0], HARDX, RPS, RST)
+        @test length(roots) == 2
+        for r in roots
+            rr, _ = ridge_residual(m, r, HARDX, RPS, RST)          # codim = 1, the free coordinates
+            @test rr.distance < 2e-3 && rr.gap > 0.5
+            @test abs(dot(rr.normal[:, 1], r.z ./ norm(r.z))) > 0.99   # the normal is radial
+        end
+    end
+    top, _ = implicit_roots(m, [0.0, 0.0], HARDX, RPS, RST)
+    @test first(round_trip(m, top[1], [0.0, 0.0], HARDX, RPS, RST)).distance > 0.1
+    off, _ = implicit_roots(m, [1.3, 0.0], HARDX, RPS, RST)
+    @test !isempty(off)
+    for r in off
+        rr, _ = ridge_residual(m, r, HARDX, RPS, RST)
+        R′ = norm(top[1].z)
+        @test rr.distance ≈ 1.3 - R′ atol = 0.01
+    end
+    # the field does not pull back across at the ring's centre (a minimum of the density): Inf
+    c, _ = ridge_residual(m, [0.0, 0.0], RPS, RST; codim = 1)
+    @test c.distance == Inf && c.curvature[1] ≤ 0
+
+    # a linear field g = A z with a non-symmetric A = S + K (LP-033 F1, F2, F4): the normal directions
+    # are S's eigenvectors, not A's; a saddle (S = diag(-1, 3)) is on a ridge of codim 1 and not of
+    # codim 2, since only the normal curvatures must be positive
+    K = [0.0 2.0; -2.0 0.0]
+    for (Sd, finite2) in (([1.0, 4.0], true), ([-1.0, 3.0], false))
+        lin = RidgeTestField(Diagonal(Sd) + K)
+        z = [0.7, -0.4]
+        g = lin.A * z
+        r1, _ = ridge_residual(lin, z, NamedTuple(), NamedTuple(); codim = 1)
+        @test r1.distance ≈ abs(g[2]) / Sd[2] rtol = 1e-12
+        @test r1.residual ≈ abs(g[2]) rtol = 1e-12
+        @test r1.curvature ≈ [Sd[2]]
+        @test r1.gap ≈ Sd[2] - Sd[1]
+        r2, _ = ridge_residual(lin, z, NamedTuple(), NamedTuple(); codim = 2)
+        @test isfinite(r2.distance) == finite2
+        finite2 && @test r2.distance ≈ norm(Diagonal(Sd) \ g) rtol = 1e-12
+    end
+    # the default codimension of an answer is its number of free coordinates (3-D, one or two clamps)
+    lin3 = RidgeTestField(Diagonal([1.0, 2.0, 5.0]) + [0.0 1.0 0.0; -1.0 0.0 0.5; 0.0 -0.5 0.0])
+    s3 = ImplicitSolution([0.3, -0.2, 0.6], 0.0, 0, true, true)
+    for (ρ, k) in (([Inf, 0.0, 0.0], 2), ([Inf, Inf, 1.0], 1), ([1.0, 2.0, 3.0], 3), (Any[Inf, Inf, Inf], 0))
+        rs, _ = ridge_residual(lin3, s3, ρ, NamedTuple(), NamedTuple())
+        rk, _ = ridge_residual(lin3, s3.z, NamedTuple(), NamedTuple(); codim = k)
+        @test rs.distance == rk.distance && size(rs.normal) == (3, k)
+    end
+end
+
 @testset "query report: what an answer can be trusted for (P11)" begin
     # one Gaussian: one root, J_FF = κ + ρ² a scalar, so cond₁ = 1 and λ_min = κ + 4 in closed form
     v0 = 0.5
@@ -1288,16 +1377,18 @@ end
     @test r.coverage === nothing
     # the reversed query clamps y at the answer and frees x: the Gaussian slice's mode is x = 0
     @test r.round_trip.distance ≈ 0.3 atol = 1e-8
+    # isotropic: the ridge distance is finite (codim 1, the free y), its normal undetermined (gap 0)
+    @test isfinite(r.ridge.distance) && abs(r.ridge.gap) < 1e-8
     @test :round_trip in first(query_report(mg, z₀, ρ, pg, sg; round_trip_tol = 0.1)).flags
     @test !(:round_trip in first(query_report(mg, z₀, ρ, pg, sg; round_trip_tol = 0.5)).flags)
     # matrix-free: the same smallest eigenvalue by Lanczos, no condition number
     rk, _ = query_report(mg, z₀, ρ, pg, sg; linsolve = KrylovSolve(), nstarts = 2)
-    @test rk.conditioning.cond === nothing
+    @test rk.conditioning.cond === nothing && rk.ridge === nothing
     @test rk.conditioning.lambda_min ≈ κ + 4 rtol = 1e-8
     # a given solution is reported, not solved again; one that failed carries its flags and no round trip
     bad = ImplicitSolution([0.3, 5.0], 1.0, 200, false, false)
     rb, _ = query_report(mg, z₀, ρ, pg, sg; solution = bad, nstarts = 2)
-    @test rb.solution === bad && rb.round_trip === nothing && rb.rank == 0
+    @test rb.solution === bad && rb.round_trip === nothing && rb.ridge === nothing && rb.rank == 0
     @test :not_converged in rb.flags && :unstable in rb.flags && !trusted(rb)
     rs, _ = query_report(mg, z₀, ρ, pg, sg; tol = 1e-300, maxiters = 3, nstarts = 0)   # a tolerance no solve reaches
     @test :not_converged in rs.flags
@@ -1310,6 +1401,14 @@ end
     @test r.conditioning.lambda_min > 0
     off, _ = query_report(m, [1.3, 0.0], HARDX, RPS, RST; round_trip_tol = 0.05)
     @test :round_trip in off.flags && off.converged
+    @test !(:off_ridge in off.flags)                         # no ridge_tol: the distance is reported, not judged
+    @test off.ridge.distance > 0.25
+    @test :off_ridge in first(query_report(m, [1.3, 0.0], HARDX, RPS, RST; ridge_tol = 0.05, nstarts = 2)).flags
+    # the top of the ring: the round trip rejects a true root, the ridge residual does not
+    rt, _ = query_report(m, [0.0, 0.0], HARDX, RPS, RST; z_init = [0.0, 0.9], round_trip_tol = 0.05, ridge_tol = 0.05,
+                         nstarts = 4)
+    @test rt.converged && rt.stable
+    @test :round_trip in rt.flags && !(:off_ridge in rt.flags)
     # with a coverage reference the off-ring answer is atypical, the on-ring one is not
     draw(rng, N) = RING_μ[:, rand(rng, 1:RING_J, N)] .+ 0.05 .* randn(rng, 2, N)
     ref = coverage_reference(m, draw(Xoshiro(2), 2000), RPS, RST; calibration = draw(Xoshiro(3), 300))
@@ -1349,6 +1448,10 @@ end
     c = ImplicitSolution([0.0, 0.0], 0.0, 0, true, true)
     r8, _ = query_report(m, [0.0, 0.0], [0.0, Inf], RPS, RST; solution = c, nstarts = 1, maxiters = 5)
     @test r8.round_trip.distance == Inf && :round_trip in r8.flags
+    # the same point is on no ridge (the ring's centre): flagged without a tolerance, and with any (LP-033 F3)
+    @test r8.ridge.distance == Inf && :off_ridge in r8.flags
+    r9, _ = query_report(m, [0.0, 0.0], [0.0, Inf], RPS, RST; solution = c, nstarts = 1, maxiters = 5, ridge_tol = 1e9)
+    @test :off_ridge in r9.flags
 
     # the pullback's singularity rule, shared
     @test VariationalDiffusion._near_singular(1e3, Float64) == false

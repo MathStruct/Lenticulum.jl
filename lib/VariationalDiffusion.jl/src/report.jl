@@ -5,7 +5,7 @@
 #   the solve       converged, stable (ImplicitSolution)
 #   other starts    the stable roots `implicit_roots` reaches, and where the answer is among them
 #   conditioning    cond₁ J_FF (the pullback's test) and the smallest eigenvalue of sym J_FF
-#   on the relation `round_trip`, and `coverage` when a reference is given
+#   on the relation `round_trip`, `ridge_residual` (dense solves), and `coverage` when a reference is given
 # and lists what failed as flags. See `report.md`.
 # ---------------------------------------------------------------------------
 
@@ -22,6 +22,7 @@ What [`query_report`](@ref) found about one answer to a query. Fields:
 | `rank` | the answer's position in `roots`, `0` if it is not among them |
 | `conditioning` | `(cond, lambda_min)`: ``\\operatorname{cond}_1 J_{FF}`` (`nothing` with [`KrylovSolve`](@ref)) and the smallest eigenvalue of ``\\operatorname{sym} J_{FF}`` |
 | `round_trip` | the result of [`round_trip`](@ref), `nothing` for an answer that did not converge to a stable root |
+| `ridge` | the result of [`ridge_residual`](@ref) (codimension the number of free coordinates), `nothing` for an answer that did not converge to a stable root or with [`KrylovSolve`](@ref) |
 | `coverage` | the result of [`coverage`](@ref), `nothing` without a reference |
 | `flags` | what failed, a vector of symbols (below) |
 
@@ -30,11 +31,12 @@ Flags: `:not_converged`, `:unstable`, `:other_roots` (more than one stable root 
 relative; only for a relation with an energy), `:ill_conditioned`
 (``\\operatorname{cond}_1 J_{FF}\\,\\epsilon \\ge 10^{-2}`` with ``\\epsilon`` of ``J_{FF}``'s element type:
 [`implicit_pullback`](@ref) refuses such an answer), `:round_trip` (the reversed query found no
-stable point, or moved the clamped coordinates by more than `round_trip_tol`), `:atypical`
+stable point, or moved the clamped coordinates by more than `round_trip_tol`), `:off_ridge` (the
+ridge distance is `Inf`, or above `ridge_tol`), `:atypical`
 (`coverage` flagged it).
 `isempty(r.flags)` (or `trusted(r)`) when none applies.
 """
-struct QueryReport{S<:ImplicitSolution,R<:AbstractVector,C<:NamedTuple,RT,CV}
+struct QueryReport{S<:ImplicitSolution,R<:AbstractVector,C<:NamedTuple,RT,RR,CV}
     solution::S
     converged::Bool
     stable::Bool
@@ -42,6 +44,7 @@ struct QueryReport{S<:ImplicitSolution,R<:AbstractVector,C<:NamedTuple,RT,CV}
     rank::Int
     conditioning::C
     round_trip::RT
+    ridge::RR
     coverage::CV
     flags::Vector{Symbol}
 end
@@ -56,7 +59,8 @@ trusted(r::QueryReport) = isempty(r.flags)
 """
     query_report(m, z₀, ρ, ps, st; solution = nothing, z_init = z₀, nstarts = 16, spread = 1.0,
                  starts = nothing, rng = Xoshiro(0), unique_tol = 1e-3, reference = nothing,
-                 alpha = 0.05, round_trip_tol = nothing, linsolve = DenseSolve(), kwargs...)
+                 alpha = 0.05, round_trip_tol = nothing, ridge_tol = nothing, linsolve = DenseSolve(),
+                 kwargs...)
         -> (QueryReport, st)
 
 Answer the query `(z₀, ρ)` and say how far the answer can be trusted. The answer is `solution`
@@ -74,24 +78,29 @@ when given, otherwise [`implicit_infer`](@ref) from `z_init`. Then:
    `round_trip_tol`, since the distance is in data units (none by default: the value is reported,
    not judged). It also fails where the relation is parallel to the clamped coordinates, so a
    flag there is not proof of an answer off the relation (`calibration.md`, "Remedies").
+   With [`DenseSolve`](@ref) also [`ridge_residual`](@ref), the first-order distance to the ridge
+   from the field at the answer alone, with codimension the number of free coordinates; flagged
+   when it is `Inf` (no ridge of that codimension) and otherwise only against `ridge_tol`, in data
+   units like `round_trip_tol`. It forms the full Jacobian, one pass per coordinate and level.
 4. **Coverage**, when `reference` (a [`CoverageReference`](@ref)) is given: [`coverage`](@ref)
    of the answer at level `alpha`.
 
 `linsolve` and `kwargs` (`tol`, `maxiters`, `method`, …) go to every solve. The cost is about
-`nstarts + 3` solves.
+`nstarts + 3` solves and, with `DenseSolve`, one full Jacobian.
 """
 function query_report(m::AbstractImplicitRelation, z₀, ρ, ps, st; solution = nothing, z_init = z₀,
                       nstarts::Integer = 16, spread = 1.0, starts = nothing, rng::AbstractRNG = Random.Xoshiro(0),
                       unique_tol = 1e-3, reference = nothing, alpha::Real = 0.05, round_trip_tol = nothing,
-                      linsolve::AbstractLinearSolve = DenseSolve(), kwargs...)
+                      ridge_tol = nothing, linsolve::AbstractLinearSolve = DenseSolve(), kwargs...)
     sol = solution
     sol === nothing && ((sol, st) = implicit_infer(m, z₀, ρ, ps, st; z_init, linsolve, kwargs...))
     roots, st = implicit_roots(m, z₀, ρ, ps, st; nstarts, spread, starts, rng, unique_tol, linsolve, kwargs...)
     rank = something(findfirst(r -> norm(r.z .- sol.z) ≤ unique_tol * (1 + norm(sol.z)), roots), 0)
     cnd, Tj = _conditioning(linsolve, m, sol.z, ρ, ps, st)
-    rt = nothing
+    rt, rr = nothing, nothing
     if sol.converged && sol.stable
         rt, st = round_trip(m, sol, z₀, ρ, ps, st; linsolve, kwargs...)
+        linsolve isa DenseSolve && ((rr, st) = ridge_residual(m, sol, ρ, ps, st))
     end
     cov = reference === nothing ? nothing : coverage(reference, sol; alpha)
 
@@ -103,8 +112,10 @@ function query_report(m::AbstractImplicitRelation, z₀, ρ, ps, st; solution = 
     cnd.cond !== nothing && _near_singular(cnd.cond, Tj) && push!(flags, :ill_conditioned)
     rt !== nothing && (rt.distance == Inf || (round_trip_tol !== nothing && !(rt.distance ≤ round_trip_tol))) &&
         push!(flags, :round_trip)
+    rr !== nothing && (rr.distance == Inf || (ridge_tol !== nothing && !(rr.distance ≤ ridge_tol))) &&
+        push!(flags, :off_ridge)
     cov !== nothing && cov.flagged && push!(flags, :atypical)
-    return (QueryReport(sol, sol.converged, sol.stable, roots, rank, cnd, rt, cov, flags), st)
+    return (QueryReport(sol, sol.converged, sol.stable, roots, rank, cnd, rt, rr, cov, flags), st)
 end
 
 # the pullback's test: cond₁ J_FF so large that a solve with J_FF loses all accuracy
@@ -142,5 +153,6 @@ function Base.show(io::IO, ::MIME"text/plain", r::QueryReport)
     println(io, "  roots from other starts: ", length(r.roots), ", the answer's rank: ", r.rank)
     println(io, "  cond₁ J_FF = ", r.conditioning.cond, ", λ_min(sym J_FF) = ", r.conditioning.lambda_min)
     r.round_trip === nothing || println(io, "  round trip distance = ", r.round_trip.distance)
+    r.ridge === nothing || println(io, "  ridge distance = ", r.ridge.distance, ", gap = ", r.ridge.gap)
     r.coverage === nothing || print(io, "  coverage p = ", r.coverage.p, r.coverage.flagged ? " (flagged)" : "")
 end
