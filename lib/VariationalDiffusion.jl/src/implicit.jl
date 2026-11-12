@@ -607,7 +607,7 @@ function _adjoint_solve(::DenseSolve, m, z, ρ, b, ps, st)
     # (duals) it is skipped.
     if eltype(Jff) <: AbstractFloat
         κ = LinearAlgebra.cond(Matrix(Jff), 1)
-        isfinite(κ) && κ * eps(eltype(Jff)) < 1e-2 || throw(ArgumentError(
+        _near_singular(κ, eltype(Jff)) && throw(ArgumentError(
             "implicit_pullback: the free-block Jacobian is singular or nearly so at the solution (cond₁ = $κ; " *
             "a fold or branch point), where the implicit function theorem does not apply"))
     end

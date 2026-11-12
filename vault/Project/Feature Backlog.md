@@ -27,7 +27,6 @@ graph LR
   P4[P4 extended inputs<br/>in plates and AD] --> P2[P2 hard inputs in<br/>more free energies]
   P4 --> P6[P6 HardConstraintFactor<br/>in plates]
   F2[F2 calibration<br/>benchmark] --> F3[F3 calibration<br/>remedies]
-  F3 --> P11[P11 query report]
   F2 --> P10[P10 noisefree vs<br/>field nodes]
   F2 --> F4[F4 posterior samplers]
   F2 --> L15[L15 time-independent<br/>energy]
@@ -52,8 +51,8 @@ F2 is *partial*; its present problems (circle, lemniscate, rings) suffice for P1
 **Proposed order (2026-11-11, until Daniel sets one):** ~~I5~~ (done 2026-11-12; the gap against
 RxInfer, [[Benchmark against RxInfer]], not measured again since); ~~P1~~ (done 2026-11-12; it found a ForwardDiff
 regression and a silent no-op in damping); ~~P17 and P18~~ (done 2026-11-12) (P19 done 2026-11-12 with I18; I18 done 2026-11-12); F3 in part (2026-11-12:
-the round trip, and the measurement of coverage and annealing); then P11, which can build on the round
-trip and coverage now, and I6 for path C.
+the round trip, and the measurement of coverage and annealing); ~~P11~~ (done 2026-11-12, the query
+report); then I6 for path C, or the rest of F3 (a ridge residual).
 
 ## First, on the three paths (2026-11-10)
 
@@ -71,7 +70,6 @@ named. The structure-search driver (path C) is S7.
 | P8 | Element type in, element type out: the graph free energy in the element type of its messages, with a test | A | partial: LenticulumCore (2026-11-10) | — | LP-024 | `Float32` graphs are promoted to `Float64` in the total |
 | P9 | A relative convergence criterion for Gaussian messages | A | proposed | — | LP-024 | the bound on natural parameters is absolute |
 | P10 | `noisefree_nodes` against `field_nodes` on the calibration benchmark; a default for the nodes | B | proposed | F2 | [[Implicit Diffusion Learners]] §5 (2026-11-10) | nodes with noise have twice the smoothing bias at a level |
-| P11 | A query report: converged, stable, the roots from other starts, the conditioning of the answer, on or off the relation | B | proposed | F3 | review of 2026-11-09; "Calibration remedies" below | every query returns a root today, and nothing says how far it can be trusted |
 | P12 | `density_lambda` as the default for non-point messages | B | partial: a warning (2026-11-10) | — | LP-024 | uncalibrated covariances reach the graph silently |
 | P13 | The exactness condition checked at run time: `propagate!` does not report "exact" for a tree on which a mixture is collapsed | A, C | proposed | — | [[Bethe Free Energy]] | the report is wrong for such graphs |
 | P14 | A shared solver layer (root finding, the implicit-function adjoint, one tolerance rule, one report), shared by `VariationalDiffusion` and `ImplicitLayers` | B | proposed | — | [[Refactor 2026-11]] | three implementations with three conventions; `ImplicitLayers`' tolerances are absolute and written for `Float64`. Its first fix, now that it is back in `lib/` |
@@ -195,6 +193,8 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 | T2 | Benchmark regression tracking (scaling, allocations per message) | proposed | P15 | low | ChatGPT review §6 | |
 
 ## Done (2026-11-12)
+
+P11, the query report: `query_report(m, z₀, ρ, ps, st)` in VariationalDiffusion (`report.jl`, `report.md`) answers a query and returns a `QueryReport`: converged and stable, the distinct stable roots from other starts and the answer's rank among them, $\operatorname{cond}_1 J_{FF}$ (the pullback's singularity test, now one shared function) and $\lambda_{\min}(\operatorname{sym}J_{FF})$, the round trip, and coverage when a reference is given; `flags` lists what failed (`:not_converged`, `:unstable`, `:other_roots`, `:not_lowest`, `:ill_conditioned`, `:round_trip`, `:atypical`), `trusted(r)` when none. It adds no check of its own. Tested against closed forms (one Gaussian: $\operatorname{cond}_1 = 1$, $\lambda_{\min} = \kappa + 4$), on the ring, on unequal and equal branches. Reviewed by Mistral ([[LP-031 Findings of the review of the query report]]): four flags were wrong, all fixed with regression tests. Left over: a round trip judged by a default tolerance needs the data's scale, which the library does not know; a ridge residual (F3).
 
 P17 and P18, two moves out of type piracy (Aqua's exceptions in Lenticulum's and Adversarial's `test/aqua.jl` are gone). P17: `reduce_mixture` (Runnalls' merge) and `reduce_message` for Gaussian mixtures moved from Lenticulum's `beliefs.jl` to Mycelium's `gaussian.jl`, so Mycelium alone reduces a Gaussian mixture; Lenticulum re-exports `reduce_mixture` (`lib/Mycelium.jl/test/mixture_reduction.jl`: merges keep the total mean and covariance, with Mycelium alone). P18: `belief_mean` and `belief_cov` of `SampleBelief` moved from Adversarial's `ratio.jl` to LenticulumCore, beside the other moments; Adversarial's `weighted_mean` and `weighted_cov` call them (`lib/LenticulumCore.jl/test/sample_moments.jl`: against the sums written out and Statistics). Code unchanged otherwise. This also frees I7 of its dependency.
 

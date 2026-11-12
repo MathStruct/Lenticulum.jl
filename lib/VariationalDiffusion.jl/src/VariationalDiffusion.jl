@@ -62,6 +62,7 @@ include("coverage.jl")
 include("many.jl")
 include("cost.jl")
 include("product.jl")
+include("report.jl")
 include("proxdm.jl")
 include("factor.jl")
 include("bound.jl")
@@ -100,6 +101,7 @@ export implicit_roots, round_trip, implicit_laplace, density_lambda, laplace_bel
 export categorical_answer, code_posterior, calibrate_temperature, implicit_classify, implicit_infer_many
 export pass_costs, root_cost, classifier_cost, break_even_classes
 export CoverageReference, coverage_reference, coverage
+export QueryReport, query_report, trusted
 export AbstractImplicitRelation, ProductRelation
 export AbstractProximalPredictor, proximal, ProxNetwork, MixtureProx
 export proxdm_sample, prox_infer, proximal_matching_loss

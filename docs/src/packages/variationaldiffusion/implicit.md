@@ -75,6 +75,18 @@ each as a conformal p-value ([bates2023conformal](@cite)). On the unit circle ab
 fresh data points get `p < 0.05`, and the answer to the clamp $x = 1.3$, which converges, gets
 0.006.
 
+## How far an answer can be trusted
+
+`query_report(m, z₀, ρ, ps, st)` answers the query and gathers these checks into one
+`QueryReport`: whether the solve converged to a stable root, the other stable roots reached from
+random starts and where the answer stands among them, the conditioning of the free-coordinate
+Jacobian (the test `implicit_pullback` applies, and the smallest curvature), the round trip, and,
+with `reference = coverage_reference(...)`, the coverage p-value. `r.flags` lists what failed
+(`:not_converged`, `:unstable`, `:other_roots`, `:not_lowest`, `:ill_conditioned`,
+`:round_trip`, `:atypical`); `trusted(r)` is true when it is empty. A round trip that finds no
+stable point is always flagged; a finite distance only against `round_trip_tol`, a tolerance in
+data units that the caller supplies.
+
 ## Samples, not only modes
 
 The root finders return modes. `implicit_sample(m, z₀, ρ, ps, st; n, steps, resample)` draws
@@ -159,6 +171,13 @@ Pages = ["cost.jl"]
 ```@autodocs
 Modules = [VariationalDiffusion]
 Pages = ["coverage.jl"]
+```
+
+### The query report
+
+```@autodocs
+Modules = [VariationalDiffusion]
+Pages = ["report.jl"]
 ```
 
 ### Sampling

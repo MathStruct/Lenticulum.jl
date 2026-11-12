@@ -1269,6 +1269,96 @@ end
     @test rt.distance == Inf
 end
 
+@testset "query report: what an answer can be trusted for (P11)" begin
+    # one Gaussian: one root, J_FF = κ + ρ² a scalar, so cond₁ = 1 and λ_min = κ + 4 in closed form
+    v0 = 0.5
+    G = NoisePredictor(GaussianMixtureEps(SCHED, zeros(2, 1); s = sqrt(v0)), SCHED)
+    pg, sg = LuxCore.setup(Xoshiro(0), G)
+    nodes = field_nodes(Xoshiro(2), 2; samples = 3)
+    mg = ImplicitDiffusion(G, nodes; λ = 0.7)
+    κ = sum(nodes.w[k] * 0.7 * sigma(SCHED, t)^2 / (alpha(SCHED, t)^2 * v0 + sigma(SCHED, t)^2) for (k, t) in enumerate(nodes.t))
+    ρ, z₀ = [Inf, 2.0], [0.3, 1.0]
+    r, _ = query_report(mg, z₀, ρ, pg, sg; tol = 1e-12)
+    rg = r
+    @test trusted(r) && r.flags == Symbol[]
+    @test r.converged && r.stable && length(r.roots) == 1 && r.rank == 1
+    @test r.solution.z[2] ≈ 4 * z₀[2] / (κ + 4) rtol = 1e-10
+    @test r.conditioning.cond ≈ 1
+    @test r.conditioning.lambda_min ≈ κ + 4 rtol = 1e-10
+    @test r.coverage === nothing
+    # the reversed query clamps y at the answer and frees x: the Gaussian slice's mode is x = 0
+    @test r.round_trip.distance ≈ 0.3 atol = 1e-8
+    @test :round_trip in first(query_report(mg, z₀, ρ, pg, sg; round_trip_tol = 0.1)).flags
+    @test !(:round_trip in first(query_report(mg, z₀, ρ, pg, sg; round_trip_tol = 0.5)).flags)
+    # matrix-free: the same smallest eigenvalue by Lanczos, no condition number
+    rk, _ = query_report(mg, z₀, ρ, pg, sg; linsolve = KrylovSolve(), nstarts = 2)
+    @test rk.conditioning.cond === nothing
+    @test rk.conditioning.lambda_min ≈ κ + 4 rtol = 1e-8
+    # a given solution is reported, not solved again; one that failed carries its flags and no round trip
+    bad = ImplicitSolution([0.3, 5.0], 1.0, 200, false, false)
+    rb, _ = query_report(mg, z₀, ρ, pg, sg; solution = bad, nstarts = 2)
+    @test rb.solution === bad && rb.round_trip === nothing && rb.rank == 0
+    @test :not_converged in rb.flags && :unstable in rb.flags && !trusted(rb)
+    rs, _ = query_report(mg, z₀, ρ, pg, sg; tol = 1e-300, maxiters = 3, nstarts = 0)   # a tolerance no solve reaches
+    @test :not_converged in rs.flags
+
+    # the ring: "y given x" has two branches; off the ring (x = 1.3) the root is on the ridge
+    m = ImplicitDiffusion(RING, field_nodes(Xoshiro(1), 2; samples = 8))
+    r, _ = query_report(m, [0.6, 0.5], HARDX, RPS, RST; round_trip_tol = 0.05)
+    @test r.converged && r.stable && length(r.roots) == 2 && r.rank ≥ 1
+    @test r.flags == [:other_roots]                          # equal energies by symmetry: not :not_lowest
+    @test r.conditioning.lambda_min > 0
+    off, _ = query_report(m, [1.3, 0.0], HARDX, RPS, RST; round_trip_tol = 0.05)
+    @test :round_trip in off.flags && off.converged
+    # with a coverage reference the off-ring answer is atypical, the on-ring one is not
+    draw(rng, N) = RING_μ[:, rand(rng, 1:RING_J, N)] .+ 0.05 .* randn(rng, 2, N)
+    ref = coverage_reference(m, draw(Xoshiro(2), 2000), RPS, RST; calibration = draw(Xoshiro(3), 300))
+    rc, _ = query_report(m, [0.6, 0.5], HARDX, RPS, RST; reference = ref, nstarts = 4)
+    oc, _ = query_report(m, [1.3, 0.0], HARDX, RPS, RST; reference = ref, nstarts = 4)
+    @test !(:atypical in rc.flags) && rc.coverage.p > 0.1
+    @test :atypical in oc.flags && oc.coverage.flagged
+
+    # unequal branches: the answer reached from z_init = (0, 0.9) is the lighter one
+    W = NoisePredictor(GaussianMixtureEps(SCHED, [0.0 0.0; -1.0 1.0]; s = 0.3, weights = [0.8, 0.2]), SCHED)
+    pw, sw = LuxCore.setup(Xoshiro(0), W)
+    mw = ImplicitDiffusion(W, field_nodes(Xoshiro(1), 2; samples = 8))
+    rw, _ = query_report(mw, [0.0, 0.0], HARDX, pw, sw; z_init = [0.0, 0.9])
+    @test rw.solution.z[2] > 0 && length(rw.roots) == 2
+    @test rw.rank == 2 && rw.roots[1].z[2] < 0
+    @test :not_lowest in rw.flags && :other_roots in rw.flags
+    rl, _ = query_report(mw, [0.0, 0.0], HARDX, pw, sw; z_init = [0.0, -0.9])
+    @test rl.rank == 1 && rl.flags == [:other_roots]
+
+    # LP-031 (Mistral's review of P11), each a regression test:
+    # F1: a Float32 state with Float64 precisions is solved in Float64; the flag uses that type,
+    # as the pullback does, so it neither flags nor throws at cond₁ ≈ 6e7
+    ρ64 = [1e-3, 1e3]
+    r32, st32 = query_report(mg, Float32[0.0, 0.0], ρ64, pg, sg; nstarts = 2)
+    @test r32.conditioning.cond > 1e7 && !(:ill_conditioned in r32.flags)
+    @test implicit_pullback(mg, r32.solution, Float32[0.0, 0.0], ρ64, ones(2), pg, st32) isa Any
+    # F2: the answer is not among the roots found (rank 0), a root of lower energy is: flagged
+    r0, _ = query_report(mw, [0.0, 0.0], HARDX, pw, sw; z_init = [0.0, 0.9], starts = [[0.0, -0.9]])
+    @test r0.rank == 0 && :not_lowest in r0.flags
+    # F3: two roots of exactly equal energy, the answer found second: not flagged
+    T = NoisePredictor(GaussianMixtureEps(SCHED, [0.0 0.0; -1.0 1.0]; s = 0.3, weights = [0.5, 0.5]), SCHED)
+    pt, stt = LuxCore.setup(Xoshiro(0), T)
+    mt = ImplicitDiffusion(T, noisefree_nodes(2, 0.02))
+    rt2, _ = query_report(mt, [0.0, 0.0], HARDX, pt, stt; z_init = [0.0, 0.9], starts = [[0.0, -0.9], [0.0, 0.9]])
+    @test rt2.rank == 2 && rt2.flags == [:other_roots]
+    # F4: a reversed query that finds no stable point is flagged without a tolerance
+    c = ImplicitSolution([0.0, 0.0], 0.0, 0, true, true)
+    r8, _ = query_report(m, [0.0, 0.0], [0.0, Inf], RPS, RST; solution = c, nstarts = 1, maxiters = 5)
+    @test r8.round_trip.distance == Inf && :round_trip in r8.flags
+
+    # the pullback's singularity rule, shared
+    @test VariationalDiffusion._near_singular(1e3, Float64) == false
+    @test VariationalDiffusion._near_singular(1e15, Float64) && VariationalDiffusion._near_singular(Inf, Float64)
+    @test VariationalDiffusion._near_singular(1e6, Float32)
+    # the printed summary names the flags
+    @test occursin("other_roots", sprint(show, MIME"text/plain"(), r))
+    @test occursin("no flags", sprint(show, MIME"text/plain"(), rg))
+end
+
 @testset "categorical answers: classification as a query" begin
     # three classes in the plane, each a ring of 8 components plus its centre, with the label as
     # a one-hot code: the exact posterior p(class | x) is a ratio of Gaussian sums

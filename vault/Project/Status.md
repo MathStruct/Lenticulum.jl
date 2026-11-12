@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-12, after F3 in part (`bd6778ee`, pushed).
+**Last updated:** 2026-11-12, after P11 (the query report), committed and pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at `bd6778ee` (F3 in part), pushed; `master` is behind (merge on request) |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | fast-forwarded to `883f8655`, with the `round_trip` diff applied for Mistral's review (before the LP-030 fix), its scratch scripts in `scratch/f3/` (untracked). Three stale stashes, all droppable: `mistral-wt-p17-18-stale-2026-11-12` (an older copy of P17/P18), `mistral-wt-polarity-cache-draft-2026-11-12`, `mistral-wt-i18-predfix-2026-11-12` |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at the P11 commit, pushed; `master` is behind (merge on request) |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | reset to `e55bf9af`, with the P11 diff applied for Mistral's review (before the LP-031 fixes), its scratch scripts in `scratch/p11/` and `scratch/f3/` (untracked). Stale stashes, all droppable: `mistral-wt-f3-roundtrip-applied-2026-11-12` (the reviewed `round_trip` diff, committed as `bd6778ee`), `mistral-wt-p17-18-stale-2026-11-12`, `mistral-wt-polarity-cache-draft-2026-11-12`, `mistral-wt-i18-predfix-2026-11-12` |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -22,19 +22,17 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 
 ## Done today
 
-- Committed and pushed earlier today: P1 (`597dc8e2`), P17/P18 (`fbbb6cdf`), the rest of I18.
-- **F3 in part** (`bd6778ee`): `round_trip(m, sol, z₀, ρ, ps, st)` in VariationalDiffusion
-  (`answers.jl`, exported; `implicit.md` §5), with the testset "round trip: …"; the calibration
-  benchmark measures the round trip, `coverage` and annealing as filters, its queries run on all
-  threads, `CALIBRATION_SMOKE=1` runs it small (`examples/calibration.md` "Remedies"). Review:
-  Mistral, one defect fixed ([[LP-030 Findings of the review of round_trip]]); LP-028 and LP-029
-  added to the Problem Log, which lacked them.
-- Verified: VariationalDiffusion suite 909/909 and Aqua (`~/.cache/lenticulum/f3/vd-suite.log`), the
-  benchmark (`~/.cache/lenticulum/f3/calibration.log`), the docs build. Not run: device tests (no device
-  code), the other suites (no other package changed).
-- Next: P11 (the query report), built on `round_trip` and `coverage`,
-  or a ridge residual (the rest of F3: the round trip fails where the relation is parallel to the
-  clamped coordinates); I6 for path C.
+- Committed and pushed earlier today: P1, P17/P18, I18, F3 in part (`round_trip`, `bd6778ee`).
+- **P11, the query report**: `query_report(m, z₀, ρ, ps, st)` and `QueryReport`,
+  `trusted` in VariationalDiffusion (`src/report.jl`, `src/report.md`; docs page `implicit.md`, "How
+  far an answer can be trusted"); `_near_singular` is now shared with `implicit_pullback`. Testset
+  "query report: …" (34 tests). Review: Mistral, four defects in the flags, all fixed with
+  regression tests ([[LP-031 Findings of the review of the query report]]).
+- Verified: the VariationalDiffusion suite 943/943 and Aqua 11/11 after the LP-031 fixes
+  (`~/.cache/lenticulum/p11/vd-suite.log`), the docs build (`docs.log`; only the usual size warnings). Not run: device tests (no device code),
+  the other suites (no other package changed), the calibration benchmark with the report.
+- Next: I6 for path C, or the rest of F3 (a ridge residual: membership in the relation without the
+  round trip's failure where the relation is parallel to the clamped coordinates).
 
 ## Open
 
