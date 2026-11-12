@@ -207,7 +207,7 @@
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Parked/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-11-12T18:23:48.635Z</lastmod>
+    <lastmod>2026-11-12T19:31:52.757Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Parked/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
@@ -279,7 +279,7 @@
     <lastmod>2026-11-10T18:39:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog</loc>
-    <lastmod>2026-11-12T18:04:25.000Z</lastmod>
+    <lastmod>2026-11-12T19:31:35.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-001-The-vault-build-uses-GNU-only-sed</loc>
     <lastmod>2026-10-24T23:08:41.000Z</lastmod>
@@ -368,8 +368,11 @@
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-029-Findings-of-the-review-of-P17-and-P18</loc>
     <lastmod>2026-11-12T18:04:25.000Z</lastmod>
   </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-030-Findings-of-the-review-of-round_trip</loc>
+    <lastmod>2026-11-12T19:31:35.000Z</lastmod>
+  </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/Problem-Log</loc>
-    <lastmod>2026-11-12T15:43:08.000Z</lastmod>
+    <lastmod>2026-11-12T19:31:35.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Refactor-2026-11</loc>
     <lastmod>2026-11-12T18:04:25.000Z</lastmod>
@@ -411,7 +414,7 @@
     <lastmod>2026-11-04T23:01:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Status</loc>
-    <lastmod>2026-11-12T18:13:41.000Z</lastmod>
+    <lastmod>2026-11-12T19:31:35.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/README</loc>
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
@@ -753,7 +756,7 @@
     <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/VariationalDiffusion.jl/implicit</loc>
-    <lastmod>2026-11-04T13:21:11.000Z</lastmod>
+    <lastmod>2026-11-12T19:31:35.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/VariationalDiffusion.jl/implicit_factor</loc>
     <lastmod>2026-10-26T12:37:22.000Z</lastmod>
