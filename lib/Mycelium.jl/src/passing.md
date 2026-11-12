@@ -243,8 +243,8 @@ factor). The rule generalises it to any factor whose message leaves the family.
 
 **`MixtureReduction(M)`.** The message is the exact one with every mixture input expanded
 (`mixture_message`, a factor hook; belief propagation collapses those inputs to moments), then
-reduced to at most `M` components (`reduce_message`; Lenticulum's method is Runnalls' merge,
-`reduce_mixture`). Lenticulum implements `mixture_message` for `LinearConstraintFactor` and
+reduced to at most `M` components (`reduce_message`; for Gaussian mixtures Runnalls' merge,
+`reduce_mixture`, in `gaussian.jl` since P17, 2026-11-12, before in Lenticulum). Lenticulum implements `mixture_message` for `LinearConstraintFactor` and
 `SwitchingConstraintFactor` (`switching.md` §9). A factor without it refuses a mixture input on
 such a node; one with only Gaussian inputs takes `factor_message`.
 

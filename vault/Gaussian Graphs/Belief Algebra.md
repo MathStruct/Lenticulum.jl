@@ -98,8 +98,8 @@ Using it as the engine, and what that would gain and lose, is in [[RxInfer as a 
 
 **Where the beliefs live was the real constraint**, and step 1 below is done (October 2026).
 All six belief types, `GaussianBelief` included, are now in `LenticulumCore`; their rules
-(`combine`, densities, entropy, products) are in `Mycelium`; only the projections
-(`moment_match`, `reduce_mixture`) and `kl_divergence` stay in the top-level package. The
+(`combine`, densities, entropy, products, and mixture reduction `reduce_mixture`) are in
+`Mycelium`; only the projection `moment_match` and `kl_divergence` stay in the top-level package. The
 diffusion factors use it at once: `laplace_belief`, `implicit_mixture`, and Gaussian messages
 from `ImplicitProx(…; message = :gaussian)` ([[implicit_factor]] §5).
 

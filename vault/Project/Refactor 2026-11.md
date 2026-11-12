@@ -150,7 +150,7 @@ Known before starting:
 |---|---|---|
 | `ImplicitLayers` | suite passes on 2026-11-10 after the move (20 minutes; device files included) | root-solver tolerances are absolute and written for `Float64`; its solvers duplicate VariationalDiffusion's. Bring it back as, or after, a shared solver layer (root finding, the implicit-function adjoint, one tolerance rule, one report) |
 | `AlgebraicFactors` | suite passes on 2026-11-10 after the move | not reviewed |
-| `Adversarial` | suite passes on 2026-11-10 after the move | not reviewed; the least connected to the rest. `belief_mean` and `belief_cov` of LenticulumCore's `SampleBelief` are defined here (type piracy, declared in `test/aqua.jl`): move them to LenticulumCore |
+| `Adversarial` | suite passes on 2026-11-10 after the move | not reviewed; the least connected to the rest. `belief_mean` and `belief_cov` of LenticulumCore's `SampleBelief`, defined here before (type piracy), are LenticulumCore's since P18 (2026-11-12) |
 
 For a note: move it, check every claim against a test or a script, remove what describes
 history rather than the subject, and give it the `tests:` entry in its sources block

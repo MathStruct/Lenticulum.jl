@@ -433,5 +433,6 @@ end
 end
 
 include("extended_gaussian.jl")
+include("sample_moments.jl")
 
 include("aqua.jl")

@@ -7,40 +7,32 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-12, after P1 (the crossings of the flagged and the extended form; not committed).
+**Last updated:** 2026-11-12, after P17 and P18 (committed; not pushed).
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P1 uncommitted (below), on top of the rest of I18 (`1806e17e`, not pushed); `master` is behind (merge on request) |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | fast-forwarded to `1806e17e`, with the first version of P1 applied for Mistral's review (without the fix of LP-028 F1), its scratch scripts in `scratch/p1/` (untracked). Two stale stashes: `mistral-wt-polarity-cache-draft-2026-11-12` and `mistral-wt-i18-predfix-2026-11-12`; both can be dropped |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P1 (`597dc8e2`) and P17/P18 committed on top of the rest of I18, none pushed; `master` is behind (merge on request) |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `597dc8e2`, with P17/P18 applied for Mistral's review, its scratch scripts in `scratch/p1/` and `scratch/p17-18/` (untracked). Two stale stashes: `mistral-wt-polarity-cache-draft-2026-11-12` and `mistral-wt-i18-predfix-2026-11-12`; both can be dropped |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
 credentials (`git -c credential.helper= -c credential.helper='!gh auth git-credential' push https://github.com/MathStruct/Lenticulum.jl.git dev-danielb`).
 
-## Done: P1
+## Done today
 
-- Tests: Lenticulum `test/forms_crossing.jl` (the dual path's flagged message against the value
-  path's extended one, values and derivatives, for `GaussianFactor`, `LinearConstraintFactor`,
-  `NonlinearFactor`; one `_split_moments` rule; ForwardDiff through `infer!` with one and two flat
-  factors on a variable) and Mycelium `test/forms_crossing.jl` (`combine`, `belief_distance`, `damp`
-  on mixed pairs, plain and dual).
-- Three defects fixed, each with a test that failed before: `_likelihood_message` built the extended
-  form of a dual η (ForwardDiff by `b`, `c` or an observation through a rank-deficient backward
-  message threw since 2026-11-11); `damp` returned the new message undamped on a mixed pair; `combine`
-  threw on a variable hearing a dual flagged and a plain extended message (found by Mistral). Notes:
-  Lenticulum `gaussian.md` "Where the two forms meet", Mycelium `gaussian.md` "Extended Gaussians".
-- Review: Mistral, triaged in [[LP-028 Findings of the review of P1]].
-- Known limits, `@test_broken` and backlog row P21: a dual flagged message into a relation factor's
-  flat-input path; `NonlinearFactor` at a dual expansion point.
-- Verified: all eight suites passed twice, on the first version (logs `~/.cache/lenticulum/p1/run1/`)
-  and with the F1 fix (`~/.cache/lenticulum/p1/`), and Mycelium's device tests passed with the fix.
-  MyceliumLearning's device tests were not run.
-- Not run: the docs build (no docstring changed).
-- Next: commit and push when Daniel asks; then by the proposed order in [[Feature Backlog]]: P17
-  and P18 (mechanical, suited to a helper), then P11 with F3, I6; or I16/I17.
+- **P1** (`597dc8e2`): tests where the flagged and the extended form meet, and three fixes
+  ([[LP-028 Findings of the review of P1]]). Left over: P21 (`@test_broken`).
+- **P17, P18**: `reduce_mixture`/`reduce_message` of Gaussian mixtures moved from Lenticulum to
+  Mycelium (`gaussian.jl`; Lenticulum re-exports `reduce_mixture`); `belief_mean`/`belief_cov` of
+  `SampleBelief` moved from Adversarial to LenticulumCore (`gaussian_belief.jl`). The two Aqua piracy
+  exceptions are gone. Tests: Mycelium `test/mixture_reduction.jl` (Mycelium alone), LenticulumCore
+  `test/sample_moments.jl`. Review: Mistral, no code defect ([[LP-029 Findings of the review of P17 and P18]]).
+- Verified for P17/P18: all eight suites passed (`~/.cache/lenticulum/p17-18/`), LenticulumCore and
+  Adversarial again after the last rename, and the docs build. Not run: device tests (no device code changed).
+- Next: push when Daniel asks; then by the proposed order in [[Feature Backlog]]: P11 with F3 for
+  path B, and I6 for path C; or I16/I17, P21.
 
 ## Open
 

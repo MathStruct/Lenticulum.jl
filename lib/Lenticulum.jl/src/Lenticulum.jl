@@ -20,7 +20,7 @@ Its purpose is to be a **test oracle**. Every quantity it produces has a closed 
 framework's claims can be checked against arithmetic instead of against itself. Two of them
 turned out to be wrong; see `The Gaussian Factor.md` §"What this caught".
 
-- `beliefs.jl` — projections onto [`GaussianBelief`](@ref) (`moment_match`, `reduce_mixture`)
+- `beliefs.jl` — projections onto [`GaussianBelief`](@ref) (`moment_match`; `reduce_mixture` is re-exported from Mycelium)
   and `kl_divergence`. The type itself is in `LenticulumCore` and its message rules (pooling is
   **addition** of canonical parameters) in `Mycelium`; both are re-exported here.
 - `gaussian.jl` — [`GaussianFactor`](@ref) and [`GaussianPrior`](@ref).
@@ -42,7 +42,7 @@ using LinearAlgebra: LinearAlgebra, Diagonal, I, Symmetric, cholesky, isposdef, 
 using Random: Random, AbstractRNG
 using LuxCore: LuxCore
 using LenticulumCore: LenticulumCore
-using Mycelium: Mycelium
+using Mycelium: Mycelium, reduce_mixture          # re-exported (moved to Mycelium, P17)
 using MyceliumLearning: MyceliumLearning
 using SpecialFunctions: SpecialFunctions
 using LenticulumCore: GaussianBelief, Gaussian, uninformative, belief_mean, belief_cov, isproper,

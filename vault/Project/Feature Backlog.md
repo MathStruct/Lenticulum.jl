@@ -31,7 +31,6 @@ graph LR
   F2 --> P10[P10 noisefree vs<br/>field nodes]
   F2 --> F4[F4 posterior samplers]
   F2 --> L15[L15 time-independent<br/>energy]
-  P17[P17 reduce_message<br/>into Mycelium] --> I7[I7 mixture reduction<br/>in plates]
   I15[I15 belief-space<br/>interface] --> I12[I12 Langevin on F]
   I15 --> I13[I13 mirror descent on F]
   T1[T1 optimiser<br/>benchmark] --> I13
@@ -52,7 +51,7 @@ F2 is *partial*; its present problems (circle, lemniscate, rings) suffice for P1
 
 **Proposed order (2026-11-11, until Daniel sets one):** ~~I5~~ (done 2026-11-12; the gap against
 RxInfer, [[Benchmark against RxInfer]], not measured again since); ~~P1~~ (done 2026-11-12; it found a ForwardDiff
-regression and a silent no-op in damping); P17 and P18, mechanical and suited to a helper in its own worktree (P19 done 2026-11-12 with I18; I18 done 2026-11-12); then P11 with F3 for
+regression and a silent no-op in damping); ~~P17 and P18~~ (done 2026-11-12) (P19 done 2026-11-12 with I18; I18 done 2026-11-12); then P11 with F3 for
 path B, and I6 for path C.
 
 ## First, on the three paths (2026-11-10)
@@ -77,8 +76,6 @@ named. The structure-search driver (path C) is S7.
 | P14 | A shared solver layer (root finding, the implicit-function adjoint, one tolerance rule, one report), shared by `VariationalDiffusion` and `ImplicitLayers` | B | proposed | — | [[Refactor 2026-11]] | three implementations with three conventions; `ImplicitLayers`' tolerances are absolute and written for `Float64`. Its first fix, now that it is back in `lib/` |
 | P15 | A coverage report; a job that runs the examples and benchmarks at small size | all | proposed | — | review of 2026-11-09 | which branches no test reaches is unknown; examples and benchmarks are run by nothing (`Aqua.jl` in every suite: done 2026-11-10) |
 | P16 | Owned scalarisations: one graded energy, a scalarisation chosen per parameter key (each block descends its own), for games such as a GAN; with a stability check of the joint Jacobian | — | proposed | — | [[GANs as Two Factors]] §4 (2026-11-10) | every learnable node descends the one scalar $F$, so no game is expressible; a per-factor sign is the zero-sum special case |
-| P17 | Move `Mycelium.reduce_message` for Gaussian mixtures from Lenticulum (`beliefs.jl`) into Mycelium | A, C | proposed | — | Aqua (2026-11-10), declared in Lenticulum's `test/aqua.jl` | type piracy: Mycelium without Lenticulum refuses to reduce a Gaussian mixture |
-| P18 | Move `belief_mean`/`belief_cov` of `SampleBelief` from Adversarial (`ratio.jl`) into LenticulumCore | — | proposed | — | Aqua (2026-11-10), declared in Adversarial's `test/aqua.jl` | type piracy: the moments of a sample belief exist only with Adversarial loaded |
 | P20 | Zygote through `scalar_free_energy` on plates with block rows: `_row_scalar` calls `sum(...; init = 0.0)`, for which ChainRules has no rrule (`MethodError`) | A, C | proposed | — | Mistral's review of 2026-11-11 (`lib/Mycelium.jl/src/passing.md`, "The state tree") | a defect, not a feature: the gradient of a plated free energy by Zygote fails; found by running, the same before and after P7 |
 | P21 | ForwardDiff through a relation factor's flat-input path: a flagged `GaussianBelief` of dual numbers entering `_flat_message` or `_linear_message` with flat inputs | A, C | proposed | — | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Where the two forms meet" | P1 (2026-11-12): throws a `MethodError` (an eigendecomposition and an SVD of duals), `@test_broken` in `lib/Lenticulum.jl/test/forms_crossing.jl`. With only η dual (a derivative by `b`, `c` or an observation) the flat directions do not move, so a derivative exists: split and project on values, carry the duals through η. Also `NonlinearFactor`'s backward message at a dual expansion point: `_jacobian` writes into a `Float64` matrix (`MethodError: Float64(::Dual)`, `@test_broken`, LP-028 F3) |
 
@@ -91,7 +88,7 @@ named. The structure-search driver (path C) is S7.
 | I3 | A spanning-tree schedule for loopy graphs (`spanning_tree_schedule(g)`: the messages off a spanning tree, then the tree's inward and outward sweeps, in place; the updates of tree-based reparameterisation) | partial: done in Mycelium (2026-11-09; `schedules.md`); the choice of tree and alternating trees remain | — | high | [[Composing Optimisers]] §4.2 (2026-11-09) | measured on the divider (`bench/bp_schedules.jl`): 0.17–0.18 of flooding's message evaluations to an error of 1e-10, in all four settings, with no knowledge of the loop; with `infer!` 82 sweeps against 463 (`test/runtests.jl`). On Gaussian grids up to 20 × 20 (`bench/bp_grid.jl`, 2026-11-09): 0.17–0.29 of flooding's sweeps; its Jacobian has at most two nonzero eigenvalues per independent loop ([[Composing Optimisers]] §4.4). Untested: graphs where BP oscillates, non-Gaussian graphs |
 | I4 | A dependency-aware priority queue for `ResidualSchedule` | proposed | — | medium | ChatGPT review (LP-023) | each sweep probes every task, $O(T^2)$ evaluations: 2.1 times flooding's on the divider. A queue prototype in `bench/bp_schedules.jl` needs 0.24–0.31 of flooding's, behind the spanning-tree order ([[Composing Optimisers]] §4.2) |
 | I6 | Batched cluster nodes with per-outcome forms over a plate | planned | — | medium | [[L-SPEC-009 Cluster Nodes]] open; [[Benchmark against RxInfer]] (2026-11-11) | `RegimeFactor` plates go replica by replica: `fit_em` on a mixture of two regressions takes 1.2 s at $N = 300$ and 32 s at 3 000, against 0.6 and 6.5 ms for closed-form EM and 0.13 and 3.2 s for RxInfer's VMP |
-| I7 | Mixture-reduction and EP nodes batched in plates | planned | P17 | low | [[L-SPEC-008 Expectation Propagation and Mixture Reduction]] open | edge by edge today |
+| I7 | Mixture-reduction and EP nodes batched in plates | planned | — | low | [[L-SPEC-008 Expectation Propagation and Mixture Reduction]] open | edge by edge today |
 | I8 | Clusters with loops; several mean-field variables in one cluster | planned | — | low | [[L-SPEC-007 Hybrid Schedules]] open | |
 | I9 | Nested plates; stateful tied factors | planned | — | low | [[L-SPEC-006 Plates]] open | |
 | I10 | Incremental inference (reuse factorisations and beliefs after a local change, iSAM2-like) | proposed | — | low | ChatGPT review; LenticulumLM's [Incremental Next-Token Prediction](https://mathstruct.org/LenticulumLM/Design/Incremental-Next-Token-Prediction) (an idea, 2026-11-05) | online learning, SLAM-like use, and next-token prediction as appending factors; `transfer` gives warm starts today, not reuse of factorisations |
@@ -197,6 +194,8 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 | T2 | Benchmark regression tracking (scaling, allocations per message) | proposed | P15 | low | ChatGPT review §6 | |
 
 ## Done (2026-11-12)
+
+P17 and P18, two moves out of type piracy (Aqua's exceptions in Lenticulum's and Adversarial's `test/aqua.jl` are gone). P17: `reduce_mixture` (Runnalls' merge) and `reduce_message` for Gaussian mixtures moved from Lenticulum's `beliefs.jl` to Mycelium's `gaussian.jl`, so Mycelium alone reduces a Gaussian mixture; Lenticulum re-exports `reduce_mixture` (`lib/Mycelium.jl/test/mixture_reduction.jl`: merges keep the total mean and covariance, with Mycelium alone). P18: `belief_mean` and `belief_cov` of `SampleBelief` moved from Adversarial's `ratio.jl` to LenticulumCore, beside the other moments; Adversarial's `weighted_mean` and `weighted_cov` call them (`lib/LenticulumCore.jl/test/sample_moments.jl`: against the sums written out and Statistics). Code unchanged otherwise. This also frees I7 of its dependency.
 
 P1, the tests where the two forms of a flat likelihood meet (an `improper` `GaussianBelief` and an `ExtendedGaussian`): the dual path's message against the value path's, values and derivatives, for `GaussianFactor`, `LinearConstraintFactor` and `NonlinearFactor`; one `_split_moments` rule; `combine`, `belief_distance` and `damp` on mixed pairs; a ForwardDiff derivative through an inference (`lib/Lenticulum.jl/test/forms_crossing.jl`, `lib/Mycelium.jl/test/forms_crossing.jl`). Two defects fixed: `_likelihood_message` built the extended form of a dual η when only η was dual, so a ForwardDiff derivative by `b`, `c` or an observation through a rank-deficient backward message threw (since 2026-11-11); and `damp` returned the new message undamped when a message changed form between sweeps. Reviewed by Mistral ([[LP-028 Findings of the review of P1]]), which found a third: `combine` threw on a variable that hears a dual flagged and a plain extended message; such pairs now meet in canonical form. Left over: P21, the flat-input path and `NonlinearFactor` at a dual expansion point under ForwardDiff (both `@test_broken`).
 

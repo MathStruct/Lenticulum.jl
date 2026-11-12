@@ -175,3 +175,19 @@ Gaussians".
 therefore has a finite counting term, and flat directions (an improper marginal) throw. On trees
 with a hard relation the Bethe free energy is then $-\log Z$ (Lenticulum `test/hard_free_energy.jl`;
 the convention is in `lib/LenticulumCore.jl/src/extended_gaussian.md`, "Entropy").
+
+## Mixture reduction (2026-11-12, P17)
+
+`reduce_mixture(m; max_components, prune)` and `reduce_message(::MixtureBelief{<:GaussianBelief}, M)`,
+the message of a `MixtureReduction(M)` node, are defined here. They were in Lenticulum's `beliefs.jl`,
+where the `reduce_message` method was type piracy (Mycelium's function on LenticulumCore's types),
+and Mycelium without Lenticulum refused to reduce a Gaussian mixture. The code is unchanged; Lenticulum
+re-exports `reduce_mixture`. The theory (Runnalls' bound on the KL divergence of a merge, which keeps the
+total mean and covariance) and the refusal of improper components over the budget are in Lenticulum's
+`beliefs.md`, "The reduction of a message".
+
+Tested in `test/mixture_reduction.jl` with Mycelium and LenticulumCore only: on 30 random mixtures of
+2–6 components, every budget from 1 to K + 1 gives the mixture unchanged within the budget, the
+moment-matched Gaussian at one, and otherwise the requested number of components with the total mean
+and covariance kept to $10^{-10}$. Mistral compared the moved functions with the code before the move on
+40 random mixtures and found them identical ([[LP-029 Findings of the review of P17 and P18]]).

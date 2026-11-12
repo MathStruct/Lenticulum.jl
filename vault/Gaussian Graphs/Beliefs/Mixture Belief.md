@@ -5,7 +5,7 @@
 > both poses of a robot arm. Its product with another belief is again a mixture, so it travels
 > through message passing; `reduce_mixture` keeps it from growing.
 
-> Sources: code: `open_model.jl` (the type), `messages.jl` (density and products), `beliefs.jl` in the top-level package (Gaussian components: product, `moment_match`, `reduce_mixture`); Runnalls, *Kullback-Leibler Approach to Gaussian Mixture Reduction*, IEEE Transactions on Aerospace and Electronic Systems 2007 (the merge cost)
+> Sources: code: `open_model.jl` (the type), `messages.jl` (density and products), `beliefs.jl` in the top-level package (Gaussian components: `moment_match`), Mycelium's `gaussian.jl` (product, `reduce_mixture`); Runnalls, *Kullback-Leibler Approach to Gaussian Mixture Reduction*, IEEE Transactions on Aerospace and Electronic Systems 2007 (the merge cost)
 >
 > Bibliography: [[Bibliography#^runnalls2007kl|Runnalls 2007]]
 >

@@ -13,8 +13,9 @@
 #
 # The type lives here, beside the other belief types, so that every package (the diffusion
 # factors and implicit layers included) can emit Gaussians; its message rules (`combine`,
-# densities, entropy, damping) are in Mycelium's `gaussian.jl`, its projections
-# (`moment_match`, `reduce_mixture`) in Lenticulum's `beliefs.jl`.
+# densities, entropy, damping, mixture reduction `reduce_mixture`) are in Mycelium's
+# `gaussian.jl`, its projection `moment_match` in Lenticulum's `beliefs.jl`. The moments of a
+# `SampleBelief` are at the end of this file (P18).
 #
 # See `Gaussian Belief.md` and `Beliefs.md` in vault/Factor Graphs/.
 # ---------------------------------------------------------------------------
@@ -157,6 +158,53 @@ end
 ``\\Sigma = \\Lambda^{-1}``.
 """
 belief_cov(b::GaussianBelief) = inv(_improper_check(b, "belief_cov"))
+
+"""
+    belief_mean(b::SampleBelief) -> Vector
+    belief_cov(b::SampleBelief) -> Matrix
+
+Self-normalised importance-sampling estimates of the first two moments: the weighted mean and
+the weighted covariance ``\\sum_i w_i (x_i - \\bar x)(x_i - \\bar x)^\\top`` with the weights
+normalised to sum to one (uniform without weights). Samples are the columns of a matrix or the
+elements of a vector (vectors or scalars). Defined here, beside the type (P18; they were in
+Adversarial, `ratio.jl`, and existed only with it loaded). See `open_model.md`, "Sample moments".
+"""
+function belief_mean(b::SampleBelief)
+    w = _moment_weights(b)
+    pts = _sample_points(b)
+    acc = zeros(Float64, length(first(pts)))
+    for i in eachindex(pts)
+        acc .+= w[i] .* float.(pts[i])
+    end
+    return acc
+end
+
+function belief_cov(b::SampleBelief)
+    w = _moment_weights(b)
+    m = belief_mean(b)
+    d = length(m)
+    acc = zeros(Float64, d, d)
+    pts = _sample_points(b)
+    for i in eachindex(pts)
+        r = float.(pts[i]) .- m
+        acc .+= w[i] .* (r * r')
+    end
+    return acc
+end
+
+_sample_points(b::SampleBelief) = b.samples isa AbstractMatrix ? eachcol(b.samples) : b.samples
+# divided by the largest weight first, so that weights near floatmax do not overflow the sum.
+# Not Mycelium's `_sample_weights` (messages.jl), which returns uniform weights for all-zero ones;
+# the constructor refuses those, so the difference is not reached (LP-029, F4).
+function _moment_weights(b::SampleBelief)
+    n = length(_sample_points(b))
+    b.weights === nothing && return fill(1 / n, n)
+    w = float.(b.weights)
+    m = maximum(w)
+    m > 0 || throw(ArgumentError("all sample weights are zero"))
+    w = w ./ m
+    return w ./ sum(w)
+end
 
 # `(belief_mean(b), belief_cov(b))` from one factorisation of Λ instead of two: the relation
 # factors need both for every message (I18). Only for beliefs on the CPU (the device methods of

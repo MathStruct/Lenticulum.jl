@@ -271,3 +271,67 @@ function _indefinite(b::GaussianBelief)
     E = LinearAlgebra.eigvals(Λ)
     return isempty(E) ? false : minimum(E) < -16 * length(E) * eps(Float64) * maximum(abs, E)
 end
+
+# --- Mixture reduction (P17) ---------------------------------------------------------------
+# Runnalls' merge and the message of a `MixtureReduction` node for mixtures of Gaussians. They
+# were defined in Lenticulum (`beliefs.jl`), which was type piracy: Mycelium alone refused to
+# reduce a Gaussian mixture. Lenticulum re-exports `reduce_mixture`.
+
+"""
+    reduce_mixture(m::MixtureBelief{<:GaussianBelief}; max_components, prune = 1e-8)
+        -> MixtureBelief
+
+Bound the size of a Gaussian mixture, which products make grow multiplicatively. Components
+with weight below `prune` (relative to the largest) are dropped; then, while there are more
+than `max_components`, the pair whose merge costs least is replaced by the single Gaussian
+with their combined weight, mean and covariance. The cost is Runnalls' upper bound on the
+Kullback–Leibler divergence the merge introduces,
+``\\tfrac12\\bigl[(w_i + w_j)\\log\\det\\Sigma_{ij} - w_i\\log\\det\\Sigma_i - w_j\\log\\det\\Sigma_j\\bigr]``.
+Merging preserves the mixture's overall mean and covariance exactly. Pruning and
+renormalising changes total variation by at most the removed mass; moment changes need
+bounds on component locations and covariances and can be arbitrarily large.
+"""
+function reduce_mixture(m::LenticulumCore.MixtureBelief{<:GaussianBelief}; max_components::Integer, prune::Real = 1e-8)
+    max_components ≥ 1 || throw(ArgumentError("max_components must be at least 1"))
+    w = LenticulumCore.mixture_weights(m)
+    keep = w .≥ prune * maximum(w)
+    ws = w[keep]
+    μs = [LenticulumCore.belief_mean(c) for c in m.components[keep]]
+    Σs = [LenticulumCore.belief_cov(c) for c in m.components[keep]]
+    function merged(i, j)
+        wij = ws[i] + ws[j]
+        μ = (ws[i] .* μs[i] .+ ws[j] .* μs[j]) ./ wij
+        Σ = (ws[i] .* (Σs[i] .+ (μs[i] .- μ) * (μs[i] .- μ)') .+ ws[j] .* (Σs[j] .+ (μs[j] .- μ) * (μs[j] .- μ)')) ./ wij
+        return wij, μ, Matrix(LinearAlgebra.Symmetric(Σ))
+    end
+    while length(ws) > max_components
+        best, bi, bj = Inf, 0, 0
+        for i in eachindex(ws), j in (i + 1):length(ws)
+            wij, _, Σ = merged(i, j)
+            cost = (wij * logdet(Σ) - ws[i] * logdet(Σs[i]) - ws[j] * logdet(Σs[j])) / 2
+            cost < best && ((best, bi, bj) = (cost, i, j))
+        end
+        wij, μ, Σ = merged(bi, bj)
+        ws[bi], μs[bi], Σs[bi] = wij, μ, Σ
+        deleteat!(ws, bj); deleteat!(μs, bj); deleteat!(Σs, bj)
+    end
+    return LenticulumCore.MixtureBelief([LenticulumCore.Gaussian(μs[k], Σs[k]) for k in eachindex(ws)], ws)
+end
+
+"""
+    reduce_message(m::MixtureBelief{<:GaussianBelief}, maxcomponents)
+
+The message of a `MixtureReduction(maxcomponents)` node: [`reduce_mixture`](@ref) when `m` has more than
+`maxcomponents` components, and the single component when one is left. Runnalls' merge needs
+the components' moments, so a mixture with an improper (likelihood) component over the budget
+is refused.
+"""
+function reduce_message(m::LenticulumCore.MixtureBelief{<:GaussianBelief}, maxcomponents::Integer)
+    length(m.components) <= maxcomponents && return m
+    all(isproper, m.components) || throw(ArgumentError(
+        "cannot reduce a mixture with improper (likelihood) components: Runnalls' merge needs their \
+         moments. Raise the MixtureReduction() budget to $(length(m.components)), or reduce on a side where the \
+         components are proper"))
+    r = reduce_mixture(m; max_components = maxcomponents)
+    return length(r.components) == 1 ? only(r.components) : r
+end

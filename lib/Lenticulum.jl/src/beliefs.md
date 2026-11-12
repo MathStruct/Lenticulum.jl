@@ -1,7 +1,7 @@
 #implementation
 
-> `beliefs.jl`: Gaussian belief projections (`moment_match`, `reduce_mixture`) and
-> `kl_divergence`.
+> `beliefs.jl`: Gaussian belief projections (`moment_match`) and `kl_divergence`.
+> `reduce_mixture` moved to Mycelium (P17, 2026-11-12) and is re-exported here.
 
 > Sources: code: `beliefs.jl`, `lib/LenticulumCore.jl/src/gaussian_belief.jl`, `lib/Mycelium.jl/src/gaussian.jl`; Minka, *Expectation Propagation for Approximate Bayesian Inference*, UAI 2001; Runnalls, *Kullback–Leibler Approach to Gaussian Mixture Reduction*, IEEE TAES 2007
 >
@@ -17,8 +17,8 @@ needs:
 | Layer | File | Contents |
 |---|---|---|
 | `LenticulumCore` | `src/gaussian_belief.jl` | `GaussianBelief(η, Λ)`, `Gaussian(μ, Σ)`, `uninformative`, `isuninformative`, `isproper`, `belief_mean`, `belief_cov`, `logpartition` |
-| `Mycelium` | `src/gaussian.jl` | `combine`, `belief_logdensity`, `variable_entropy`, `belief_distance`, `can_damp`, `_damp`, `combine_with_overlap` |
-| `Lenticulum` | `src/beliefs.jl` | `kl_divergence`, `moment_match`, `reduce_mixture` |
+| `Mycelium` | `src/gaussian.jl` | `combine`, `belief_logdensity`, `variable_entropy`, `belief_distance`, `can_damp`, `_damp`, `combine_with_overlap`, `reduce_mixture`, `reduce_message` |
+| `Lenticulum` | `src/beliefs.jl` | `kl_divergence`, `moment_match` |
 
 ## 2. Projections onto the Gaussian family
 
@@ -27,7 +27,7 @@ needs:
 - **`moment_match(b)`**: Computes the inclusive KL projection
   $\arg\min_{q \in \mathcal{G}} \mathrm{KL}(b \,\|\, q)$ by matching the first two moments of a
   `SampleBelief` or `MixtureBelief{<:GaussianBelief}`.
-- **`reduce_mixture(m; max_components, prune)`**: Prunes negligible components and greedily
+- **`reduce_mixture(m; max_components, prune)`** (in Mycelium since P17): Prunes negligible components and greedily
   merges pairs minimizing Runnalls' upper bound on the KL divergence introduced by each merge:
   $$\frac{1}{2}\Bigl[(w_i + w_j)\log\det\Sigma_{ij} - w_i\log\det\Sigma_i - w_j\log\det\Sigma_j\Bigr]$$
   while preserving the total mean and covariance of the unpruned mixture.
@@ -65,6 +65,13 @@ moments. Evidence: `test/lp018.jl`, “LP-018.9 finite particle weights in momen
 matching” and “LP-018.13 pruning bounds mass, not moments”.
 
 ## The reduction of a message (2026-11-03)
+
+**Moved to Mycelium (2026-11-12, P17).** This method and `reduce_mixture` are in
+`lib/Mycelium.jl/src/gaussian.jl` now. Defined here, the method was type piracy (Mycelium's function on
+LenticulumCore's types, declared in `test/aqua.jl`), and Mycelium without Lenticulum refused to reduce
+a Gaussian mixture. Lenticulum re-exports `reduce_mixture`; the code is unchanged. Mycelium's
+`test/mixture_reduction.jl` checks it with Mycelium alone (merges keep the total mean and covariance,
+30 random mixtures).
 
 `Mycelium.reduce_message(m::MixtureBelief{<:GaussianBelief}, M)` is what a `MixtureReduction(M)` node
 sends: `reduce_mixture(m; max_components = M)` (Runnalls 2007) when `m` has more than `M`

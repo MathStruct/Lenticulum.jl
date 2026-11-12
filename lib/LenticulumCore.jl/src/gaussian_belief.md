@@ -29,8 +29,8 @@ next to the other five belief types, in October 2026. The split is now:
 | layer | Gaussian code |
 |---|---|
 | `LenticulumCore` (`gaussian_belief.jl`) | the type and its accessors |
-| `Mycelium` (`gaussian.jl`) | the message rules: `combine`, densities, entropy, distance, damping, `combine_with_overlap` |
-| `Lenticulum` (`beliefs.jl`) | projections: `moment_match`, `reduce_mixture`, and `kl_divergence` |
+| `Mycelium` (`gaussian.jl`) | the message rules: `combine`, densities, entropy, distance, damping, `combine_with_overlap`; mixture reduction (`reduce_mixture`, since P17) |
+| `Lenticulum` (`beliefs.jl`) | projections: `moment_match`, and `kl_divergence` |
 
 `Lenticulum` re-exports every name, so user code did not change. The cost is one dependency,
 the `LinearAlgebra` standard library.

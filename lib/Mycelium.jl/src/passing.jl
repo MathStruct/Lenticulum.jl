@@ -154,8 +154,8 @@ end
 
 A message reduced to at most `maxcomponents` mixture components, for [`MixtureReduction`](@ref) nodes. A
 belief that is not a mixture, or has few enough components, is returned unchanged; a reduction
-to one component returns the component. Lenticulum implements it for mixtures of Gaussians
-(Runnalls' merge, `reduce_mixture`); anything else is refused.
+to one component returns the component. Mixtures of Gaussians are reduced by Runnalls' merge
+([`reduce_mixture`](@ref), `gaussian.jl`); anything else is refused.
 """
 reduce_message(b, maxcomponents::Integer) = b
 function reduce_message(m::LenticulumCore.MixtureBelief, maxcomponents::Integer)

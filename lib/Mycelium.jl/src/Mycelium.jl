@@ -65,7 +65,7 @@ include("edits.jl")
 # --- Graph -----------------------------------------------------------------
 export FactorGraph, GraphBuilder, VariableNode, FactorNode, Edge
 export AbstractMessageRule, BeliefPropagation, MeanField, ExpectationPropagationRule, MixtureReduction
-export ep_message, ep_project, ep_divide, ep_block, mixture_message, reduce_message
+export ep_message, ep_project, ep_divide, ep_block, mixture_message, reduce_message, reduce_mixture
 export OverlayFactor
 export cluster, as_cluster, ClusterFactor, ClusterForm, TableFactor, FrozenClusterBeliefs, cluster_form, cluster_switch, cluster_parameters, cluster_marginal, overlap_groups, FrozenClusterBelief
 export remove_factor!, remove_variable!, disconnect!, replace_factor!, transfer

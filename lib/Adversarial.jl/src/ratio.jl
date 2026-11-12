@@ -172,45 +172,14 @@ end
 
 Self-normalised importance-sampling estimates of the first two moments.
 
-These are the only way to read anything out of a `SampleBelief`, and they are how the test
-suite checks reweighting against a Gaussian closed form.
+The same as LenticulumCore's `belief_mean` and `belief_cov` of a `SampleBelief`, kept under
+these names; the test suite checks reweighting against a Gaussian closed form through them.
 """
-function weighted_mean(b::LenticulumCore.SampleBelief)
-    w = _weights(b)
-    pts = _points(b)
-    acc = zeros(Float64, length(first(pts)))
-    for i in eachindex(pts)
-        acc .+= w[i] .* float.(pts[i])
-    end
-    return acc
-end
-
-function weighted_cov(b::LenticulumCore.SampleBelief)
-    w = _weights(b)
-    m = weighted_mean(b)
-    d = length(m)
-    acc = zeros(Float64, d, d)
-    pts = _points(b)
-    for i in eachindex(pts)
-        r = float.(pts[i]) .- m
-        acc .+= w[i] .* (r * r')
-    end
-    return acc
-end
-
-function _weights(b::LenticulumCore.SampleBelief)
-    n = length(_points(b))
-    b.weights === nothing && return fill(1 / n, n)
-    w = float.(b.weights)
-    m = maximum(w)
-    m > 0 || throw(ArgumentError("all sample weights are zero"))
-    w = w ./ m
-    s = sum(w)
-    return w ./ s
-end
-
-LenticulumCore.belief_mean(b::LenticulumCore.SampleBelief) = weighted_mean(b)
-LenticulumCore.belief_cov(b::LenticulumCore.SampleBelief) = weighted_cov(b)
+# LenticulumCore's `belief_mean` and `belief_cov` of a `SampleBelief` (P18: they were defined
+# here, type piracy, and moved beside the type)
+weighted_mean(b::LenticulumCore.SampleBelief) = LenticulumCore.belief_mean(b)
+weighted_cov(b::LenticulumCore.SampleBelief) = LenticulumCore.belief_cov(b)
+_weights(b::LenticulumCore.SampleBelief) = LenticulumCore._moment_weights(b)
 
 # --- The factor interface --------------------------------------------------
 
