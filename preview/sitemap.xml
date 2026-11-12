@@ -1,6 +1,6 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml"><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Bibliography</loc>
-    <lastmod>2026-11-11T17:22:56.000Z</lastmod>
+    <lastmod>2026-11-12T23:36:29.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Design/Backward-Signatures</loc>
     <lastmod>2026-10-29T20:31:05.000Z</lastmod>
@@ -207,7 +207,7 @@
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Parked/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-11-12T22:29:46.961Z</lastmod>
+    <lastmod>2026-11-12T23:36:45.260Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Parked/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
@@ -279,7 +279,7 @@
     <lastmod>2026-11-10T18:39:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog</loc>
-    <lastmod>2026-11-12T22:29:30.000Z</lastmod>
+    <lastmod>2026-11-12T23:36:29.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-001-The-vault-build-uses-GNU-only-sed</loc>
     <lastmod>2026-10-24T23:08:41.000Z</lastmod>
@@ -377,8 +377,11 @@
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-032-Findings-of-the-review-of-I6</loc>
     <lastmod>2026-11-12T22:29:30.000Z</lastmod>
   </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-033-Findings-of-the-review-of-the-ridge-residual</loc>
+    <lastmod>2026-11-12T23:36:29.000Z</lastmod>
+  </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/Problem-Log</loc>
-    <lastmod>2026-11-12T22:29:30.000Z</lastmod>
+    <lastmod>2026-11-12T23:36:29.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Refactor-2026-11</loc>
     <lastmod>2026-11-12T18:04:25.000Z</lastmod>
@@ -420,7 +423,7 @@
     <lastmod>2026-11-04T23:01:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Status</loc>
-    <lastmod>2026-11-12T22:29:30.000Z</lastmod>
+    <lastmod>2026-11-12T23:36:29.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/README</loc>
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
@@ -762,7 +765,7 @@
     <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/VariationalDiffusion.jl/implicit</loc>
-    <lastmod>2026-11-12T19:31:35.000Z</lastmod>
+    <lastmod>2026-11-12T23:36:29.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/VariationalDiffusion.jl/implicit_factor</loc>
     <lastmod>2026-10-26T12:37:22.000Z</lastmod>
@@ -786,7 +789,7 @@
     <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/VariationalDiffusion.jl/report</loc>
-    <lastmod>2026-11-12T20:08:19.000Z</lastmod>
+    <lastmod>2026-11-12T23:36:29.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/VariationalDiffusion.jl/sampler</loc>
     <lastmod>2026-10-29T14:49:16.000Z</lastmod>
