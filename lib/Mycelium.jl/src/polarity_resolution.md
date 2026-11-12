@@ -75,6 +75,20 @@ runtime field. That is a `LenticulumCore` change and it is probably right, since
 argument for putting polarity in the type domain ([[channels]]) is undermined if the names
 arrive dynamically.
 
+**Cached per graph (2026-11-12).** A profile of a sweep on `bench/state_scaling.jl`'s chain
+(800 steps, 2 401 factors, 50 sweeps, 8 267 samples) put about a quarter of the sweep in
+`resolve_polarity`. Building `NamedTuple{decl}` with run-time names took 997 samples in that line
+alone, and rebuilding `decl` from `channels(factor)` took 909. `FactorGraph` now keeps, per
+factor, a `Dict` from `(target, available)` to the polarity, behind a lock. The graph and its
+factors are immutable, so an entry never goes stale. Only a successful resolution is stored, so
+an invalid key throws on every call. After the change `resolve_polarity` takes about 100 of
+6 296 samples, and the sweep takes 14.0 ms instead of 18.9 (best of 5,
+one machine). The dynamic dispatch on the polarity's type in `_rule_message` remains; the type-level fix
+above would remove it too. Test: "polarity resolution" in `test/runtests.jl`, which compares the
+cached polarity with a fresh `_resolve_polarity` for every target and every subset of the other
+channels, given as a tuple, a vector and a set. Reviewed by Mistral (no defects; it also checked
+the graph-edit paths, eight tasks resolving at once, and Zygote and ForwardDiff through `step!`).
+
 ### 4. `check_legal`'s error picks an arbitrary channel
 
 When `supports_polarity` returns `false` the error names

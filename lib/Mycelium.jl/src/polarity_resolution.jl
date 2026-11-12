@@ -119,6 +119,14 @@ laxness of `Composition of Bayesian Lenses.md` Remark 16), and are noted as futu
 `polarity_resolution.md`.
 """
 function resolve_polarity(g::FactorGraph, fid::Int, target::Symbol, available)
+    # Cached per factor: the graph and its factors are immutable, so the answer for one key does not
+    # change. Only a successful resolution is stored; an invalid key throws on every call.
+    key = (target, available isa Tuple ? available : Tuple(available))
+    cache = g.polarities[fid]
+    return @lock g.polarity_lock get!(() -> _resolve_polarity(g, fid, target, available), cache, key)
+end
+
+function _resolve_polarity(g::FactorGraph, fid::Int, target::Symbol, available)
     fn = factornode(g, fid)
     decl = Tuple(LenticulumCore.channelname(c) for c in LenticulumCore.channels(fn.factor))
     target in decl || throw(PolarityError(fn.name, target, "not a declared channel"))

@@ -7,35 +7,39 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-12, after I5 (committed and pushed).
+**Last updated:** 2026-11-12, the polarity cache (not committed).
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | clean, pushed with the I5 commit; `master` is behind (merge on request) |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | the helper worktree for Mistral (`AGENTS.md`, "Helper agents and worktrees"); at `660ffe5a` with the I5 diff applied and Mistral's scratch tests in `scratch/` (untracked); environments instantiated. Bring it to `dev-danielb` (`git merge --ff-only dev-danielb`) and apply the change before a review |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | the polarity cache uncommitted on top of I5 (pushed); `master` is behind (merge on request) |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | the helper worktree for Mistral (`AGENTS.md`, "Helper agents and worktrees"); at `3cd2c355` (I5) with the polarity-cache diff applied for Mistral's review, and Mistral's scratch tests in `scratch/` (untracked); environments instantiated. Bring it to `dev-danielb` (`git merge --ff-only dev-danielb`) and apply the change before a review |
 
 Pushing: the `mathstruct` SSH key is often rejected; push over HTTPS with `gh`'s credentials
 (`git -c credential.helper= -c credential.helper='!gh auth git-credential' push https://github.com/MathStruct/Lenticulum.jl.git dev-danielb`).
 
-## Done: I5, the trees read by position
+## Done, not committed: polarities cached per graph
 
-Committed on `dev-danielb`: Mycelium (`passing.jl`, `free_energy.jl`,
-`plates.jl`, `graph.jl`, the ChainRulesCore extension, `test/state_tree.jl`), MyceliumLearning
-(`gradient.jl`, the import list, `test/gradient_couplings.jl`), `bench/state_scaling.jl`, notes.
-The design, the measurements and what is left are in `lib/Mycelium.jl/src/passing.md`, "The trees
-by position"; the review is in [[LP-025 Findings of the review of I5]].
+The item left after I5 was `belief_distance`. A new profile (`bench/sweep_profile.jl`, 2 401
+factors) puts it under 4% of a sweep, so it was left alone. `resolve_polarity` took about 25%: it
+built a `NamedTuple` type from run-time channel names on every message. `FactorGraph` now caches
+the polarity per factor by (target, available), behind a lock (`graph.jl`,
+`polarity_resolution.jl`; note `polarity_resolution.md`, difficulty 3). The chain builder of
+`bench/state_scaling.jl` moved to `bench/kalman_chain.jl`, shared with the profile script.
 
-- Verified: all eight suites passed on 2026-11-12 (logs in `~/.cache/lenticulum/i5/`). After the
-  review fix, Mycelium, MyceliumLearning and Lenticulum were run again. The new timing test fails
-  on the old code. The benchmark grows ×1.8–2.2 per doubling: sweep, free energy, gradient,
-  `parameter_step`.
-- Not run: the device tests (`LENTICULUM_DEVICE_TESTS=true`); the change is not device-facing.
-- Next: the item the earlier profile left for after I5: `passing.jl` `belief_distance`, 106 of 725
-  sweep samples, probably dynamic dispatch; profile again first, since the sweep is now 4 times
-  faster. Rows added: I16 (Zygote backward quadratic, expected), I17 (coupled drivers and graph
-  adjoint still read by name).
+- Verified: all eight suites passed (logs in `~/.cache/lenticulum/bd/`). The sweep is 24% faster at
+  every size (29.8 ms instead of 39.1 at 4 801 factors; table in `lib/Mycelium.jl/src/passing.md`,
+  "Where a sweep spends its time after I5").
+- Not run: the device tests (the change is not device-facing).
+- Review: Mistral found no defects (`../Lenticulum.jl-Review-2026-11-12/polarity-cache-mistral.md`).
+  It ran an exhaustive comparison against the uncached function, the graph-edit paths
+  (`replace_factor!` after the cache was filled), an 8-thread stress test, and Zygote and ForwardDiff
+  through `step!`. Its scratch test is `../Lenticulum.jl-mistral/scratch/polarity_cache_review.jl`.
+  A stress test is not a proof of thread safety.
+- Next: I18. These are per-message costs that depend only on the graph and the parameters:
+  `_rank_deficient` (an SVD of the weight matrix on every backward message, about 7.6% of a sweep)
+  and `_improper_check` (about 6.8%). I16 and I17 are still open.
 
 ## Open
 

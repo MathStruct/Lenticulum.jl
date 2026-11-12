@@ -104,6 +104,7 @@ named. The structure-search driver (path C) is S7.
 | I15 | The belief-space interface that I12 and I13 name as missing: the gradient of $F$ in the beliefs (`free_energy_gradient` is for parameters), coordinates and a retraction for beliefs, and a state holding primal beliefs (off a fixed point the store's messages do not give consistent beliefs) | proposed | — | low | I12 "Interface (checked 2026-11-06)" | split out of I12 and I13 (2026-11-11), which both need it; all additive |
 | I16 | A Zygote backward pass through the free energy that is linear in the number of parameter keys: a cotangent for `ps` gathered once per key instead of one per factor read | proposed | I5 | medium | I5 design (2026-11-11, Daniel: "put it in the backlog") | expected, not measured: Zygote's pullback for a read from a `NamedTuple`, by name or by position, builds a cotangent with an entry for every key, so a gradient through `scalar_free_energy` stays O(factors × keys) after I5 removes the quadratic forward cost. To measure first: time `Zygote.gradient` of the free energy on `bench/state_scaling.jl`'s chain per doubling |
 | I17 | The coupled gradient drivers and the graph adjoint read by position too (`gradient_couplings.jl`: `_setsubtree` per task, `ps[name]` and `_key_node` per key; `graph_adjoint.jl`) | proposed | I5 | medium | I5 (2026-11-12, `lib/Mycelium.jl/src/passing.md`, "The trees by position") | I5 made the envelope gradient and `parameter_step` linear, not these; expected quadratic for the same reason, not measured |
+| I18 | A sweep without per-message work that depends only on the graph and the parameters: `_rank_deficient` (an SVD of a `GaussianFactor`'s weight matrix on every backward message), `_improper_check` in `belief_cov`, and the dynamic dispatch on the polarity's type in `_rule_message` (the type-level channels of `polarity_resolution.md`, difficulty 3) | proposed | — | medium | profile of 2026-11-12 (`bench/sweep_profile.jl`; `lib/Mycelium.jl/src/passing.md`, "Where a sweep spends its time after I5") | after the polarity cache, the SVD takes about 7.6% of a sweep on the Kalman chain and `_improper_check` about 6.8% |
 
 ## Out-of-core graphs (planned subrepository)
 
@@ -199,6 +200,8 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 | T2 | Benchmark regression tracking (scaling, allocations per message) | proposed | P15 | low | ChatGPT review §6 | |
 
 ## Done (2026-11-12)
+
+Polarities cached per graph: `resolve_polarity` built a `NamedTuple` type from run-time channel names on every message, a quarter of a sweep. `FactorGraph` keeps them per factor by (target, available); the sweep on the Kalman chain at 2 401 factors takes 14.0 ms instead of 18.9 (`bench/sweep_profile.jl`; `lib/Mycelium.jl/src/polarity_resolution.md`, difficulty 3). The same profile found `belief_distance`, the item left after I5, at under 4% of a sweep: not worth work. Left over: I18.
 
 I5, the parameter and state trees read by position: each loop over the factors builds a `Dict` of
 the tree's key positions once and reads `getfield(tree, i)`; a sweep writes state into a buffer and

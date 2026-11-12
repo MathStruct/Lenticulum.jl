@@ -234,7 +234,14 @@ struct FactorGraph
     variable_index::Dict{Symbol,Int}
     factor_index::Dict{Symbol,Int}
     plates::Vector{Any}
+    # The polarities `resolve_polarity` built, per factor, by (target, available channels): a new
+    # polarity's type is built at run time, which cost a quarter of a sweep (`polarity_resolution.md`).
+    polarities::Vector{Dict{Tuple{Symbol,Tuple{Vararg{Symbol}}},LenticulumCore.Polarity}}
+    polarity_lock::ReentrantLock
 end
+FactorGraph(variables, factors, edges, eof, eov, vindex, findex, plates) =
+    FactorGraph(variables, factors, edges, eof, eov, vindex, findex, plates,
+        [Dict{Tuple{Symbol,Tuple{Vararg{Symbol}}},LenticulumCore.Polarity}() for _ in factors], ReentrantLock())
 
 # --- Construction ----------------------------------------------------------
 

@@ -153,6 +153,25 @@ end
     @test_throws Mycelium.PolarityError resolve_polarity(g, fid, :out, (:in, :out))
     # unknown channel
     @test_throws Mycelium.PolarityError resolve_polarity(g, fid, :nope, ())
+
+    # The cache: a repeated call returns what a fresh resolution builds, an invalid key throws every
+    # time (it is not stored), and a vector or a set of channels gives the same polarity as a tuple.
+    for f in 1:nfactors(g), t in map(LenticulumCore.channelname, LenticulumCore.channels(factornode(g, f).factor))
+        others = filter(!=(t), map(LenticulumCore.channelname, LenticulumCore.channels(factornode(g, f).factor)))
+        for mask in 0:(2^length(others) - 1)
+            av = Tuple(others[i] for i in eachindex(others) if isodd(mask >> (i - 1)))
+            fresh = Mycelium._resolve_polarity(g, f, t, av)
+            @test resolve_polarity(g, f, t, av) == fresh
+            @test resolve_polarity(g, f, t, av) == fresh
+            @test resolve_polarity(g, f, t, collect(Symbol, av)) == fresh
+            @test resolve_polarity(g, f, t, Set{Symbol}(av)) == fresh
+            @test typeof(resolve_polarity(g, f, t, reverse(av))) == typeof(fresh)
+        end
+    end
+    for _ in 1:2
+        @test_throws Mycelium.PolarityError resolve_polarity(g, fid, :out, (:in, :out))
+        @test_throws Mycelium.PolarityError resolve_polarity(g, fid, :nope, ())
+    end
 end
 
 @testset "illegal polarities are rejected by direction, not by the factor" begin

@@ -396,6 +396,35 @@ with block rows fails in `_row_scalar` (`sum(...; init = 0.0)` has no rrule): th
 this change, recorded in the [[Feature Backlog]] (P20). (3) A factor returning `nothing` as its
 state would no longer be stored for a missing key: no factor does; not reproduced.
 
+## Where a sweep spends its time after I5 (2026-11-12)
+
+A profile of 50 sweeps on `bench/state_scaling.jl`'s chain at 800 steps (2 401 factors, 7 202
+tasks; `T=800 julia --project=bench bench/sweep_profile.jl`, one sample every 0.1 ms). Sample
+counts vary from run to run; the shares are what to compare. Of 8 267 samples in `sweep!`:
+
+- `belief_distance` took 145 (1.8%), or about 330 (4%) with the dynamic dispatch at its two call
+  sites in `_step!`. The earlier profile had it at 106 of 725, before I5 made the sweep four times
+  faster. It is no longer worth work.
+- `resolve_polarity` took about 2 100 (25%): it built a `NamedTuple` type from run-time channel
+  names on every message. It is now cached per graph ([[polarity_resolution]], difficulty 3); the
+  sweep went from 18.9 to 14.0 ms.
+
+The sweep column of `bench/state_scaling.jl` after the cache (best of 5; "before" is the I5 table
+below). The free energy does not resolve polarities and is unchanged:
+
+| factors | sweep before (ms) | sweep (ms) |
+|---|---|---|
+| 301 | 2.34 | 1.77 |
+| 601 | 4.76 | 3.56 |
+| 1 201 | 9.46 | 7.20 |
+| 2 401 | 19.21 | 14.57 |
+| 4 801 | 39.08 | 29.79 |
+
+What is left after the cache (6 296 samples): `factor_message` of `GaussianFactor` 2 500, of which
+`_rank_deficient` (an SVD of the weight matrix on every backward message, `gaussian.jl`) 477;
+`excluded_marginal` 475; `_improper_check` 427 (a Cholesky factor and a symmetry check per
+`belief_cov`); `belief_distance` 193; `check_legal` about 270.
+
 ## The trees by position (2026-11-12, I5)
 
 **The cost.** `ps` and `st` stay `NamedTuple`s for the caller. Reading one entry by a run-time
