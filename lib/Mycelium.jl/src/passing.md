@@ -446,6 +446,25 @@ A sweep at 2 401 factors allocates 14.6 MB instead of 22.7 (`bench/sweep_profile
 `getproperty` and dispatch in `_step!` and `_rule_message`. That is the part of I18 still open: the
 polarity's type is not known to the compiler ([[polarity_resolution]], difficulty 3).
 
+### After the plans (2026-11-12, the rest of I18)
+
+`_step!` keeps the polarity, its legality and the input edges per (edge, informative inputs)
+([[polarity_resolution]], difficulty 3, "Planned per graph"). The sweep column of
+`bench/state_scaling.jl` (best of 5; "before" is the table above):
+
+| factors | sweep before (ms) | sweep (ms) |
+|---|---|---|
+| 301 | 1.51 | 1.23 |
+| 601 | 3.03 | 2.45 |
+| 1 201 | 6.03 | 4.90 |
+| 2 401 | 12.43 | 9.96 |
+| 4 801 | 25.45 | 20.59 |
+
+About 19% less at every size. A sweep at 2 401 factors allocates 13.2 MB instead of 14.6
+(`bench/sweep_profile.jl`), and its profile has 1 367 samples in `_step!` instead of 1 686. What is
+left outside the factor's own work is reading the type-erased messages of the store and one dynamic
+dispatch into the factor per message.
+
 ## The trees by position (2026-11-12, I5)
 
 **The cost.** `ps` and `st` stay `NamedTuple`s for the caller. Reading one entry by a run-time

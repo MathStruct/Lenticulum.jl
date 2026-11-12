@@ -53,7 +53,7 @@ F2 is *partial*; its present problems (circle, lemniscate, rings) suffice for P1
 
 **Proposed order (2026-11-11, until Daniel sets one):** ~~I5~~ (done 2026-11-12; the gap against
 RxInfer, [[Benchmark against RxInfer]], not measured again since); P1, small and closes the extended-Gaussian
-work; P17 and P18, mechanical and suited to a helper in its own worktree (P19 done 2026-11-12 with I18); then P11 with F3 for
+work; P17 and P18, mechanical and suited to a helper in its own worktree (P19 done 2026-11-12 with I18; I18 done 2026-11-12); then P11 with F3 for
 path B, and I6 for path C.
 
 ## First, on the three paths (2026-11-10)
@@ -103,7 +103,6 @@ named. The structure-search driver (path C) is S7.
 | I15 | The belief-space interface that I12 and I13 name as missing: the gradient of $F$ in the beliefs (`free_energy_gradient` is for parameters), coordinates and a retraction for beliefs, and a state holding primal beliefs (off a fixed point the store's messages do not give consistent beliefs) | proposed | — | low | I12 "Interface (checked 2026-11-06)" | split out of I12 and I13 (2026-11-11), which both need it; all additive |
 | I16 | A Zygote backward pass through the free energy that is linear in the number of parameter keys: a cotangent for `ps` gathered once per key instead of one per factor read | proposed | I5 | medium | I5 design (2026-11-11, Daniel: "put it in the backlog") | expected, not measured: Zygote's pullback for a read from a `NamedTuple`, by name or by position, builds a cotangent with an entry for every key, so a gradient through `scalar_free_energy` stays O(factors × keys) after I5 removes the quadratic forward cost. To measure first: time `Zygote.gradient` of the free energy on `bench/state_scaling.jl`'s chain per doubling |
 | I17 | The coupled gradient drivers and the graph adjoint read by position too (`gradient_couplings.jl`: `_setsubtree` per task, `ps[name]` and `_key_node` per key; `graph_adjoint.jl`) | proposed | I5 | medium | I5 (2026-11-12, `lib/Mycelium.jl/src/passing.md`, "The trees by position") | I5 made the envelope gradient and `parameter_step` linear, not these; expected quadratic for the same reason, not measured |
-| I18 | A sweep without the dynamic dispatch on the polarity's type in `_rule_message` and the dynamic `getproperty` around it in `_step!` (the type-level channels of `polarity_resolution.md`, difficulty 3) | proposed | — | medium | profile of 2026-11-12 (`bench/sweep_profile.jl`; `lib/Mycelium.jl/src/passing.md`, "After I18") | about 17% of a sweep on the Kalman chain after the rest of I18 (the rank memo and the single factorisation, done 2026-11-12) |
 
 ## Out-of-core graphs (planned subrepository)
 
@@ -199,6 +198,8 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 | T2 | Benchmark regression tracking (scaling, allocations per message) | proposed | P15 | low | ChatGPT review §6 | |
 
 ## Done (2026-11-12)
+
+I18, the rest: a factor -> variable message no longer resolves and checks its polarity, nor looks its inputs up by name, on every call. `_step!` keeps a checked plan per (edge, bit mask of the informative inputs) in the graph, with the factor, the rule, the polarity and the input names in its type. Results unchanged (Mycelium `test/emit_plan.jl` compares it with the old path on random graphs, and with 8 tasks at once). The sweep on the Kalman chain is about 19% faster at every size (9.96 ms instead of 12.43 at 2 401 factors; `lib/Mycelium.jl/src/passing.md`, "After the plans"; `lib/Mycelium.jl/src/polarity_resolution.md`, difficulty 3). Reviewed by Mistral ([[LP-027 Findings of the review of the I18 plans]]). Not done: the type-level `channels` of difficulty 3 (beliefs in the store stay type-erased, so one dispatch into the factor per message remains).
 
 I18 in part, and P19: the rank test of a `GaussianFactor`'s backward message is kept per weight array (a memo keyed by identity, guarded by a weak reference and a copy), `_moments` factorises the input's precision once (`LenticulumCore._mean_cov`), and the symmetry test and the symmetric part allocate less. Results unchanged (comparison tests on generated inputs in both packages' `test/i18.jl`). The sweep on the Kalman chain is 15% faster at every size (12.4 ms instead of 14.6 at 2 401 factors), and a backward message at dimension 2 takes 1.06 μs instead of 2.4 (`lib/Lenticulum.jl/src/gaussian.md`, "What the checks cost"; `lib/Mycelium.jl/src/passing.md`, "After I18"). Reviewed by Mistral ([[LP-026 Findings of the review of I18]]). Left over: the dispatch part of I18.
 

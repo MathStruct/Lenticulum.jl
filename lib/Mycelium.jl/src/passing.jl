@@ -293,21 +293,21 @@ function _step!(s::MessageStore, g::FactorGraph, t::MessageTask, @nospecialize(p
         # target would be resolved as both Observed and Unobserved, and even if it were
         # not, the factor would be feeding its own previous claim back to itself.
         # A mean-field node reads the other variables' full marginals instead (`passing.md`).
-        mf = fn.rule isa MeanField
-        inputs = mf ? _marginal_inputs(s, g, e.factor, t.edge) : nothing
-        chans = mf ? keys(inputs) : available_channels(s, g, e.factor; skip = t.edge)
-        pol = resolve_polarity(g, e.factor, e.channel, chans)
-        if mf
+        if fn.rule isa MeanField
+            inputs = _marginal_inputs(s, g, e.factor, t.edge)
+            pol = resolve_polarity(g, e.factor, e.channel, keys(inputs))
             check_legal(g, e.factor, pol)
             belief, stf = mean_field_message(fn.factor, e.channel, pol, inputs, psf, stf)
-        elseif isempty(chans) && !issink(fn.factor) && !LenticulumCore.supports_polarity(fn.factor, pol)
-            @warn "factor :$(fn.name) has no informative inputs when emitting on :$(e.channel); sending TrivialBelief()" maxlog = 1
-            belief = LenticulumCore.TrivialBelief()
         else
-            check_legal(g, e.factor, pol)
-            inputs = _inputs(s, g, e.factor, chans)
-            prior = excluded_marginal(s, g, e.variable, t.edge)
-            belief, stf = _rule_message(fn.rule, fn.factor, e.channel, pol, inputs, prior, psf, stf)
+            # The polarity, its legality and the input edges depend only on the graph, the edge and
+            # which inputs are informative, so they are planned once per such key (`_EmitPlan`).
+            plan = _emit_plan(s, g, e.factor, t.edge)
+            if plan === nothing
+                @warn "factor :$(fn.name) has no informative inputs when emitting on :$(e.channel); sending TrivialBelief()" maxlog = 1
+                belief = LenticulumCore.TrivialBelief()
+            else
+                belief, stf = _emit(plan, s, g, t.edge, psf, stf)
+            end
         end
         old = s.to_variable[t.edge]
         if belief === nothing
@@ -328,6 +328,69 @@ function _step!(s::MessageStore, g::FactorGraph, t::MessageTask, @nospecialize(p
         end
         return belief, res, _writeback(st, fn.params, stf0, stf), false
     end
+end
+
+# --- Planned factor -> variable messages (I18; `polarity_resolution.md`, difficulty 3) ----------
+#
+# A belief-propagation message's polarity, its legality (`check_legal`) and the edges its inputs
+# come from depend only on the graph, the edge and the set of informative inputs. The graph and its
+# factors are immutable, so `_EmitPlan` holds them, checked, with the factor, the rule, the
+# polarity and the input names in its type; `_emit` then calls the rule without a dynamic dispatch
+# on any of these. The plans are kept in the graph by (edge, bit mask of the factor's edges with an
+# informative input); a factor with more than 64 edges plans each message afresh. A plan of
+# `nothing` is a message with no informative inputs that the factor does not support
+# (`TrivialBelief()` is sent). Only a legal plan is stored: an illegal key throws on every call.
+
+struct _EmitPlan{C,F,R,P,N}
+    factor::F
+    rule::R
+    polarity::P
+    target::Symbol
+    variable::Int
+    edges::NTuple{N,Int}   # the input edges, in the order of the names `C`
+end
+_EmitPlan{C}(factor::F, rule::R, pol::P, target::Symbol, variable::Int, edges::NTuple{N,Int}) where {C,F,R,P,N} =
+    _EmitPlan{C,F,R,P,N}(factor, rule, pol, target, variable, edges)
+
+# The factor's edges (by position in `edges_of_factor`) with an informative incoming message, other
+# than `skip`: the mask form of `available_channels`; `nothing` past 64 edges.
+function _available_mask(s::AbstractMessageStore, g::FactorGraph, fid::Int, skip::Int)
+    eofs = g.edges_of_factor[fid]
+    length(eofs) > 64 && return nothing
+    m = UInt64(0)
+    for (i, ei) in enumerate(eofs)
+        ei == skip && continue
+        if has_to_factor(s, ei) && !LenticulumCore.isuninformative(s.to_factor[ei].belief)
+            m |= UInt64(1) << (i - 1)
+        end
+    end
+    return m
+end
+
+function _emit_plan(s::AbstractMessageStore, g::FactorGraph, fid::Int, ei::Int)
+    mask = _available_mask(s, g, fid, ei)
+    mask === nothing && return _make_plan(g, fid, ei, available_channels(s, g, fid; skip = ei))
+    return @lock g.polarity_lock get!(g.emit_plans, (ei, mask)) do
+        eofs = g.edges_of_factor[fid]
+        _make_plan(g, fid, ei, Tuple(g.edges[eofs[i]].channel for i in eachindex(eofs) if isodd(mask >> (i - 1))))
+    end
+end
+
+function _make_plan(g::FactorGraph, fid::Int, ei::Int, chans::Tuple{Vararg{Symbol}})
+    fn = factornode(g, fid)
+    e = g.edges[ei]
+    pol = resolve_polarity(g, fid, e.channel, chans)
+    isempty(chans) && !issink(fn.factor) && !LenticulumCore.supports_polarity(fn.factor, pol) && return nothing
+    check_legal(g, fid, pol)
+    eofs = g.edges_of_factor[fid]
+    edges = map(c -> eofs[findfirst(x -> g.edges[x].channel === c, eofs)], chans)   # as `_inputs` reads them
+    return _EmitPlan{chans}(fn.factor, fn.rule, pol, e.channel, e.variable, edges)
+end
+
+function _emit(plan::_EmitPlan{C}, s::AbstractMessageStore, g::FactorGraph, ei::Int, psf, stf) where {C}
+    inputs = NamedTuple{C}(map(i -> s.to_factor[i].belief, plan.edges))
+    prior = excluded_marginal(s, g, plan.variable, ei)
+    return _rule_message(plan.rule, plan.factor, plan.target, plan.polarity, inputs, prior, psf, stf)
 end
 
 _subtree(nt::NamedTuple, name::Symbol) = haskey(nt, name) ? getfield(nt, name) : NamedTuple()

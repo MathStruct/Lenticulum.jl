@@ -89,6 +89,33 @@ cached polarity with a fresh `_resolve_polarity` for every target and every subs
 channels, given as a tuple, a vector and a set. Reviewed by Mistral (no defects; it also checked
 the graph-edit paths, eight tasks resolving at once, and Zygote and ForwardDiff through `step!`).
 
+**Planned per graph (2026-11-12, the rest of I18).** After the cache, `_step!` still paid per message
+for what the cache does not hold: `available_channels` built a `Tuple` from a `Vector`, the cache key
+was a tuple of names, `check_legal` ran (a dispatch on the polarity's type, a loop over the edges and
+`supports_polarity`), `_inputs` looked each input's edge up by name, and every field of the
+`FactorNode` was read through a dynamic `getproperty`. None of it depends on more than the graph, the
+edge and which inputs are informative. `_step!` now keeps, in `g.emit_plans` and behind the same lock,
+an `_EmitPlan` per (edge, bit mask of the factor's edges with an informative input): the factor, the
+rule, the checked polarity and the input names in its type, and the input edges. A message computes
+the mask (no allocation), looks the plan up, and `_emit` calls the rule with everything but the
+beliefs known to the compiler. A plan of `nothing` is the `TrivialBelief()` case; an illegal key is
+not stored and throws on every call; a factor with more than 64 edges plans each message afresh.
+Mean-field nodes keep the old path. This is not the type-level fix above: the beliefs in the store
+are still type-erased, so one dynamic dispatch into `factor_message` per message remains, and
+`channels` is still a run-time property.
+
+Measured with `bench/sweep_profile.jl` (T = 800, 2 401 factors, best of 5, one machine): 9.94 ms per
+sweep instead of 12.02, 13.2 MB allocated instead of 14.6; `_step!` holds 1 367 profile samples
+instead of 1 686. What is left around the factor's own work is reading the type-erased messages
+(`getproperty` on `Message`, about 100 samples) and the dispatch into the factor. A new set of
+informative inputs is a new `NamedTuple` type and compiles once on either path; a scratch comparison
+(not kept in the repository) on a 20-channel factor gave the same compile time per new set, about
+70 ms, before and after. Test: `test/emit_plan.jl`, which compares `step!` with the old sequence
+(resolve, check, gather by name, call the rule) on random wirings, edge directions, store contents
+and rules, for factors of 1 to 70 channels; checks that an illegal plan is not stored; and runs 8
+tasks with their own stores on one graph. Reviewed by Mistral: no defect
+([[LP-027 Findings of the review of the I18 plans]]).
+
 ### 4. `check_legal`'s error picks an arbitrary channel
 
 When `supports_polarity` returns `false` the error names

@@ -238,10 +238,15 @@ struct FactorGraph
     # polarity's type is built at run time, which cost a quarter of a sweep (`polarity_resolution.md`).
     polarities::Vector{Dict{Tuple{Symbol,Tuple{Vararg{Symbol}}},LenticulumCore.Polarity}}
     polarity_lock::ReentrantLock
+    # The checked plans of factor -> variable messages (`_EmitPlan`, `passing.jl`), by (edge, the
+    # bit mask of the factor's edges whose incoming message is informative); guarded by
+    # `polarity_lock` (I18; `polarity_resolution.md`, difficulty 3).
+    emit_plans::Dict{Tuple{Int,UInt64},Any}
 end
 FactorGraph(variables, factors, edges, eof, eov, vindex, findex, plates) =
     FactorGraph(variables, factors, edges, eof, eov, vindex, findex, plates,
-        [Dict{Tuple{Symbol,Tuple{Vararg{Symbol}}},LenticulumCore.Polarity}() for _ in factors], ReentrantLock())
+        [Dict{Tuple{Symbol,Tuple{Vararg{Symbol}}},LenticulumCore.Polarity}() for _ in factors], ReentrantLock(),
+        Dict{Tuple{Int,UInt64},Any}())
 
 # --- Construction ----------------------------------------------------------
 
