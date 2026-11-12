@@ -7,13 +7,13 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-12, after P17 and P18 (committed; not pushed).
+**Last updated:** 2026-11-12, after P17 and P18 (committed and pushed).
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P1 (`597dc8e2`) and P17/P18 committed on top of the rest of I18, none pushed; `master` is behind (merge on request) |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P1 (`597dc8e2`) and P17/P18 (`fbbb6cdf`) committed and pushed, with the rest of I18; `master` is behind (merge on request) |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `597dc8e2`, with P17/P18 applied for Mistral's review, its scratch scripts in `scratch/p1/` and `scratch/p17-18/` (untracked). Two stale stashes: `mistral-wt-polarity-cache-draft-2026-11-12` and `mistral-wt-i18-predfix-2026-11-12`; both can be dropped |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
@@ -31,7 +31,7 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
   `test/sample_moments.jl`. Review: Mistral, no code defect ([[LP-029 Findings of the review of P17 and P18]]).
 - Verified for P17/P18: all eight suites passed (`~/.cache/lenticulum/p17-18/`), LenticulumCore and
   Adversarial again after the last rename, and the docs build. Not run: device tests (no device code changed).
-- Next: push when Daniel asks; then by the proposed order in [[Feature Backlog]]: P11 with F3 for
+- Next: by the proposed order in [[Feature Backlog]]: P11 with F3 for
   path B, and I6 for path C; or I16/I17, P21.
 
 ## Open
