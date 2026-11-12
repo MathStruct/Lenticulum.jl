@@ -339,8 +339,9 @@ _get(inputs, k) = haskey(inputs, k) ? getfield(inputs, k) : nothing
 # is returned as an `ExtendedGaussian`, flat along null(Λ) (gaussian.md, "Improper messages as
 # extended Gaussians"); otherwise as a `GaussianBelief`. With dual numbers (ForwardDiff) it stays
 # a declared-improper `GaussianBelief`: the extended form needs an eigendecomposition, which has
-# no method for them.
-_likelihood_message(η, Λ, improper::Bool) = improper && eltype(Λ) <: AbstractFloat ?
+# no method for them. Both element types are tested: differentiating by `b`, `c` or an input's
+# mean makes only η dual, and the extended form of that threw (P1, `test/forms_crossing.jl`).
+_likelihood_message(η, Λ, improper::Bool) = improper && eltype(Λ) <: AbstractFloat && eltype(η) <: AbstractFloat ?
     LenticulumCore.extended(GaussianBelief(η, Λ, true)) : GaussianBelief(η, Λ, improper)
 
 # Functional schedule AD avoids the mutating inverse-of-Cholesky implementation.

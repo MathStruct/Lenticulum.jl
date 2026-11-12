@@ -1332,6 +1332,7 @@ include("i18.jl")
 include("hard_constraint.jl")
 
 include("extended_inputs.jl")
+include("forms_crossing.jl")
 
 include("hard_free_energy.jl")
 

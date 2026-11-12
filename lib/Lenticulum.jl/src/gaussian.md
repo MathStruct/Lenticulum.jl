@@ -334,7 +334,7 @@ Proper messages stay `GaussianBelief`s. The rank test decides, as before, and th
 **Where the flag remains.** Four paths still return `GaussianBelief(η, Λ, true)`:
 
 - the ForwardDiff paths, where the values are dual numbers. `_likelihood_message` checks the
-  element type, since the extended form needs an eigendecomposition, which has no method for
+  element types of η and Λ (both since P1), since the extended form needs an eigendecomposition, which has no method for
   them;
 - `_gradient_message`, the functional message for schedule AD;
 - the block messages of plates (`factor_messages`, `GaussianBlock`'s `improper` vector);
@@ -345,8 +345,8 @@ The flag stays (2026-11-11): `ExtendedGaussian` holds only `AbstractFloat` value
 directions by eigendecompositions that dual numbers have no method for, plate blocks share one
 $\Lambda$ across replicas, and mixture weights rest on the canonical form's constants. The canonical
 form with the flag serves AD, batches and mixtures; the extended form is the exact host form, the
-only one with hard directions. The crossings between the two are untested ([[Feature Backlog]],
-P1).
+only one with hard directions. The crossings between the two are tested since 2026-11-12 (P1,
+next section).
 
 **What changed downstream: nothing but three tests.** Run with the change, VariationalDiffusion
 passed and the Lenticulum suite failed in exactly two places, both tests that read the old
@@ -362,6 +362,48 @@ first testset 152 of the 336 likelihood messages are extended Gaussians (counted
 rank-deficient $A$ the backward message is flat exactly along $\operatorname{null}(A)$, and its
 precision and $\eta$ off it are the canonical formula's, to $10^{-7}$; a full-rank square $A$ still
 gives a proper `GaussianBelief`, and dual numbers keep the flag.
+
+## Where the two forms meet (P1, 2026-11-12)
+
+One edge carries a flat likelihood as an `ExtendedGaussian` on values and as a flagged
+`GaussianBelief` under ForwardDiff. `test/forms_crossing.jl` checks the crossings, and Mycelium's
+`test/forms_crossing.jl` those of its belief interface:
+
+- **Dual path against value path.** For `GaussianFactor` and `LinearConstraintFactor` with every
+  parameter moving along one direction (the coefficients along one that keeps their rank), and for
+  all three relation factors with only $\eta$ moving (`b`, `c` or an input's mean; `A` plain
+  `Float64`), the dual message is flagged, its values read back by `extended` are the value path's
+  message, and its derivatives are central differences of the value path in canonical form
+  (100 cases, 761 checks, to $10^{-5}$ with $h = 10^{-4}$; at $h = 10^{-6}$ one case with a
+  saturated `tanh`, where the message has a variance of order $10^9$, was off by $7.6 \cdot 10^{-5}$
+  through the rounding of the extended-to-canonical round trip, not of the dual path, which agrees
+  with central differences of its own values to $3 \cdot 10^{-11}$).
+- **One split rule.** `_split_moments` of a flagged belief and of `extended(b)` agree in mean,
+  covariance and flat subspace, for proper, flagged, flagged but full-rank and zero precisions
+  (100 cases).
+- **Through an inference.** `ForwardDiff.derivative` of $x$'s marginal mean by `b`, on a tree
+  whose `GaussianFactor` has rank-deficient $A$, equals the closed form $-K b_1$ of the dense joint
+  (10 random instances).
+
+**What it found.** `_likelihood_message` decided between the forms by `eltype(Λ)` alone. When only
+$\eta$ is dual, which is the case for a derivative by `b`, `c` or an observation, $\Lambda$ is
+`Float64` and the extended form of a dual $\eta$ was built, which threw
+`MethodError: no method matching svd!(::Matrix{ForwardDiff.Dual...})`. So a ForwardDiff derivative
+by `b` through a rank-deficient backward message threw since the extended messages came in
+(2026-11-11): against the code before the fix the inference testset errs in all 10 instances
+(`GaussianFactor`; the other factors share `_likelihood_message`, not run separately). It
+now tests both element types. Mycelium's `damp` was a silent no-op on a mixed pair, and Mistral's
+review found that `combine` threw where a variable hears a dual flagged message and a plain
+extended one, as on a variable with two rank-deficient factors of which one is differentiated
+(Mycelium's `gaussian.md`, "Extended Gaussians"; [[LP-028 Findings of the review of P1]]). The
+inference testset covers that case with two factors on $x$ (40 checks).
+
+**Known limit** (`@test_broken`): a dual flagged message entering a relation factor's flat-input
+path (`_flat_message`, `_linear_message` with flat inputs) throws a `MethodError`, since the split
+and the residual metric use an eigendecomposition and an SVD. With only $\eta$ dual the flat
+directions do not move and a derivative exists; it is a row of the [[Feature Backlog]] (P21). Also
+`@test_broken`, and older than P1: `NonlinearFactor`'s backward message at a dual expansion point
+throws in `_jacobian`, which writes into a `Float64` matrix.
 
 ## Free energy with hard inputs (2026-11-11)
 

@@ -150,6 +150,21 @@ the flat directions (independent of their basis); against a `GaussianBelief`, `D
 `TrivialBelief` it compares the other's extended form, so a message that changes kind converges.
 `damp` is the geometric mixture `LenticulumCore._damp_extended`: the canonical rule on Gaussian
 directions, gradual on directions flat on one side, the weighted average of two hard values.
+Since 2026-11-12 (P1) this holds for a mixed pair too, an extended Gaussian and a `GaussianBelief`
+in either order: the `GaussianBelief` is damped as its extended form. Before, `can_damp` had no
+method for the pair, and `damp` returned the new message undamped without a sign, which happens
+whenever a likelihood changes form between sweeps (flat while an input is missing, proper once it
+arrives). A `GaussianBelief` of dual numbers (ForwardDiff) has no extended form; against one,
+`combine`, `belief_distance` and `damp` take the extended side in canonical form, which exists when
+it has no hard directions, and otherwise throw an `ArgumentError` (`can_damp` is false). Before,
+`combine` threw a `MethodError` there, inside `infer!`, on a variable that hears a dual flagged message
+and a plain extended one ([[LP-028 Findings of the review of P1]], F1). `test/forms_crossing.jl` checks `combine`, `belief_distance` and `damp` on
+150 random pairs of proper, flagged and zero-precision beliefs, each side in either form, against
+the operation with both sides in canonical form (3 003 checks); the damping checks fail against
+the code before the fix; and the dual pairs on 60 random instances (1 080 checks). Not checked: the distance near the rank threshold. A message whose
+precision crosses it between sweeps changes form, and its distance in extended form then counts
+the change of the flat subspace (up to 1) and the large variance, where the canonical distance
+would be small. This is expected from the definitions, not measured on a run.
 `HardConstraintFactor` (Lenticulum) emits extended Gaussians under any schedule. Tests:
 `test/runtests.jl`, "combine with extended Gaussians" and "the message store takes extended
 Gaussians".

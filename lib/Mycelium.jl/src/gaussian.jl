@@ -34,8 +34,21 @@ combine(::GaussianBelief, b::LenticulumCore.DiracBelief) = b
 # violates one is a contradiction, as two unequal clamps are.
 const _EG = LenticulumCore.ExtendedGaussian
 combine(a::_EG, b::_EG) = LenticulumCore._conjoin(a, b)
-combine(a::_EG, b::GaussianBelief) = LenticulumCore._conjoin(a, LenticulumCore.extended(b))
-combine(a::GaussianBelief, b::_EG) = LenticulumCore._conjoin(LenticulumCore.extended(a), b)
+combine(a::_EG, b::GaussianBelief) = _extendable(b) ?
+    LenticulumCore._conjoin(a, LenticulumCore.extended(b)) : combine(_canonical(a, "combine"), b)
+combine(a::GaussianBelief, b::_EG) = _extendable(a) ?
+    LenticulumCore._conjoin(LenticulumCore.extended(a), b) : combine(a, _canonical(b, "combine"))
+
+# A `GaussianBelief` of dual numbers (ForwardDiff) has no extended form: the extended form needs an
+# eigendecomposition. A pair of it and an extended Gaussian is then taken in canonical form, which
+# exists when the extended side has no hard directions; with hard ones there is no common form
+# (P1; LP-028, finding 1: a variable that hears a dual flagged message from the factor being
+# differentiated and a plain extended one from another factor threw in `combine`).
+_extendable(b::GaussianBelief) = eltype(b.η) <: AbstractFloat && eltype(b.Λ) <: AbstractFloat
+_soft(a::_EG) = size(LenticulumCore.hard_directions(a), 2) == 0
+_canonical(a::_EG, what) = _soft(a) ? GaussianBelief(a) : throw(ArgumentError(
+    "$what: an extended Gaussian with hard directions and a GaussianBelief of non-float numbers \
+     (ForwardDiff) have no common form"))
 combine(a::_EG, b::LenticulumCore.DiracBelief) = (LenticulumCore._conjoin(a, LenticulumCore.extended(b)); b)
 combine(a::LenticulumCore.DiracBelief, b::_EG) = (LenticulumCore._conjoin(LenticulumCore.extended(a), b); a)
 
@@ -64,8 +77,12 @@ function belief_distance(a::_EG, b::_EG)
     return max(maximum(abs, a.μ .- b.μ; init = 0.0), maximum(abs, a.Σ .- b.Σ; init = 0.0),
                maximum(abs, a.D * a.D' .- b.D * b.D'; init = 0.0))
 end
-belief_distance(a::_EG, b::Union{GaussianBelief,LenticulumCore.DiracBelief}) = belief_distance(a, LenticulumCore.extended(b))
-belief_distance(a::Union{GaussianBelief,LenticulumCore.DiracBelief}, b::_EG) = belief_distance(LenticulumCore.extended(a), b)
+belief_distance(a::_EG, b::LenticulumCore.DiracBelief) = belief_distance(a, LenticulumCore.extended(b))
+belief_distance(a::LenticulumCore.DiracBelief, b::_EG) = belief_distance(LenticulumCore.extended(a), b)
+# against a `GaussianBelief` of dual numbers: the canonical distance (see `_canonical`)
+belief_distance(a::_EG, b::GaussianBelief) = _extendable(b) ?
+    belief_distance(a, LenticulumCore.extended(b)) : belief_distance(_canonical(a, "belief_distance"), b)
+belief_distance(a::GaussianBelief, b::_EG) = belief_distance(b, a)
 belief_distance(a::_EG, ::LenticulumCore.TrivialBelief) = belief_distance(a, LenticulumCore.extended(LenticulumCore.TrivialBelief(), LenticulumCore.dimension(a)))
 belief_distance(::LenticulumCore.TrivialBelief, b::_EG) = belief_distance(b, LenticulumCore.TrivialBelief())
 
@@ -74,6 +91,17 @@ belief_distance(::LenticulumCore.TrivialBelief, b::_EG) = belief_distance(b, Len
 # weighted average of the two values (`LenticulumCore._damp_extended`).
 can_damp(::_EG, ::_EG) = true
 _damp(a::_EG, b::_EG, α::Real) = LenticulumCore._damp_extended(a, b, α)
+# A message that changes form between sweeps (a likelihood that becomes flat or proper as its
+# inputs change) is damped as extended Gaussians. Without these methods `damp` fell back to the
+# new message undamped, without a sign (P1, `test/forms_crossing.jl`). Against a `GaussianBelief`
+# of dual numbers the pair is damped in canonical form, which is the same rule (`_canonical`);
+# with hard directions on the extended side it is not damped (`can_damp` says so).
+can_damp(a::_EG, b::GaussianBelief) = _extendable(b) || _soft(a)
+can_damp(a::GaussianBelief, b::_EG) = _extendable(a) || _soft(b)
+_damp(a::_EG, b::GaussianBelief, α::Real) = _extendable(b) ?
+    LenticulumCore._damp_extended(a, LenticulumCore.extended(b), α) : _damp(GaussianBelief(a), b, α)
+_damp(a::GaussianBelief, b::_EG, α::Real) = _extendable(a) ?
+    LenticulumCore._damp_extended(LenticulumCore.extended(a), b, α) : _damp(a, GaussianBelief(b), α)
 
 """
     belief_logdensity(b::GaussianBelief, x)

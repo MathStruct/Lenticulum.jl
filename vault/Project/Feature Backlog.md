@@ -24,8 +24,7 @@ The open rows that need another open row (every row not drawn here needs nothing
 
 ```mermaid
 graph LR
-  P1[P1 flag and extended:<br/>boundary tests] --> P4[P4 extended inputs<br/>in plates and AD]
-  P4 --> P2[P2 hard inputs in<br/>more free energies]
+  P4[P4 extended inputs<br/>in plates and AD] --> P2[P2 hard inputs in<br/>more free energies]
   P4 --> P6[P6 HardConstraintFactor<br/>in plates]
   F2[F2 calibration<br/>benchmark] --> F3[F3 calibration<br/>remedies]
   F3 --> P11[P11 query report]
@@ -52,8 +51,8 @@ graph LR
 F2 is *partial*; its present problems (circle, lemniscate, rings) suffice for P10, F3, F4 and L15.
 
 **Proposed order (2026-11-11, until Daniel sets one):** ~~I5~~ (done 2026-11-12; the gap against
-RxInfer, [[Benchmark against RxInfer]], not measured again since); P1, small and closes the extended-Gaussian
-work; P17 and P18, mechanical and suited to a helper in its own worktree (P19 done 2026-11-12 with I18; I18 done 2026-11-12); then P11 with F3 for
+RxInfer, [[Benchmark against RxInfer]], not measured again since); ~~P1~~ (done 2026-11-12; it found a ForwardDiff
+regression and a silent no-op in damping); P17 and P18, mechanical and suited to a helper in its own worktree (P19 done 2026-11-12 with I18; I18 done 2026-11-12); then P11 with F3 for
 path B, and I6 for path C.
 
 ## First, on the three paths (2026-11-10)
@@ -64,10 +63,9 @@ named. The structure-search driver (path C) is S7.
 
 | id | feature | path | status | needs | source | why |
 |---|---|---|---|---|---|---|
-| P1 | Tests where the two forms of a flat likelihood meet: an `improper` `GaussianBelief` (the canonical form, kept for AD, plate blocks and mixtures; "Done (2026-11-11)") and an `ExtendedGaussian` (the host form of the relation factors). The same edge carries the extended form on values and the flagged one under ForwardDiff: the dual path's values equal the value path's message; `combine`, the store's distance and `damp` across the two forms; one `_split_moments` rule for both | A, C | proposed | — | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Improper messages as extended Gaussians" | the two forms are each tested, the crossings between them are not. One crossing broke a test unnoticed: AlgebraicFactors' polynomial test read `η` of an extended oracle message (fixed 2026-11-11) |
 | P2 | Hard inputs in the free energies of `SwitchingConstraintFactor`, the plate paths and the frozen beliefs of the gradient | A, C | proposed | P4 | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Free energy with hard inputs" | refused or untested there |
 | P3 | A `TrivialBelief()` input (no message) to `GaussianFactor` takes the exact flat path, as an everywhere-flat `ExtendedGaussian` does | A | proposed | — | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Extended Gaussian inputs" (2026-11-11) | with $n_{\text{in}} < n_{\text{out}}$ the shortcut returns no message where the exact one fixes $y$ off $\operatorname{range}(A)$; changes the first sweep of every schedule, so measure it on the existing tests first |
-| P4 | Extended-Gaussian inputs in plates and in the AD message paths (`_gradient_message`) | A, C | proposed | P1 | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Extended Gaussian inputs" | untested there |
+| P4 | Extended-Gaussian inputs in plates and in the AD message paths (`_gradient_message`) | A, C | proposed | — | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Extended Gaussian inputs" | untested there |
 | P5 | `HardConstraintFactor` with a singular nonzero noise in the free energy (hard along its null space, soft along its range); learnable (its term needs an SVD, which ForwardDiff lacks) | A, C | proposed | — | [[hard_constraint]] "Free energy" (2026-11-11) | refused today |
 | P6 | `HardConstraintFactor` in plates (a `factor_messages` block method) and in `MeanField()` nodes | A, C | proposed | P4 | [[hard_constraint]] "What it does not do" | a plate of hard constraints runs per replica; mean-field nodes refuse it |
 | P8 | Element type in, element type out: the graph free energy in the element type of its messages, with a test | A | partial: LenticulumCore (2026-11-10) | — | LP-024 | `Float32` graphs are promoted to `Float64` in the total |
@@ -82,6 +80,7 @@ named. The structure-search driver (path C) is S7.
 | P17 | Move `Mycelium.reduce_message` for Gaussian mixtures from Lenticulum (`beliefs.jl`) into Mycelium | A, C | proposed | — | Aqua (2026-11-10), declared in Lenticulum's `test/aqua.jl` | type piracy: Mycelium without Lenticulum refuses to reduce a Gaussian mixture |
 | P18 | Move `belief_mean`/`belief_cov` of `SampleBelief` from Adversarial (`ratio.jl`) into LenticulumCore | — | proposed | — | Aqua (2026-11-10), declared in Adversarial's `test/aqua.jl` | type piracy: the moments of a sample belief exist only with Adversarial loaded |
 | P20 | Zygote through `scalar_free_energy` on plates with block rows: `_row_scalar` calls `sum(...; init = 0.0)`, for which ChainRules has no rrule (`MethodError`) | A, C | proposed | — | Mistral's review of 2026-11-11 (`lib/Mycelium.jl/src/passing.md`, "The state tree") | a defect, not a feature: the gradient of a plated free energy by Zygote fails; found by running, the same before and after P7 |
+| P21 | ForwardDiff through a relation factor's flat-input path: a flagged `GaussianBelief` of dual numbers entering `_flat_message` or `_linear_message` with flat inputs | A, C | proposed | — | [[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Where the two forms meet" | P1 (2026-11-12): throws a `MethodError` (an eigendecomposition and an SVD of duals), `@test_broken` in `lib/Lenticulum.jl/test/forms_crossing.jl`. With only η dual (a derivative by `b`, `c` or an observation) the flat directions do not move, so a derivative exists: split and project on values, carry the duals through η. Also `NonlinearFactor`'s backward message at a dual expansion point: `_jacobian` writes into a `Float64` matrix (`MethodError: Float64(::Dual)`, `@test_broken`, LP-028 F3) |
 
 ## Inference and graph execution
 
@@ -198,6 +197,8 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 | T2 | Benchmark regression tracking (scaling, allocations per message) | proposed | P15 | low | ChatGPT review §6 | |
 
 ## Done (2026-11-12)
+
+P1, the tests where the two forms of a flat likelihood meet (an `improper` `GaussianBelief` and an `ExtendedGaussian`): the dual path's message against the value path's, values and derivatives, for `GaussianFactor`, `LinearConstraintFactor` and `NonlinearFactor`; one `_split_moments` rule; `combine`, `belief_distance` and `damp` on mixed pairs; a ForwardDiff derivative through an inference (`lib/Lenticulum.jl/test/forms_crossing.jl`, `lib/Mycelium.jl/test/forms_crossing.jl`). Two defects fixed: `_likelihood_message` built the extended form of a dual η when only η was dual, so a ForwardDiff derivative by `b`, `c` or an observation through a rank-deficient backward message threw (since 2026-11-11); and `damp` returned the new message undamped when a message changed form between sweeps. Reviewed by Mistral ([[LP-028 Findings of the review of P1]]), which found a third: `combine` threw on a variable that hears a dual flagged and a plain extended message; such pairs now meet in canonical form. Left over: P21, the flat-input path and `NonlinearFactor` at a dual expansion point under ForwardDiff (both `@test_broken`).
 
 I18, the rest: a factor -> variable message no longer resolves and checks its polarity, nor looks its inputs up by name, on every call. `_step!` keeps a checked plan per (edge, bit mask of the informative inputs) in the graph, with the factor, the rule, the polarity and the input names in its type. Results unchanged (Mycelium `test/emit_plan.jl` compares it with the old path on random graphs, and with 8 tasks at once). The sweep on the Kalman chain is about 19% faster at every size (9.96 ms instead of 12.43 at 2 401 factors; `lib/Mycelium.jl/src/passing.md`, "After the plans"; `lib/Mycelium.jl/src/polarity_resolution.md`, difficulty 3). Reviewed by Mistral ([[LP-027 Findings of the review of the I18 plans]]). Not done: the type-level `channels` of difficulty 3 (beliefs in the store stay type-erased, so one dispatch into the factor per message remains).
 
