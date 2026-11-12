@@ -7,19 +7,19 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-12, the polarity cache (not committed).
+**Last updated:** 2026-11-12, after the polarity cache (committed and pushed, `c01b3c06`).
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | the polarity cache uncommitted on top of I5 (pushed); `master` is behind (merge on request) |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | clean, pushed with the polarity-cache commit; `master` is behind (merge on request) |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | the helper worktree for Mistral (`AGENTS.md`, "Helper agents and worktrees"); at `3cd2c355` (I5) with the polarity-cache diff applied for Mistral's review, and Mistral's scratch tests in `scratch/` (untracked); environments instantiated. Bring it to `dev-danielb` (`git merge --ff-only dev-danielb`) and apply the change before a review |
 
 Pushing: the `mathstruct` SSH key is often rejected; push over HTTPS with `gh`'s credentials
 (`git -c credential.helper= -c credential.helper='!gh auth git-credential' push https://github.com/MathStruct/Lenticulum.jl.git dev-danielb`).
 
-## Done, not committed: polarities cached per graph
+## Done: polarities cached per graph
 
 The item left after I5 was `belief_distance`. A new profile (`bench/sweep_profile.jl`, 2 401
 factors) puts it under 4% of a sweep, so it was left alone. `resolve_polarity` took about 25%: it
