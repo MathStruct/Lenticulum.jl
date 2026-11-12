@@ -7,21 +7,21 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-12, after I18 in part (the rank memo and one factorisation; **not committed**).
+**Last updated:** 2026-11-12, after I18 in part (the rank memo and one factorisation; committed and pushed, `9fbba63f`).
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | the I18 change uncommitted (below); `master` is behind (merge on request) |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | clean, pushed with the I18 commit; `master` is behind (merge on request) |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | the helper worktree for Mistral (`AGENTS.md`, "Helper agents and worktrees"); at `15db235d` with the I18 diff applied for Mistral's review (before the fixes of LP-026), and Mistral's scratch tests in `scratch/` (untracked). An old draft of the polarity-cache notes is in the stash `mistral-wt-polarity-cache-draft-2026-11-12` (superseded by the commit; drop it). Bring the worktree to `dev-danielb` and apply the change before a review |
 
 Pushing: the `mathstruct` SSH key is often rejected; push over HTTPS with `gh`'s credentials
 (`git -c credential.helper= -c credential.helper='!gh auth git-credential' push https://github.com/MathStruct/Lenticulum.jl.git dev-danielb`).
 
-## Done, not committed: I18 in part
+## Done: I18 in part
 
-What was done, in `dev-danielb` and uncommitted:
+What was done (`9fbba63f`):
 - `_rank_deficient` (Lenticulum `gaussian.jl`) keeps its answer per weight array: a global memo keyed
   by `objectid`, checked with a weak reference and a copy (`gaussian.md`, "What the checks cost").
 - `_moments` factorises the input precision once: `LenticulumCore._mean_cov`, with an rrule that
@@ -41,7 +41,7 @@ What was done, in `dev-danielb` and uncommitted:
   LP-026 fixes, LenticulumCore and Lenticulum passed again, and so did the device tests of Mycelium
   and MyceliumLearning (`LENTICULUM_DEVICE_TESTS=true`).
 - Not run: Enzyme through `_mean_cov` (no test drives it).
-- Next: commit when asked. Then comes the rest of I18, the dynamic dispatch on the polarity type in
+- Next: the rest of I18, the dynamic dispatch on the polarity type in
   `_rule_message`, about 17% of a sweep (`polarity_resolution.md`, difficulty 3). After that come
   I16 and I17, or P1 by the proposed order in [[Feature Backlog]].
 
