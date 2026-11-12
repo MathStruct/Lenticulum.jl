@@ -33,6 +33,18 @@ function coupled_chain(coupling; detach=false, freeze=(), frozen=false, learnabl
     return g,p,st,forward_backward_schedule(g)
 end
 
+# `parameter_step` read the optimiser state with `haskey` and `getindex`, so a `Dict` worked; the
+# read by position (I5) first refused it (Mistral's review, 2026-11-12).
+@testset "parameter_step: an optimiser state given as a Dict" begin
+    g,p,st,sched=coupled_chain(ExactCoupling())
+    _,_,_,s=infer!(g,sched,p,st)
+    rule=Momentum(0.01,0.9)
+    _,_,os=parameter_step(s,g,p,st;schedule=sched,rule)
+    a=parameter_step(s,g,p,st;schedule=sched,rule,optimiser_state=os)
+    b=parameter_step(s,g,p,st;schedule=sched,rule,optimiser_state=Dict(pairs(os)))
+    @test a[1]==b[1] && a[3]==b[3]
+end
+
 @testset "LP-011 mixed chain, detach, parameter subsets" begin
     for ad in (nothing, AutoForwardDiff(), AutoZygote())
         for c in (ExactCoupling(),PathwiseCoupling())

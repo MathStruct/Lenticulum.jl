@@ -39,10 +39,11 @@ end
 
 # The plate rows of a key whose messages are blocks and whose factor type has batched beliefs, as
 # one gradient item each; the other nodes are returned for the per-node path.
-function _row_items(s, g, key, p, stf, nodes)
+_row_items(s, g, key::Symbol, p, stf, nodes) = _row_items(s, g, _energy_rows(s, g), key, p, stf, nodes)
+function _row_items(s, g, rows, key, p, stf, nodes)
     items = Any[]
     covered = Set{Int}()
-    for row in _energy_rows(s, g)
+    for row in rows
         g.factors[first(row.fids)].params === key || continue
         msgs = _row_messages(s, row)
         msgs === nothing && continue
@@ -127,17 +128,19 @@ end
 # its fixed belief, tied nodes summed.
 function _envelope_gradient(s, g, ps, st; ad = nothing, ε = 1e-6)
     keys_ = parameter_keys(g)
+    # The groups, the rows and the trees' key positions once, not per key (I5).
+    groups, rows, psi, sti = _key_groups(g), _energy_rows(s, g), _indexed(ps), _indexed(st)
     grads = map(keys_) do key
-        nodes = [g.factors[i] for i in tied_factors(g, key)]
+        nodes = [g.factors[i] for i in groups[key]]
         f = first(nodes)
-        p = _subtree(ps, key)
+        p = _subtree(psi, key)
         if !LenticulumCore.islearnable(f.factor)
             θ = LenticulumCore._flatten(p)
             return LenticulumCore._unflatten(zero(θ), p)
         end
-        stf = _subtree(st, key)
+        stf = _subtree(sti, key)
         LenticulumCore._check_factor_ad(ad, f.factor, stf)
-        items, rest = _row_items(s, g, key, p, stf, nodes)
+        items, rest = _row_items(s, g, rows, key, p, stf, nodes)
         append!(items, map(h -> _gradient_item(h, h.rule isa MeanField ? marginals_into(s, g, h.id) :
                                                                   messages_into(s, g, h.id), p, stf), rest))
         grad = length(items) == 1 ?
@@ -173,18 +176,22 @@ message store or exposed OptimiserFactor wires.
 function parameter_step(s::MessageStore, g::FactorGraph, ps, st;
                         ad = nothing, rule = GradientDescent(0.01), optimiser_state = nothing,
                         kwargs...)
-    fs = Tuple(f for f in map(k -> _key_node(g, k), parameter_keys(g))
-               if !isempty(_active_indices(f, _subtree(ps, f.params))))
+    # Every tree is read by position (I5): `ps`, the optimiser state and the gradient.
+    groups, psi = _key_groups(g), _indexed(ps)
+    fs = Tuple(f for f in map(k -> g.factors[first(groups[k])], parameter_keys(g))
+               if !isempty(_active_indices(f, _subtree(psi, f.params))))
     names = Tuple(f.params for f in fs)
-    indices = map(f -> _active_indices(f, _subtree(ps, f.params)), fs)
-    θs = map((f, ii) -> _gather_active(LenticulumCore._flatten(_subtree(ps, f.params)), ii), fs, indices)
+    indices = map(f -> _active_indices(f, _subtree(psi, f.params)), fs)
+    θs = map((f, ii) -> _gather_active(LenticulumCore._flatten(_subtree(psi, f.params)), ii), fs, indices)
     os = optimiser_state === nothing ? NamedTuple{names}(map(zero, θs)) : optimiser_state
+    osi = _indexed(os)
     for (f, θ) in zip(fs, θs)
-        haskey(os,f.params) && length(os[f.params]) == length(θ) || throw(ArgumentError(
+        o = _stored(osi, f.params)
+        o !== nothing && length(o) == length(θ) || throw(ArgumentError(
             "optimiser_state for :$(f.params) must contain exactly $(length(θ)) active coordinates; reinitialise it after changing freeze paths"))
     end
     look = map(fs, θs, indices) do f, θ, ii
-        _replace_active(_subtree(ps, f.params), ii, rule_get(rule, os[f.params], θ))
+        _replace_active(_subtree(psi, f.params), ii, rule_get(rule, _stored(osi, f.params), θ))
     end
     at = merge(ps, NamedTuple{names}(look))
     if _uses_coupled_driver(g, get(kwargs, :adjoint, :unrolled), get(kwargs, :schedule, nothing))
@@ -194,11 +201,12 @@ function parameter_step(s::MessageStore, g::FactorGraph, ps, st;
         _, stnew = factor_free_energies(s, g, at, st)
     end
     grad = result isa GradientEstimate ? result.value : result
+    gi = _indexed(grad)
     updates = map(fs, θs, indices) do f, θ, ii
-        rule_put(rule, os[f.params], θ, _gather_active(LenticulumCore._flatten(grad[f.params]), ii))
+        rule_put(rule, _stored(osi, f.params), θ, _gather_active(LenticulumCore._flatten(_stored(gi, f.params)), ii))
     end
     newps = map(fs, updates, indices) do f, u, ii
-        _replace_active(_subtree(ps, f.params), ii, u[2])
+        _replace_active(_subtree(psi, f.params), ii, u[2])
     end
     output = (merge(ps, NamedTuple{names}(newps)), stnew,
               NamedTuple{names}(map(first, updates)))

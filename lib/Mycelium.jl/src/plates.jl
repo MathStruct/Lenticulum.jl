@@ -463,6 +463,7 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::PlateSchedule, @nospecia
     0 <= damping < 1 || throw(ArgumentError("damping must be in [0, 1); got $damping"))
     s.iteration += 1
     maxres = 0.0
+    ps, st = _indexed(ps), _statebuffer(st)
     for (grp, plan) in zip(sched.groups, sched.plans)
         res, st = length(grp) == 1 ? _step_each!(s, g, grp, ps, st, damping) :
                   plan isa _CavityPlan ? (_step_cavity!(s, g, grp, plan), st) :
@@ -472,7 +473,7 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::PlateSchedule, @nospecia
                   _step_each!(s, g, grp, ps, st, damping)
         maxres = max(maxres, res)
     end
-    return maxres, st
+    return maxres, _tree(st)
 end
 
 function _step_each!(s, g, grp, ps, st, damping)

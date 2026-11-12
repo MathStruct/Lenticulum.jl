@@ -136,19 +136,42 @@ function _factor_terms(s::AbstractMessageStore, g::FactorGraph, @nospecialize(ps
     # Each result is (energy, new state, the state read), so the write-back can skip an unchanged
     # state without looking the key up again; no array is written, for Zygote. Every factor here
     # reads the original tree, so for a key that may be shared (`params` other than the factor's
-    # name) the last factor writes, changed or not, as before.
+    # name) the last factor writes, changed or not, as before. The trees are read by position
+    # (`passing.md`, "The trees by position").
+    psi, sti = _indexed(ps), _indexed(st)
     results = map(_factor_nodes(g)) do f
-        psf = _factor_parameters(f, _subtree(ps, f.params))
-        stf0 = _stored(st, f.params); stf = something(stf0, NamedTuple())
+        psf = _factor_parameters(f, _subtree(psi, f.params))
+        stf0 = _stored(sti, f.params); stf = something(stf0, NamedTuple())
         Ff, stnew = f.rule isa MeanField ? mean_field_energy(f.factor, marginals_into(s, g, f.id), psf, stf) :
                     local_free_energy(f.factor, messages_into(s, g, f.id), psf, stf)
         (Ff, stnew, stf0)
     end
-    stnew = foldl(zip(g.factors,results); init=st) do acc, item
+    return map(first, results), _written_states(g, st, results)
+end
+
+# The state after the factor terms' write-backs, with one `merge` (a `merge` per write was O(keys)
+# each). A key is written when its factor changed the state it read, or always when the key may
+# be shared; the last write wins, and a new key goes after the old ones in the order of its first
+# write: what the write-backs one by one gave. Functional, for Zygote.
+function _written_states(g, @nospecialize(st), results)
+    st isa NamedTuple || return foldl(zip(g.factors, results); init = st) do acc, item
         f, (_, new, old) = item
         _writeback(acc, f.params, f.params === f.name ? old : nothing, new)
     end
-    return map(first, results), stnew
+    w = _state_writes(g, results)
+    isempty(w) && return st
+    return merge(st, NamedTuple{Tuple(first.(w))}(Tuple(map(p -> results[p[2]][2], w))))
+end
+
+# (key, the factor whose state is kept) per written key, in the order of the first write.
+function _state_writes(g, results)
+    last = Dict{Symbol,Int}(); order = Symbol[]
+    for (i, (f, (_, new, old))) in enumerate(zip(g.factors, results))
+        (f.params !== f.name || new !== old) || continue
+        haskey(last, f.params) || push!(order, f.params)
+        last[f.params] = i
+    end
+    return [(k, last[k]) for k in order]
 end
 
 # --- Batched energies over plates (L-ADR-0010, step 2) -------------------------------
@@ -251,6 +274,7 @@ end
 # result is the sum of the scalarised terms instead of the vector. A row's key is stateless when
 # tied (`_check_tied_state`), and its state is set once.
 function _factor_terms_rows(s, g, @nospecialize(ps), @nospecialize(st), rows; scalar::Bool = false)
+    ps, st = _indexed(ps), _statebuffer(st)      # mutates, like the rest of this path: not for Zygote
     results = scalar ? nothing : Vector{Any}(nothing, nfactors(g))
     covered = falses(nfactors(g))
     total = 0.0
@@ -283,7 +307,7 @@ function _factor_terms_rows(s, g, @nospecialize(ps), @nospecialize(st), rows; sc
         scalar ? (total += LenticulumCore.scalarise(LenticulumCore.scalarisation(f.factor), Ff)) : (results[f.id] = Ff)
         st = _writeback(st, f.params, stf0, stf)
     end
-    return scalar ? total : results, st
+    return scalar ? total : results, _tree(st)
 end
 
 # The sum of a row's scalarised energies; `factors` concretely typed, so this compiles per type.
@@ -539,9 +563,10 @@ function _check_tied_state(g, st)
     for f in g.factors
         nodes[f.params] = get(nodes, f.params, 0) + 1
     end
+    sti = _indexed(st)
     for k in parameter_keys(g)
         get(nodes, k, 0) > 1 || continue
-        _empty_graph_state(_subtree(st, k)) || throw(ArgumentError(
+        _empty_graph_state(_subtree(sti, k)) || throw(ArgumentError(
             "the factors tied to parameters :$k have a non-empty state; tied factors must be stateless"))
     end
     return nothing

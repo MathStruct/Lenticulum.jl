@@ -345,6 +345,71 @@ _stored(nt::NamedTuple, name::Symbol) = haskey(nt, name) ? getfield(nt, name) : 
 _stored(::Nothing, ::Symbol) = nothing
 _writeback(st, name::Symbol, old, new) = new === old ? st : _setsubtree(st, name, new)
 
+# --- The trees by position (I5; `passing.md`, "The trees by position") ------------------------
+#
+# A lookup in a `NamedTuple` by a run-time `Symbol` scans its names, O(keys), and a sweep or a free
+# energy does one or two per factor: quadratic in the graph. A loop over the factors therefore
+# builds a `Dict` of the tree's key positions once (O(keys)) and reads `getfield(tree, i)` by
+# position. Users still pass and receive `NamedTuple`s; these types never leave the package.
+
+_keypositions(tree::NamedTuple) = (d = Dict{Symbol,Int}(); for (i, k) in enumerate(keys(tree)); d[k] = i; end; d)
+
+# A tree to read from (parameters; state that is not written back).
+struct _IndexedTree
+    tree::NamedTuple
+    pos::Dict{Symbol,Int}
+end
+_indexed(tree::NamedTuple) = _IndexedTree(tree, _keypositions(tree))
+_indexed(x) = x                       # `nothing`, or a tree already indexed or buffered
+_stored(d::AbstractDict, name::Symbol) = get(d, name, nothing)   # an optimiser state given as a `Dict` (Mistral's I5 review)
+_slot(t::_IndexedTree, name::Symbol) = get(t.pos, name, 0)
+_subtree(t::_IndexedTree, name::Symbol) = (i = _slot(t, name); i == 0 ? NamedTuple() : getfield(t.tree, i))
+_stored(t::_IndexedTree, name::Symbol) = (i = _slot(t, name); i == 0 ? nothing : getfield(t.tree, i))
+
+# The state a sweep threads, written in place. The values are copied out of the tree at the first
+# write only, so a stateless sweep returns the tree it was given (`===`); a missing key is
+# appended, as `merge` appended it. Not for code differentiated by Zygote (it mutates).
+mutable struct _StateBuffer
+    tree::NamedTuple
+    pos::Dict{Symbol,Int}
+    keys::Vector{Symbol}
+    vals::Union{Nothing,Vector{Any}}
+end
+_statebuffer(st::NamedTuple) = _StateBuffer(st, _keypositions(st), Symbol[], nothing)
+_statebuffer(x) = x
+function _stored(b::_StateBuffer, name::Symbol)
+    i = get(b.pos, name, 0)
+    i == 0 && return nothing
+    return b.vals === nothing ? getfield(b.tree, i) : b.vals[i]
+end
+_subtree(b::_StateBuffer, name::Symbol) = (i = get(b.pos, name, 0); i == 0 ? NamedTuple() : _stored(b, name))
+function _writeback(b::_StateBuffer, name::Symbol, old, new)
+    new === old && return b
+    if b.vals === nothing
+        b.keys = collect(Symbol, keys(b.tree))
+        b.vals = collect(Any, values(b.tree))
+    end
+    i = get(b.pos, name, 0)
+    if i == 0
+        push!(b.keys, name); push!(b.vals, new); b.pos[name] = length(b.vals)
+    else
+        b.vals[i] = new
+    end
+    return b
+end
+_tree(b::_StateBuffer) = b.vals === nothing ? b.tree : NamedTuple{Tuple(b.keys)}(Tuple(b.vals))
+_tree(x) = x
+
+# A buffer read but not written: the residual schedule's probes compute updates they discard.
+struct _ReadOnlyState
+    b::_StateBuffer
+end
+_readonly(b::_StateBuffer) = _ReadOnlyState(b)
+_readonly(x) = x
+_stored(r::_ReadOnlyState, name::Symbol) = _stored(r.b, name)
+_subtree(r::_ReadOnlyState, name::Symbol) = _subtree(r.b, name)
+_writeback(r::_ReadOnlyState, ::Symbol, old, new) = r
+
 """
     sweep!(store, g, sched, ps, st; damping = 0.0) -> (maxresidual, st)
 
@@ -361,11 +426,12 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, @nospe
                 damping::Real = 0.0)
     s.iteration += 1
     maxres = 0.0
+    ps, st = _indexed(ps), _statebuffer(st)
     for t in tasks(sched)
         _, res, st = step!(s, g, t, ps, st; damping)
         maxres = max(maxres, res)
     end
-    return maxres, st
+    return maxres, _tree(st)
 end
 
 function sweep!(s::MessageStore, g::FactorGraph, sched::FloodingSchedule, @nospecialize(ps), @nospecialize(st);
@@ -375,6 +441,7 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::FloodingSchedule, @nospe
     results = Vector{Any}(undef, length(ts))
     skipped = falses(length(ts))
     maxres = 0.0
+    ps, st = _indexed(ps), _statebuffer(st)
     for (i, t) in enumerate(ts)
         b, res, st, skipped[i] = _step!(s, g, t, ps, st; damping, commit = false)
         results[i] = b
@@ -388,7 +455,7 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::FloodingSchedule, @nospe
             s.to_variable[t.edge] = Message(results[i], s.iteration)
         end
     end
-    return maxres, st
+    return maxres, _tree(st)
 end
 
 function _task_age(s::MessageStore, t::MessageTask)
@@ -403,12 +470,13 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::ResidualSchedule, @nospe
     isempty(ts) && return 0.0, st
     nsteps = min(sched.maxtasks, length(ts))
     maxres = 0.0
+    ps, st = _indexed(ps), _statebuffer(st)
     for _ in 1:nsteps
         best_idx = 0
         best_res = -1.0
         best_age = typemax(Int)
         for (i, t) in enumerate(ts)
-            _, res, _, skip = _step!(s, g, t, ps, st; damping, commit = false)
+            _, res, _, skip = _step!(s, g, t, ps, _readonly(st); damping, commit = false)
             skip && continue                # cannot be committed: never the best task
             age = _task_age(s, t)
             if res > best_res || (res == best_res && age < best_age)
@@ -423,7 +491,7 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::ResidualSchedule, @nospe
         maxres = max(maxres, res)
         best_res == 0.0 && break
     end
-    return maxres, st
+    return maxres, _tree(st)
 end
 
 """

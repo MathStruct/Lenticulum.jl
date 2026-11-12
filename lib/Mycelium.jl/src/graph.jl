@@ -386,6 +386,16 @@ The ids of the factor nodes that read parameter entry `key`.
 """
 tied_factors(g::FactorGraph, key::Symbol) = [f.id for f in g.factors if f.params === key]
 
+# The ids of the nodes reading each key, in one pass: `tied_factors` per key scans all factors,
+# O(keys × factors) over the keys (`passing.md`, "The trees by position").
+function _key_groups(g::FactorGraph)
+    groups = Dict{Symbol,Vector{Int}}()
+    for f in g.factors
+        push!(get!(() -> Int[], groups, f.params), f.id)
+    end
+    return groups
+end
+
 # The first node reading `key`: it stands for the tied group in freeze and learnability checks.
 function _key_node(g::FactorGraph, key::Symbol)
     i = findfirst(f -> f.params === key, g.factors)

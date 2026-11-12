@@ -17,6 +17,10 @@ ChainRulesCore.@non_differentiable Mycelium._key_node(g, key)
 ChainRulesCore.@non_differentiable Mycelium._check_tied_state(g, st)
 ChainRulesCore.@non_differentiable Mycelium._energy_rows(s, g)
 ChainRulesCore.@non_differentiable Mycelium._has_rows(s, g)
+ChainRulesCore.@non_differentiable Mycelium._keypositions(tree)     # the trees by position (`passing.md`)
+ChainRulesCore.@non_differentiable Mycelium._slot(t, name)
+ChainRulesCore.@non_differentiable Mycelium._state_writes(g, results)
+ChainRulesCore.@non_differentiable Mycelium._key_groups(g)
 
 # A store built from message vectors inside AD (`_functional_infer`) wraps them in `EdgeMessages`
 # without block rows; its gradient is that of the wrapped vector (`blocks.md`). Indexing such a

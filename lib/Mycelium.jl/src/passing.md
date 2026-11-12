@@ -372,7 +372,7 @@ checks the input state only.
 
 The free energy is 1.5 times faster at 301 factors and 2.3 times at 4 801; the sweep is unchanged
 within the noise (−1 to 8%). Both are still quadratic: what is left is
-the lookup by name, which only the integer-slot store removes ([[Feature Backlog]], I5).
+the lookup by name, which only the integer-slot store removes ([[Feature Backlog]], I5). Removed since: "The trees by position" below.
 `test/state_tree.jl` times `_check_tied_state` at 2 000 and 8 000 factors (at 500 and 2 000 the
 old code took 17 times as long; under 8 is required). Its other tests check that a stateless sweep
 and free energy return the same tree, that a stateful factor's state is still written, that
@@ -395,3 +395,101 @@ fixed as above, its scenario kept as a test. (2) Zygote through `scalar_free_ene
 with block rows fails in `_row_scalar` (`sum(...; init = 0.0)` has no rrule): the same before
 this change, recorded in the [[Feature Backlog]] (P20). (3) A factor returning `nothing` as its
 state would no longer be stored for a missing key: no factor does; not reproduced.
+
+## The trees by position (2026-11-12, I5)
+
+**The cost.** `ps` and `st` stay `NamedTuple`s for the caller. Reading one entry by a run-time
+`Symbol` (`haskey`, `getfield(nt, name)`) scans the names, so it is O(keys), and each factor needs
+one or two such reads. Reading by position, `getfield(nt, i::Int)`, takes constant time. A scratch
+measurement put one read per entry at 1.0, 4.2, 17.2 and 65 ms in total for 600, 1 200, 2 400 and
+4 800 entries. Building a `Dict{Symbol,Int}` of the positions once took 0.04 to 0.30 ms.
+
+**Where the positions live.** They are kept per call, not in the graph. A loop over the factors
+first wraps its trees:
+
+- `_IndexedTree(tree, pos)` is used for reading. `_subtree` and `_stored` look the key up in
+  `pos` and read by position; a missing key gives `NamedTuple()` and `nothing`, as before.
+- `_StateBuffer` is the state a sweep threads. `_writeback` writes in place, and a missing key
+  is appended, as `merge` appended it. The values are copied out of the tree at the first write
+  only, so a stateless sweep returns the very tree it was given (`===`). `_tree` turns the buffer
+  back into a `NamedTuple` once, at the end of the sweep.
+- `_ReadOnlyState` is used for the residual schedule's probes: they compute an update and
+  discard it, so their writes are dropped. The old code discarded the state those probes returned.
+
+The helpers on these types (`_subtree`, `_stored`, `_writeback`) keep their names, so the
+per-factor code (`_step!`, the plate paths) is unchanged; only the loops wrap and unwrap. Here
+"the loops" means each `sweep!` method (sequential and tree, flooding, residual, plates; Anderson
+delegates to its inner schedule), `_factor_terms`, `_factor_terms_rows`, `_check_tied_state`,
+MyceliumLearning's `_envelope_gradient` and `parameter_step`. `step!` called directly with a
+`NamedTuple` still reads by name: a loop of the caller's own over `step!` stays quadratic.
+
+Storing a slot in each `FactorNode` when the graph is built was considered and left out. A slot is
+a position in `parameter_keys(g)`, not in the caller's tree, which may order its keys differently
+or lack some, so each call would still have to check the tree. A slot left stale by a graph
+transformation would read another factor's parameters without an error. And it saves only one
+hash per read, under 1% of a message. O5 and I2, which need integer slots anyway, can add them.
+
+**Zygote.** The free energy without block rows is differentiated by Zygote, which refuses array
+mutation even on the state, whose gradient nobody asks for. There the state is only read through
+an `_IndexedTree`. The write-backs are collected afterwards (`_state_writes`: per key, the factor
+whose state is kept, in the order of the first write) and applied with one `merge`
+(`_written_states`). The rule for tied nodes is unchanged: the last write wins. `test/state_tree.jl`
+compares this with the old write-backs, one at a time, on 50 random graphs: keys missing and
+shuffled, keys tied, factors with and without state. `_keypositions`, `_slot`, `_state_writes` and
+`_key_groups` are `@non_differentiable` (`MyceliumChainRulesCoreExt`). A scratch test checked that
+Zygote and ForwardDiff differentiate through `getfield(tree, i)` with a run-time `i` and through a
+`Dict` lookup marked that way. The block-row path already mutated (`covered .= true`), so Zygote
+cannot run through it (P20); it uses the buffer.
+
+**The gradient drivers.** `_envelope_gradient` called `tied_factors(g, key)` for every key, a
+scan of all factors, and `_energy_rows(s, g)` for every key. `parameter_step` read `ps`, the
+optimiser state and the gradient by name, and called `_key_node` for every key. Both now take the
+groups from `_key_groups(g)` (one pass) and read the trees by position.
+
+**Measured.** `bench/state_scaling.jl`, best of 5 runs (3 for the gradient columns). "Before" for
+the sweep and the free energy comes from the table above, after P7. "Before" for the gradient and
+`parameter_step` comes from the same measurement run on the unchanged code before the benchmark
+had those columns.
+
+| factors | sweep before (ms) | sweep (ms) | F before (ms) | F (ms) | gradient before (ms) | gradient (ms) | `parameter_step` before (ms) | `parameter_step` (ms) |
+|---|---|---|---|---|---|---|---|---|
+| 301 | 3.35 | 2.34 | 1.74 | 1.22 | 10.79 | 9.11 | 18.40 | 12.71 |
+| 601 | 8.24 | 4.76 | 4.50 | 2.37 | 24.67 | 18.08 | 52.34 | 27.41 |
+| 1 201 | 23.35 | 9.46 | 13.12 | 4.79 | 67.07 | 36.37 | 121.14 | 54.60 |
+| 2 401 | 74.76 | 19.21 | 42.88 | 9.88 | 191.88 | 75.45 | 343.49 | 98.17 |
+| 4 801 | 261.55 | 39.08 | 150.48 | 19.91 | — | 151.79 | — | 216.33 |
+
+Every column now grows by a factor of 1.8 to 2.2 per doubling. The time per sweep task stays at
+2.6–2.7 μs from 301 to 4 801 factors. At 4 801 factors the sweep is 6.7 times faster and the free
+energy 7.6 times; at 2 401 factors the gradient is 2.5 times faster and `parameter_step` 3.5 times.
+The gradient columns were not measured "before" at 4 801 factors.
+
+**Tests** (`test/state_tree.jl`):
+- *Linear in the number of factors.* At 4 times the factors, the sweep and the free energy must
+  take less than 8 times as long, with and without state (500 and 2 000 variables). On the code
+  before this change, at 1 000 and 4 000 variables, they took 12 to 15 times as long and all four
+  checks failed.
+- *Write-backs by position match the write-backs by name.* The comparison above, plus each
+  sequential sweep against `step!` on the `NamedTuple`, task by task.
+- *The residual schedule's probes do not write state.* The counter of a counting source equals the
+  number of its committed tasks.
+
+**What it does not do.**
+- The coupled gradient drivers (`gradient_couplings.jl`: `_setsubtree` per task, `ps[name]` and
+  `_key_node` per key) and the graph adjoint still read by name.
+- The cold paths (`cluster`, `cluster_batch`, `sampling`, `em`, Lenticulum's `switching.jl`)
+  still read by name too.
+- Zygote's backward pass through the free energy is expected to stay quadratic, since a read from
+  a `NamedTuple` gives a cotangent with an entry for every key. This is not measured
+  ([[Feature Backlog]], I16).
+
+**Difficulties.**
+- The timing test is slow to compile: a graph with 4 000 keys gives `NamedTuple` types of 4 000
+  fields. On the old code at 4 000 variables the run took two hours, almost all of it compilation,
+  so the test sizes are 500 and 2 000.
+- A Lenticulum test calls `_row_items` with its old signature, which is kept as a method.
+
+**Review (Mistral, with Julia, in its worktree; [[LP-025 Findings of the review of I5]]).** Its
+checks of the semantics, of plates with state and of AD all passed when run again. It found one
+defect: `parameter_step` refused an optimiser state given as a `Dict`, which the old code accepted.
+That is fixed, with a test. Its suspicion of a per-key scan of the energy rows was not reproduced.

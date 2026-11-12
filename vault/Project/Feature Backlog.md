@@ -40,7 +40,8 @@ graph LR
   O2 --> O1[O1 lazy nodes]
   O3 --> O1
   O1 --> O5[O5 parameters on demand]
-  I5[I5 integer-slot<br/>store] --> O5
+  I5[I5 integer-slot<br/>store, done] --> O5
+  I5 --> I16[I16 linear Zygote<br/>backward]
   S2[S2 moves and<br/>warm starts] --> S7[S7 structure-search<br/>driver]
   S6[S6 scores<br/>beyond BIC] --> S7
   L7[L7 train!] --> L12[L12 learned optimisers]
@@ -50,8 +51,8 @@ graph LR
 
 F2 is *partial*; its present problems (circle, lemniscate, rings) suffice for P10, F3, F4 and L15.
 
-**Proposed order (2026-11-11, until Daniel sets one):** I5, the measured scaling gap against
-RxInfer ([[Benchmark against RxInfer]]; P7 is done); P1, small and closes the extended-Gaussian
+**Proposed order (2026-11-11, until Daniel sets one):** ~~I5~~ (done 2026-11-12; the gap against
+RxInfer, [[Benchmark against RxInfer]], not measured again since); P1, small and closes the extended-Gaussian
 work; P17, P18 and P19, mechanical and suited to a helper in its own worktree; then P11 with F3 for
 path B, and I6 for path C.
 
@@ -91,7 +92,6 @@ named. The structure-search driver (path C) is S7.
 | I2 | Typed execution plans: factors grouped by type and rule, kernels compiled once per signature | proposed | — | medium | both reviews (LP-023) | the graph stores factors abstractly; plates are the first step |
 | I3 | A spanning-tree schedule for loopy graphs (`spanning_tree_schedule(g)`: the messages off a spanning tree, then the tree's inward and outward sweeps, in place; the updates of tree-based reparameterisation) | partial: done in Mycelium (2026-11-09; `schedules.md`); the choice of tree and alternating trees remain | — | high | [[Composing Optimisers]] §4.2 (2026-11-09) | measured on the divider (`bench/bp_schedules.jl`): 0.17–0.18 of flooding's message evaluations to an error of 1e-10, in all four settings, with no knowledge of the loop; with `infer!` 82 sweeps against 463 (`test/runtests.jl`). On Gaussian grids up to 20 × 20 (`bench/bp_grid.jl`, 2026-11-09): 0.17–0.29 of flooding's sweeps; its Jacobian has at most two nonzero eigenvalues per independent loop ([[Composing Optimisers]] §4.4). Untested: graphs where BP oscillates, non-Gaussian graphs |
 | I4 | A dependency-aware priority queue for `ResidualSchedule` | proposed | — | medium | ChatGPT review (LP-023) | each sweep probes every task, $O(T^2)$ evaluations: 2.1 times flooding's on the divider. A queue prototype in `bench/bp_schedules.jl` needs 0.24–0.31 of flooding's, behind the spanning-tree order ([[Composing Optimisers]] §4.2) |
-| I5 | Graph-wide parameters and state by integer slot instead of `NamedTuple` lookup by symbol | proposed | — | high (proposed) | ChatGPT review, [[Parallelism and Compilation]]; LP-024; `lib/Mycelium.jl/src/passing.md` "The state tree" (2026-11-11) | the last quadratic term of a sweep and of the free energy: a lookup by a run-time `Symbol` scans the names, O(keys), once or twice per factor. After P7, at 2 401 factors a sweep takes 74.8 ms and the free energy 42.9 ms, both still growing ×3.3–3.5 per doubling (`bench/state_scaling.jl`); [[Benchmark against RxInfer]]: 4.3–5.8 times slower than RxInfer at $T = 1000$–$2000$ |
 | I6 | Batched cluster nodes with per-outcome forms over a plate | planned | — | medium | [[L-SPEC-009 Cluster Nodes]] open; [[Benchmark against RxInfer]] (2026-11-11) | `RegimeFactor` plates go replica by replica: `fit_em` on a mixture of two regressions takes 1.2 s at $N = 300$ and 32 s at 3 000, against 0.6 and 6.5 ms for closed-form EM and 0.13 and 3.2 s for RxInfer's VMP |
 | I7 | Mixture-reduction and EP nodes batched in plates | planned | P17 | low | [[L-SPEC-008 Expectation Propagation and Mixture Reduction]] open | edge by edge today |
 | I8 | Clusters with loops; several mean-field variables in one cluster | planned | — | low | [[L-SPEC-007 Hybrid Schedules]] open | |
@@ -102,6 +102,8 @@ named. The structure-search driver (path C) is S7.
 | I13 | Accelerated mirror descent on the Bethe free energy: descend $F$ in the beliefs with the entropy (log-partition) as the mirror map, so every iterate is a valid belief by construction (for exponential families, mirror descent in the mean parameters is a natural-gradient step in the natural ones: Raskutti & Mukherjee, [arXiv:1310.7780](https://arxiv.org/abs/1310.7780)), plus momentum (accelerated mirror descent: Krichene, Bayen & Bartlett, NeurIPS 2015, metadata to check; stochastic version with averaging, the analogue of the Langevin row: Krichene & Bartlett, [arXiv:1707.06219](https://arxiv.org/abs/1707.06219)) | proposed | I15, T1 | low | Daniel, 2026-11-07 | the failure of naive momentum in the row above was an invalid belief (a negative precision); a mirror map rules that out. Needs the same three interface additions. A complicated optimiser: test it on the benchmark below (Tooling), not on one graph |
 | I14 | A spectral diagnostic for message passing (partial: Anderson done), and Anderson acceleration as a schedule: report the leading eigenvalues of the linearised sweep at a fixed point (exact for Gaussian means once the precisions converge; AD or finite differences of `sweep!` otherwise), and an `AbstractSchedule` that wraps another with Anderson mixing of the last $m$ sweeps | proposed | — | medium | Daniel, 2026-11-07 (optimiser composition); [[Composing Optimisers]] §4–5 | the spectrum says in advance whether momentum (real eigenvalues near 1), damping (near −1) or Anderson (complex) should help; heavy ball destabilises complex eigenvalues of modulus 0.95 for every β ≥ 0.3 (closed form). Anderson keeps BP's fixed points and needs none of the belief-geometry additions above. **Measured once (2026-11-08)**: `bench/bp_spectrum.jl` computes the spectrum on the divider (all slow eigenvalues complex, on a ring; heavy ball diverges for β ≥ 0.07; a schedule round the loop converges at ρ⁶ per sweep), [[Composing Optimisers]] §4.1. **Anderson measured (2026-11-09)**, `bench/bp_anderson.jl`, §4.3: around `spanning_tree_schedule` with $m = 2$–3 it needs 0.09–0.19 of flooding's evaluations, and 414 instead of 297 108 where the loop gain is near 1; around flooding it is worse in the ordinary cases or fails. **`AndersonSchedule(inner; m)` done in Mycelium (2026-11-09, `anderson.md`)**: around the spanning-tree order, by `infer!`, 24 sweeps instead of 20 881 with equal resistors. The diagnostic as a library function remains |
 | I15 | The belief-space interface that I12 and I13 name as missing: the gradient of $F$ in the beliefs (`free_energy_gradient` is for parameters), coordinates and a retraction for beliefs, and a state holding primal beliefs (off a fixed point the store's messages do not give consistent beliefs) | proposed | — | low | I12 "Interface (checked 2026-11-06)" | split out of I12 and I13 (2026-11-11), which both need it; all additive |
+| I16 | A Zygote backward pass through the free energy that is linear in the number of parameter keys: a cotangent for `ps` gathered once per key instead of one per factor read | proposed | I5 | medium | I5 design (2026-11-11, Daniel: "put it in the backlog") | expected, not measured: Zygote's pullback for a read from a `NamedTuple`, by name or by position, builds a cotangent with an entry for every key, so a gradient through `scalar_free_energy` stays O(factors × keys) after I5 removes the quadratic forward cost. To measure first: time `Zygote.gradient` of the free energy on `bench/state_scaling.jl`'s chain per doubling |
+| I17 | The coupled gradient drivers and the graph adjoint read by position too (`gradient_couplings.jl`: `_setsubtree` per task, `ps[name]` and `_key_node` per key; `graph_adjoint.jl`) | proposed | I5 | medium | I5 (2026-11-12, `lib/Mycelium.jl/src/passing.md`, "The trees by position") | I5 made the envelope gradient and `parameter_step` linear, not these; expected quadratic for the same reason, not measured |
 
 ## Out-of-core graphs (planned subrepository)
 
@@ -195,6 +197,17 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 |---|---|---|---|---|---|---|
 | T1 | A benchmark of inference and learning problems for optimiser design: problems with exact or reference answers where today's methods are slow or fail, run by one script that records sweeps, wall time, error against the reference, the free energy reached, and failures. Candidates: the loopy divider (flooding: 326 sweeps to an error of 1e-10, and 97 224 with equal resistors; `bench/bp_spectrum.jl`, `bench/bp_schedules.jl`), a small discrete Ising grid (exact by junction tree), Gaussian grids near the walk-summability limit (measured 2026-11-09 for schedules and Anderson, `bench/bp_grid.jl`), the switch learning of `lib/Lenticulum.jl/examples/structure_clusters.jl` (EM with SQUAREM, restarts, beam), the calibration benchmark, MNIST in both directions. Methods and compositions to compare: damping, SQUAREM, Anderson acceleration, heavy ball, mirror and accelerated mirror descent, Langevin, learned optimisers ([[The Regulariser and the Loss]] §3); the composition laws and an order of experiments are in [[Composing Optimisers]] | proposed | — | medium | Daniel, 2026-11-07 ("needs a serious learning problem to test various methods or compositions") | every optimiser idea so far was tried on one graph or one example; a fixed set of problems makes them comparable and keeps a method that wins on one from being adopted on that alone |
 | T2 | Benchmark regression tracking (scaling, allocations per message) | proposed | P15 | low | ChatGPT review §6 | |
+
+## Done (2026-11-12)
+
+I5, the parameter and state trees read by position: each loop over the factors builds a `Dict` of
+the tree's key positions once and reads `getfield(tree, i)`; a sweep writes state into a buffer and
+rebuilds the `NamedTuple` once; the free energy, which Zygote differentiates, writes back with one
+`merge`. `ps` and `st` stay `NamedTuple`s for the caller. Sweep, free energy, `free_energy_gradient`
+and `parameter_step` grow ×1.8–2.2 per doubling now; at 4 801 factors a sweep takes 39.1 ms
+instead of 261.6 and the free energy 19.9 instead of 150.5 (`bench/state_scaling.jl`;
+`lib/Mycelium.jl/src/passing.md`, "The trees by position"; `lib/Mycelium.jl/test/state_tree.jl`).
+Reviewed by Mistral ([[LP-025 Findings of the review of I5]]). Left over: I16, I17.
 
 ## Done (2026-11-11)
 

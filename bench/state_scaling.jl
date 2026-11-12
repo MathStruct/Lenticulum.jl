@@ -2,9 +2,9 @@
 # position-velocity Kalman chain (three factors per step). LP-024 measured the free energy at
 # 7.7, 25.8, 102 ms for 601, 1 201, 2 401 factors: quadratic, from rebuilding the graph-wide state
 # `NamedTuple` once per factor (`_setsubtree`). Recorded in `lib/Mycelium.jl/src/passing.md`,
-# "The state tree".
+# "The state tree" and "The trees by position" (I5, which also added the gradient columns).
 # Run:  julia --project=bench bench/state_scaling.jl
-using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, Random, LuxCore, Printf
+using Lenticulum, LenticulumCore, Mycelium, MyceliumLearning, LinearAlgebra, Random, LuxCore, Printf
 
 function chain(T; nx = 2, H = [1.0 0.0; 0.0 1.0], A = [1.0 1.0; 0.0 1.0])
     b = GraphBuilder()
@@ -33,7 +33,8 @@ end
 
 best(f; n = 5) = minimum(_ -> (GC.gc(); @elapsed f()), 1:n)
 
-@printf("%6s %8s %8s %16s %14s %14s\n", "T", "factors", "tasks", "sweep/task (μs)", "sweep (ms)", "F (ms)")
+@printf("%6s %8s %8s %16s %12s %10s %14s %16s\n", "T", "factors", "tasks", "sweep/task (μs)", "sweep (ms)", "F (ms)",
+        "gradient (ms)", "param step (ms)")
 for T in (100, 200, 400, 800, 1600)
     g, ps, st = chain(T)
     sched = SequentialSchedule(tasks(tree_schedule(g)))
@@ -43,5 +44,9 @@ for T in (100, 200, 400, 800, 1600)
     nt = length(tasks(sched))
     ts = best(() -> sweep!(s, g, sched, ps, st))
     tf = best(() -> LenticulumCore.scalar_free_energy(s, g, ps, st))
-    @printf("%6d %8d %8d %16.2f %14.2f %14.2f\n", T, length(g.factors), nt, ts / nt * 1e6, ts * 1e3, tf * 1e3)
+    LenticulumCore.free_energy_gradient(s, g, ps, st); MyceliumLearning.parameter_step(s, g, ps, st)
+    tg = best(() -> LenticulumCore.free_energy_gradient(s, g, ps, st); n = 3)
+    tp = best(() -> MyceliumLearning.parameter_step(s, g, ps, st); n = 3)
+    @printf("%6d %8d %8d %16.2f %12.2f %10.2f %14.2f %16.2f\n", T, length(g.factors), nt, ts / nt * 1e6,
+            ts * 1e3, tf * 1e3, tg * 1e3, tp * 1e3)
 end
