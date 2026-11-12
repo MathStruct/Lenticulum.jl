@@ -57,8 +57,11 @@ per-outcome `A` and `Q` arrays (`cluster.md`, "Per-outcome coefficients and nois
   improper component is the unnormalised exponential its weight multiplies, which is how
   Mycelium's products read it, so components with different precisions are weighted
   consistently (`test/cluster_flat.jl`).
-- **No mean-field, mixture-expansion or EP rules**, no plate blocks: inside a plate its cluster
-  nodes take the per-replica path (`cluster.md`).
+- **No mean-field, mixture-expansion or EP rules**, no block arithmetic over a plate: a plate row of
+  regime factors (or of cluster nodes holding them) is batched through tied one-factor clusters
+  (`factor_messages`, `factor_beliefs`, `belief_free_energies`, `local_free_energies` for a
+  vector of `RegimeFactor`s; `cluster.md`, "Per-outcome coefficients and noise"), which shares the
+  per-class factorisations but still builds each replica's message as a belief, not a block.
 - **No game interface** (`assemble`, `invert`): only the Mycelium factor methods.
 
 ## 4. Checked by
@@ -74,7 +77,12 @@ per-outcome `A` and `Q` arrays (`cluster.md`, "Per-outcome coefficients and nois
   $k$, gradient in $b$ against the closed form), the message to a continuous channel (each
   component's $\Lambda_k$, $\eta_k$ and weight against the closed form), the refusal of improper components
   with different precisions, and the message to $z$ with per-regime noise;
-- over a plate of four points: the per-replica path, $F = -\sum_i \log p(z_i)$, the gradient in $b$.
+- over a plate of four points: the batched path, $F = -\sum_i \log p(z_i)$, the gradient in $b$.
+
+`test/regime_plate.jl`: batched against per-replica messages, beliefs, energies and gradients on
+random instances; a plated clustered mixture of factor analysers against the closed form; a
+plated mixture of regressions without clusters against the unplated graph, EM included
+(`cluster.md` gives the tolerances).
 
 `examples/regime_lines.jl` (`regime_lines.md`): E1's crossing lines with one noise level per line,
 300 points, fitted by the free-energy gradient on the graph, reaches EM's maximum likelihood to

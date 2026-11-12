@@ -136,12 +136,13 @@ end
     @test RegimeFactor((z = 2,), 2, 2; noise = cat(Matrix(0.1I, 2, 2), Matrix(0.2I, 2, 2); dims = 3)).Q[2, 2, 2] == 0.2
     @test_throws ArgumentError RegimeFactor((k = 2,), 2, 2)
     @test_throws DimensionMismatch Mycelium.ClusterForm((z = zeros(2, 2, 3),), zeros(2, 2), zeros(2, 2), zeros(2), :k)
-    # per-outcome forms are not batched over a plate: the per-replica path is taken
+    # per-outcome forms: `_varies` tells them apart (they are batched over a plate with one
+    # precision per class, `regime_plate.jl`)
     @test Mycelium._varies(cluster_form(f, p)) && !Mycelium._varies(cluster_form(SwitchingConstraintFactor((z = 2,), 2, 2),
         (A = (z = Matrix(1.0I, 2, 2),), b = zeros(2, 2), logw = zeros(2))))
 end
 
-@testset "RegimeFactor over a plate: per-replica cluster nodes, exact" begin
+@testset "RegimeFactor over a plate: cluster nodes, batched, exact" begin
     Z = [0.7 -1.0 2.1 0.0; -0.4 0.3 -0.8 1.5; 1.1 0.9 2.0 -0.5]
     N = size(Z, 2)
     b = GraphBuilder()
@@ -161,7 +162,7 @@ end
     @test first(scalar_free_energy(s, gp, ps, NamedTuple())) ≈ sum(rg_nlp, eachcol(Z)) rtol = 1e-12
     pl = only(plates(gp))
     cs = [gp.factors[pl.factors[1, i]].factor for i in 1:N]
-    @test !Mycelium._cluster_batchable(cs, [NamedTuple() for _ in 1:N], nothing, ps.mix)
+    @test Mycelium._cluster_batchable(cs, [NamedTuple() for _ in 1:N], nothing, ps.mix)
     G = free_energy_gradient(s, gp, ps, NamedTuple(); ad = AutoForwardDiff()).mix.reg
     h = 1e-6
     fdb = map(1:length(RG_MU)) do j

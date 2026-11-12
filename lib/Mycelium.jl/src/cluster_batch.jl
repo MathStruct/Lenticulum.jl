@@ -4,9 +4,11 @@
 # Tied cluster nodes of one plate (`cluster(g, plate, name, factors)`) differ only in what their
 # replica's messages bring: points (data) and the means of Gaussian inputs. When every replica has
 # the same factors and its inputs the same shape (which channels are points, the input precisions,
-# the discrete inputs), the joints share their precision J, the assignments that survive and the
-# factors' forms; replica i's joint is replica 1's with H shifted by one vector and the constants
-# by one vector over the assignments. The messages then share their Cholesky factors, and the
+# the discrete inputs), the joints share their precisions J_κ (one per precision class), the
+# assignments that survive and the factors' forms; replica i's joint is replica 1's with H shifted
+# by one column per assignment (one vector for all of them unless a factor's coefficients depend
+# on its outcome) and the constants by one vector over the assignments. The messages then share
+# their factorisations, and the
 # free energy of all replicas is evaluated as a few stacked matrix products, which is what the
 # parameter gradient differentiates. Otherwise every method falls back to replica by replica.
 #
@@ -27,7 +29,8 @@ function _input_shape(c::ClusterFactor, msgs, skip)
         # (a continuous point only shifts h and the constants, `_data_terms`)
         b isa LenticulumCore.DiracBelief && return v in c.discrete ? (:state, b.value) : (:point,)
         if v in c.discrete
-            return b isa LenticulumCore.CategoricalBelief ? (:cat, b.logp) : (:none,)
+            # the labels too: `_cluster_joint` checks replica 1's only (LP-032)
+            return b isa LenticulumCore.CategoricalBelief ? (:cat, b.logp, b.labels) : (:none,)
         end
         b === nothing && return (:none,)
         bb = _cluster_input(b)
@@ -36,13 +39,14 @@ function _input_shape(c::ClusterFactor, msgs, skip)
 end
 function _cluster_batchable(cs, msgs, skip, @nospecialize(ps))
     length(cs) >= 2 || return false
-    # per-outcome coefficients or noise: several precisions, replica by replica (cluster.md)
-    any(i -> _varies(cluster_form(cs[1].factors[i], _subtree(ps, cs[1].keys[i]))), eachindex(cs[1].factors)) && return false
     c1, k1 = cs[1], _input_shape(cs[1], msgs[1], skip)
     return all(i -> _same_cluster(cs[i], c1) && isequal(_input_shape(cs[i], msgs[i], skip), k1), 2:length(cs))
 end
 
-# The per-factor pieces of a joint that do not depend on the replica's data.
+# The per-factor pieces of a joint that do not depend on the replica's data: per outcome group
+# (the assignments reading one outcome's A and Q, all of them when these do not depend on the
+# outcome; `k = 0` then) the coefficients on the free coordinates, Q's factorisation and the
+# offset columns.
 function _joint_plan(c::ClusterFactor, jt::_ClusterJoint, @nospecialize(ps))
     n = size(jt.H, 1)
     plan = Any[]
@@ -51,38 +55,45 @@ function _joint_plan(c::ClusterFactor, jt::_ClusterJoint, @nospecialize(ps))
         m = size(F.C, 1)
         m == 0 && continue
         w = Dict(c.wiring[i])
-        G = zeros(m, n)
-        for (ch, Ach) in pairs(F.A)
-            v = w[ch]
-            haskey(jt.offset, v) && (G[:, jt.offset[v]] .+= Ach)
+        kcol = _switch_columns(c, F, w, jt.assignments)
+        groups = map(_varies(F) ? unique(kcol) : [0]) do k
+            idx = k == 0 ? collect(eachindex(kcol)) : findall(==(k), kcol)
+            G = zeros(m, n)
+            for (ch, Ach) in pairs(F.A)
+                v = w[ch]
+                haskey(jt.offset, v) && (G[:, jt.offset[v]] .+= _at(Ach, k))
+            end
+            CQ = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Matrix(_at(F.Q, k))))
+            (k, idx, G, CQ, F.C[:, kcol[idx]])
         end
-        CQ = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Matrix(F.Q)))
-        push!(plan, (F, w, G, CQ, F.C[:, _switch_columns(c, F, w, jt.assignments)]))
+        push!(plan, (F, w, groups))
     end
     return plan
 end
 
-# A replica's data terms: H = H_data + h 1ᵀ + (shared), c = c_data + δ + (shared), and its points.
+# A replica's data terms: H = H_data + (shared), c = c_data + δ + (shared), and its points. With
+# per-outcome coefficients a point's shift A_k x differs per outcome, so H_data has one column
+# per assignment.
 function _data_terms(c::ClusterFactor, jt::_ClusterJoint, plan, msgs, skip)
     points = Dict{Symbol,Vector{Float64}}()
     for v in c.continuous
         b = _incoming(msgs, v, skip)
         b isa LenticulumCore.DiracBelief && (points[v] = collect(float.(b.value isa Real ? [b.value] : b.value)))
     end
-    h = zeros(size(jt.H, 1)); δ = zeros(length(jt.assignments))
+    h = zeros(size(jt.H)); δ = zeros(length(jt.assignments))
     for v in jt.free
         b = _cluster_input(_incoming(msgs, v, skip))
-        b isa GaussianBelief && (h[jt.offset[v]] .+= b.η)
+        b isa GaussianBelief && (h[jt.offset[v], :] .+= b.η)
     end
-    for (F, w, G, CQ, Ck) in plan
+    for (F, w, groups) in plan, (k, idx, G, CQ, Ck) in groups
         s = zeros(size(G, 1))
         for (ch, Ach) in pairs(F.A)
-            haskey(points, w[ch]) && (s .+= Ach * points[w[ch]])
+            haskey(points, w[ch]) && (s .+= _at(Ach, k) * points[w[ch]])
         end
         any(!iszero, s) || continue
         Qs = CQ \ s
-        h .-= G' * Qs
-        δ .+= vec(Qs' * Ck) .- LinearAlgebra.dot(s, Qs) / 2
+        h[:, idx] .-= G' * Qs
+        δ[idx] .+= vec(Qs' * Ck) .- LinearAlgebra.dot(s, Qs) / 2
     end
     return h, δ, points
 end
@@ -118,15 +129,18 @@ end
 
 The beliefs of tied cluster nodes over a plate whose joints share their structure, held fixed as
 one object: `q` (assignments × replicas), the means `M` (free coordinates × (assignments ·
-replicas), replica-major), one covariance `Σ` and conditional entropy `H`, and the points of each
-substituted variable as columns. Returned by `factor_beliefs` for a vector of `ClusterFactor`s;
-`belief_free_energies` evaluates all replicas in stacked products.
+replicas), replica-major), the covariance `Σ[κ]` and conditional entropy `H[κ]` of each precision
+class (`class[a]` for assignment a; one class unless a factor's coefficients or noise depend on
+its outcome), and the points of each substituted variable as columns. Returned by
+`factor_beliefs` for a vector of `ClusterFactor`s; `belief_free_energies` evaluates all replicas
+in stacked products.
 """
 struct FrozenClusterBeliefs
     q::Matrix{Float64}
     M::Matrix{Float64}
-    Σ::Matrix{Float64}
-    H::Float64
+    Σ::Vector{Matrix{Float64}}
+    H::Vector{Float64}
+    class::Vector{Int}
     free::Vector{Symbol}
     offset::Dict{Symbol,UnitRange{Int}}
     points::Dict{Symbol,Matrix{Float64}}
@@ -140,49 +154,63 @@ function factor_beliefs(cs::AbstractVector{<:ClusterFactor}, msgs::NamedTuple, @
     bs = [_joint_belief(jt, chol) for jt in _batch_joints(cs, cols, ps, nothing)]
     b1 = bs[1]
     pts = Dict(v => reduce(hcat, [b.points[v] for b in bs]) for v in keys(b1.points))
-    return FrozenClusterBeliefs(reduce(hcat, [b.q for b in bs]), reduce(hcat, [b.M for b in bs]), only(b1.Σ), only(b1.H),
+    return FrozenClusterBeliefs(reduce(hcat, [b.q for b in bs]), reduce(hcat, [b.M for b in bs]), b1.Σ, b1.H, b1.class,
                                 b1.free, b1.offset, pts, b1.assignments)
 end
 
 # The structure of factor i's term over the batch (outside AD, `@non_differentiable` in the
-# ChainRulesCore extension): its outcome columns, the channels feeding each free variable, and
-# the channels holding points.
+# ChainRulesCore extension): its outcome columns; per outcome group (the assignments reading one
+# outcome's A and Q; one group, `k = 0`, when these do not depend on the outcome) its
+# assignments, their columns of `M` in every replica (replica-major) and their precision classes;
+# the channels feeding each free variable; the channels holding points.
 function _batch_layout(c::ClusterFactor, i::Int, F::ClusterForm, B::FrozenClusterBeliefs)
     w = Dict(c.wiring[i])
     kcol = _switch_columns(c, F, w, B.assignments)
+    nA, N = size(B.q)
+    groups = map(_varies(F) ? unique(kcol) : [0]) do k
+        idx = k == 0 ? collect(1:nA) : findall(==(k), kcol)
+        (k, idx, vec([(r - 1) * nA + a for a in idx, r in 1:N]), B.class[idx])
+    end
     feeds = [[ch for ch in keys(F.A) if w[ch] === v] for v in B.free]
     pts = [(ch, w[ch]) for ch in keys(F.A) if haskey(B.points, w[ch])]
-    return kcol, feeds, pts
+    return kcol, groups, feeds, pts
 end
 
 function belief_free_energies(cs::AbstractVector{<:ClusterFactor}, B::FrozenClusterBeliefs, ps, st)
     c = cs[1]
     nA, N = size(B.q)
-    n = size(B.Σ, 1)
+    n = size(B.M, 1)
     terms = map(eachindex(c.factors)) do i
         F = cluster_form(c.factors[i], _subtree(ps, c.keys[i]))
-        kcol, feeds, pts = _batch_layout(c, i, F, B)
+        kcol, groups, feeds, pts = _batch_layout(c, i, F, B)
         cx = -vec(sum(B.q .* _finite_logw(F.logw[kcol]); dims = 1))
         m = size(F.C, 1)
         m == 0 && return (zeros(N), cx)
-        R = repeat(-F.C[:, kcol], 1, N)
-        for (ch, v) in pts
-            R = R .+ repeat(getfield(F.A, ch) * B.points[v]; inner = (1, nA))
+        parts = map(groups) do (k, idx, cols, cls)
+            na = length(idx)
+            qk = B.q[idx, :]
+            R = repeat(-F.C[:, kcol[idx]], 1, N)
+            for (ch, v) in pts
+                R = R .+ repeat(_at(getfield(F.A, ch), k) * B.points[v]; inner = (1, na))
+            end
+            CQ = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Matrix(_at(F.Q, k))))
+            tr = zeros(N)
+            if n > 0
+                G = reduce(hcat, [isempty(chs) ? zeros(m, length(B.offset[v])) : reduce(+, [_at(getfield(F.A, ch), k) for ch in chs])
+                                  for (v, chs) in zip(B.free, feeds)])
+                R = R .+ G * B.M[:, cols]
+                T = map(Σ -> LinearAlgebra.tr(CQ \ (G * Σ * G')), B.Σ)
+                tr = vec(sum(qk .* T[cls]; dims = 1))
+            end
+            quad = reshape(vec(sum(R .* (CQ \ R); dims = 1)), na, N)
+            ((vec(sum(qk .* quad; dims = 1)) .+ tr) ./ 2, vec(sum(qk; dims = 1)) .* ((logdet(CQ) + m * log(2π)) / 2))
         end
-        Cr = zeros(m, m)
-        if n > 0
-            G = reduce(hcat, [isempty(chs) ? zeros(m, length(B.offset[v])) : reduce(+, [getfield(F.A, ch) for ch in chs])
-                              for (v, chs) in zip(B.free, feeds)])
-            R = R .+ G * B.M
-            Cr = G * B.Σ * G'
-        end
-        CQ = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Matrix(F.Q)))
-        quad = reshape(vec(sum(R .* (CQ \ R); dims = 1)), nA, N)
-        return ((vec(sum(B.q .* quad; dims = 1)) .+ LinearAlgebra.tr(CQ \ Cr)) ./ 2, cx .+ (logdet(CQ) + m * log(2π)) / 2)
+        return (reduce(+, map(first, parts)), cx .+ reduce(+, map(last, parts)))
     end
-    fit, complexity = sum(first, terms), sum(last, terms)
+    fit, complexity = reduce(+, map(first, terms)), reduce(+, map(last, terms))
     Hq = vec(-sum(ifelse.(B.q .> 0, B.q .* log.(max.(B.q, floatmin(Float64))), 0.0); dims = 1))
-    return [LenticulumCore.GradedEnergy((fit = fit[r], complexity = complexity[r], negentropy = -Hq[r] - B.H)) for r in 1:N], st
+    Hx = vec(sum(B.q .* B.H[B.class]; dims = 1))
+    return [LenticulumCore.GradedEnergy((fit = fit[r], complexity = complexity[r], negentropy = -Hq[r] - Hx[r])) for r in 1:N], st
 end
 
 function local_free_energies(cs::AbstractVector{<:ClusterFactor}, msgs::NamedTuple, ps, st)

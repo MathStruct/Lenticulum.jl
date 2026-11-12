@@ -147,6 +147,19 @@ Mycelium.belief_free_energy(f::RegimeFactor, b::Mycelium.FrozenClusterBelief, ps
     Mycelium.belief_free_energy(Mycelium.as_cluster(f), b, (factor = ps,), st)
 Mycelium.local_free_energy(f::RegimeFactor, msgs, ps, st) = Mycelium.belief_free_energy(f, Mycelium.factor_belief(f, msgs, ps, st), ps, st)
 
+# Over a plate: the replicas as tied one-factor clusters, batched when their inputs share their
+# shape (`cluster_batch.jl`; replica by replica otherwise).
+_as_clusters(fs) = [Mycelium.as_cluster(f) for f in fs]
+Mycelium.factor_messages(fs::AbstractVector{<:RegimeFactor}, target::Symbol, polarity, inputs::AbstractVector,
+                         priors::AbstractVector, ps, st) =
+    Mycelium.factor_messages(_as_clusters(fs), target, polarity, inputs, priors, (factor = ps,), st)
+Mycelium.factor_beliefs(fs::AbstractVector{<:RegimeFactor}, msgs::NamedTuple, ps, st) =
+    Mycelium.factor_beliefs(_as_clusters(fs), msgs, (factor = ps,), st)
+Mycelium.belief_free_energies(fs::AbstractVector{<:RegimeFactor}, B::Mycelium.FrozenClusterBeliefs, ps, st) =
+    Mycelium.belief_free_energies(_as_clusters(fs), B, (factor = ps,), st)
+Mycelium.local_free_energies(fs::AbstractVector{<:RegimeFactor}, msgs::NamedTuple, ps, st) =
+    Mycelium.local_free_energies(_as_clusters(fs), msgs, (factor = ps,), st)
+
 # Without a declared output a constraint factor is normalised in its residual only (LP-022):
 # `free_energy_gradient` warns when one learns its coefficients on data.
 Mycelium.learns_unnormalised(f::Union{LinearConstraintFactor,SwitchingConstraintFactor,RegimeFactor}) = f.output === nothing

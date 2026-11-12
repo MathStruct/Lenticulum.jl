@@ -1304,6 +1304,7 @@ include("mixture_rules.jl")
 
 include("cluster.jl")
 include("regime.jl")
+include("regime_plate.jl")
 include("cluster_flat.jl")
 include("em.jl")
 include("validate_parameters.jl")

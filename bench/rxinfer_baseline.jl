@@ -226,8 +226,10 @@ function mix_em_hand(x, y; tol = 1e-10, maxiter = 10_000)
     return (; a, c, σ, w, iters = it)
 end
 
-# Lenticulum: one RegimeFactor per point, tied parameters, fit_em (as test/em.jl)
-function mix_graph(x, y)
+# Lenticulum: one RegimeFactor per point, tied parameters, fit_em (as test/em.jl); with `plated`
+# the replicas are recorded as a plate (`as_plate`), and messages, free energies and EM statistics
+# of the regime factors are batched over it (Feature Backlog I6)
+function mix_graph(x, y; plated = false)
     b = GraphBuilder()
     for i in eachindex(x)
         r(s) = replica_name(s, i)
@@ -237,13 +239,15 @@ function mix_graph(x, y)
         factor!(b, r(:reg), RegimeFactor((y = 1, x = 1), 2, 1; learn_noise = true, output = :y); params = :reg)
         connect!(b, r(:reg), :y, r(:y)); connect!(b, r(:reg), :x, r(:x)); connect!(b, r(:reg), :k, r(:k))
     end
-    return build(b)
+    g = build(b)
+    return plated ? as_plate(g, :pts, length(x)) : g
 end
 mix_ps(N) = merge(NamedTuple(s => NamedTuple() for i in 1:N for s in (replica_name(:dx, i), replica_name(:dy, i))),
     (reg = (A = (x = reshape(-START.a, 1, 1, 2),), b = reshape(START.c, 1, 2), logw = log.(START.w),
             L = reshape(log.(START.σ), 1, 1, 2)),))
 function mix_lenticulum(x, y, g; tol = 1e-10)
-    ps, Fs, _ = fit_em(g, mix_ps(length(x)), NamedTuple(); schedule = SequentialSchedule(all_tasks(g)), iters = 10_000, tol)
+    schedule = isempty(plates(g)) ? SequentialSchedule(all_tasks(g)) : plate_schedule(g)
+    ps, Fs, _ = fit_em(g, mix_ps(length(x)), NamedTuple(); schedule, iters = 10_000, tol)
     p = ps.reg
     w = exp.(p.logw); w ./= sum(w)
     return (a = -vec(p.A.x), c = vec(p.b), σ = exp.(vec(p.L)), w, iters = length(Fs) - 1, F = last(Fs))
@@ -303,6 +307,8 @@ function run_mix()
         ref = mix_em_hand(x, y)
         g = mix_graph(x, y)
         L = mix_lenticulum(x, y, g)
+        gp = mix_graph(x, y; plated = true)
+        Lp = mix_lenticulum(x, y, gp)
         # VMP to convergence: find the iteration count once, then time runs of that length
         R0 = mix_rxinfer(x, y, 1000)
         nR = rx_converged(R0.F)
@@ -313,8 +319,10 @@ function run_mix()
         tE = best(() -> mix_em_hand(x, y))
         tLb = best(() -> mix_graph(x, y))
         tL = best(() -> mix_lenticulum(x, y, g))
+        tLp = best(() -> mix_lenticulum(x, y, gp))
         tR = best(() -> mix_rxinfer(x, y, nR))
-        for (name, e, t, it) in (("EM (hand)", ref, tE, ref.iters), ("Lenticulum", match(L, ref), tL, L.iters), ("RxInfer", match(R, ref), tR, nR))
+        for (name, e, t, it) in (("EM (hand)", ref, tE, ref.iters), ("Lenticulum", match(L, ref), tL, L.iters),
+                              ("L (plate)", match(Lp, ref), tLp, Lp.iters), ("RxInfer", match(R, ref), tR, nR))
             @printf("%6d | %-10s | %8.4f %8.4f | %8.4f %8.4f | %8.4f %8.4f | %6.3f %6.3f | %14.6f | %6d %10.1f\n", N, name,
                     e.a..., e.c..., e.σ..., e.w..., mix_nll(x, y, e.a, e.c, e.σ, e.w), it, 1000t)
         end

@@ -203,9 +203,21 @@ is one class and every computation is the one above.
   $\sum_\kappa q_{k,\kappa} \operatorname{tr}(Q_k^{-1} G_k \Sigma_\kappa G_k^\top)$ with $q_{k,\kappa}$ the belief's mass on the assignments of outcome $k$ in
   class $\kappa$, and its $\tfrac12 \log\det 2\pi Q_k$ weighted by the mass on outcome $k$. The negentropy is
   $-H(q) - \sum_a q_a H(x \mid \kappa(a))$.
-- **Plates.** Replicas with a varying factor are not batched (`_cluster_batchable` is false): the
-  data terms $G_k^\top Q_k^{-1} s$ would differ per class, and the batched path assumes one precision. They
-  take the per-replica path, with the same results.
+- **Plates** (batched since 2026-11-12, Feature Backlog I6). The precisions $J_\kappa$ depend on the
+  parameters and on the inputs' shape only, so tied replicas share them, the precision classes and
+  their factorisations, as with one precision. What differs is the data term: a point $x_c$ shifts
+  outcome $k$'s residual by $s_k = \sum_c A_{c,k} x_c$, so $h$ gets $-G_k^\top Q_k^{-1} s_k$ on the assignments
+  of outcome $k$, one column per assignment instead of one vector, and $\delta$ gets
+  $s_k^\top Q_k^{-1} C_{:,k} - \tfrac12 s_k^\top Q_k^{-1} s_k$ there (`_data_terms`, per outcome group of `_joint_plan`).
+  `FrozenClusterBeliefs` holds $\Sigma_\kappa$ and $H(x \mid \kappa)$ per class and the class of each assignment;
+  `belief_free_energies` evaluates each varying factor per outcome group over all replicas at
+  once (its columns of $M$ in every replica, the trace term per class weighted by $q$), and EM's
+  `_moment_stats` adds $\Sigma_\kappa$ with the mass of class $\kappa$. A factor that is not in a cluster but is a
+  one-factor cluster (Lenticulum's `RegimeFactor`) is batched the same way through `as_cluster`, its
+  plate rows included in `moment_statistics`. What does not batch is what did not before: replicas
+  whose inputs differ in shape (a different discrete observation, a different input precision, a
+  categorical input with other labels: LP-032, where such a replica after the first was read
+  positionally before the labels were part of the shape).
 - **One factor outside a cluster.** `as_cluster(f)` is a factor as a one-factor cluster over its
   own channels. A factor stated only by a `cluster_form` gets its messages and Bethe free energy
   from it (Lenticulum's `RegimeFactor` does).
@@ -214,7 +226,19 @@ Tests: Lenticulum `test/regime.jl`. A mixture of factor analysers ($x \sim \math
 three regimes with different $W_k$ and $Q_k$) in one cluster gives $F = -\log p(z)$ to $10^{-12}$, the regime
 posterior and the three posteriors of $x$ (each with its own covariance) to $10^{-12}$; the gradient in
 $A$, $b$, $\log w$ and the noise's Cholesky factors agrees with central differences of $-\log p(z)$ to $10^{-6}$
-(ForwardDiff and Zygote); over a plate of four points the per-replica path is taken and is exact.
+(ForwardDiff and Zygote); over a plate of four points the batched path is taken and is exact.
+
+Over a plate (Lenticulum `test/regime_plate.jl`): on random regime factors (per-outcome $A$ on both
+channels, learned noise; six seeds, dimensions 1–3, 2–3 regimes, five replicas) the batched messages
+to every channel, under six input patterns (points, Gaussian inputs of one precision, a categorical
+input), equal the per-replica messages to $10^{-10}$, and the batched beliefs, graded free energies and
+their Zygote and ForwardDiff gradients equal the per-replica ones to $10^{-9}$; a clustered mixture of
+factor analysers with random parameters on seven points, plated, gives $F = -\sum_i \log p(z_i)$ to
+$10^{-11}$ and the gradient of the closed form to $10^{-8}$ (ForwardDiff and Zygote) from stacked beliefs;
+a mixture of regressions with one `RegimeFactor` per point and no cluster, plated and not, gives the
+closed-form $-\log p(y \mid x)$ to $10^{-12}$, equal gradients, EM statistics from the stacked beliefs equal
+to the per-node ones to $10^{-12}$, and the same EM path. Changing the per-assignment data term back to
+one vector makes 60 of the first testset's 156 tests fail.
 
 ## Flat directions (2026-11-04)
 

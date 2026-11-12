@@ -81,9 +81,9 @@ function _moment_stats(c::ClusterFactor, i::Int, @nospecialize(F::ClusterForm), 
     return st
 end
 
-# The same over a plate row, from the stacked beliefs (`FrozenClusterBeliefs`: one precision class,
-# the means replica-major, the points as columns): a few matrix products instead of a loop over
-# replicas and assignments.
+# The same over a plate row, from the stacked beliefs (`FrozenClusterBeliefs`: a covariance per
+# precision class, the means replica-major, the points as columns): a few matrix products instead
+# of a loop over replicas and assignments.
 function _moment_stats(c::ClusterFactor, i::Int, @nospecialize(F::ClusterForm), B::FrozenClusterBeliefs)
     w = Dict(c.wiring[i])
     K = size(F.C, 2)
@@ -101,18 +101,25 @@ function _moment_stats(c::ClusterFactor, i::Int, @nospecialize(F::ClusterForm), 
     end
     X = reduce(vcat, [haskey(B.points, w[ch]) ? repeat(B.points[w[ch]]; inner = (1, nA)) : B.M[B.offset[w[ch]], :] for ch in chs])
     offs = cumsum([0; dims])
-    Σx = zeros(sum(dims), sum(dims))
-    for (p, cp) in enumerate(chs), (r, cr) in enumerate(chs)
-        (haskey(B.offset, w[cp]) && haskey(B.offset, w[cr])) || continue
-        Σx[(offs[p] + 1):offs[p + 1], (offs[r] + 1):offs[r + 1]] .= B.Σ[B.offset[w[cp]], B.offset[w[cr]]]
+    Σx = map(B.Σ) do Σ
+        S = zeros(sum(dims), sum(dims))
+        for (p, cp) in enumerate(chs), (r, cr) in enumerate(chs)
+            (haskey(B.offset, w[cp]) && haskey(B.offset, w[cr])) || continue
+            S[(offs[p] + 1):offs[p + 1], (offs[r] + 1):offs[r + 1]] .= Σ[B.offset[w[cp]], B.offset[w[cr]]]
+        end
+        S
     end
+    cls = repeat(B.class, N)
     for k in 1:K
         idx = findall(==(k), kk)
         wq = q[idx]
         Xk = X[:, idx]
         st.n[k] = sum(wq; init = 0.0)
         st.m[:, k] .= Xk * wq
-        st.S[:, :, k] .= (Xk .* wq') * Xk' .+ st.n[k] .* Σx
+        st.S[:, :, k] .= (Xk .* wq') * Xk'
+        for κ in eachindex(Σx)
+            st.S[:, :, k] .+= sum(wq[cls[idx] .== κ]; init = 0.0) .* Σx[κ]
+        end
     end
     return st
 end
@@ -161,16 +168,24 @@ structure is read from its stacked beliefs at once (`batched = false` takes ever
 function moment_statistics(s::AbstractMessageStore, g::FactorGraph, @nospecialize(ps), @nospecialize(st); batched::Bool = true)
     acc = Dict{Tuple{Symbol,Union{Symbol,Nothing}},Any}()      # (node key, factor key) => (factor, stats, frozen)
     covered = Set{Int}()
-    # plate rows of cluster nodes: their stacked beliefs, when the replicas share their structure
+    # plate rows of cluster nodes, or of factors whose batched beliefs are a one-factor cluster's
+    # (`RegimeFactor`): their stacked beliefs, when the replicas share their structure
     for row in (batched ? _energy_rows(s, g) : _EnergyRow[])
         f1 = g.factors[first(row.fids)]
-        (f1.factor isa ClusterFactor && LenticulumCore.islearnable(f1.factor) && f1.freeze !== :all) || continue
+        alone = !(f1.factor isa ClusterFactor)
+        (LenticulumCore.islearnable(f1.factor) && f1.freeze !== :all && (!alone || _has_m_step(f1.factor))) || continue
         msgs = _row_messages(s, row)
         msgs === nothing && continue
         cs = [g.factors[i].factor for i in row.fids]
         psn = _subtree(ps, f1.params)
         B = factor_beliefs(cs, msgs, psn, _subtree(st, f1.params))
         B isa FrozenClusterBeliefs || continue
+        if alone
+            _push_stats!(acc, (f1.params, nothing), f1.factor, _moment_stats(as_cluster(f1.factor), 1, cluster_form(f1.factor, psn), B),
+                         LenticulumCore._freeze_paths(f1.freeze))
+            union!(covered, row.fids)
+            continue
+        end
         c = cs[1]
         for (i, f) in enumerate(c.factors)
             LenticulumCore.islearnable(f) && _has_m_step(f) || continue
