@@ -285,7 +285,30 @@ end
 # then computes with a covariance of order 1/eps (wrong marginals on a tree, without an error).
 # One SVD, with the threshold of `_projected_rank` (constraint.jl); that function computes the
 # singular values twice, which made this test half the cost of a backward message.
-function _rank_deficient(A)
+_rank_deficient(A) = _rank_deficient_svd(A)
+
+# The test depends on `A` alone, and `A` is the same array on every sweep of an inference, so the
+# answer is kept per array (I18; gaussian.md, "What the checks cost"). An entry is found by `objectid` and used
+# only if its weak reference still points to this very array and its copy still equals it, so an
+# id reused after a collection, or a change in place, recomputes. The weak reference does not
+# keep a parameter alive; the memo is emptied when it reaches `_RANK_MEMO_MAX` entries. Only for
+# CPU `Float64` matrices: dual numbers and device arrays are tested every time.
+const _RANK_MEMO = Dict{UInt,Tuple{WeakRef,Matrix{Float64},Bool}}()
+const _RANK_MEMO_LOCK = ReentrantLock()
+const _RANK_MEMO_MAX = 4096
+function _rank_deficient(A::Matrix{Float64})
+    id = objectid(A)
+    hit = @lock _RANK_MEMO_LOCK get(_RANK_MEMO, id, nothing)
+    hit !== nothing && hit[1].value === A && hit[2] == A && return hit[3]
+    r = _rank_deficient_svd(A)
+    @lock _RANK_MEMO_LOCK begin
+        length(_RANK_MEMO) >= _RANK_MEMO_MAX && empty!(_RANK_MEMO)
+        _RANK_MEMO[id] = (WeakRef(A), copy(A), r)
+    end
+    return r
+end
+
+function _rank_deficient_svd(A)
     size(A, 1) < size(A, 2) && return true
     s = LinearAlgebra.svdvals(LenticulumCore.stop_gradient(A))
     isempty(s) && return false
@@ -347,7 +370,7 @@ _moments(::LenticulumCore.TrivialBelief, n) = (nothing, nothing)
 _moments(::Nothing, n) = (nothing, nothing)
 function _moments(b::GaussianBelief, n)
     all(iszero, b.Λ) && return (nothing, nothing)
-    return (belief_mean(b), belief_cov(b))
+    return LenticulumCore._mean_cov(b)
 end
 # A Gaussian mixture is collapsed to its total mean and covariance (`moment_match`, the projection
 # step of assumed-density filtering). The message is then exact for the collapsed input, not for

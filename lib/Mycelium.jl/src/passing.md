@@ -425,6 +425,27 @@ What is left after the cache (6 296 samples): `factor_message` of `GaussianFacto
 `excluded_marginal` 475; `_improper_check` 427 (a Cholesky factor and a symmetry check per
 `belief_cov`); `belief_distance` 193; `check_legal` about 270.
 
+### After I18 (2026-11-12)
+
+I18 cached the rank test per weight array and factorised each input's precision once instead of
+twice (Lenticulum's `gaussian.md`, "What the checks cost"; LenticulumCore's `gaussian_belief.md`,
+"Per-message costs"). The sweep column of `bench/state_scaling.jl` (best of 5; "before" is the
+polarity-cache table above):
+
+| factors | sweep before (ms) | sweep (ms) |
+|---|---|---|
+| 301 | 1.77 | 1.51 |
+| 601 | 3.56 | 3.03 |
+| 1 201 | 7.20 | 6.03 |
+| 2 401 | 14.57 | 12.43 |
+| 4 801 | 29.79 | 25.45 |
+
+A sweep at 2 401 factors allocates 14.6 MB instead of 22.7 (`bench/sweep_profile.jl`). Its profile
+(1 686 samples in `_step!`): `factor_message` of `GaussianFactor` 422, of which `_moments` 142;
+`excluded_marginal` 159; `_rank_deficient` no longer appears. About 290 samples are dynamic
+`getproperty` and dispatch in `_step!` and `_rule_message`. That is the part of I18 still open: the
+polarity's type is not known to the compiler ([[polarity_resolution]], difficulty 3).
+
 ## The trees by position (2026-11-12, I5)
 
 **The cost.** `ps` and `st` stay `NamedTuple`s for the caller. Reading one entry by a run-time

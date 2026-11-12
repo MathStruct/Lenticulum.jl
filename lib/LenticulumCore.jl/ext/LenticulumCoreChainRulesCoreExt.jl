@@ -44,6 +44,21 @@ function ChainRulesCore.rrule(::typeof(belief_cov), b::GaussianBelief)
     end
     return C, back
 end
+# The fused `_mean_cov` differentiates as its two parts would (I18).
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode},
+                             ::typeof(LenticulumCore._mean_cov), b::GaussianBelief)
+    μ, back_μ = rrule_via_ad(config, belief_mean, b)
+    Σ, back_Σ = rrule_via_ad(config, belief_cov, b)
+    function back(dy)
+        dy = unthunk(dy)
+        dy isa AbstractZero && return NoTangent(), ZeroTangent()
+        dμ, dΣ = unthunk(dy[1]), unthunk(dy[2])
+        gμ = dμ isa AbstractZero ? ZeroTangent() : back_μ(dμ)[2]
+        gΣ = dΣ isa AbstractZero ? ZeroTangent() : back_Σ(dΣ)[2]
+        return NoTangent(), gμ + gΣ
+    end
+    return (μ, Σ), back
+end
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode},
                              ::typeof(LenticulumCore.straight_through), f, s, x)
     _, back = rrule_via_ad(config, s, x)

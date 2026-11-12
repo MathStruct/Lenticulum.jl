@@ -1327,6 +1327,7 @@ include("lp018.jl")
 include("lp018_interop.jl")
 include("lp019_interop.jl")
 include("gaussian_oracle.jl")
+include("i18.jl")
 
 include("hard_constraint.jl")
 

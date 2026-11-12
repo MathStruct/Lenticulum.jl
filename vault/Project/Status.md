@@ -7,39 +7,43 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-12, after the polarity cache (committed and pushed, `c01b3c06`).
+**Last updated:** 2026-11-12, after I18 in part (the rank memo and one factorisation; **not committed**).
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | clean, pushed with the polarity-cache commit; `master` is behind (merge on request) |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | the helper worktree for Mistral (`AGENTS.md`, "Helper agents and worktrees"); at `3cd2c355` (I5) with the polarity-cache diff applied for Mistral's review, and Mistral's scratch tests in `scratch/` (untracked); environments instantiated. Bring it to `dev-danielb` (`git merge --ff-only dev-danielb`) and apply the change before a review |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | the I18 change uncommitted (below); `master` is behind (merge on request) |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | the helper worktree for Mistral (`AGENTS.md`, "Helper agents and worktrees"); at `15db235d` with the I18 diff applied for Mistral's review (before the fixes of LP-026), and Mistral's scratch tests in `scratch/` (untracked). An old draft of the polarity-cache notes is in the stash `mistral-wt-polarity-cache-draft-2026-11-12` (superseded by the commit; drop it). Bring the worktree to `dev-danielb` and apply the change before a review |
 
 Pushing: the `mathstruct` SSH key is often rejected; push over HTTPS with `gh`'s credentials
 (`git -c credential.helper= -c credential.helper='!gh auth git-credential' push https://github.com/MathStruct/Lenticulum.jl.git dev-danielb`).
 
-## Done: polarities cached per graph
+## Done, not committed: I18 in part
 
-The item left after I5 was `belief_distance`. A new profile (`bench/sweep_profile.jl`, 2 401
-factors) puts it under 4% of a sweep, so it was left alone. `resolve_polarity` took about 25%: it
-built a `NamedTuple` type from run-time channel names on every message. `FactorGraph` now caches
-the polarity per factor by (target, available), behind a lock (`graph.jl`,
-`polarity_resolution.jl`; note `polarity_resolution.md`, difficulty 3). The chain builder of
-`bench/state_scaling.jl` moved to `bench/kalman_chain.jl`, shared with the profile script.
+What was done, in `dev-danielb` and uncommitted:
+- `_rank_deficient` (Lenticulum `gaussian.jl`) keeps its answer per weight array: a global memo keyed
+  by `objectid`, checked with a weak reference and a copy (`gaussian.md`, "What the checks cost").
+- `_moments` factorises the input precision once: `LenticulumCore._mean_cov`, with an rrule that
+  calls the two old rules.
+- `_nearly_symmetric` has a loop method, and `_symmetric_part` is one broadcast (`gaussian_belief.md`,
+  "Per-message costs").
+- The tests are `test/i18.jl` in LenticulumCore and in Lenticulum. They compare each fast path
+  with the old code on generated inputs.
 
-- Verified: all eight suites passed (logs in `~/.cache/lenticulum/bd/`). The sweep is 24% faster at
-  every size (29.8 ms instead of 39.1 at 4 801 factors; table in `lib/Mycelium.jl/src/passing.md`,
-  "Where a sweep spends its time after I5").
-- Not run: the device tests (the change is not device-facing).
-- Review: Mistral found no defects (`../Lenticulum.jl-Review-2026-11-12/polarity-cache-mistral.md`).
-  It ran an exhaustive comparison against the uncached function, the graph-edit paths
-  (`replace_factor!` after the cache was filled), an 8-thread stress test, and Zygote and ForwardDiff
-  through `step!`. Its scratch test is `../Lenticulum.jl-mistral/scratch/polarity_cache_review.jl`.
-  A stress test is not a proof of thread safety.
-- Next: I18. These are per-message costs that depend only on the graph and the parameters:
-  `_rank_deficient` (an SVD of the weight matrix on every backward message, about 7.6% of a sweep)
-  and `_improper_check` (about 6.8%). I16 and I17 are still open.
+- Measured: the sweep is about 15% faster at every size (12.4 instead of 14.6 ms at 2 401 factors),
+  with 14.6 MB allocated per sweep instead of 22.7. A backward message at d=2 takes 1.06 μs
+  instead of 2.4 (tables in `lib/Mycelium.jl/src/passing.md`, "After I18").
+- Review: Mistral, triaged in [[LP-026 Findings of the review of I18]]. Two defects were fixed with
+  tests (a non-square input, an error message), the memo tests were added, and one race was not
+  reproduced.
+- Verified: all eight suites passed (`Pkg.test()`, logs in `~/.cache/lenticulum/i18/`). After the
+  LP-026 fixes, LenticulumCore and Lenticulum passed again, and so did the device tests of Mycelium
+  and MyceliumLearning (`LENTICULUM_DEVICE_TESTS=true`).
+- Not run: Enzyme through `_mean_cov` (no test drives it).
+- Next: commit when asked. Then comes the rest of I18, the dynamic dispatch on the polarity type in
+  `_rule_message`, about 17% of a sweep (`polarity_resolution.md`, difficulty 3). After that come
+  I16 and I17, or P1 by the proposed order in [[Feature Backlog]].
 
 ## Open
 

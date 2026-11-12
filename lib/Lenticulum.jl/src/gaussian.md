@@ -256,7 +256,23 @@ backward message: 0.71 and 2.6 μs, against 2.4 and 6.6 μs for the whole messag
 `_projected_rank(A, A)`, which computes the singular values twice, and was half the cost of a
 backward message (`bench/gaussian_message_cost.jl`, 2026-11-10, best of five runs of 20 000
 calls, one machine). `A` is a parameter, so the rank could be cached per parameter
-tree; that has not been done.
+tree.
+
+Since 2026-11-12 (I18) it is cached per array. `_rank_deficient(A::Matrix{Float64})` keeps the
+answer in a memo keyed by `objectid(A)`. An entry holds a weak reference to the array, a copy of
+it and the answer, and it is used only if the reference still points to `A` and the copy still
+equals it, so a reused id or a change in place recomputes. The memo is guarded by a lock and is
+emptied at 4 096 entries. A hit takes 21 ns instead of the 0.63 μs of the SVD at dimension 2
+(Chairmarks, one machine). `bench/gaussian_message_cost.jl` (which reuses one `A`, as an inference
+does) now gives 0.95 μs for a forward and 1.06 μs for a backward message at dimension 2, and 2.82
+and 2.94 μs at 6, with `_rank_deficient` at 0.02 and 0.03 μs. Other element types (dual numbers, `Float32`) and device arrays take
+the SVD every time (`_rank_deficient_svd`). It is a global memo, not one in the graph, because
+`factor_message` sees neither the graph nor the factor's position in it. A parameter step that
+makes new arrays starts with misses and fills the memo again. The same change made `_moments`
+factorise the input's precision once instead of twice (`LenticulumCore._mean_cov`;
+LenticulumCore's `gaussian_belief.md`, "Per-message costs"). Tested in `test/i18.jl`: 2 000 calls
+against the SVD with changes in place, a full memo, dropped arrays, planted stale entries and
+4 000 calls from several threads. Reviewed by Mistral ([[LP-026 Findings of the review of I18]]).
 
 **The constructor accepts a covariance that is symmetric up to rounding** (the tolerance of
 `LenticulumCore._nearly_symmetric`) and uses its symmetric part. The collapsed factor of a

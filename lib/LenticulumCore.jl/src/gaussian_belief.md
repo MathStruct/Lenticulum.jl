@@ -133,3 +133,29 @@ What the flag does not do: it cannot make a dense Float64 precision hold a condi
 above $1/\epsilon$. A proper prior weaker than $\epsilon\, \lambda_{\max}$ along a site's null direction (the case
 the 2026-11-01 review raised) gives such a precision when the two are pooled, and that fails with or
 without the flag.
+
+## Per-message costs (2026-11-12, I18)
+
+Every Gaussian message reads the moments of its input, so the accessors here run several times
+per message. Three changes make them cheaper without changing a result:
+
+- `_nearly_symmetric` has a loop method for a dense `Float32` or `Float64` matrix, without the two
+  copies of the generic method (72 → 34 ns at dimension 2). It returns false wherever some
+  `A[i,j] - A[j,i]` is NaN (a NaN entry, an infinite diagonal entry, equal infinities in mirrored
+  places), where the generic method gets NaN from `maximum`. The differences are taken in the
+  element type, as `A - A'` takes them.
+- `_symmetric_part` is one fused broadcast, `A .+ (A' .- A) ./ 2`: the same operations per element
+  as before, so the same bits, with one array instead of three (99 → 64 ns).
+- `_mean_cov(b)` gives `(belief_mean(b), belief_cov(b))` from one factorisation of Λ instead of
+  two; `_moments` of the relation factors (Lenticulum's `gaussian.jl`) uses it (0.64 → 0.34 μs).
+  It is defined for `Array`-backed beliefs only; others, the device ones among them, go to the two
+  functions. Reverse mode does not see the fused code: the ChainRules rule calls the rules of the
+  two functions (`rrule_via_ad`) and adds their cotangents, so Zygote's gradients are those of
+  before. ForwardDiff and Enzyme go through the fused code, the same operations as the two
+  functions.
+
+Times from one machine, medians of Chairmarks `@b` (a scratch script, not in the repository).
+Tested in `test/i18.jl`: the loop against the generic method on 6 000 generated matrices with
+NaN, ±Inf, signed zeros, subnormals and near-threshold asymmetry; the broadcast bit for bit;
+`_mean_cov` for equality, its errors, and its Zygote and ForwardDiff gradients against the
+two functions. The effect on a sweep is in Mycelium's `passing.md`, "After I18".

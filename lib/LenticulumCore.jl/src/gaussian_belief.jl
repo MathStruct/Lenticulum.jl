@@ -97,9 +97,24 @@ function _nearly_symmetric(M)
     A = Matrix(M)
     return maximum(abs, A - A'; init = 0.0) <= sqrt(eps(Float32)) * maximum(abs, A; init = 0.0)
 end
+# The same test without the two copies, for a dense float matrix; it runs on every message (I18).
+# A NaN anywhere, or an infinite entry (∞ − ∞ is NaN in `A - A'`), makes the method above false
+# through `maximum`, which returns NaN; the loop returns false for the same entries.
+function _nearly_symmetric(A::Matrix{T}) where {T<:Union{Float32,Float64}}
+    n, m = size(A)
+    n == m || return invoke(_nearly_symmetric, Tuple{Any}, A)   # its DimensionMismatch (LP-026 F1)
+    asym, amax = 0.0, 0.0
+    @inbounds for j in 1:n, i in 1:n
+        d = abs(A[i, j] - A[j, i])               # in T, as `A - A'` computes it
+        isnan(d) && return false
+        asym = max(asym, Float64(d)); amax = max(amax, Float64(abs(A[i, j])))
+    end
+    return asym <= sqrt(eps(Float32)) * amax
+end
 # A + (Aᵀ − A)/2: exact for a symmetric A (a subnormal diagonal survives, unlike A/2 + Aᵀ/2),
 # and no overflow near floatmax (unlike (A + Aᵀ)/2).
-_symmetric_part(M) = (A = Matrix(M); Symmetric(A + (A' - A) / 2))
+# One fused broadcast: the same operations per element as `A + (A' - A) / 2`, one array (I18).
+_symmetric_part(M) = (A = Matrix(M); Symmetric(A .+ (A' .- A) ./ 2))
 _check_symmetric(M, name) = _nearly_symmetric(M) ||
     throw(ArgumentError("$name is not symmetric: $(M)"))
 
@@ -142,6 +157,16 @@ end
 ``\\Sigma = \\Lambda^{-1}``.
 """
 belief_cov(b::GaussianBelief) = inv(_improper_check(b, "belief_cov"))
+
+# `(belief_mean(b), belief_cov(b))` from one factorisation of Λ instead of two: the relation
+# factors need both for every message (I18). Only for beliefs on the CPU (the device methods of
+# the two functions stay in charge there). Reverse mode differentiates the two functions
+# separately (the rule in the ChainRulesCore extension), so its gradients are theirs.
+_mean_cov(b::GaussianBelief) = (belief_mean(b), belief_cov(b))
+function _mean_cov(b::GaussianBelief{<:Array,<:Array})
+    C = _improper_check(b, "belief_mean")   # the error `_moments` gave, from `belief_mean` (LP-026 F2)
+    return (_precision_solve(C, b.η), inv(C))
+end
 
 function _improper_check(b::GaussianBelief, who)
     b.improper && throw(ArgumentError(

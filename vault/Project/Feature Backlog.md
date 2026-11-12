@@ -53,7 +53,7 @@ F2 is *partial*; its present problems (circle, lemniscate, rings) suffice for P1
 
 **Proposed order (2026-11-11, until Daniel sets one):** ~~I5~~ (done 2026-11-12; the gap against
 RxInfer, [[Benchmark against RxInfer]], not measured again since); P1, small and closes the extended-Gaussian
-work; P17, P18 and P19, mechanical and suited to a helper in its own worktree; then P11 with F3 for
+work; P17 and P18, mechanical and suited to a helper in its own worktree (P19 done 2026-11-12 with I18); then P11 with F3 for
 path B, and I6 for path C.
 
 ## First, on the three paths (2026-11-10)
@@ -81,7 +81,6 @@ named. The structure-search driver (path C) is S7.
 | P16 | Owned scalarisations: one graded energy, a scalarisation chosen per parameter key (each block descends its own), for games such as a GAN; with a stability check of the joint Jacobian | — | proposed | — | [[GANs as Two Factors]] §4 (2026-11-10) | every learnable node descends the one scalar $F$, so no game is expressible; a per-factor sign is the zero-sum special case |
 | P17 | Move `Mycelium.reduce_message` for Gaussian mixtures from Lenticulum (`beliefs.jl`) into Mycelium | A, C | proposed | — | Aqua (2026-11-10), declared in Lenticulum's `test/aqua.jl` | type piracy: Mycelium without Lenticulum refuses to reduce a Gaussian mixture |
 | P18 | Move `belief_mean`/`belief_cov` of `SampleBelief` from Adversarial (`ratio.jl`) into LenticulumCore | — | proposed | — | Aqua (2026-11-10), declared in Adversarial's `test/aqua.jl` | type piracy: the moments of a sample belief exist only with Adversarial loaded |
-| P19 | Cache the rank of a `GaussianFactor`'s coefficient per parameter tree | A | proposed | — | [[lib/Lenticulum.jl/src/gaussian|gaussian]] "What the checks cost" (2026-11-10) | `_rank_deficient` takes an SVD of `A` on every backward message: 0.7 of 2.4 μs at dimension 2, 2.6 of 6.6 μs at 6 (`bench/gaussian_message_cost.jl`) |
 | P20 | Zygote through `scalar_free_energy` on plates with block rows: `_row_scalar` calls `sum(...; init = 0.0)`, for which ChainRules has no rrule (`MethodError`) | A, C | proposed | — | Mistral's review of 2026-11-11 (`lib/Mycelium.jl/src/passing.md`, "The state tree") | a defect, not a feature: the gradient of a plated free energy by Zygote fails; found by running, the same before and after P7 |
 
 ## Inference and graph execution
@@ -104,7 +103,7 @@ named. The structure-search driver (path C) is S7.
 | I15 | The belief-space interface that I12 and I13 name as missing: the gradient of $F$ in the beliefs (`free_energy_gradient` is for parameters), coordinates and a retraction for beliefs, and a state holding primal beliefs (off a fixed point the store's messages do not give consistent beliefs) | proposed | — | low | I12 "Interface (checked 2026-11-06)" | split out of I12 and I13 (2026-11-11), which both need it; all additive |
 | I16 | A Zygote backward pass through the free energy that is linear in the number of parameter keys: a cotangent for `ps` gathered once per key instead of one per factor read | proposed | I5 | medium | I5 design (2026-11-11, Daniel: "put it in the backlog") | expected, not measured: Zygote's pullback for a read from a `NamedTuple`, by name or by position, builds a cotangent with an entry for every key, so a gradient through `scalar_free_energy` stays O(factors × keys) after I5 removes the quadratic forward cost. To measure first: time `Zygote.gradient` of the free energy on `bench/state_scaling.jl`'s chain per doubling |
 | I17 | The coupled gradient drivers and the graph adjoint read by position too (`gradient_couplings.jl`: `_setsubtree` per task, `ps[name]` and `_key_node` per key; `graph_adjoint.jl`) | proposed | I5 | medium | I5 (2026-11-12, `lib/Mycelium.jl/src/passing.md`, "The trees by position") | I5 made the envelope gradient and `parameter_step` linear, not these; expected quadratic for the same reason, not measured |
-| I18 | A sweep without per-message work that depends only on the graph and the parameters: `_rank_deficient` (an SVD of a `GaussianFactor`'s weight matrix on every backward message), `_improper_check` in `belief_cov`, and the dynamic dispatch on the polarity's type in `_rule_message` (the type-level channels of `polarity_resolution.md`, difficulty 3) | proposed | — | medium | profile of 2026-11-12 (`bench/sweep_profile.jl`; `lib/Mycelium.jl/src/passing.md`, "Where a sweep spends its time after I5") | after the polarity cache, the SVD takes about 7.6% of a sweep on the Kalman chain and `_improper_check` about 6.8% |
+| I18 | A sweep without the dynamic dispatch on the polarity's type in `_rule_message` and the dynamic `getproperty` around it in `_step!` (the type-level channels of `polarity_resolution.md`, difficulty 3) | proposed | — | medium | profile of 2026-11-12 (`bench/sweep_profile.jl`; `lib/Mycelium.jl/src/passing.md`, "After I18") | about 17% of a sweep on the Kalman chain after the rest of I18 (the rank memo and the single factorisation, done 2026-11-12) |
 
 ## Out-of-core graphs (planned subrepository)
 
@@ -200,6 +199,8 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 | T2 | Benchmark regression tracking (scaling, allocations per message) | proposed | P15 | low | ChatGPT review §6 | |
 
 ## Done (2026-11-12)
+
+I18 in part, and P19: the rank test of a `GaussianFactor`'s backward message is kept per weight array (a memo keyed by identity, guarded by a weak reference and a copy), `_moments` factorises the input's precision once (`LenticulumCore._mean_cov`), and the symmetry test and the symmetric part allocate less. Results unchanged (comparison tests on generated inputs in both packages' `test/i18.jl`). The sweep on the Kalman chain is 15% faster at every size (12.4 ms instead of 14.6 at 2 401 factors), and a backward message at dimension 2 takes 1.06 μs instead of 2.4 (`lib/Lenticulum.jl/src/gaussian.md`, "What the checks cost"; `lib/Mycelium.jl/src/passing.md`, "After I18"). Reviewed by Mistral ([[LP-026 Findings of the review of I18]]). Left over: the dispatch part of I18.
 
 Polarities cached per graph: `resolve_polarity` built a `NamedTuple` type from run-time channel names on every message, a quarter of a sweep. `FactorGraph` keeps them per factor by (target, available); the sweep on the Kalman chain at 2 401 factors takes 14.0 ms instead of 18.9 (`bench/sweep_profile.jl`; `lib/Mycelium.jl/src/polarity_resolution.md`, difficulty 3). The same profile found `belief_distance`, the item left after I5, at under 4% of a sweep: not worth work. Left over: I18.
 
