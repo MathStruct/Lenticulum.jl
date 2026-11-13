@@ -109,3 +109,67 @@ end
     lk = [-(bb[k] - z)^2 / (2q[k]) - log(2π * q[k]) / 2 for k in 1:2]
     @test exp.(m.logw) ≈ exp.(lk .- fl_lse(lk)) atol = 1e-12
 end
+
+# Flat directions in tied clusters over a plate (`cluster_batch.jl`): the batched messages,
+# beliefs and free energies equal the per-replica ones, each replica's free energy is the closed
+# form, and a linear term in the flat direction is refused by both paths (I19; from Mistral's
+# probe p4, LP-034).
+fl_close(a::AbstractArray{<:Number}, b::AbstractArray{<:Number}; atol) = size(a) == size(b) && isapprox(a, b; atol, rtol = 0)
+fl_close(a::Number, b::Number; atol) = isapprox(a, b; atol, rtol = 0)
+fl_close(a::AbstractVector, b::AbstractVector; atol) = length(a) == length(b) && all(fl_close(x, y; atol) for (x, y) in zip(a, b))
+fl_close(a::AbstractDict, b::AbstractDict; atol) = keys(a) == keys(b) && all(fl_close(a[k], b[k]; atol) for k in keys(a))
+fl_close(a, b; atol) = typeof(a) == typeof(b) &&
+    (isempty(fieldnames(typeof(a))) ? isequal(a, b) : all(f -> fl_close(getfield(a, f), getfield(b, f); atol), fieldnames(typeof(a))))
+
+@testset "Flat directions: tied clusters over a plate, batched" begin
+    rng = Xoshiro(5)
+    N = 4
+    b = GraphBuilder()
+    for i in 1:N
+        r(s) = replica_name(s, i)
+        variable!(b, r(:z), 1); variable!(b, r(:u), 1); variable!(b, r(:w), 1); variable!(b, r(:k), 2)
+        factor!(b, r(:dz), DataFactor(:z, [randn(rng)])); connect!(b, r(:dz), :z, r(:z); direction = Emitting())
+        factor!(b, r(:lc), LinearConstraintFactor((z = 1, u = 1, w = 1), 1; noise = 0.3); params = :lc)
+        connect!(b, r(:lc), :z, r(:z)); connect!(b, r(:lc), :u, r(:u)); connect!(b, r(:lc), :w, r(:w))
+        factor!(b, r(:sw), SwitchingConstraintFactor((u = 1, w = 1), 2, 1; noise = 0.2); params = :sw)
+        connect!(b, r(:sw), :u, r(:u)); connect!(b, r(:sw), :w, r(:w)); connect!(b, r(:sw), :k, r(:k))
+    end
+    gc = cluster(as_plate(build(b), :pts, N), :pts, :c, [:lc, :sw]; params = :mix)
+    p = (lc = (A = (z = ones(1, 1), u = -ones(1, 1), w = ones(1, 1)), c = [0.0]),
+         sw = (A = (u = ones(1, 1), w = -ones(1, 1)), b = [-1.0 1.5], logw = log.([0.3, 0.7])))
+    pl = only(plates(gc))
+    row = findfirst(i -> gc.factors[pl.factors[i, 1]].factor isa ClusterFactor, axes(pl.factors, 1))
+    cs = [gc.factors[pl.factors[row, i]].factor for i in 1:N]
+    @test cs[1].boundary == [:z]
+    zpts = [randn(rng) for _ in 1:N]
+    ins = [(z = DiracBelief([z]),) for z in zpts]
+    @test Mycelium._cluster_batchable(cs, ins, :z, p)
+    mb, _ = factor_messages(cs, :z, nothing, ins, fill(nothing, N), p, NamedTuple())
+    ms = [first(factor_message(cs[i], :z, nothing, ins[i], nothing, p, NamedTuple())) for i in 1:N]
+    @test all(fl_close(mb[i], ms[i]; atol = 1e-9) for i in 1:N)
+    msgs = (z = belief_block([DiracBelief([z]) for z in zpts]),)
+    B = factor_beliefs(cs, msgs, p, NamedTuple())
+    bs = [factor_belief(cs[i], Mycelium._column(msgs, i), p, NamedTuple()) for i in 1:N]
+    @test B isa FrozenClusterBeliefs
+    nA = length(bs[1].q)
+    @test all(fl_close(B.q[:, r], bs[r].q; atol = 1e-10) && fl_close(B.M[:, ((r - 1) * nA + 1):(r * nA)], bs[r].M; atol = 1e-9) for r in 1:N)
+    @test all(fl_close(B.Σ[κ], bs[1].Σ[κ]; atol = 1e-9) for κ in eachindex(B.Σ))
+    Eb, _ = belief_free_energies(cs, B, p, NamedTuple())
+    Es = [first(belief_free_energy(cs[i], bs[i], p, NamedTuple())) for i in 1:N]
+    total(e) = e[:fit] + e[:complexity] + e[:negentropy]
+    @test all(fl_close(collect(values(Eb[r].parts)), collect(values(Es[r].parts)); atol = 1e-9) for r in 1:N)
+    # closed form: with d = u − w, z = d + ε (variance 0.3) and d = b_k + ε_k (variance 0.2), so
+    # z ~ Σ_k w_k N(b_k, 0.5); the flat direction u + w drops out, and integrating on the range
+    # coordinate (u − w)/√2 adds log 2 / 2 (derived at the top of this file)
+    for (i, z) in enumerate(zpts)
+        exact = -fl_lse([log(w) - (z - bk)^2 / (2 * 0.5) - log(2π * 0.5) / 2 for (w, bk) in zip([0.3, 0.7], [-1.0, 1.5])]) + log(2) / 2
+        @test total(Es[i]) ≈ exact atol = 1e-10
+    end
+    # a linear term in the flat direction (an improper tilt on u, its mean differing per replica):
+    # still batchable, and both paths refuse it
+    tilts = [GaussianBelief([0.1 * i], zeros(1, 1), true) for i in 1:N]
+    ins2 = [(z = DiracBelief([zpts[i]]), u = tilts[i]) for i in 1:N]
+    eb = try; factor_messages(cs, :z, nothing, ins2, fill(nothing, N), p, NamedTuple()); nothing; catch e; e; end
+    er = try; factor_message(cs[3], :z, nothing, ins2[3], nothing, p, NamedTuple()); nothing; catch e; e; end
+    @test eb isa ArgumentError && er isa ArgumentError && occursin("flat direction", eb.msg)
+end

@@ -208,7 +208,7 @@ is one class and every computation is the one above.
   their factorisations, as with one precision. What differs is the data term: a point $x_c$ shifts
   outcome $k$'s residual by $s_k = \sum_c A_{c,k} x_c$, so $h$ gets $-G_k^\top Q_k^{-1} s_k$ on the assignments
   of outcome $k$, one column per assignment instead of one vector, and $\delta$ gets
-  $s_k^\top Q_k^{-1} C_{:,k} - \tfrac12 s_k^\top Q_k^{-1} s_k$ there (`_data_terms`, per outcome group of `_joint_plan`).
+  $s_k^\top Q_k^{-1} C_{:,k} - \tfrac12 s_k^\top Q_k^{-1} s_k$ there (`_batch_joint`, per outcome group of `_joint_plan`).
   `FrozenClusterBeliefs` holds $\Sigma_\kappa$ and $H(x \mid \kappa)$ per class and the class of each assignment;
   `belief_free_energies` evaluates each varying factor per outcome group over all replicas at
   once (its columns of $M$ in every replica, the trace term per class weighted by $q$), and EM's
@@ -296,6 +296,52 @@ parameters are keyed by those keys, so the paths name the same coordinates, and 
 groups must freeze the same paths. Test: Lenticulum `test/cluster.jl`, "Cluster nodes keep their
 factors' frozen parameter paths" (zero gradient in the frozen `A`, the other gradients unchanged,
 ForwardDiff and Zygote).
+
+## Batching in one stacked joint (2026-11-13, Feature Backlog I19)
+
+After I6 the batched path still built every replica's joint as its own `_ClusterJoint` (a `Dict`
+of points, its data terms from loops over untyped plan entries) and its message by its own call of
+`_joint_message`; only the factorisations were shared. On the mixture of two regressions as a plate
+(`bench/regime_plate_profile.jl`, $N = 3000$, before the change) a profile put about 45% of
+`fit_em`'s samples in building those joints, about 25% in the per-replica messages, and about 15% in
+`as_cluster` and `_same_cluster` over every replica on every sweep.
+
+Now the replicas' joints are one stacked joint (`_batch_joint`): replica 1's structure (free
+variables, assignments, the class precisions $J_\kappa$), and $H$ ($n \times n_A N$) and the constants
+($n_A N$) replica-major. Replica $r$'s columns are replica 1's plus the difference of their data
+terms, which are computed for all replicas at once: the points of a channel are the columns of one
+matrix $P$, so per factor and outcome group $S = \sum_c A_{c,k} P_c$, one solve $Q_k^{-1} S$, and $G_k^\top Q_k^{-1} S$
+and $C_{:,k}^\top Q_k^{-1} S - \tfrac12 \operatorname{colsum}(S \odot Q_k^{-1} S)$ as matrix products (the formulas of
+"Per-outcome coefficients and noise" above, one column per replica). `_joint_message` is split into
+the parts that work on all columns of a joint (`_continuous_parts`: the target's natural means and
+the log-weights, one set of solves per class; `_discrete_parts`: the log-weights) and the
+assembly of one message from one replica's columns (`_continuous_message`, `_discrete_message`);
+`_joint_belief` likewise into `_belief_parts`, which normalises $q$ per replica. The per-replica path
+calls the same functions with all columns, so both compute the same thing. A plate row of factors
+that are equal fieldwise gets one shared cluster (`_as_clusters`), which `_same_cluster` accepts at
+once, and `_same_struct` compares fields through a generated, unrolled function.
+
+Measured with `bench/regime_plate_profile.jl` (one machine, `-t auto`; logs in
+`~/.cache/lenticulum/i19/`), before (at `1770cc13`) and after, the same 11 iterations and the same
+$F$ to every printed digit:
+
+| $N$ | `fit_em` before | after | one iteration before | after | allocated per iteration before | after |
+|---|---|---|---|---|---|---|
+| 300 | 0.338 s | 0.059 s | 52.8 ms | 10.5 ms | 64.9 MiB | 15.7 MiB |
+| 3000 | 3.611 s | 0.625 s | 621.6 ms | 140.9 ms | 647.1 MiB | 153.8 MiB |
+
+In [[Benchmark against RxInfer]] the plate now takes 68 ms and 0.68 s against RxInfer's 126 ms and
+3.4 s. After the change the profile ($N = 3000$) puts 24% of the samples in the regime factors'
+batched messages, 27% in the tasks the plate schedule steps one at a time (the data factors' among
+them), 18% in the free energy; per replica there is still one message object to build and the
+grouping of equal components (`_continuous_message`).
+
+Tests: unchanged oracles (Lenticulum `test/regime_plate.jl`, `test/cluster.jl`: batched against per
+replica on random instances); mutating the batched data term (the quadratic term, the Gaussian
+inputs' $\eta$, the shift $G^\top Q^{-1} S$) fails 90, 54 and 60 of their tests. From the review
+([[LP-034 Findings of the review of I19]]): a row with an unequal factor goes replica by replica
+(`regime_plate.jl`), and flat directions in tied clusters over a plate agree with per replica and
+the closed form (`cluster_flat.jl`).
 
 ## What it does not do
 

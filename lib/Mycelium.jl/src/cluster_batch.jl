@@ -7,26 +7,41 @@
 # the discrete inputs), the joints share their precisions J_κ (one per precision class), the
 # assignments that survive and the factors' forms; replica i's joint is replica 1's with H shifted
 # by one column per assignment (one vector for all of them unless a factor's coefficients depend
-# on its outcome) and the constants by one vector over the assignments. The messages then share
-# their factorisations, and the
-# free energy of all replicas is evaluated as a few stacked matrix products, which is what the
-# parameter gradient differentiates. Otherwise every method falls back to replica by replica.
+# on its outcome) and the constants by one vector over the assignments. All replicas' joints are
+# then one stacked joint (`_batch_joint`), whose messages and beliefs take one set of solves for
+# every replica, and the free energy of all replicas is evaluated as a few stacked matrix
+# products, which is what the parameter gradient differentiates. Otherwise every method falls back to replica by replica.
 #
 # See `cluster.md`.
 # ---------------------------------------------------------------------------
 
-# Fieldwise equality of two factors (the factors of two replicas are separate objects).
-_same_struct(x, y) = x === y || (typeof(x) === typeof(y) && all(f -> isequal(getfield(x, f), getfield(y, f)), fieldnames(typeof(x))))
+# Fieldwise equality of two factors (the factors of two replicas are separate objects), unrolled
+# over the fields so that each comparison is typed.
+_same_struct(x, y) = x === y || (typeof(x) === typeof(y) && _same_fields(x, y))
+@generated function _same_fields(x::T, y::T) where {T}
+    fieldcount(T) == 0 && return :(true)
+    return foldr((a, b) -> :($a && $b), [:(isequal(getfield(x, $i), getfield(y, $i))) for i in 1:fieldcount(T)])
+end
 _same_cluster(a::ClusterFactor, b::ClusterFactor) = a === b || (a.wiring == b.wiring && a.keys == b.keys &&
     a.variables == b.variables && a.dims == b.dims && a.discrete == b.discrete && a.boundary == b.boundary &&
     all(_same_struct(x, y) for (x, y) in zip(a.factors, b.factors)))
+
+# A plate row of factors that have only a `cluster_form` (`RegimeFactor`) as one-factor clusters:
+# one cluster shared by all replicas when their factors are equal fieldwise (the usual case,
+# replicas of one factor), which `_same_cluster` then accepts at once; one per replica otherwise.
+function _as_clusters(fs::AbstractVector)
+    isempty(fs) && return ClusterFactor[]
+    f1 = first(fs)
+    all(f -> _same_struct(f, f1), fs) && return fill(as_cluster(f1), length(fs))
+    return ClusterFactor[as_cluster(f) for f in fs]
+end
 
 # What of one replica's incoming messages fixes its joint's structure (`_cluster_joint`).
 function _input_shape(c::ClusterFactor, msgs, skip)
     return map(c.boundary) do v
         b = _incoming(msgs, v, skip)
         # an observed discrete state fixes which assignments survive, so it is part of the shape
-        # (a continuous point only shifts h and the constants, `_data_terms`)
+        # (a continuous point only shifts h and the constants, `_batch_joint`)
         b isa LenticulumCore.DiracBelief && return v in c.discrete ? (:state, b.value) : (:point,)
         if v in c.discrete
             # the labels too: `_cluster_joint` checks replica 1's only (LP-032)
@@ -71,43 +86,49 @@ function _joint_plan(c::ClusterFactor, jt::_ClusterJoint, @nospecialize(ps))
     return plan
 end
 
-# A replica's data terms: H = H_data + (shared), c = c_data + δ + (shared), and its points. With
-# per-outcome coefficients a point's shift A_k x differs per outcome, so H_data has one column
-# per assignment.
-function _data_terms(c::ClusterFactor, jt::_ClusterJoint, plan, msgs, skip)
-    points = Dict{Symbol,Vector{Float64}}()
-    for v in c.continuous
-        b = _incoming(msgs, v, skip)
-        b isa LenticulumCore.DiracBelief && (points[v] = collect(float.(b.value isa Real ? [b.value] : b.value)))
-    end
-    h = zeros(size(jt.H)); δ = zeros(length(jt.assignments))
-    for v in jt.free
-        b = _cluster_input(_incoming(msgs, v, skip))
-        b isa GaussianBelief && (h[jt.offset[v], :] .+= b.η)
+_point_vector(b) = collect(float.(b.value isa Real ? [b.value] : b.value))
+
+# All replicas' joints as one stacked joint: replica 1's structure (free variables, assignments
+# held once, precisions J_κ), and H (n × nA·N) and the constants (nA·N) replica-major, each
+# replica's columns being replica 1's shifted by the difference of their data terms. The data
+# terms of all replicas are computed together: the points of a channel are the columns of one
+# matrix, and per factor and outcome group one solve with Q serves every replica. With
+# per-outcome coefficients a point's shift A_k x differs per outcome, so the data term has one
+# column per assignment. Returns the stacked joint, replica 1's precision classes (nA), the points
+# of each substituted variable as columns, and nA.
+function _batch_joint(cs, msgs, @nospecialize(ps), skip)
+    c, N = cs[1], length(cs)
+    jt1 = _cluster_joint(c, msgs[1], ps, skip)
+    plan = _joint_plan(c, jt1, ps)
+    n, nA = size(jt1.H)
+    # which continuous channels hold points is the same in every replica (`_input_shape`)
+    pts = Dict{Symbol,Matrix{Float64}}(v => reduce(hcat, [_point_vector(_incoming(msgs[r], v, skip)) for r in 1:N])
+                                       for v in keys(jt1.points))
+    Hd = zeros(n, nA, N); δ = zeros(nA, N)
+    for v in jt1.free, r in 1:N
+        b = _cluster_input(_incoming(msgs[r], v, skip))
+        b isa GaussianBelief && (Hd[jt1.offset[v], :, r] .+= b.η)
     end
     for (F, w, groups) in plan, (k, idx, G, CQ, Ck) in groups
-        s = zeros(size(G, 1))
-        for (ch, Ach) in pairs(F.A)
-            haskey(points, w[ch]) && (s .+= _at(Ach, k) * points[w[ch]])
+        chs = [ch for ch in keys(F.A) if haskey(pts, w[ch])]
+        isempty(chs) && continue
+        S = reduce(+, [_at(getfield(F.A, ch), k) * pts[w[ch]] for ch in chs])     # m × N
+        QS = CQ \ S
+        GQ = G' * QS                                                             # n × N
+        for a in idx
+            @views Hd[:, a, :] .-= GQ
         end
-        any(!iszero, s) || continue
-        Qs = CQ \ s
-        h[:, idx] .-= G' * Qs
-        δ[idx] .+= vec(Qs' * Ck) .- LinearAlgebra.dot(s, Qs) / 2
+        δ[idx, :] .+= Ck' * QS .- sum(S .* QS; dims = 1) ./ 2
     end
-    return h, δ, points
-end
-
-# Every replica's joint, from replica 1's and the data terms.
-function _batch_joints(cs, msgs, @nospecialize(ps), skip)
-    jt1 = _cluster_joint(cs[1], msgs[1], ps, skip)
-    plan = _joint_plan(cs[1], jt1, ps)
-    h1, δ1, _ = _data_terms(cs[1], jt1, plan, msgs[1], skip)
-    return map(eachindex(cs)) do i
-        i == 1 && return jt1
-        h, δ, pts = _data_terms(cs[i], jt1, plan, msgs[i], skip)
-        _ClusterJoint(jt1.free, jt1.offset, pts, jt1.assignments, jt1.J, jt1.class, jt1.H .+ (h .- h1), jt1.c .+ (δ .- δ1))
+    H = Matrix{Float64}(undef, n, nA * N); cst = Vector{Float64}(undef, nA * N)
+    for r in 1:N
+        cols = ((r - 1) * nA + 1):(r * nA)
+        @views H[:, cols] .= jt1.H .+ (Hd[:, :, r] .- Hd[:, :, 1])
+        @views cst[cols] .= jt1.c .+ (δ[:, r] .- δ[:, 1])
     end
+    jt = _ClusterJoint(jt1.free, jt1.offset, Dict{Symbol,Vector{Float64}}(), jt1.assignments, jt1.J,
+                       repeat(jt1.class, N), H, cst)
+    return jt, jt1.class, pts, nA
 end
 
 function factor_messages(cs::AbstractVector{<:ClusterFactor}, target::Symbol, polarity, inputs::AbstractVector,
@@ -119,9 +140,17 @@ function factor_messages(cs::AbstractVector{<:ClusterFactor}, target::Symbol, po
         end
         return out, st
     end
-    target in cs[1].boundary || throw(ArgumentError("channel :$target is not a channel of this cluster (has $(cs[1].boundary))"))
+    c = cs[1]
+    target in c.boundary || throw(ArgumentError("channel :$target is not a channel of this cluster (has $(c.boundary))"))
     chol = Dict{Any,Any}()
-    return Any[_joint_message(cs[i], jt, target, chol) for (i, jt) in enumerate(_batch_joints(cs, inputs, ps, target))], st
+    jt, _, _, nA = _batch_joint(cs, inputs, ps, target)
+    cols(r) = ((r - 1) * nA + 1):(r * nA)
+    if target in c.discrete
+        l, sel = _discrete_parts(c, jt, target, chol)
+        return Any[_discrete_message(c, target, l, sel, cols(r)) for r in eachindex(cs)], st
+    end
+    E, l, Λs, proper = _continuous_parts(jt, target, chol)
+    return Any[_continuous_message(E, l, Λs, proper, jt.class, cols(r)) for r in eachindex(cs)], st
 end
 
 """
@@ -150,12 +179,9 @@ end
 function factor_beliefs(cs::AbstractVector{<:ClusterFactor}, msgs::NamedTuple, @nospecialize(ps), @nospecialize(st))
     cols = [_column(msgs, i) for i in eachindex(cs)]
     _cluster_batchable(cs, cols, nothing, ps) || return [factor_belief(cs[i], cols[i], ps, st) for i in eachindex(cs)]
-    chol = Dict{Any,Any}()
-    bs = [_joint_belief(jt, chol) for jt in _batch_joints(cs, cols, ps, nothing)]
-    b1 = bs[1]
-    pts = Dict(v => reduce(hcat, [b.points[v] for b in bs]) for v in keys(b1.points))
-    return FrozenClusterBeliefs(reduce(hcat, [b.q for b in bs]), reduce(hcat, [b.M for b in bs]), b1.Σ, b1.H, b1.class,
-                                b1.free, b1.offset, pts, b1.assignments)
+    jt, class, pts, nA = _batch_joint(cs, cols, ps, nothing)
+    q, M, Σ, H = _belief_parts(jt, Dict{Any,Any}(), nA)
+    return FrozenClusterBeliefs(q, M, Σ, H, class, jt.free, jt.offset, pts, jt.assignments)
 end
 
 # The structure of factor i's term over the batch (outside AD, `@non_differentiable` in the

@@ -197,3 +197,30 @@ end
     msgs = (z = belief_block([i.z for i in ins]), k = Mycelium.VectorBlock(Any[i.k for i in ins]))
     @test_throws ArgumentError factor_beliefs(fs, msgs, p, NamedTuple())
 end
+
+# A row whose factors are not all equal gets one cluster per replica and is not batched; the
+# replicas of equal factors share one cluster (`_as_clusters`, I19; from Mistral's probe p2,
+# LP-034).
+@testset "RegimeFactor plate: unequal factors in a row go replica by replica" begin
+    rng = Xoshiro(21)
+    dz, dx, K, N = 2, 1, 2, 3
+    f, p = rp_factor(rng, dz, dx, K)
+    fs = [RegimeFactor((z = dz, x = dx), K, dz; learn_noise = true) for _ in 1:N]
+    cs = Lenticulum._as_clusters(fs)
+    @test all(c -> c === cs[1], cs)
+    fs2 = copy(fs)
+    fs2[2] = RegimeFactor((z = dz, x = dx), K, dz; learn_noise = true, noise = 0.5)
+    cs2 = Lenticulum._as_clusters(fs2)
+    @test cs2[1] !== cs2[2] && !Mycelium._same_cluster(cs2[1], cs2[2])
+    Λx = (S = randn(rng, dx, dx); S * S' + I)
+    ins = [(z = DiracBelief(randn(rng, dz)), x = rp_gauss(rng, dx, Λx)) for _ in 1:N]
+    @test !Mycelium._cluster_batchable(cs2, ins, :k, (factor = p,))
+    for target in (:k, :x)
+        ins_t = [NamedTuple{Tuple(setdiff((:z, :x), (target,)))}(i) for i in ins]
+        mb, _ = factor_messages(fs2, target, nothing, ins_t, fill(nothing, N), p, NamedTuple())
+        ms = [first(factor_message(fs2[i], target, nothing, ins_t[i], nothing, p, NamedTuple())) for i in 1:N]
+        @test all(rp_close(mb[i], ms[i]; atol = 1e-12) for i in 1:N)
+    end
+    B = factor_beliefs(fs2, (z = belief_block([i.z for i in ins]), x = belief_block([i.x for i in ins])), p, NamedTuple())
+    @test B isa Vector && length(B) == N
+end

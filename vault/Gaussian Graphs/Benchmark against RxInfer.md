@@ -81,18 +81,21 @@ under priors. The common score is $-\log p(y \mid x, \hat\theta)$ at each estima
 | $N$ | method | $a$ | $c$ | $\sigma$ | $w$ | $-\log p(y \mid x, \hat\theta)$ | iterations | time (ms) |
 |---|---|---|---|---|---|---|---|---|
 | 300 | EM (hand) | (0.9972, −0.9941) | (−0.0092, 0.4784) | (0.1934, 0.5023) | (0.519, 0.481) | 253.389349 | 11 | 0.6 |
-| 300 | Lenticulum | (0.9972, −0.9941) | (−0.0092, 0.4784) | (0.1934, 0.5023) | (0.519, 0.481) | 253.389349 | 11 | 801.4 |
-| 300 | L (plate) | (0.9972, −0.9941) | (−0.0092, 0.4784) | (0.1934, 0.5023) | (0.519, 0.481) | 253.389349 | 11 | 356.7 |
-| 300 | RxInfer | (0.9970, −0.9940) | (−0.0092, 0.4805) | (0.2284, 0.5162) | (0.522, 0.478) | 256.859526 | 32 | 126.8 |
-| 3000 | EM (hand) | (1.0003, −1.0064) | (0.0021, 0.4979) | (0.1972, 0.4915) | (0.500, 0.500) | 2 603.684235 | 11 | 5.8 |
-| 3000 | Lenticulum | (1.0003, −1.0064) | (0.0021, 0.4979) | (0.1972, 0.4915) | (0.500, 0.500) | 2 603.684235 | 11 | 10 076.0 |
-| 3000 | L (plate) | (1.0003, −1.0064) | (0.0021, 0.4979) | (0.1972, 0.4915) | (0.500, 0.500) | 2 603.684235 | 11 | 3 806.3 |
-| 3000 | RxInfer | (1.0003, −1.0065) | (0.0022, 0.4978) | (0.2009, 0.4927) | (0.501, 0.499) | 2 604.168160 | 40 | 3 149.2 |
+| 300 | Lenticulum | (0.9972, −0.9941) | (−0.0092, 0.4784) | (0.1934, 0.5023) | (0.519, 0.481) | 253.389349 | 11 | 757.6 |
+| 300 | L (plate) | (0.9972, −0.9941) | (−0.0092, 0.4784) | (0.1934, 0.5023) | (0.519, 0.481) | 253.389349 | 11 | 67.9 |
+| 300 | RxInfer | (0.9970, −0.9940) | (−0.0092, 0.4805) | (0.2284, 0.5162) | (0.522, 0.478) | 256.859526 | 32 | 125.5 |
+| 3000 | EM (hand) | (1.0003, −1.0064) | (0.0021, 0.4979) | (0.1972, 0.4915) | (0.500, 0.500) | 2 603.684235 | 11 | 5.4 |
+| 3000 | Lenticulum | (1.0003, −1.0064) | (0.0021, 0.4979) | (0.1972, 0.4915) | (0.500, 0.500) | 2 603.684235 | 11 | 9 504.9 |
+| 3000 | L (plate) | (1.0003, −1.0064) | (0.0021, 0.4979) | (0.1972, 0.4915) | (0.500, 0.500) | 2 603.684235 | 11 | 679.9 |
+| 3000 | RxInfer | (1.0003, −1.0065) | (0.0022, 0.4978) | (0.2009, 0.4927) | (0.501, 0.499) | 2 604.168160 | 40 | 3 405.5 |
 
-Times from the run of 2026-11-12 (`BENCH_PART=mix`, after I6; one machine, `-t auto`). "Lenticulum" is
+Times from the run of 2026-11-13 (`BENCH_PART=mix`, after I19; one machine, `-t auto`; log
+`~/.cache/lenticulum/i19/bench_mix.log`). "Lenticulum" is
 the graph without a plate record, "L (plate)" the same graph with its replicas recorded as a plate
 (`as_plate`) and swept by `plate_schedule`, where the regime factors' messages, free energies and EM
-statistics are batched (I6). The first table of 2026-11-11 had 1 196.3 and 31 635.8 ms for the
+statistics are batched (I6), since I19 in one stacked joint for all replicas. The run of
+2026-11-12, after I6 and before I19, had 356.7 and 3 806.3 ms for the plate (801.4 and 10 076.0 ms
+unplated, 126.8 and 3 149.2 ms for RxInfer). The first table of 2026-11-11 had 1 196.3 and 31 635.8 ms for the
 unplated graph and 132.6 and 3 197.4 ms for RxInfer; what made the unplated graph faster since was not
 measured step by step. Lenticulum's time excludes building its graph, 2.6 and 28.7 ms; RxInfer's includes creating its
 model. RxInfer's own free energy at convergence is 305.24 and 2 666.56: a bound under its priors,
@@ -102,12 +105,15 @@ not comparable with the column above.
 
 1. **Lenticulum's EM is EM**: the same iterates and the same maximum to the printed digits, as
    `test/em.jl` asserts step for step.
-2. **It is slow.** Unplated, 0.80 s against 0.6 ms for the closed form at $N = 300$, 10.1 s against
-   5.8 ms at $N = 3000$: 6.3 and 3.2 times RxInfer, and ten times the data costs 12.6 times the time.
-   As a plate (I6 of the [[Feature Backlog]]) it is 2.2 and 2.6 times faster, 0.36 s and 3.8 s, 2.8 and
-   1.2 times RxInfer, and ten times the data costs 10.7 times the time. Even batched, each replica's
-   message is built as its own belief (no block arithmetic for these factors); where the rest of
-   the time goes was not profiled.
+2. **Unplated it is slow; as a plate it is faster than RxInfer, still far from the closed form.**
+   Unplated, 0.76 s against 0.6 ms for the closed form at $N = 300$, 9.5 s against 5.4 ms at
+   $N = 3000$: 6.0 and 2.8 times RxInfer. As a plate (I6 and I19 of the [[Feature Backlog]]) it takes
+   68 ms and 0.68 s, 11 and 14 times faster than unplated, 0.54 and 0.20 times RxInfer's time, and
+   ten times the data costs 10.0 times the time; it is still about 110 and 125 times the closed
+   form. A profile of the plate after I19 (`bench/regime_plate_profile.jl`, `cluster.md` "Batching
+   in one stacked joint") puts about a quarter of the time in the regime factors' batched messages,
+   a quarter in the tasks stepped one at a time (the data factors' among them), and a fifth in the
+   free energy.
 3. **RxInfer's estimates are close but not maximum likelihood.** At $N = 300$ its $\hat\sigma_1$ is 0.228
    against 0.193, which costs 3.5 nats in $-\log p(y \mid x, \hat\theta)$. At $N = 3000$ it is 0.48 nats.
    Partly that is the estimator: $1/\sqrt{\mathbb E\tau}$ is not the maximiser, and the posterior is

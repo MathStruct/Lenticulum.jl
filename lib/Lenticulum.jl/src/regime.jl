@@ -148,8 +148,8 @@ Mycelium.belief_free_energy(f::RegimeFactor, b::Mycelium.FrozenClusterBelief, ps
 Mycelium.local_free_energy(f::RegimeFactor, msgs, ps, st) = Mycelium.belief_free_energy(f, Mycelium.factor_belief(f, msgs, ps, st), ps, st)
 
 # Over a plate: the replicas as tied one-factor clusters, batched when their inputs share their
-# shape (`cluster_batch.jl`; replica by replica otherwise).
-_as_clusters(fs) = [Mycelium.as_cluster(f) for f in fs]
+# shape (`cluster_batch.jl`; replica by replica otherwise). Equal factors share one cluster.
+const _as_clusters = Mycelium._as_clusters
 Mycelium.factor_messages(fs::AbstractVector{<:RegimeFactor}, target::Symbol, polarity, inputs::AbstractVector,
                          priors::AbstractVector, ps, st) =
     Mycelium.factor_messages(_as_clusters(fs), target, polarity, inputs, priors, (factor = ps,), st)

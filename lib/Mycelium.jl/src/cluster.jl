@@ -767,14 +767,30 @@ end
 # classes' precisions only: `nothing`, or a `Dict` filled on first use (tied replicas sharing them
 # reuse it, `cluster_batch.jl`).
 function _joint_message(c::ClusterFactor, jt::_ClusterJoint, target::Symbol, chol)
-    if target in c.discrete
-        l = jt.c .+ _log_integrals(jt, "its continuous variables", chol)
-        j = findfirst(==(target), c.discrete)
-        K = c.dims[target]
-        lk = [_lse([l[a] for a in eachindex(l) if jt.assignments[a][j] == k]; ) for k in 1:K]
-        all(==(-Inf), lk) && throw(ArgumentError("cluster: every state of :$target has zero probability"))
-        return LenticulumCore.CategoricalBelief(Val(:log), lk .- _lse(lk), nothing)
-    end
+    cols = 1:size(jt.H, 2)
+    target in c.discrete && return _discrete_message(c, target, _discrete_parts(c, jt, target, chol)..., cols)
+    return _continuous_message(_continuous_parts(jt, target, chol)..., jt.class, cols)
+end
+
+# The log-weight of every column of the joint (an assignment, or in a stacked joint an assignment
+# of one replica, `cluster_batch.jl`), and per state of `target` the assignments with that state
+# (positions in `jt.assignments`, which a stacked joint holds once).
+function _discrete_parts(c::ClusterFactor, jt::_ClusterJoint, target::Symbol, chol)
+    l = jt.c .+ _log_integrals(jt, "its continuous variables", chol)
+    j = findfirst(==(target), c.discrete)
+    sel = [[a for a in eachindex(jt.assignments) if jt.assignments[a][j] == k] for k in 1:c.dims[target]]
+    return l, sel
+end
+# The message to a discrete channel from the columns `cols` (one replica's assignments).
+function _discrete_message(c::ClusterFactor, target::Symbol, l, sel, cols)
+    lk = [_lse(l[cols[s]]) for s in sel]
+    all(==(-Inf), lk) && throw(ArgumentError("cluster: every state of :$target has zero probability"))
+    return LenticulumCore.CategoricalBelief(Val(:log), lk .- _lse(lk), nothing)
+end
+
+# Per column of the joint the target's natural mean `E` and the log-weight `l`; per precision
+# class the target's precision and whether it is proper. One set of solves for all columns.
+function _continuous_parts(jt::_ClusterJoint, target::Symbol, chol)
     ot = jt.offset[target]
     rs = setdiff(1:size(jt.H, 1), ot)
     d = length(ot)
@@ -808,15 +824,20 @@ function _joint_message(c::ClusterFactor, jt::_ClusterJoint, target::Symbol, cho
         end
         push!(Λs, Λ); push!(proper, ok)
     end
-    keep = findall(>(-Inf), l)
+    return E, l, Λs, proper
+end
+
+# The message to a continuous channel from the columns `cols` (one replica's assignments).
+function _continuous_message(E, l, Λs, proper, class, cols)
+    keep = [a for a in cols if l[a] > -Inf]
     isempty(keep) && throw(ArgumentError("cluster: every assignment has zero probability"))
-    length(Λs) == 1 && all(iszero, Λs[1]) && all(iszero, E) && return LenticulumCore.TrivialBelief()
+    length(Λs) == 1 && all(iszero, Λs[1]) && all(iszero, view(E, :, cols)) && return LenticulumCore.TrivialBelief()
     # assignments the target does not see (internal discrete variables that do not move it) give
     # equal components; they are merged, their weights summed
     groups = Dict{Tuple{Int,Vector{Float64}},Vector{Int}}()
     order = Vector{Tuple{Int,Vector{Float64}}}()
     for a in keep
-        key = (findfirst(==(Λs[jt.class[a]]), Λs), E[:, a])  # equal precisions count as one
+        key = (findfirst(==(Λs[class[a]]), Λs), E[:, a])  # equal precisions count as one
         haskey(groups, key) || (groups[key] = Int[]; push!(order, key))
         push!(groups[key], a)
     end
@@ -851,11 +872,23 @@ end
 factor_belief(c::ClusterFactor, msgs, @nospecialize(ps), @nospecialize(st)) = _joint_belief(_cluster_joint(c, msgs, ps, nothing), nothing)
 
 function _joint_belief(jt::_ClusterJoint, chol)
+    q, M, Σs, Hs = _belief_parts(jt, chol, size(jt.H, 2))
+    return FrozenClusterBelief(vec(q), M, Σs, Hs, jt.class, jt.free, jt.offset, jt.points, jt.assignments)
+end
+
+# The posterior over the assignments (nA × columns ÷ nA: a stacked joint's replicas are
+# normalised one by one), the means of every column, and the covariance and conditional entropy
+# of each precision class.
+function _belief_parts(jt::_ClusterJoint, chol, nA::Int)
     n = size(jt.H, 1)
-    l = jt.c .+ _log_integrals(jt, "its continuous variables", chol)
-    all(==(-Inf), l) && throw(ArgumentError("cluster: every assignment has zero probability"))
-    q = exp.(l .- _lse(l))
-    M = zeros(n, length(q))
+    l = reshape(jt.c .+ _log_integrals(jt, "its continuous variables", chol), nA, :)
+    q = similar(l)
+    for r in axes(l, 2)
+        lr = l[:, r]
+        all(==(-Inf), lr) && throw(ArgumentError("cluster: every assignment has zero probability"))
+        q[:, r] .= exp.(lr .- _lse(lr))
+    end
+    M = zeros(n, size(jt.H, 2))
     Σs = Matrix{Float64}[]; Hs = Float64[]
     for κ in eachindex(jt.J)
         if n == 0
@@ -869,7 +902,7 @@ function _joint_belief(jt::_ClusterJoint, chol)
         Σ, H = _cached(chol, (:ΣH, κ), () -> (_psd_inv(C), _psd_rank(C) * (1 + log(2π)) / 2 - _psd_logdet(C) / 2))
         push!(Σs, Σ); push!(Hs, H)
     end
-    return FrozenClusterBelief(q, M, Σs, Hs, jt.class, jt.free, jt.offset, jt.points, jt.assignments)
+    return q, M, Σs, Hs
 end
 
 """
