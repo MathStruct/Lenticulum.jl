@@ -7,13 +7,13 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-15, after P22 (a plate schedule on a store with another block numbering), not yet committed.
+**Last updated:** 2026-11-15, after P22 (a plate schedule on a store with another block numbering), committed and pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I21 commit (pushed) plus the uncommitted P22 change: `lib/Mycelium.jl/src/plates.jl`, `plates.md`, Lenticulum `test/regime_plate.jl`, [[Feature Backlog]]. verified (below) |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at the P22 commit `2289cf0e` (pushed): `lib/Mycelium.jl/src/plates.jl`, `plates.md`, Lenticulum `test/regime_plate.jl`, [[Feature Backlog]]. verified (below) |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `0a1ef31c` (I21) with the P22 diff applied; probes in `scratch/p22/`, older in `scratch/i21/` etc. (untracked). Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-i21-applied-stale-2026-11-15`, `mistral-wt-i20-applied-stale-2026-11-15`, `mistral-wt-i19-applied-stale-2026-11-15`, `mistral-wt-ridge-applied-stale-2026-11-13` and the older ones of 2026-11-12 |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
@@ -22,7 +22,7 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 
 ## Done last
 
-- **P22** (not committed): `sweep!` with a `PlateSchedule` checks once per sweep that the store numbers
+- **P22** (committed and pushed): `sweep!` with a `PlateSchedule` checks once per sweep that the store numbers
   its block rows as `MessageStore(g)` does (`_graph_layout`), and otherwise runs the groups without
   their plans; before, a hand-built store with renumbered rows got $F$ = 2.68 against 14.54, silently
   ([[plates]] "A store with another block numbering"). Test: Lenticulum `test/regime_plate.jl`, "PlateSchedule
@@ -32,7 +32,7 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 - Review: Mistral, no defects (mostly code reading, no probe outputs recorded; archive
   `../Lenticulum.jl-Review-2026-11-15/p22/`). No problem note, as there are no findings.
 - I21 (before): committed and pushed; see [[Feature Backlog]] "Done".
-- Next: commit P22 when asked; then P20 (Zygote through `sum(...; init)` in `_row_scalar`, probably
+- Next: P20 (Zygote through `sum(...; init)` in `_row_scalar`, probably
   small), or P21 (a design task), or another backlog item.
 
 ## Open
