@@ -828,23 +828,30 @@ function _continuous_parts(jt::_ClusterJoint, target::Symbol, chol)
 end
 
 # The message to a continuous channel from the columns `cols` (one replica's assignments).
-function _continuous_message(E, l, Λs, proper, class, cols)
+# `ids[κ]` is the first class with class κ's precision (`_precision_ids`; computed once for a batch).
+_precision_ids(Λs) = [findfirst(==(Λ), Λs) for Λ in Λs]
+function _continuous_message(E, l, Λs, proper, class, cols, ids = _precision_ids(Λs))
     keep = [a for a in cols if l[a] > -Inf]
     isempty(keep) && throw(ArgumentError("cluster: every assignment has zero probability"))
     length(Λs) == 1 && all(iszero, Λs[1]) && all(iszero, view(E, :, cols)) && return LenticulumCore.TrivialBelief()
     # assignments the target does not see (internal discrete variables that do not move it) give
-    # equal components; they are merged, their weights summed
-    groups = Dict{Tuple{Int,Vector{Float64}},Vector{Int}}()
-    order = Vector{Tuple{Int,Vector{Float64}}}()
+    # equal components (equal precisions count as one); they are merged, their weights summed. A
+    # linear scan: a replica has few assignments, and a `Dict` keyed by columns cost more (I20).
+    first_of = Int[]                   # per component: its first assignment
+    groups = Vector{Int}[]
     for a in keep
-        key = (findfirst(==(Λs[class[a]]), Λs), E[:, a])  # equal precisions count as one
-        haskey(groups, key) || (groups[key] = Int[]; push!(order, key))
-        push!(groups[key], a)
+        κ = ids[class[a]]
+        j = findfirst(b -> ids[class[b]] == κ && isequal(view(E, :, b), view(E, :, a)), first_of)
+        if j === nothing
+            push!(first_of, a); push!(groups, [a])
+        else
+            push!(groups[j], a)
+        end
     end
-    comp((κ, col)) = GaussianBelief(col, Λs[κ], !proper[κ])
-    length(order) == 1 && return comp(only(order))
-    lk = [_lse(l[groups[key]]) for key in order]
-    return LenticulumCore.MixtureBelief(Val(:log), [comp(key) for key in order], lk .- _lse(lk))
+    comp(a) = (κ = ids[class[a]]; GaussianBelief(E[:, a], Λs[κ], !proper[κ]))
+    length(first_of) == 1 && return comp(only(first_of))
+    lk = [_lse(l[grp]) for grp in groups]
+    return LenticulumCore.MixtureBelief(Val(:log), [comp(a) for a in first_of], lk .- _lse(lk))
 end
 
 # --- The free energy --------------------------------------------------------------

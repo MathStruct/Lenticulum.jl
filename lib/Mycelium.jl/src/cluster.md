@@ -330,11 +330,11 @@ $F$ to every printed digit:
 | 300 | 0.338 s | 0.059 s | 52.8 ms | 10.5 ms | 64.9 MiB | 15.7 MiB |
 | 3000 | 3.611 s | 0.625 s | 621.6 ms | 140.9 ms | 647.1 MiB | 153.8 MiB |
 
-In [[Benchmark against RxInfer]] the plate now takes 68 ms and 0.68 s against RxInfer's 126 ms and
+In [[Benchmark against RxInfer]] the plate then took 68 ms and 0.68 s against RxInfer's 126 ms and
 3.4 s. After the change the profile ($N = 3000$) puts 24% of the samples in the regime factors'
 batched messages, 27% in the tasks the plate schedule steps one at a time (the data factors' among
 them), 18% in the free energy; per replica there is still one message object to build and the
-grouping of equal components (`_continuous_message`).
+grouping of equal components (`_continuous_message`). Both addressed by I20, below.
 
 Tests: unchanged oracles (Lenticulum `test/regime_plate.jl`, `test/cluster.jl`: batched against per
 replica on random instances); mutating the batched data term (the quadratic term, the Gaussian
@@ -342,6 +342,56 @@ inputs' $\eta$, the shift $G^\top Q^{-1} S$) fails 90, 54 and 60 of their tests.
 ([[LP-034 Findings of the review of I19]]): a row with an unequal factor goes replica by replica
 (`regime_plate.jl`), and flat directions in tied clusters over a plate agree with per replica and
 the closed form (`cluster_flat.jl`).
+
+## Block inputs (2026-11-15, Feature Backlog I20)
+
+After I19 a plate sweep still went through the column path: the sweep holds the inputs as blocks
+(`blocks.jl`), the default `factor_messages` for blocks split them into one NamedTuple per replica,
+`_cluster_batchable` compared every replica's input shape, `_batch_joint` stacked the columns again,
+and the result was one message object per replica, stacked once more by `belief_block`. Timed per
+group call on the mixture plate ($N = 3000$, `~/.cache/lenticulum/i20/pieces.jl`): splitting
+1.1–1.5 ms, the shape check 0.2–0.4 ms, the stacked joint 0.4–0.7 ms, the per-replica messages
+0.9–2.4 ms, re-stacking up to 0.9 ms; the solves of `_continuous_parts` under 0.1 ms.
+
+Now `factor_messages` and `factor_beliefs` of a vector of `ClusterFactor`s take a NamedTuple of
+blocks directly (`RegimeFactor` forwards to them). `_block_batchable` reads the shape off the blocks:
+points (on a discrete channel the same state in every column), Gaussians of one precision (shared,
+or per replica and all equal), categorical inputs to a discrete channel equal in every column,
+trivial or absent inputs. Anything else (mixture and vector blocks, inputs that differ between
+replicas) goes through the columns as before. `_batch_joint` reads the points of a channel as the
+block's matrix and adds a Gaussian block's $\eta$ to all replicas in one broadcast
+(`_batch_points`, `_batch_eta!`). The result is built as a block: a `CategoricalBlock` for a
+discrete target (`_discrete_block`); for a continuous target a `MixtureBlock` (a `GaussianBlock` for
+one assignment) when every class has one precision, no assignment has weight zero and no replica
+has two equal columns of $E$ (`_continuous_block`); otherwise each replica's
+`_continuous_message`, stacked. That function now groups equal components by a linear scan over the
+replica's few assignments with the precision classes deduplicated once (`_precision_ids`) instead
+of a `Dict` keyed by columns; the grouping rule is the same (`isequal` of the columns, equal
+precisions counted as one, order of first appearance).
+
+The block path is not an approximation of the column path: the same arithmetic in the same order,
+so its blocks are equal bit for bit (Lenticulum `test/regime_plate.jl`, "block inputs give the
+column path's messages exactly": every block type it can return, merging, impossible states, several
+classes, differing inputs; four mutations of the new code fail 18 to 69 of its tests).
+
+Measured with `bench/regime_plate_profile.jl` (`~/.cache/lenticulum/i20/bench_base.txt` and
+`bench_b.txt`, both 2026-11-15, the same 11 iterations and the same $F$ to every printed digit),
+together with the grouped data factors of `plates.md` "Untied factors without parameters" and a
+`fit_em` that no longer calls `haskey` on the parameter tree once per node:
+
+| $N$ | `fit_em` before | after | one iteration before | after | allocated per iteration before | after |
+|---|---|---|---|---|---|---|
+| 300 | 0.057 s | 0.025 s | 10.3 ms | 3.9 ms | 15.7 MiB | 6.8 MiB |
+| 3000 | 0.615 s | 0.219 s | 138.5 ms | 27.7 ms | 153.8 MiB | 63.8 MiB |
+
+In [[Benchmark against RxInfer]] (2026-11-15) the plate takes 30 ms and 0.24 s against RxInfer's
+126 ms and 3.2 s, with the same estimates as closed-form EM.
+
+The profile after ($N = 3000$): 51% of `fit_em`'s samples in the sweeps, of which most in the regime
+factors' messages; 17% in the per-replica fallback of `_continuous_block`, which is the usual case
+once the M-step has given the outcomes different noises (the message to a continuous channel then
+has one precision per outcome, which a `MixtureBlock` cannot hold); 14% in `_energy_rows`, rebuilt
+by every free-energy and EM call.
 
 ## What it does not do
 

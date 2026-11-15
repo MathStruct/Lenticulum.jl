@@ -223,11 +223,13 @@ _column(msgs::NamedTuple, i) = NamedTuple{keys(msgs)}(map(b -> b === nothing ? n
 
 # A plate factor row the energies can take in one call: belief-propagation nodes on one parameter
 # key, each with its edges in the same block rows in the same channel order, replica i in column
-# i, no edge detached.
+# i, no edge detached. Nodes that are not learnable may each have their own key (`keys`, else
+# `nothing`); such a row is taken in one call when all their parameters and states are empty.
 struct _EnergyRow
     fids::Vector{Int}
     channels::Tuple
     rows::Vector{Int}
+    keys::Union{Nothing,Vector{Symbol}}
 end
 
 function _energy_rows(s, g::FactorGraph)
@@ -249,9 +251,11 @@ function _energy_row(g::FactorGraph, idx::EdgeMessages, fids::Vector{Int})
     E1 = g.edges_of_factor[f1.id]
     rows = Int[idx.row[e] for e in E1]
     all(!=(0), rows) || return nothing
+    tied = all(fid -> g.factors[fid].params === f1.params, fids)
+    tied || all(fid -> !LenticulumCore.islearnable(g.factors[fid].factor), fids) || return nothing
     for (col, fid) in enumerate(fids)
         f = g.factors[fid]
-        f.params === f1.params && f.rule === f1.rule || return nothing
+        f.rule === f1.rule || return nothing
         Ei = g.edges_of_factor[fid]
         length(Ei) == length(E1) || return nothing
         for j in eachindex(Ei)
@@ -260,7 +264,7 @@ function _energy_row(g::FactorGraph, idx::EdgeMessages, fids::Vector{Int})
                 e.channel === g.edges[E1[j]].channel || return nothing
         end
     end
-    return _EnergyRow(fids, Tuple(g.edges[e].channel for e in E1), rows)
+    return _EnergyRow(fids, Tuple(g.edges[e].channel for e in E1), rows, tied ? nothing : [g.factors[i].params for i in fids])
 end
 
 # The row's incoming messages as blocks, or `nothing` when a row of edges is partly filled.
@@ -282,12 +286,14 @@ function _factor_terms_rows(s, g, @nospecialize(ps), @nospecialize(st), rows; sc
         msgs = _row_messages(s, row)
         msgs === nothing && continue
         f1 = g.factors[first(row.fids)]
-        psf = _factor_parameters(f1, _subtree(ps, f1.params))
+        trees = _group_trees(f1, row.keys, ps, st)
+        trees === nothing && continue                # untied with parameters or state: node by node
+        psf, stf0, stf = trees
         factors = identity.([g.factors[i].factor for i in row.fids])
-        stf0 = _stored(st, f1.params)
-        E, stf = local_free_energies(factors, msgs, psf, something(stf0, NamedTuple()))
+        E, stf = local_free_energies(factors, msgs, psf, stf)
         length(E) == length(row.fids) || throw(ArgumentError(
             "local_free_energies of $(nameof(typeof(f1.factor))) returned $(length(E)) energies for $(length(row.fids)) replicas"))
+        row.keys === nothing || _empty_graph_state(stf) || continue
         if scalar
             total += _row_scalar(factors, E)
         else
@@ -296,7 +302,7 @@ function _factor_terms_rows(s, g, @nospecialize(ps), @nospecialize(st), rows; sc
             end
         end
         covered[row.fids] .= true
-        st = _writeback(st, f1.params, stf0, stf)
+        st = _group_writeback(st, f1, row.keys, stf0, stf)
     end
     for f in g.factors
         covered[f.id] && continue

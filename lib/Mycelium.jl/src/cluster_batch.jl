@@ -98,16 +98,14 @@ _point_vector(b) = collect(float.(b.value isa Real ? [b.value] : b.value))
 # of each substituted variable as columns, and nA.
 function _batch_joint(cs, msgs, @nospecialize(ps), skip)
     c, N = cs[1], length(cs)
-    jt1 = _cluster_joint(c, msgs[1], ps, skip)
+    jt1 = _cluster_joint(c, _batch_first(msgs), ps, skip)
     plan = _joint_plan(c, jt1, ps)
     n, nA = size(jt1.H)
     # which continuous channels hold points is the same in every replica (`_input_shape`)
-    pts = Dict{Symbol,Matrix{Float64}}(v => reduce(hcat, [_point_vector(_incoming(msgs[r], v, skip)) for r in 1:N])
-                                       for v in keys(jt1.points))
+    pts = Dict{Symbol,Matrix{Float64}}(v => _batch_points(msgs, v, skip) for v in keys(jt1.points))
     Hd = zeros(n, nA, N); δ = zeros(nA, N)
-    for v in jt1.free, r in 1:N
-        b = _cluster_input(_incoming(msgs[r], v, skip))
-        b isa GaussianBelief && (Hd[jt1.offset[v], :, r] .+= b.η)
+    for v in jt1.free
+        _batch_eta!(Hd, jt1.offset[v], msgs, v, skip)
     end
     for (F, w, groups) in plan, (k, idx, G, CQ, Ck) in groups
         chs = [ch for ch in keys(F.A) if haskey(pts, w[ch])]
@@ -129,6 +127,100 @@ function _batch_joint(cs, msgs, @nospecialize(ps), skip)
     jt = _ClusterJoint(jt1.free, jt1.offset, Dict{Symbol,Vector{Float64}}(), jt1.assignments, jt1.J,
                        repeat(jt1.class, N), H, cst)
     return jt, jt1.class, pts, nA
+end
+
+# The inputs of `_batch_joint`: a vector of per-replica NamedTuples, or (a plate sweep) one
+# NamedTuple of blocks (`blocks.jl`) that `_block_batchable` accepted.
+_batch_first(msgs::AbstractVector) = msgs[1]
+_batch_first(msgs::NamedTuple) = _column(msgs, 1)
+_batch_points(msgs::AbstractVector, v, skip) = reduce(hcat, [_point_vector(_incoming(m, v, skip)) for m in msgs])
+_batch_points(msgs::NamedTuple, v, skip) = Matrix{Float64}(float.(_incoming(msgs, v, skip).X))
+function _batch_eta!(Hd, off, msgs::AbstractVector, v, skip)
+    for r in eachindex(msgs)
+        b = _cluster_input(_incoming(msgs[r], v, skip))
+        b isa GaussianBelief && (Hd[off, :, r] .+= b.η)
+    end
+end
+function _batch_eta!(Hd, off, msgs::NamedTuple, v, skip)
+    b = _incoming(msgs, v, skip)
+    b isa GaussianBlock && (@views Hd[off, :, :] .+= reshape(b.η, length(off), 1, size(b.η, 2)))
+    return nothing
+end
+
+# Whether blocks of inputs give every replica the shape (`_input_shape`) of replica 1, read off the
+# blocks: points (on a discrete channel, the same state in every column), Gaussians of one
+# precision, categorical inputs to a discrete channel equal in every column, or nothing. Mixture
+# and vector blocks go column by column (`_cluster_batchable` then decides).
+function _block_batchable(cs, msgs::NamedTuple, skip)
+    length(cs) >= 2 || return false
+    c1 = cs[1]
+    all(i -> _same_cluster(cs[i], c1), 2:length(cs)) || return false
+    return all(v -> _uniform_shape(_incoming(msgs, v, skip), v in c1.discrete), c1.boundary)
+end
+_uniform_shape(::Union{Nothing,TrivialBlock}, discrete) = true
+_uniform_shape(b::PointBlock, discrete) = !discrete || _equal_columns(b.X)
+_uniform_shape(b::CategoricalBlock, discrete) = !discrete || _equal_columns(b.logp)
+_uniform_shape(b::GaussianBlock, discrete) = discrete || _shared(b) || all(L -> isequal(L, b.Λ[1]), b.Λ)
+_uniform_shape(b, discrete) = false
+_equal_columns(X) = all(i -> isequal(view(X, :, i), view(X, :, 1)), axes(X, 2))
+
+# Block inputs (a plate sweep): the stacked joint read from the blocks, and the messages returned
+# as one block (`_discrete_block`, `_continuous_block`) without a belief per replica. Inputs the
+# blocks cannot vouch for go column by column, as the default for blocks does.
+function factor_messages(cs::AbstractVector{<:ClusterFactor}, target::Symbol, polarity, inputs::NamedTuple,
+                         priors::AbstractVector, @nospecialize(ps), @nospecialize(st))
+    if !_block_batchable(cs, inputs, target)
+        out, st = factor_messages(cs, target, polarity, [_column(inputs, i) for i in eachindex(cs)], priors, ps, st)
+        return belief_block(out), st
+    end
+    c, N = cs[1], length(cs)
+    target in c.boundary || throw(ArgumentError("channel :$target is not a channel of this cluster (has $(c.boundary))"))
+    chol = Dict{Any,Any}()
+    jt, _, _, nA = _batch_joint(cs, inputs, ps, target)
+    target in c.discrete && return _discrete_block(target, _discrete_parts(c, jt, target, chol)..., nA, N), st
+    return _continuous_block(_continuous_parts(jt, target, chol)..., jt.class, nA, N), st
+end
+
+# `_discrete_message` of every replica, as the columns of one block.
+function _discrete_block(target, l, sel, nA, N)
+    L = reshape(l, nA, N)
+    logp = Matrix{Float64}(undef, length(sel), N)
+    lk = Vector{Float64}(undef, length(sel))
+    for r in 1:N
+        for (k, s) in enumerate(sel)
+            lk[k] = _lse(L[s, r])
+        end
+        all(==(-Inf), lk) && throw(ArgumentError("cluster: every state of :$target has zero probability"))
+        logp[:, r] .= lk .- _lse(lk)
+    end
+    return CategoricalBlock(logp, nothing)
+end
+
+# `_continuous_message` of every replica as one block. When all precision classes have one
+# precision, no assignment has weight zero and no replica has two equal components (which
+# `_continuous_message` would merge), the assignments are the components of a `MixtureBlock` (a
+# `GaussianBlock` for one assignment); otherwise each replica's message is built and stacked.
+function _continuous_block(E, l, Λs, proper, class, nA, N)
+    ids = _precision_ids(Λs)
+    d = size(E, 1)
+    if all(==(1), ids) && !all(iszero, Λs[1]) && all(>(-Inf), l) && !_merging(E, nA, N)
+        nA == 1 && return GaussianBlock(copy(E), Λs[1], fill(!proper[1], N))
+        W = reshape(l, nA, N)
+        logw = similar(W)
+        for r in 1:N
+            w = W[:, r]
+            logw[:, r] .= w .- _lse(w)
+        end
+        return MixtureBlock(reshape(copy(E), d, nA, N), Λs[1], logw, !proper[1])
+    end
+    return belief_block(Any[_continuous_message(E, l, Λs, proper, class, ((r - 1) * nA + 1):(r * nA), ids) for r in 1:N])
+end
+# Whether some replica has two assignments with equal columns of E.
+function _merging(E, nA, N)
+    for r in 1:N, a in 1:nA, b in (a + 1):nA
+        isequal(view(E, :, (r - 1) * nA + a), view(E, :, (r - 1) * nA + b)) && return true
+    end
+    return false
 end
 
 function factor_messages(cs::AbstractVector{<:ClusterFactor}, target::Symbol, polarity, inputs::AbstractVector,
@@ -177,9 +269,13 @@ struct FrozenClusterBeliefs
 end
 
 function factor_beliefs(cs::AbstractVector{<:ClusterFactor}, msgs::NamedTuple, @nospecialize(ps), @nospecialize(st))
-    cols = [_column(msgs, i) for i in eachindex(cs)]
-    _cluster_batchable(cs, cols, nothing, ps) || return [factor_belief(cs[i], cols[i], ps, st) for i in eachindex(cs)]
-    jt, class, pts, nA = _batch_joint(cs, cols, ps, nothing)
+    if _block_batchable(cs, msgs, nothing)          # the blocks read directly, without columns
+        jt, class, pts, nA = _batch_joint(cs, msgs, ps, nothing)
+    else
+        cols = [_column(msgs, i) for i in eachindex(cs)]
+        _cluster_batchable(cs, cols, nothing, ps) || return [factor_belief(cs[i], cols[i], ps, st) for i in eachindex(cs)]
+        jt, class, pts, nA = _batch_joint(cs, cols, ps, nothing)
+    end
     q, M, Σ, H = _belief_parts(jt, Dict{Any,Any}(), nA)
     return FrozenClusterBeliefs(q, M, Σ, H, class, jt.free, jt.offset, pts, jt.assignments)
 end

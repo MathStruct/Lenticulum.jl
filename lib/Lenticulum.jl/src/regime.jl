@@ -153,6 +153,9 @@ const _as_clusters = Mycelium._as_clusters
 Mycelium.factor_messages(fs::AbstractVector{<:RegimeFactor}, target::Symbol, polarity, inputs::AbstractVector,
                          priors::AbstractVector, ps, st) =
     Mycelium.factor_messages(_as_clusters(fs), target, polarity, inputs, priors, (factor = ps,), st)
+Mycelium.factor_messages(fs::AbstractVector{<:RegimeFactor}, target::Symbol, polarity, inputs::NamedTuple,
+                         priors::AbstractVector, ps, st) =                 # blocks (a plate sweep)
+    Mycelium.factor_messages(_as_clusters(fs), target, polarity, inputs, priors, (factor = ps,), st)
 Mycelium.factor_beliefs(fs::AbstractVector{<:RegimeFactor}, msgs::NamedTuple, ps, st) =
     Mycelium.factor_beliefs(_as_clusters(fs), msgs, (factor = ps,), st)
 Mycelium.belief_free_energies(fs::AbstractVector{<:RegimeFactor}, B::Mycelium.FrozenClusterBeliefs, ps, st) =

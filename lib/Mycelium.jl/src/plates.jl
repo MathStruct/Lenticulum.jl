@@ -293,6 +293,9 @@ PlateSchedule(groups, plans) = PlateSchedule(groups, plans, false)
 # channel `channels[j]` at `edges[j, i]`, the same channel layout and directions in every member,
 # the target channel's position, and distinct targets.
 # `rows[j]` is the block row (`blocks.jl`) that holds channel j's edges in member order, or 0.
+# `keys` is `nothing` when the members are tied (one parameter key); otherwise each member's own
+# key, allowed only for factors that are not learnable (data factors): such a group runs as one
+# when every key's parameters and state are empty, checked each sweep (`_untied_empty`).
 struct _GroupPlan{F}
     factors::Vector{F}
     channels::Vector{Symbol}
@@ -301,6 +304,7 @@ struct _GroupPlan{F}
     rows::Vector{Int}
     detach::Bool              # a target edge is detached: commit per edge (`stop_gradient`)
     ep::Any                   # expectation-propagation nodes: the targets' cavity rows (a `_CavityPlan`); else `nothing`
+    keys::Union{Nothing,Vector{Symbol}}
 end
 
 # A lifted group of variable -> factor messages whose members' variables have their edges in the
@@ -348,7 +352,9 @@ function _group_plan(g::FactorGraph, grp::Vector{MessageTask}, index::EdgeMessag
     length(grp) > 1 && all(t -> t.kind === :to_variable && can_emit(g, t.edge), grp) || return nothing
     nodes = [factornode(g, g.edges[t.edge].factor) for t in grp]
     f1 = first(nodes)
-    _cavity_rule(f1.rule) && all(h -> h.params === f1.params && h.rule === f1.rule, nodes) || return nothing
+    _cavity_rule(f1.rule) && all(h -> h.rule === f1.rule, nodes) || return nothing
+    tied = all(h -> h.params === f1.params, nodes)
+    tied || all(h -> !LenticulumCore.islearnable(h.factor), nodes) || return nothing
     allunique(g.edges[t.edge].variable for t in grp) || return nothing
     E1 = g.edges_of_factor[f1.id]
     layout(h) = [(g.edges[e].channel, typeof(g.edges[e].direction)) for e in g.edges_of_factor[h.id]]
@@ -364,7 +370,8 @@ function _group_plan(g::FactorGraph, grp::Vector{MessageTask}, index::EdgeMessag
         ep = _variable_rows(g, [t.edge for t in grp], index)
         ep === nothing && return nothing
     end
-    return _GroupPlan(identity.(factors), first.(l1), edges, target, rows, any(t -> g.edges[t.edge].detach, grp), ep)
+    return _GroupPlan(identity.(factors), first.(l1), edges, target, rows, any(t -> g.edges[t.edge].detach, grp), ep,
+                      tied ? nothing : [h.params for h in nodes])
 end
 tasks(s::PlateSchedule) = reduce(vcat, s.groups; init = MessageTask[])
 
@@ -613,13 +620,15 @@ function _step_planned!(s, g, grp, plan::_GroupPlan, @nospecialize(ps), @nospeci
     isempty(chans) && !issink(fn.factor) && !LenticulumCore.supports_polarity(fn.factor, pol) &&
         return _step_each!(s, g, grp, ps, st, damping)
     check_legal(g, e1.factor, pol)
-    psf = _factor_parameters(fn, _subtree(ps, fn.params))
-    stf0 = _stored(st, fn.params); stf = something(stf0, NamedTuple())
+    trees = _group_trees(fn, plan.keys, ps, st)
+    trees === nothing && return _step_each!(s, g, grp, ps, st, damping)
+    psf, stf0, stf = trees
     inputs = _gather_inputs(NamedTuple{chans}, s.to_factor, E, js)
     beliefs, stf = factor_messages(plan.factors, e1.channel, pol, inputs, _LazyPriors(s, g, grp), psf, stf)
     length(beliefs) == n || throw(ArgumentError(
         "factor_messages of $(nameof(typeof(fn.factor))) returned $(length(beliefs)) messages for $n replicas"))
-    return _commit_group!(s, g, grp, beliefs, damping), _writeback(st, fn.params, stf0, stf)
+    plan.keys === nothing || _empty_graph_state(stf) || return _step_each!(s, g, grp, ps, st, damping)
+    return _commit_group!(s, g, grp, beliefs, damping), _group_writeback(st, fn, plan.keys, stf0, stf)
 end
 
 # The planned group on blocks: inputs are the rows' blocks, the result is one block for the target
@@ -645,8 +654,9 @@ function _step_blocks!(s, g, grp, plan::_GroupPlan, @nospecialize(ps), @nospecia
     pol = resolve_polarity(g, e1.factor, e1.channel, chans)
     isempty(chans) && !issink(fn.factor) && !LenticulumCore.supports_polarity(fn.factor, pol) && return nothing
     check_legal(g, e1.factor, pol)
-    psf = _factor_parameters(fn, _subtree(ps, fn.params))
-    stf0 = _stored(st, fn.params); stf = something(stf0, NamedTuple())
+    trees = _group_trees(fn, plan.keys, ps, st)
+    trees === nothing && return nothing
+    psf, stf0, stf = trees
     inputs = NamedTuple{chans}(Tuple(blocks[js]))
     if plan.ep !== nothing                 # an EP update would be skipped, or a pin: the per-edge path decides
         isempty(s.pins) && !any(_indefinite_block, blocks[js]) || return nothing
@@ -655,13 +665,14 @@ function _step_blocks!(s, g, grp, plan::_GroupPlan, @nospecialize(ps), @nospecia
     out isa BeliefBlock || (out = belief_block(out))
     nreplicas(out) == n || throw(ArgumentError(
         "factor_messages of $(nameof(typeof(fn.factor))) returned $(nreplicas(out)) messages for $n replicas"))
+    plan.keys === nothing || _empty_graph_state(stf) || return nothing
     if plan.ep !== nothing
         cav = _cavity_block(s, plan.ep, n)
         cav === nothing && return nothing
         out = ep_block(out, cav)
         out === nothing && return nothing
     end
-    st = _writeback(st, fn.params, stf0, stf)
+    st = _group_writeback(st, fn, plan.keys, stf0, stf)
     if damping > 0 || plan.detach
         return _commit_group!(s, g, grp, replicas(out), damping), st
     end
@@ -671,6 +682,23 @@ function _step_blocks!(s, g, grp, plan::_GroupPlan, @nospecialize(ps), @nospecia
     _set_block!(s.to_variable, r, out, s.iteration)
     return res, st
 end
+
+# A planned group's parameters and state, `(psf, stf0, stf)`: the tied key's, or for untied members
+# (`keys`) empty trees when every member's parameters and state are empty, else `nothing` (the
+# group then goes edge by edge, as `step!` reads each member's own key).
+function _group_trees(fn, ::Nothing, ps, st)
+    psf = _factor_parameters(fn, _subtree(ps, fn.params))
+    stf0 = _stored(st, fn.params)
+    return psf, stf0, something(stf0, NamedTuple())
+end
+_group_trees(fn, keys::Vector{Symbol}, ps, st) = _untied_empty(keys, ps, st) ? (NamedTuple(), nothing, NamedTuple()) : nothing
+
+_untied_empty(keys, ps, st) =
+    all(k -> isempty(_subtree(ps, k)) && _empty_graph_state(something(_stored(st, k), NamedTuple())), keys)
+
+# Untied members leave the state as it was (it is empty, and the factors returned an empty one).
+_group_writeback(st, fn, ::Nothing, stf0, stf) = _writeback(st, fn.params, stf0, stf)
+_group_writeback(st, fn, ::Vector{Symbol}, stf0, stf) = st
 
 function _gather_inputs(::Type{NT}, tf, E, js) where {NT}
     return [NT(Tuple(tf[E[j, i]].belief for j in js)) for i in axes(E, 2)]

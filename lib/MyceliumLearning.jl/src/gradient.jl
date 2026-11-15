@@ -44,7 +44,7 @@ function _row_items(s, g, rows, key, p, stf, nodes)
     items = Any[]
     covered = Set{Int}()
     for row in rows
-        g.factors[first(row.fids)].params === key || continue
+        row.keys === nothing && g.factors[first(row.fids)].params === key || continue
         msgs = _row_messages(s, row)
         msgs === nothing && continue
         factors = [g.factors[i].factor for i in row.fids]

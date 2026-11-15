@@ -196,6 +196,11 @@ end
     @test_throws ArgumentError factor_messages(fs, :x, nothing, ins, fill(nothing, 3), p, NamedTuple())
     msgs = (z = belief_block([i.z for i in ins]), k = Mycelium.VectorBlock(Any[i.k for i in ins]))
     @test_throws ArgumentError factor_beliefs(fs, msgs, p, NamedTuple())
+    # as blocks (I20, Mistral's review): a categorical block holds one set of labels, so inputs with
+    # different labels stack into a vector block, which the block path sends through the columns
+    @test belief_block([i.k for i in ins]) isa Mycelium.VectorBlock
+    @test !Mycelium._block_batchable(Lenticulum._as_clusters(fs), msgs, :x)
+    @test_throws ArgumentError factor_messages(fs, :x, nothing, msgs, fill(nothing, 3), p, NamedTuple())
 end
 
 # A row whose factors are not all equal gets one cluster per replica and is not batched; the
@@ -223,4 +228,97 @@ end
     end
     B = factor_beliefs(fs2, (z = belief_block([i.z for i in ins]), x = belief_block([i.x for i in ins])), p, NamedTuple())
     @test B isa Vector && length(B) == N
+end
+
+# I20: a plate sweep hands a cluster node's inputs as blocks; read from the blocks, the messages
+# must equal the column path's exactly (the same arithmetic in the same order), whichever block
+# comes out: a categorical block, a mixture block (one precision, no equal components), a
+# Gaussian block (one assignment left), or the replicas stacked (several precisions, merged
+# components, an assignment of weight zero, inputs whose shape differs between replicas).
+@testset "RegimeFactor plate: block inputs give the column path's messages exactly (I20)" begin
+    rp_replicas_equal(a, b) = typeof(a) == typeof(b) && nreplicas(a) == nreplicas(b) &&
+        all(i -> rp_close(replica(a, i), replica(b, i); atol = 0.0), 1:nreplicas(a))
+    kinds = Set{Symbol}()
+    for seed in 1:6
+        rng = Xoshiro(100 + seed)
+        dz, dx, K, N = rand(rng, 1:3), rand(rng, 1:2), rand(rng, 2:3), 5
+        f, p = rp_factor(rng, dz, dx, K)
+        # one noise and one A_z for every outcome: the message to z has one precision, A_z' Q⁻¹ A_z
+        p1 = merge(p, (L = repeat(p.L[:, :, 1:1], 1, 1, K), A = (z = repeat(p.A.z[:, :, 1:1], 1, 1, K), x = p.A.x)))
+        p0 = merge(p1, (A = (z = repeat(p.A.z[:, :, 1:1], 1, 1, K), x = repeat(p.A.x[:, :, 1:1], 1, 1, K)),
+                        b = repeat(p.b[:, 1:1], 1, K)))                            # equal outcomes: components merge
+        fs = [RegimeFactor((z = dz, x = dx), K, dz; learn_noise = true) for _ in 1:N]
+        Λx = (S = randn(rng, dx, dx); S * S' + I)
+        Λz = (S = randn(rng, dz, dz); S * S' + I)
+        lk = CategoricalBelief(Val(:log), (l = randn(rng, K); l .- log(sum(exp.(l)))), nothing)
+        lz = CategoricalBelief(Val(:log), [-Inf; zeros(K - 1) .- log(K - 1)], nothing)  # outcome 1 impossible
+        pts(d) = belief_block([DiracBelief(randn(rng, d)) for _ in 1:N])
+        gss(d, Λ) = belief_block([rp_gauss(rng, d, Λ) for _ in 1:N])
+        cases = [
+            (:k, (z = pts(dz), x = gss(dx, Λx))),
+            (:k, (z = pts(dz), x = pts(dx))),
+            (:x, (z = pts(dz),)),
+            (:x, (z = pts(dz), k = belief_block(fill(lk, N)))),
+            (:z, (x = pts(dx), k = belief_block(fill(lk, N)))),
+            (:z, (x = pts(dx), k = belief_block(fill(lz, N)))),
+            (:z, (x = gss(dx, Λx),)),
+            (:x, (z = gss(dz, Λz),)),
+            (:z, (x = belief_block([rp_gauss(rng, dx, (S = randn(rng, dx, dx); S * S' + I)) for _ in 1:N]),)),  # precisions differ
+            (:z, (x = pts(dx), k = belief_block([CategoricalBelief(Val(:log), (l = randn(rng, K); l .- log(sum(exp.(l)))), nothing)
+                                                 for _ in 1:N])))]                                          # outcome messages differ
+        for q in (p, p1, p0), (target, blocks) in cases
+            mb, _ = factor_messages(fs, target, nothing, blocks, fill(nothing, N), q, NamedTuple())
+            cols = [Mycelium._column(blocks, i) for i in 1:N]
+            mc, _ = factor_messages(fs, target, nothing, cols, fill(nothing, N), q, NamedTuple())
+            @test rp_replicas_equal(mb, belief_block(mc))
+            push!(kinds, nameof(typeof(mb)))
+            # the beliefs of a row, read from the blocks, equal those from the columns
+            if target === :k
+                B = factor_beliefs(fs, blocks, q, NamedTuple())
+                cs = Lenticulum._as_clusters(fs)
+                jt, _, pc, nA = Mycelium._batch_joint(cs, cols, (factor = q,), nothing)
+                @test isequal((B.q, B.M, B.Σ, B.H, B.points), (Mycelium._belief_parts(jt, Dict{Any,Any}(), nA)..., pc))
+            end
+        end
+        # with one precision and points in, the message to z is a mixture block, without per-replica beliefs
+        mb, _ = factor_messages(fs, :z, nothing, (x = pts(dx), k = belief_block(fill(lk, N))), fill(nothing, N), p1, NamedTuple())
+        @test mb isa MixtureBlock
+    end
+    @test kinds ⊇ Set([:CategoricalBlock, :MixtureBlock, :GaussianBlock, :VectorBlock])
+end
+
+# I20: the data factors of a graph made a plate by `as_plate` each have their own (empty)
+# parameter key; their messages and energies are grouped, and a key that is not empty sends the
+# group back edge by edge.
+@testset "RegimeFactor plate: untied data factors grouped, and edge by edge when a key is not empty (I20)" begin
+    rng = Xoshiro(17)
+    N = 25
+    x = randn(rng, N)
+    y = [rand(rng) < 0.5 ? x[i] + 0.2randn(rng) : -x[i] + 0.5randn(rng) for i in 1:N]
+    a, c, σ, w = [0.8, -0.7], [0.1, 0.4], [0.3, 0.6], [0.5, 0.5]
+    g = rp_mixreg_graph(x, y; plated = true)
+    sched = plate_schedule(g)
+    dplans = [p for p in sched.plans if p isa Mycelium._GroupPlan && eltype(p.factors) <: DataFactor]
+    @test length(dplans) == 2 && all(p -> p.keys !== nothing && length(p.keys) == N, dplans)
+    ps = rp_mixreg_ps(N, a, c, σ, w)
+    s = MessageStore(g); sweep!(s, g, sched, ps, NamedTuple())
+    drows = [r for r in Mycelium._energy_rows(s, g) if g.factors[first(r.fids)].factor isa DataFactor]
+    @test length(drows) == 2 && all(r -> r.keys !== nothing, drows)
+    F = first(scalar_free_energy(s, g, ps, NamedTuple()))
+    @test F ≈ rp_mixreg_nlp(x, y, a, c, σ, w) rtol = 1e-12
+    # a parameter subtree or a state under one data key: that group and that row go node by node
+    k2 = replica_name(:dx, 2)
+    psx = merge(ps, NamedTuple{(k2,)}(((u = [1.0],),)))
+    stx = NamedTuple{(replica_name(:dy, 3),)}(((u = 1,),))
+    @test !Mycelium._untied_empty(dplans[1].keys ∪ dplans[2].keys, Mycelium._indexed(psx), Mycelium._statebuffer(NamedTuple()))
+    # (the per-edge path writes an empty state for each key it visits; the given entries stay)
+    kept(st2, st) = all(k -> st2[k] == st[k], keys(st)) && all(k -> haskey(st, k) || Mycelium._empty_graph_state(st2[k]), keys(st2))
+    for (q, st) in ((psx, NamedTuple()), (ps, stx))
+        s2 = MessageStore(g)
+        _, st2 = sweep!(s2, g, sched, q, st)
+        @test kept(st2, st)
+        @test all(e -> belief_distance(s2.to_variable[e].belief, s.to_variable[e].belief) == 0, 1:nedges(g))
+        F2, st3 = scalar_free_energy(s2, g, q, st)
+        @test F2 == F && kept(st3, st)
+    end
 end

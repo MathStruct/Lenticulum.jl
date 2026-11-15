@@ -281,7 +281,8 @@ function fit_em(g::FactorGraph, ps, st; schedule, sweeps::Int = 2, iters::Int = 
     estep(θ) = (for _ in 1:sweeps; sweep!(s, g, schedule, θ, st); end; first(LenticulumCore.scalar_free_energy(s, g, θ, st)))
     # extrapolate only the subtrees of learnable nodes: flattening the whole tree (one entry per
     # data node, say) compiles code the size of the graph for every new tree type
-    lkeys = Tuple(unique(fn.params for fn in g.factors if LenticulumCore.islearnable(fn.factor) && fn.freeze !== :all && haskey(ps, fn.params)))
+    # (`haskey` on the distinct keys, not per node: on a plate's tree that is O(nodes × keys), I20)
+    lkeys = Tuple(filter(k -> haskey(ps, k), unique(fn.params for fn in g.factors if LenticulumCore.islearnable(fn.factor) && fn.freeze !== :all)))
     learned(p) = NamedTuple{lkeys}(map(k -> getfield(p, k), lkeys))
     flat(p) = LenticulumCore._flatten_active(learned(p))
     Fs = Float64[]

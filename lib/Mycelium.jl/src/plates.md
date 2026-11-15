@@ -71,8 +71,8 @@ A sweep gives the messages of `SequentialSchedule(tasks(sched))`. Within a group
   they are computed in one loop without `step!`;
 - **factor → variable** messages of a belief-propagation node are computed in one call of
   `factor_messages(factors, target, polarity, inputs, priors, ps, st)`, with the polarity resolved
-  once, when the members are tied, have the same available channels, and target **different**
-  variables. A shared target would see the earlier members' messages in its `prior` argument in
+  once, when the members are tied (or untied and without parameters, below), have the same
+  available channels, and target **different** variables. A shared target would see the earlier members' messages in its `prior` argument in
   the sequential order, so such a group runs member by member, as do mean-field nodes;
 - `factor_messages` defaults to `factor_message` for each replica in turn. `LinearConstraintFactor`
   overrides it: when the replicas share their noise and every replica's inputs have the same
@@ -189,6 +189,21 @@ edges of the targets' variables form block rows in one order (`_variable_rows`, 
 (`_step_blocks!`: the message block, the cavity block, `ep_block`) and otherwise edge by edge
 through `step!`, never through the vector-batched `factor_messages`, which would send the
 belief-propagation messages unprojected. Details and timings in `blocks.md`.
+
+## Untied factors without parameters (2026-11-15, Feature Backlog I20)
+
+A graph made a plate by `as_plate` keeps each replica's own key for a factor that was not tied, so
+its data factors read `dx[1]`, `dx[2]`, … . Groups and free-energy rows required one key, so every
+data message went through `step!` and every data energy through the per-node loop: on the mixture
+plate ($N = 3000$) 27% of `fit_em`'s samples. Now `_group_plan` and `_energy_row` accept members
+with different keys when none of their factors is learnable; the plan and the row record the keys
+(`_GroupPlan.keys`, `_EnergyRow.keys`, `nothing` when tied). Each sweep checks that every key's
+parameter subtree and state are empty (`_untied_empty`) and then calls the batched method once with
+empty trees; otherwise, or when the batched call returns a non-empty state, the group goes edge by
+edge and the row node by node, as before. The gradient (`_row_items`) never takes an untied row as
+one key's. Tests: Lenticulum `test/regime_plate.jl`, "untied data factors grouped, and edge by edge
+when a key is not empty" (the plans and rows, the closed form of $-\log p$, and the fallback with a
+parameter subtree or a state under one key, which gives the same messages and free energy).
 
 ## A plate from names (2026-11-04)
 
