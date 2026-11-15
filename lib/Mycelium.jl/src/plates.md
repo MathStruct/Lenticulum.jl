@@ -205,6 +205,25 @@ one key's. Tests: Lenticulum `test/regime_plate.jl`, "untied data factors groupe
 when a key is not empty" (the plans and rows, the closed form of $-\log p$, and the fallback with a
 parameter subtree or a state under one key, which gives the same messages and free energy).
 
+## A store with another block numbering (2026-11-15, Feature Backlog P22)
+
+`plate_schedule` builds its plans once against the block rows of `MessageStore(g)`
+(`_block_rows(g)`): `_GroupPlan.rows` and `_CavityPlan` hold row numbers, not edges. A store built
+by hand from `EdgeMessages` with the same rows numbered otherwise (only possible through the
+internal constructor) passed the old check `_has_rows`, which compares the number of rows only, so
+the planned steps read and wrote the wrong rows: on the mixture of regressions with $N = 12$ and
+both directions numbered in reverse, $F$ = 2.68 against the closed form 14.54, without an error.
+Now `sweep!` checks once per sweep that both directions number their rows as the graph does
+(`_graph_layout`: the same vector for both directions is checked once; otherwise one comparison of
+each row with the plate's edges, no allocation) and otherwise runs every group without its plan
+(the per-edge cavities, `_step_group!` for tied belief-propagation groups, else `step!`), which
+gives the sequential schedule's messages. The free energy already found its rows per store layout
+(I21). Not done: re-planning for the store's own numbering; such a store is slower, not wrong.
+Tests: Lenticulum `test/regime_plate.jl`, "PlateSchedule on a store with another block numbering
+(P22)": both directions reversed, only one, and the graph's numbering in new vectors (which keeps
+the plans and sweeps on blocks), each against the edge-by-edge messages to $10^{-12}$ and the closed
+form of $-\log p$. Without the check the first three fail (2.68 against 14.54, or an exception).
+
 ## A plate from names (2026-11-04)
 
 `as_plate(g, name, n)` records the nodes of an unplated graph named `replica_name(base, i)`,

@@ -391,7 +391,8 @@ end
     rows = s1.to_factor.rows
     rev = reverse(rows)                                           # the same rows, numbered the other way
     s3 = MessageStore(Mycelium.EdgeMessages(nedges(g), rev), Mycelium.EdgeMessages(nedges(g), reverse(s1.to_variable.rows)), 0, Dict{Int,Any}())
-    # swept edge by edge: a plate schedule's plans hold the row numbers of `MessageStore(g)`
+    # swept edge by edge (a plate schedule's plans hold the row numbers of `MessageStore(g)`; on
+    # such a store it runs without them since P22, tested below)
     sweep!(s3, g, SequentialSchedule(tasks(sched)), ps, NamedTuple())
     r3 = Mycelium._energy_rows(s3, g)
     @test r3 !== r1 && length(r3) == length(r1)
@@ -399,5 +400,38 @@ end
     nlp = rp_mixreg_nlp(x, y, a, c, σ, w)
     for s in (s1, s3, s1)                                         # back and forth between layouts
         @test first(scalar_free_energy(s, g, ps, NamedTuple())) ≈ nlp rtol = 1e-12
+    end
+end
+
+@testset "PlateSchedule on a store with another block numbering (P22)" begin
+    # The plans of a plate schedule hold the block row numbers of `MessageStore(g)`. A store whose
+    # rows are numbered otherwise (both directions, or only one) must still get the edge-by-edge
+    # messages: before P22 the sweep wrote to the wrong rows and F was 2.68 against 14.54.
+    rng = Xoshiro(23)
+    N = 12
+    x = randn(rng, N)
+    y = [rand(rng) < 0.5 ? x[i] + 0.2randn(rng) : -x[i] + 0.5randn(rng) for i in 1:N]
+    a, c, σ, w = [0.8, -0.7], [0.1, 0.4], [0.3, 0.6], [0.5, 0.5]
+    g = rp_mixreg_graph(x, y; plated = true)
+    ps = rp_mixreg_ps(N, a, c, σ, w)
+    sched = plate_schedule(g)
+    @test any(p -> p isa Mycelium._GroupPlan || p isa Mycelium._CavityPlan, sched.plans)   # the plans are used
+    nlp = rp_mixreg_nlp(x, y, a, c, σ, w)
+    ref = MessageStore(g); sweep!(ref, g, SequentialSchedule(tasks(sched)), ps, NamedTuple())
+    rows = MessageStore(g).to_factor.rows
+    layouts = ((reverse(rows), reverse(rows)),                    # both directions renumbered
+               (reverse(rows), copy(rows)),                       # only the factor side
+               (copy(rows), reverse(rows)),                       # only the variable side
+               (copy(rows), copy(rows)))                          # the graph's numbering, other vectors
+    for (tf, tv) in layouts
+        s = MessageStore(Mycelium.EdgeMessages(nedges(g), tv), Mycelium.EdgeMessages(nedges(g), tf), 0, Dict{Int,Any}())
+        @test Mycelium._graph_layout(s, g) == (tf == rows && tv == rows)   # the graph's numbering keeps the plans
+        for _ in 1:2
+            sweep!(s, g, sched, ps, NamedTuple())
+        end
+        @test first(scalar_free_energy(s, g, ps, NamedTuple())) ≈ nlp rtol = 1e-12
+        same(a, b) = a === b === nothing || a !== nothing && b !== nothing && rp_close(a.belief, b.belief; atol = 1e-12)
+        @test all(e -> same(s.to_variable[e], ref.to_variable[e]) && same(s.to_factor[e], ref.to_factor[e]), 1:nedges(g))
+        tf == rows && tv == rows && @test any(b -> b !== nothing, s.to_variable.blocks)   # swept on blocks
     end
 end

@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-15, after I21 (mixture blocks with a precision per component, energy rows kept), committed and pushed.
+**Last updated:** 2026-11-15, after P22 (a plate schedule on a store with another block numbering), not yet committed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at the I21 commit (pushed): `lib/Mycelium.jl/src/blocks.jl`, `blocks.md`, `cluster_batch.jl`, `cluster.md`, `graph.jl`, `free_energy.jl`, `free_energy.md`, `Mycelium.jl` (export); `lib/Lenticulum.jl/test/regime_plate.jl`; the vault notes below and the new LP-036. verified (below) |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `4ffd955c` with the I21 diff applied (before the fix of LP-036); Mistral's probes in `scratch/i21/`, older in `scratch/i20/` etc. (untracked). Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-i20-applied-stale-2026-11-15`, `mistral-wt-i19-applied-stale-2026-11-15`, `mistral-wt-ridge-applied-stale-2026-11-13` and the older ones of 2026-11-12 |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I21 commit (pushed) plus the uncommitted P22 change: `lib/Mycelium.jl/src/plates.jl`, `plates.md`, Lenticulum `test/regime_plate.jl`, [[Feature Backlog]]. verified (below) |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `0a1ef31c` (I21) with the P22 diff applied; probes in `scratch/p22/`, older in `scratch/i21/` etc. (untracked). Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-i21-applied-stale-2026-11-15`, `mistral-wt-i20-applied-stale-2026-11-15`, `mistral-wt-i19-applied-stale-2026-11-15`, `mistral-wt-ridge-applied-stale-2026-11-13` and the older ones of 2026-11-12 |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -22,23 +22,18 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 
 ## Done last
 
-- **I21** (committed and pushed): plates of tied cluster nodes send a continuous channel a
-  `ComponentMixtureBlock` (a precision and a flag per component) once the outcomes' precisions
-  differ, instead of a `VectorBlock` of mixtures (`blocks.md` "Mixtures with a precision per
-  component"); the plate's energy rows are kept in the graph per store layout (`FactorGraph.energy_rows`,
-  `free_energy.md`). `fit_em` on the mixture plate 0.025 → 0.018 s and 0.219 → 0.132 s
-  (`~/.cache/lenticulum/i20/bench_c.txt`), same iterates; [[Benchmark against RxInfer]] 19 ms and
-  0.15 s against 125 ms and 3.4 s (`~/.cache/lenticulum/i21/bench_mix.log`).
-- Verified: all seven suites pass (`~/.cache/lenticulum/i21/suite_*.log`; Mycelium, MyceliumLearning
-  and Lenticulum again after the LP-036 fix, `suite2_*.log`; the other four ran before that fix, which
-  only adds a refusal); four mutations fail 2–57 tests (`i20/mut21_*.log`). `docs/make.jl` passes;
-  `check_notes.py` as before. Not run: device tests (no device code).
-- Review: Mistral, one finding (point × mixture blocks of different sizes not refused), right, fixed
-  with a test ([[LP-036 Findings of the review of I21]]; archive `../Lenticulum.jl-Review-2026-11-15/i21/`).
-- Found while testing: **P22**, a plate schedule on a store with another block numbering writes to
-  the wrong rows silently (predates I21; [[Feature Backlog]]).
-- Next: P22 (small, a defect), or the open defects P20/P21, or another item of the backlog. The
-  mixture plate has no single hot spot left (25× closed-form EM).
+- **P22** (not committed): `sweep!` with a `PlateSchedule` checks once per sweep that the store numbers
+  its block rows as `MessageStore(g)` does (`_graph_layout`), and otherwise runs the groups without
+  their plans; before, a hand-built store with renumbered rows got $F$ = 2.68 against 14.54, silently
+  ([[plates]] "A store with another block numbering"). Test: Lenticulum `test/regime_plate.jl`, "PlateSchedule
+  on a store with another block numbering (P22)", which failed before the fix (4 failures, 2 errors) and passes after (14/14).
+- Verified: all eight suites pass (`~/.cache/lenticulum/p22/suite_*.log`). Not run: `docs/make.jl`,
+  `check_notes.py`, device tests (no device code).
+- Review: Mistral, no defects (mostly code reading, no probe outputs recorded; archive
+  `../Lenticulum.jl-Review-2026-11-15/p22/`). No problem note, as there are no findings.
+- I21 (before): committed and pushed; see [[Feature Backlog]] "Done".
+- Next: commit P22 when asked; then P20 (Zygote through `sum(...; init)` in `_row_scalar`, probably
+  small), or P21 (a design task), or another backlog item.
 
 ## Open
 

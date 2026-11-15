@@ -471,7 +471,11 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::PlateSchedule, @nospecia
     s.iteration += 1
     maxres = 0.0
     ps, st = _indexed(ps), _statebuffer(st)
-    for (grp, plan) in zip(sched.groups, sched.plans)
+    # The plans hold the block row numbers of `MessageStore(g)` (P22): a store numbered otherwise
+    # runs the groups without them.
+    planned = _graph_layout(s, g)
+    for (grp, plan0) in zip(sched.groups, sched.plans)
+        plan = planned ? plan0 : nothing
         res, st = length(grp) == 1 ? _step_each!(s, g, grp, ps, st, damping) :
                   plan isa _CavityPlan ? (_step_cavity!(s, g, grp, plan), st) :
                   _to_factor_group(g, grp) ? (_step_to_factor_group!(s, g, grp), st) :
@@ -512,6 +516,21 @@ end
 # Whether the store has the graph's block rows (a store built from vectors has none).
 _has_rows(s::MessageStore, g) = length(s.to_variable.rows) == length(s.to_factor.rows) == sum(pl -> size(pl.edges, 1), g.plates; init = 0) > 0
 _has_rows(s, g) = false
+
+# Whether both directions of the store number their block rows as `MessageStore(g)` does
+# (`_block_rows(g)`), which is what the plans of `plate_schedule` were built against. A store
+# without rows has nothing a plan could write to wrongly. One pass over the plate edges per sweep.
+_graph_layout(s::MessageStore, g) = !_has_rows(s, g) ||
+    (_graph_layout(s.to_variable, g) && (s.to_factor.rows === s.to_variable.rows || _graph_layout(s.to_factor, g)))
+_graph_layout(s, g) = true
+function _graph_layout(m::EdgeMessages, g)
+    r = 0
+    for pl in g.plates, k in axes(pl.edges, 1)
+        r += 1
+        r <= length(m.rows) && m.rows[r] == view(pl.edges, k, :) || return false
+    end
+    return r == length(m.rows)
+end
 
 # A cavity group on blocks: the combine of the other rows at each member's variable, one block
 # operation per row. Falls back to the per-edge path when a variable is pinned or a row is
