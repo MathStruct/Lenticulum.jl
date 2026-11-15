@@ -7,13 +7,13 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-15, after I20 (untied data factors grouped, block inputs to cluster nodes), **not committed**.
+**Last updated:** 2026-11-15, after I20 (untied data factors grouped, block inputs to cluster nodes), committed and pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at the I19 commit (`2d554500`, pushed), with I20 uncommitted: `lib/Mycelium.jl/src/plates.jl`, `free_energy.jl`, `cluster.jl`, `cluster_batch.jl`, `plates.md`, `cluster.md`; `lib/MyceliumLearning.jl/src/em.jl`, `gradient.jl`; `lib/Lenticulum.jl/src/regime.jl`, `test/regime_plate.jl`; the vault notes below and the new LP-035. Everything verified (below); ready to commit when asked |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at the I20 commit (`661f0bbb`, pushed): `lib/Mycelium.jl/src/plates.jl`, `free_energy.jl`, `cluster.jl`, `cluster_batch.jl`, `plates.md`, `cluster.md`; `lib/MyceliumLearning.jl/src/em.jl`, `gradient.jl`; `lib/Lenticulum.jl/src/regime.jl`, `test/regime_plate.jl`; the vault notes below and the new LP-035. verified (below) |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `2d554500` with the I20 diff applied; Mistral's probes in `scratch/i20/` (untracked; older ones in `scratch/i19/` etc.). Test environment loading this worktree: `~/.cache/lenticulum/i19/env-mistral`; one loading the main checkout: `~/.cache/lenticulum/i20/env`. Stashes, all droppable: `mistral-wt-i19-applied-stale-2026-11-15`, `mistral-wt-ridge-applied-stale-2026-11-13` and the older ones of 2026-11-12 |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
@@ -22,7 +22,7 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 
 ## Done last
 
-- **I20** (not committed): (1) data factors that `as_plate` leaves untied (one empty key per replica)
+- **I20** (committed and pushed, `661f0bbb`): (1) data factors that `as_plate` leaves untied (one empty key per replica)
   are grouped in plate sweeps and free-energy rows when none is learnable and every key's
   parameters and state are empty, checked each sweep; edge by edge otherwise (`plates.md` "Untied
   factors without parameters"; `_GroupPlan.keys`, `_EnergyRow.keys`). (2) Cluster nodes and
@@ -39,7 +39,7 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
   Not run: device tests (no device code).
 - Review: Mistral, one finding (mislabeled categorical blocks), not reproduced; a test added
   ([[LP-035 Findings of the review of I20]]; archive `../Lenticulum.jl-Review-2026-11-15/`).
-- Next: commit I20 when asked; then I21 (a block for mixtures with per-component precisions; cache
+- Next: I21 (a block for mixtures with per-component precisions; cache
   `_energy_rows`), or another item of the [[Feature Backlog]]; the rest of F3, an energy threshold,
   needs an energy network trained on the benchmark's relations.
 
