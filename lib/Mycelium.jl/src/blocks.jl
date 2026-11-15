@@ -25,6 +25,7 @@ belief, read with [`replica`](@ref). Implemented:
 | `GaussianBlock(η, Λ, improper)` | information vectors `η` (`d × n`), precisions `Λ` | `GaussianBelief(η[:, i], Λᵢ, improper[i])` |
 | `CategoricalBlock(logp, labels)` | normalised log-probabilities as the columns of a `K × n` matrix | `CategoricalBelief(logp[:, i])` |
 | `MixtureBlock(η, Λ, logw, improper)` | `K` Gaussian components per replica, `η` of size `d × K × n`, one precision `Λ` for all, log-weights `K × n` | `MixtureBelief` of `GaussianBelief(η[:, k, i], Λ, improper)` |
+| `ComponentMixtureBlock(η, Λs, logw, improper)` | as a `MixtureBlock`, but component `k` has its own precision `Λs[k]` and flag `improper[k]`, the same in every replica | `MixtureBelief` of `GaussianBelief(η[:, k, i], Λs[k], improper[k])` |
 | `VectorBlock(beliefs)` | any beliefs, one per replica | `beliefs[i]` |
 
 `Λ` of a `GaussianBlock` is one matrix shared by every replica, or a vector of `n` matrices.
@@ -81,6 +82,29 @@ struct MixtureBlock{E<:AbstractArray,L<:AbstractMatrix,W<:AbstractMatrix} <: Bel
         return new{E,L,W}(η, Λ, logw, improper)
     end
 end
+"""
+    ComponentMixtureBlock(η, Λs, logw, improper)
+
+`n` mixtures of `K` Gaussians whose component `k` has the precision `Λs[k]` and the flag
+`improper[k]` in every replica: component `k` of replica `i` is `GaussianBelief(η[:, k, i], Λs[k],
+improper[k])`, its normalised log-weight `logw[k, i]`. What a plate of tied cluster nodes sends to
+a continuous channel when the outcomes give it different precisions (`cluster_batch.jl`, I21).
+`belief_block` does not build it; operations without a method of their own take it column by column.
+"""
+struct ComponentMixtureBlock{E<:AbstractArray,L<:AbstractMatrix,W<:AbstractMatrix} <: BeliefBlock
+    η::E                      # d × K × n
+    Λs::Vector{L}             # K
+    logw::W                   # K × n, each column normalised
+    improper::Vector{Bool}    # K
+    function ComponentMixtureBlock(η::E, Λs::AbstractVector{L}, logw::W, improper::AbstractVector{Bool}) where {E<:AbstractArray,L<:AbstractMatrix,W<:AbstractMatrix}
+        ndims(η) == 3 || throw(DimensionMismatch("η must be d × K × n"))
+        d, K = size(η, 1), size(η, 2)
+        size(logw) == (K, size(η, 3)) || throw(DimensionMismatch("logw must be K × n"))
+        length(Λs) == length(improper) == K || throw(DimensionMismatch("need one precision and one flag per component"))
+        all(Λ -> size(Λ) == (d, d), Λs) || throw(DimensionMismatch("each precision must be d × d"))
+        return new{E,L,W}(η, collect(Λs), logw, collect(Bool, improper))
+    end
+end
 struct VectorBlock <: BeliefBlock
     beliefs::Vector{Any}
 end
@@ -95,6 +119,7 @@ nreplicas(b::PointBlock) = size(b.X, 2)
 nreplicas(b::GaussianBlock) = size(b.η, 2)
 nreplicas(b::CategoricalBlock) = size(b.logp, 2)
 nreplicas(b::MixtureBlock) = size(b.η, 3)
+nreplicas(b::ComponentMixtureBlock) = size(b.η, 3)
 nreplicas(b::VectorBlock) = length(b.beliefs)
 
 """
@@ -111,6 +136,8 @@ replica(b::GaussianBlock, i::Int) = GaussianBelief(b.η[:, i], _precision(b, i),
 replica(b::CategoricalBlock, i::Int) = LenticulumCore.CategoricalBelief(Val(:log), b.logp[:, i], b.labels)
 replica(b::MixtureBlock, i::Int) = LenticulumCore.MixtureBelief(Val(:log),
     [GaussianBelief(b.η[:, k, i], b.Λ, b.improper) for k in axes(b.η, 2)], b.logw[:, i])
+replica(b::ComponentMixtureBlock, i::Int) = LenticulumCore.MixtureBelief(Val(:log),
+    [GaussianBelief(b.η[:, k, i], b.Λs[k], b.improper[k]) for k in axes(b.η, 2)], b.logw[:, i])
 replica(b::VectorBlock, i::Int) = b.beliefs[i]
 
 _shared(b::GaussianBlock) = b.Λ isa AbstractMatrix
@@ -236,6 +263,12 @@ function _mixture_gaussian(m::MixtureBlock, gb::GaussianBlock, fallback)
     l = l .- log.(sum(exp.(l); dims = 1))
     return MixtureBlock(m.η .+ reshape(gb.η, d, 1, n), Λ, l, false)
 end
+# A point times a mixture of Gaussians is the point (`combine(::DiracBelief, ::AbstractBelief)`);
+# blocks of different sizes are refused (LP-036).
+combine_blocks(a::PointBlock, m::Union{MixtureBlock,ComponentMixtureBlock}) = (_same_replicas(a, m); a)
+combine_blocks(m::Union{MixtureBlock,ComponentMixtureBlock}, b::PointBlock) = (_same_replicas(m, b); b)
+_same_replicas(a, b) = nreplicas(a) == nreplicas(b) ||
+    throw(DimensionMismatch("cannot combine blocks of $(nreplicas(a)) and $(nreplicas(b)) replicas"))
 combine_blocks(a::BeliefBlock, b::BeliefBlock) = _combine_columns(a, b)
 _combine_columns(a, b) = belief_block([combine(replica(a, i), replica(b, i)) for i in 1:nreplicas(a)])
 
@@ -267,6 +300,25 @@ end
 function block_distance(a::MixtureBlock, b::MixtureBlock)
     size(a.η) == size(b.η) || return Inf
     dΛ = _maxabsdiff(a.Λ, b.Λ)
+    d = 0.0
+    for i in axes(a.η, 3)
+        w = 0.0
+        for k in axes(a.η, 2)
+            w += abs(exp(a.logw[k, i]) - exp(b.logw[k, i]))
+        end
+        c = dΛ
+        for k in axes(a.η, 2), j in axes(a.η, 1)
+            c = max(c, abs(a.η[j, k, i] - b.η[j, k, i]))
+        end
+        d = max(d, w / 2, c)
+    end
+    return d
+end
+
+# The same with a precision per component.
+function block_distance(a::ComponentMixtureBlock, b::ComponentMixtureBlock)
+    size(a.η) == size(b.η) || return Inf
+    dΛ = maximum(k -> _maxabsdiff(a.Λs[k], b.Λs[k]), eachindex(a.Λs); init = 0.0)
     d = 0.0
     for i in axes(a.η, 3)
         w = 0.0
@@ -314,6 +366,7 @@ _uninformative(::TrivialBlock) = true
 _uninformative(::PointBlock) = false
 _uninformative(::CategoricalBlock) = false
 _uninformative(::MixtureBlock) = false
+_uninformative(::ComponentMixtureBlock) = false
 function _uninformative(b::GaussianBlock)       # isuninformative: Λᵢ = 0 and ηᵢ = 0
     _shared(b) && !all(iszero, b.Λ) && return false
     flags = [all(iszero, _precision(b, i)) && all(iszero, view(b.η, :, i)) for i in 1:nreplicas(b)]

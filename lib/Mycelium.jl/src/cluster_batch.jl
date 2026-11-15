@@ -196,22 +196,28 @@ function _discrete_block(target, l, sel, nA, N)
     return CategoricalBlock(logp, nothing)
 end
 
-# `_continuous_message` of every replica as one block. When all precision classes have one
-# precision, no assignment has weight zero and no replica has two equal components (which
-# `_continuous_message` would merge), the assignments are the components of a `MixtureBlock` (a
-# `GaussianBlock` for one assignment); otherwise each replica's message is built and stacked.
+# `_continuous_message` of every replica as one block. When no assignment has weight zero, no
+# replica has two equal components (which `_continuous_message` would merge) and the target is
+# not trivial, the assignments are the components: of a `MixtureBlock` when all classes have one
+# precision (a `GaussianBlock` for one assignment), else of a `ComponentMixtureBlock`, component
+# a holding its class's precision (I21). Otherwise each replica's message is built and stacked.
 function _continuous_block(E, l, Λs, proper, class, nA, N)
     ids = _precision_ids(Λs)
     d = size(E, 1)
-    if all(==(1), ids) && !all(iszero, Λs[1]) && all(>(-Inf), l) && !_merging(E, nA, N)
-        nA == 1 && return GaussianBlock(copy(E), Λs[1], fill(!proper[1], N))
+    if !(length(Λs) == 1 && all(iszero, Λs[1])) && all(>(-Inf), l) && !_merging(E, nA, N)
+        if nA == 1                                         # one component: `_continuous_message` returns it alone
+            κ = ids[class[1]]
+            return GaussianBlock(copy(E), Λs[κ], fill(!proper[κ], N))
+        end
         W = reshape(l, nA, N)
         logw = similar(W)
         for r in 1:N
             w = W[:, r]
             logw[:, r] .= w .- _lse(w)
         end
-        return MixtureBlock(reshape(copy(E), d, nA, N), Λs[1], logw, !proper[1])
+        all(==(1), ids) && return MixtureBlock(reshape(copy(E), d, nA, N), Λs[1], logw, !proper[1])
+        κs = [ids[class[a]] for a in 1:nA]                # replica 1's assignments; every replica's are these
+        return ComponentMixtureBlock(reshape(copy(E), d, nA, N), [Λs[κ] for κ in κs], logw, [!proper[κ] for κ in κs])
     end
     return belief_block(Any[_continuous_message(E, l, Λs, proper, class, ((r - 1) * nA + 1):(r * nA), ids) for r in 1:N])
 end

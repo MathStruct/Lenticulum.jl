@@ -242,11 +242,15 @@ struct FactorGraph
     # bit mask of the factor's edges whose incoming message is informative); guarded by
     # `polarity_lock` (I18; `polarity_resolution.md`, difficulty 3).
     emit_plans::Dict{Tuple{Int,UInt64},Any}
+    # The plate factor rows the free energy takes in one call (`_energy_rows`, `free_energy.jl`),
+    # with the store layout they were found for: `nothing` or `(rows of the layout, rows)`; guarded
+    # by `polarity_lock` (I21).
+    energy_rows::Base.RefValue{Any}
 end
 FactorGraph(variables, factors, edges, eof, eov, vindex, findex, plates) =
     FactorGraph(variables, factors, edges, eof, eov, vindex, findex, plates,
         [Dict{Tuple{Symbol,Tuple{Vararg{Symbol}}},LenticulumCore.Polarity}() for _ in factors], ReentrantLock(),
-        Dict{Tuple{Int,UInt64},Any}())
+        Dict{Tuple{Int,UInt64},Any}(), Ref{Any}(nothing))
 
 # --- Construction ----------------------------------------------------------
 

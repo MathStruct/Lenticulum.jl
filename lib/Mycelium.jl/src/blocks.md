@@ -23,6 +23,7 @@ A `BeliefBlock` is $n$ beliefs of one kind:
 | `GaussianBlock(η, Λ, improper)` | $\eta \in \mathbb R^{d \times n}$; $\Lambda$ shared ($d \times d$) or a vector of $n$ | `GaussianBelief(η[:, i], Λᵢ, improper[i])` |
 | `CategoricalBlock(logp, labels)` | $\log p \in \mathbb R^{K \times n}$, columns normalised | `CategoricalBelief(logp[:, i])` |
 | `MixtureBlock(η, Λ, logw, improper)` | $\eta \in \mathbb R^{d \times K \times n}$, one $\Lambda$ for every component, $\log w \in \mathbb R^{K \times n}$ | `MixtureBelief` of `GaussianBelief(η[:, k, i], Λ, improper)` |
+| `ComponentMixtureBlock(η, Λs, logw, improper)` | as `MixtureBlock`, but component $k$ has its own $\Lambda_k$ and flag, the same in every replica | `MixtureBelief` of `GaussianBelief(η[:, k, i], Λs[k], improper[k])` |
 | `VectorBlock(beliefs)` | anything | `beliefs[i]` |
 
 `belief_block(beliefs)` picks the most specific block for a vector of beliefs, keeping a precision
@@ -197,6 +198,22 @@ one loop (`_linear_block_each`, L-SPEC-006 §8.4):
 
 The first version of that loop was no faster than the per-replica path (2.29 ms at $N = 1000$, the
 same with the loop disabled); with buffers and in-place factorisations it is 1.66 ms.
+
+## Mixtures with a precision per component (2026-11-15, I21)
+
+A plate of tied cluster nodes (a `RegimeFactor` per point, `cluster.md` "Block inputs") sends a
+continuous channel a mixture whose components are its outcomes. Once the M-step gives the outcomes
+different noises or coefficients, each outcome's component has its own precision, the same in every
+replica; a `MixtureBlock` holds one precision, so these messages were stacked as a `VectorBlock` of
+`MixtureBelief`s. `ComponentMixtureBlock(η, Λs, logw, improper)` holds them: `η` is $d \times K \times n$,
+`Λs[k]` and `improper[k]` are component $k$'s in every replica. It has its own `block_distance` (the
+largest of the weights' total variation, the precisions' and the means' differences, per column, as
+`belief_distance` of two mixtures) and `_uninformative` (false); a point block times either mixture
+block is the point (`combine` of a `DiracBelief` with anything). Every other operation takes it
+column by column, as it took the vector block. `belief_block` does not build it, so blocks stacked
+from beliefs are what they were. Tests: Lenticulum `test/regime_plate.jl`, "ComponentMixtureBlock:
+columns, distance and products against the per-belief rules", and the block-input testset of I20,
+which now also returns this block (improper components included).
 
 ## What it does not do
 

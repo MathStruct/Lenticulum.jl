@@ -384,14 +384,18 @@ together with the grouped data factors of `plates.md` "Untied factors without pa
 | 300 | 0.057 s | 0.025 s | 10.3 ms | 3.9 ms | 15.7 MiB | 6.8 MiB |
 | 3000 | 0.615 s | 0.219 s | 138.5 ms | 27.7 ms | 153.8 MiB | 63.8 MiB |
 
-In [[Benchmark against RxInfer]] (2026-11-15) the plate takes 30 ms and 0.24 s against RxInfer's
+In [[Benchmark against RxInfer]] (2026-11-15, after I20) the plate took 30 ms and 0.24 s against RxInfer's
 126 ms and 3.2 s, with the same estimates as closed-form EM.
 
 The profile after ($N = 3000$): 51% of `fit_em`'s samples in the sweeps, of which most in the regime
 factors' messages; 17% in the per-replica fallback of `_continuous_block`, which is the usual case
 once the M-step has given the outcomes different noises (the message to a continuous channel then
 has one precision per outcome, which a `MixtureBlock` cannot hold); 14% in `_energy_rows`, rebuilt
-by every free-energy and EM call.
+by every free-energy and EM call. Both done in I21 (2026-11-15): with several precisions `_continuous_block`
+returns a `ComponentMixtureBlock` (`blocks.md`, "Mixtures with a precision per component"), component
+$a$ holding its class's precision, and the energy rows are kept in the graph (`free_energy.md`).
+`fit_em` then takes 0.018 s and 0.132 s at $N = 300$ and 3000 (`~/.cache/lenticulum/i20/bench_c.txt`),
+the same iterates; in [[Benchmark against RxInfer]] 19 ms and 0.15 s against RxInfer's 125 ms and 3.4 s.
 
 ## What it does not do
 

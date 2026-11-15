@@ -236,7 +236,9 @@ end
 # Gaussian block (one assignment left), or the replicas stacked (several precisions, merged
 # components, an assignment of weight zero, inputs whose shape differs between replicas).
 @testset "RegimeFactor plate: block inputs give the column path's messages exactly (I20)" begin
-    rp_replicas_equal(a, b) = typeof(a) == typeof(b) && nreplicas(a) == nreplicas(b) &&
+    # the column path stacks mixtures with a precision per component into a vector block (I21)
+    rp_same_kind(a, b) = typeof(a) == typeof(b) || (a isa ComponentMixtureBlock && b isa Mycelium.VectorBlock)
+    rp_replicas_equal(a, b) = rp_same_kind(a, b) && nreplicas(a) == nreplicas(b) &&
         all(i -> rp_close(replica(a, i), replica(b, i); atol = 0.0), 1:nreplicas(a))
     kinds = Set{Symbol}()
     for seed in 1:6
@@ -284,7 +286,7 @@ end
         mb, _ = factor_messages(fs, :z, nothing, (x = pts(dx), k = belief_block(fill(lk, N))), fill(nothing, N), p1, NamedTuple())
         @test mb isa MixtureBlock
     end
-    @test kinds ⊇ Set([:CategoricalBlock, :MixtureBlock, :GaussianBlock, :VectorBlock])
+    @test kinds ⊇ Set([:CategoricalBlock, :MixtureBlock, :ComponentMixtureBlock, :GaussianBlock, :VectorBlock])
 end
 
 # I20: the data factors of a graph made a plate by `as_plate` each have their own (empty)
@@ -320,5 +322,82 @@ end
         @test all(e -> belief_distance(s2.to_variable[e].belief, s.to_variable[e].belief) == 0, 1:nedges(g))
         F2, st3 = scalar_free_energy(s2, g, q, st)
         @test F2 == F && kept(st3, st)
+    end
+end
+
+# I21: a mixture block with a precision per component, what the regime factors of a plate send to a
+# continuous channel once the outcomes' noises differ. Its operations against the per-belief rules.
+@testset "ComponentMixtureBlock: columns, distance and products against the per-belief rules (I21)" begin
+    rng = Xoshiro(41)
+    for (d, K, n) in ((1, 2, 4), (2, 3, 5))
+        spd() = (S = randn(rng, d, d); S * S' + I)
+        Λs = [spd() for _ in 1:K]
+        lw() = (l = randn(rng, K, n); l .- log.(sum(exp.(l); dims = 1)))
+        a = ComponentMixtureBlock(randn(rng, d, K, n), Λs, lw(), fill(false, K))
+        b = ComponentMixtureBlock(randn(rng, d, K, n), [Λ + 0.1I for Λ in Λs], lw(), [true; fill(false, K - 1)])
+        @test nreplicas(a) == n
+        r = replica(b, 2)
+        @test r isa MixtureBelief && length(r.components) == K && r.components[1].improper && r.components[2].Λ === b.Λs[2]
+        @test r.logw == b.logw[:, 2] && r.components[K].η == b.η[:, K, 2]
+        @test Mycelium.block_distance(a, b) == maximum(i -> belief_distance(replica(a, i), replica(b, i)), 1:n)
+        @test Mycelium.block_distance(a, a) == 0.0
+        a2 = ComponentMixtureBlock(a.η, [Λ + 0.25I for Λ in Λs], a.logw, a.improper)   # only the precisions move
+        @test Mycelium.block_distance(a, a2) == maximum(i -> belief_distance(replica(a, i), replica(a2, i)), 1:n) ≈ 0.25
+        @test Mycelium.block_distance(a, ComponentMixtureBlock(randn(rng, d, K + 1, n), [Λs; [spd()]], randn(rng, K + 1, n), fill(false, K + 1))) == Inf
+        p = belief_block([DiracBelief(randn(rng, d)) for _ in 1:n])
+        for c in (Mycelium.combine_blocks(p, a), Mycelium.combine_blocks(a, p))
+            @test c isa PointBlock && all(i -> replica(c, i).value == Mycelium.combine(replica(p, i), replica(a, i)).value, 1:n)
+        end
+        @test Mycelium._uninformative(a) == false
+        # blocks of different sizes are refused, not truncated (Mistral's review of I21, LP-036)
+        pn = belief_block([DiracBelief(randn(rng, d)) for _ in 1:n + 1])
+        mb = MixtureBlock(randn(rng, d, K, n), Λs[1], lw(), false)
+        for m in (a, mb)
+            @test_throws DimensionMismatch Mycelium.combine_blocks(pn, m)
+            @test_throws DimensionMismatch Mycelium.combine_blocks(m, pn)
+        end
+        @test_throws DimensionMismatch ComponentMixtureBlock(randn(rng, d, K, n), Λs[1:K-1], lw(), fill(false, K - 1))
+        @test_throws DimensionMismatch ComponentMixtureBlock(randn(rng, d, K, n), Λs, randn(rng, K, n + 1), fill(false, K))
+    end
+    # one noise row for a two-dimensional target: each outcome's precision has rank one, so the
+    # components are improper; per-outcome coefficients give each its own precision
+    N, K = 4, 2
+    fs = [RegimeFactor((z = 2, x = 1), K, 1; learn_noise = true) for _ in 1:N]
+    p = (A = (z = randn(rng, 1, 2, K), x = randn(rng, 1, 1, K)), b = randn(rng, 1, K), logw = randn(rng, K),
+         L = randn(rng, 1, 1, K))
+    blocks = (x = belief_block([DiracBelief(randn(rng, 1)) for _ in 1:N]),)
+    mb, _ = factor_messages(fs, :z, nothing, blocks, fill(nothing, N), p, NamedTuple())
+    mc, _ = factor_messages(fs, :z, nothing, [Mycelium._column(blocks, i) for i in 1:N], fill(nothing, N), p, NamedTuple())
+    @test mb isa ComponentMixtureBlock && all(mb.improper)
+    @test all(i -> rp_close(replica(mb, i), mc[i]; atol = 0.0), 1:N)
+end
+
+# I21: the plate's energy rows are found once per graph and store layout. A second store of the
+# same graph reuses them; a store whose block rows are numbered otherwise finds its own, and both
+# give the closed form.
+@testset "RegimeFactor plate: energy rows kept per store layout (I21)" begin
+    rng = Xoshiro(23)
+    N = 12
+    x = randn(rng, N)
+    y = [rand(rng) < 0.5 ? x[i] + 0.2randn(rng) : -x[i] + 0.5randn(rng) for i in 1:N]
+    a, c, σ, w = [0.8, -0.7], [0.1, 0.4], [0.3, 0.6], [0.5, 0.5]
+    g = rp_mixreg_graph(x, y; plated = true)
+    ps = rp_mixreg_ps(N, a, c, σ, w)
+    sched = plate_schedule(g)
+    s1 = MessageStore(g); sweep!(s1, g, sched, ps, NamedTuple())
+    s2 = MessageStore(g); sweep!(s2, g, sched, ps, NamedTuple())
+    r1 = Mycelium._energy_rows(s1, g)
+    @test Mycelium._energy_rows(s2, g) === r1                     # same layout: the kept rows
+    rows = s1.to_factor.rows
+    rev = reverse(rows)                                           # the same rows, numbered the other way
+    s3 = MessageStore(Mycelium.EdgeMessages(nedges(g), rev), Mycelium.EdgeMessages(nedges(g), reverse(s1.to_variable.rows)), 0, Dict{Int,Any}())
+    # swept edge by edge: a plate schedule's plans hold the row numbers of `MessageStore(g)`
+    sweep!(s3, g, SequentialSchedule(tasks(sched)), ps, NamedTuple())
+    r3 = Mycelium._energy_rows(s3, g)
+    @test r3 !== r1 && length(r3) == length(r1)
+    @test all(r -> all(j -> s3.to_factor.rows[r.rows[j]] == [g.edges_of_factor[f][j] for f in r.fids], eachindex(r.rows)), r3)
+    nlp = rp_mixreg_nlp(x, y, a, c, σ, w)
+    for s in (s1, s3, s1)                                         # back and forth between layouts
+        @test first(scalar_free_energy(s, g, ps, NamedTuple())) ≈ nlp rtol = 1e-12
     end
 end

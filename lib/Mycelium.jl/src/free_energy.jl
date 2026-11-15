@@ -232,8 +232,22 @@ struct _EnergyRow
     keys::Union{Nothing,Vector{Symbol}}
 end
 
+# The rows depend on the graph and on the store's block layout only, not on its messages, so they
+# are found once per layout and kept in the graph (I21: rebuilding them was 14% of `fit_em` on a
+# plate of 3 000). A store with another layout (`EdgeMessages` built by hand) finds them again.
 function _energy_rows(s, g::FactorGraph)
     _has_rows(s, g) || return _EnergyRow[]
+    layout = s.to_factor.rows
+    hit = lock(g.polarity_lock) do
+        c = g.energy_rows[]
+        c !== nothing && (c[1] === layout || c[1] == layout) ? c[2] : nothing
+    end
+    hit === nothing || return hit
+    out = _find_energy_rows(s, g)
+    lock(() -> (g.energy_rows[] = (layout, out)), g.polarity_lock)
+    return out
+end
+function _find_energy_rows(s, g::FactorGraph)
     out = _EnergyRow[]
     for pl in g.plates
         F::Matrix{Int} = pl.factors

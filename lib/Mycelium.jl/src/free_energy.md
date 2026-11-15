@@ -355,6 +355,13 @@ unchanged, which also keeps that path free of mutation for Zygote. The scalar su
 function of the concretely typed factor vector, so `scalarisation` is not dispatched per node.
 Tested in `test/plates.jl` against the same messages per edge; timings in `blocks.md`.
 
+Since 2026-11-15 (I21) the rows are kept in the graph (`FactorGraph.energy_rows`) with the store's
+block layout they were found for, and found again only for a store with another layout: they
+depend on the graph and the layout, not on the messages, and finding them was 14% of `fit_em` on a
+plate of 3 000 regime factors (1.3 ms a call, several calls per iteration). The graph is not
+edited in place (edits build a new graph), and a layout is compared by identity, then by value.
+Test: Lenticulum `test/regime_plate.jl`, "energy rows kept per store layout".
+
 
 ## Expectation-propagation and mixture-reduction nodes (2026-11-03)
 
