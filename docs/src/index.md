@@ -69,12 +69,21 @@ Three more packages sit off those paths and have not yet been reviewed as the co
 
 ## Installation
 
-Not registered. From a clone:
+In the [MathStruct registry](https://github.com/MathStruct/Registry), next to General:
 
 ```julia
 using Pkg
-Pkg.develop(path = "/path/to/Lenticulum.jl/lib/Lenticulum.jl")             # Gaussian graphs, structure and regimes
-Pkg.develop(path = "/path/to/Lenticulum.jl/lib/VariationalDiffusion.jl")   # relation learners
+Pkg.Registry.add(RegistrySpec(url = "https://github.com/MathStruct/Registry.git"))   # once
+Pkg.add("Lenticulum")             # Gaussian graphs, structure and regimes
+Pkg.add("VariationalDiffusion")   # relation learners
+```
+
+A registered version is a snapshot and falls behind the development branch. For the newest code,
+use a clone:
+
+```julia
+Pkg.develop(path = "/path/to/Lenticulum.jl/lib/Lenticulum.jl")
+Pkg.develop(path = "/path/to/Lenticulum.jl/lib/VariationalDiffusion.jl")   # and the others under lib/
 ```
 
 Every package depends on **LuxCore**, not Lux, so wrapping a Lux model costs nothing and

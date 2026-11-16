@@ -9,7 +9,7 @@ run one way. Lenticulum learns a *relation* $R_\theta$ on a joint space $Z$ and 
 time which coordinates are inputs and which are outputs. The same trained model then answers
 "given $x$, what is $y$?", "given $y$, what is $x$?", and "fill in whatever is missing".
 
-> **Status: research prototype.** Julia, not registered, one author. What is exact is tested
+> **Status: research prototype.** Julia, in the [MathStruct registry](https://github.com/MathStruct/Registry), one author. What is exact is tested
 > against closed forms; what is approximate says so.
 
 ## The idea in one picture
@@ -158,12 +158,21 @@ pages and tutorials; `bench/` the benchmarks.
 
 ## Using it
 
-Not registered. From a clone:
+In the [MathStruct registry](https://github.com/MathStruct/Registry), next to General:
 
 ```julia
 using Pkg
-Pkg.develop(path = "/path/to/Lenticulum.jl/lib/Lenticulum.jl")             # paths A and C
-Pkg.develop(path = "/path/to/Lenticulum.jl/lib/VariationalDiffusion.jl")   # path B
+Pkg.Registry.add(RegistrySpec(url = "https://github.com/MathStruct/Registry.git"))   # once
+Pkg.add("Lenticulum")             # paths A and C
+Pkg.add("VariationalDiffusion")   # path B
+```
+
+A registered version is a snapshot and falls behind the development branch. For the newest code,
+use a clone:
+
+```julia
+Pkg.develop(path = "/path/to/Lenticulum.jl/lib/Lenticulum.jl")
+Pkg.develop(path = "/path/to/Lenticulum.jl/lib/VariationalDiffusion.jl")   # and the others under lib/
 ```
 
 Tests, per package:

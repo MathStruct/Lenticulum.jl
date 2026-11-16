@@ -6,12 +6,20 @@ tutorial that fits your background.
 
 ## Install
 
-Lenticulum is not registered yet. From a clone of the
-[repository](https://github.com/MathStruct/Lenticulum.jl):
+In the [MathStruct registry](https://github.com/MathStruct/Registry), next to General:
 
 ```julia
 using Pkg
-Pkg.develop(path = "/path/to/Lenticulum.jl")
+Pkg.Registry.add(RegistrySpec(url = "https://github.com/MathStruct/Registry.git"))   # once
+Pkg.add("Lenticulum")             # the factors and inference
+Pkg.add("VariationalDiffusion")   # relation learners
+```
+
+A registered version is a snapshot and falls behind the development branch. For the newest code,
+use a clone:
+
+```julia
+Pkg.develop(path = "/path/to/Lenticulum.jl/lib/Lenticulum.jl")
 Pkg.develop(path = "/path/to/Lenticulum.jl/lib/VariationalDiffusion.jl")   # and the others under lib/
 ```
 
