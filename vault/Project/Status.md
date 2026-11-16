@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-16, after P23 (Zygote through the constraint and switching cavity free energies), committed and pushed.
+**Last updated:** 2026-11-16, after P21 (ForwardDiff through the flat path with only η dual), committed and pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at the P23 commit `52dbe11d` (pushed): LenticulumCore `gaussian_belief.jl`/`.md` and its ChainRulesCore ext; Lenticulum `constraint`, `switching`, `gaussian`, `exposure`, `hard_constraint`, `likelihood`, `nonlinear`, `Lenticulum.jl`, its ChainRulesCore ext; notes `constraint.md`, `switching.md`, Mycelium `free_energy.md`, `cluster.md`; tests `zygote_cavity.jl` (new), `plates.jl`, `regime_plate.jl`, `runtests.jl`; [[Feature Backlog]], [[LP-037 Findings of the review of P23]]. Verified: see below |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | fast-forwarded to `b184cc82`, with the P23 diff applied (without the `likelihood.jl` fix); Mistral's probes in `scratch/p23/`. Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-p20-applied-stale-2026-11-16`, `-p22-…`, `-i21-…`, `-i20-…`, `-i19-…`, older |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at the P21 commit `a22157e1` (pushed): LenticulumCore `extended_gaussian.jl`/`.md` (`_flat_split`); Lenticulum `gaussian.jl`/`.md`, `nonlinear.jl`/`.md`, `constraint.jl` (docstring); `test/forms_crossing.jl`; [[Feature Backlog]] (P21 done, P25 new), [[LP-038 Findings of the review of P21]], Problem Log. Verified: see below |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | fast-forwarded to `5eac9e5e`, with the P21 diff applied (before the switching testset); Mistral's probes in `scratch/p21/`. Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-p23-applied-stale-2026-11-16`, `-p20-…`, `-p22-…`, `-i21-…`, `-i20-…`, `-i19-…`, older |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -22,30 +22,30 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 
 ## Done last
 
-- **P23** (committed and pushed, `52dbe11d`): `Zygote.gradient` in `ps` of the cavity free energies of
-  `LinearConstraintFactor` and `SwitchingConstraintFactor` (EP sites), per node and through
-  `scalar_free_energy`, per edge and on plate blocks. Five blockers: in-place `_blockdiag` (now
-  `cat`), `inv(::Cholesky)` (now `LenticulumCore._spd_inv` with an rrule, symmetric part; also in
-  `Gaussian(μ, Σ)`), `push!` in `_reduced_relation` (tuples) and `switch_statistics`
-  (`_free_channels`, non-differentiable), and the SVD in `_complement` (non-differentiable; messages
-  are constants in `ps`). [[constraint]] "Zygote through the cavity free energy".
-- Verified: all eight suites pass (`~/.cache/lenticulum/p23/suite_*.log`); Lenticulum rerun after the
-  review fix: `suite_Lenticulum_2.log`. New `test/zygote_cavity.jl` (random factors and messages,
-  Zygote = ForwardDiff); the two P23 `@test_broken` in `plates.jl` are tests now. Not run:
-  `docs/make.jl`, device tests (no device code), Mooncake/Enzyme on the new rrule. `check_notes.py`:
-  no new hits.
-- Split off: **P24**, ForwardDiff and Zygote through a cluster node's free energy at fixed messages
-  (`Float64` arrays and mutation in `cluster.jl`/`cluster_batch.jl`); a design task,
-  `@test_broken` in `regime_plate.jl`.
-- Review: Mistral, one run, $1.28, six probes **executed** (the brief's exact command line worked).
-  One finding, an `inv(_chol(...))` my regex missed in `likelihood.jl`; replaced, its impact not
-  reproduced ([[LP-037 Findings of the review of P23]]). Archive `../Lenticulum.jl-Review-2026-11-16/p23/`.
-- Next: P21 or P24 (both design tasks), or another backlog item.
+- **P21** (committed and pushed, `a22157e1`): ForwardDiff through a relation factor's flat path when only η is dual (a
+  derivative by `b`, `c` or an observation). A flagged input of duals is split on its precision's
+  values (`_improper_split_dual` → `LenticulumCore._flat_split`, which `extended` now uses too); a
+  precision of zero-partial duals is accepted, one with nonzero partials throws an `ArgumentError`
+  (P25, `@test_broken`). `_jacobian` is generic in the element type (`NonlinearFactor` at a dual
+  expansion point). Found on the way: `norm` of duals whose value is exactly 0 is `NaN`, which made
+  the split's range check fail; it reads values now. [[gaussian]] "Dual inputs on the flat path".
+- Verified: `test/forms_crossing.jl` run alone after the last edit, all testsets pass (P21: 614 + 271 +
+  30 + 160 checks, one `@test_broken`), `~/.cache/lenticulum/p21/fc.out`. The eight suites
+  (`~/.cache/lenticulum/p21/suite_*.log`) all pass; they ran before the switching testset (test
+  only) and the note and docstring edits were added, so the Lenticulum suite has not run with the
+  final `forms_crossing.jl` as part of `Pkg.test` (the file alone has). `check_notes.py`: no new
+  hits. Not run: `docs/make.jl`, device tests (no device code).
+- Review: Mistral, $1.12, ran **no** probe (its julia commands were refused by the approval
+  callback, although the brief had the exact command line that worked on P23). Its seven probes
+  were run by hand: every failure was the probe's own error; the gaps it named passed in a repair
+  probe and two became tests ([[LP-038 Findings of the review of P21]]). Archive
+  `../Lenticulum.jl-Review-2026-11-16/p21/`.
+- Next: P24 (cluster nodes under ForwardDiff/Zygote, a design task) or
+  P25, or another backlog item.
 
 ## Open
 
-- **P21:** ForwardDiff through a relation factor's flat-input path, and `NonlinearFactor` at a dual
-  expansion point (`@test_broken` in Lenticulum `test/forms_crossing.jl`).
+- **P25:** ForwardDiff through the flat path when the flat directions move (a flat input whose precision is dual; backlog).
 - **P24:** ForwardDiff and Zygote through cluster-node free energies at fixed messages (backlog).
 - AlgebraicFactors, ImplicitLayers and Adversarial run in CI only weekly: a change to the core
   should run their suites locally too (that is how the AlgebraicFactors break was found).
