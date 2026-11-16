@@ -52,8 +52,11 @@ function _input_shape(c::ClusterFactor, msgs, skip)
         return bb isa GaussianBelief ? (:gauss, bb.Λ) : (:none,)
     end
 end
+# The stacked joint is built in `Float64`; parameters of another number type (dual numbers under
+# ForwardDiff, P24) go replica by replica, whose joint is generic.
+_plain(@nospecialize(ps)) = _numtype(ps) === Float64
 function _cluster_batchable(cs, msgs, skip, @nospecialize(ps))
-    length(cs) >= 2 || return false
+    length(cs) >= 2 && _plain(ps) || return false
     c1, k1 = cs[1], _input_shape(cs[1], msgs[1], skip)
     return all(i -> _same_cluster(cs[i], c1) && isequal(_input_shape(cs[i], msgs[i], skip), k1), 2:length(cs))
 end
@@ -169,7 +172,7 @@ _equal_columns(X) = all(i -> isequal(view(X, :, i), view(X, :, 1)), axes(X, 2))
 # blocks cannot vouch for go column by column, as the default for blocks does.
 function factor_messages(cs::AbstractVector{<:ClusterFactor}, target::Symbol, polarity, inputs::NamedTuple,
                          priors::AbstractVector, @nospecialize(ps), @nospecialize(st))
-    if !_block_batchable(cs, inputs, target)
+    if !(_plain(ps) && _block_batchable(cs, inputs, target))
         out, st = factor_messages(cs, target, polarity, [_column(inputs, i) for i in eachindex(cs)], priors, ps, st)
         return belief_block(out), st
     end
@@ -275,7 +278,7 @@ struct FrozenClusterBeliefs
 end
 
 function factor_beliefs(cs::AbstractVector{<:ClusterFactor}, msgs::NamedTuple, @nospecialize(ps), @nospecialize(st))
-    if _block_batchable(cs, msgs, nothing)          # the blocks read directly, without columns
+    if _plain(ps) && _block_batchable(cs, msgs, nothing)    # the blocks read directly, without columns
         jt, class, pts, nA = _batch_joint(cs, msgs, ps, nothing)
     else
         cols = [_column(msgs, i) for i in eachindex(cs)]

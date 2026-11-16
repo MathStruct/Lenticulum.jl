@@ -397,6 +397,49 @@ $a$ holding its class's precision, and the energy rows are kept in the graph (`f
 `fit_em` then takes 0.018 s and 0.132 s at $N = 300$ and 3000 (`~/.cache/lenticulum/i20/bench_c.txt`),
 the same iterates; in [[Benchmark against RxInfer]] 19 ms and 0.15 s against RxInfer's 125 ms and 3.4 s.
 
+## Derivatives at fixed messages (2026-11-16, Feature Backlog P24)
+
+At fixed incoming messages $\mu$ the cluster's free energy is
+
+$$
+F_c(\theta) = \mathbb E_{b_\theta}\Big[-\log \prod_f f_\theta\Big] - H(b_\theta) = \mathbb E_{b_\theta}[\log \mu] - \log Z_\theta,
+\qquad b_\theta = \frac{1}{Z_\theta} \prod_f f_\theta \, \mu ,
+$$
+
+so its derivative in the parameters needs $\partial b_\theta / \partial \theta$, not only the
+fixed-belief gradient that `free_energy_gradient` takes (LP-020). The two agree when the messages
+carry no information about the cluster's free variables (only points, as in the clustered mixture of
+factor analysers: $\log \mu$ is then constant under $b$ and the first term drops out), and differ
+otherwise (the P24 testset of Lenticulum `test/regime_plate.jl` checks that they differ, by more than
+$10^{-4}$, with Gaussian messages).
+
+- **ForwardDiff.** The joint (`_cluster_joint`, `_enumerate_assignments`, `_log_integrals`,
+  `_belief_parts`, `_continuous_parts`) is generic in its number type: `_ClusterJoint{T}` with `T`
+  the promotion of `Float64`, the forms' and the incoming messages' number types
+  (`_joint_numtype`). The Cholesky factorisations are LinearAlgebra's generic ones. The stacked
+  joint of a plate (`cluster_batch.jl`) stays in `Float64`: parameters of another number type
+  (`_plain(ps)` false) go replica by replica.
+- **Zygote.** The joint is built by enumeration with `push!` and in-place writes. Instead of
+  rewriting it without mutation, `_cluster_local_energy` (which `local_free_energy` of a
+  `ClusterFactor` and of a `RegimeFactor` call) has an rrule in `ext/MyceliumForwardDiffExt.jl`
+  (loaded with ChainRulesCore and ForwardDiff; Zygote loads both) whose pullback takes
+  `ForwardDiff.gradient` of the graded parts, weighted by the cotangent, over the flattened
+  parameter tree. A cluster node has few parameters, so the forward passes are cheap; on a plate,
+  P20's row rule already differentiates replica by replica, and each replica runs this rule. The
+  incoming messages get a `@not_implemented` tangent: inside AD they would come from cluster
+  messages, which Zygote cannot take either.
+- **Found on the way.** On a plate row Zygote then stopped at the state write-back:
+  `_writeback` records the empty state of a key that had none with a `push!`, whose reverse pass
+  Zygote refuses. A row's state is empty or tied and stateless, so no tangent flows through it:
+  `_group_writeback` is `@non_differentiable` (ChainRulesCore extension); the primal still writes
+  it (the state tree keeps the key, which callers read).
+- **Tests** (Lenticulum `test/regime_plate.jl`): five random regime factors with Gaussian messages
+  on both continuous channels and a categorical one on the switch, alone and clustered with a prior
+  (energy at the messages of one sweep): ForwardDiff against central differences of the value path
+  (1e-6), Zygote against ForwardDiff (1e-10), on the flattened vector and on the `NamedTuple` with
+  every graded part weighted; and the clustered mixture of factor analysers through
+  `scalar_free_energy` on the store with block rows (were `@test_broken`).
+
 ## What it does not do
 
 - **Factors outside the conditionally linear-Gaussian class.** A factor needs `cluster_form`
@@ -413,11 +456,10 @@ the same iterates; in [[Benchmark against RxInfer]] 19 ms and 0.15 s against RxI
   to a node outside, and edges that are not bidirectional, diagonal and attached. The cluster node
   itself is a belief-propagation node; differentiating through inference (`adjoint = :implicit`)
   is not tested with it.
-- **AD of the free energy at fixed messages.** `free_energy_gradient` works (it differentiates
-  the fixed-belief energy), but `ForwardDiff` and `Zygote` of `scalar_free_energy` in `ps`, which
-  differentiate the cluster's belief as well, do not: the joint is built in `Float64` arrays
-  (`Float64(::Dual)`) and by `push!` and in-place writes (Feature Backlog P24, `@test_broken` in
-  Lenticulum `test/regime_plate.jl`).
+- **AD where the joint has flat directions.** A joint precision with flat directions takes an
+  eigendecomposition, which has no rule for dual numbers: ForwardDiff (and so Zygote) of a cluster's
+  free energy there throws an `ArgumentError` (Feature Backlog P26, `@test_broken` in Lenticulum
+  `test/regime_plate.jl`). No tangent reaches the incoming messages under Zygote (below).
 - **Grouping rewires nothing.** `overlap_groups` chooses the groups; putting a partial sum per
   group into the graph, which is what makes the groups pay (below), is an edit of the graph. For
   switches feeding a Lenticulum linear factor, Lenticulum's `partial_sums` makes it

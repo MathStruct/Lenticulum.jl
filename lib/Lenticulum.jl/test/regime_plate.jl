@@ -122,17 +122,89 @@ end
             @test G.L ≈ ref.L atol = 1e-8
             @test G.logw ≈ ref.logw atol = 1e-8
         end
-        # P24: the cluster node's free energy at fixed messages is not differentiable in `ps`, by
-        # ForwardDiff (`Float64(::Dual)`: the joint is built in Float64 arrays) or by Zygote (it is
-        # built by `push!` and in-place writes), on blocks or per edge
+        # P24: the cluster node's free energy at fixed messages, differentiated in `ps` by ForwardDiff
+        # (the joint generic in its number type; the plate's batched path goes replica by replica)
+        # and by Zygote (an rrule running ForwardDiff), on the store with block rows, against
+        # central differences. The node sees only points here, so the belief's own dependence on
+        # `ps` drops out (an envelope argument) and this also equals the fixed-belief gradient; the
+        # testset "cluster node free energy at fixed messages" below has Gaussian messages.
         if seed == 1
-            Fθ(sx, θ) = first(scalar_free_energy(sx, gp, merge(ps, (mix = (pr = NamedTuple(), reg = LenticulumCore._unflatten(θ, p)),)), NamedTuple()))
-            se = MessageStore(copy(s.to_variable), copy(s.to_factor), s.iteration)
+            Fθ(θ) = first(scalar_free_energy(s, gp, merge(ps, (mix = (pr = NamedTuple(), reg = LenticulumCore._unflatten(θ, p)),)), NamedTuple()))
             θ0 = LenticulumCore._flatten(p)
-            @test_broken (try ForwardDiff.gradient(θ -> Fθ(se, θ), θ0) isa AbstractVector catch; false end)
-            @test_broken (try only(Zygote.gradient(θ -> Fθ(se, θ), θ0)) isa AbstractVector catch; false end)
+            gf = ForwardDiff.gradient(Fθ, θ0)
+            h = 1e-6
+            cd = [(Fθ(θ0 .+ h .* (eachindex(θ0) .== j)) - Fθ(θ0 .- h .* (eachindex(θ0) .== j))) / 2h for j in eachindex(θ0)]
+            @test gf ≈ cd atol = 1e-6
+            @test only(Zygote.gradient(Fθ, θ0)) ≈ gf atol = 1e-10
         end
     end
+end
+
+# P24: a cluster node's free energy at fixed messages, with the cluster's belief a function of
+# `ps`. Random regime factors (per-outcome coefficients, learned noise) with Gaussian messages on
+# both continuous channels and a categorical one on the switch, alone (a one-factor cluster) and
+# clustered with the prior of x in a graph where z has a Gaussian prior outside the cluster (the
+# node's energy at the messages of one sweep).
+# Oracles: central differences of the value path (itself checked against closed forms in
+# `regime.jl` and above); Zygote against ForwardDiff; and the fixed-belief gradient, which must
+# differ, as the belief's dependence on `ps` counts here.
+rp_cd(F, θ; h = 1e-6) = [(F(θ .+ h .* (eachindex(θ) .== j)) - F(θ .- h .* (eachindex(θ) .== j))) / 2h for j in eachindex(θ)]
+
+@testset "cluster node free energy at fixed messages: ForwardDiff and Zygote in ps (P24, random)" begin
+    for seed in 1:5
+        rng = Xoshiro(200 + seed)
+        dz, dx, K = rand(rng, 1:3), rand(rng, 1:2), rand(rng, 2:3)
+        f, p = rp_factor(rng, dz, dx, K)
+        Λz = (S = randn(rng, dz, dz); S * S' + I)
+        Λx = (S = randn(rng, dx, dx); S * S' + I)
+        lk = CategoricalBelief(Val(:log), (l = randn(rng, K); l .- log(sum(exp.(l)))), nothing)
+        msgs = (z = rp_gauss(rng, dz, Λz), x = rp_gauss(rng, dx, Λx), k = lk)
+        θ0 = LenticulumCore._flatten(p)
+        F(θ) = rp_total(first(local_free_energy(f, msgs, LenticulumCore._unflatten(θ, p), NamedTuple())))
+        gf = ForwardDiff.gradient(F, θ0)
+        @test gf ≈ rp_cd(F, θ0) atol = 1e-6
+        @test only(Zygote.gradient(F, θ0)) ≈ gf atol = 1e-10
+        b0 = factor_belief(f, msgs, p, NamedTuple())
+        Ffix(θ) = rp_total(first(belief_free_energy(f, b0, LenticulumCore._unflatten(θ, p), NamedTuple())))
+        @test maximum(abs, ForwardDiff.gradient(Ffix, θ0) .- gf) > 1e-4
+        # Zygote on the NamedTuple directly, every graded part weighted
+        gz = only(Zygote.gradient(q -> (E = first(local_free_energy(f, msgs, q, NamedTuple())); E[:fit] + 2E[:complexity] - E[:negentropy]), p))
+        Fw(θ) = (E = first(local_free_energy(f, msgs, LenticulumCore._unflatten(θ, p), NamedTuple())); E[:fit] + 2E[:complexity] - E[:negentropy])
+        @test LenticulumCore._flatten(gz) ≈ ForwardDiff.gradient(Fw, θ0) atol = 1e-10
+
+        # in a graph: z has a Gaussian prior outside the cluster node {prior of x, regime factor}
+        bld = GraphBuilder()
+        variable!(bld, :z, dz); variable!(bld, :x, dx); variable!(bld, :k, K)
+        factor!(bld, :pz, GaussianPrior(:z, randn(rng, dz), inv(Λz)))
+        factor!(bld, :pr, GaussianPrior(:x, zeros(dx), Matrix(1.0I, dx, dx)))
+        factor!(bld, :reg, RegimeFactor((z = dz, x = dx), K, dz; learn_noise = true))
+        connect!(bld, :pz, :z, :z); connect!(bld, :pr, :x, :x)
+        connect!(bld, :reg, :z, :z); connect!(bld, :reg, :x, :x); connect!(bld, :reg, :k, :k)
+        g = build(bld)
+        gc = cluster(g, :c, [:pr, :reg])
+        psc = cluster_parameters(gc, :c, (pz = NamedTuple(), pr = NamedTuple(), reg = p))
+        s = MessageStore(gc)
+        sweep!(s, gc, SequentialSchedule(all_tasks(gc)), psc, NamedTuple())
+        # the node's own energy at the store's messages (z's marginal is a Gaussian mixture, whose
+        # entropy the graph's free energy has no closed form for)
+        fid = gc.factor_index[:c]
+        cn = Mycelium.factornode(gc, fid).factor
+        min_ = Mycelium.messages_into(s, gc, fid)
+        @test min_.z isa GaussianBelief
+        Fg(θ) = rp_total(first(local_free_energy(cn, min_, merge(psc.c, (reg = LenticulumCore._unflatten(θ, p),)), NamedTuple())))
+        gg = ForwardDiff.gradient(Fg, θ0)
+        @test gg ≈ rp_cd(Fg, θ0) atol = 1e-6
+        @test only(Zygote.gradient(Fg, θ0)) ≈ gg atol = 1e-10
+    end
+    # a limit: a cluster whose joint precision has a flat direction (x without a prior) takes an
+    # eigendecomposition, which has no dual rule (Feature Backlog P26)
+    rng = Xoshiro(299)
+    f, p = rp_factor(rng, 2, 1, 2)
+    msgs = (z = rp_gauss(rng, 2, Matrix(1.0I, 2, 2)), x = nothing)
+    p1 = merge(p, (A = (z = p.A.z, x = zeros(2, 1, 2)),))     # x does not enter: flat
+    @test isfinite(rp_total(first(local_free_energy(f, msgs, p1, NamedTuple()))))
+    @test_broken (try ForwardDiff.gradient(θ -> rp_total(first(local_free_energy(f, msgs, LenticulumCore._unflatten(θ, p1), NamedTuple()))),
+                                           LenticulumCore._flatten(p1)) isa AbstractVector catch; false end)
 end
 
 # The benchmark's model (`bench/rxinfer_baseline.jl`): a mixture of regressions, one RegimeFactor

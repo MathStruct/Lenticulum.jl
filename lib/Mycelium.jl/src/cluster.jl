@@ -518,15 +518,17 @@ end
 # substituted, the assignments of the discrete variables, one h and one constant per assignment,
 # and the precision of each precision class (`J[class[a]]` for assignment a; one class unless a
 # factor's A or Q depends on its outcome).
-struct _ClusterJoint
+# The numbers are of one type `T`: `Float64`, or a dual number when the joint is built inside
+# ForwardDiff (P24).
+struct _ClusterJoint{T<:Real}
     free::Vector{Symbol}
     offset::Dict{Symbol,UnitRange{Int}}
-    points::Dict{Symbol,Vector{Float64}}
+    points::Dict{Symbol,Vector{T}}
     assignments::Vector{Vector{Int}}           # per assignment: the state of each discrete variable
-    J::Vector{Matrix{Float64}}                 # per precision class
+    J::Vector{Matrix{T}}                       # per precision class
     class::Vector{Int}                         # per assignment: its precision class
-    H::Matrix{Float64}                         # n × nA
-    c::Vector{Float64}                         # nA
+    H::Matrix{T}                               # n × nA
+    c::Vector{T}                               # nA
 end
 _members(jt, κ) = findall(==(κ), jt.class)
 
@@ -540,15 +542,15 @@ _cluster_input(b::LenticulumCore.MixtureBelief{<:GaussianBelief}) = ep_project(b
 # as soon as all its switch channels are assigned, and partial assignments of weight zero (a -Inf,
 # e.g. a `TableFactor` tying variables) are dropped there, so the impossible ones are never
 # enumerated in full.
-function _enumerate_assignments(c::ClusterFactor, forms, wirings, states, lps)
+function _enumerate_assignments(c::ClusterFactor, forms, wirings, states, lps, ::Type{T} = Float64) where {T}
     nd = length(c.discrete)
     chans(F) = F.switch === nothing ? () : (F.switch isa Symbol ? (F.switch,) : F.switch)
     pos = [[findfirst(==(w[ch]), c.discrete) for ch in chans(F)] for (F, w) in zip(forms, wirings)]
     done = [isempty(p) ? 0 : maximum(p) for p in pos]
     partial = [Int[]]
-    cst = [sum((F.logw[1] for (F, d) in zip(forms, done) if d == 0); init = 0.0)]
+    cst = T[sum((F.logw[1] for (F, d) in zip(forms, done) if d == 0); init = zero(T))]
     for j in 1:nd
-        np, nc = Vector{Vector{Int}}(), Float64[]
+        np, nc = Vector{Vector{Int}}(), T[]
         for (a, ca) in zip(partial, cst), (t, k) in enumerate(states[j])
             push!(np, [a; k]); push!(nc, ca + lps[j][t])
         end
@@ -565,11 +567,33 @@ function _enumerate_assignments(c::ClusterFactor, forms, wirings, states, lps)
     return partial, cst
 end
 
+# The number type of a joint: `Float64` promoted with that of the forms and of the incoming
+# messages (dual numbers under ForwardDiff, P24).
+_numtype(x::Number) = typeof(x)
+_numtype(x::AbstractArray{<:Number}) = eltype(x)
+_numtype(x::Union{NamedTuple,Tuple}) = promote_type(Float64, map(_numtype, values(x))...)
+_numtype(x) = Float64
+_numtype(F::ClusterForm) = promote_type(_numtype(F.A), eltype(F.C), eltype(F.Q), eltype(F.logw))
+_numtype(b::GaussianBelief) = promote_type(eltype(b.η), eltype(b.Λ))
+_numtype(b::LenticulumCore.CategoricalBelief) = eltype(b.logp)
+_numtype(b::LenticulumCore.DiracBelief) = _numtype(b.value)
+_numtype(b::LenticulumCore.MixtureBelief) = _numtype(_cluster_input(b))
+function _joint_numtype(c::ClusterFactor, forms, msgs, skip)
+    T = promote_type(Float64, map(_numtype, forms)...)
+    for v in c.boundary
+        b = _incoming(msgs, v, skip)
+        b === nothing || (T = promote_type(T, _numtype(b)))
+    end
+    return T
+end
+
 function _cluster_joint(c::ClusterFactor, msgs, @nospecialize(ps), skip)
-    points = Dict{Symbol,Vector{Float64}}()
+    forms = [cluster_form(f, _subtree(ps, c.keys[i])) for (i, f) in enumerate(c.factors)]
+    T = _joint_numtype(c, forms, msgs, skip)
+    points = Dict{Symbol,Vector{T}}()
     for v in c.continuous
         b = _incoming(msgs, v, skip)
-        b isa LenticulumCore.DiracBelief && (points[v] = collect(float.(b.value isa Real ? [b.value] : b.value)))
+        b isa LenticulumCore.DiracBelief && (points[v] = collect(T, b.value isa Real ? [b.value] : b.value))
     end
     free = [v for v in c.continuous if !haskey(points, v)]
     offset = Dict{Symbol,UnitRange{Int}}()
@@ -578,13 +602,13 @@ function _cluster_joint(c::ClusterFactor, msgs, @nospecialize(ps), skip)
         offset[v] = (n + 1):(n + c.dims[v]); n += c.dims[v]
     end
     # the discrete states allowed and their incoming log-probabilities
-    states, lps = Vector{Vector{Int}}(), Vector{Vector{Float64}}()
+    states, lps = Vector{Vector{Int}}(), Vector{Vector{T}}()
     for v in c.discrete
         K = c.dims[v]
         b = _incoming(msgs, v, skip)
         if b isa LenticulumCore.DiracBelief
             k = Int(only(b.value isa Real ? [b.value] : b.value))
-            push!(states, [k]); push!(lps, [0.0])
+            push!(states, [k]); push!(lps, [zero(T)])
         elseif b isa LenticulumCore.CategoricalBelief
             length(b.logp) == K || throw(DimensionMismatch("message to :$v has $(length(b.logp)) states, the variable $K"))
             _check_positional(b, K, "cluster")
@@ -592,17 +616,16 @@ function _cluster_joint(c::ClusterFactor, msgs, @nospecialize(ps), skip)
             isempty(ks) && throw(ArgumentError("cluster: the message to :$v gives every state zero probability"))
             push!(states, ks); push!(lps, b.logp[ks])
         else
-            push!(states, collect(1:K)); push!(lps, zeros(K))
+            push!(states, collect(1:K)); push!(lps, zeros(T, K))
         end
     end
-    forms = [cluster_form(f, _subtree(ps, c.keys[i])) for (i, f) in enumerate(c.factors)]
     wirings = [Dict(w) for w in c.wiring]
-    assignments, cst = _enumerate_assignments(c, forms, wirings, states, lps)
+    assignments, cst = _enumerate_assignments(c, forms, wirings, states, lps, T)
     nA = length(assignments)
     kcols = [_switch_columns(c, F, w, assignments) for (F, w) in zip(forms, wirings)]
     class, keys_ = _precision_classes(forms, kcols, nA)
-    J = zeros(n, n); H = zeros(n, nA)
-    Js = [zeros(n, n) for _ in keys_]
+    J = zeros(T, n, n); H = zeros(T, n, nA)
+    Js = [zeros(T, n, n) for _ in keys_]
     # incoming Gaussian messages on free boundary variables
     for v in free
         b = _cluster_input(_incoming(msgs, v, skip))
@@ -619,8 +642,8 @@ function _cluster_joint(c::ClusterFactor, msgs, @nospecialize(ps), skip)
         varies && (vf += 1)
         for k in (varies ? unique(kcol) : [0])
             idx = varies ? findall(==(k), kcol) : collect(1:nA)
-            G = zeros(m, n)
-            shift = zeros(m)
+            G = zeros(T, m, n)
+            shift = zeros(T, m)
             for (ch, Ach) in pairs(F.A)
                 v = w[ch]
                 Ak = _at(Ach, k)
@@ -690,6 +713,9 @@ function _psd_factor(J::AbstractMatrix)
     scale = maximum(abs, LinearAlgebra.diag(J); init = 0.0)
     C = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(J); check = false)
     LinearAlgebra.issuccess(C) && minimum(abs2, LinearAlgebra.diag(C.U); init = Inf) > _FLAT_RTOL * scale && return C
+    eltype(J) <: LinearAlgebra.BlasFloat || throw(ArgumentError(
+        "cluster: a joint precision with flat directions (or near-singular) under a derivative ($(eltype(J))): the diffuse " *
+        "limit takes an eigendecomposition, which has no rule for this number type (Feature Backlog P26)"))
     E = LinearAlgebra.eigen(LinearAlgebra.Symmetric(Matrix(J)))
     λmax = maximum(abs, E.values; init = 0.0)
     any(E.values .< -sqrt(eps()) * max(λmax, 1.0)) && throw(ArgumentError("cluster: an indefinite joint precision"))
@@ -729,8 +755,8 @@ _same_flatness(fs, what) = length(unique(_psd_rank.(fs))) <= 1 || throw(Argument
 # the diffuse limit if J_κ is singular. Factorisations are cached per class.
 function _log_integrals(jt::_ClusterJoint, what, chol = nothing)
     n = size(jt.H, 1)
-    n == 0 && return zeros(size(jt.H, 2))
-    out = zeros(size(jt.H, 2))
+    n == 0 && return zeros(eltype(jt.H), size(jt.H, 2))
+    out = zeros(eltype(jt.H), size(jt.H, 2))
     fs = [_cached(chol, (:CJ, κ), () -> _psd_factor(jt.J[κ])) for κ in eachindex(jt.J)]
     _same_flatness(fs, what)
     for κ in eachindex(jt.J)
@@ -795,8 +821,8 @@ function _continuous_parts(jt::_ClusterJoint, target::Symbol, chol)
     rs = setdiff(1:size(jt.H, 1), ot)
     d = length(ot)
     nA = size(jt.H, 2)
-    E = zeros(d, nA); l = copy(jt.c)
-    Λs = Matrix{Float64}[]; proper = Bool[]
+    E = zeros(eltype(jt.H), d, nA); l = copy(jt.c)
+    Λs = Matrix{eltype(jt.H)}[]; proper = Bool[]
     isempty(rs) || _same_flatness([_cached(chol, (:Cr, κ), () -> _psd_factor(jt.J[κ][rs, rs])) for κ in eachindex(jt.J)],
                                   "the continuous variables other than :$target")
     for κ in eachindex(jt.J)
@@ -864,7 +890,7 @@ the discrete assignments, the means of the free continuous variables per assignm
 `M`), their covariance per precision class (`Σ[class[a]]`) and its conditional entropy
 ``H(x \\mid a)`` (`H[class[a]]`), the substituted points, and the assignments.
 """
-struct FrozenClusterBelief{Q<:AbstractVector,M<:AbstractMatrix,S<:AbstractVector,H<:AbstractVector}
+struct FrozenClusterBelief{Q<:AbstractVector,M<:AbstractMatrix,S<:AbstractVector,H<:AbstractVector,P<:AbstractDict}
     q::Q
     M::M
     Σ::S
@@ -872,7 +898,7 @@ struct FrozenClusterBelief{Q<:AbstractVector,M<:AbstractMatrix,S<:AbstractVector
     class::Vector{Int}
     free::Vector{Symbol}
     offset::Dict{Symbol,UnitRange{Int}}
-    points::Dict{Symbol,Vector{Float64}}
+    points::P
     assignments::Vector{Vector{Int}}
 end
 
@@ -895,11 +921,12 @@ function _belief_parts(jt::_ClusterJoint, chol, nA::Int)
         all(==(-Inf), lr) && throw(ArgumentError("cluster: every assignment has zero probability"))
         q[:, r] .= exp.(lr .- _lse(lr))
     end
-    M = zeros(n, size(jt.H, 2))
-    Σs = Matrix{Float64}[]; Hs = Float64[]
+    T = eltype(jt.H)
+    M = zeros(T, n, size(jt.H, 2))
+    Σs = Matrix{T}[]; Hs = T[]
     for κ in eachindex(jt.J)
         if n == 0
-            push!(Σs, zeros(0, 0)); push!(Hs, 0.0)
+            push!(Σs, zeros(T, 0, 0)); push!(Hs, zero(T))
             continue
         end
         C = _cached(chol, (:CJ, κ), () -> _psd_factor(jt.J[κ]))
@@ -923,7 +950,11 @@ negentropy)`: `fit` is ``\\sum_f \\sum_a q_a \\tfrac12 \\mathbb E[r_f^\\top Q_{f
 one Gaussian. `belief_free_energy` re-evaluates the factors' terms at `ps` with the belief fixed
 (the parameter gradient, LP-020).
 """
-local_free_energy(c::ClusterFactor, msgs, ps, st) = belief_free_energy(c, factor_belief(c, msgs, ps, st), ps, st)
+local_free_energy(c::ClusterFactor, msgs, ps, st) = _cluster_local_energy(c, msgs, ps, st)
+# The energy at fixed messages, with the belief a function of `ps`: generic in the number type, so
+# ForwardDiff takes it directly; Zygote through an rrule that runs ForwardDiff on it, as the joint is
+# built by mutation (`MyceliumForwardDiffExt`, P24).
+_cluster_local_energy(c::ClusterFactor, msgs, ps, st) = belief_free_energy(c, factor_belief(c, msgs, ps, st), ps, st)
 
 # Which outcome column each assignment reads, the groups of assignments that read one outcome's
 # A and Q (one group if they do not depend on the outcome) with the belief's weight on each

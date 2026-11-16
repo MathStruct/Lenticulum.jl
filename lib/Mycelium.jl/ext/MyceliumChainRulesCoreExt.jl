@@ -19,6 +19,10 @@ ChainRulesCore.@non_differentiable Mycelium._check_tied_state(g, st)
 ChainRulesCore.@non_differentiable Mycelium._energy_rows(s, g)
 ChainRulesCore.@non_differentiable Mycelium._has_rows(s, g)
 ChainRulesCore.@non_differentiable Mycelium._mark!(mask, ids)     # bookkeeping of the row paths (P20)
+# A plate row's state write-back (P24): the primal writes it (with `push!` for a key without one, a
+# mutation Zygote's reverse pass refuses); no tangent flows through it, as a row's state is empty or
+# tied and stateless (`_group_trees`, `_check_tied_state`), as the row rule below assumes too.
+ChainRulesCore.@non_differentiable Mycelium._group_writeback(st, fn, keys, stf0, stf)
 # The variable rows' entropies read only the store's message blocks, never `ps`; a store built
 # inside AD from message vectors has no block rows (`blocks.md`), so no gradient is lost (P20).
 ChainRulesCore.@non_differentiable Mycelium._variable_terms_rows(s, g)
