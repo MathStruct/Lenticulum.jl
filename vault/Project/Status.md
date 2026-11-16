@@ -7,7 +7,7 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-16, after P4's AD half (the coupled replay through a `HardConstraintFactor` under ForwardDiff and Zygote), committed on `dev-danielb`; not pushed. P4 is done. The backlog got section G the same day (notes only).
+**Last updated:** 2026-11-16, after P4's AD half (the coupled replay through a `HardConstraintFactor` under ForwardDiff and Zygote), committed on `dev-danielb` and pushed (through `11d4e255`). P4 is done. The backlog got section G the same day (notes only).
 
 ## Branches and worktrees
 
