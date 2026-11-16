@@ -1,7 +1,7 @@
 name = "Mycelium"
 uuid = "0a724bc2-760c-4b8c-a26e-202a6d9695cb"
 authors = ["Daniel Boigk <dn.boigk@gmail.com>"]
-version = "0.0.1-dev"
+version = "0.0.2-dev"
 
 [deps]
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"

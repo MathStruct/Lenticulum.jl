@@ -1,7 +1,7 @@
 name = "AlgebraicFactors"
 uuid = "5937a757-1681-44a0-82a2-3722a0d5745f"
 authors = ["Daniel Boigk <dn.boigk@gmail.com>"]
-version = "0.0.1-dev"
+version = "0.0.2-dev"
 
 [deps]
 LenticulumCore = "1ac3b398-e9e9-400d-83fd-862c57ff485d"
