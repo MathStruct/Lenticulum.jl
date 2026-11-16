@@ -7,7 +7,7 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-16, after P4's AD half (the coupled replay through a `HardConstraintFactor` under ForwardDiff and Zygote), committed on `dev-danielb`; not pushed. P4 is done.
+**Last updated:** 2026-11-16, after P4's AD half (the coupled replay through a `HardConstraintFactor` under ForwardDiff and Zygote), committed on `dev-danielb`; not pushed. P4 is done. The backlog got section G the same day (notes only).
 
 ## Branches and worktrees
 
@@ -54,6 +54,9 @@ plates and in `MeanField()` nodes). Neither is designed yet; pick one with the m
   `cluster_marginal` of a flat class under ForwardDiff is untested.
 - P24's Zygote rule gives the incoming messages no tangent (`@not_implemented`); differentiating
   through inference with cluster nodes stays closed (their messages are built by mutation).
+- **Backlog section G** (decisions, control and games, G1–G10; 2026-11-16, from Daniel's question on
+  reinforcement learning and open games): rows only, from a reading of code and notes. Nothing is
+  designed or run; G5–G8 need P16. Priorities are proposals.
 - AlgebraicFactors, ImplicitLayers and Adversarial run in CI only weekly: a change to the core
   should run their suites locally too (that is how the AlgebraicFactors break was found).
 - Mistral review agent, refused commands: on P13 its six refusals all began with `cd … &&`, and its
@@ -65,16 +68,16 @@ plates and in `MeanField()` nodes). Neither is designed yet; pick one with the m
   one session) and wrote no answer. Briefs now ask for an answer file appended after every probe and
   a stop by turn 70 (`~/.claude/CLAUDE.md`, "Reviews that never answer"); `--model glm-5-3` (priced, new
   sessions only) was tried on I6: it wrote its answer probe by probe as asked, five probes, no
-  defect, then also stopped at 100 turns ($2.35) before its summary. On I19 (Mistral Large, $0) it wrote four
+  defect, then also stopped at 100 turns (\$2.35) before its summary. On I19 (Mistral Large, \$0) it wrote four
   probes but no answer file at all, and three of the probes had errors of their own (a misparsed
   tolerance, a parenthesis, a keyword read for a NamedTuple): run and repair its probes before
   believing a failure. On I20 it kept the answer file but was stopped by `--max-price 1` after 71
-  turns: `cost_usd` counts list prices even for the free Mistral Large (3.9 M input tokens, $1.01), so
+  turns: `cost_usd` counts list prices even for the free Mistral Large (3.9 M input tokens, \$1.01), so
   give a free-model review `--max-price 3` to reach its turn limit. On P20 (2026-11-16) both runs lost
   every command to a `cd … &&` prefix (not on the allowlist). On P23 the brief gave the exact
   command line to copy (`julia -t auto --project=<env> scratch/p23/probe1.jl > ….out 2>&1`) and it
   ran six probes; on P24 the command line without redirection and "never prefix `cd`": every probe
-  ran and it finished with an answer file ($0.41). Keep doing that. On P25 the commands ran but it
+  ran and it finished with an answer file (\$0.41). Keep doing that. On P25 the commands ran but it
   spent its 100 turns on 26 debug variants and wrote one entry: run its last probes yourself. On P4
   (AD) no answer file at all; its last probe (needing imports added) found the one defect. Its
   probes need the package's test environment (`--project=lib/<Pkg>/test`); say so in the brief.

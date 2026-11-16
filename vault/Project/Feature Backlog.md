@@ -12,7 +12,7 @@ specification), *partial*, *done*. Priority: **high** (it limits something measu
 **medium**, **low**.
 
 **Ids and dependencies.** Every open row has an id: P (the three paths), I (inference), O
-(out-of-core), S (structure), L (learning), U (utility factors), F (families), T (tooling). The
+(out-of-core), S (structure), L (learning), U (utility factors), G (decisions and games), F (families), T (tooling). The
 column *needs* names the rows that must be done first, because the row builds on them; a row that
 only goes better after another says so in its text, not there. Ids are stable: a row that is done
 moves to "Done" with its id, and a new row takes the next free number of its section. A row with
@@ -42,6 +42,14 @@ graph LR
   L7[L7 train!] --> L12[L12 learned optimisers]
   L9[L9 hypergradients] --> L12
   P15[P15 coverage and<br/>examples job] --> T2[T2 benchmark<br/>regression tracking]
+  G1[G1 reward and<br/>policy factors] --> G2[G2 posterior that<br/>keeps the dynamics]
+  L3[L3 stop gradient] --> G4[G4 Bellman residual<br/>as a loss]
+  P16[P16 owned<br/>scalarisations] --> G5[G5 payoff gradient<br/>through beliefs]
+  P16 --> G6[G6 joint update<br/>rules]
+  P16 --> G7[G7 graphs with owners:<br/>what F's readers do]
+  P16 --> G8[G8 entropy-regularised<br/>games]
+  G1 --> G10[G10 Markov games]
+  G9[G9 open games] --> G10
 ```
 
 F2 is *partial*; its present problems (circle, lemniscate, rings) suffice for P10, F3, F4 and L15.
@@ -159,6 +167,33 @@ written by hand, from `LinearConstraintFactor`s with selection matrices or from 
 | U3 | A normalising change of variables: an affine factor $z = (x - b) \oslash s$ (per coordinate or per group) with exact messages both ways and the log-Jacobian $\sum_i \log\lvert s_i\rvert$ in its free energy; fixed $b$, $s$ from the data (standardising data channels) or learned with data-dependent initialisation (Glow's ActNorm) | proposed | — | medium | Daniel, 2026-11-05 (batchnorm and group norm in deep-learning libraries) | conditioning: the flat-direction threshold, eigenvalue floors and EM are relative to scale. Without the log-Jacobian a learned scale collapses like LP-022 (squash $x$, raise the density of $z$). Test: a chain with and without it differs by exactly $\sum \log\lvert s_i\rvert$ (mind the deterministic factor's Bethe bookkeeping, as for the relay in LP-019) |
 | U4 | Shared plate statistics: a constructor for a plate whose replicas share mean and scale variables ($x_i \sim \mathcal N(\mu, \sigma^2)$), the probabilistic reading of batchnorm's batch statistics | proposed | — | low | Daniel, 2026-11-05 | expressible today (`lib/Lenticulum.jl/examples/hierarchical_models.jl`); the posterior over $\mu, \sigma$ replaces running averages at test time. Not batchnorm's forward pass, which couples every replica through a non-local factor and is no density |
 | U5 | Further utility factors: a deterministic map (a function as an exact relation, `FunctionFactor`), a permutation or reshape of a channel, a sum or average of several channels, a constant (clamp) factor with its own schedule | proposed | — | low | Gemini review §4 (a `FunctionFactor`), Daniel, 2026-11-05 | the common glue of a model, written by hand each time |
+
+## Decisions, control and games (asked for 2026-11-16)
+
+Daniel asked how far the library is from reinforcement learning "fully realized": compositional
+multiplayer open games, explicit best responses, Nash equilibria. The rows below are the answer as
+a list, from a reading of the code and of [[GANs as Two Factors]] §4–§5 and [[The Two-Part Diagram]]
+§3 and §6; nothing was run or designed for them. They come in three tiers. G1–G4 are one agent and
+one free energy (the cooperative row of [[The Two-Part Diagram]]): new factors and one message
+rule on the engine as it is. G5–G8 build on P16 (owned scalarisations): once a parameter block
+descends its own scalarisation there is no one $F$, and three things that rely on it change. G9
+and G10 are a layer beside the statistical game, in which the backward pass carries a best
+response; it would be a package of its own with its own solve entry, so that `infer!` and its
+promises stay as they are. Whether a `Polarity` (or F8) can carry ownership, and whether a cluster
+node can serve as the solver of a stage game, were not checked.
+
+| id | feature | status | needs | priority | source | why |
+|---|---|---|---|---|---|---|
+| G1 | Reward and policy factors for control as inference: a reward (optimality) factor $\exp(r(s, a)/\tau)$ on state and action, a policy factor, and a constructor that unrolls a horizon with tied dynamics. The backward message on a state is then the soft value function ([arXiv:1805.00909](https://arxiv.org/abs/1805.00909)). Oracles: LQR against the Riccati recursion on a linear-Gaussian chain ([[The Linear Gaussian Chain]]), a finite MDP against soft value iteration | proposed | — | low | Daniel, 2026-11-16; [[The Two-Part Diagram]] §3, §5 | expected to need no change to the engine, not tried: one agent and one free energy is what the Bethe machinery computes. Goes better after I9 (nested plates, stateful tied factors), which would make the horizon a plate |
+| G2 | A posterior that keeps the model's dynamics: in G1's graph only the policy is free in the variational family, the transition factors are held at the model's | proposed | G1 | low | Daniel, 2026-11-16 | with stochastic dynamics, plain inference given "optimal" also infers favourable transitions, so the agent plans as if it controlled the noise (risk-seeking); see [arXiv:1805.00909](https://arxiv.org/abs/1805.00909) on this. With deterministic dynamics the two agree |
+| G3 | A max-product message rule (an `AbstractMessageRule` beside `BeliefPropagation`, `MeanField`, `ExpectationPropagationRule`, `MixtureReduction`), for `TableFactor` first: the hard Bellman backup, and MAP assignments (Viterbi) in general. Oracle: value iteration and enumeration on small tables | proposed | — | low | Daniel, 2026-11-16; [[RQ-008 Overlays, Mixtures and Tropical Limits]] | no rule in `lib/` maximises: every message is a sum-product one (searched 2026-11-16). It is the $\tau \to 0$ limit of G1, and of G8 for games |
+| G4 | The Bellman residual as a loss for a learned value function: $Q(s, a) - r - \gamma \max_{a'} Q_{\text{target}}(s', a')$ with the target held fixed (a stop-gradient wire) and a target copy kept as factor state | proposed | L3 | low | Daniel, 2026-11-16 | temporal-difference learning descends a semi-gradient, which is not the gradient of any one objective; without L3 the graph differentiates the target too. Goes better after U1 (minibatches, for replay). Actor–critic beyond this is the general bilevel row of [[The Two-Part Diagram]] §6 and needs L9 or P16 |
+| G5 | The gradient of an owner's own scalarisation through the beliefs: with P16, a block's gradient is the total derivative of its payoff through the message fixed point (the graph adjoint or the coupled drivers), not the fixed-belief one | proposed | P16 | low | Daniel, 2026-11-16; `lib/MyceliumLearning.jl/src/gradient.jl` (the envelope gradient's docstring: the argument "is about the summed free energy") | the default gradient holds every belief fixed, which is right because beliefs and parameters descend the same $F$. A payoff that is not $F$ has a nonzero derivative through the beliefs; dropping it gives a wrong gradient silently |
+| G6 | Update rules for games that read the joint Jacobian of the players' gradient field: extragradient, optimistic steps, symplectic gradient adjustment; with P16's stability check as their diagnostic | proposed | P16 | low | [[GANs as Two Factors]] §4 "What simultaneous gradient play computes" | simultaneous gradient steps spiral outwards on the bilinear game for every step size (derived there). An `OptimiserFactor` is one node with one block's gradient; these rules couple blocks. Goes better after L7 (`train!`) |
+| G7 | What the readers of the one $F$ do on a graph with owners: `ConvergenceReport`, the tree exactness check (P13), `fit_em`, and the structure scores (BIC, S6) either refuse such a graph or report per player (own scalarisation, stationarity in the own block) | proposed | P16 | low | [[GANs as Two Factors]] §4 (last paragraph) | with owners there is no single number that decreases and "on a tree the free energy is $-\log Z$" has no counterpart; these functions would report it anyway |
+| G8 | Entropy-regularised games: ownership extended from parameter keys to decision variables, so that each owner's belief over its action minimises its own free energy (expected payoff minus its own entropy, at a temperature $\tau$). The fixed points are quantal-response equilibria. Oracle: the logit equilibrium of small matrix games by a direct fixed-point solve | proposed | P16 | low | Daniel, 2026-11-16 | the step from P16 that reuses the most: vector energies, beliefs and message updates stay, and only who answers to which component changes. Nash equilibria are its $\tau \to 0$ limit (G3). Whether the per-owner updates converge is the question of G6 again, for beliefs |
+| G9 | Open games as a type beside the statistical game, in a package of its own: a forward play (a Bayesian lens, reusing `BayesianLens` and `pushforward`), a backward coutility, a best-response relation on strategy profiles, sequential and parallel composition, and an equilibrium predicate ([arXiv:1603.04641](https://arxiv.org/abs/1603.04641); Bayesian: [arXiv:1910.03656](https://arxiv.org/abs/1910.03656)). Oracles: the pure and mixed equilibria of finite games by enumeration, and composition against the composite's equilibria on small games | proposed | — | low | Daniel, 2026-11-16; [[GANs as Two Factors]] §5–§6 | a best response is a relation on profiles, not a message, and an equilibrium is a fixed point of it, not a minimum of a functional; `lens.jl` and `statistical_game.jl` are built on `invert` with a prior, so this is a sibling, not a subtype. Computing equilibria is a solver question apart from checking them. G8 at small $\tau$ should agree with it where both apply |
+| G10 | Markov games: a backward sweep over G1's unrolled horizon in which each step solves a stage game (G9, or G8 at a temperature) and passes one value per player backwards. Oracle: Shapley's value iteration for zero-sum stage games | proposed | G1, G9 | low | Daniel, 2026-11-16 | Bellman's backup with an owner per action; the multiplayer case of G1 and G3 |
 
 ## Families
 
