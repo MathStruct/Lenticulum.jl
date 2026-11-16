@@ -7,13 +7,13 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-16, after P24 (ForwardDiff and Zygote through a cluster node's free energy at fixed messages), committed.
+**Last updated:** 2026-11-16, after P24 (ForwardDiff and Zygote through a cluster node's free energy at fixed messages), committed and pushed (`26eede51`); AGENTS.md now has agents commit at the end of each task (`5ce11bc6`).
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P24 committed on `c2284852`: Mycelium `Project.toml` (ForwardDiff weakdep, new extension), `ext/MyceliumForwardDiffExt.jl` (new), `ext/MyceliumChainRulesCoreExt.jl`, `src/cluster.jl`/`.md`, `src/cluster_batch.jl`; Lenticulum `src/regime.jl`, `test/regime_plate.jl`; [[Feature Backlog]], [[LP-040 Findings of the review of P24]], Problem Log, this note |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at `5ce11bc6` (pushed); P24 in `26eede51`: Mycelium `Project.toml` (ForwardDiff weakdep, new extension), `ext/MyceliumForwardDiffExt.jl` (new), `ext/MyceliumChainRulesCoreExt.jl`, `src/cluster.jl`/`.md`, `src/cluster_batch.jl`; Lenticulum `src/regime.jl`, `test/regime_plate.jl`; [[Feature Backlog]], [[LP-040 Findings of the review of P24]], Problem Log, this note |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | fast-forwarded to `c2284852`, with the P24 diff applied; Mistral's probes in `scratch/p24/`. Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-p13-applied-stale-2026-11-16`, `-p21-…`, `-p23-…`, `-p20-…`, `-p22-…`, `-i21-…`, `-i20-…`, `-i19-…`, older |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
@@ -22,7 +22,7 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 
 ## Done last
 
-- **P24** (committed): the cluster joint is generic in its number type (`_ClusterJoint{T}`), so
+- **P24** (committed and pushed, `26eede51`): the cluster joint is generic in its number type (`_ClusterJoint{T}`), so
   ForwardDiff takes a cluster node's free energy at fixed messages, the belief's dependence on `ps`
   included; the plate's stacked joint stays `Float64` and dual parameters go replica by replica
   (`_plain`). Zygote: an rrule on `_cluster_local_energy` (used by `ClusterFactor` and `RegimeFactor`)
