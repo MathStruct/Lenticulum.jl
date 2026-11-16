@@ -207,7 +207,7 @@
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Parked/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-11-16T09:06:36.456Z</lastmod>
+    <lastmod>2026-11-16T10:19:41.564Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Parked/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
@@ -279,7 +279,7 @@
     <lastmod>2026-11-10T18:39:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog</loc>
-    <lastmod>2026-11-16T08:40:38.000Z</lastmod>
+    <lastmod>2026-11-16T10:19:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-001-The-vault-build-uses-GNU-only-sed</loc>
     <lastmod>2026-10-24T23:08:41.000Z</lastmod>
@@ -389,8 +389,11 @@
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-036-Findings-of-the-review-of-I21</loc>
     <lastmod>2026-11-15T21:43:43.000Z</lastmod>
   </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-037-Findings-of-the-review-of-P23</loc>
+    <lastmod>2026-11-16T10:19:20.000Z</lastmod>
+  </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/Problem-Log</loc>
-    <lastmod>2026-11-15T21:43:43.000Z</lastmod>
+    <lastmod>2026-11-16T10:19:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Refactor-2026-11</loc>
     <lastmod>2026-11-12T18:04:25.000Z</lastmod>
@@ -432,7 +435,7 @@
     <lastmod>2026-11-04T23:01:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Status</loc>
-    <lastmod>2026-11-16T08:40:47.000Z</lastmod>
+    <lastmod>2026-11-16T10:19:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/README</loc>
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
@@ -621,7 +624,7 @@
     <lastmod>2026-11-10T10:53:33.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Lenticulum.jl/constraint</loc>
-    <lastmod>2026-11-10T10:53:33.000Z</lastmod>
+    <lastmod>2026-11-16T10:19:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Lenticulum.jl/exposure</loc>
     <lastmod>2026-11-10T10:53:33.000Z</lastmod>
@@ -648,7 +651,7 @@
     <lastmod>2026-11-12T22:29:30.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Lenticulum.jl/switching</loc>
-    <lastmod>2026-11-10T10:53:33.000Z</lastmod>
+    <lastmod>2026-11-16T10:19:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/LenticulumCore</loc>
     <lastmod>2026-10-27T10:34:02.000Z</lastmod>
@@ -666,7 +669,7 @@
     <lastmod>2026-11-11T17:53:19.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/gaussian_belief</loc>
-    <lastmod>2026-11-12T18:04:25.000Z</lastmod>
+    <lastmod>2026-11-16T10:19:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/interop</loc>
     <lastmod>2026-10-29T20:31:05.000Z</lastmod>
@@ -693,7 +696,7 @@
     <lastmod>2026-11-15T21:43:43.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/cluster</loc>
-    <lastmod>2026-11-15T21:43:43.000Z</lastmod>
+    <lastmod>2026-11-16T10:19:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/edits</loc>
     <lastmod>2026-11-03T18:02:07.000Z</lastmod>
@@ -705,7 +708,7 @@
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/free_energy</loc>
-    <lastmod>2026-11-16T08:40:38.000Z</lastmod>
+    <lastmod>2026-11-16T10:19:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/gaussian</loc>
     <lastmod>2026-11-12T18:04:25.000Z</lastmod>
