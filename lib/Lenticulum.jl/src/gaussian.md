@@ -398,12 +398,60 @@ extended one, as on a variable with two rank-deficient factors of which one is d
 (Mycelium's `gaussian.md`, "Extended Gaussians"; [[LP-028 Findings of the review of P1]]). The
 inference testset covers that case with two factors on $x$ (40 checks).
 
-**Known limit** (`@test_broken`): a dual flagged message entering a relation factor's flat-input
-path (`_flat_message`, `_linear_message` with flat inputs) throws a `MethodError`, since the split
-and the residual metric use an eigendecomposition and an SVD. With only $\eta$ dual the flat
-directions do not move and a derivative exists; it is a row of the [[Feature Backlog]] (P21). Also
-`@test_broken`, and older than P1: `NonlinearFactor`'s backward message at a dual expansion point
-throws in `_jacobian`, which writes into a `Float64` matrix.
+**Known limits found here**, both closed by P21 (next section): a dual flagged message entering a
+relation factor's flat-input path threw a `MethodError`, and so did `NonlinearFactor`'s backward
+message at a dual expansion point.
+
+## Dual inputs on the flat path (P21, 2026-11-16)
+
+A flagged input $(\eta, \Lambda)$ enters a relation factor's flat path (`_flat_message`,
+`_linear_message`) through `_split_moments`: the mean $\Lambda^+\eta$ and covariance $\Lambda^+$ on
+$\operatorname{range}\Lambda$, and an orthonormal basis $N$ of $\operatorname{null}\Lambda$. The
+value path builds it as an `ExtendedGaussian`, whose type holds floats only, so a dual $\eta$ threw.
+
+**Theory.** When $\Lambda$ does not depend on the parameter, neither do $N$ and $\Lambda^+$; the
+derivative of the split is $(\Lambda^+\dot\eta, 0, 0)$, and every later step of the flat path (the
+residual metric $T$, the projected rank) depends on $\Lambda$, the factor's coefficients and the
+inputs' covariances only. So with only $\eta$ dual the flat path is linear in the duals, and
+carrying them through $d = c - \sum_i A_i m_i$ gives the exact derivative. This is the case of a
+derivative by `b`, `c` or an observation (the precision $A^\top R^{-1} A$ of a backward message
+does not see them).
+
+**Implementation.** `_improper_split` sends an input with a dual element type to
+`_improper_split_dual`, which takes the split on $\Lambda$'s values (`stop_gradient`) through
+`LenticulumCore._flat_split`, the rule `extended` now also uses (one rule, one tolerance). It
+accepts $\Lambda$ of floats, or of duals whose partials are all zero (as when a whole parameter
+vector is made dual), and throws an `ArgumentError` otherwise. `_jacobian` (`nonlinear.jl`)
+allocates in the promoted element type and takes its step $h$ from the values, so at a dual
+expansion point the Jacobian's partials are central differences of the derivative of $f$; a given
+`jacobian` function is converted to the promoted type, not to `Float64`.
+
+**What it does not do.** A flat input whose $\Lambda$ carries a derivative (a dual coefficient
+upstream, as in a derivative by $A$) moves its flat directions; the derivative would need the
+derivative of an eigenbasis and then of every SVD of the flat path, and the split refuses it
+(`@test_broken`). A partial of $\eta$ along $\operatorname{null}\Lambda$ is dropped without an error
+(the mean is $\Lambda^+\eta$): such an input leaves $\operatorname{range}\Lambda$ at first order, and the
+value path would refuse it at every $t \ne 0$. The factors' own messages do not do this
+($\eta = A^\top R^{-1}(m - b)$ stays in $\operatorname{range} A^\top R^{-1} A$ for every $t$); a
+hand-built one can (seen in a probe of the review, not tested). Not tested: the `Unscented`
+method's own flat-input case.
+
+**Difficulty met.** The range check $\lVert N^\top\eta\rVert \le \sqrt{\epsilon}\,\lVert\eta\rVert$
+returned false on duals: a component of $N^\top\eta$ whose value is exactly $0$ but whose partial is
+not makes `LinearAlgebra.norm` return `NaN` (its scaling divides $0$ by $0$). The check is now on
+$\eta$'s values.
+
+**Tests** (`test/forms_crossing.jl`, the oracle is the value path at $t$ and $t \pm h$, read in
+canonical form): a flat source (a rank-deficient backward message, its `b` moving) into
+`GaussianFactor` forward and backward and into a three-channel `LinearConstraintFactor`, 90 random
+instances, half with $\Lambda$ of zero-partial duals, values to $10^{-7}$ and derivatives to
+$10^{-5}$, flat, proper and trivial outcomes all reached (614 checks); a flat input into `SwitchingConstraintFactor`, to its continuous channel (a mixture) and to its
+outcome, and two flat inputs into one `LinearConstraintFactor` (271 checks, added after the
+review, [[LP-038 Findings of the review of P21]]); `ForwardDiff.derivative` of
+a marginal mean through an inference whose flat message passes a relation factor, 15 instances
+(30); `NonlinearFactor` at a dual expansion point, `Linearization` and `Unscented`, finite-difference
+and given Jacobians, 40 instances (160). Run before the fix, the first two threw
+`MethodError` (`svd!` of duals) and the third `Float64(::Dual)` (the P1 `@test_broken` cases).
 
 ## Free energy with hard inputs (2026-11-11)
 

@@ -172,17 +172,29 @@ function extended(b::GaussianBelief)
     n = dimension(b)
     T = float(eltype(b.Λ))
     all(iszero, b.Λ) && return ExtendedGaussian(zeros(T, n), zeros(T, n, n), Matrix{T}(I, n, n))
-    E = eigen(_symmetric_part(b.Λ))
+    return ExtendedGaussian(_flat_split(b.η, b.Λ)...)
+end
+
+# The parts of an improper Gaussian (η, Λ) as an extended Gaussian: the mean Λ⁺η, the covariance
+# Λ⁺ and an orthonormal basis N of null(Λ), with the tolerances and refusals of `extended`. Λ must
+# be a matrix of floats (an eigendecomposition); η may be of any real type, and the mean then
+# carries it (ForwardDiff with only η dual, Lenticulum's `_improper_split`, P21).
+function _flat_split(η::AbstractVector, Λ::AbstractMatrix)
+    T = float(eltype(Λ))
+    E = eigen(_symmetric_part(Λ))
     tol = _eig_tol(E.values)
     minimum(E.values) < -tol && throw(ArgumentError(
         "a precision must be positive semidefinite; it has the eigenvalue $(minimum(E.values))"))
     keep = E.values .> tol
     V, N = E.vectors[:, keep], E.vectors[:, .!keep]
-    norm(N' * b.η) <= sqrt(eps(T)) * norm(b.η) || throw(ArgumentError(
+    # on η's values: `norm` of duals whose value is exactly zero is NaN (its scaling divides 0 by
+    # 0), which a component N'η that rounds to 0 reached (P21)
+    ηv = stop_gradient(η)
+    norm(N' * ηv) <= sqrt(eps(T)) * norm(ηv) || throw(ArgumentError(
         "an improper Gaussian has an information vector outside the range of its precision; it is \
          not a limit of Gaussians"))
     S = V * Diagonal(1 ./ E.values[keep]) * V'
-    return ExtendedGaussian(S * b.η, (S + S') / 2, N)
+    return (S * η, (S + S') / 2, N)
 end
 function extended(b::DiracBelief)
     v = b.value isa AbstractVector ? float.(b.value) : [float(b.value)]

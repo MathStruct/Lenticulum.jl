@@ -306,9 +306,12 @@ equation then still constrains the directions ``G`` cannot reach. The message is
 `TrivialBelief()` when nothing is left, as when ``G`` has full row rank, and an `ExtendedGaussian`
 whenever the (projected) ``A_t`` is rank-deficient (under ForwardDiff a declared-improper
 `GaussianBelief(η, Λ, true)` instead)
-(`constraint.md` §4.1). The flat case is not differentiable by ForwardDiff: the projection
-needs an SVD, which has no method for dual numbers, and it fails rather than give a derivative
-that ignores how the flat directions move.
+(`constraint.md` §4.1). Under ForwardDiff the flat case is differentiable when the flat
+directions do not move: when only ``c``, the inputs' information vectors or means are dual (a
+flagged input is then split on its precision's values, `gaussian.md`, "Dual inputs on the flat
+path"). When they move (dual coefficients of a flat channel, or a flat input whose precision is
+dual) the projection needs an SVD or an eigendecomposition of dual numbers, and it fails rather
+than give a derivative that ignores that motion.
 """
 Mycelium.factor_message(
     f::LinearConstraintFactor, target::Symbol, polarity, inputs, prior, ps, st

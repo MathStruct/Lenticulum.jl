@@ -56,6 +56,9 @@ $\mathcal N^{-1}(A^\top R^{-1}(m_y - b), A^\top R^{-1}A)$ with $R = Q + \Omega +
 
 - **No AD dependency.** The Jacobian is the user's `jacobian(x)` or central differences, as the
   diffusion package's fallback is; pass `x -> ForwardDiff.jacobian(f, x)` for an exact one.
+  Both are generic in the element type: at a dual expansion point (ForwardDiff) the Jacobian is a
+  matrix of duals, the finite-difference step taken from the values (P21; `gaussian.md`, "Dual
+  inputs on the flat path"; `test/forms_crossing.jl`).
 - **Written here, not borrowed.** ReactiveMP has these approximations, but importing it would
   make `Lenticulum` depend on RxInfer's engine for ~150 lines ([[Sharing Types with RxInfer]] §4).
 - **Not learnable.** `f` is fixed and `ps` is empty. A parametrised `f(x, θ)` with gradients is a

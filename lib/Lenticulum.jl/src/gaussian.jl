@@ -409,10 +409,26 @@ end
 # the input is flat, the limit of a prior that widens there. This is the input as an extended
 # Gaussian (`LenticulumCore.extended`, with its tolerances and refusals: Λ positive semidefinite
 # to rounding, η in range(Λ)); N is an orthonormal basis of its flat directions.
+#
+# Under ForwardDiff the precision of a flagged input often carries no derivative: a derivative by
+# `b`, `c` or an observation moves only η (`_likelihood_message`). The split then needs only Λ's
+# values, so it is taken on them and the duals pass through the mean Λ⁺η; null(Λ) and Λ⁺ do not
+# move (P21). A Λ whose partials are nonzero moves its flat directions, and the split refuses it:
+# its derivative would need the derivative of an eigenbasis through every SVD of the flat path.
 function _improper_split(b::GaussianBelief)
+    eltype(b.Λ) <: AbstractFloat && eltype(b.η) <: AbstractFloat || return _improper_split_dual(b)
     e = LenticulumCore.extended(b)
     size(e.D, 2) == 0 && return (belief_mean(GaussianBelief(b.η, b.Λ)), belief_cov(GaussianBelief(b.η, b.Λ)), nothing)
     return (e.μ, e.Σ, e.D)
+end
+function _improper_split_dual(b::GaussianBelief)
+    Λv = LenticulumCore.stop_gradient(b.Λ)
+    eltype(Λv) <: AbstractFloat && (Λv === b.Λ || all(iszero, b.Λ .- Λv)) || throw(ArgumentError(
+        "a flat input whose precision carries a derivative (its flat directions move) has no \
+         flat-path message under ForwardDiff; only a derivative that moves the information \
+         vector alone (by `b`, `c` or an observation) is supported (P21)"))
+    μ, Σ, N = LenticulumCore._flat_split(b.η, Λv)
+    return (μ, Σ, size(N, 2) == 0 ? nothing : N)
 end
 _vec(v::AbstractVector) = float.(v)
 _vec(v::Real) = [float(v)]

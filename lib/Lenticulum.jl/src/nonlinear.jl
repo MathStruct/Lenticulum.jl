@@ -139,11 +139,17 @@ LenticulumCore.pointwise_scalarisation(f::NonlinearFactor) =
 
 # --- The local linear model --------------------------------------------------------
 
+# Generic in the element type: at a dual expansion point (ForwardDiff) the Jacobian is a matrix of
+# duals, whose partials are the central differences of the derivative (P21). The step takes the
+# values only, so it does not carry a derivative of its own.
 function _jacobian(f::NonlinearFactor, x)
-    f.jacobian === nothing || return Matrix{Float64}(f.jacobian(x))
-    J = zeros(f.nout, f.nin)
+    if f.jacobian !== nothing
+        J = f.jacobian(x)
+        return Matrix{promote_type(Float64, eltype(x), eltype(J))}(J)
+    end
+    J = zeros(promote_type(Float64, eltype(x)), f.nout, f.nin)
     for i in 1:f.nin
-        h = 1e-6 * (1 + abs(x[i]))
+        h = 1e-6 * (1 + abs(LenticulumCore.stop_gradient(x[i])))
         e = zeros(f.nin); e[i] = h
         J[:, i] = (_vec(f.f(x .+ e)) .- _vec(f.f(x .- e))) ./ (2h)
     end

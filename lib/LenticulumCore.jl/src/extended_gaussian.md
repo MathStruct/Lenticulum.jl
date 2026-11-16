@@ -97,7 +97,11 @@ extended Gaussians is therefore always one, or a contradiction.
 - **First consumer.** `_improper_split` in Lenticulum's `gaussian.jl`, which splits a partly flat
   input for the constraint, switching, nonlinear and Gaussian factors, is now `extended(b)`. Its
   outputs are the same up to the basis of the flat directions, which the callers use only through
-  its span.
+  its span. The split itself is `_flat_split(η, Λ)`, which returns the parts without building the
+  type (whose element type is a float): Lenticulum's split of a flagged input with a dual $\eta$
+  and a precision of plain values calls it directly, and the mean carries the duals (P21). Its
+  range check reads $\eta$'s values (`stop_gradient`): `norm` of duals with value exactly zero is
+  `NaN`.
 
 ## Entropy (2026-11-11)
 

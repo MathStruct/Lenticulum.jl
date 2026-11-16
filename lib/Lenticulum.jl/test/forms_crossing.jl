@@ -10,8 +10,9 @@
 # 2. a flagged input and its extended form split by one rule (`_split_moments`);
 # 3. an inference through such edges is differentiable by ForwardDiff (derivative of a marginal
 #    mean against the closed form), also where a dual flagged and a plain extended message meet;
-# 4. the known limits: a dual flagged message entering a relation factor's flat path, and
-#    NonlinearFactor's backward message at a dual expansion point.
+# 4. (P21) a dual flagged message entering a relation factor's flat path, and NonlinearFactor's
+#    message at a dual expansion point, against central differences of the value path; the known
+#    limit left, a flat input whose precision carries a derivative.
 #
 # Run against the code before P1, the η-only cases of 1 and the testset of 3 fail:
 # `_likelihood_message` tested only Λ's element type and built the extended form of a dual η
@@ -164,40 +165,211 @@ end
     end
 end
 
-@testset "P1: known limit, a dual flagged message into a relation factor's flat path" begin
-    # η-only dual: the flat directions do not move, so a derivative exists, but the flat path
-    # computes the split and the residual metric by SVD and eigendecomposition, which have no
-    # methods for dual numbers (constraint.jl, `factor_message` docstring)
-    A = [1.0 1.0]
-    f = GaussianFactor(2 => 1; noise = fill(0.5, 1, 1))
-    msg, _ = Mycelium.factor_message(f, :x, nothing, (y = LenticulumCore.Gaussian([1.0], fill(1.0, 1, 1)),), nothing,
-        (A = A, b = [FormsCrossingLenticulum.dual(0.3)]), NamedTuple())
-    @test msg isa GaussianBelief && msg.improper
-    f2 = GaussianFactor(2 => 2; noise = Matrix(0.3I, 2, 2))
+# P21: a flagged input of dual numbers on a relation factor's flat path. With only η dual (a
+# derivative by `b`, `c` or an observation upstream) the flat directions do not move: the split
+# is taken on Λ's values and the duals pass through the mean. The oracle is the value path, where
+# the same input is an `ExtendedGaussian`: the dual message's values are its message at t = 0, and
+# its partials are central differences of it, read in canonical form.
+module FormsCrossingP21
+using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, Random, ForwardDiff, LuxCore
+using ..FormsCrossingLenticulum: spd, dual, val, der
+const LC = LenticulumCore
+
+# (η, Λ) of a message; `nothing` for "no message"
+canon(m::ExtendedGaussian) = (g = GaussianBelief(m); (g.η, g.Λ))
+canon(m::GaussianBelief) = (m.η, m.Λ)
+canon(::LC.TrivialBelief) = nothing
+
+dual0(x) = ForwardDiff.Dual{Nothing}(x, 0.0)
+
+# A flat message on a channel of dimension n as a function of t: GaussianFactor's backward
+# message through a rank-deficient A, its `b` moving with t (η-only under ForwardDiff).
+function flat_source(rng, n)
+    nout = rand(rng, 1:(n - 1))
+    A = randn(rng, nout, n)
+    b0, b1, y0, Sy = randn(rng, nout), randn(rng, nout), randn(rng, nout), spd(rng, nout)
+    f = GaussianFactor(n => nout; noise = spd(rng, nout))
+    return t -> first(Mycelium.factor_message(f, :x, nothing, (y = LC.Gaussian(y0, Sy),), nothing,
+        (A = A, b = b0 .+ t .* b1), NamedTuple()))
+end
+
+# The relation factors that take the flat input; each returns the message as a function of the input.
+function consumer(rng, kind, n)
+    if kind === :forward                  # GaussianFactor, x flat -> y
+        k = rand(rng, 1:4)
+        f = GaussianFactor(n => k; noise = spd(rng, k))
+        ps = (A = randn(rng, k, n), b = randn(rng, k))
+        return src -> first(Mycelium.factor_message(f, :y, nothing, (x = src,), nothing, ps, NamedTuple()))
+    elseif kind === :backward             # GaussianFactor, y flat -> x
+        k = rand(rng, 1:4)
+        f = GaussianFactor(k => n; noise = spd(rng, n))
+        ps = (A = randn(rng, n, k), b = randn(rng, n))
+        return src -> first(Mycelium.factor_message(f, :x, nothing, (y = src,), nothing, ps, NamedTuple()))
+    else                                  # LinearConstraintFactor, a flat and c proper -> b
+        nb, m = rand(rng, 1:3), rand(rng, 1:4)
+        f = LinearConstraintFactor((a = n, b = nb, c = 2), m; noise = spd(rng, m))
+        ps = (A = (a = randn(rng, m, n), b = randn(rng, m, nb), c = randn(rng, m, 2)), c = randn(rng, m))
+        μc, Sc = randn(rng, 2), spd(rng, 2)
+        return src -> first(Mycelium.factor_message(f, :b, nothing, (a = src, c = LC.Gaussian(μc, Sc)), nothing,
+            ps, NamedTuple()))
+    end
+end
+end # module
+
+@testset "P21: a dual flagged message on a relation factor's flat path" begin
+    P = FormsCrossingP21
+    FL = FormsCrossingLenticulum
+    rng = Xoshiro(2615)
+    h = 1e-4
+    counts = Dict{Tuple{Symbol,Symbol},Int}()
+    for kind in (:forward, :backward, :constraint), trial in 1:30
+        n = rand(rng, 2:4)
+        src = P.flat_source(rng, n)
+        msg = P.consumer(rng, kind, n)
+        s0 = src(FL.dual(0.0))
+        @test s0 isa GaussianBelief && s0.improper && eltype(s0.Λ) <: AbstractFloat
+        # also with Λ of dual type and zero partials, as when a whole parameter vector is dual
+        if isodd(trial)
+            s0 = GaussianBelief(s0.η, P.dual0.(s0.Λ), true)
+        end
+        d = msg(s0)
+        v, vp, vm = P.canon(msg(src(0.0))), P.canon(msg(src(h))), P.canon(msg(src(-h)))
+        @test (P.canon(d) === nothing) == (v === nothing)
+        v === nothing && (counts[(kind, :trivial)] = get(counts, (kind, :trivial), 0) + 1; continue)
+        η, Λ = P.canon(d)
+        @test FL.val(η) ≈ v[1] atol = 1e-7 rtol = 1e-7
+        @test FL.val(Λ) ≈ v[2] atol = 1e-7 rtol = 1e-7
+        @test FL.der(η) ≈ (vp[1] .- vm[1]) ./ 2h atol = 1e-5 rtol = 1e-5
+        @test FL.der(Λ) ≈ (vp[2] .- vm[2]) ./ 2h atol = 1e-5 rtol = 1e-5
+        @test all(iszero, FL.der(Λ))          # the flat input's precision does not move
+        @test norm(FL.der(η)) > 0
+        key = (kind, d isa GaussianBelief && d.improper ? :flat : :proper)
+        counts[key] = get(counts, key, 0) + 1
+    end
+    # the outcomes each consumer reaches here: the forward message is flat along A N (trivial
+    # when A N spans y); the backward and the constraint message are flat or proper, the
+    # constraint one trivial when the flat input's G spans the equations
+    @test all(get(counts, ks, 0) > 0 for ks in ((:forward, :flat), (:forward, :trivial), (:backward, :flat),
+        (:backward, :proper), (:constraint, :flat), (:constraint, :proper), (:constraint, :trivial)))
+    @test sum(values(counts)) == 90
+end
+
+@testset "P21: the switching factor and two flat inputs" begin
+    # SwitchingConstraintFactor with a flat x, to the continuous channel z (a mixture) and to the
+    # outcome k; a LinearConstraintFactor with two flat inputs, each with up to three flat
+    # directions. Values and central differences of the value path, as above, over every number
+    # a message carries (log-weights relative to the first, then each component's η and Λ)
+    P = FormsCrossingP21
+    FL = FormsCrossingLenticulum
+    flat(m::ExtendedGaussian) = (g = GaussianBelief(m); vcat(g.η, vec(g.Λ)))
+    flat(m::GaussianBelief) = vcat(m.η, vec(m.Λ))
+    flat(::TrivialBelief) = Float64[]
+    flat(m::LenticulumCore.CategoricalBelief) = m.logp .- m.logp[1]
+    flat(m::LenticulumCore.MixtureBelief) = vcat(m.logw .- m.logw[1], (flat(c) for c in m.components)...)
+    h = 1e-4
+    seen = Dict{Symbol,Int}()
+    function check(msg)
+        d, v = msg(FL.dual(0.0)), msg(0.0)
+        @test typeof(d).name.wrapper == typeof(v).name.wrapper ||
+              (d isa GaussianBelief && v isa ExtendedGaussian)
+        fd, fv = flat(d), flat(v)
+        @test FL.val(fd) ≈ fv atol = 1e-7 rtol = 1e-7
+        @test FL.der(fd) ≈ (flat(msg(h)) .- flat(msg(-h))) ./ 2h atol = 1e-5 rtol = 1e-5
+        k = Symbol(nameof(typeof(v)))
+        seen[k] = get(seen, k, 0) + 1
+    end
+    rng = Xoshiro(2619)
+    for trial in 1:30
+        n = rand(rng, 2:4); src = P.flat_source(rng, n)
+        nz, K, m = rand(rng, 1:3), rand(rng, 2:3), rand(rng, 1:4)
+        f = SwitchingConstraintFactor((x = n, z = nz), K, m; noise = FL.spd(rng, m))
+        ps = (A = (x = randn(rng, m, n), z = randn(rng, m, nz)), b = randn(rng, m, K), logw = randn(rng, K))
+        kmsg = LenticulumCore.CategoricalBelief(rand(rng, K) .+ 0.1)
+        zmsg = LenticulumCore.Gaussian(randn(rng, nz), FL.spd(rng, nz))
+        check(t -> first(Mycelium.factor_message(f, :z, nothing, (x = src(t), k = kmsg), nothing, ps, NamedTuple())))
+        check(t -> first(Mycelium.factor_message(f, :k, nothing, (x = src(t), z = zmsg), nothing, ps, NamedTuple())))
+    end
+    for trial in 1:30
+        na, nb, nc, m = rand(rng, 2:4), rand(rng, 2:4), rand(rng, 1:3), rand(rng, 1:5)
+        sa, sb = P.flat_source(rng, na), P.flat_source(rng, nb)
+        f = LinearConstraintFactor((a = na, b = nb, c = nc), m; noise = FL.spd(rng, m))
+        ps = (A = (a = randn(rng, m, na), b = randn(rng, m, nb), c = randn(rng, m, nc)), c = randn(rng, m))
+        check(t -> first(Mycelium.factor_message(f, :c, nothing, (a = sa(t), b = sb(t)), nothing, ps, NamedTuple())))
+    end
+    # mixtures, outcomes, and flat, proper and trivial messages all reached
+    @test all(get(seen, k, 0) > 0 for k in (:MixtureBelief, :CategoricalBelief, :ExtendedGaussian, :GaussianBelief, :TrivialBelief))
+end
+
+@testset "P21: ForwardDiff through an inference whose flat message enters a relation factor" begin
+    FL = FormsCrossingLenticulum
+    rng = Xoshiro(2616)
+    h = 1e-4
+    for trial in 1:15
+        # u ~ N(μu, Σu) observed softly;  u = A₁x + b₁ + ε₁ with rank(A₁) < dim x;  x has no prior;
+        # z = A₂x + b₂ + ε₂;  z ~ N(μz, Σz). The message g₁ -> x is flat, x passes it to g₂
+        # (the flat path), and z's marginal mean is differentiated by b₁.
+        n = rand(rng, 2:3); k = rand(rng, 1:(n - 1)); p = rand(rng, 1:3)
+        gb = GraphBuilder()
+        variable!(gb, :x, n); variable!(gb, :u, k); variable!(gb, :z, p)
+        factor!(gb, :pu, GaussianPrior(:x, randn(rng, k), FL.spd(rng, k))); connect!(gb, :pu, :x, :u)
+        factor!(gb, :pz, GaussianPrior(:x, randn(rng, p), FL.spd(rng, p))); connect!(gb, :pz, :x, :z)
+        factor!(gb, :g1, GaussianFactor(n => k; noise = FL.spd(rng, k))); connect!(gb, :g1, :x, :x); connect!(gb, :g1, :y, :u)
+        factor!(gb, :g2, GaussianFactor(n => p; noise = FL.spd(rng, p))); connect!(gb, :g2, :x, :x); connect!(gb, :g2, :y, :z)
+        g = validate(build(gb))
+        ps0 = LuxCore.initialparameters(Xoshiro(trial), g); st = LuxCore.initialstates(Xoshiro(trial), g)
+        A1, b1, d1, A2, b2 = randn(rng, k, n), randn(rng, k), randn(rng, k), randn(rng, p, n), randn(rng, p)
+        function mean_z(t)
+            ps = merge(ps0, (g1 = merge(ps0.g1, (A = A1, b = b1 .+ t .* d1)), g2 = merge(ps0.g2, (A = A2, b = b2))))
+            marg, rep, _ = infer!(g, tree_schedule(g), ps, st)
+            rep.converged || error("not converged")
+            return LenticulumCore.belief_mean(marg[:z])
+        end
+        @test FL.val(mean_z(FL.dual(0.0))) ≈ mean_z(0.0) atol = 1e-8 rtol = 1e-8
+        @test ForwardDiff.derivative(mean_z, 0.0) ≈ (mean_z(h) .- mean_z(-h)) ./ 2h atol = 1e-6 rtol = 1e-6
+    end
+end
+
+@testset "P21: known limit, a flat input whose precision moves" begin
+    # A dual coefficient upstream makes the flagged message's Λ dual with nonzero partials: its
+    # flat directions move, and the split refuses rather than return a derivative that ignores it
+    FL = FormsCrossingLenticulum
+    rng = Xoshiro(2617)
+    msg = FL.gaussian_case(rng, true)(FL.dual(0.0))
+    @test msg isa GaussianBelief && msg.improper && !all(iszero, FL.der(msg.Λ))
+    n = size(msg.Λ, 1)
+    f2 = GaussianFactor(n => 2; noise = Matrix(0.3I, 2, 2))
     ok = try
-        Mycelium.factor_message(f2, :y, nothing, (x = msg,), nothing, (A = [1.0 0.5; 0 1], b = zeros(2)), NamedTuple())
+        Mycelium.factor_message(f2, :y, nothing, (x = msg,), nothing, (A = randn(rng, 2, n), b = zeros(2)), NamedTuple())
         true
     catch err
-        err isa MethodError || rethrow()
+        err isa ArgumentError || rethrow()
         false
     end
     @test_broken ok
 end
 
-@testset "P1: known limit, NonlinearFactor's backward message at a dual expansion point" begin
-    # `_jacobian` writes the finite-difference Jacobian into a `Float64` matrix, so a dual
-    # expansion point throws `MethodError: no method matching Float64(::Dual)` before the message
-    # is formed (pre-existing; found by Mistral's review of P1, vault LP-028, finding 3)
-    W = [1.0 2.0]
-    f = NonlinearFactor(x -> tanh.(W * x), 2 => 1; noise = fill(0.3, 1, 1))
-    xd = FormsCrossingLenticulum.dual.([0.1, -0.2])
-    ok = try
-        Mycelium.factor_message(f, :x, nothing, (y = LenticulumCore.Gaussian([0.5], fill(1.0, 1, 1)),),
-            LenticulumCore.Gaussian(xd, [1.0 0; 0 1]), NamedTuple(), NamedTuple())
-        true
-    catch err
-        err isa MethodError || rethrow()
-        false
+@testset "P21: NonlinearFactor's message at a dual expansion point" begin
+    # The linear model at x̄ + t x̄₁: the finite-difference Jacobian of duals (or a given Jacobian
+    # function) against central differences of the value path, both methods
+    FL = FormsCrossingLenticulum
+    P = FormsCrossingP21
+    rng = Xoshiro(2618)
+    h = 1e-4
+    for method in (Linearization(), Unscented()), given in (false, true), trial in 1:10
+        nin = rand(rng, 2:3); nout = rand(rng, 1:3)
+        W = randn(rng, nout, nin)
+        jac = given ? (x -> (1 .- tanh.(W * x) .^ 2) .* W) : nothing
+        f = NonlinearFactor(x -> tanh.(W * x), nin => nout; noise = FL.spd(rng, nout), method, jacobian = jac)
+        x̄, x̄1, Px = randn(rng, nin), randn(rng, nin), FL.spd(rng, nin)
+        y0, Sy = randn(rng, nout), FL.spd(rng, nout)
+        msg(t) = first(Mycelium.factor_message(f, :x, nothing, (y = LenticulumCore.Gaussian(y0, Sy),), LenticulumCore.Gaussian(x̄ .+ t .* x̄1, Px),
+            NamedTuple(), NamedTuple()))
+        d = msg(FL.dual(0.0))
+        v, vp, vm = P.canon(msg(0.0)), P.canon(msg(h)), P.canon(msg(-h))
+        η, Λ = P.canon(d)
+        @test FL.val(η) ≈ v[1] atol = 1e-7 rtol = 1e-7
+        @test FL.val(Λ) ≈ v[2] atol = 1e-7 rtol = 1e-7
+        @test FL.der(η) ≈ (vp[1] .- vm[1]) ./ 2h atol = 1e-5 rtol = 1e-5
+        @test FL.der(Λ) ≈ (vp[2] .- vm[2]) ./ 2h atol = 1e-5 rtol = 1e-5
     end
-    @test_broken ok
 end
