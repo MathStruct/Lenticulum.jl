@@ -7,13 +7,13 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-16, after P20 (Zygote through the free energy on plate block rows), not committed.
+**Last updated:** 2026-11-16, after P20 (Zygote through the free energy on plate block rows), committed and pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at `f748da5f` with P20 uncommitted: `lib/Mycelium.jl/src/free_energy.jl`, `free_energy.md`, `passing.md`, `ext/MyceliumChainRulesCoreExt.jl`, Lenticulum `test/plates.jl`, [[Feature Backlog]]. Verified: see below |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at the P20 commit `a8e0b98a` (pushed): `lib/Mycelium.jl/src/free_energy.jl`, `free_energy.md`, `passing.md`, `ext/MyceliumChainRulesCoreExt.jl`, Lenticulum `test/plates.jl`, [[Feature Backlog]]. Verified: see below |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `f748da5f` with the P20 diff applied; Mistral's (unparsable) probes in `scratch/p20/`. Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-p22-applied-stale-2026-11-16`, `mistral-wt-i21-…`, `-i20-…`, `-i19-…` of 2026-11-15, `mistral-wt-ridge-applied-stale-2026-11-13` and older |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
@@ -22,7 +22,7 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 
 ## Done last
 
-- **P20** (not committed): `Zygote.gradient` of `scalar_free_energy` on a store with block rows.
+- **P20** (committed and pushed, `a8e0b98a`): `Zygote.gradient` of `scalar_free_energy` on a store with block rows.
   Four blockers, not one: `_row_scalar`'s `sum(...; init)`, the covered-node masks (`_mark!`,
   `@non_differentiable`), the variable rows' term (`@non_differentiable`, reads only blocks), and
   the factors' batched code (an `rrule` on `_row_scalar_energy` that differentiates the same row
@@ -41,7 +41,7 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
   which the review agent's allowlist refuses; the second, told so, still never ran `julia`, and its
   three probes do not parse. Static reading: no defect. Archive `../Lenticulum.jl-Review-2026-11-16/p20/`.
   No problem note (no findings).
-- Next: commit P20 (when asked); then P21 (a design task), P23, or another backlog item.
+- Next: P21 (a design task), P23, or another backlog item.
 
 ## Open
 
