@@ -6,6 +6,22 @@ ChainRulesCore.@non_differentiable LenticulumCore.offset_tree(ps)
 ChainRulesCore.@non_differentiable LenticulumCore._flatlen(ps)
 ChainRulesCore.@non_differentiable LenticulumCore._nearly_symmetric(M)
 ChainRulesCore.@non_differentiable LenticulumCore.isproper(b)
+# A basis of the complement of an extended Gaussian's hard directions: held fixed (P23). Exact while
+# the hard subspace does not move, as for messages, the constants of a free energy in `ps`; the SVD
+# with `full = true` has no Zygote rule, and a basis of a subspace has no unique derivative.
+ChainRulesCore.@non_differentiable LenticulumCore._complement(B)
+# d(M⁻¹) = -M⁻¹ dM M⁻¹ (P23: `inv(::Cholesky)` has no Zygote rule). `_chol` factors (M + Mᵀ)/2, so
+# only the symmetric part of the tangent reaches the result.
+function ChainRulesCore.rrule(::typeof(LenticulumCore._spd_inv), M, name)
+    P = LenticulumCore._spd_inv(M, name)
+    function spd_inv_pullback(dP)
+        D = unthunk(dP)
+        D isa AbstractZero && return NoTangent(), ZeroTangent(), NoTangent()
+        G = -(P' * D * P')
+        return NoTangent(), (G + G') / 2, NoTangent()
+    end
+    return P, spd_inv_pullback
+end
 function ChainRulesCore.rrule(::typeof(LenticulumCore._normalised_logweights), weights)
     y = LenticulumCore._normalised_logweights(weights)
     function back(dy)

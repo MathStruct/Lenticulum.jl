@@ -122,6 +122,16 @@ end
             @test G.L ≈ ref.L atol = 1e-8
             @test G.logw ≈ ref.logw atol = 1e-8
         end
+        # P24: the cluster node's free energy at fixed messages is not differentiable in `ps`, by
+        # ForwardDiff (`Float64(::Dual)`: the joint is built in Float64 arrays) or by Zygote (it is
+        # built by `push!` and in-place writes), on blocks or per edge
+        if seed == 1
+            Fθ(sx, θ) = first(scalar_free_energy(sx, gp, merge(ps, (mix = (pr = NamedTuple(), reg = LenticulumCore._unflatten(θ, p)),)), NamedTuple()))
+            se = MessageStore(copy(s.to_variable), copy(s.to_factor), s.iteration)
+            θ0 = LenticulumCore._flatten(p)
+            @test_broken (try ForwardDiff.gradient(θ -> Fθ(se, θ), θ0) isa AbstractVector catch; false end)
+            @test_broken (try only(Zygote.gradient(θ -> Fθ(se, θ), θ0)) isa AbstractVector catch; false end)
+        end
     end
 end
 

@@ -151,7 +151,7 @@ function Mycelium.local_free_energy(f::HardConstraintFactor{names}, msgs, ps, st
         isposdef(Symmetric(f.Q)) || throw(ArgumentError(
             "HardConstraintFactor: the free energy with a singular nonzero noise is not implemented"))
         r̄, Cr, H = _reduced_residual_statistics(G, c, canon, f.Q)
-        Qi = inv(_chol(f.Q, "Q"))
+        Qi = _spd_inv(f.Q, "Q")
         fit = (r̄' * (Qi * r̄) + tr(Qi * Cr)) / 2
         complexity = logdet(_chol(2π .* f.Q, "2πQ")) / 2
         return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -H)), st

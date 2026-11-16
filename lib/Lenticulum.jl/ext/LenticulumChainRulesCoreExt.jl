@@ -10,16 +10,7 @@ ChainRulesCore.@non_differentiable LT._switch_product_belief(f, marginals)
 # rank tests: structure, not values
 ChainRulesCore.@non_differentiable LT._rank_deficient(A)
 ChainRulesCore.@non_differentiable LT._partly_flat(b)
-
-function ChainRulesCore.rrule(::typeof(LT._prior_precision), Σ)
-    P = LT._prior_precision(Σ)
-    function back(dP)
-        D = unthunk(dP)
-        D isa AbstractZero && return NoTangent(), ZeroTangent()
-        return NoTangent(), -(P' * D * P')
-    end
-    return P, back
-end
+ChainRulesCore.@non_differentiable LT._free_channels(names, msgs)
 
 function ChainRulesCore.rrule(::typeof(LT._clip_precision), P, cap)
     E = eigen(Symmetric(P))

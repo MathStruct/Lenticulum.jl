@@ -58,7 +58,7 @@ A Gaussian from its **moments**. Converts to canonical form immediately; `Σ` mu
 definite.
 """
 function Gaussian(μ::AbstractVector, Σ::AbstractMatrix)
-    Λ = inv(_chol(Σ, "Σ"))
+    Λ = _spd_inv(Σ, "Σ")
     return GaussianBelief(Λ * μ, Λ)
 end
 Gaussian(μ::Real, σ²::Real) = Gaussian([float(μ)], fill(float(σ²), 1, 1))
@@ -127,6 +127,11 @@ function _chol(M, name)
         throw(ArgumentError("$name is not positive definite: $(M)"))
     end
 end
+
+# The inverse of a symmetric positive definite matrix through its Cholesky factor, with `_chol`'s
+# errors. It has an rrule (`LenticulumCoreChainRulesCoreExt`): Zygote has no rule for
+# `inv(::Cholesky)` (P23).
+_spd_inv(M, name) = inv(_chol(M, name))
 
 """
     isproper(b::GaussianBelief) -> Bool

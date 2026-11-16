@@ -159,3 +159,14 @@ Tested in `test/i18.jl`: the loop against the generic method on 6 000 generated 
 NaN, ±Inf, signed zeros, subnormals and near-threshold asymmetry; the broadcast bit for bit;
 `_mean_cov` for equality, its errors, and its Zygote and ForwardDiff gradients against the
 two functions. The effect on a sweep is in Mycelium's `passing.md`, "After I18".
+
+## `_spd_inv` (P23, 2026-11-16)
+
+`_spd_inv(M, name)` is `inv(_chol(M, name))`, with `_chol`'s checks and messages, and an rrule in
+`LenticulumCoreChainRulesCoreExt`: Zygote has no rule for `inv(::Cholesky)`. The pullback is the
+symmetric part of $-P^\top \bar P P^\top$ ($P = M^{-1}$), since `_chol` factors $(M + M^\top)/2$:
+only the symmetric part of a tangent of $M$ reaches the result. `Gaussian(μ, Σ)` uses it, and
+Lenticulum uses it wherever it inverted a Cholesky factor. The same extension marks `_complement`
+(a basis of the complement of an extended Gaussian's hard directions) non-differentiable.
+Test: Lenticulum `test/zygote_cavity.jl`, against ForwardDiff with a non-symmetric cotangent.
+

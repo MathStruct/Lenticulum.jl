@@ -1316,6 +1316,7 @@ include("structure_edits.jl")
 include("mean_field_free_energy.jl")
 
 include("plates.jl")
+include("zygote_cavity.jl")
 
 include("lp020.jl")
 

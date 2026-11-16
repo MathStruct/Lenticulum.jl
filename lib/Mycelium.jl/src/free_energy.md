@@ -394,13 +394,15 @@ quantities (LP-020), and a rule must give the derivative of the function it is a
 that version was dropped.
 
 What it does not do. The reverse pass is the per-replica code, so it is only as differentiable as
-the factor's `local_free_energy` is: for `LinearConstraintFactor` and for switching factors with
-EP sites it is not (`_blockdiag` in `constraint.jl` and `inv(::Cholesky)`; P23, `@test_broken` in
-Lenticulum `test/plates.jl`). It assumes that a factor's batched `local_free_energies` equals the
+the factor's `local_free_energy` is. For `LinearConstraintFactor` and for switching factors with
+EP sites it was not (an in-place `_blockdiag`, `push!` and `inv(::Cholesky)`); since P23 it is
+(Lenticulum `constraint.md`, "Zygote through the cavity free energy"; `test/zygote_cavity.jl`, and
+both plates in `test/plates.jl` on blocks and per edge). It assumes that a factor's batched `local_free_energies` equals the
 sum of its per-replica energies, which the tests check for the Gaussian prior and observed
 switching factors (ForwardDiff on blocks is the oracle). On a clustered regime plate the values
 agree (to 1e-14, a scratch probe), but no gradient can be compared: neither Zygote (a `push!`)
-nor ForwardDiff (`Float64(::Dual)`) takes that free energy, per edge as on blocks (P23), while
+nor ForwardDiff (`Float64(::Dual)`) takes that free energy, per edge as on blocks (P24,
+`@test_broken` in Lenticulum `test/regime_plate.jl`), while
 `free_energy_gradient` does, through the fixed-belief energies. The
 reverse pass costs one `local_free_energy` per replica, not one batched call.
 

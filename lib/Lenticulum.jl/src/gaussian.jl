@@ -264,7 +264,7 @@ function _message(f::GaussianFactor, target::Symbol, inputs, ps, st)
         m, S = _moments(src, f.nin)
         m === nothing && return (LenticulumCore.TrivialBelief(), st)
         Σ = A * S * A' + noise_covariance(f, ps)
-        Λ = inv(_chol(Σ, "ASAᵀ + Q"))
+        Λ = _spd_inv(Σ, "ASAᵀ + Q")
         return (GaussianBelief(Λ * (A * m .+ b), Λ), st)
     elseif target === f.in_channel
         src = _get(inputs, f.out_channel)
@@ -272,7 +272,7 @@ function _message(f::GaussianFactor, target::Symbol, inputs, ps, st)
         m, S = _moments(src, f.nout)
         m === nothing && return (LenticulumCore.TrivialBelief(), st)
         R = noise_covariance(f, ps) + S
-        Ri = inv(_chol(R, "Q + Sᵧ"))
+        Ri = _spd_inv(R, "Q + Sᵧ")
         return (_likelihood_message(A' * (Ri * (m .- b)), A' * Ri * A, _rank_deficient(A)), st)
     end
     throw(ArgumentError("channel :$target is not a channel of this GaussianFactor"))
@@ -536,7 +536,7 @@ function _hard_input_free_energy(f::GaussianFactor, msgs, ps)
     blocks = NamedTuple{names}((-ps.A, Matrix{eltype(ps.A)}(I, f.nout, f.nout)))
     G, c, canon = _reduced_relation(blocks, ps.b, msgs, NamedTuple{names}((f.nin, f.nout)), names)
     r̄, Cr, H = _reduced_residual_statistics(G, c, canon, f.Q)
-    return _graded_free_energy(f, r̄, Cr, H, inv(_chol(f.Q, "Q")), nothing)
+    return _graded_free_energy(f, r̄, Cr, H, _spd_inv(f.Q, "Q"), nothing)
 end
 
 # (fit, complexity, negentropy) from the residual's mean and covariance under the factor
@@ -693,7 +693,7 @@ function MyceliumLearning._gradient_message(ad, f::GaussianPrior, ::Symbol, _, _
 end
 
 Mycelium.uses_cavity(::GaussianPrior) = true
-_prior_precision(Σ) = inv(_chol(Σ, "Σ"))
+_prior_precision(Σ) = _spd_inv(Σ, "Σ")
 
 function Mycelium.local_free_energy(f::GaussianPrior, msgs, ps, st)
     Λ0, logdetQ = f.noise_learning === nothing ?

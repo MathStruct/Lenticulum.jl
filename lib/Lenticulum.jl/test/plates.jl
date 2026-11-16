@@ -151,10 +151,12 @@ pl_fa_nlp(X, W, c) = -sum(pl_lognormal(X[:, i], c, W * W' + PL_σ2 * I) for i in
         # held Float64 fields until a 2026-11-03 review)
         Fθ(sx, θ) = first(LenticulumCore.scalar_free_energy(sx, g, merge(ps, (lik = LenticulumCore._unflatten(θ, ps.lik),)), st))
         @test ForwardDiff.gradient(θ -> Fθ(s, θ), pl_flat(ps.lik)) ≈ ForwardDiff.gradient(θ -> Fθ(se, θ), pl_flat(ps.lik)) atol = 1e-10
-        # Zygote cannot take this free energy on blocks or per edge (P23): the constraint factor's
-        # cavity energy fills a block-diagonal matrix and inverts a Cholesky factor
+        # Zygote on blocks and per edge, against ForwardDiff (P23: the constraint factor's cavity
+        # energy filled a block-diagonal matrix in place and inverted a Cholesky factor)
         θ0 = pl_flat(ps.lik)
-        @test_broken (try only(Zygote.gradient(θ -> Fθ(se, θ), θ0)) ≈ ForwardDiff.gradient(θ -> Fθ(se, θ), θ0) catch; false end)
+        Gf = ForwardDiff.gradient(θ -> Fθ(se, θ), θ0)
+        @test only(Zygote.gradient(θ -> Fθ(se, θ), θ0)) ≈ Gf atol = 1e-10
+        @test only(Zygote.gradient(θ -> Fθ(s, θ), θ0)) ≈ Gf atol = 1e-10
     end
 
     @testset "a grouped sweep gives the sequential schedule's messages" begin
@@ -418,16 +420,12 @@ end
         end
         Fθ(sx, θ) = first(LenticulumCore.scalar_free_energy(sx, g, merge(ps, (sw = LenticulumCore._unflatten(θ, ps.sw),)), st))
         @test ForwardDiff.gradient(θ -> Fθ(s, θ), pl_flat(ps.sw)) ≈ ForwardDiff.gradient(θ -> Fθ(se, θ), pl_flat(ps.sw)) atol = 1e-10
-        # Zygote on blocks (P20: it failed there), against ForwardDiff and against Zygote per edge. With
-        # latent x (EP sites) it cannot run even per edge (P23: the block-diagonal precision is filled in place).
+        # Zygote on blocks (P20: it failed there), against ForwardDiff and against Zygote per edge; with
+        # latent x (EP sites) too (P23: the block-diagonal precision was filled in place)
         θ0 = pl_flat(ps.sw) .+ 0.05 .* randn(Xoshiro(12), length(pl_flat(ps.sw)))
-        if tpl === pl_sw_latent!
-            @test_broken (try only(Zygote.gradient(θ -> Fθ(se, θ), θ0)) ≈ ForwardDiff.gradient(θ -> Fθ(se, θ), θ0) catch; false end)
-        else
-            Gz = only(Zygote.gradient(θ -> Fθ(s, θ), θ0))
-            @test Gz ≈ ForwardDiff.gradient(θ -> Fθ(s, θ), θ0) atol = 1e-10
-            @test Gz ≈ only(Zygote.gradient(θ -> Fθ(se, θ), θ0)) atol = 1e-10
-        end
+        Gz = only(Zygote.gradient(θ -> Fθ(s, θ), θ0))
+        @test Gz ≈ ForwardDiff.gradient(θ -> Fθ(s, θ), θ0) atol = 1e-10
+        @test Gz ≈ only(Zygote.gradient(θ -> Fθ(se, θ), θ0)) atol = 1e-10
     end
     # the categorical block's operations, column for column as the per-belief rules
     rng = Xoshiro(2)

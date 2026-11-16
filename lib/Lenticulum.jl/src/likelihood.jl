@@ -524,14 +524,14 @@ end
 function _approximate(::Laplace, f, t, y)
     ζ̂, φ, C = _tilted_mode(f, t, y, f.method.iterations, f.method.tol)
     r = length(ζ̂)
-    return ζ̂, inv(_chol(C, "the Laplace curvature")), φ + r * log(2π) / 2 - logdet(_chol(C, "C")) / 2
+    return ζ̂, _spd_inv(C, "the Laplace curvature"), φ + r * log(2π) / 2 - logdet(_chol(C, "C")) / 2
 end
 
 function _approximate(ep::ExpectationPropagation, f, t, y)
     f.lik isa OrdinalProbitLikelihood && length(t.D) == 1 && return _ordinal_moments(f.lik, t, y)
     ζ̂, _, C = _tilted_mode(f, t, y, ep.iterations, ep.tol)
     r = length(ζ̂)
-    Lc = cholesky(Symmetric(inv(_chol(C, "the Laplace curvature")))).L
+    Lc = cholesky(Symmetric(_spd_inv(C, "the Laplace curvature"))).L
     X, W = _gh_grid(ep.order, r)
     Z = ζ̂ .+ Lc * X
     logv = [_tilted_derivatives(f, t, y, Z[:, i])[1] + sum(abs2, X[:, i]) / 2 + log(W[i]) for i in axes(Z, 2)]
@@ -565,7 +565,7 @@ end
 
 # the site s(ζ) = q(ζ) / N(ζ; 0, D), mapped to x through ζ = Uᵀ(Ax + b - μz)
 function _site_message(f, t::_Tilted, μζ, Σζ)
-    Λq = inv(_chol(Matrix(Symmetric(Σζ)), "the approximate posterior covariance"))
+    Λq = _spd_inv(Matrix(Symmetric(Σζ)), "the approximate posterior covariance")
     Λs = Λq .- Diagonal(1 ./ t.D)
     ηs = Λq * μζ
     B = t.U' * f.A

@@ -112,7 +112,7 @@ function Mycelium.parameter_message(f::GaussianFactor, target::Symbol, polarity,
         V += CSC
     end
     Ct === nothing && throw(ArgumentError("channel :$target is not exposed on this GaussianFactor"))
-    Vi = inv(_chol(V, "Q plus the propagated covariances"))
+    Vi = _spd_inv(V, "Q plus the propagated covariances")
     return (GaussianBelief(-(Ct' * (Vi * s)), Ct' * Vi * Ct), st)
 end
 

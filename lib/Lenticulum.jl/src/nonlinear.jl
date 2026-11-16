@@ -231,7 +231,7 @@ function _nl_message(f::NonlinearFactor, target::Symbol, inputs, prior)
         m, S = _moments(_get(inputs, f.in_channel), f.nin)
         m === nothing && return LenticulumCore.TrivialBelief()
         A, b, Ω = linearize(f, m, S)
-        Λ = inv(_chol(A * S * A' + Ω + f.Q, "ASAᵀ + Ω + Q"))
+        Λ = _spd_inv(A * S * A' + Ω + f.Q, "ASAᵀ + Ω + Q")
         return GaussianBelief(Λ * (A * m .+ b), Λ)
     elseif target === f.in_channel
         src = _get(inputs, f.out_channel)
@@ -251,7 +251,7 @@ end
 
 function _likelihood(f, my, Sy, x̄, P)
     A, b, Ω = linearize(f, x̄, P)
-    Ri = inv(_chol(f.Q + Ω + Sy, "Q + Ω + Sᵧ"))
+    Ri = _spd_inv(f.Q + Ω + Sy, "Q + Ω + Sᵧ")
     return _likelihood_message(A' * (Ri * (my .- b)), A' * Ri * A, _rank_deficient(A))
 end
 

@@ -343,3 +343,14 @@ other than `1:K` in order are refused (`Mycelium._check_positional`, also used b
 `GaussianPrior` with learned noise, through `noise_covariance`; a noise prior is refused. The
 M-steps are in `m_steps.md` §3.
 
+## Zygote through the cavity free energy (P23, 2026-11-16)
+
+`switch_statistics` collected its free channels with `push!` and built the joint precision with
+the in-place `_blockdiag`, and a mixture message is collapsed through `inv(::Cholesky)`, so Zygote could not take `local_free_energy` in `ps`, which
+blocked Zygote through the free energy of a plate with latent inputs (EP sites). The free channels
+come from `_free_channels`, non-differentiable (which channels are points is structure), and the
+shared fixes are those of `constraint.md` ("Zygote through the cavity free energy"). Tests:
+`test/zygote_cavity.jl` (random factors, proper, point and mixture messages, a categorical or no
+message on the switch; Zygote against ForwardDiff to $10^{-8}$) and the latent switching plate of
+`test/plates.jl` (on blocks and per edge, to $10^{-10}$; it was `@test_broken`).
+

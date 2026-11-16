@@ -334,14 +334,10 @@ message is collapsed to its moments first.
 """
 function switch_statistics(f::SwitchingConstraintFactor{names}, msgs, ps) where {names}
     shift = zeros(f.m)
-    free = Symbol[]
+    free = _free_channels(names, msgs)
     for n in names
         b = _get(msgs, n)
-        if b isa LenticulumCore.DiracBelief
-            shift = shift .+ _coeffs(f, ps)[n] * _vec(b.value)
-        else
-            push!(free, n)
-        end
+        b isa LenticulumCore.DiracBelief && (shift = shift .+ _coeffs(f, ps)[n] * _vec(b.value))
     end
     Ceff = ps.b .- shift                                       # column k: c_k = b_k − Σ_Dirac A_j v_j
     CQ = _chol(f.Q, "Q")
@@ -367,6 +363,10 @@ function switch_statistics(f::SwitchingConstraintFactor{names}, msgs, ps) where 
     q = exp.(l .- _logsumexp(l))
     return q, rbar, Cr, Hx
 end
+
+# The channels whose message is not a point: structure, not values (non-differentiable, so that
+# Zygote does not meet a `push!`, P23).
+_free_channels(names, msgs) = Symbol[n for n in names if !(_get(msgs, n) isa LenticulumCore.DiracBelief)]
 
 _collapse(b::LenticulumCore.MixtureBelief{<:GaussianBelief}) = moment_match(b)
 _collapse(b) = b
@@ -427,7 +427,7 @@ does not. Agrees with `local_free_energy` at the belief it was evaluated at (LP-
 """
 function Mycelium.factor_belief(f::SwitchingConstraintFactor, msgs, ps, st)
     q, _, _, _ = switch_statistics(f, msgs, ps)
-    return _affine_gaussian_belief(_coeffs(f, ps), -float.(ps.b), inv(_chol(f.Q, "Q")), msgs, f.dims; q)
+    return _affine_gaussian_belief(_coeffs(f, ps), -float.(ps.b), _spd_inv(f.Q, "Q"), msgs, f.dims; q)
 end
 function Mycelium.belief_free_energy(f::SwitchingConstraintFactor, b::FrozenGaussianBelief, ps, st)
     rbar, Cr = _frozen_residual(_coeffs(f, ps), -ps.b, b)

@@ -413,6 +413,11 @@ the same iterates; in [[Benchmark against RxInfer]] 19 ms and 0.15 s against RxI
   to a node outside, and edges that are not bidirectional, diagonal and attached. The cluster node
   itself is a belief-propagation node; differentiating through inference (`adjoint = :implicit`)
   is not tested with it.
+- **AD of the free energy at fixed messages.** `free_energy_gradient` works (it differentiates
+  the fixed-belief energy), but `ForwardDiff` and `Zygote` of `scalar_free_energy` in `ps`, which
+  differentiate the cluster's belief as well, do not: the joint is built in `Float64` arrays
+  (`Float64(::Dual)`) and by `push!` and in-place writes (Feature Backlog P24, `@test_broken` in
+  Lenticulum `test/regime_plate.jl`).
 - **Grouping rewires nothing.** `overlap_groups` chooses the groups; putting a partial sum per
   group into the graph, which is what makes the groups pay (below), is an edit of the graph. For
   switches feeding a Lenticulum linear factor, Lenticulum's `partial_sums` makes it

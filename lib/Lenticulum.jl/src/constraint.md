@@ -329,3 +329,33 @@ Tests: `test/lp022.jl`.
 `free_energy_gradient` warns once when such a factor without `output` learns its coefficients on
 data (`Mycelium.learns_unnormalised`, LP-022).
 
+## Zygote through the cavity free energy (P23, 2026-11-16)
+
+`Zygote.gradient` in `ps` of `local_free_energy` (the cavity energy, at fixed messages, as opposed
+to the fixed-belief `belief_free_energy` of LP-020) failed for this factor with every message kind,
+and so did `Zygote.gradient` of a graph's `scalar_free_energy`, per edge and on plate blocks
+(P20 left it as `@test_broken`). Four things stood in the way, met one after the other:
+
+1. `_blockdiag` (the n-ary block diagonal of the messages' precisions) wrote into a zero matrix
+   after `sum(...; init = 0)`. It is now `cat(blocks...; dims = (1, 2))`, which also takes the
+   element type of the blocks rather than `Float64`.
+2. `inv(_chol(Q, ...))`: Zygote has no rule for `inv(::Cholesky)`. Every `inv(_chol(M, what))` in
+   the package is now `LenticulumCore._spd_inv(M, what)`, the same function with an rrule
+   ($dM = \operatorname{sym}(-P^\top \bar P P^\top)$, the symmetric part because `_chol` factors
+   $(M + M^\top)/2$).
+3. `_reduced_relation` collected the blocks and the canonical messages with `push!`; it now rebinds
+   tuples.
+4. The messages' preprocessing: a mixture is collapsed by `moment_match`, which calls `Gaussian`
+   and so `inv(::Cholesky)` again (now `_spd_inv` in LenticulumCore); an extended Gaussian with hard
+   directions is reduced through `_complement`, an SVD with `full = true`, which has no Zygote rule.
+   `_complement` is non-differentiable: a basis of a subspace has no unique derivative, and the
+   messages are constants of a free energy in `ps`. A derivative in a message whose hard subspace
+   moves would drop that motion; no AD path takes one today (ForwardDiff cannot either, P21).
+
+Tests: Lenticulum `test/zygote_cavity.jl`, random factors with random messages of every kind
+(proper, point, extended with hard directions, mixture), Zygote against ForwardDiff to $10^{-8}$,
+and the rrule of `_spd_inv` against ForwardDiff with a non-symmetric cotangent; `test/plates.jl`,
+the factor-analysis plate, on blocks and per edge, to $10^{-10}$ (it was `@test_broken`).
+Not covered: extended Gaussians with flat directions in this test (they make the factor belief
+improper unless the other messages fix those directions).
+

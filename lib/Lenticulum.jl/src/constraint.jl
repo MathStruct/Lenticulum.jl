@@ -327,7 +327,7 @@ function _linear_message(A, c, Q, target, parts, st)
     d = c .- s
     At = A[target]
     if isempty(G)
-        Ri = inv(_chol(R, "Q + Σ AᵢSᵢAᵢᵀ"))
+        Ri = _spd_inv(R, "Q + Σ AᵢSᵢAᵢᵀ")
         improper = _projected_rank(At, At) < size(At, 2)          # rank(L⁻¹Aₜ) = rank(Aₜ)
         return (_likelihood_message(At' * (Ri * d), At' * Ri * At, improper), st)
     end
@@ -369,7 +369,7 @@ function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{na
     A, At = _coeffs(fs[1], ps), _coeffs(fs[1], ps)[target]
     _, R, G = _accumulate(A, f.Q, p1)
     if isempty(G)
-        Ri = inv(_chol(R, "Q + Σ AᵢSᵢAᵢᵀ"))
+        Ri = _spd_inv(R, "Q + Σ AᵢSᵢAᵢᵀ")
         improper = _projected_rank(At, At) < size(At, 2)
         K, Λ = At' * Ri, At' * Ri * At
     else
@@ -420,7 +420,7 @@ function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{na
     A, At = _coeffs(fs[1], ps), _coeffs(fs[1], ps)[target]
     _, R, G = _accumulate(A, f.Q, [(ch, (M[:, 1], S, N)) for (ch, (M, S, N)) in parts])
     if isempty(G)
-        Ri = inv(_chol(R, "Q + Σ AᵢSᵢAᵢᵀ"))
+        Ri = _spd_inv(R, "Q + Σ AᵢSᵢAᵢᵀ")
         improper = _projected_rank(At, At) < size(At, 2)
         K, Λ = At' * Ri, At' * Ri * At
     else
@@ -619,8 +619,7 @@ end
 # A mixture is collapsed to its moments (gaussian.md, "Mixture inputs").
 function _reduced_relation(A, c, msgs, dims, names)
     c_eff = float.(c)
-    Gs = Any[]
-    canon = Any[]
+    Gs, canon = (), ()                  # tuples, rebound rather than pushed to: Zygote (P23)
     for n in names
         b = _collapse(_get(msgs, n))
         An = getfield(A, n)
@@ -631,13 +630,13 @@ function _reduced_relation(A, c, msgs, dims, names)
             x0, U, ηs, Λs = LenticulumCore._hard_reduction(b)
             c_eff = c_eff .- An * x0
             size(U, 2) == 0 && continue
-            push!(Gs, An * U); push!(canon, (ηs, Λs))
+            Gs, canon = (Gs..., An * U), (canon..., (ηs, Λs))
         else
-            push!(Gs, An); push!(canon, _canon(b, dims[n]))
+            Gs, canon = (Gs..., An), (canon..., _canon(b, dims[n]))
         end
     end
     G = isempty(Gs) ? zeros(eltype(c_eff), length(c_eff), 0) : reduce(hcat, Gs)
-    return G, c_eff, canon
+    return G, c_eff, isempty(canon) ? Any[] : collect(canon)
 end
 _is_hard(b) = false
 _is_hard(b::LenticulumCore.ExtendedGaussian) = size(LenticulumCore.hard_directions(b), 2) > 0
@@ -649,7 +648,7 @@ _is_hard(b::LenticulumCore.ExtendedGaussian) = size(LenticulumCore.hard_directio
 function _reduced_residual_statistics(G, c_eff, canon, Q)
     m = length(c_eff)
     size(G, 2) == 0 && return (-c_eff, zeros(m, m), 0.0)
-    Qi = inv(_chol(Q, "Q"))
+    Qi = _spd_inv(Q, "Q")
     Λ = G' * Qi * G + _blockdiag(map(last, canon))
     η = G' * (Qi * c_eff) + reduce(vcat, map(first, canon))
     bel = GaussianBelief(η, Λ)
@@ -658,16 +657,11 @@ function _reduced_residual_statistics(G, c_eff, canon, Q)
 end
 
 # n-ary block diagonal. `gaussian.jl`'s `_blockdiag` takes exactly two blocks.
+# Built by `cat`, not by writing into a zero matrix: Zygote cannot differentiate the writes (P23),
+# and the element type follows the blocks (a dual block under ForwardDiff).
 function _blockdiag(blocks::AbstractVector{<:AbstractMatrix})
-    n = sum(b -> size(b, 1), blocks; init = 0)
-    M = zeros(n, n)
-    o = 0
-    for b in blocks
-        k = size(b, 1)
-        M[(o + 1):(o + k), (o + 1):(o + k)] .= b
-        o += k
-    end
-    return M
+    isempty(blocks) && return zeros(0, 0)
+    return Matrix(cat(blocks...; dims = (1, 2)))
 end
 
 Mycelium.uses_cavity(::LinearConstraintFactor) = true
@@ -692,7 +686,7 @@ as [`GaussianFactor`](@ref), computed from [`residual_statistics`](@ref).
 """
 function Mycelium.local_free_energy(f::LinearConstraintFactor, msgs, ps, st)
     r̄, Cr, H = residual_statistics(f, msgs, ps)
-    Qi = inv(_chol(f.Q, "Q"))
+    Qi = _spd_inv(f.Q, "Q")
     fit = (r̄' * (Qi * r̄) + tr(Qi * Cr)) / 2
     complexity = logdet(_chol(2π .* f.Q, "2πQ")) / 2
     return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -H)), st
@@ -707,7 +701,7 @@ averaged under `b`; it agrees with `local_free_energy` at the belief it was eval
 parameter derivative is the graph gradient's (LP-020). See [`FrozenGaussianBelief`](@ref).
 """
 Mycelium.factor_belief(f::LinearConstraintFactor, msgs, ps, st) =
-    _affine_gaussian_belief(_coeffs(f, ps), -ps.c, inv(_chol(f.Q, "Q")), msgs, f.dims)
+    _affine_gaussian_belief(_coeffs(f, ps), -ps.c, _spd_inv(f.Q, "Q"), msgs, f.dims)
 function Mycelium.belief_free_energy(f::LinearConstraintFactor, b::FrozenGaussianBelief, ps, st)
     r̄, Cr = _frozen_residual(_coeffs(f, ps), -ps.c, b)
     Qi = inv(Symmetric(f.Q))                                   # not inv(::Cholesky): Zygote has no rule
@@ -721,7 +715,7 @@ function Mycelium.factor_beliefs(fs::AbstractVector{<:LinearConstraintFactor}, m
     f = first(fs)
     all(h -> h === f || (isequal(h.Q, f.Q) && h.dims == f.dims), fs) ||
         return invoke(Mycelium.factor_beliefs, Tuple{AbstractVector,NamedTuple,Any,Any}, fs, msgs, ps, st)
-    return _affine_gaussian_beliefs(_coeffs(fs[1], ps), -ps.c, inv(_chol(f.Q, "Q")), msgs, f.dims, length(fs))
+    return _affine_gaussian_beliefs(_coeffs(fs[1], ps), -ps.c, _spd_inv(f.Q, "Q"), msgs, f.dims, length(fs))
 end
 function Mycelium.belief_free_energies(fs::AbstractVector{<:LinearConstraintFactor}, b::FrozenGaussianBeliefs, ps, st)
     f = first(fs)

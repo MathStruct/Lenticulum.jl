@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-16, after P20 (Zygote through the free energy on plate block rows), committed and pushed.
+**Last updated:** 2026-11-16, after P23 (Zygote through the constraint and switching cavity free energies), not committed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at the P20 commit `a8e0b98a` (pushed): `lib/Mycelium.jl/src/free_energy.jl`, `free_energy.md`, `passing.md`, `ext/MyceliumChainRulesCoreExt.jl`, Lenticulum `test/plates.jl`, [[Feature Backlog]]. Verified: see below |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `f748da5f` with the P20 diff applied; Mistral's (unparsable) probes in `scratch/p20/`. Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-p22-applied-stale-2026-11-16`, `mistral-wt-i21-…`, `-i20-…`, `-i19-…` of 2026-11-15, `mistral-wt-ridge-applied-stale-2026-11-13` and older |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at `b184cc82` (pushed) with P23 uncommitted: LenticulumCore `gaussian_belief.jl`/`.md` and its ChainRulesCore ext; Lenticulum `constraint`, `switching`, `gaussian`, `exposure`, `hard_constraint`, `likelihood`, `nonlinear`, `Lenticulum.jl`, its ChainRulesCore ext; notes `constraint.md`, `switching.md`, Mycelium `free_energy.md`, `cluster.md`; tests `zygote_cavity.jl` (new), `plates.jl`, `regime_plate.jl`, `runtests.jl`; [[Feature Backlog]], [[LP-037 Findings of the review of P23]]. Verified: see below |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | fast-forwarded to `b184cc82`, with the P23 diff applied (without the `likelihood.jl` fix); Mistral's probes in `scratch/p23/`. Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-p20-applied-stale-2026-11-16`, `-p22-…`, `-i21-…`, `-i20-…`, `-i19-…`, older |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -22,32 +22,31 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 
 ## Done last
 
-- **P20** (committed and pushed, `a8e0b98a`): `Zygote.gradient` of `scalar_free_energy` on a store with block rows.
-  Four blockers, not one: `_row_scalar`'s `sum(...; init)`, the covered-node masks (`_mark!`,
-  `@non_differentiable`), the variable rows' term (`@non_differentiable`, reads only blocks), and
-  the factors' batched code (an `rrule` on `_row_scalar_energy` that differentiates the same row
-  replica by replica through `local_free_energy`). It gives the derivative at fixed messages, as
-  ForwardDiff does; an envelope-gradient first version was dropped because it differed from
-  ForwardDiff by 0.78 (LP-020; [[free_energy]] "Zygote on block rows").
-- Verified: Lenticulum `test/plates.jl` passes (P20 testset 12/12; the switching testset errored before the
-  fix); all eight suites pass (`~/.cache/lenticulum/p20/suite_*.log`;
-  in ImplicitLayers Mooncake's `MooncakeLogExpFunctionsExt` failed to precompile, a version mismatch
-  in that environment, and the suite passed). Not run: `docs/make.jl`, device tests (no device code).
-  `check_notes.py`: no new hits.
-- Found: P23 (backlog): Zygote cannot take `LinearConstraintFactor`, EP-switching or cluster-node
-  free energies even per edge; on a clustered regime plate ForwardDiff fails too (`Float64(::Dual)`).
-  `@test_broken` for the first two.
-- Review: Mistral, two runs, no probe executed: the first prefixed every command with `cd … &&`,
-  which the review agent's allowlist refuses; the second, told so, still never ran `julia`, and its
-  three probes do not parse. Static reading: no defect. Archive `../Lenticulum.jl-Review-2026-11-16/p20/`.
-  No problem note (no findings).
-- Next: P21 (a design task), P23, or another backlog item.
+- **P23** (uncommitted): `Zygote.gradient` in `ps` of the cavity free energies of
+  `LinearConstraintFactor` and `SwitchingConstraintFactor` (EP sites), per node and through
+  `scalar_free_energy`, per edge and on plate blocks. Five blockers: in-place `_blockdiag` (now
+  `cat`), `inv(::Cholesky)` (now `LenticulumCore._spd_inv` with an rrule, symmetric part; also in
+  `Gaussian(μ, Σ)`), `push!` in `_reduced_relation` (tuples) and `switch_statistics`
+  (`_free_channels`, non-differentiable), and the SVD in `_complement` (non-differentiable; messages
+  are constants in `ps`). [[constraint]] "Zygote through the cavity free energy".
+- Verified: all eight suites pass (`~/.cache/lenticulum/p23/suite_*.log`); Lenticulum rerun after the
+  review fix: `suite_Lenticulum_2.log`. New `test/zygote_cavity.jl` (random factors and messages,
+  Zygote = ForwardDiff); the two P23 `@test_broken` in `plates.jl` are tests now. Not run:
+  `docs/make.jl`, device tests (no device code), Mooncake/Enzyme on the new rrule. `check_notes.py`:
+  no new hits.
+- Split off: **P24**, ForwardDiff and Zygote through a cluster node's free energy at fixed messages
+  (`Float64` arrays and mutation in `cluster.jl`/`cluster_batch.jl`); a design task,
+  `@test_broken` in `regime_plate.jl`.
+- Review: Mistral, one run, $1.28, six probes **executed** (the brief's exact command line worked).
+  One finding, an `inv(_chol(...))` my regex missed in `likelihood.jl`; replaced, its impact not
+  reproduced ([[LP-037 Findings of the review of P23]]). Archive `../Lenticulum.jl-Review-2026-11-16/p23/`.
+- Next: commit P23 when asked; then P21 or P24 (both design tasks), or another backlog item.
 
 ## Open
 
 - **P21:** ForwardDiff through a relation factor's flat-input path, and `NonlinearFactor` at a dual
   expansion point (`@test_broken` in Lenticulum `test/forms_crossing.jl`).
-- **P23:** Zygote through constraint, EP-switching and cluster-node free energies (backlog).
+- **P24:** ForwardDiff and Zygote through cluster-node free energies at fixed messages (backlog).
 - AlgebraicFactors, ImplicitLayers and Adversarial run in CI only weekly: a change to the core
   should run their suites locally too (that is how the AlgebraicFactors break was found).
 - Mistral review agent: `vibe ... --agent review --trust --workdir ../Lenticulum.jl-mistral`
@@ -62,5 +61,6 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
   believing a failure. On I20 it kept the answer file but was stopped by `--max-price 1` after 71
   turns: `cost_usd` counts list prices even for the free Mistral Large (3.9 M input tokens, $1.01), so
   give a free-model review `--max-price 3` to reach its turn limit. On P20 (2026-11-16) both runs lost
-  every command to a `cd … &&` prefix (not on the allowlist): consider allowing it in
-  `~/.vibe/agents/review.toml` or starting the brief with an example command line.
+  every command to a `cd … &&` prefix (not on the allowlist). On P23 the brief gave the exact
+  command line to copy (`julia -t auto --project=<env> scratch/p23/probe1.jl > ….out 2>&1`) and it
+  ran six probes: keep doing that.

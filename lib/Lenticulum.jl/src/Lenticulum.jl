@@ -46,7 +46,7 @@ using Mycelium: Mycelium, reduce_mixture          # re-exported (moved to Myceli
 using MyceliumLearning: MyceliumLearning
 using SpecialFunctions: SpecialFunctions
 using LenticulumCore: GaussianBelief, Gaussian, uninformative, belief_mean, belief_cov, isproper,
-    logpartition, dimension, _chol, _improper_check, ExtendedGaussian
+    logpartition, dimension, _chol, _spd_inv, _improper_check, ExtendedGaussian
 
 include("beliefs.jl")
 include("noise.jl")
