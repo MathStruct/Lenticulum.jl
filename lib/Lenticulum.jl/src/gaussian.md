@@ -427,9 +427,7 @@ expansion point the Jacobian's partials are central differences of the derivativ
 `jacobian` function is converted to the promoted type, not to `Float64`.
 
 **What it does not do.** A flat input whose $\Lambda$ carries a derivative (a dual coefficient
-upstream, as in a derivative by $A$) moves its flat directions; the derivative would need the
-derivative of an eigenbasis and then of every SVD of the flat path, and the split refuses it
-(`@test_broken`). A partial of $\eta$ along $\operatorname{null}\Lambda$ is dropped without an error
+upstream, as in a derivative by $A$) moves its flat directions; P25 handles it (next section). A partial of $\eta$ along $\operatorname{null}\Lambda$ is dropped without an error
 (the mean is $\Lambda^+\eta$): such an input leaves $\operatorname{range}\Lambda$ at first order, and the
 value path would refuse it at every $t \ne 0$. The factors' own messages do not do this
 ($\eta = A^\top R^{-1}(m - b)$ stays in $\operatorname{range} A^\top R^{-1} A$ for every $t$); a
@@ -452,6 +450,65 @@ a marginal mean through an inference whose flat message passes a relation factor
 (30); `NonlinearFactor` at a dual expansion point, `Linearization` and `Unscented`, finite-difference
 and given Jacobians, 40 instances (160). Run before the fix, the first two threw
 `MethodError` (`svd!` of duals) and the third `Float64(::Dual)` (the P1 `@test_broken` cases).
+
+## Flat directions that move (P25, 2026-11-16)
+
+Under ForwardDiff the flat directions of the flat path move when a flagged input's precision
+$\Lambda$ is dual (a derivative by $A$ upstream: the backward message's $A^\top R^{-1}A$), or when the
+coefficients or covariances that enter the residual metric are dual. Both need a decomposition of
+dual numbers: the eigendecomposition of $\Lambda$ in the split, and the SVD of
+$B = L^{-1}G$ in the residual metric (`_residual_metric`, and `_residual_metric_logdet` of the
+switching factor, which also needs $\log\operatorname{pdet}(B^\top B)$).
+
+**Theory.** At constant rank these are smooth, and their derivative is found from the
+decomposition at the value without differentiating an eigenvector or a singular vector, as P26 does
+for a cluster's joint precision ([[lib/Mycelium.jl/src/cluster|cluster]], "Flat directions under a
+derivative"). For $\Lambda = U\lambda U^\top$ with null space $N$ and tangent $D$:
+
+$$
+U(\varepsilon) = U + \varepsilon NN^\top DU\lambda^{-1}, \qquad
+N(\varepsilon) = N - \varepsilon U\lambda^{-1}U^\top DN, \qquad
+\Lambda^+(\varepsilon) = U(\varepsilon)\,(U^\top\Lambda U)^{-1}\,U(\varepsilon)^\top ,
+$$
+
+whose first-order term is $-\Lambda^+D\Lambda^+ + NN^\top D\Lambda^{+2} + \Lambda^{+2}DNN^\top$, the
+derivative of the pseudo-inverse at constant rank. The mean is $\Lambda^+(\varepsilon)\eta$. For
+$B = U_rSV_r^\top$ with left complement $W$: $W(\varepsilon) = W - \varepsilon (B^+)^\top D^\top W$ spans
+the complement of $\operatorname{range}B(\varepsilon)$ to first order and stays orthonormal
+($B^+W = 0$), and $d\log\operatorname{pdet}(B^\top B) = 2\operatorname{tr}(B^+D)$. Only $WW^\top$
+enters the metric $T^\top T$, so the choice of basis does not matter. The rank is constant to first
+order exactly when $L^\top DR = 0$, with $L$, $R$ the left and right null spaces at the value
+($N^\top DN = 0$ for $\Lambda$); otherwise the flat-direction limit drops a different constant on
+each side and the message has no derivative.
+
+**Implementation.** `_improper_split_dual` sends a $\Lambda$ with nonzero partials to
+`_moving_flat_split`, and `_residual_metric` takes its complement from `_range_complement`; both
+have a method for first-order duals of floats in `LenticulumForwardDiffExt`, which decides the rank
+on the values by the value path's rule (`_flat_split`'s tolerance, `_range_svd`'s), refuses a
+tangent with $\lVert L^\top D_kR\rVert > \sqrt{\epsilon}\max(\lVert D_k\rVert_\infty, s_{\max})$ for any
+partial $k$, and builds the formulas above with $D = M - M_0$ (duals of value zero). The fallbacks
+(nested duals, other number types) throw an `ArgumentError`; `_range_complement`'s fallback was
+missing at first, and nested duals hit a `MethodError` of `svd` ([[LP-042 Findings of the review of P25]]).
+
+**What it does not do.** A tangent that changes the rank only at second order passes the check
+and gets the constant-rank derivative while the value is discontinuous there. This is the case of
+the backward message itself: $\Lambda = A^\top R^{-1}A$ with $AN = 0$ always has $N^\top DN = 0$, so a
+dual $A$ that leaves a rank-deficient value (as $A = A_0 + tE$ from a rank-deficient $A_0$) is not
+refused, as in P26 (seen in a scratch probe with $A_0 = 0$, not in the suite). Zygote is not covered (`_complement` stays non-differentiable, P23).
+Higher-order derivatives are refused.
+
+**Tests** (`test/forms_crossing.jl`, "P25: …", the oracle is the value path at $t$ and $t \pm h$):
+a backward message whose $A(t)$ keeps its rank while its range, its null space or both move, into
+`GaussianFactor` forward and backward, a three-channel `LinearConstraintFactor`,
+`SwitchingConstraintFactor` to its continuous channel and its outcome, and two such inputs into one
+`LinearConstraintFactor`; a fixed flat input with the factor's coefficients dual; flat, proper,
+trivial, mixture and categorical messages all reached (281 checks). Refusals and identities: a
+tangent with an $N^\top DN$ part refused and one without it accepted, $N(\varepsilon)$ orthonormal
+and $\Lambda(\varepsilon)N(\varepsilon) = 0$ to first order, nested duals refused (in the split and in
+`_range_complement`), $B$ with two equal
+columns separated by the tangent refused and kept parallel accepted, $\log\operatorname{pdet}$
+against central differences (200 checks). Run against the code before P25 the first testset throws
+(`ArgumentError` of the split, `svd` of duals). The former P21 `@test_broken` is one of its cases.
 
 ## Free energy with hard inputs (2026-11-11)
 

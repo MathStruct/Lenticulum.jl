@@ -525,11 +525,8 @@ function _residual_metric_logdet(R, G, what)
     Li = inv(C.L)
     ld = logdet(C)
     isempty(G) && return Li, Li, ld
-    B = Li * reduce(hcat, G)
-    F = LinearAlgebra.svd(B; full = true)
-    tol = maximum(size(B)) * eps(Float64) * maximum(F.S; init = 0.0)
-    r = count(>(tol), F.S)
-    return F.U[:, (r + 1):end]' * Li, Li, ld + 2 * sum(log, F.S[1:r]; init = 0.0)
+    W, lpd = _range_complement(Li * reduce(hcat, G))
+    return W' * Li, Li, ld + lpd
 end
 
 function _expanded_message(A, Q, B, lw, lpk, dims, others, target, inputs, to_switch::Bool)

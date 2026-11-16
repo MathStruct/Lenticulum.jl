@@ -306,12 +306,12 @@ equation then still constrains the directions ``G`` cannot reach. The message is
 `TrivialBelief()` when nothing is left, as when ``G`` has full row rank, and an `ExtendedGaussian`
 whenever the (projected) ``A_t`` is rank-deficient (under ForwardDiff a declared-improper
 `GaussianBelief(η, Λ, true)` instead)
-(`constraint.md` §4.1). Under ForwardDiff the flat case is differentiable when the flat
-directions do not move: when only ``c``, the inputs' information vectors or means are dual (a
-flagged input is then split on its precision's values, `gaussian.md`, "Dual inputs on the flat
-path"). When they move (dual coefficients of a flat channel, or a flat input whose precision is
-dual) the projection needs an SVD or an eigendecomposition of dual numbers, and it fails rather
-than give a derivative that ignores that motion.
+(`constraint.md` §4.1). Under ForwardDiff the flat case is differentiable: when only ``c``, the
+inputs' information vectors or means are dual, the flat directions do not move (a flagged input is
+then split on its precision's values, `gaussian.md`, "Dual inputs on the flat path"); when they
+move (dual coefficients, or a flat input whose precision is dual) the derivative is taken at
+constant rank, and a tangent that changes the number of flat directions is an `ArgumentError`
+(`gaussian.md`, "Flat directions that move").
 """
 Mycelium.factor_message(
     f::LinearConstraintFactor, target::Symbol, polarity, inputs, prior, ps, st
@@ -548,11 +548,26 @@ end
 function _residual_metric(R, G, what)
     Li = inv(_chol(R, what).L)
     isempty(G) && return Li, Li
-    B = Li * reduce(hcat, G)
+    W, _ = _range_complement(Li * reduce(hcat, G))
+    return W' * Li, Li
+end
+
+# An orthonormal basis W of the complement of range(B), and the log pseudo-determinant of BᵀB
+# (twice the sum of the logs of B's nonzero singular values). The rank is decided by `_range_svd`.
+# Only W Wᵀ is used downstream (the metric TᵀT), so any orthonormal basis will do. Under ForwardDiff
+# (B of duals, when coefficients, covariances or a flat input's directions carry a derivative)
+# `LenticulumForwardDiffExt` gives the constant-rank derivative (P25).
+function _range_complement(B::AbstractMatrix{<:LinearAlgebra.BlasFloat})
+    F, r = _range_svd(B)
+    return F.U[:, (r + 1):end], 2 * sum(log, F.S[1:r]; init = 0.0)
+end
+_range_complement(B) = throw(ArgumentError(
+    "the flat path's residual metric needs floats, or first-order ForwardDiff duals of floats \
+     (P25); it has $(eltype(B))"))
+function _range_svd(B)
     F = LinearAlgebra.svd(B; full = true)
     tol = maximum(size(B)) * eps(Float64) * maximum(F.S; init = 0.0)
-    r = count(>(tol), F.S)
-    return F.U[:, (r + 1):end]' * Li, Li
+    return F, count(>(tol), F.S)
 end
 
 # The rank of the projected coefficient T Aₜ. Rounding in the projection leaves singular values

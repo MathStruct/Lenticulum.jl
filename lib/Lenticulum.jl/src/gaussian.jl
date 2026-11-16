@@ -423,13 +423,20 @@ function _improper_split(b::GaussianBelief)
 end
 function _improper_split_dual(b::GaussianBelief)
     Λv = LenticulumCore.stop_gradient(b.Λ)
-    eltype(Λv) <: AbstractFloat && (Λv === b.Λ || all(iszero, b.Λ .- Λv)) || throw(ArgumentError(
-        "a flat input whose precision carries a derivative (its flat directions move) has no \
-         flat-path message under ForwardDiff; only a derivative that moves the information \
-         vector alone (by `b`, `c` or an observation) is supported (P21)"))
-    μ, Σ, N = LenticulumCore._flat_split(b.η, Λv)
+    eltype(Λv) <: AbstractFloat || throw(ArgumentError(
+        "a flat input's precision has a flat-path message for floats and first-order ForwardDiff \
+         duals of floats (P25); it has $(eltype(b.Λ))"))
+    μ, Σ, N = Λv === b.Λ || all(iszero, b.Λ .- Λv) ? LenticulumCore._flat_split(b.η, Λv) :
+              _moving_flat_split(b.η, b.Λ)
     return (μ, Σ, size(N, 2) == 0 ? nothing : N)
 end
+
+# The split of an input whose precision carries a derivative: its flat directions move. Under
+# ForwardDiff `LenticulumForwardDiffExt` gives the constant-rank derivative (P25); a derivative
+# that changes the number of flat directions, and nested duals, are refused there.
+_moving_flat_split(η, Λ) = throw(ArgumentError(
+    "a flat input whose precision carries a derivative (its flat directions move) has a \
+     flat-path message only under first-order ForwardDiff of floats (P25)"))
 _vec(v::AbstractVector) = float.(v)
 _vec(v::Real) = [float(v)]
 
