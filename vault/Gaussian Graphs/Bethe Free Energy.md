@@ -73,8 +73,12 @@ Exactness on a tree holds when **every message is in a family its receiver takes
 | `NonlinearFactor` | no: its messages and its free energy are those of a local linear model ([[nonlinear]]) |
 | `MixtureReduction` nodes | no free energy is defined; refused |
 
-`propagate!` reports "one sweep is exact" for a tree schedule on belief-propagation nodes. Read
-it with this table: exact for the factors' message rules.
+`propagate!` checks this table at run time (P13): after the one sweep of a tree schedule it sets
+`report.exact` only when every node that sends a message declares exact messages, none is a
+`MixtureReduction` node, and no factor received a mixture on one edge while sending on another;
+otherwise its `reason` names each of these (`lib/Mycelium.jl/src/passing.md`, "Exactness checked
+at run time"; tests `lib/Lenticulum.jl/test/exact_report.jl`). It is cautious in one case: a
+`MixtureReduction` budget that no message exceeds is exact, and is reported as not exact.
 
 ## On a loopy graph
 

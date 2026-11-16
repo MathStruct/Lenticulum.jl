@@ -481,3 +481,8 @@ for op in (:free_energy, :entropy)
     @eval LenticulumCore.$op(::OptimiserFactor, π, y, ps, st) = throw(ArgumentError(
         "OptimiserFactor is a stateful update rule, not a statistical game; game-level quantities are undefined"))
 end
+
+# A point, a fixed belief and a copy are their exact messages (`exact_messages`, P13).
+exact_messages(::DataFactor) = true
+exact_messages(::PriorFactor) = true
+exact_messages(::RelayFactor) = true

@@ -558,17 +558,24 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::ResidualSchedule, @nospe
 end
 
 """
-    ConvergenceReport(converged, sweeps, residual, reason)
+    ConvergenceReport(converged, sweeps, residual, reason, exact = false)
 
 What [`propagate!`](@ref) reports. `converged == false` is not an error — on a loopy graph it
 is the expected outcome, and callers must decide whether to trust the marginals.
+
+`exact` says that the marginals are the model's exact marginals, not only a fixed point. Only a
+tree schedule's single sweep claims it, and only when nothing on the way approximated (P13,
+[`exact_messages`](@ref)); `reason` then says "one sweep is exact", and otherwise names what
+approximated. An iterated schedule never claims it.
 """
 struct ConvergenceReport
     converged::Bool
     sweeps::Int
     residual::Float64
     reason::String
+    exact::Bool
 end
+ConvergenceReport(converged, sweeps, residual, reason) = ConvergenceReport(converged, sweeps, residual, reason, false)
 Base.show(io::IO, r::ConvergenceReport) = print(io,
     "ConvergenceReport(", r.converged ? "converged" : "NOT converged",
     " after ", r.sweeps, " sweep(s), residual ", r.residual, "; ", r.reason, ")")
@@ -576,7 +583,46 @@ Base.show(io::IO, r::ConvergenceReport) = print(io,
 # One tree sweep is a fixed point when every message depends on upstream messages only: belief
 # propagation and MixtureReduction() nodes. Expectation-propagation and mean-field messages also read the
 # target side (the cavity, the marginals), so those graphs are iterated like any other.
+# (A fixed point, not exactness: `_inexact_reasons` decides that.)
 _tree_exact(g::FactorGraph) = all(f -> f.rule isa BeliefPropagation || f.rule isa MixtureReduction, g.factors)
+
+"""
+    exact_messages(f) -> Bool
+
+Whether `f`'s belief-propagation messages are the exact sum-product messages for every input it
+takes without collapsing it: point, categorical and Gaussian (also flat) messages. `false` by
+default, so a factor type is called exact only where it declares so (and has a test against a
+closed form); a mixture input is checked separately, at run time. [`propagate!`](@ref) reads it to
+decide whether a tree sweep is exact (P13, `Bethe Free Energy.md`, "What exact requires").
+"""
+exact_messages(f) = false
+
+# Why one tree sweep, a fixed point, does not give the exact marginals; empty when it does. Read
+# from the store after the sweep: a factor counts if it sends a message (an edge that emits), and a
+# mixture it receives on one edge counts if it sends on another (the message rules collapse a
+# mixture input to its moments, or project it). Mixtures that meet at a variable are multiplied
+# exactly and are not a reason.
+function _inexact_reasons(s::MessageStore, g::FactorGraph)
+    why = String[]
+    for (fid, node) in enumerate(g.factors)
+        es = g.edges_of_factor[fid]
+        emitting = [e for e in es if emits(g.edges[e].direction)]
+        isempty(emitting) && continue
+        if node.rule isa MixtureReduction
+            push!(why, "node :$(node.name) reduces mixtures (MixtureReduction)")
+            continue
+        end
+        exact_messages(node.factor) ||
+            push!(why, "node :$(node.name) ($(nameof(typeof(node.factor)))) does not declare exact messages")
+        for e in es
+            has_to_factor(s, e) || continue
+            s.to_factor[e].belief isa LenticulumCore.MixtureBelief || continue
+            any(!=(e), emitting) || continue
+            push!(why, "node :$(node.name) receives a mixture on :$(g.edges[e].channel) and collapses it")
+        end
+    end
+    return why
+end
 
 """
     propagate!(store, g, sched, ps, st; maxsweeps = 100, tol = 1e-8, damping = 0.0,
@@ -586,8 +632,11 @@ _tree_exact(g::FactorGraph) = all(f -> f.rule isa BeliefPropagation || f.rule is
 Run the schedule to convergence, or to `maxsweeps`.
 
 For a [`TreeSchedule`](@ref) without damping, on a graph of [`BeliefPropagation`](@ref) and
-[`MixtureReduction`](@ref) nodes, one sweep is enough and is **exact** (for `MixtureReduction`, exact for the reduced
-messages); the loop stops after one and says so. [`ExpectationPropagationRule`](@ref) and
+[`MixtureReduction`](@ref) nodes, one sweep is enough: it is the fixed point, and the loop stops
+after one. The report calls it **exact** (`report.exact`) only when nothing approximated: every
+node that sends a message declares [`exact_messages`](@ref), none is a `MixtureReduction` node, and
+no factor received a mixture on one edge and sent on another (it collapses the mixture to its
+moments); otherwise `reason` names each of these. [`ExpectationPropagationRule`](@ref) and
 [`MeanField`](@ref) messages also depend on the target's side, so such graphs are iterated. With damping a tree schedule is iterated and checked like any
 other, since a damped sweep keeps part of each previously stored message. For loopy graphs there is no guarantee: see `Loopy Message Passing.md`.
 
@@ -612,7 +661,10 @@ function propagate!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, ps
     # warm start one sweep is not the fixed point: iterate and check like any schedule.
     if sched isa TreeSchedule && iszero(damping) && _tree_exact(g)
         _, st = sweep!(s, g, sched, ps, st; damping)
-        return ConvergenceReport(true, 1, 0.0, "tree schedule: one sweep is exact"), st
+        why = _inexact_reasons(s, g)
+        isempty(why) && return ConvergenceReport(true, 1, 0.0, "tree schedule: one sweep is exact", true), st
+        return ConvergenceReport(true, 1, 0.0,
+            "tree schedule: one sweep is the fixed point, not exact: " * join(why, "; "), false), st
     end
     res = Inf
     margs = criterion === :marginals ? _all_marginals(s, g) : nothing

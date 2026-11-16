@@ -83,7 +83,7 @@ export legal_targets, legal_sources
 
 # --- Messages --------------------------------------------------------------
 export Message, MessageStore, reset!, pin!, unpin!, combine, combine_with_overlap, belief_logdensity, belief_distance
-export marginal, excluded_marginal, damp, can_damp
+export marginal, excluded_marginal, damp, can_damp, exact_messages
 export has_to_variable, has_to_factor
 export BeliefBlock, TrivialBlock, PointBlock, GaussianBlock, CategoricalBlock, MixtureBlock, ComponentMixtureBlock, VectorBlock, belief_block, replica, replicas, nreplicas
 

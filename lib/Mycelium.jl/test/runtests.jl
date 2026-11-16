@@ -325,6 +325,7 @@ end
     @test report.converged
     @test report.sweeps == 1
     @test occursin("exact", report.reason)
+    @test report.exact                         # data, relay and an absorbing loss: exact (P13)
     @test marg.x === DiracBelief(2.0)          # from data_x
     @test marg.t === DiracBelief(5.0)          # from data_t
     @test marg.y === DiracBelief(2.0)          # relayed through the model

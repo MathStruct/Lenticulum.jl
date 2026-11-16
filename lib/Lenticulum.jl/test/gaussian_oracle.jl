@@ -98,6 +98,7 @@ end # module
         for sched in (tree_schedule(g), tree_schedule(g; root = Symbol(:x, length(t.dims))))
             m, rep, _, s = infer!(g, sched, ps, st)
             @test rep.converged
+            @test rep.exact                                   # P13: Gaussian trees are declared exact
             for i in eachindex(t.dims)
                 b = m[Symbol(:x, i)]
                 @test belief_mean(b) ≈ μ[rg(i)] atol = 1e-8 * scale

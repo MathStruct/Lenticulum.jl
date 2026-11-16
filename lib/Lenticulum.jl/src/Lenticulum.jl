@@ -61,6 +61,16 @@ include("switching.jl")
 include("regime.jl")
 include("m_steps.jl")
 
+# The factors whose belief-propagation messages are exact for point, categorical and Gaussian
+# inputs (also flat ones), each tested against a closed form (`test/gaussian_oracle.jl`,
+# `test/hard_constraint.jl`, the switching testsets): a tree of them, one sweep, is exact unless a
+# mixture reaches a factor that collapses it (Mycelium's `exact_messages`, P13). Not declared:
+# `NonlinearFactor` (a local linear model), `LikelihoodFactor` (non-conjugate), `RegimeFactor`
+# (exact only inside a cluster node), and the exposed and overlay wrappers.
+for T in (GaussianFactor, GaussianPrior, LinearConstraintFactor, HardConstraintFactor, SwitchingConstraintFactor)
+    @eval Mycelium.exact_messages(::$T) = true
+end
+
 export GaussianBelief, Gaussian, uninformative
 export belief_mean, belief_cov, isproper, logpartition, kl_divergence
 export moment_match, reduce_mixture

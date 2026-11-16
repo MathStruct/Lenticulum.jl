@@ -142,6 +142,9 @@ sound but implicit: a hand-constructed `TreeSchedule(inward, outward)` over a lo
 get a false "exact" report. A `TreeSchedule` carrying the graph it was built for, or a
 construction-only inner constructor, would close that hole.
 
+A tree is also not enough: one sweep is the fixed point, but whether it is exact depends on the
+message rules. That part is checked at run time since P13 (next section).
+
 ### 5. `infer!` returns four things
 
 `(marginals, report, st, store)`. The `store` is returned because
@@ -563,3 +566,48 @@ The gradient columns were not measured "before" at 4 801 factors.
 checks of the semantics, of plates with state and of AD all passed when run again. It found one
 defect: `parameter_step` refused an optimiser state given as a `Dict`, which the old code accepted.
 That is fixed, with a test. Its suspicion of a per-key scan of the energy rows was not reproduced.
+
+## Exactness checked at run time (P13, 2026-11-16)
+
+**Problem.** `propagate!` reported "tree schedule: one sweep is exact" for every undamped tree of
+belief-propagation and `MixtureReduction` nodes. One sweep is then the fixed point, but not always
+the exact marginals: a factor that receives a mixture on one edge and sends on another collapses it
+to its moments (`Bethe Free Energy`, "What exact requires"), `NonlinearFactor` sends the messages of
+a local linear model, and a `MixtureReduction` node merges components. On a switching chain under
+belief propagation the report said "exact" while the marginals differ from the enumerated ones by
+up to 0.008 in a mean and 0.011 in a variance (`MR_CHAIN`, Lenticulum `test/mixture_rules.jl`; checked
+in `test/exact_report.jl`).
+
+**Implementation.** `ConvergenceReport` has a fifth field, `exact` (the four-argument constructor
+sets it `false`, so every iterated schedule says not exact). After the tree sweep
+`_inexact_reasons(store, g)` lists, for each node that sends a message (an emitting edge): a
+`MixtureReduction` rule; a factor type that does not declare `exact_messages(f) = true`; and each
+edge on which it received a `MixtureBelief` while sending on another edge. The list empty, the
+report is exact; otherwise `reason` reads "one sweep is the fixed point, not exact: …" with every
+item. Mixtures that meet at a variable are multiplied exactly and do not count, and neither does a
+mixture into a factor that sends only on that edge (a prior), so a switching factor whose mixture
+reaches a leaf stays exact.
+
+`exact_messages` is opt-in: `false` by default, declared for Mycelium's `DataFactor`,
+`PriorFactor`, `RelayFactor`, `TableFactor` and `ClusterFactor`, and for Lenticulum's
+`GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor`, `HardConstraintFactor` and
+`SwitchingConstraintFactor`, each tested against a closed form. A factor nobody declared (a
+`LuxFactor`, a diffusion factor, `NonlinearFactor`, `LikelihoodFactor`, `RegimeFactor` outside a
+cluster) makes the report say so, rather than call its messages exact.
+
+**What it does not do.** It is cautious with `MixtureReduction(M)`: with a budget no message
+exceeds, nothing is merged and the marginals are exact, but the report says not exact (the store
+does not show whether a reduction happened). It reads the rule and the message types, not the
+messages' values, so a factor declared exact but given a belief type it handles approximately other
+than a mixture would pass unnoticed; the declared factors' other inputs (point, categorical,
+Gaussian, flat) are exact. The loopy-graph hole of the section above (a hand-built `TreeSchedule`)
+is still open.
+
+**Tests.** Lenticulum `test/exact_report.jl` (99 checks): the switching chain under belief
+propagation, not exact and its marginals more than 0.005 from enumeration; `MixtureReduction(1)` and
+`(16)`, not exact; the same chain in one cluster node, exact and the enumerated means; the
+additive wiring, collapsed at the sum factor and exact once clustered; 20 random priors times a
+switching factor's mixture, exact and equal to the closed-form mixture moments and weights;
+`NonlinearFactor`, not declared; sequential and damped schedules, never exact. The 40 random
+Gaussian trees of `test/gaussian_oracle.jl` and Mycelium's chain (data, relay, absorbing loss)
+assert `rep.exact`.

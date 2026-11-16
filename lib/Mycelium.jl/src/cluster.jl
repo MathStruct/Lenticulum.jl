@@ -1020,3 +1020,9 @@ function cluster_marginal(s::AbstractMessageStore, gc::FactorGraph, name::Symbol
     length(comps) == 1 && return only(comps)
     return LenticulumCore.MixtureBelief(comps, b.q[b.q .> 0])
 end
+
+# A table is exact on categorical inputs; a cluster node's messages are exact for its incoming
+# messages (enumeration over its discrete assignments, `test/cluster.jl` in Lenticulum). A mixture
+# input is checked at run time (`exact_messages`, P13).
+exact_messages(::TableFactor) = true
+exact_messages(::ClusterFactor) = true
