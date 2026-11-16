@@ -29,7 +29,7 @@ moves to the done note with its id, and a new row takes the next free number of 
 | S | [[Backlog S Structure Search and Editing]] | edits, moves, gates, scores and a search driver |
 | L | [[Backlog L Learning]] | M-steps, gradient semantics, `train!`, hyperparameters, and losses for energy factors |
 | U | [[Backlog U Utility Factors and Data]] | data loading and the small exact factors written by hand today (asked for 2026-11-05) |
-| G | [[Backlog G Decisions, Control and Games]] | control as inference, owned scalarisations in games, open games (asked for 2026-11-16) |
+| G | [[Backlog G Decisions, Control and Games]] | control as inference, owned scalarisations in games, open games, epistemic beliefs over hypotheses (asked for 2026-11-16) |
 | F | [[Backlog F Families]] | implicit diffusion: calibration and posterior samplers; likelihoods, polynomial and algebraic factors |
 | T | [[Backlog T Tooling]] | benchmarks for optimiser design and regression tracking |
 
