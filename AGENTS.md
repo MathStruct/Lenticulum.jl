@@ -104,9 +104,12 @@ right, what was done, and the test that shows it. A finding is a claim until a t
 it; one that cannot be reproduced is recorded as such, not fixed. The test of a fix stays as its
 regression test.
 
-**Feature backlog.** `vault/Project/Feature Backlog.md` is kept current without being asked: a
-feature asked for by a specification, a problem, a review or a measurement gets a row, and the
-row moves to "done" with the commit that implements it.
+**Feature backlog.** `vault/Project/Feature Backlog/` is kept current without being asked:
+`Feature Backlog.md` is the index (conventions, the dependency graph), each section has its own
+note (`Backlog P The Three Paths.md`, … one per id letter), and done rows go to the month's
+`Backlog Done <yyyy-mm>.md`. A feature asked for by a specification, a problem, a review or a
+measurement gets a row in its section's note, and the row moves to the done note with the commit
+that implements it. Read the index and the section you need, not the whole folder.
 
 **Say what you did not check.** A commit message or a note that reports results ends with what
 was not run or not read.

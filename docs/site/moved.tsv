@@ -103,3 +103,5 @@ lib/Adversarial.jl/Adversarial	lib/AdversarialFactors.jl/AdversarialFactors
 lib/Adversarial.jl/generator	lib/AdversarialFactors.jl/generator
 lib/Adversarial.jl/ratio	lib/AdversarialFactors.jl/ratio
 lib/Adversarial.jl/transport	lib/AdversarialFactors.jl/transport
+# The backlog became a folder (2026-11-16).
+Project/Feature Backlog	Project/Feature Backlog/Feature Backlog

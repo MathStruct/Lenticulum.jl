@@ -26,7 +26,7 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
   derivative carried by $\Delta = X - \operatorname{stop\_gradient}(X)$ (one formula for ForwardDiff
   and Zygote); a first-order rank change refused under ForwardDiff; non-mutating `_independent_join`;
   the hard factor's free energy through $\sum\log\sigma + \operatorname{tr}(G^+\Delta)$. Details in
-  [[Feature Backlog]] (Done 2026-11-16) and [[lib/LenticulumCore.jl/src/extended_gaussian|extended_gaussian]]
+  [[Backlog Done 2026-11]] (2026-11-16) and [[lib/LenticulumCore.jl/src/extended_gaussian|extended_gaussian]]
   "Derivatives (P4, 2026-11-16)".
 - Verified: LenticulumCore, Mycelium, MyceliumLearning, Lenticulum suites after the review fix;
   AlgebraicFactors, AdversarialFactors, ImplicitLayers, VariationalDiffusion before it (the fix touches only

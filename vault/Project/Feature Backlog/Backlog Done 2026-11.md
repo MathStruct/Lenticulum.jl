@@ -1,0 +1,155 @@
+#overview
+
+> The rows of the [[Feature Backlog]] that are done, November 2026, newest first: each with its id,
+> what was implemented, the measurement, and where the code, the note and the review are. A new
+> month gets a new note (`Backlog Done 2026-12`).
+
+> Sources: original to this repository; the notes, tests and benchmarks named in each entry.
+
+## 2026-11-16
+
+P4, extended-Gaussian inputs in plates (tested earlier the same day, no code change) and under AD: the coupled replay (`free_energy_gradient(...; schedule, ad)`, `ExactCoupling`) through a `HardConstraintFactor` runs under ForwardDiff and Zygote. `ExtendedGaussian{T<:Real}`; every decomposition (eigen, SVD) is taken on the values and the derivative carried by the tangent $\Delta = X - \operatorname{stop\_gradient}(X)$, which is zero in value, so one formula serves ForwardDiff and Zygote: the PSD split $V_0 + N_0N_0^\top\Delta V_0\lambda^{-1}$, $N_0 - V_0\lambda^{-1}V_0^\top\Delta N_0$; `_orth`, `_complement`, `_from_potential` and the hard factor's $\tfrac12\log\det GG^\top = \sum\log\sigma + \operatorname{tr}(G^+\Delta)$ alike. A first-order rank change ($L^\top\Delta R \ne 0$) is refused under ForwardDiff, nested duals refused; Zygote gets no rank check. `_independent_join` builds without mutation; Mycelium's `combine`, `belief_distance` and `_damp` of an extended and a dual Gaussian take the extended path when there are hard directions; Lenticulum's `_range_complement` (float) and `_accumulate` became Zygote-safe on the way ([[lib/LenticulumCore.jl/src/extended_gaussian|extended_gaussian]] "Derivatives (P4, 2026-11-16)", [[hard_constraint]]). Tests: LenticulumCore `test/extended_gaussian_ad.jl` (pushforward, preimage, product, support entropy, hard projector, canonical part and the conversion from an improper Gaussian, with moving subspaces, ForwardDiff and Zygote against central differences; beliefs with no Gaussian direction; refusals), Lenticulum `test/hard_gradient.jl` (12 random trees with a hard relation, the replay's gradient under ForwardDiff and Zygote against ForwardDiff of the dense $-\log Z$, to 1e-8), the replay `@test_broken` of `test/extended_plates.jl`, Mycelium `test/forms_crossing.jl` (a hard × dual pair, values and central differences). Review: [[LP-043 Findings of the review of P4]] (one finding, fixed). Left: P27 (mixture × extended); Zygote has no rank check; second derivatives refused.
+
+P25, ForwardDiff through a relation factor's flat path when its flat directions move, at constant rank: a flagged input whose precision is dual (a derivative by $A$ upstream) and dual coefficients or covariances on the flat path. As in P26 the bases move only into each other from the decomposition at the value ($U + \varepsilon NN^\top DU\lambda^{-1}$, $\Lambda^+(\varepsilon) = U(\varepsilon)(U^\top\Lambda U)^{-1}U(\varepsilon)^\top$; for the residual metric $W - \varepsilon(B^+)^\top D^\top W$ and $d\log\operatorname{pdet} = 2\operatorname{tr}(B^+D)$), no eigenvector or singular vector differentiated. `_improper_split_dual` → `_moving_flat_split`, `_residual_metric` and `_residual_metric_logdet` → `_range_complement`, both with dual methods in `LenticulumForwardDiffExt`; a first-order rank change and nested duals refused ([[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Flat directions that move"). Tests: Lenticulum `test/forms_crossing.jl`, moving backward messages into `GaussianFactor`, `LinearConstraintFactor` (one and two flat inputs), `SwitchingConstraintFactor`, and dual coefficients with a fixed flat input, against central differences of the value path (281 checks); refusals and first-order identities (200); P21's former `@test_broken`. Review: [[LP-042 Findings of the review of P25]] (one finding, fixed). Left: a second-order rank change gets the constant-rank derivative; Zygote not covered.
+
+P26, ForwardDiff and Zygote through a cluster node's free energy when its joint precision has flat directions, at constant rank: the range and null space at the value move only into each other ($U + \varepsilon NN^\top DU\Lambda^{-1}$), and $U^\top J U$ is factorised in duals, so no eigenvector is differentiated (repeated eigenvalues on the range are fine). `_Flat` holds $K = U^\top J U$ factorised instead of the eigenvalues; `_psd_factor` hands a singular $J$ to `_flat_factor`, with a method for first-order duals of floats in a new extension `MyceliumForwardDiffFlatExt` (ForwardDiff alone). A tangent that changes the rank to first order ($N^\top D N \ne 0$) is refused; one that changes it at second order ($A_x$ leaving 0) gets the constant-rank derivative; nested duals are refused ([[lib/Mycelium.jl/src/cluster|cluster]] "Flat directions under a derivative"). Tests: Lenticulum `test/regime_plate.jl`, random constant-rank $J(\theta)$ (half with repeated eigenvalues) through `_psd_logdet`, `_psd_solve`, `_psd_inv` against central differences, a rank change refused, random regime factors with flat $x$ (ForwardDiff against central differences, Zygote against ForwardDiff), P24's former `@test_broken`. Review: [[LP-041 Findings of the review of P26]].
+
+P24, ForwardDiff and Zygote through a cluster node's free energy at fixed messages, with the cluster's belief a function of `ps` (not the fixed-belief gradient of `free_energy_gradient`; the two differ once the node hears a Gaussian message). The joint is generic in its number type (`_ClusterJoint{T}`); the plate's stacked joint stays in `Float64`, and dual parameters go replica by replica. Zygote: an rrule on `_cluster_local_energy` (used by `ClusterFactor` and `RegimeFactor`) whose pullback runs ForwardDiff over the flattened parameter tree (`ext/MyceliumForwardDiffExt.jl`, a new extension on ChainRulesCore and ForwardDiff); the messages get no tangent. Found on the way: on a plate row Zygote stopped at the state write-back, which recorded the empty state of a key that had none with a `push!`; a row's write-back is now `@non_differentiable` (its state carries no tangent) ([[lib/Mycelium.jl/src/cluster|cluster]] "Derivatives at fixed messages"). Tests: Lenticulum `test/regime_plate.jl`, random regime factors with Gaussian and categorical messages, alone and clustered (ForwardDiff against central differences, Zygote against ForwardDiff, the fixed-belief gradient shown to differ), and the clustered mixture of factor analysers on block rows (were `@test_broken`). Review: [[LP-040 Findings of the review of P24]] (no defect). Left over: P26, flat directions under a derivative.
+
+P13, the exactness of a tree sweep checked at run time: `ConvergenceReport` has a field `exact`, set after the one sweep of a tree schedule only when every node that sends a message declares `exact_messages` (opt-in: Mycelium's data, prior, relay, table and cluster factors; Lenticulum's Gaussian, prior, linear and hard constraint and switching factors), none is a `MixtureReduction` node, and no factor received a mixture on one edge while sending on another (it collapses it); otherwise `reason` names each. Before, a switching chain on belief propagation was reported exact while its marginals were up to 0.011 off the enumerated ones. Cautious with a `MixtureReduction` budget no message exceeds (exact, reported not exact) ([[lib/Mycelium.jl/src/passing|passing]] "Exactness checked at run time", [[Bethe Free Energy]] "What exact requires"). Tests: Lenticulum `test/exact_report.jl` (each claim against enumeration or a closed form), `rep.exact` on the 40 random trees of `test/gaussian_oracle.jl` and on Mycelium's chain. Review: [[LP-039 Findings of the review of P13]] (no defect).
+
+P21, ForwardDiff through a relation factor's flat path when only η is dual (a derivative by `b`, `c` or an observation): a flagged input of dual numbers is split on its precision's values (`_improper_split_dual`, through `LenticulumCore._flat_split`, the rule `extended` now uses), and the duals pass through the mean; a precision of zero-partial duals is accepted. `NonlinearFactor`'s messages at a dual expansion point: `_jacobian` is generic in the element type, its step taken from the values. Found on the way: the range check of the split returned false on duals, as `norm` of a dual whose value is exactly 0 is `NaN`; it now reads the values ([[lib/Lenticulum.jl/src/gaussian\|gaussian]] "Dual inputs on the flat path"). Tests: Lenticulum `test/forms_crossing.jl`, four P21 testsets against central differences of the value path (`GaussianFactor` both ways, `LinearConstraintFactor` with one and two flat inputs, `SwitchingConstraintFactor`, an inference, `NonlinearFactor`); the two P1 `@test_broken` are tests now. Review: [[LP-038 Findings of the review of P21]] (no defect). Left over: P25, a flat input whose precision moves.
+
+P23, Zygote through the cavity free energies of `LinearConstraintFactor` and of `SwitchingConstraintFactor` (EP sites), per node and through a graph's `scalar_free_energy`, per edge and on plate blocks. Five blockers: the n-ary `_blockdiag` filled a zero matrix (now `cat`), `inv(::Cholesky)` has no Zygote rule (every `inv(_chol(M, what))` in Lenticulum, and `Gaussian(μ, Σ)` in LenticulumCore, is now `_spd_inv`, with an rrule that takes the symmetric part), `_reduced_relation` and `switch_statistics` collected with `push!` (tuples; `_free_channels` non-differentiable), and an extended Gaussian's hard directions are reduced through an SVD with `full = true` (`_complement`, now non-differentiable: the messages are constants in `ps`). Tests: Lenticulum `test/zygote_cavity.jl` (random factors and messages of every kind, Zygote against ForwardDiff), and the factor-analysis and latent switching plates of `test/plates.jl` (were `@test_broken`). Cluster nodes split off as P24 ([[constraint]] "Zygote through the cavity free energy").
+
+P20, a defect found by Mistral: `Zygote.gradient` of `scalar_free_energy` failed on a store with plate block rows. Three things blocked it, not only the `sum(...; init)` of `_row_scalar`: the masks of covered nodes were written in place, the variable rows' entropies went through typed comprehensions, and every factor type's batched `local_free_energies` (and the default) fills arrays. `_row_scalar` is now `sum(map(...))`, the masks are written by `_mark!` and the variable rows' term is `@non_differentiable` (they read only message blocks), and a row's scalar energy has an `rrule` that differentiates the same energy replica by replica through `local_free_energy`. That is the derivative at fixed messages, as ForwardDiff gives it, not the envelope gradient of `free_energy_gradient` (LP-020): a first version that used the envelope argument agreed with `free_energy_gradient` to 1e-16 but differed from ForwardDiff by 0.78 on the factor-analysis plate, and was dropped ([[free_energy]] "Zygote on block rows"). Tests: `lib/Lenticulum.jl/test/plates.jl`, "Zygote through the free energy on message blocks (P20)" (random plates of learned-noise priors) and observed switching plates, against ForwardDiff and per-edge Zygote. Factors whose cavity energy Zygote cannot take even per edge stay so (P23).
+
+## 2026-11-15
+
+P22, a defect found while testing I21: a `PlateSchedule`'s plans hold the block row numbers of `MessageStore(g)`, and a store built by hand with the rows numbered otherwise was swept on the wrong rows without an error ($F$ = 2.68 against the closed form 14.54). `sweep!` now checks once per sweep that both directions number their rows as the graph does (`_graph_layout`) and otherwise runs the groups without their plans, which gives the edge-by-edge messages ([[plates]] "A store with another block numbering"). Test: Lenticulum `test/regime_plate.jl`, "PlateSchedule on a store with another block numbering (P22)" (fails without the check).
+
+I21, the rest of the mixture plate's per-replica work: the regime factors' messages to a continuous channel stay a block once the outcomes' precisions differ (`ComponentMixtureBlock`, a precision and a flag per component; [[blocks]] "Mixtures with a precision per component"), and the plate's energy rows are kept in the graph per store layout instead of found on every free-energy and EM call ([[free_energy]] "Batched energies over plates"). `fit_em` on the mixture plate: 0.025 → 0.018 s ($N = 300$) and 0.219 → 0.132 s ($N = 3000$), the same iterates (`bench/regime_plate_profile.jl`); in [[Benchmark against RxInfer]] 19 ms and 0.15 s against RxInfer's 125 ms and 3.4 s; closed-form EM (5.7 ms at $N = 3000$) is still about 25 times faster, and no single part of the profile dominates (46% sweeps, mostly the regime factors' joint and solves; 18% the free energy). Tests: two testsets in Lenticulum `test/regime_plate.jl` and the I20 block testset (four mutations fail 2 to 57 tests). Found on the way: P22. Review: [[LP-036 Findings of the review of I21]] (one finding, fixed).
+
+I20, the per-replica work left in a plate sweep after I19: data factors that `as_plate` leaves untied (each replica its own empty key) are grouped in plate sweeps and free-energy rows when none is learnable and every key's parameters and state are empty, checked each sweep, edge by edge otherwise ([[plates]] "Untied factors without parameters"); cluster nodes (and `RegimeFactor`) take a plate sweep's inputs as blocks and return a `CategoricalBlock`, `MixtureBlock` or `GaussianBlock` without a belief per replica where the shapes allow, equal bit for bit to the column path ([[cluster]] "Block inputs"); `fit_em` no longer calls `haskey` on the parameter tree once per node. `fit_em` on the mixture of regressions as a plate: 0.057 → 0.025 s ($N = 300$) and 0.615 → 0.219 s ($N = 3000$), the same iterates (`bench/regime_plate_profile.jl`). In [[Benchmark against RxInfer]] 30 ms and 0.24 s against RxInfer's 126 ms and 3.2 s. Tests: two testsets in Lenticulum `test/regime_plate.jl` (four mutations of the block path fail 18 to 69 of them). What is left is I21.
+
+## 2026-11-13
+
+I19, a batched `RegimeFactor` plate profiled and sped up: a profile of `fit_em` on the mixture of two regressions as a plate put 45% of the time in building every replica's joint, 25% in per-replica messages and 15% in rebuilding and comparing one cluster per replica each sweep. Tied cluster nodes over a plate now form one stacked joint (`_batch_joint` in `cluster_batch.jl`): the data terms of all replicas as matrix products, the messages' and beliefs' solves once for all replicas, each replica's message assembled from its columns; equal factors share one cluster (`_as_clusters`), and `_same_struct` is unrolled ([[cluster]] "Batching in one stacked joint"). `fit_em` at $N = 300$ and 3 000: 0.338 → 0.059 s and 3.611 → 0.625 s, the same iterates (`bench/regime_plate_profile.jl`); in [[Benchmark against RxInfer]] 68 ms and 0.68 s against RxInfer's 126 ms and 3.4 s. Tests: the oracles of `regime_plate.jl` and `cluster.jl` (three mutations of the batched data term fail 90, 54 and 60 of them), two tests from Mistral's review ([[LP-034 Findings of the review of I19]]: unequal factors in a row, flat directions over a plate). What is left is I20.
+
+F3, the ridge residual: `ridge_residual(m, z, ps, st; codim)` in VariationalDiffusion (`answers.jl`, [[implicit]] §5) is the first-order distance from a point to the ridge of the smoothed density, $\lVert V\Lambda^{-1}V^\top g\rVert$ with $V, \Lambda$ the `codim` largest eigenpairs of the field Jacobian's symmetric part, `Inf` when a normal curvature is not positive; for an answer the codimension defaults to its number of free coordinates. `query_report` reports it with `DenseSolve` and flags `:off_ridge` when it is `Inf` or above `ridge_tol` ([[report]]). Tests: exact against a rotated Gaussian (the distance to the major axis, invariant in λ), the ring (on it within $2\cdot10^{-3}$, off it $1.3 - R'$; at the top the round trip rejects a true root, the ridge residual does not), a non-symmetric linear field and a saddle; mutations of the formula fail them. Reviewed by Mistral ([[LP-033 Findings of the review of the ridge residual]]): no wrong result, four missing tests, added. Measured on the calibration benchmark (`calibration.md` "Remedies", point 4): at the low levels it keeps every matched root and every off-domain root goes, where the round trip loses recall (0.86 to 0.74 on the circle, 0.52 to 0.12 on the lemniscate); it removes fewer spurious roots than coverage, but needs no data and costs no recall at the lemniscate's crossing.
+
+## 2026-11-12
+
+I6, batched cluster nodes with per-outcome forms over a plate: tied cluster nodes whose factors' coefficients or noise depend on their outcome (L-SPEC-009 §9) are batched over a plate like the others (§8). The replicas share one precision, its factorisation and its covariance per precision class; a point's shift $A_{c,k} x_c$ now differs per outcome, so the data term has one column per assignment (`cluster_batch.jl`). `FrozenClusterBeliefs` holds a covariance and an entropy per class, `belief_free_energies` and EM's stacked `_moment_stats` read them, and a plate row of `RegimeFactor`s outside clusters is batched as one-factor clusters, EM statistics included. Tests (`lib/Lenticulum.jl/test/regime_plate.jl`, 207): batched against per-replica messages, beliefs, energies and gradients on random instances, a plated mixture of factor analysers against the closed form, a plated mixture of regressions against the unplated graph through EM; a mutation of the data term fails 60 of them. Reviewed by Mistral's probes ([[LP-032 Findings of the review of I6]]): a categorical input with reordered labels on a later replica was read positionally (older than I6), fixed with a regression test. Benchmark ([[Benchmark against RxInfer]]): the regression mixture as a plate is 2.2 and 2.6 times faster than unplated (0.36 s at $N = 300$, 3.8 s at 3 000); the rest is I19. The benchmark's graph had not been a plate, so the old row's "plates go replica by replica" described a graph without one.
+
+P11, the query report: `query_report(m, z₀, ρ, ps, st)` in VariationalDiffusion (`report.jl`, `report.md`) answers a query and returns a `QueryReport`: converged and stable, the distinct stable roots from other starts and the answer's rank among them, $\operatorname{cond}_1 J_{FF}$ (the pullback's singularity test, now one shared function) and $\lambda_{\min}(\operatorname{sym}J_{FF})$, the round trip, and coverage when a reference is given; `flags` lists what failed (`:not_converged`, `:unstable`, `:other_roots`, `:not_lowest`, `:ill_conditioned`, `:round_trip`, `:atypical`), `trusted(r)` when none. It adds no check of its own. Tested against closed forms (one Gaussian: $\operatorname{cond}_1 = 1$, $\lambda_{\min} = \kappa + 4$), on the ring, on unequal and equal branches. Reviewed by Mistral ([[LP-031 Findings of the review of the query report]]): four flags were wrong, all fixed with regression tests. Left over: a round trip judged by a default tolerance needs the data's scale, which the library does not know; a ridge residual (F3, done 2026-11-13).
+
+P17 and P18, two moves out of type piracy (Aqua's exceptions in Lenticulum's and AdversarialFactors' `test/aqua.jl` are gone). P17: `reduce_mixture` (Runnalls' merge) and `reduce_message` for Gaussian mixtures moved from Lenticulum's `beliefs.jl` to Mycelium's `gaussian.jl`, so Mycelium alone reduces a Gaussian mixture; Lenticulum re-exports `reduce_mixture` (`lib/Mycelium.jl/test/mixture_reduction.jl`: merges keep the total mean and covariance, with Mycelium alone). P18: `belief_mean` and `belief_cov` of `SampleBelief` moved from AdversarialFactors' `ratio.jl` to LenticulumCore, beside the other moments; AdversarialFactors' `weighted_mean` and `weighted_cov` call them (`lib/LenticulumCore.jl/test/sample_moments.jl`: against the sums written out and Statistics). Code unchanged otherwise. This also frees I7 of its dependency.
+
+P1, the tests where the two forms of a flat likelihood meet (an `improper` `GaussianBelief` and an `ExtendedGaussian`): the dual path's message against the value path's, values and derivatives, for `GaussianFactor`, `LinearConstraintFactor` and `NonlinearFactor`; one `_split_moments` rule; `combine`, `belief_distance` and `damp` on mixed pairs; a ForwardDiff derivative through an inference (`lib/Lenticulum.jl/test/forms_crossing.jl`, `lib/Mycelium.jl/test/forms_crossing.jl`). Two defects fixed: `_likelihood_message` built the extended form of a dual η when only η was dual, so a ForwardDiff derivative by `b`, `c` or an observation through a rank-deficient backward message threw (since 2026-11-11); and `damp` returned the new message undamped when a message changed form between sweeps. Reviewed by Mistral ([[LP-028 Findings of the review of P1]]), which found a third: `combine` threw on a variable that hears a dual flagged and a plain extended message; such pairs now meet in canonical form. Left over: P21, the flat-input path and `NonlinearFactor` at a dual expansion point under ForwardDiff (both `@test_broken`).
+
+I18, the rest: a factor -> variable message no longer resolves and checks its polarity, nor looks its inputs up by name, on every call. `_step!` keeps a checked plan per (edge, bit mask of the informative inputs) in the graph, with the factor, the rule, the polarity and the input names in its type. Results unchanged (Mycelium `test/emit_plan.jl` compares it with the old path on random graphs, and with 8 tasks at once). The sweep on the Kalman chain is about 19% faster at every size (9.96 ms instead of 12.43 at 2 401 factors; `lib/Mycelium.jl/src/passing.md`, "After the plans"; `lib/Mycelium.jl/src/polarity_resolution.md`, difficulty 3). Reviewed by Mistral ([[LP-027 Findings of the review of the I18 plans]]). Not done: the type-level `channels` of difficulty 3 (beliefs in the store stay type-erased, so one dispatch into the factor per message remains).
+
+I18 in part, and P19: the rank test of a `GaussianFactor`'s backward message is kept per weight array (a memo keyed by identity, guarded by a weak reference and a copy), `_moments` factorises the input's precision once (`LenticulumCore._mean_cov`), and the symmetry test and the symmetric part allocate less. Results unchanged (comparison tests on generated inputs in both packages' `test/i18.jl`). The sweep on the Kalman chain is 15% faster at every size (12.4 ms instead of 14.6 at 2 401 factors), and a backward message at dimension 2 takes 1.06 μs instead of 2.4 (`lib/Lenticulum.jl/src/gaussian.md`, "What the checks cost"; `lib/Mycelium.jl/src/passing.md`, "After I18"). Reviewed by Mistral ([[LP-026 Findings of the review of I18]]). Left over: the dispatch part of I18.
+
+Polarities cached per graph: `resolve_polarity` built a `NamedTuple` type from run-time channel names on every message, a quarter of a sweep. `FactorGraph` keeps them per factor by (target, available); the sweep on the Kalman chain at 2 401 factors takes 14.0 ms instead of 18.9 (`bench/sweep_profile.jl`; `lib/Mycelium.jl/src/polarity_resolution.md`, difficulty 3). The same profile found `belief_distance`, the item left after I5, at under 4% of a sweep: not worth work. Left over: I18.
+
+I5, the parameter and state trees read by position: each loop over the factors builds a `Dict` of
+the tree's key positions once and reads `getfield(tree, i)`; a sweep writes state into a buffer and
+rebuilds the `NamedTuple` once; the free energy, which Zygote differentiates, writes back with one
+`merge`. `ps` and `st` stay `NamedTuple`s for the caller. Sweep, free energy, `free_energy_gradient`
+and `parameter_step` grow ×1.8–2.2 per doubling now; at 4 801 factors a sweep takes 39.1 ms
+instead of 261.6 and the free energy 19.9 instead of 150.5 (`bench/state_scaling.jl`;
+`lib/Mycelium.jl/src/passing.md`, "The trees by position"; `lib/Mycelium.jl/test/state_tree.jl`).
+Reviewed by Mistral ([[LP-025 Findings of the review of I5]]). Left over: I16, I17.
+
+## 2026-11-11
+
+The `improper` flag stays (decided 2026-11-11, with Daniel). The former row "retire the flag"
+would have moved the last canonical-form messages to `ExtendedGaussian`, but that type cannot go
+where they are: it holds only `AbstractFloat` values, and its flat directions come from
+eigendecompositions that ForwardDiff's dual numbers have no method for; plate blocks keep one
+$\eta$ matrix with a shared $\Lambda$, which a basis of flat directions per replica would break; and the
+weights of a mixture of likelihoods rest on the constants of the canonical form, which `_overlap`
+re-centres (LP-019). So the canonical form with the flag is the form for AD, batches and mixtures,
+and `ExtendedGaussian` the exact host form of linear relations, the only one with hard
+directions. What is left is P1, the tests where the two meet. The former first row, the
+`ExtendedGaussian` type with exact `combine`, marginalisation and pushforward, is done with it
+(below and 2026-11-10).
+
+The backlog got ids and a *needs* column, and the dependency graph in [[Feature Backlog]].
+
+P7, the free energy and the state tree: the main cost was `_check_tied_state`, which counted the
+factors of every key on every call (O(keys × factors)), not the write-back of the state that LP-024
+suspected. It is linear now, and a factor's state is written back only when it changed. The free
+energy is 1.5–2.3 times faster (42.9 instead of 95.2 ms at 2 401 factors), a sweep unchanged; both
+stay quadratic until I5 (`lib/Mycelium.jl/src/passing.md`, "The state tree"; `bench/state_scaling.jl`;
+`lib/Mycelium.jl/test/state_tree.jl`).
+
+An external baseline: [[Benchmark against RxInfer]] (`bench/rxinfer_baseline.jl`). A Kalman smoother:
+both exact to $10^{-10}$; Lenticulum within a factor 1.7 up to $T = 100$, 4.3–5.8 times slower at
+1 000–2 000. A mixture of regressions: `fit_em` is exact EM, 9–10 times slower than RxInfer's VMP,
+which is slightly worse in likelihood.
+
+The message store takes extended Gaussians (`belief_distance` on moments and the flat projector;
+`damp` as the geometric mixture). `HardConstraintFactor`: the linear relation imposed exactly, its
+messages `preimage(pushforward(…))` of extended Gaussians, tested against `LinearConstraintFactor`
+with noise, against the Gaussian conditioned on the equality, and in graphs under tree and damped
+flooding schedules ([[hard_constraint]]). Messages only; no free energy.
+
+Every relation factor takes an `ExtendedGaussian` input, so a `HardConstraintFactor` can share a
+variable with them; before, it threw a `MethodError`. Tested against `HardConstraintFactor` with
+the same noise on inputs mixing flat, hard and Gaussian directions, and in a tree against the
+dense conditioned Gaussian ([[lib/Lenticulum.jl/src/gaussian|gaussian]] "Extended Gaussian inputs").
+
+The free energy of extended Gaussians: `support_entropy` (relative to Lebesgue measure on the
+belief's support, 0 for a point) as `variable_entropy`, and `HardConstraintFactor`'s term
+$\tfrac12\log\det\tilde G\tilde G^\top - H_R(b_f)$, the finite limit of the noisy relation's.
+Smooth factors substitute hard inputs out. On 40 random trees the Bethe free energy is $-\log Z$
+([[hard_constraint]] "Free energy", [[extended_gaussian]] "Entropy").
+
+The relation factors emit an `ExtendedGaussian` where they declared a message improper
+(`GaussianFactor` and `NonlinearFactor` backwards, `LinearConstraintFactor`); the suites needed only
+two tests changed, which read the old representation ([[lib/Lenticulum.jl/src/gaussian|gaussian]]
+"Improper messages as extended Gaussians").
+
+## 2026-11-10
+
+The refactor ([[Refactor 2026-11]]): five packages (Mycelium split into inference and
+`MyceliumLearning`, the top-level package under `lib/`), three packages parked and, the same day,
+back in `lib/` with a weekly CI run (not yet reviewed), the vault laid out by path. The corrections of [[LP-024 Findings of the review of 2026-11-09]]: partly flat Gaussian
+messages, freeze paths, composition with full noise, damping, one gradient driver rule, dimension
+checks, and four corrections to the theory notes.
+Also: the parked packages pass again and are tested weekly (`.github/workflows/Weekly.yml`);
+redirect stubs for the notes that moved (`docs/site/moved.tsv`, live on the site); `Aqua.jl` in
+every suite, with the compat bounds it asked for; the Obsidian plugin bundles untracked;
+`GaussianFactor` backward messages 22–29% faster (one SVD instead of two); [[GANs as Two Factors]]
+§4–5 rewritten (players are scalarisations with an owner). `ExtendedGaussian`: the belief type for linear
+relations, with exact pushforward and product (first part of the row above).
+
+## 2026-11-04/05
+
+Overlaid ("mirrored") factors (2026-11-05): `Mycelium.OverlayFactor`, several factors with their own
+parameters on the same variables as one node; unnormalised the product (a cluster of the
+members), with `normalise = (:y, …)` a product or mixture of experts normalised in `y`, which a
+learned relation on data cannot collapse (`lib/Mycelium.jl/src/overlay.md`). Members without a
+`cluster_form` (nonlinear energies) remain open (RQ-008).
+
+CI with a second Julia version and the device tests (2026-11-05). The matrix runs the current
+release and 1.12, the oldest supported. Two separate jobs run the Mycelium and ImplicitLayers device
+files (JLArrays). The supported minimum was declared as 1.10 but never tested, and it was wrong:
+the packages find each other through `[sources]`, which needs 1.11, so on 1.10 every package but
+LenticulumCore fails to instantiate. On 1.11 the Enzyme backend of the DEQ solve fails
+(`MixedReturnException`, Enzyme 0.13.205); the same Enzyme passes on 1.12. All seven suites
+pass on 1.12, and every `Project.toml` now says `julia = "1.12"`.
+
+A warning for `DEQFactor`s trained by their residual with the state observed (2026-11-05; measured
+in `lib/ImplicitLayers.jl/test/lp022.jl`). Cluster forms and closed-form M-steps for
+`GaussianFactor` and `GaussianPrior`, learned noise included (2026-11-05; `lib/Lenticulum.jl/test/em.jl`).
+
+Cluster nodes with per-outcome coefficients and noise (`RegimeFactor`); flat directions in
+clusters; `output` channels and the LP-022 warning (constraint and toric factors); fixes from the
+external reviews (LP-023); frozen paths inside cluster nodes; closed-form M-steps and
+SQUAREM-accelerated EM (`fit_em`), batched over plates; the message loop no longer specialised on
+the parameter tree; `validate_parameters`; beam search and final refit in
+`lib/Lenticulum.jl/examples/structure_clusters.jl`.

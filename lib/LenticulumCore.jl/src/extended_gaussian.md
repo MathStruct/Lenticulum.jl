@@ -216,7 +216,7 @@ draws at least one, and the review (LP-043) found Zygote failing there.
   `GaussianPrior`, `LinearConstraintFactor` and `HardConstraintFactor` take hard inputs in their
   free energies. `GaussianFactor`, `NonlinearFactor` and `LinearConstraintFactor` emit it for
   improper messages; the `improper` flag of `GaussianBelief` remains, by decision, for AD, plates and mixtures
-  ([[Feature Backlog]], "Done (2026-11-11)").
+  ([[Backlog Done 2026-11]], 2026-11-11).
 - **Gradients where a rank changes.** A tangent that changes the number of flat, hard or Gaussian
   directions at first order has no derivative (the value jumps); ForwardDiff refuses it, Zygote
   returns the constant-rank derivative without a sign (below). A rank that changes only at second

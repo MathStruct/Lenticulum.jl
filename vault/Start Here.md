@@ -25,7 +25,7 @@ equilibrium and adversarial families, application sketches, some comparisons) is
 |---|---|
 | `vault/Foundations/`, `Gaussian Graphs/`, `Relation Learners/`, `Structure and Regimes/` | concept notes: definitions, derivations, measured results |
 | `vault/Design/` | design notes that cut across the paths |
-| `vault/Project/` | project records: decisions (`L-ADR-nnnn`), problems (`LP-nnn`), specifications (`L-SPEC-nnn`), the [[Feature Backlog]], [[Refactor 2026-11]] |
+| `vault/Project/` | project records: decisions (`L-ADR-nnnn`), problems (`LP-nnn`), specifications (`L-SPEC-nnn`), the [[Feature Backlog]] (a folder: an index and one note per section), [[Refactor 2026-11]] |
 | `vault/Research Questions/` | open mathematical questions, self-contained (`RQ-nnn`) |
 | `vault/Parked/` | notes off the three paths |
 | `lib/*/src/*.md` | implementation notes, one beside each Julia file |
