@@ -76,9 +76,8 @@ graph LR
 
 F2 is *partial*; its present problems (circle, lemniscate, rings) suffice for P10, F3, F4 and L15.
 
-**Proposed order (2026-11-11, until Daniel sets one):** ~~I5~~ (done 2026-11-12; the gap against
-RxInfer, [[Benchmark against RxInfer]], not measured again since); ~~P1~~ (done 2026-11-12; it found a ForwardDiff
-regression and a silent no-op in damping); ~~P17 and P18~~ (done 2026-11-12) (P19 done 2026-11-12 with I18; I18 done 2026-11-12); F3 in part (2026-11-12:
-the round trip, and the measurement of coverage and annealing); ~~P11~~ (done 2026-11-12, the query
-report); ~~I6~~ (done 2026-11-12, I19 left); the ridge residual of F3 (done 2026-11-13; an energy
-threshold left, which needs an energy network); ~~I19~~ (done 2026-11-13); ~~I20~~ and ~~I21~~ (done 2026-11-15).
+**Proposed order (2026-11-11, until Daniel sets one):** of that list one thing is open, the energy
+threshold of F3 (off-relation detection), which needs an energy network. The rest is done (I5, P1,
+P17, P18, P19, I18, P11, I6, I19, I20, I21, and the round trip and ridge residual of F3:
+[[Backlog Done 2026-11]]; the later measurements against RxInfer are in [[Benchmark against RxInfer]]).
+No order is proposed for the other open rows.
