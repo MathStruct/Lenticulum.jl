@@ -12,11 +12,11 @@
 > worktree.
 > code: `lib/Mycelium.jl/src/gaussian.jl` (`reduce_mixture`, `reduce_message`),
 > `lib/LenticulumCore.jl/src/gaussian_belief.jl` (`belief_mean`, `belief_cov` of `SampleBelief`),
-> `lib/Adversarial.jl/src/ratio.jl`, `lib/Lenticulum.jl/src/Lenticulum.jl` (the re-export);
+> `lib/AdversarialFactors.jl/src/ratio.jl`, `lib/Lenticulum.jl/src/Lenticulum.jl` (the re-export);
 > tests: `lib/Mycelium.jl/test/mixture_reduction.jl`, `lib/LenticulumCore.jl/test/sample_moments.jl`.
 
 **Problem.** Two moves out of type piracy were required to change no result: Runnalls' mixture
-reduction from Lenticulum to Mycelium (P17) and the sample moments from Adversarial to LenticulumCore
+reduction from Lenticulum to Mycelium (P17) and the sample moments from AdversarialFactors to LenticulumCore
 (P18), with the old public names still working.
 
 Mistral checked behaviour first. It compared the moved functions with the code before the move,

@@ -64,7 +64,7 @@ Three more packages sit off those paths and have not yet been reviewed as the co
 | package | what it gives you |
 |---|---|
 | [`ImplicitLayers`](@ref implicitlayers) | **DEQs and neural ODEs** as factors |
-| [`Adversarial`](@ref adversarial) | **implicit generative models**: generators and density ratios |
+| [`AdversarialFactors`](@ref adversarialfactors) | **implicit generative models**: generators and density ratios |
 | [`AlgebraicFactors`](@ref algebraicfactors) | **finite toric models**: exact discrete messages and free energy |
 
 ## Installation

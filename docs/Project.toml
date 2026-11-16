@@ -1,7 +1,7 @@
 [deps]
 HomotopyContinuation = "f213a82b-91d6-5c5d-acf7-10f1c761b327"
 AlgebraicFactors = "5937a757-1681-44a0-82a2-3722a0d5745f"
-Adversarial = "5b7e1c94-8d3a-4f26-b0e1-7a9c25d4f318"
+AdversarialFactors = "952efbab-e437-447d-9da7-09f243bc8a38"
 ImplicitLayers = "3c0d5f2a-7b41-4e88-9a6d-1f5c8e2b4471"
 SymbolicRegression = "8254be44-1295-4e6a-a16d-46603ac705cb"
 ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
@@ -28,7 +28,7 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [sources]
 AlgebraicFactors = {path = "../lib/AlgebraicFactors.jl"}
-Adversarial = {path = "../lib/Adversarial.jl"}
+AdversarialFactors = {path = "../lib/AdversarialFactors.jl"}
 ImplicitLayers = {path = "../lib/ImplicitLayers.jl"}
 Lenticulum = {path = "../lib/Lenticulum.jl"}
 LenticulumCore = {path = "../lib/LenticulumCore.jl"}

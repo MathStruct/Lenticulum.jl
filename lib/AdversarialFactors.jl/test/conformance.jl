@@ -1,5 +1,5 @@
 include(joinpath(@__DIR__, "../../../lib/LenticulumCore.jl/test/support/factor_conformance.jl"))
-@testset "Adversarial conformance" begin
+@testset "AdversarialFactors conformance" begin
     nt = (;)
     # Fixed draw: repeated lens and graph calls see identical particles, without RNG resets.
     f = NoiseSource(:z, 1; nsamples=1, dist=(rng,d,n)->[[2.0]])

@@ -125,7 +125,7 @@ everything downstream is confidently wrong, with no diagnostic. The Gaussian ora
 tests exists precisely because a *perfectly trained* discriminator is the only one whose
 output can be checked.
 
-Related: [[generator]], [[Adversarial]], [[Implicit Generative Models]],
+Related: [[generator]], [[AdversarialFactors]], [[Implicit Generative Models]],
 [[GANs as Two Factors]], [[messages]]
 
 ## Graph energy and game quantities (LP-016)

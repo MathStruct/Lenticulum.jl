@@ -2,7 +2,7 @@
 
 > **Status: resolved (2026-10-29), reviewed by Claude.** Related: [[LP-013 Defects found in the review of master]], [[L-SPEC-001 The Factor Interface]], [[lib/Lenticulum.jl/src/likelihood|likelihood]], [[reddiff]], [[proxdm]], [[schedule]], [[krylov]], [[lib/Lenticulum.jl/src/beliefs|beliefs]].
 
-**Problem.** Codex ran a read-only review (2026-10-29) of the packages the LP-002/LP-011 work did not touch: VariationalDiffusion, the top-level `Lenticulum`, AlgebraicFactors and Adversarial. It reported 13 defects. Claude reproduced or re-derived each one before it was recorded here. The reproducers are scratch scripts outside the repository (`~/.julia/lenticulum-runs/review-older/`). Each fix must therefore add a regression test with the failing input below.
+**Problem.** Codex ran a read-only review (2026-10-29) of the packages the LP-002/LP-011 work did not touch: VariationalDiffusion, the top-level `Lenticulum`, AlgebraicFactors and AdversarialFactors. It reported 13 defects. Claude reproduced or re-derived each one before it was recorded here. The reproducers are scratch scripts outside the repository (`~/.julia/lenticulum-runs/review-older/`). Each fix must therefore add a regression test with the failing input below.
 
 Code defects, most severe first:
 
@@ -14,7 +14,7 @@ Code defects, most severe first:
 6. **`MixtureProx` can return a strict local maximum** (`proxdm.jl`, `proximal(::MixtureProx, …)`). The residual test runs before any curvature check. Equal mixture means `[-2, 2]`, width 0.2, `v = 0`, `t = 0`, `λ = 1`: it returns `u = 0`, with objective 49.3095 and second derivative −2474. At `u ≈ 1.923` the objective is 1.9257. The docstring promises "the local minimiser reached from `v`". The failure needs a stationary starting point, so it is an edge case.
 7. **Constraint and nonlinear constructors accept invalid noise covariances** (`lib/Lenticulum.jl/src/constraint.jl`, `lib/Lenticulum.jl/src/nonlinear.jl`). They test `isposdef(Symmetric(Q))`, which reads only one triangle. So `[1 0.2; 10 1]` is accepted, although its symmetric part has eigenvalues −4.1 and 6.1. A residual of dimension 2 also accepts `noise = [1.0]`, which leaves a one-dimensional energy space. `GaussianFactor` validates both shape and symmetry.
 8. **Narrow ordinal categories lose all precision** (`lib/Lenticulum.jl/src/likelihood.jl`, `OrdinalProbitLikelihood`). $\Phi(b) - \Phi(a)$ cancels. Cutpoints `[-1e-20, 1e-20]`, category 2, predictor 0 give log-likelihood `-Inf` with NaN derivatives; the true value is $\log(2\cdot10^{-20}) - \tfrac12\log 2\pi = -46.2775$. Narrow intervals far in a tail fail the same way.
-9. **Finite particle weights can overflow during normalisation** (`lib/Adversarial.jl/src/ratio.jl`, `lib/Lenticulum.jl/src/beliefs.jl`). Particles `{1, 3}` with weights `[1e308, 1e308]` give mean 0, covariance 0 and ESS `Inf`, instead of 2, 1 and 2. The ratio energy raises a false disjoint-support error, and `moment_match` reports a singular covariance. Dividing by the largest weight first avoids all three.
+9. **Finite particle weights can overflow during normalisation** (`lib/AdversarialFactors.jl/src/ratio.jl`, `lib/Lenticulum.jl/src/beliefs.jl`). Particles `{1, 3}` with weights `[1e308, 1e308]` give mean 0, covariance 0 and ESS `Inf`, instead of 2, 1 and 2. The ratio energy raises a false disjoint-support error, and `moment_match` reports a singular covariance. Dividing by the largest weight first avoids all three.
 
 Wrong claims in notes and docstrings:
 
@@ -28,7 +28,7 @@ Wrong claims in notes and docstrings:
 - Poisson, bivariate Poisson and ordinal derivatives against finite differences;
 - the LP-013 mixture-anchor and prior-cotangent fixes;
 - AlgebraicFactors, where no defect was found: toric enumeration and MLE, Plücker moments, polynomial Jacobians, Sampson gradients, and 1,510 existing game assertions;
-- Adversarial ordinary-weight reweighting, moments and graph energy.
+- AdversarialFactors ordinary-weight reweighting, moments and graph energy.
 
 Analytic-mixture batching and the constraint polarity shortlist were excluded as defects because their notes document them as limits.
 
@@ -41,7 +41,7 @@ Analytic-mixture batching and the constraint polarity shortlist were excluded as
 The pre-existing LP-002, LP-018 and Problem Log edits were retained. No checkout, clean,
 reset, stash, commit, push or merge was run. Each item has an owning-suite regression in
 `lib/Lenticulum.jl/test/lp018.jl` (top-level), `lib/VariationalDiffusion.jl/test/lp018.jl` (VD), or
-`lib/Adversarial.jl/test/lp018.jl`, with the particle-distance copy covered in
+`lib/AdversarialFactors.jl/test/lp018.jl`, with the particle-distance copy covered in
 `lib/Mycelium.jl/test/lp018.jl`; the interop regressions are in top-level
 `lib/Lenticulum.jl/test/lp018_interop.jl`. Logs are under `~/.julia/lenticulum-runs/lp018/`.
 
@@ -107,7 +107,7 @@ vector/tuple checks pass in `mycelium-containers-after.log`.
    tails”, independent 256-bit references at the failing category, `[8,9]`, `[-9,-8]`
    and narrow tail intervals, at predictors 0 and 0.7; a vanishing-width EP update is
    checked against a Gaussian conditional with mean 0.35 and variance 0.5.
-9. **Weights.** Adversarial `ratio.jl`, top-level `beliefs.jl`, VD `analytic.jl`, Core's
+9. **Weights.** AdversarialFactors `ratio.jl`, top-level `beliefs.jl`, VD `analytic.jl`, Core's
    ExponentialFamily and ChainRules extensions, and the corresponding `ratio.md`,
    `beliefs.md`, `analytic.md`, `interop.md` and `open_model.md`, plus Mycelium's
    `messages.jl` and `messages.md`: divide finite
@@ -118,7 +118,7 @@ vector/tuple checks pass in `mycelium-containers-after.log`.
    `{1,3}` example now has mean 2, variance 1, ESS 2; constant log ratio 2 gives energy
    -2, SampleList preserves the mean, and the uniform log-weight cotangent is zero.
    Mycelium’s “LP-018.9 particle distance normalises finite overflowing weights”
-   also checks distances 0 and 1/6 against independent total variation. Adversarial and
+   also checks distances 0 and 1/6 against independent total variation. AdversarialFactors and
    Mycelium scaling remains non-mutating so tuple weights still work.
    Other normalisers already subtract the largest log weight (Core/Mycelium reweighting/sampler)
    or divide by the maximum (AlgebraicFactors); those required no change.
@@ -181,7 +181,7 @@ and local source paths, including the optional ExponentialFamily and Zygote chec
 | VariationalDiffusion | 1452 | 350.4 |
 | Mycelium | 1073 | 734.1 |
 | Lenticulum | 1302 | 366.2 |
-| Adversarial | 382 | 9.9 |
+| AdversarialFactors | 382 | 9.9 |
 | LenticulumCore | 314 | 48.3 |
 
 Mycelium's final focused file also passes all four vector/tuple assertions after the
@@ -213,7 +213,7 @@ Checked independently of Codex's logs:
 - The new regression files, run against HEAD (940ca211) in a separate worktree: every
   LP-018 testset fails or errors (top level 12 failed + 3 errors of 22; VariationalDiffusion
   25 failed + 2 errors of 44).
-- With the fixes, run sequentially: VariationalDiffusion, Lenticulum, Adversarial,
+- With the fixes, run sequentially: VariationalDiffusion, Lenticulum, AdversarialFactors,
   LenticulumCore and Mycelium all pass (387 s, 418 s, 11 s, 51 s, 738 s); the vault builds
   (256 pages). Logs in `~/.julia/lenticulum-runs/lp018-claude/`.
 

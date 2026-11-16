@@ -62,7 +62,7 @@ What travels along an edge: a distribution over a channel's values. The concrete
 | `DiracBelief` | a point | clamped data; any solver that returns a point |
 | `GaussianBelief` | a Gaussian, in **canonical form** (`η`, `Λ`) | `LenticulumCore` (type), `Mycelium` (rules) |
 | `ExtendedGaussian` | a Gaussian made flat along a subspace, with hard (zero-variance) directions allowed: the belief of a linear relation; exact `pushforward`, `marginalise` and product (`combine`) | `LenticulumCore`; `extended(b)` converts the others |
-| `SampleBelief` | a weighted particle set | `Adversarial` generators |
+| `SampleBelief` | a weighted particle set | `AdversarialFactors` generators |
 | `TrivialBelief` | "no information" | the identity for pooling |
 
 `GaussianBelief` stores information form rather than mean/covariance, which makes pooling two

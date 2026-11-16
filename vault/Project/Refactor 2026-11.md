@@ -22,7 +22,7 @@ lib/Mycelium.jl           inference                               ← Lenticulum
 lib/MyceliumLearning.jl   gradients, EM, the optimiser step       ← Mycelium
 lib/Lenticulum.jl         the factors, their M-steps, examples    ← MyceliumLearning
 lib/VariationalDiffusion.jl  diffusion models as relations        ← Mycelium
-lib/ImplicitLayers.jl, lib/Adversarial.jl, lib/AlgebraicFactors.jl   off the paths, not yet reviewed
+lib/ImplicitLayers.jl, lib/AdversarialFactors.jl, lib/AlgebraicFactors.jl   off the paths, not yet reviewed
 vault/                    Foundations, one folder per path, Design, Project, Research Questions, Parked
 docs/  bench/             as before; bench has its own environment
 ```
@@ -34,7 +34,7 @@ What changed against `dev-danielb` at `28b1a315`:
 - Mycelium was split. Inference stayed; `free_energy_gradient` of a graph, `parameter_step`, the
   couplings, the graph adjoint, EM and `sample_gradient` are `MyceliumLearning`
   ([[MyceliumLearning]] has the boundary). Mycelium's suite went from 6 minutes to 41 seconds.
-- `ImplicitLayers`, `Adversarial` and `AlgebraicFactors` were moved to `parked/` and, the same
+- `ImplicitLayers`, `AdversarialFactors` and `AlgebraicFactors` were moved to `parked/` and, the same
   day (2026-11-10), back to `lib/` once their suites passed again; with them tutorials 05 and 07
   and their documentation pages. They are tested weekly, on demand and when their own files change
   (`.github/workflows/Weekly.yml`), not on every push. The vault notes on those families and on
@@ -135,7 +135,7 @@ In the order I would take them. Each is small enough to finish and has an oracle
 
 ## Bringing the unreviewed packages onto a path
 
-`ImplicitLayers`, `Adversarial` and `AlgebraicFactors` are in `lib/` and pass their tests, but were
+`ImplicitLayers`, `AdversarialFactors` and `AlgebraicFactors` are in `lib/` and pass their tests, but were
 not reviewed as the core was. One of them joins the core when it is needed on a path:
 
 1. Review it as the core was reviewed: read it, rederive what it computes, add an oracle test on
@@ -150,7 +150,7 @@ Known before starting:
 |---|---|---|
 | `ImplicitLayers` | suite passes on 2026-11-10 after the move (20 minutes; device files included) | root-solver tolerances are absolute and written for `Float64`; its solvers duplicate VariationalDiffusion's. Bring it back as, or after, a shared solver layer (root finding, the implicit-function adjoint, one tolerance rule, one report) |
 | `AlgebraicFactors` | suite passes on 2026-11-10 after the move | not reviewed |
-| `Adversarial` | suite passes on 2026-11-10 after the move | not reviewed; the least connected to the rest. `belief_mean` and `belief_cov` of LenticulumCore's `SampleBelief`, defined here before (type piracy), are LenticulumCore's since P18 (2026-11-12) |
+| `AdversarialFactors` | suite passes on 2026-11-10 after the move | not reviewed; the least connected to the rest. `belief_mean` and `belief_cov` of LenticulumCore's `SampleBelief`, defined here before (type piracy), are LenticulumCore's since P18 (2026-11-12) |
 
 For a note: move it, check every claim against a test or a script, remove what describes
 history rather than the subject, and give it the `tests:` entry in its sources block
@@ -158,7 +158,7 @@ history rather than the subject, and give it the `tests:` entry in its sources b
 
 ## Decisions taken in the refactor that are yours to revisit
 
-- **`ImplicitLayers`, `Adversarial` and `AlgebraicFactors` are in `lib/` but tested weekly.**
+- **`ImplicitLayers`, `AdversarialFactors` and `AlgebraicFactors` are in `lib/` but tested weekly.**
   They were parked at first; moved back on 2026-11-10, since nothing in them held the core back.
   Not on every push because `ImplicitLayers`' suite takes 20 minutes.
 - **The split of Mycelium is inference against learning.** Cluster nodes, plates, overlays and

@@ -46,7 +46,7 @@ Every factor in every `lib/` package returns a `DiracBelief`.
 | `VariationalDiffusion` | `DiffusionFactor` | `DiracBelief` (RED-Diff's $q$ is a point mass) |
 | `ImplicitLayers` | `DEQFactor` | `DiracBelief` (a root-find returns a point) |
 | `ImplicitLayers` | `NeuralODEFactor` | `DiracBelief` (an ODE solve returns a point) |
-| `Adversarial` | `GeneratorFactor` | `SampleBelief` — particles, still no density |
+| `AdversarialFactors` | `GeneratorFactor` | `SampleBelief` — particles, still no density |
 
 Three notes have recorded this as a defect, each blaming the same cause — `GaussianBelief`
 being stranded in the top-level package ([[The Equilibrium Family]] §5). That diagnosis is

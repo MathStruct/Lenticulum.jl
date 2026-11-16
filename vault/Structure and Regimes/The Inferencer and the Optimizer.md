@@ -72,7 +72,7 @@ network with structure across factors and certainly not a learned one.
 > layer.*
 
 That is an Inferencer, scoped to one factor: a learned thing whose job is to do inference
-better than the analytic rule would. `Adversarial.RatioFactor` is the first factor where it is
+better than the analytic rule would. `AdversarialFactors.RatioFactor` is the first factor where it is
 literally true — the discriminator is trained separately from what it scores.
 
 What it is *not* is **graph-wide**. Each factor amortises its own inversion in isolation;

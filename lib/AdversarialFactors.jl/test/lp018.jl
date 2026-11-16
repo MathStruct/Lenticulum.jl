@@ -1,4 +1,4 @@
-using Adversarial, LenticulumCore, Mycelium, LuxCore, Test
+using AdversarialFactors, LenticulumCore, Mycelium, LuxCore, Test
 struct LP018ConstantRatio <: LuxCore.AbstractLuxLayer end
 (::LP018ConstantRatio)(x, ps, st) = (2., st)
 @testset "LP-018.9 finite overflowing particle weights" begin

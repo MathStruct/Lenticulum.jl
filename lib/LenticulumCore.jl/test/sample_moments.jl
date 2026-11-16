@@ -1,5 +1,5 @@
 # P18: `belief_mean` and `belief_cov` of a `SampleBelief` are LenticulumCore's (they were defined
-# in Adversarial, type piracy). Oracle: the weighted sums written out, and Statistics' mean and
+# in AdversarialFactors, type piracy). Oracle: the weighted sums written out, and Statistics' mean and
 # uncorrected covariance for uniform weights.
 using LenticulumCore, LinearAlgebra, Random, Statistics, Test
 

@@ -29,7 +29,7 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
   [[Feature Backlog]] (Done 2026-11-16) and [[lib/LenticulumCore.jl/src/extended_gaussian|extended_gaussian]]
   "Derivatives (P4, 2026-11-16)".
 - Verified: LenticulumCore, Mycelium, MyceliumLearning, Lenticulum suites after the review fix;
-  AlgebraicFactors, Adversarial, ImplicitLayers, VariationalDiffusion before it (the fix touches only
+  AlgebraicFactors, AdversarialFactors, ImplicitLayers, VariationalDiffusion before it (the fix touches only
   the empty-eigenvalue case of `_psd_split`). Logs in `~/.cache/lenticulum/p4ad/`.
 - Review: [[LP-043 Findings of the review of P4]] (Mistral; Zygote threw on a belief with no Gaussian
   direction; fixed, regression test).
@@ -57,7 +57,7 @@ plates and in `MeanField()` nodes). Neither is designed yet; pick one with the m
 - **Backlog section G** (decisions, control and games, G1–G10; 2026-11-16, from Daniel's question on
   reinforcement learning and open games): rows only, from a reading of code and notes. Nothing is
   designed or run; G5–G8 need P16. Priorities are proposals.
-- AlgebraicFactors, ImplicitLayers and Adversarial run in CI only weekly: a change to the core
+- AlgebraicFactors, ImplicitLayers and AdversarialFactors run in CI only weekly: a change to the core
   should run their suites locally too (that is how the AlgebraicFactors break was found).
 - Mistral review agent, refused commands: on P13 its six refusals all began with `cd … &&`, and its
   `julia` commands without output redirection ran; on P21 the refused `julia` command had `> … 2>&1`

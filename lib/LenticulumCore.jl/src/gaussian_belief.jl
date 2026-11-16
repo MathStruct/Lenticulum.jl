@@ -172,7 +172,7 @@ Self-normalised importance-sampling estimates of the first two moments: the weig
 the weighted covariance ``\\sum_i w_i (x_i - \\bar x)(x_i - \\bar x)^\\top`` with the weights
 normalised to sum to one (uniform without weights). Samples are the columns of a matrix or the
 elements of a vector (vectors or scalars). Defined here, beside the type (P18; they were in
-Adversarial, `ratio.jl`, and existed only with it loaded). See `open_model.md`, "Sample moments".
+AdversarialFactors, `ratio.jl`, and existed only with it loaded). See `open_model.md`, "Sample moments".
 """
 function belief_mean(b::SampleBelief)
     w = _moment_weights(b)

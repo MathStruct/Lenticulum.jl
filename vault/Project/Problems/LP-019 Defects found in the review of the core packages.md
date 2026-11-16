@@ -84,7 +84,7 @@ ImplicitLayers `solve.md`, `flow.md`.
 
 **Verification (2026-10-29).** All seven suites pass with `Pkg.test()`: LenticulumCore,
 Mycelium and ImplicitLayers (both with `LENTICULUM_DEVICE_TESTS=true`), the top-level
-package, AlgebraicFactors, Adversarial and VariationalDiffusion. The vault builds (258 pages)
+package, AlgebraicFactors, AdversarialFactors and VariationalDiffusion. The vault builds (258 pages)
 and `docs/make.jl` builds. Logs: `~/.julia/lenticulum-runs/lp018-claude/lp019/`.
 
 ## Review of the resolution (2026-10-30, Codex)

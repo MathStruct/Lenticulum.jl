@@ -21,7 +21,7 @@ records the state ordering, label rules and free-energy accounting. [[fit]] desc
 `fit_mle`, `inmodel` and `binomial_residuals`, their independent closed-form checks,
 and the separate moment-convergence and MLE-existence statuses.
 
-The package test environment follows `Adversarial`'s workspace layout. Tests include the
+The package test environment follows `AdversarialFactors`'s workspace layout. Tests include the
 repository's `lib/LenticulumCore.jl/test/support/factor_conformance.jl` through its direct-message path, with independent
 site and pooled-posterior fixtures for every supported polarity of the test factors. The CI
 matrix and API documentation include this package separately from the top-level `Lenticulum`

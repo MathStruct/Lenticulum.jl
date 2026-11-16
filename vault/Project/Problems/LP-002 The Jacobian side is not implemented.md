@@ -115,7 +115,7 @@ Julia 1.13.1 on CPU. Each suite was run with
 | Lenticulum (top-level) | 779 | 60.5 s |
 | ImplicitLayers | 857 | 120.4 s |
 | VariationalDiffusion | 1,143 | 420.3 s |
-| Adversarial | 254 | 7.2 s |
+| AdversarialFactors | 254 | 7.2 s |
 | AlgebraicFactors | 14,399 | 159.0 s |
 
 Total: **18,242 passed**, no failures, errors or broken tests.
@@ -457,7 +457,7 @@ validation timings, not controlled performance benchmarks.
 | Lenticulum | 1,203 | 343.8 s |
 | ImplicitLayers | 1,468 | 672.2 s |
 | VariationalDiffusion | 1,408 | 441.3 s |
-| Adversarial | 374 | 9.8 s |
+| AdversarialFactors | 374 | 9.8 s |
 | AlgebraicFactors | 15,985 | 165.3 s |
 
 Total: **21,537 passed**, no failures, errors or broken tests. ImplicitLayers
@@ -629,7 +629,7 @@ wall times, not controlled performance benchmarks.
 | Lenticulum | 1,203 | 341.8 s |
 | ImplicitLayers | 1,894 | 1203.6 s |
 | VariationalDiffusion | 1,408 | 453.6 s |
-| Adversarial | 374 | 9.4 s |
+| AdversarialFactors | 374 | 9.4 s |
 | AlgebraicFactors | 15,985 | 172.8 s |
 
 Total: **21,963 passed** in the final passing runs, with no failures, errors or
@@ -874,7 +874,7 @@ filtered. Times include loading and compilation; they are validation timings.
 | Lenticulum | 1,203 | 478.17 s | 1.890 GiB |
 | ImplicitLayers | 5,308 | 1712.61 s | 6.861 GiB |
 | VariationalDiffusion | 1,408 | 391.15 s | 1.982 GiB |
-| Adversarial | 374 | 9.00 s | 0.411 GiB |
+| AdversarialFactors | 374 | 9.00 s | 0.411 GiB |
 | AlgebraicFactors | 15,985 | 163.06 s | 1.590 GiB |
 
 Total: **25,377 passed**, no failures, errors or broken
@@ -1184,7 +1184,7 @@ compilation and are validation timings, not performance benchmarks.
 | Lenticulum | 1,203 | 368.66 s | 1.864 GiB |
 | ImplicitLayers | 5,308 | 1808.31 s | 6.805 GiB |
 | VariationalDiffusion | 1,408 | 398.14 s | 1.909 GiB |
-| Adversarial | 374 | 9.00 s | 0.416 GiB |
+| AdversarialFactors | 374 | 9.00 s | 0.416 GiB |
 | AlgebraicFactors | 15,985 | 173.16 s | 1.606 GiB |
 
 Total: **25,857 passed**, with no failures, errors or broken tests

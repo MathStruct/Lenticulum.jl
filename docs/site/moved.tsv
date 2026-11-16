@@ -99,3 +99,7 @@ src/noise	lib/Lenticulum.jl/noise
 src/nonlinear	lib/Lenticulum.jl/nonlinear
 src/regime	lib/Lenticulum.jl/regime
 src/switching	lib/Lenticulum.jl/switching
+lib/Adversarial.jl/Adversarial	lib/AdversarialFactors.jl/AdversarialFactors
+lib/Adversarial.jl/generator	lib/AdversarialFactors.jl/generator
+lib/Adversarial.jl/ratio	lib/AdversarialFactors.jl/ratio
+lib/Adversarial.jl/transport	lib/AdversarialFactors.jl/transport

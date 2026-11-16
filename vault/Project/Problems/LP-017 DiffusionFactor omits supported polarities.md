@@ -58,7 +58,7 @@ Full suites, using `julia --project=lib/<Package>.jl -e 'using Pkg; Pkg.test()'`
 | Lenticulum | 775 | 0 | 0 | 0 |
 | VariationalDiffusion | 1143 | 0 | 0 | 0 |
 | ImplicitLayers | 316 | 0 | 0 | 0 |
-| Adversarial | 232 | 0 | 0 | 3 |
+| AdversarialFactors | 232 | 0 | 0 | 3 |
 | AlgebraicFactors | 14396 | 0 | 0 | 0 |
 
 VariationalDiffusion's original testset passed 889 assertions in 6m50.1s; its conformance

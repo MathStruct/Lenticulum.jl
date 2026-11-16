@@ -81,7 +81,7 @@ what the learner can represent, and what does not work yet. Code: `VariationalDi
 - [[Motivating Examples]] — the overview, and the six properties they share
 - [[ProxDM and Proximal Alternatives]] — [[ImplicitREDDiff]] ends: *"Alternatively use [ProxDM](https://arxiv.org/pdf/2507.08956) to achieve a prox."* This note is what that alternative is, and how the whole family of diffusion-based inverse
 - [[RED-Diff as a Statistical Game]] — Implemented in `lib/VariationalDiffusion.jl/src/reddiff.jl`; see [[reddiff]].
-- [[Training Energy-Based Models]] — Song & Kingma, Du & Mordatch. Two of the three standard EBM training methods are already implemented here under other names: score matching is `VariationalDiffusion`, NCE is `Adversarial.RatioFactor` — and NCE with a known noise distribution is the `belief_logdensity` [[messages]] §1 has always wanted
+- [[Training Energy-Based Models]] — Song & Kingma, Du & Mordatch. Two of the three standard EBM training methods are already implemented here under other names: score matching is `VariationalDiffusion`, NCE is `AdversarialFactors.RatioFactor` — and NCE with a known noise distribution is the `belief_logdensity` [[messages]] §1 has always wanted
 - [[Why Learned Relations Do Not Collapse]] — how each learnable factor family avoids (or does not avoid) learning a relation that holds everywhere: normalisation in the data channels, the `output` option, log partitions, comparison; what is guarded and what is not (the DEQ)
 
 ## Path C: structure and regimes
@@ -127,12 +127,12 @@ Design notes that cut across the paths.
 
 One note beside each source file (`lib/*/src/*.md`); each package's overview note lists them:
 [[LenticulumCore]], [[Mycelium]], [[MyceliumLearning]], [[Lenticulum]], [[VariationalDiffusion]]; and,
-not yet reviewed, [[ImplicitLayers]], [[Adversarial]], [[AlgebraicFactors]].
+not yet reviewed, [[ImplicitLayers]], [[AdversarialFactors]], [[AlgebraicFactors]].
 
 ## Parked
 
 Notes on families and applications that are not on the three paths. They were not revised in the
-refactor; the code of the three families (`ImplicitLayers`, `Adversarial`, `AlgebraicFactors`)
+refactor; the code of the three families (`ImplicitLayers`, `AdversarialFactors`, `AlgebraicFactors`)
 is in `lib/` again and passes its tests, but has not been reviewed. See [[Refactor 2026-11]].
 
 **Algebraic**
@@ -162,10 +162,10 @@ is in `lib/` again and passes its tests, but has not been reviewed. See [[Refact
 - [[NeuralODE as an Invertible Factor]] — A continuous ODE flow is invertible wherever its solution is unique in both directions.
 - [[The Equilibrium Family]] — Entry point for the second of the three [[Implicit Learners]] families, implemented in `lib/ImplicitLayers.jl`.
 
-**Adversarial**
+**AdversarialFactors**
 
 - [[GANs as Two Factors]] — Can the GAN diagram be achieved with two factors?
-- [[Implicit Generative Models]] — Entry point for the adversarial family, implemented in `lib/Adversarial.jl`.
+- [[Implicit Generative Models]] — Entry point for the adversarial family, implemented in `lib/AdversarialFactors.jl`.
 
 **Applications**
 

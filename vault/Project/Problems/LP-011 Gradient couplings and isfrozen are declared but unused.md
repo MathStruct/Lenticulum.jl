@@ -115,7 +115,7 @@ compilation; independent runs overlapped, so their sum is not elapsed task time.
 | ImplicitLayers | 1,231 | 481.71 s |
 | VariationalDiffusion | 1,408 | 436.91 s |
 | AlgebraicFactors | 15,985 | 170.76 s |
-| Adversarial | 374 | 10.16 s |
+| AdversarialFactors | 374 | 10.16 s |
 
 **Total: 21,300 passed; no failures, errors or broken tests.**
 The final root and Mycelium runs include explicit Zygote composite-score checks and a

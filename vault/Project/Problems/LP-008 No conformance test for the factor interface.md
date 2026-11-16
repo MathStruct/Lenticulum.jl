@@ -2,7 +2,7 @@
 
 > **Status: resolved (2026-10-27), for the declared exact, approximate-message and deliberately non-game domains below. The 2026-10-23 resolution named a function that did not exist.** Related: [[L-SPEC-001 The Factor Interface]], [GitHub issue #8](https://github.com/MathStruct/Lenticulum.jl/issues/8).
 
-> Sources: original to this vault; code: `lib/LenticulumCore.jl/test/support/factor_conformance.jl`, `lib/Lenticulum.jl/test/game_composition.jl`, `lib/LenticulumCore.jl/test/support/conformance_capture.jl`; package `test/conformance.jl` files; `lib/Adversarial.jl/test/transport.jl`, `lib/AlgebraicFactors.jl/test/game_exact.jl`, `lib/VariationalDiffusion.jl/test/bound.jl`.
+> Sources: original to this vault; code: `lib/LenticulumCore.jl/test/support/factor_conformance.jl`, `lib/Lenticulum.jl/test/game_composition.jl`, `lib/LenticulumCore.jl/test/support/conformance_capture.jl`; package `test/conformance.jl` files; `lib/AdversarialFactors.jl/test/transport.jl`, `lib/AlgebraicFactors.jl/test/game_exact.jl`, `lib/VariationalDiffusion.jl/test/bound.jl`.
 >
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens).
 
@@ -12,7 +12,7 @@
 1. A conformance test: a function `check_factor(f, ps, st, samples)` in a test utility that runs every applicable part of [[L-SPEC-001 The Factor Interface]] (§1–§5) and the consistency conditions between them, called from each package's tests for each factor type.
 2. Keep per-factor tests and add the cross-checks by hand.
 
-**Resolution through 2026-10-25 (history).** The `review-argon` commits claimed option 1 (`check_factor_conformance`) but only added a loop over traits; the function did not exist ([[LP-013 Defects found in the review of master]]). Since bb3af9e9 it does, in `lib/LenticulumCore.jl/test/support/factor_conformance.jl`: for a factor and polarity it checks the testable parts of [[L-SPEC-001 The Factor Interface]] §1–§5 (traits, `invert` = `combine(π, likelihood_message)`, the pointwise energy and its scalarisation, game-level `free_energy` and `entropy` in `energyspace`). It runs over every supported polarity of `GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor`, `NonlinearFactor` and `LikelihoodFactor` (297 checks). Since 2026-10-25 the checker also has a direct-message path (`direct_message = true`, with independently computed site and posterior fixtures) for factors that implement `factor_message` without a lens; `AlgebraicFactors.ToricFactor` runs through it over every supported polarity at arities one to three. **Open as of 2026-10-25:** the factors of `Mycelium`, `ImplicitLayers`, `VariationalDiffusion` and `Adversarial` are not run through it yet.
+**Resolution through 2026-10-25 (history).** The `review-argon` commits claimed option 1 (`check_factor_conformance`) but only added a loop over traits; the function did not exist ([[LP-013 Defects found in the review of master]]). Since bb3af9e9 it does, in `lib/LenticulumCore.jl/test/support/factor_conformance.jl`: for a factor and polarity it checks the testable parts of [[L-SPEC-001 The Factor Interface]] §1–§5 (traits, `invert` = `combine(π, likelihood_message)`, the pointwise energy and its scalarisation, game-level `free_energy` and `entropy` in `energyspace`). It runs over every supported polarity of `GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor`, `NonlinearFactor` and `LikelihoodFactor` (297 checks). Since 2026-10-25 the checker also has a direct-message path (`direct_message = true`, with independently computed site and posterior fixtures) for factors that implement `factor_message` without a lens; `AlgebraicFactors.ToricFactor` runs through it over every supported polarity at arities one to three. **Open as of 2026-10-25:** the factors of `Mycelium`, `ImplicitLayers`, `VariationalDiffusion` and `AdversarialFactors` are not run through it yet.
 
 ## 2026-10-27: exact-domain conformance and complete subtype audit
 
@@ -70,9 +70,9 @@ The table records fixture domains, not a claim about every belief family or dime
 | LuxFactor | lens; forward | conditional point game, zero accounting; ImplicitLayers `test/conformance.jl` |
 | DEQFactor | lens; both directions | incoming Dirac game; solved-point lens/anchor game separately checked; soft/singular anchors deliberately refused; ImplicitLayers `test/conformance.jl` |
 | NeuralODEFactor | lens; both directions | incoming Dirac game; solved-point lens/anchor game separately checked (including SciML); same anchor boundary; ImplicitLayers `test/conformance.jl`, `test/sciml.jl` |
-| NoiseSource | lens; unary fixed draw; game; unconditional standard normal at dimensions 1,3 | repeated stochastic particle draws are not identical-message fixtures; custom samplers provide no density law; Adversarial `test/conformance.jl`, `test/transport.jl` |
-| GeneratorFactor | lens; forward point and affine Gaussian games | square nonsingular affine map, identity input adapter, no output conditioning; nonlinear certified bijections expose estimates only, singular maps no Lebesgue density; Adversarial `test/conformance.jl`, `test/transport.jl` |
-| RatioFactor | lens; unary Dirac game | particle messages checked separately (LP-016); non-Dirac exact games lack analytic normaliser/reweighted entropy, empirical entropy not substituted; Adversarial `test/conformance.jl` |
+| NoiseSource | lens; unary fixed draw; game; unconditional standard normal at dimensions 1,3 | repeated stochastic particle draws are not identical-message fixtures; custom samplers provide no density law; AdversarialFactors `test/conformance.jl`, `test/transport.jl` |
+| GeneratorFactor | lens; forward point and affine Gaussian games | square nonsingular affine map, identity input adapter, no output conditioning; nonlinear certified bijections expose estimates only, singular maps no Lebesgue density; AdversarialFactors `test/conformance.jl`, `test/transport.jl` |
+| RatioFactor | lens; unary Dirac game | particle messages checked separately (LP-016); non-Dirac exact games lack analytic normaliser/reweighted entropy, empirical entropy not substituted; AdversarialFactors `test/conformance.jl` |
 | DiffusionFactor | lens; all five binary assignments and unary; bound; analytic Gaussian finite reverse chains | score/prox graph surrogate has no exact posterior game, so wired game gaps remain; full-evidence chain bound is a distinct model, not graph free energy; VariationalDiffusion `test/conformance.jl`, `test/bound.jl` |
 | ToricFactor | direct; all supported polarities at arities 1–3 | normalised exact finite-state games; AlgebraicFactors `test/runtests.jl` |
 | PluckerFactor | direct; forward point games at r=2,4 and scalar Gaussian images at r=2 | one fixed vector/one proper Gaussian, no output conditioning, positive variance, zero jitter; other images may be singular/non-Gaussian; AlgebraicFactors `test/runtests.jl`, `test/game_exact.jl` |
@@ -133,7 +133,7 @@ not comparative benchmarks.
 | LenticulumCore | 316 | 47.12 |
 | Mycelium | 518 | 11.56 |
 | ImplicitLayers | 1231 | 461.65 |
-| Adversarial | 374 | 9.65 |
+| AdversarialFactors | 374 | 9.65 |
 | AlgebraicFactors | 15985 | 166.81 |
 | VariationalDiffusion | 1408 | 433.85 |
 
@@ -208,7 +208,7 @@ intentional executable records of the conflicts above, not passing conformance c
 | Mycelium | 459 | 0 |
 | Lenticulum (top level) | 775 | 0 |
 | ImplicitLayers | 312 | 4 |
-| Adversarial | 232 | 3 |
+| AdversarialFactors | 232 | 3 |
 | AlgebraicFactors | 14396 | 0 |
 | VariationalDiffusion | 1066 | 4 |
 
@@ -240,13 +240,13 @@ Source and test changes (abbreviated paths on a package line are relative to tha
 - `lib/LenticulumCore.jl/test/support/factor_conformance.jl`
 - `lib/Mycelium.jl/src/factors.jl`, `test/Project.toml`, `test/runtests.jl`, `test/conformance.jl`
 - `lib/ImplicitLayers.jl/src/luxfactor.jl`, `src/deq.jl`, `test/runtests.jl`, `test/conformance.jl`
-- `lib/Adversarial.jl/src/generator.jl`, `src/ratio.jl`, `test/runtests.jl`, `test/conformance.jl`
+- `lib/AdversarialFactors.jl/src/generator.jl`, `src/ratio.jl`, `test/runtests.jl`, `test/conformance.jl`
 - `lib/AlgebraicFactors.jl/src/plucker.jl`, `test/runtests.jl`
 - `lib/VariationalDiffusion.jl/test/runtests.jl`, `test/conformance.jl`
 - `lib/LenticulumCore.jl/test/runtests.jl`
 
 Companion notes: Mycelium `factors.md`; ImplicitLayers `luxfactor.md`, `deq.md`,
-`neuralode.md`; Adversarial `generator.md`, `ratio.md`; AlgebraicFactors `plucker.md`,
+`neuralode.md`; AdversarialFactors `generator.md`, `ratio.md`; AlgebraicFactors `plucker.md`,
 `polynomial.md`, `AlgebraicFactors.md`; VariationalDiffusion `factor.md`; LenticulumCore
 `statistical_game.md` (all under their package `src/`). Package pages under
 `docs/src/packages/`: `mycelium.md`, `implicitlayers.md`, `adversarial.md`,
@@ -278,6 +278,6 @@ above and their repository `test/runtests.jl` entry points:
 | Mycelium | 494 |
 | Lenticulum (top level) | 775 |
 | ImplicitLayers | 480 |
-| Adversarial | 254 |
+| AdversarialFactors | 254 |
 | AlgebraicFactors | 14396 |
 | VariationalDiffusion | 1143 |

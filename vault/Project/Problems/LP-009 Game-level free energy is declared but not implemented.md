@@ -126,7 +126,7 @@ the general distributional games are solved.
    game entropies. Dirac/finite supported laws are Lebesgue-singular even if a Jacobian
    expectation can be a finite exact sum. Non-invertible maps throw. The built-in
    standard-normal NoiseSource has exact unconditional entropy without resampling;
-   custom samplers still supply no density law. Tests: `lib/Adversarial.jl/test/transport.jl`,
+   custom samplers still supply no density law. Tests: `lib/AdversarialFactors.jl/test/transport.jl`,
    including Gaussian closed forms, a nonlinear bijection with analytic Jacobian expectation,
    and common conformance for the affine Gaussian game. See [[transport]] and [[generator]].
    **Ratio:** non-Dirac games remain unsupported: arbitrary ratio networks have no analytic
@@ -166,7 +166,7 @@ All seven package suites pass with the reviewed LP-002/LP-005 work retained. Com
 `julia --project=<package> -e 'using Pkg; Pkg.test()'` (`--project=.` for Lenticulum), on
 Julia 1.13.1, with `OPENBLAS_NUM_THREADS=1` and `JULIA_NUM_PRECOMPILE_TASKS=2`.
 Counts sum the top-level test summaries without double-counting their nested rows.
-Elapsed times include package setup and precompilation; the top-level and Adversarial
+Elapsed times include package setup and precompilation; the top-level and AdversarialFactors
 rows are their final reruns.
 
 | package | passing assertions | elapsed seconds |
@@ -175,7 +175,7 @@ rows are their final reruns.
 | LenticulumCore | 316 | 46.69 |
 | Mycelium | 494 | 11.08 |
 | ImplicitLayers | 1195 | 459.73 |
-| Adversarial | 315 | 9.37 |
+| AdversarialFactors | 315 | 9.37 |
 | AlgebraicFactors | 15102 | 163.12 |
 | VariationalDiffusion | 1201 | 428.01 |
 

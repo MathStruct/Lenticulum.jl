@@ -100,7 +100,7 @@ For the one-shot generative use this is right. For anything iterative the sample
 frozen at the first draw — which is the common-random-numbers trick, and it is not
 implemented.
 
-Related: [[ratio]], [[Adversarial]], [[Implicit Generative Models]],
+Related: [[ratio]], [[AdversarialFactors]], [[Implicit Generative Models]],
 [[Three Senses of Implicit]], [[GANs as Two Factors]]
 
 ## Conditional point games and conformance (2026-10-26)

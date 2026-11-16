@@ -10,7 +10,7 @@
 
 **Problem.** The review read LenticulumCore and Mycelium in full, the Gaussian part of
 Lenticulum, `implicit.jl` and `solve.jl`, searched the rest, and rederived the mathematics behind
-the three paths ([[Refactor 2026-11]]). About half of the source was read; the three packages off the paths (ImplicitLayers, Adversarial, AlgebraicFactors)
+the three paths ([[Refactor 2026-11]]). About half of the source was read; the three packages off the paths (ImplicitLayers, AdversarialFactors, AlgebraicFactors)
 were not reviewed.
 
 ## Fixed

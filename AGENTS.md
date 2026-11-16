@@ -58,7 +58,7 @@ not yet reviewed.
 | `lib/MyceliumLearning.jl/` | learning: free-energy gradients, couplings, the graph adjoint, EM, the optimiser step |
 | `lib/Lenticulum.jl/` | the factors: linear-Gaussian, nonlinear, constraint, switching, regime, likelihood; M-steps; `examples/` |
 | `lib/VariationalDiffusion.jl/` | diffusion models as implicit learners |
-| `lib/ImplicitLayers.jl/`, `lib/Adversarial.jl/`, `lib/AlgebraicFactors.jl/` | off the three paths and **not yet reviewed**: DEQs and neural ODEs, implicit generative models, toric models. Tested weekly, on demand and when their own files change (`.github/workflows/Weekly.yml`), not on every push |
+| `lib/ImplicitLayers.jl/`, `lib/AdversarialFactors.jl/`, `lib/AlgebraicFactors.jl/` | off the three paths and **not yet reviewed**: DEQs and neural ODEs, implicit generative models, toric models. Tested weekly, on demand and when their own files change (`.github/workflows/Weekly.yml`), not on every push |
 | `vault/` | the Obsidian vault: `Foundations/`, one folder per path, `Design/`, `Project/`, `Research Questions/`, `Parked/` |
 | `lib/*/src/*.md` | implementation notes, one beside each source file |
 | `docs/` | Documenter pages, Literate tutorials (`docs/literate/`), the shared bibliography `docs/src/refs.bib`, and the Quartz build of the vault (`docs/site/`) |
@@ -66,7 +66,7 @@ not yet reviewed.
 
 Each package has its own `Project.toml` and `test/`. Dependencies go one way:
 `LenticulumCore` ← `Mycelium` ← `MyceliumLearning` ← `Lenticulum`; `VariationalDiffusion`,
-`Adversarial` and `AlgebraicFactors` depend on the first two, `ImplicitLayers` on the first three. `vault/Start Here.md` gives the conventions; read it before writing a note.
+`AdversarialFactors` and `AlgebraicFactors` depend on the first two, `ImplicitLayers` on the first three. `vault/Start Here.md` gives the conventions; read it before writing a note.
 
 ## Working conventions
 

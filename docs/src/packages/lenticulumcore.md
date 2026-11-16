@@ -91,7 +91,7 @@ the chosen model. AD through finite-difference Sampson localisation is not cover
   Jacobian with those backends; differences of the forward function do not implement it.
 
 - `SampleBelief` has no `belief_logdensity`, so two of them cannot be pooled. See
-  `Adversarial` for a route around this.
+  `AdversarialFactors` for a route around this.
 - `GaussianBelief` lives here too (canonical form, `gaussian_belief.jl`); its message rules
   are in `Mycelium`. So far only `VariationalDiffusion`'s implicit solver emits one
   (`ImplicitProx(…; message = :gaussian)`); the equilibrium factors still return points.

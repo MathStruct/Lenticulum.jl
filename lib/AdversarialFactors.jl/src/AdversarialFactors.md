@@ -4,7 +4,7 @@
 > ([arXiv:1610.03483](https://arxiv.org/pdf/1610.03483)) — and the GAN diagram read as a factor
 > graph.
 
-> Sources: code: `Adversarial.jl`
+> Sources: code: `AdversarialFactors.jl`
 >
 > Theory (CT-ML wiki): [Open Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Open-Game) · [Bayesian Inversion](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Inversion) · [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game) · [Bayesian Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Bayesian-Lens) · [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy) · [Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Lens)
 

@@ -1,7 +1,7 @@
-# [Adversarial](@id adversarial)
+# [AdversarialFactors](@id adversarialfactors)
 
 ```@meta
-CurrentModule = Adversarial
+CurrentModule = AdversarialFactors
 ```
 
 **Implicit generative models** as factors — models you can sample from but whose density you
@@ -62,11 +62,11 @@ ratio twice squares it, as expected when evidence is multiplied twice.
 ## API
 
 ```@index
-Modules = [Adversarial]
+Modules = [AdversarialFactors]
 ```
 
 ```@autodocs
-Modules = [Adversarial]
+Modules = [AdversarialFactors]
 ```
 
 ## Point games and conformance

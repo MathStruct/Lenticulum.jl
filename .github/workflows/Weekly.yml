@@ -1,6 +1,6 @@
 name: Weekly
 # The packages off the three paths, not yet reviewed (vault/Project/Refactor 2026-11.md): ImplicitLayers,
-# Adversarial, AlgebraicFactors. Not tested on every push: once a week, on demand (Actions → Weekly →
+# AdversarialFactors, AlgebraicFactors. Not tested on every push: once a week, on demand (Actions → Weekly →
 # Run workflow), and when their own files change. A change in
 # the core can break them between two weekly runs; run the workflow before relying on one.
 on:
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
   push:
     branches: [master, dev, dev-danielb]
-    paths: ['lib/ImplicitLayers.jl/**', 'lib/Adversarial.jl/**', 'lib/AlgebraicFactors.jl/**', '.github/workflows/Weekly.yml']
+    paths: ['lib/ImplicitLayers.jl/**', 'lib/AdversarialFactors.jl/**', 'lib/AlgebraicFactors.jl/**', '.github/workflows/Weekly.yml']
 jobs:
   weekly:
     name: ${{ matrix.package }} · weekly
@@ -19,7 +19,7 @@ jobs:
       matrix:
         package:
           - lib/ImplicitLayers.jl
-          - lib/Adversarial.jl
+          - lib/AdversarialFactors.jl
           - lib/AlgebraicFactors.jl
     steps:
       - uses: actions/checkout@v4

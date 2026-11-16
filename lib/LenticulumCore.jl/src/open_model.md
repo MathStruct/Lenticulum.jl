@@ -107,7 +107,7 @@ The abstract type leaves room for likelihoods with gradients, a parametric form,
 evaluation. Those types provide their own log-density and can add exact product rules.
 Mycelium sums log-potentials and reweights explicit particles; it refuses arbitrary
 parametric products. Core construction tests check the representation; Mycelium and
-Adversarial tests check pooling and target exclusion against closed forms.
+AdversarialFactors tests check pooling and target exclusion against closed forms.
 
 ## LP-011 positive-weight reverse derivatives (2026-10-27)
 
@@ -149,8 +149,8 @@ inconsistently (a division by a zero total, or an empty reduction).
 `gaussian_belief.jl`, after the generic functions): the weighted mean and the weighted covariance
 $\sum_i w_i (x_i - \bar x)(x_i - \bar x)^\top$, the weights divided by the largest and then by their
 sum (uniform without weights). Samples are the columns of a matrix or the elements of a vector. They
-were defined in Adversarial (`ratio.jl`), which was type piracy: the moments of a sample belief existed
-only with Adversarial loaded. Adversarial's `weighted_mean` and `weighted_cov` keep their names and
+were defined in AdversarialFactors (`ratio.jl`), which was type piracy: the moments of a sample belief existed
+only with AdversarialFactors loaded. AdversarialFactors' `weighted_mean` and `weighted_cov` keep their names and
 call these. Tested in `test/sample_moments.jl` against the sums written out and against Statistics'
 `mean` and uncorrected `cov` (40 random instances, matrix and vector samples, weights scaled by
 1e300, scalar and integer samples, one sample).

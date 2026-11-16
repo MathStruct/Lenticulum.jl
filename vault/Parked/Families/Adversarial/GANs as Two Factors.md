@@ -7,9 +7,9 @@
 > scalarisation per player of a vector payoff *and* an owner for each: the parameters that
 > descend it. One player with several scalarisations is multi-objective optimisation, not a game.
 >
-> Implemented in `lib/Adversarial.jl`; see [[Adversarial]].
+> Implemented in `lib/AdversarialFactors.jl`; see [[AdversarialFactors]].
 
-> Sources: original to this vault (design and analysis). Open games and the parallel composite of decisions: Ghani, Hedges, Winschel & Zahn, *Compositional game theory*, LICS 2018. Local Nash equilibria of continuous games: Ratliff, Burden & Sastry, Allerton 2013. Gradient dynamics in games and symplectic gradient adjustment: Balduzzi et al., *The Mechanics of n-Player Differentiable Games*, ICML 2018. code: `lib/LenticulumCore.jl/src/energy.jl` (graded energies and scalarisations), `lib/Adversarial.jl/src/ratio.jl`
+> Sources: original to this vault (design and analysis). Open games and the parallel composite of decisions: Ghani, Hedges, Winschel & Zahn, *Compositional game theory*, LICS 2018. Local Nash equilibria of continuous games: Ratliff, Burden & Sastry, Allerton 2013. Gradient dynamics in games and symplectic gradient adjustment: Balduzzi et al., *The Mechanics of n-Player Differentiable Games*, ICML 2018. code: `lib/LenticulumCore.jl/src/energy.jl` (graded energies and scalarisations), `lib/AdversarialFactors.jl/src/ratio.jl`
 >
 > Bibliography: [[Bibliography#^ghani2018compositional|Ghani et al. 2018]] · [[Bibliography#^ratliff2013nash|Ratliff et al. 2013]] · [[Bibliography#^balduzzi2018mechanics|Balduzzi et al. 2018]]
 >
@@ -80,7 +80,7 @@ does in effect, and it trades a node for a bookkeeping obligation.
 
 ## 3. And the whole thing is a DAG
 
-All three factors in `lib/Adversarial.jl` are unidirectional — `isunidirectional` is `true` for
+All three factors in `lib/AdversarialFactors.jl` are unidirectional — `isunidirectional` is `true` for
 each, asserted in the test suite. So:
 
 > **A GAN uses none of Mycelium's bidirectionality.** The diagram is a DAG; it is Lux-shaped.
@@ -224,13 +224,13 @@ Not a to-do list — a note of what the open-game reading would buy, if anyone t
 
 - **Equilibria instead of minima.** The graph's solution concept becomes Nash rather than
   stationary, which is what a GAN actually converges to when it converges.
-- **Adversarial factors compose.** Open games compose sequentially and monoidally, so a graph
+- **AdversarialFactors factors compose.** Open games compose sequentially and monoidally, so a graph
   containing several adversarial pairs would have a meaning rather than a training script.
 - **The discriminator's inexactness gets a home.** [[ratio]] §5 records that a `RatioFactor`'s
   *energy* is estimated and nothing accounts for it. In a game, "the other player has not best
   responded yet" is a first-class off-equilibrium condition rather than an unmodelled error.
 
-Related: [[Implicit Generative Models]], [[Three Senses of Implicit]], [[Adversarial]],
+Related: [[Implicit Generative Models]], [[Three Senses of Implicit]], [[AdversarialFactors]],
 [[The Two-Part Diagram]], [[The Inferencer and the Optimizer]],
 [[Factors are Parameterized Statistical Games]], [Parametric Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Parametric-Lens), [[Bethe Free Energy]],
 [[Lux as a Parametric Lens]], [Variational Free Energy](https://mathstruct.org/CategoryTheory-ML-Wiki/Variational-Free-Energy)

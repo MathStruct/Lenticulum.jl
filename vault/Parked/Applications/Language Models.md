@@ -139,7 +139,7 @@ operation with different signs and weights:
 | constrained decoding | combine with a hard factor |
 
 Contrastive decoding is the interesting row: a *difference* of log-probabilities is exactly what
-`Adversarial.RatioFactor` computes ([[ratio]] §1), used with a negative weight. So a factor
+`AdversarialFactors.RatioFactor` computes ([[ratio]] §1), used with a negative weight. So a factor
 graph with one positive and one negative factor is contrastive decoding, and the graded energy
 of [[Scalar and Multivariate Energy]] is the natural bookkeeping for all five rows at once.
 

@@ -62,7 +62,7 @@ A factor is a subtype of `AbstractLenticulumFactor`. Like a Lux layer, it is a *
   games, linear identity and nonlinear Gauss–Newton error tests.
 - `lib/Mycelium.jl/test/conformance.jl`: common direct-message path on Data, Prior, Optimiser
   unary and Relay both directions; Loss sink path, with explicit unsupported-section reasons.
-- `lib/Adversarial.jl/test/conformance.jl`: common default lens path on NoiseSource unary,
+- `lib/AdversarialFactors.jl/test/conformance.jl`: common default lens path on NoiseSource unary,
   Generator forward, Ratio unary; conditional point games, fixed draw and LP-016 likelihood/particle graph checks.
 - `lib/VariationalDiffusion.jl/test/conformance.jl`: common default lens path on all five binary
   assignments and unary, with fixed-node Gaussian/point fixtures and an explicit game gap.
@@ -145,7 +145,7 @@ Only declared exact linear-Gaussian components (and their independent products) 
 Correlated joint beliefs are rejected. Tensor graph wiring/inversion remains absent.
 
 Checked by `lib/Lenticulum.jl/test/game_composition.jl`, `lib/VariationalDiffusion.jl/test/bound.jl`,
-`lib/Adversarial.jl/test/transport.jl`, and `lib/AlgebraicFactors.jl/test/game_exact.jl`.
+`lib/AdversarialFactors.jl/test/transport.jl`, and `lib/AlgebraicFactors.jl/test/game_exact.jl`.
 The common checker covers Gaussian composition in both directions, affine Gaussian
 forward generators, the exact scalar Plucker image and degree-one polynomial polarities.
 The common checker's `scope=:bound` checks evaluated bounds against independent exact

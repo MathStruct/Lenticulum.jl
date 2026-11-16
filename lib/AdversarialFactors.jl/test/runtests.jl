@@ -1,4 +1,4 @@
-using Adversarial
+using AdversarialFactors
 using LenticulumCore
 using LenticulumCore: DiracBelief, TrivialBelief, SampleBelief, Observed, Unobserved, Polarity
 using Mycelium
@@ -50,7 +50,7 @@ _mean(v) = sum(v) / length(v)
 struct LinearLogRatio <: LuxCore.AbstractLuxLayer end
 (::LinearLogRatio)(x, ps, st) = (1000 * only(x), st)
 
-@testset "Adversarial" begin
+@testset "AdversarialFactors" begin
 
 @testset "matrix columns and vector particles agree" begin
     X = [1.0 3.0 5.0; 2.0 4.0 6.0]

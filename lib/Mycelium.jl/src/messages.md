@@ -125,7 +125,7 @@ central operation is "combine two beliefs" cannot test that operation with one b
 ### 1c. A density RATIO is enough, and a classifier estimates one
 
 The oldest sample-pooling blocker is resolved when one operand supplies a potential.
-`Adversarial.RatioFactor` emits `LogPotentialBelief(x -> log r(x))`; the existing
+`AdversarialFactors.RatioFactor` emits `LogPotentialBelief(x -> log r(x))`; the existing
 `belief_logdensity` reweighting path applies it to a particle cavity. Two such messages
 add their log-potentials. No density of the particle cloud is required, and no density
 estimator is invented for two clouds.
@@ -133,7 +133,7 @@ estimator is invented for two clouds.
 Mycelium reports severe ESS collapse. Reapplying the same evidence multiplies it twice;
 products are not idempotent, and this does not violate associativity or commutativity.
 `test/runtests.jl` checks both orders and parenthesisations for two ratio potentials on
-one particle variable, including matrix and vector-of-vectors particles. Adversarial's
+one particle variable, including matrix and vector-of-vectors particles. AdversarialFactors'
 `test/conformance.jl` checks the same algebra through a graph with two RatioFactors.
 
 An arbitrary callable does not specify an exact Gaussian or mixture posterior. This

@@ -49,7 +49,7 @@ Three observations from that table:
   `ImplicitLayers.jl` is about: `DeepEquilibriumNetwork` gives you (2), and keeping the
   residual instead gives you (3) as well. [[DEQ as a Relation]].
 - **A GAN generator scores (1) and nothing else.** It is a function, evaluated in closed form,
-  in one direction. Which is why `Adversarial.GeneratorFactor` has exactly one polarity and
+  in one direction. Which is why `AdversarialFactors.GeneratorFactor` has exactly one polarity and
   says so.
 
 ## 3. On *Implicit Deep Learning* (1908.06315)
@@ -110,7 +110,7 @@ no preferred direction; a GAN generator is the exact opposite.
 ## 5. Why this matters for the vault
 
 [[Implicit Learners]] lists three model *families* — algebraic, equilibrium, diffusion — and
-each is implicit in sense (3). The adversarial family added by `lib/Adversarial.jl` is **not**:
+each is implicit in sense (3). The adversarial family added by `lib/AdversarialFactors.jl` is **not**:
 it is sense (1), and all three of its factors are unidirectional.
 
 So the structure is two-dimensional, and the vault had been treating it as one:

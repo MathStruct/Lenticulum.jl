@@ -6,7 +6,7 @@
 
 In AutoBayes (Definition 10), the Bayesian inversion $c^\dagger_\pi(y)$ of a lens $(c, c^\dagger)$ returns the **posterior** belief over the unobserved channel given the prior $\pi$ and observation $y$: $c^\dagger_\pi(y) \propto \pi \cdot \mu_{c\to\text{target}}(y)$. In belief propagation on a factor graph, however, the factor-to-variable message $\mu_{c\to i}$ must be the **likelihood** contribution (with the cavity prior $\pi$ divided out, using $\pi$ at most as an expansion point for linearisation or Laplace approximation); otherwise a variable of degree $d$ counts its prior $d$ times.
 
-Previously, `Mycelium.factor_message`'s generic fallback called `LenticulumCore.invert(lens, prior, inputs, ps, st)`, while individual factors (`ImplicitLayers`, `Adversarial`, `VariationalDiffusion`) returned likelihoods from `invert` and `Lenticulum`'s `GaussianFactor` returned posteriors from `invert` and bypassed `invert` in `factor_message`.
+Previously, `Mycelium.factor_message`'s generic fallback called `LenticulumCore.invert(lens, prior, inputs, ps, st)`, while individual factors (`ImplicitLayers`, `AdversarialFactors`, `VariationalDiffusion`) returned likelihoods from `invert` and `Lenticulum`'s `GaussianFactor` returned posteriors from `invert` and bypassed `invert` in `factor_message`.
 
 ## Options
 

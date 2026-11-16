@@ -1,5 +1,5 @@
-name = "Adversarial"
-uuid = "5b7e1c94-8d3a-4f26-b0e1-7a9c25d4f318"
+name = "AdversarialFactors"
+uuid = "952efbab-e437-447d-9da7-09f243bc8a38"
 authors = ["Daniel Boigk <dn.boigk@gmail.com>"]
 version = "0.0.1-dev"
 

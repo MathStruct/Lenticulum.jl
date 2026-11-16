@@ -1,6 +1,6 @@
 #model #annotation
 
-> Entry point for the adversarial family, implemented in `lib/Adversarial.jl`.
+> Entry point for the adversarial family, implemented in `lib/AdversarialFactors.jl`.
 >
 > The paper's thesis in one line: **without a likelihood you must learn by comparison**, and
 > every way of comparing two distributions you can only sample from reduces to estimating a
@@ -66,7 +66,7 @@ $$
 **The logit of the optimal discriminator is the log density ratio.** Everything else in the
 GAN literature is a consequence of this line plus a choice of what to do with $r$.
 
-`Adversarial.RatioFactor` is this identity as a factor: `logratio` and `discriminator` are the
+`AdversarialFactors.RatioFactor` is this identity as a factor: `logratio` and `discriminator` are the
 two readings of one number, and the test suite checks them against a closed-form Gaussian
 pair, where the optimal discriminator's logit is a known quadratic.
 
@@ -97,7 +97,7 @@ w_i^{\text{new}} \propto w_i^{\text{old}} r(x_i).
 $$
 
 `RatioFactor` emits `LogPotentialBelief` for $\log r(x)$, independent of the cavity.
-`Mycelium.combine` applies it to particles; `Adversarial.reweight` and lens `invert`
+`Mycelium.combine` applies it to particles; `AdversarialFactors.reweight` and lens `invert`
 provide explicit posterior reweighting. The Gaussian oracle in `test/runtests.jl` checks
 reweighted moments, and `test/conformance.jl` checks a particle prior with two ratio factors
 on one variable against weights proportional to $w_i r_1(x_i)r_2(x_i)$.
@@ -124,7 +124,7 @@ the generator, which is where [[GANs as Two Factors]] §4's sign obstruction com
 - Mohamed & Lakshminarayanan, *Learning in Implicit Generative Models*,
   [arXiv:1610.03483](https://arxiv.org/pdf/1610.03483) — the definition, the four estimators,
   the likelihood-free-inference connection.
-- Goodfellow et al., *Generative Adversarial Nets*, NeurIPS 2014 — the original, and the
+- Goodfellow et al., *Generative AdversarialFactors Nets*, NeurIPS 2014 — the original, and the
   optimal-discriminator computation §3 rests on.
 - Nowozin, Cseke & Tomioka, *f-GAN*, NeurIPS 2016 — the divergence-minimisation column.
 - Sugiyama, Suzuki & Kanamori, *Density Ratio Estimation in Machine Learning*, 2012 — the
@@ -133,5 +133,5 @@ the generator, which is where [[GANs as Two Factors]] §4's sign obstruction com
   Inference*, NeurIPS 2017 — ratio estimation used for *inference* rather than generation,
   which is the reading §5 needs.
 
-Related: [[GANs as Two Factors]], [[Three Senses of Implicit]], [[Adversarial]],
+Related: [[GANs as Two Factors]], [[Three Senses of Implicit]], [[AdversarialFactors]],
 [[generator]], [[ratio]], [[messages]], [[Implicit Learners]], [[Inversions and Bayesian Lenses]]

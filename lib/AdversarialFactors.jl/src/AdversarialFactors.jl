@@ -1,5 +1,5 @@
 """
-    Adversarial
+    AdversarialFactors
 
 Implicit **generative** models as Lenticulum factors — Mohamed & Lakshminarayanan's
 *Learning in Implicit Generative Models* ([arXiv:1610.03483](https://arxiv.org/pdf/1610.03483)),
@@ -51,7 +51,7 @@ This package scores and reweights; fitting the two networks is somebody else's j
 Concept notes: [[Implicit Generative Models]], [[GANs as Two Factors]],
 [[Three Senses of Implicit]]. Per-file notes: [[generator]], [[ratio]].
 """
-module Adversarial
+module AdversarialFactors
 
 using LinearAlgebra: LinearAlgebra
 using Random: Random, AbstractRNG, randn

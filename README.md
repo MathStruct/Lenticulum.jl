@@ -71,7 +71,7 @@ The library is built around three uses:
 
 Three further packages are off the three paths and **not yet reviewed** as the core was: deep
 equilibrium models and neural ODEs (`ImplicitLayers`), exact discrete toric models
-(`AlgebraicFactors`) and implicit generative models (`Adversarial`). Their suites pass and run
+(`AlgebraicFactors`) and implicit generative models (`AdversarialFactors`). Their suites pass and run
 weekly rather than on every push ([the refactor note](vault/Project/Refactor%202026-11.md)).
 
 ## A minimal example
@@ -135,7 +135,7 @@ compilation come in through package extensions, for whichever backend you load.
 | `Lenticulum` | the **factors**: linear-Gaussian, nonlinear, linear constraints, switching and regime factors, likelihoods; their closed-form M-steps |
 | `VariationalDiffusion` | **diffusion models** as relations: VP-SDE, implicit inference with an adjoint backward pass, Laplace and mixture answers, conditional sampling, RED-Diff, ProxDM |
 
-`lib/` also holds `ImplicitLayers`, `Adversarial` and `AlgebraicFactors` (not yet reviewed;
+`lib/` also holds `ImplicitLayers`, `AdversarialFactors` and `AlgebraicFactors` (not yet reviewed;
 tested weekly); `vault/` the theory notes; `docs/` the Documenter
 pages and tutorials; `bench/` the benchmarks.
 
