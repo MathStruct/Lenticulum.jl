@@ -207,7 +207,7 @@
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Parked/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-11-16T21:13:36.646Z</lastmod>
+    <lastmod>2026-11-16T21:50:33.796Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Parked/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
@@ -278,8 +278,38 @@
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Decisions/L-ADR-0010-Plates-get-batched-message-blocks</loc>
     <lastmod>2026-11-10T18:39:10.000Z</lastmod>
   </url><url>
-    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog</loc>
-    <lastmod>2026-11-16T20:48:38.000Z</lastmod>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog/Backlog-Done-2026-11</loc>
+    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog/Backlog-F-Families</loc>
+    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog/Backlog-G-Decisions,-Control-and-Games</loc>
+    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog/Backlog-I-Inference-and-Graph-Execution</loc>
+    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog/Backlog-L-Learning</loc>
+    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog/Backlog-O-Out-of-Core-Graphs</loc>
+    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog/Backlog-P-The-Three-Paths</loc>
+    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog/Backlog-S-Structure-Search-and-Editing</loc>
+    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog/Backlog-T-Tooling</loc>
+    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog/Backlog-U-Utility-Factors-and-Data</loc>
+    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog/Feature-Backlog</loc>
+    <lastmod>2026-11-16T21:17:15.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-001-The-vault-build-uses-GNU-only-sed</loc>
     <lastmod>2026-10-24T23:08:41.000Z</lastmod>
@@ -453,7 +483,7 @@
     <lastmod>2026-11-04T23:01:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Status</loc>
-    <lastmod>2026-11-16T20:48:38.000Z</lastmod>
+    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/README</loc>
     <lastmod>2026-11-16T20:50:41.000Z</lastmod>
@@ -549,7 +579,7 @@
     <lastmod>2026-11-05T13:42:41.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Start-Here</loc>
-    <lastmod>2026-11-10T21:35:21.000Z</lastmod>
+    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Structure-and-Regimes/Finding-a-Factor-Graph</loc>
     <lastmod>2026-11-10T18:39:10.000Z</lastmod>
@@ -684,7 +714,7 @@
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/extended_gaussian</loc>
-    <lastmod>2026-11-16T20:19:13.000Z</lastmod>
+    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/gaussian_belief</loc>
     <lastmod>2026-11-16T10:19:20.000Z</lastmod>
