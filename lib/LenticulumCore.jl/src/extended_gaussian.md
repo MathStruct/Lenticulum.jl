@@ -98,7 +98,7 @@ extended Gaussians is therefore always one, or a contradiction.
   input for the constraint, switching, nonlinear and Gaussian factors, is now `extended(b)`. Its
   outputs are the same up to the basis of the flat directions, which the callers use only through
   its span. The split itself is `_flat_split(η, Λ)`, which returns the parts without building the
-  type (whose element type is a float): Lenticulum's split of a flagged input with a dual $\eta$
+  type: Lenticulum's split of a flagged input with a dual $\eta$
   and a precision of plain values calls it directly, and the mean carries the duals (P21). Its
   range check reads $\eta$'s values (`stop_gradient`): `norm` of duals with value exactly zero is
   `NaN`.
@@ -147,6 +147,65 @@ convention the right one there.
 - **Conversions and refusals:** round trips with `GaussianBelief`, the clamp, contradictory
   constraints, $\eta$ outside $\operatorname{range}\Lambda$, a covariance that is not positive semidefinite.
 
+## Derivatives (P4, 2026-11-16)
+
+The type holds any `Real` (`ExtendedGaussian{T<:Real}`), so a ForwardDiff dual or a Zygote-tracked
+float passes through every operation. Before, it held only floats, and the coupled replay of a
+graph with a `HardConstraintFactor` failed under both (ForwardDiff at the type bound, Zygote at
+`_independent_join`, which wrote into zero arrays and took no tuple).
+
+**The rule.** Every subspace (a basis of the flat directions, of their complement, of the hard
+directions, of the range of a covariance or precision, of the solution set of stacked constraints)
+comes from a decomposition of the values, and its rank is decided there by `_eig_tol`. The
+derivative is the one at constant rank. With $X_0$ the value of a matrix $X$ and
+$\Delta = X - \texttt{stop\_gradient}(X)$ (zero in value, the tangent in derivative), the bases move
+only into each other:
+
+- a positive semidefinite $S$ with range $V_0$ (eigenvalues $\lambda$) and null space $N_0$:
+  $V = V_0 + N_0 N_0^\top \Delta V_0 \lambda^{-1}$, $N = N_0 - V_0 \lambda^{-1} V_0^\top \Delta N_0$, and
+  $S^+ = V (V_0^\top S V_0)^{-1} V^\top$, whose derivative is the constant-rank one,
+  $-S^+\Delta S^+ + N_0N_0^\top\Delta S^{+2} + S^{+2}\Delta N_0N_0^\top$ (`_psd_split`, `_split_pinv`);
+- the column space of $M = U_r S V_r^\top$: $B = B_0 + (I - B_0B_0^\top)\Delta V_r S^{-1}$ (`_orth`);
+  the complement of the column space of $B$: $W = W_0 - (B^+)^\top\Delta^\top W_0$ (`_complement`);
+- the least-squares solution and null space of stacked constraints $Cx = c$, with $P = C^+$ at the
+  value: $x_0 = Pc - P\Delta Pc + PP^\top\Delta^\top(I - U_rU_r^\top)c + N_0N_0^\top\Delta^\top P^\top Pc$,
+  $N = N_0 - P\Delta N_0$ (`_from_potential`);
+- the support entropy uses $\log\det(V_0^\top\Sigma V_0)$, whose first-order change is that of the
+  nonzero eigenvalues.
+
+No eigenvector or singular vector is differentiated, so repeated eigenvalues are no difficulty;
+these are the formulas of P25 (`LenticulumForwardDiffExt`) and P26, written once for both ADs: the
+decompositions are of values (`_value_eigen`, `_value_svd`, marked non-differentiable for
+ChainRules), and $\Delta$ carries the derivative through `stop_gradient`, which strips a dual and has
+a zero pullback. With floats $\Delta$ is exactly zero and every result is the decomposition's.
+
+**Refusals.** A tangent with $L^\top\Delta R \ne 0$, $L$ and $R$ the left and right null spaces at
+the value, changes the rank at first order: the value jumps there and has no derivative.
+`_check_constant_rank` (`LenticulumCoreForwardDiffExt`) refuses it under ForwardDiff, with the
+tolerance $\sqrt\epsilon\max(\|\Delta_k\|_\infty, \text{spectrum})$ per partial. A Zygote cotangent cannot see
+the tangent, so under Zygote the constant-rank derivative is returned without a check.
+
+**Where it is used.** Mycelium's `combine`, `damp` and `belief_distance` of a `GaussianBelief` of
+duals and an extended Gaussian *with* hard directions now take the dual side's extended form
+(before: an `ArgumentError`, there being no canonical form). Against a soft extended Gaussian they
+keep the canonical form, which needs no decomposition and takes a precision whose rank changes at
+first order (P25's limit), which the extended form refuses. `HardConstraintFactor`'s free energy
+takes $\tfrac12\log\det GG^\top = \sum\log\sigma_i + \operatorname{tr}(G^+\Delta)$ and the null space of $G$ by
+the same rule (`hard_constraint.md`).
+
+**Measured.** `test/extended_gaussian_ad.jl`: beliefs $b(t) = \operatorname{pushforward}(b_0, I + tK)$,
+which turn their flat, hard and Gaussian directions with $t$ at constant counts (30 random draws,
+dimension 2–4); pushforward, preimage, the hard directions' projector, the canonical part, the
+product, the support entropy of a product and `extended` of an improper Gaussian whose null space
+turns, each through basis-free outputs ($\mu$, $\Sigma$, $DD^\top$): ForwardDiff and Zygote against
+central differences, $10^{-6}$ absolute and $10^{-5}$ relative (305 checks). With the bases held fixed
+(the moving terms of `_psd_split` multiplied by zero) 182 of them fail. Refusals: a precision and a
+covariance that gain rank at first order, and nested duals; a precision whose null space only turns
+is accepted. Lenticulum `test/hard_gradient.jl`: the coupled replay on 12 random trees with a hard
+relation (some fixing $u$ and $v$ entirely) against the ForwardDiff gradient of the dense $-\log Z$.
+A belief with no Gaussian direction (only hard or flat ones) is tested on its own: the loop above
+draws at least one, and the review (LP-043) found Zygote failing there.
+
 ## What it does not do
 
 - **Density and log-partition.** A belief with a flat or hard direction has no density with
@@ -158,8 +217,10 @@ convention the right one there.
   free energies. `GaussianFactor`, `NonlinearFactor` and `LinearConstraintFactor` emit it for
   improper messages; the `improper` flag of `GaussianBelief` remains, by decision, for AD, plates and mixtures
   ([[Feature Backlog]], "Done (2026-11-11)").
-- **Gradients.** The SVDs and eigendecompositions are on values; nothing differentiates through
-  this type, and ForwardDiff fails on it (as on `_improper_split` before).
+- **Gradients where a rank changes.** A tangent that changes the number of flat, hard or Gaussian
+  directions at first order has no derivative (the value jumps); ForwardDiff refuses it, Zygote
+  returns the constant-rank derivative without a sign (below). A rank that changes only at second
+  order is not detected. Nested duals (second derivatives) are refused.
 - **Device arrays.** Host `Matrix` only.
 
 ## Difficulties
@@ -168,6 +229,12 @@ The constructor first projected $\mu$ and $\Sigma$ with $I - DD^\top$. When $D$ 
 input of a relation uninformative), that leaves a residue of $10^{-30}$ instead of zero, and the
 relative tolerances took it for a tiny variance: a message that should be flat came out hard. It
 now projects through an orthonormal basis of the complement of $D$, which is then empty.
+
+Under Zygote, `hard_directions` of a belief with two or more hard directions and no Gaussian one
+threw a `DimensionMismatch`: the split had no nonzero eigenvalue, and the pullback of the broadcasts
+by the empty $\lambda_0$ could not be projected onto it. `_psd_split` now returns before them when
+$\lambda_0$ is empty; at constant rank $S$ stays 0 and $N_0$ spans everything, so nothing moves
+([[LP-043 Findings of the review of P4]]).
 
 The first version of the oracle failed in half the cases with covariances of order $10^{12}$. Two
 faults, both in the test: with $\tau/\varepsilon = 10^{60}$ two inversions exhaust 256-bit precision,

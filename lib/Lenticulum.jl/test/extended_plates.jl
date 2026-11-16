@@ -7,8 +7,9 @@
 # Oracles: the dense Gaussian of one replica conditioned on its observation and on the relation
 # (for a plate of GaussianFactors), the same tasks sent one by one (`SequentialSchedule`), and each
 # replica as its own graph (for LinearConstraintFactor's block method). Known limits are
-# `@test_broken`: a mixture message meeting an extended one, and the coupled replay through a
-# hard relation under ForwardDiff and Zygote.
+# `@test_broken`: a mixture message meeting an extended one. The coupled replay through a hard
+# relation under ForwardDiff and Zygote, broken until P4's AD half, is tested here against
+# reference differences and in `hard_gradient.jl` against the dense −log Z.
 
 using Test, Lenticulum, LenticulumCore, Mycelium, MyceliumLearning, LinearAlgebra, LuxCore, Random
 using ADTypes, DifferentiationInterface, ForwardDiff, Zygote
@@ -163,7 +164,7 @@ end
     end
 end
 
-@testset "P4: known limits (broken)" begin
+@testset "P4: known limits (broken), and the replay through a hard relation" begin
     XP = ExtendedPlates
     rng = Xoshiro(5)
     # a switching factor's mixture message meets the hard relation's extended one on u: Mycelium's
@@ -180,8 +181,8 @@ end
         false
     end
     @test_broken mixed
-    # the coupled replay through a hard relation: its message is an ExtendedGaussian, which holds
-    # only floats (ForwardDiff) and whose join takes no tuple (Zygote); reference differences work
+    # the coupled replay through a hard relation: broken before P4's AD half (ExtendedGaussian
+    # held only floats under ForwardDiff, and its join took no tuple under Zygote)
     gb = GraphBuilder()
     variable!(gb, :x, 2); variable!(gb, :u, 2); variable!(gb, :v, 1)
     c = ExactCoupling()
@@ -194,13 +195,7 @@ end
     _, _, st, s = infer!(g, tree_schedule(g), ps, st)
     Gref = LenticulumCore.free_energy_gradient(s, g, ps, st; schedule = tree_schedule(g), nsweeps = 1)
     for ad in (AutoForwardDiff(), AutoZygote())
-        ok = try
-            G = LenticulumCore.free_energy_gradient(s, g, ps, st; ad, schedule = tree_schedule(g), nsweeps = 1)
-            isapprox(LenticulumCore._flatten(G.g), LenticulumCore._flatten(Gref.g); atol = 1e-6)
-        catch e
-            e isa Union{ArgumentError,MethodError,TypeError} || rethrow()
-            false
-        end
-        @test_broken ok
+        G = LenticulumCore.free_energy_gradient(s, g, ps, st; ad, schedule = tree_schedule(g), nsweeps = 1)
+        @test LenticulumCore._flatten(G.g) ≈ LenticulumCore._flatten(Gref.g) atol = 1e-6
     end
 end

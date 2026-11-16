@@ -157,23 +157,30 @@ function Mycelium.local_free_energy(f::HardConstraintFactor{names}, msgs, ps, st
         return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -H)), st
     end
     m, k = size(G)
-    F = LinearAlgebra.svd(G; full = true)
-    tol = maximum(size(G)) * eps(Float64) * maximum(F.S; init = 0.0)
-    (k >= m && count(>(tol), F.S) == m) || throw(ArgumentError(
-        "HardConstraintFactor: its $m equations have rank $(count(>(tol), F.S)) on the directions its \
+    # G (and the messages) may carry derivatives (P4): the SVD is of the values, and G of full row
+    # rank moves its null space N and ½ log det(GGᵀ) = Σ log σᵢ by the first-order terms
+    # N = N₀ − G⁺ΔN₀ and tr(G⁺Δ), with Δ the tangent of G (LenticulumCore `extended_gaussian.md`,
+    # "Derivatives"). Full row rank is an open condition: no tangent changes it.
+    U0, S0, V0, _ = LenticulumCore._value_svd(G)
+    tol = maximum(size(G)) * eps(Float64) * LenticulumCore._scale(S0)
+    (k >= m && count(>(tol), S0) == m) || throw(ArgumentError(
+        "HardConstraintFactor: its $m equations have rank $(count(>(tol), S0)) on the directions its \
          inputs leave free (redundant equations, or equations on directions an input fixes \
          exactly); the free energy is infinite"))
-    N = F.V[:, (m + 1):k]                                # R = s0 + range(N), any solution s0
-    complexity = sum(log, F.S; init = 0.0)               # ½ log det(G Gᵀ)
+    Δ = LenticulumCore._tangent(G)
+    Gp = V0[:, 1:m] * (U0[:, 1:m]' ./ S0[1:m])          # G⁺ at the value
+    N = V0[:, (m + 1):k] .- Gp * (Δ * V0[:, (m + 1):k])  # R = s0 + range(N), any solution s0
+    complexity = LenticulumCore._logsum(S0) + sum(Gp' .* Δ)   # ½ log det(G Gᵀ)
     H = 0.0                                              # k = m: R is a point
     if k > m                                             # the entropy needs only the precision on R
         Λs = _blockdiag(map(last, canon))
-        Λz = Symmetric(N' * Λs * N)
-        C = cholesky(Λz; check = false)
-        LinearAlgebra.issuccess(C) && minimum(LinearAlgebra.eigvals(Λz)) > LenticulumCore._eig_tol(LinearAlgebra.eigvals(Λz)) ||
-            throw(ArgumentError("HardConstraintFactor: the factor belief is flat along the relation's \
-                solution set (an improper posterior); it has no free energy"))
-        H = (k - m) * (1 + log(2π)) / 2 - logdet(C) / 2
+        Λz = N' * Λs * N
+        Λz = (Λz + Λz') / 2
+        λz = LinearAlgebra.eigvals(Symmetric(LenticulumCore.stop_gradient(Λz)))
+        minimum(λz) > LenticulumCore._eig_tol(λz) || throw(ArgumentError(
+            "HardConstraintFactor: the factor belief is flat along the relation's \
+             solution set (an improper posterior); it has no free energy"))
+        H = (k - m) * (1 + log(2π)) / 2 - logdet(_chol(Λz, "the factor belief's precision on R")) / 2
     end
     return LenticulumCore.GradedEnergy((fit = 0.0, complexity = complexity, negentropy = -H)), st
 end

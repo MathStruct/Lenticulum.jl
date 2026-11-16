@@ -9,6 +9,8 @@ ChainRulesCore.@non_differentiable LT._product_belief(names, dims, marginals)
 ChainRulesCore.@non_differentiable LT._switch_product_belief(f, marginals)
 # rank tests: structure, not values
 ChainRulesCore.@non_differentiable LT._rank_deficient(A)
+# the SVD of the flat path is of values; `_range_complement` carries the derivative (P4)
+ChainRulesCore.@non_differentiable LT._range_svd(B)
 ChainRulesCore.@non_differentiable LT._partly_flat(b)
 ChainRulesCore.@non_differentiable LT._free_channels(names, msgs)
 

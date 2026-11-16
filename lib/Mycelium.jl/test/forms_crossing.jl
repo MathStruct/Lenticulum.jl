@@ -90,12 +90,13 @@ end # module
 
 end
 
-@testset "P1: a mixed pair with dual numbers goes through the canonical form" begin
+@testset "P1, P4: a mixed pair with dual numbers (canonical form; extended with hard directions)" begin
     # ForwardDiff: a `GaussianBelief` whose η (or Λ) holds dual numbers has no extended form. Met
     # with a plain extended Gaussian without hard directions, `combine`, `belief_distance` and
     # `damp` take the extended side in canonical form; with hard directions there is no common
-    # form, an `ArgumentError`, and `can_damp` is false (LP-028, finding 1: `combine` threw a
-    # MethodError inside `infer!`; Lenticulum's `test/forms_crossing.jl` has the inference)
+    # canonical form, and since P4 the dual side is taken in its extended form (before: an
+    # `ArgumentError`; LP-028, finding 1: `combine` threw a MethodError inside `infer!`;
+    # Lenticulum's `test/forms_crossing.jl` has the inference)
     FC = FormsCrossing
     LC = LenticulumCore
     rng = Xoshiro(2615)
@@ -121,12 +122,23 @@ end
         @test d1 isa GaussianBelief && d2 isa GaussianBelief
         @test ForwardDiff.value.(d1.η) ≈ ForwardDiff.value.(damp(ge, ad, α).η) && d1.Λ ≈ damp(ge, ad, α).Λ
         @test FC.same(extended(GaussianBelief(ForwardDiff.value.(d2.η), d2.Λ, d2.improper)), damp(a, e, α); atol = 1e-7)
-        # an extended Gaussian with hard directions has no common form with it
+        # an extended Gaussian with hard directions has no common canonical form with it. Until P4 that
+        # was an ArgumentError; since P4 the dual side is taken in its extended form: the values are
+        # the float operation's, the derivative that of the float operation (central differences),
+        # along a direction of η in range(Λ) (a flagged η must stay there)
         h = FC.random_hard(rng, n)
-        @test_throws ArgumentError combine(h, ad)
-        @test_throws ArgumentError combine(ad, h)
-        @test_throws ArgumentError belief_distance(h, ad)
-        @test !can_damp(h, ad) && !can_damp(ad, h)
-        @test damp(h, ad, α) === h
+        dηr = a.Λ * (pinv(a.Λ) * dη)
+        adr = GaussianBelief(ForwardDiff.Dual{Nothing}.(a.η, dηr), a.Λ, a.improper)
+        at(t) = GaussianBelief(a.η .+ t .* dηr, a.Λ, a.improper)
+        summ(x) = vcat(x.μ, vec(x.Σ), vec(x.D * x.D'))
+        cd(f) = (summ(f(1e-6)) .- summ(f(-1e-6))) ./ 2e-6
+        for (c, f) in ((combine(h, adr), t -> combine(h, at(t))), (combine(adr, h), t -> combine(at(t), h)),
+                       (damp(h, adr, α), t -> damp(h, at(t), α)), (damp(adr, h, α), t -> damp(at(t), h, α)))
+            @test c isa LC.ExtendedGaussian
+            @test ForwardDiff.value.(summ(c)) ≈ summ(f(0.0)) atol = 1e-10
+            @test ForwardDiff.partials.(summ(c), 1) ≈ cd(f) atol = 1e-6 rtol = 1e-6
+        end
+        @test ForwardDiff.value(belief_distance(h, adr)) ≈ belief_distance(h, a)
+        @test can_damp(h, adr) && can_damp(adr, h)
     end
 end

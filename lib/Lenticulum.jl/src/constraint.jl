@@ -529,11 +529,11 @@ _block_parts(b, d, n) = nothing
 function _accumulate(A, Q, parts)
     s = zeros(size(Q, 1))
     R = float.(Q)
-    G = Any[]
+    G = ()                      # a tuple, rebound rather than pushed to: Zygote (P4, as P23)
     for (n, (m, S, N)) in parts
         s = s .+ A[n] * m
         S === nothing || (R = R .+ A[n] * S * A[n]')
-        N === nothing || push!(G, A[n] * N)
+        N === nothing || (G = (G..., A[n] * N))
     end
     return s, R, G
 end
@@ -556,10 +556,16 @@ end
 # (twice the sum of the logs of B's nonzero singular values). The rank is decided by `_range_svd`.
 # Only W Wᵀ is used downstream (the metric TᵀT), so any orthonormal basis will do. Under ForwardDiff
 # (B of duals, when coefficients, covariances or a flat input's directions carry a derivative)
-# `LenticulumForwardDiffExt` gives the constant-rank derivative (P25).
+# `LenticulumForwardDiffExt` gives the constant-rank derivative (P25). Under Zygote the same
+# derivative comes from the tangent Δ = B − stop_gradient(B), zero in value (P4; the SVD is of
+# values, `_range_svd` not differentiated): W = W₀ − (B⁺)ᵀΔᵀW₀, d log pdet(BᵀB) = 2 tr(B⁺Δ). With
+# floats outside Zygote Δ is exactly zero. A rank change at first order is not detected there.
 function _range_complement(B::AbstractMatrix{<:LinearAlgebra.BlasFloat})
     F, r = _range_svd(B)
-    return F.U[:, (r + 1):end], 2 * sum(log, F.S[1:r]; init = 0.0)
+    S, W0 = F.S[1:r], F.U[:, (r + 1):end]
+    Δ = LenticulumCore._tangent(B)
+    Bp = F.V[:, 1:r] * (F.U[:, 1:r]' ./ S)      # B⁺ at the value
+    return W0 .- Bp' * (Δ' * W0), 2 * LenticulumCore._logsum(S) + 2 * sum(Bp' .* Δ)
 end
 _range_complement(B) = throw(ArgumentError(
     "the flat path's residual metric needs floats, or first-order ForwardDiff duals of floats \

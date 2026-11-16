@@ -6,10 +6,16 @@ ChainRulesCore.@non_differentiable LenticulumCore.offset_tree(ps)
 ChainRulesCore.@non_differentiable LenticulumCore._flatlen(ps)
 ChainRulesCore.@non_differentiable LenticulumCore._nearly_symmetric(M)
 ChainRulesCore.@non_differentiable LenticulumCore.isproper(b)
-# A basis of the complement of an extended Gaussian's hard directions: held fixed (P23). Exact while
-# the hard subspace does not move, as for messages, the constants of a free energy in `ps`; the SVD
-# with `full = true` has no Zygote rule, and a basis of a subspace has no unique derivative.
-ChainRulesCore.@non_differentiable LenticulumCore._complement(B)
+# The decompositions of an extended Gaussian are of values: their outputs are constants of the
+# constant-rank formulas, which carry the derivative (`extended_gaussian.jl`, P4; before P4 the
+# basis `_complement` was held fixed, P23).
+ChainRulesCore.@non_differentiable LenticulumCore._values(X)
+ChainRulesCore.@non_differentiable LenticulumCore._value_eigen(S)
+ChainRulesCore.@non_differentiable LenticulumCore._value_svd(M)
+ChainRulesCore.@non_differentiable LenticulumCore._check_psd(S, what)
+ChainRulesCore.@non_differentiable LenticulumCore._scale(λ)
+ChainRulesCore.@non_differentiable LenticulumCore._logsum(λ)
+ChainRulesCore.@non_differentiable LenticulumCore._check_constant_rank(X, Δ, scale, what)
 # d(M⁻¹) = -M⁻¹ dM M⁻¹ (P23: `inv(::Cholesky)` has no Zygote rule). `_chol` factors (M + Mᵀ)/2, so
 # only the symmetric part of the tangent reaches the result.
 function ChainRulesCore.rrule(::typeof(LenticulumCore._spd_inv), M, name)

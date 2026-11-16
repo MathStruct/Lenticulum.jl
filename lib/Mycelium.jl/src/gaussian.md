@@ -154,9 +154,11 @@ Since 2026-11-12 (P1) this holds for a mixed pair too, an extended Gaussian and 
 in either order: the `GaussianBelief` is damped as its extended form. Before, `can_damp` had no
 method for the pair, and `damp` returned the new message undamped without a sign, which happens
 whenever a likelihood changes form between sweeps (flat while an input is missing, proper once it
-arrives). A `GaussianBelief` of dual numbers (ForwardDiff) has no extended form; against one,
-`combine`, `belief_distance` and `damp` take the extended side in canonical form, which exists when
-it has no hard directions, and otherwise throw an `ArgumentError` (`can_damp` is false). Before,
+arrives). Against a `GaussianBelief` of dual numbers (ForwardDiff), `combine`, `belief_distance` and `damp`
+take the extended side in canonical form when it has no hard directions; with hard directions
+there is no canonical form, and since P4 (2026-11-16) the dual side is taken in its extended form,
+which moves at constant rank (LenticulumCore `extended_gaussian.md`, "Derivatives"). Until P4
+that pair was an `ArgumentError` (`can_damp` was false). Before,
 `combine` threw a `MethodError` there, inside `infer!`, on a variable that hears a dual flagged message
 and a plain extended one ([[LP-028 Findings of the review of P1]], F1). `test/forms_crossing.jl` checks `combine`, `belief_distance` and `damp` on
 150 random pairs of proper, flagged and zero-precision beliefs, each side in either form, against

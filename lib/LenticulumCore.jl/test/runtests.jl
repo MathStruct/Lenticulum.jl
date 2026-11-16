@@ -433,6 +433,7 @@ end
 end
 
 include("extended_gaussian.jl")
+include("extended_gaussian_ad.jl")
 include("sample_moments.jl")
 
 include("aqua.jl")

@@ -36,7 +36,7 @@ added noise), [`preimage`](@ref)`(b, M, c)` (the likelihood of `x` when `b` is a
 flat directions has no density and no entropy; one with hard directions has them only relative
 to the measure on its support (`support_entropy`).
 """
-struct ExtendedGaussian{T<:AbstractFloat} <: AbstractBelief
+struct ExtendedGaussian{T<:Real} <: AbstractBelief
     μ::Vector{T}
     Σ::Matrix{T}
     D::Matrix{T}
@@ -45,16 +45,14 @@ struct ExtendedGaussian{T<:AbstractFloat} <: AbstractBelief
         size(Σ) == (n, n) || throw(DimensionMismatch("μ has length $n but Σ is $(size(Σ))"))
         size(D, 1) == n || throw(DimensionMismatch("μ has length $n but D has $(size(D, 1)) rows"))
         T = float(promote_type(eltype(μ), eltype(Σ), eltype(D)))
-        _nearly_symmetric(Σ) || throw(ArgumentError("Σ must be symmetric"))
+        _nearly_symmetric(stop_gradient(Σ)) || throw(ArgumentError("Σ must be symmetric"))
         B = _orth(Matrix{T}(D))
         # Project onto the complement of span(D) through an orthonormal basis U of it, not with
         # I − BBᵀ: when D spans everything U is empty and Σ is exactly zero, where I − BBᵀ would
         # leave a residue of 1e-30 that the relative tolerances below take for a variance.
         U = _complement(B)
         Σu = Matrix(_symmetric_part(U' * Matrix{T}(Σ) * U))
-        λ = isempty(Σu) ? T[] : eigvals(Symmetric(Σu))
-        isempty(λ) || minimum(λ) >= -_eig_tol(λ) || throw(ArgumentError(
-            "Σ must be positive semidefinite; it has the eigenvalue $(minimum(λ))"))
+        _check_psd(Σu, "Σ must be positive semidefinite")
         S = U * Σu * U'
         return new{T}(U * (U' * Vector{T}(μ)), (S + S') / 2, B)
     end
@@ -67,20 +65,114 @@ isuninformative(b::ExtendedGaussian) = size(b.D, 2) == length(b.μ)
 # Eigenvalues (or singular values) below this count as zero: the tolerance of `_split_moments`.
 _eig_tol(λ) = isempty(λ) ? 0.0 : 16 * length(λ) * eps(float(eltype(λ))) * maximum(abs, λ)
 
-# An orthonormal basis of the column space of M (columns below the tolerance dropped).
-function _orth(M::AbstractMatrix{T}) where {T}
-    size(M, 2) == 0 && return zeros(T, size(M, 1), 0)
-    F = svd(M)
-    return F.U[:, F.S .> _eig_tol(F.S)]
+# --- Subspaces, and their derivatives at constant rank (P4) -------------------------------------
+#
+# Every subspace an extended Gaussian holds or computes (its flat and hard directions, the range of
+# a covariance or a precision, the solution set of stacked constraints) comes from a decomposition
+# of the *values*, and its rank is decided there by `_eig_tol`. Under automatic differentiation
+# (first-order ForwardDiff duals, Zygote) the bases then move by the constant-rank formulas, written
+# with the tangent Δ = X − stop_gradient(X), which is zero in value: a basis of a subspace and one
+# of its complement turn only into each other, to first order, and no eigenvector or singular
+# vector is differentiated, so repeated eigenvalues are no difficulty (the formulas of P25 and P26).
+# With floats Δ is exactly zero and every result is the decomposition's. A tangent that changes a
+# rank to first order has no derivative (the value jumps there): under ForwardDiff it is an
+# ArgumentError (`_check_constant_rank`, LenticulumCoreForwardDiffExt); a Zygote cotangent cannot
+# see it, and the constant-rank derivative is returned. See `extended_gaussian.md`, "Derivatives".
+
+_tangent(X) = X .- stop_gradient(X)
+
+# The values of X as a matrix of floats. Nested duals (a Hessian) are refused: their values are
+# duals, which the decompositions below take no derivative of.
+function _values(X)
+    X0 = stop_gradient(X)
+    eltype(X0) <: AbstractFloat || throw(ArgumentError(
+        "extended Gaussians take floats and first-order ForwardDiff duals of floats; got $(eltype(X))"))
+    return X0 isa AbstractMatrix ? Matrix(X0) : X0
 end
 
-# An orthonormal basis of the orthogonal complement of the column space of B (B orthonormal).
-function _complement(B::AbstractMatrix{T}) where {T}
+# The decompositions, of values only (not differentiated: LenticulumCoreChainRulesCoreExt). The
+# eigendecomposition of a symmetric matrix split at `_eig_tol` (range V with eigenvalues λ, null
+# space N, all eigenvalues), and the full SVD with its rank.
+function _value_eigen(S)
+    E = eigen(_symmetric_part(_values(S)))
+    keep = E.values .> _eig_tol(E.values)
+    return E.vectors[:, keep], E.values[keep], E.vectors[:, .!keep], E.values
+end
+function _value_svd(M)
+    F = svd(_values(M); full = true)
+    return F.U, F.S, F.V, count(F.S .> _eig_tol(F.S))
+end
+
+# A symmetric matrix that must be positive semidefinite up to rounding, checked on its values.
+function _check_psd(S, what)
+    isempty(S) && return nothing
+    λ = _value_eigen(S)[4]
+    minimum(λ) >= -_eig_tol(λ) || throw(ArgumentError("$what; it has the eigenvalue $(minimum(λ))"))
+    return nothing
+end
+
+# Refuses a tangent that changes a rank to first order: X = Lᵀ Δ R with L, R the left and right
+# null spaces at the value must vanish. Floats and Zygote: nothing to check (ForwardDiff: the ext).
+_check_constant_rank(X, Δ, scale, what) = nothing
+# the size of a spectrum of values (not differentiated: Zygote has no rule for `maximum` with `init`)
+_scale(λ) = maximum(abs, λ; init = 0.0)
+_logsum(λ) = sum(log, λ; init = 0.0)
+
+# A symmetric positive semidefinite S split at constant rank: V a basis of its range and N of its
+# null space, at the value V₀, N₀ with eigenvalues λ, moved to first order by
+#     V = V₀ + N₀N₀ᵀΔV₀λ⁻¹,   N = N₀ − V₀λ⁻¹V₀ᵀΔN₀,
+# and K = V₀ᵀSV₀, positive definite, whose first-order change V₀ᵀΔV₀ is that of the nonzero
+# eigenvalues. Returns (V, K, N).
+function _psd_split(S, what)
+    V0, λ0, N0, _ = _value_eigen(S)
+    Δ = _tangent(S)
+    _check_constant_rank(N0' * Δ * N0, Δ, _scale(λ0), what)
+    # S = 0 (no nonzero eigenvalue): at constant rank it stays 0, N₀ spans everything and does
+    # not move. Returned before the broadcasts by λ₀, whose Zygote pullback fails on an empty λ₀.
+    isempty(λ0) && return V0, zeros(eltype(S), 0, 0), N0
+    V = V0 .+ N0 * ((N0' * Δ * V0) ./ transpose(λ0))
+    N = N0 .- V0 * ((V0' * Δ * N0) ./ λ0)
+    K = V0' * S * V0
+    return V, (K + K') / 2, N
+end
+
+# The pseudo-inverse V K⁻¹ Vᵀ of a split: its derivative is that of S⁺ at constant rank,
+# −S⁺ΔS⁺ + NNᵀΔS⁺² + S⁺²ΔNNᵀ.
+function _split_pinv(V, K)
+    n = size(V, 1)
+    size(K, 1) == 0 && return zeros(eltype(V), n, n)
+    S = V * _spd_inv(K, "the range part of a covariance") * V'
+    return (S + S') / 2
+end
+
+# An orthonormal basis of the column space of M (columns below the tolerance dropped). With
+# M = U S Vᵀ at the value and B₀ the first r columns of U: B = B₀ + (I − B₀B₀ᵀ) Δ Vᵣ S⁻¹.
+function _orth(M::AbstractMatrix)
+    T = float(eltype(M))
+    size(M, 2) == 0 && return zeros(T, size(M, 1), 0)
+    U0, S0, V0, r = _value_svd(M)
+    Δ = _tangent(M)
+    _check_constant_rank(U0[:, (r + 1):end]' * Δ * V0[:, (r + 1):end], Δ, _scale(S0),
+                         "the span of an extended Gaussian's flat directions")
+    B0 = U0[:, 1:r]
+    X = Δ * (V0[:, 1:r] ./ transpose(S0[1:r]))
+    return B0 .+ (X .- B0 * (B0' * X))
+end
+
+# An orthonormal basis of the orthogonal complement of the column space of B (B of full column
+# rank; orthonormal where it is called). With W₀ the complement at the value and B⁺ its
+# pseudo-inverse there: W = W₀ − (B⁺)ᵀΔᵀW₀.
+function _complement(B::AbstractMatrix)
     n = size(B, 1)
+    T = float(eltype(B))
     size(B, 2) == 0 && return Matrix{T}(I, n, n)
-    F = svd(B; full = true)
-    r = count(F.S .> _eig_tol(F.S))
-    return F.U[:, (r + 1):n]
+    U0, S0, V0, r = _value_svd(B)
+    Δ = _tangent(B)
+    W0 = U0[:, (r + 1):n]
+    _check_constant_rank(W0' * Δ * V0[:, (r + 1):end], Δ, _scale(S0),
+                         "the complement of a subspace")
+    Bp = V0[:, 1:r] * (U0[:, 1:r]' ./ S0[1:r])
+    return W0 .- Bp' * (Δ' * W0)
 end
 
 """
@@ -100,8 +192,9 @@ function hard_directions(b::ExtendedGaussian{T}) where {T}
     n = length(b.μ)
     U = _complement(b.D)                       # D⊥
     size(U, 2) == 0 && return zeros(T, n, 0)
-    E = eigen(Symmetric(U' * b.Σ * U))
-    return U * E.vectors[:, E.values .<= _eig_tol(E.values)]
+    S = U' * b.Σ * U
+    _, _, N = _psd_split((S + S') / 2, "the hard directions of an extended Gaussian")
+    return U * N
 end
 
 """
@@ -121,13 +214,15 @@ It is the finite part of the entropy of ``\\mathcal N(\\mu, \\Sigma + \\varepsil
 energy of a graph with hard constraints is finite with it (`extended_gaussian.md`, "Entropy").
 A belief with flat directions has no entropy (it is improper): `ArgumentError`.
 """
-function support_entropy(b::ExtendedGaussian)
+function support_entropy(b::ExtendedGaussian{T}) where {T}
     size(b.D, 2) == 0 || throw(ArgumentError(
         "an extended Gaussian with flat directions is improper and has no entropy"))
-    λ = isempty(b.Σ) ? eltype(b.Σ)[] : eigvals(Symmetric(b.Σ))
-    keep = λ .> _eig_tol(λ)
-    r = count(keep)
-    return r * (1 + log(2π)) / 2 + sum(log, λ[keep]; init = zero(eltype(λ))) / 2
+    isempty(b.Σ) && return zero(T)
+    _, K, _ = _psd_split(b.Σ, "the support of an extended Gaussian")
+    r = size(K, 1)
+    r == 0 && return zero(T)
+    # log det K = Σ log λᵢ: K is diagonal at the value, up to rounding
+    return r * (1 + log(2π)) / 2 + logdet(_chol(K, "the covariance on the support")) / 2
 end
 
 # The belief in coordinates along its non-hard directions: x = x0 + U s, with x0 the point it
@@ -146,12 +241,9 @@ end
 
 # The quadratic part on the Gaussian directions: Λ = Σ⁺ (zero on the flat and hard directions)
 # and η = Λμ.
-function _canonical_part(b::ExtendedGaussian{T}) where {T}
-    E = eigen(Symmetric(b.Σ))
-    keep = E.values .> _eig_tol(E.values)
-    V = E.vectors[:, keep]
-    Λ = V * Diagonal(1 ./ E.values[keep]) * V'
-    Λ = (Λ + Λ') / 2
+function _canonical_part(b::ExtendedGaussian)
+    V, K, _ = _psd_split(b.Σ, "the covariance of an extended Gaussian")
+    Λ = _split_pinv(V, K)
     return Λ * b.μ, Λ
 end
 
@@ -167,34 +259,36 @@ The belief as an [`ExtendedGaussian`](@ref):
   no limit of Gaussians gives; `Λ` must be positive semidefinite to rounding);
 - a `DiracBelief`: its value, every direction hard;
 - `TrivialBelief()` (needs the dimension `n`): flat everywhere.
+
+`η` and `Λ` may be first-order ForwardDiff duals (or tracked by Zygote): the split is taken at the
+value and moves at constant rank (`extended_gaussian.md`, "Derivatives").
 """
 function extended(b::GaussianBelief)
     n = dimension(b)
-    T = float(eltype(b.Λ))
-    all(iszero, b.Λ) && return ExtendedGaussian(zeros(T, n), zeros(T, n, n), Matrix{T}(I, n, n))
+    T = float(promote_type(eltype(b.η), eltype(b.Λ)))
+    if all(iszero, _values(b.Λ))
+        Δ = _tangent(b.Λ)
+        _check_constant_rank(Δ, Δ, 0.0, "a zero precision")
+        return ExtendedGaussian(zeros(T, n), zeros(T, n, n), Matrix{T}(I, n, n))
+    end
     return ExtendedGaussian(_flat_split(b.η, b.Λ)...)
 end
 
 # The parts of an improper Gaussian (η, Λ) as an extended Gaussian: the mean Λ⁺η, the covariance
-# Λ⁺ and an orthonormal basis N of null(Λ), with the tolerances and refusals of `extended`. Λ must
-# be a matrix of floats (an eigendecomposition); η may be of any real type, and the mean then
-# carries it (ForwardDiff with only η dual, Lenticulum's `_improper_split`, P21).
+# Λ⁺ and an orthonormal basis N of null(Λ), with the tolerances and refusals of `extended`. η and
+# Λ may carry derivatives (P21: only η dual, as in Lenticulum's `_improper_split`; P4: Λ too).
 function _flat_split(η::AbstractVector, Λ::AbstractMatrix)
-    T = float(eltype(Λ))
-    E = eigen(_symmetric_part(Λ))
-    tol = _eig_tol(E.values)
-    minimum(E.values) < -tol && throw(ArgumentError(
-        "a precision must be positive semidefinite; it has the eigenvalue $(minimum(E.values))"))
-    keep = E.values .> tol
-    V, N = E.vectors[:, keep], E.vectors[:, .!keep]
+    _check_psd(Λ, "a precision must be positive semidefinite")
+    V, K, N = _psd_split(Λ, "a flat precision")
     # on η's values: `norm` of duals whose value is exactly zero is NaN (its scaling divides 0 by
     # 0), which a component N'η that rounds to 0 reached (P21)
-    ηv = stop_gradient(η)
-    norm(N' * ηv) <= sqrt(eps(T)) * norm(ηv) || throw(ArgumentError(
+    ηv, Nv = stop_gradient(η), stop_gradient(N)
+    Tv = eltype(_values(Λ))
+    norm(Nv' * ηv) <= sqrt(eps(float(Tv))) * norm(ηv) || throw(ArgumentError(
         "an improper Gaussian has an information vector outside the range of its precision; it is \
          not a limit of Gaussians"))
-    S = V * Diagonal(1 ./ E.values[keep]) * V'
-    return (S * η, (S + S') / 2, N)
+    S = _split_pinv(V, K)
+    return (S * η, S, N)
 end
 function extended(b::DiracBelief)
     v = b.value isa AbstractVector ? float.(b.value) : [float(b.value)]
@@ -230,8 +324,10 @@ function pushforward(b::ExtendedGaussian, M::AbstractMatrix, c = 0, Q = 0)
     size(M, 2) == length(b.μ) || throw(DimensionMismatch("M has $(size(M, 2)) columns, the belief dimension $(length(b.μ))"))
     m = size(M, 1)
     cv = c isa Number ? fill(float(c), m) : c
-    Qm = Q isa Number ? Q * I(m) : Q
-    return ExtendedGaussian(M * b.μ .+ cv, M * b.Σ * M' + Qm, M * b.D)
+    S = M * b.Σ * M'
+    # a scalar noise as `S + Q*I`, not `+ Q * I(m)`: Zygote's pullback of the `Diagonal` fails (P4)
+    Σy = Q isa Number ? (iszero(Q) ? S : S + Q * I) : S + Q
+    return ExtendedGaussian(M * b.μ .+ cv, Σy, M * b.D)
 end
 
 """
@@ -240,11 +336,11 @@ end
 The law of the coordinates `idx` (a vector of indices or a range): the pushforward through the
 selection matrix.
 """
-function marginalise(b::ExtendedGaussian{T}, idx) where {T}
+function marginalise(b::ExtendedGaussian, idx)
     n = length(b.μ)
-    S = zeros(T, length(idx), n)
+    S = zeros(length(idx), n)
     for (r, j) in enumerate(idx)
-        S[r, j] = one(T)
+        S[r, j] = 1.0
     end
     return pushforward(b, S)
 end
@@ -266,7 +362,7 @@ function _conjoin(a::ExtendedGaussian, b::ExtendedGaussian; wa::Real = 1, wb::Re
     ηa, Λa = _canonical_part(a)
     ηb, Λb = _canonical_part(b)
     return _from_potential(C, c, wa .* ηa .+ wb .* ηb, wa .* Λa .+ wb .* Λb;
-                           strict, scale = max(norm(a.μ), norm(b.μ)))
+                           strict, scale = max(norm(stop_gradient(a.μ)), norm(stop_gradient(b.μ))))
 end
 
 # The extended Gaussian of the potential  [Cx = c] · exp(ηᵀx − xᵀΛx/2)  on ℝⁿ: hard where C
@@ -274,6 +370,10 @@ end
 # constraints without a common solution are an ArgumentError; otherwise x₀ is their
 # least-squares solution. `η` must have no component along the flat directions (true for every
 # potential built from extended Gaussians: see extended_gaussian.md, "Product").
+#
+# x₀ = C⁺c, the least-squares solution of least norm; with C = UᵣSVᵣᵀ at the value, P = C⁺ there,
+# N₀ = null(C) and Δ the tangent of C, at constant rank (`extended_gaussian.md`, "Derivatives"):
+#     x₀ = Pc − PΔPc + PPᵀΔᵀ(I − UᵣUᵣᵀ)c + N₀N₀ᵀΔᵀPᵀPc,     N = N₀ − PΔN₀.
 function _from_potential(C::AbstractMatrix, c::AbstractVector, η::AbstractVector, Λ::AbstractMatrix;
                          strict::Bool = true, scale::Real = 0)
     n = length(η)
@@ -281,25 +381,30 @@ function _from_potential(C::AbstractMatrix, c::AbstractVector, η::AbstractVecto
     if size(C, 1) == 0
         x0, N = zeros(T, n), Matrix{T}(I, n, n)
     else
-        F = svd(C; full = true)
-        r = count(F.S .> _eig_tol(F.S))
-        Ur, Sr, Vr = F.U[:, 1:r], F.S[1:r], F.V[:, 1:r]
-        x0 = Vr * ((Ur' * c) ./ Sr)
-        tol = sqrt(eps(T)) * max(norm(c), scale, one(T))
-        !strict || norm(C * x0 - c) <= tol || throw(ArgumentError(
+        U0, S0, V0, r = _value_svd(C)
+        Δ = _tangent(C)
+        Ur, N0 = U0[:, 1:r], V0[:, (r + 1):n]
+        _check_constant_rank(U0[:, (r + 1):end]' * Δ * N0, Δ, _scale(S0),
+                             "the hard constraints of a product")
+        P = V0[:, 1:r] * (Ur' ./ S0[1:r])
+        Pc = P * c
+        x0 = Pc .- P * (Δ * Pc) .+ P * (P' * (Δ' * (c .- Ur * (Ur' * c)))) .+ N0 * (N0' * (Δ' * (P' * Pc)))
+        Tv = eltype(S0)
+        cv, xv = stop_gradient(c), P * stop_gradient(c)
+        res = norm(_values(C) * xv - cv)
+        tol = sqrt(eps(Tv)) * max(norm(cv), scale, one(Tv))
+        !strict || res <= tol || throw(ArgumentError(
             "contradictory hard constraints: they fix a direction to different values \
-             (residual $(norm(C * x0 - c)))"))
-        N = F.V[:, (r + 1):n]
+             (residual $res)"))
+        N = N0 .- P * (Δ * N0)
     end
     size(N, 2) == 0 && return ExtendedGaussian(x0, zeros(T, n, n))
-    Λz = Symmetric(N' * Λ * N)
+    Λz = N' * Λ * N
     ηz = N' * (η - Λ * x0)
-    E = eigen(Λz)
-    keep = E.values .> _eig_tol(E.values)
-    V, W = E.vectors[:, keep], E.vectors[:, .!keep]
-    Sz = V * Diagonal(1 ./ E.values[keep]) * V'
+    V, K, W = _psd_split((Λz + Λz') / 2, "the precision of a product")
+    Sz = _split_pinv(V, K)
     μ = x0 + N * (Sz * ηz)
-    return ExtendedGaussian(μ, N * ((Sz + Sz') / 2) * N', N * W)
+    return ExtendedGaussian(μ, N * Sz * N', N * W)
 end
 
 """
@@ -316,23 +421,20 @@ function preimage(b::ExtendedGaussian, M::AbstractMatrix, c = 0)
     cv = c isa Number ? fill(float(c), size(M, 1)) : c
     H = hard_directions(b)
     η, Λ = _canonical_part(b)
-    return _from_potential(H' * M, H' * (b.μ .- cv), M' * (η .- Λ * cv), M' * Λ * M; scale = norm(b.μ))
+    return _from_potential(H' * M, H' * (b.μ .- cv), M' * (η .- Λ * cv), M' * Λ * M;
+                           scale = norm(stop_gradient(b.μ)))
 end
 
-# The joint of independent extended Gaussians: means stacked, covariances and flat directions
-# block-diagonal.
-function _independent_join(bs::AbstractVector{<:ExtendedGaussian})
-    T = mapreduce(b -> eltype(b.μ), promote_type, bs)
-    ns = map(b -> length(b.μ), bs); ks = map(b -> size(b.D, 2), bs)
-    n, k = sum(ns), sum(ks)
-    μ = zeros(T, n); Σ = zeros(T, n, n); D = zeros(T, n, k)
-    o = ok = 0
-    for (b, ni, ki) in zip(bs, ns, ks)
-        μ[o+1:o+ni] = b.μ; Σ[o+1:o+ni, o+1:o+ni] = b.Σ; D[o+1:o+ni, ok+1:ok+ki] = b.D
-        o += ni; ok += ki
-    end
+# The joint of independent extended Gaussians (a vector or a tuple): means stacked, covariances
+# and flat directions block-diagonal. Built by `vcat` and `cat`, not by writes into zero arrays:
+# Zygote cannot differentiate those (P4).
+function _independent_join(bs::Union{Tuple,AbstractVector})
+    μ = reduce(vcat, map(b -> b.μ, bs))
+    Σ = _block_diagonal(map(b -> b.Σ, bs))
+    D = _block_diagonal(map(b -> b.D, bs))
     return ExtendedGaussian(μ, Σ, D)
 end
+_block_diagonal(blocks) = length(blocks) == 1 ? Matrix(first(blocks)) : Matrix(cat(blocks...; dims = (1, 2)))
 
 # Damping (Mycelium's `damp`): the geometric mixture new^α · old^(1-α), the rule canonical damping
 # of a GaussianBelief follows. Precisions are mixed; a direction flat in one side carries the

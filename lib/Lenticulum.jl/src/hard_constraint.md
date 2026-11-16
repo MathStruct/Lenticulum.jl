@@ -122,8 +122,13 @@ With a positive definite noise the term is `LinearConstraintFactor`'s.
 
 ## What it does not do
 
-- **Learning**: `islearnable` is `false`. `free_energy_gradient` and `fit_em` with the factor in the
-  graph are not tested; the SVD in its term has no ForwardDiff method.
+- **Learning**: `islearnable` is `false`: its own `A` and `c` get no gradient. Other factors in
+  its graph do: the coupled replay (`free_energy_gradient(...; schedule, ad)`) goes through its
+  messages and its free energy under ForwardDiff and Zygote (P4: the SVD of its term is of values,
+  with $\tfrac12\log\det GG^\top = \sum\log\sigma_i + \operatorname{tr}(G^+\Delta)$ and $N = N_0 - G^+\Delta N_0$ at constant
+  rank, LenticulumCore `extended_gaussian.md`, "Derivatives"); `test/hard_gradient.jl` checks it
+  against the gradient of the dense $-\log Z$ on random trees. `fit_em` with the factor in the graph
+  is not tested.
 - **Free energy with a singular nonzero noise**: refused (above).
 - **Batched plates**: the factor has no `factor_messages` block method; a plate of hard
   constraints runs per replica.
