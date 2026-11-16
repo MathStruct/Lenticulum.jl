@@ -7,13 +7,13 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-16, after P25 (ForwardDiff through the relation factors' flat path when its flat directions move, at constant rank), committed on `dev-danielb` on top of P26, neither pushed.
+**Last updated:** 2026-11-16, after P25 (ForwardDiff through the relation factors' flat path when its flat directions move, at constant rank), committed on `dev-danielb` on top of P26; both pushed (`3101cf20`).
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P26 (`8a6a9f41`) and P25 committed, not pushed. P25: Lenticulum `src/gaussian.jl`/`.md`, `src/constraint.jl`, `src/switching.jl`, `ext/LenticulumForwardDiffExt.jl`/`.md`, `test/forms_crossing.jl`; [[Feature Backlog]], [[LP-042 Findings of the review of P25]], Problem Log, this note |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P26 (`8a6a9f41`) and P25 (`3101cf20`) committed and pushed. P25: Lenticulum `src/gaussian.jl`/`.md`, `src/constraint.jl`, `src/switching.jl`, `ext/LenticulumForwardDiffExt.jl`/`.md`, `test/forms_crossing.jl`; [[Feature Backlog]], [[LP-042 Findings of the review of P25]], Problem Log, this note |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | fast-forwarded to `8a6a9f41`, with the first P25 diff applied (before the LP-042 fix); Mistral's probes in `scratch/p25/`. Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-p26-applied-stale-2026-11-16`, `-p24-…`, `-p13-…`, `-p21-…`, `-p23-…`, `-p20-…`, `-p22-…`, `-i21-…`, `-i20-…`, `-i19-…`, older |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
