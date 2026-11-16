@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-16, after P24 (ForwardDiff and Zygote through a cluster node's free energy at fixed messages), committed and pushed (`26eede51`); AGENTS.md now has agents commit at the end of each task (`5ce11bc6`).
+**Last updated:** 2026-11-16, after P26 (ForwardDiff and Zygote through flat directions of a cluster's joint precision, at constant rank), committed on `dev-danielb`, not pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at `5ce11bc6` (pushed); P24 in `26eede51`: Mycelium `Project.toml` (ForwardDiff weakdep, new extension), `ext/MyceliumForwardDiffExt.jl` (new), `ext/MyceliumChainRulesCoreExt.jl`, `src/cluster.jl`/`.md`, `src/cluster_batch.jl`; Lenticulum `src/regime.jl`, `test/regime_plate.jl`; [[Feature Backlog]], [[LP-040 Findings of the review of P24]], Problem Log, this note |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | fast-forwarded to `c2284852`, with the P24 diff applied; Mistral's probes in `scratch/p24/`. Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-p13-applied-stale-2026-11-16`, `-p21-…`, `-p23-…`, `-p20-…`, `-p22-…`, `-i21-…`, `-i20-…`, `-i19-…`, older |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P26 committed on top of `73277da7` (not pushed): Mycelium `Project.toml` (extension `MyceliumForwardDiffFlatExt`, ForwardDiff alone), `ext/MyceliumForwardDiffFlatExt.jl` (new), `src/cluster.jl`/`.md`; Lenticulum `test/regime_plate.jl`; [[Feature Backlog]], [[LP-041 Findings of the review of P26]], Problem Log, this note |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | fast-forwarded to `73277da7`, with the P26 diff applied; Mistral's probes in `scratch/p26/`. Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout); both re-resolved for the new extension (an environment resolved before it does not load it: `Pkg.resolve()`). Stashes, all droppable: `mistral-wt-p24-applied-stale-2026-11-16`, `-p13-…`, `-p21-…`, `-p23-…`, `-p20-…`, `-p22-…`, `-i21-…`, `-i20-…`, `-i19-…`, older |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -22,30 +22,30 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 
 ## Done last
 
-- **P24** (committed and pushed, `26eede51`): the cluster joint is generic in its number type (`_ClusterJoint{T}`), so
-  ForwardDiff takes a cluster node's free energy at fixed messages, the belief's dependence on `ps`
-  included; the plate's stacked joint stays `Float64` and dual parameters go replica by replica
-  (`_plain`). Zygote: an rrule on `_cluster_local_energy` (used by `ClusterFactor` and `RegimeFactor`)
-  that runs ForwardDiff over the flattened parameters, in a new extension `MyceliumForwardDiffExt`
-  (ChainRulesCore + ForwardDiff). On a plate row Zygote then stopped at the state write-back
-  (`push!`); `_group_writeback` is `@non_differentiable`. A first fix that skipped writing empty
-  states broke `state_tree.jl` and `lp020.jl` (callers read the key) and was reverted.
-  [[lib/Mycelium.jl/src/cluster|cluster]] "Derivatives at fixed messages".
-- Verified: the P24 testset of Lenticulum `test/regime_plate.jl` (36 pass, 1 broken: flat
-  directions, P26; ForwardDiff against central differences, Zygote against ForwardDiff, the
-  fixed-belief gradient shown to differ) and the MFA plate testset (the two former `@test_broken`).
-  Suites (`~/.cache/lenticulum/p24/`): Mycelium, MyceliumLearning, Lenticulum pass on the final code
-  (`suite3_*`); LenticulumCore, VariationalDiffusion, AlgebraicFactors, ImplicitLayers, Adversarial
-  pass on the code before the `_group_writeback` rule (`suite_*`, `suite2_*`), which they do not
-  reach through Zygote on plates. Not run: `docs/make.jl`, the device tests.
-- Review: Mistral, $0.41, six probes, no defect ([[LP-040 Findings of the review of P24]]). Archive
-  `../Lenticulum.jl-Review-2026-11-16/p24/`.
-- Next: P25/P26 (derivatives on flat paths) or another backlog item.
+- **P26** (committed): a cluster's joint precision with flat directions under ForwardDiff (and so
+  Zygote, whose rule runs ForwardDiff), at constant rank. The range and null space at the value move
+  only into each other ($U + \varepsilon NN^\top DU\Lambda^{-1}$, $N - \varepsilon U\Lambda^{-1}U^\top DN$) and $K = U^\top JU$ is
+  factorised in duals: no eigenvector is differentiated. `_Flat` holds `K` (a `Diagonal` for floats) instead
+  of `λ`; `_psd_factor` hands a singular J to `_flat_factor`, whose dual method is in the new extension
+  `MyceliumForwardDiffFlatExt`. A tangent with $N^\top DN \ne 0$ (rank change to first order) is refused;
+  nested duals are refused. [[lib/Mycelium.jl/src/cluster|cluster]] "Flat directions under a derivative".
+- Verified: the P26 testset of Lenticulum `test/regime_plate.jl` (58 pass: twenty random constant-rank
+  J(θ), half with repeated eigenvalues, against central differences; a rank change refused; five regime
+  factors with flat x, ForwardDiff against central differences and Zygote against ForwardDiff; P24's
+  former `@test_broken`) and the P24 testset (35 pass). Suites (`~/.cache/lenticulum/p26/suite_*.log`):
+  Mycelium, MyceliumLearning, Lenticulum, VariationalDiffusion, AlgebraicFactors, ImplicitLayers,
+  Adversarial pass (LenticulumCore is unchanged and was not run). Not run: `docs/make.jl`, the device tests.
+- Review: Mistral, $0.66, eight probes, no defect; probe 1 asserted nothing ([[LP-041 Findings of the review of P26]]).
+  Archive `../Lenticulum.jl-Review-2026-11-16/p26/`.
+- Next: P25 (the relation factor's flat path when the flat directions move), which can reuse P26's
+  constant-rank construction for its eigendecomposition of Λ; or another backlog item.
 
 ## Open
 
 - **P25:** ForwardDiff through the flat path when the flat directions move (a flat input whose precision is dual; backlog).
-- **P26:** ForwardDiff and Zygote through a cluster node whose joint precision has flat directions (backlog).
+- **P26 limits:** a parameter that makes a flat direction determined only at second order (A_x
+  leaving 0) gets the constant-rank derivative while the value is discontinuous there (`cluster.md`);
+  `cluster_marginal` of a flat class under ForwardDiff is untested.
 - P24's Zygote rule gives the incoming messages no tangent (`@not_implemented`); differentiating
   through inference with cluster nodes stays closed (their messages are built by mutation).
 - AlgebraicFactors, ImplicitLayers and Adversarial run in CI only weekly: a change to the core

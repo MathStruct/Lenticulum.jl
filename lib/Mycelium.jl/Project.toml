@@ -24,6 +24,7 @@ ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 MyceliumGPUArraysCoreExt = "GPUArraysCore"
 MyceliumChainRulesCoreExt = "ChainRulesCore"
 MyceliumForwardDiffExt = ["ChainRulesCore", "ForwardDiff"]
+MyceliumForwardDiffFlatExt = "ForwardDiff"
 
 [compat]
 LinearAlgebra = "1"

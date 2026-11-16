@@ -196,15 +196,73 @@ rp_cd(F, θ; h = 1e-6) = [(F(θ .+ h .* (eachindex(θ) .== j)) - F(θ .- h .* (e
         @test gg ≈ rp_cd(Fg, θ0) atol = 1e-6
         @test only(Zygote.gradient(Fg, θ0)) ≈ gg atol = 1e-10
     end
-    # a limit: a cluster whose joint precision has a flat direction (x without a prior) takes an
-    # eigendecomposition, which has no dual rule (Feature Backlog P26)
+end
+
+# P26: the diffuse limit under ForwardDiff, at constant rank (`MyceliumForwardDiffFlatExt`). The
+# oracle is central differences of the value path, which is smooth where the rank is constant.
+rp_skew(v, n) = (S = zeros(eltype(v), n, n); k = 0; for i in 1:n, j in i+1:n; k += 1; S[i, j] = v[k]; S[j, i] = -v[k]; end; S)
+@testset "flat directions under a derivative: the diffuse limit at constant rank (P26, random)" begin
+    # the factorisation alone: J(θ) of rank r < n, with a range that rotates; on even seeds
+    # J = c Q Qᵀ with Q orthonormal (a Cayley rotation), so its eigenvalues on the range repeat
+    for seed in 1:20
+        rng = Xoshiro(400 + seed)
+        n = rand(rng, 2:5); r = rand(rng, 1:n-1); m = n * (n - 1) ÷ 2
+        B0, C0, h0, w = randn(rng, n, r), randn(rng, n, r), randn(rng, n), randn(rng, m)
+        rep = iseven(seed)
+        function J(θ)
+            if rep
+                Sk = rp_skew(θ[1] .* w .+ θ[2] .* (1:m) ./ m, n)
+                R = (I - Sk) \ (I + Sk)
+                return (2 + θ[3]^2) .* (R[:, 1:r] * R[:, 1:r]')
+            end
+            B = B0 .+ θ[1] .* C0 .+ θ[2]^2 .* B0[:, end:-1:1] .+ sin(θ[3])
+            return B * B'
+        end
+        function F(θ)
+            Jθ = J(θ)
+            Fa = Mycelium._psd_factor(Jθ)
+            Fa isa Mycelium._Flat || error("not flat")
+            h = Jθ * (h0 .+ θ[1])                                  # in the range
+            return Mycelium._psd_logdet(Fa) + dot(h, Mycelium._psd_solve(Fa, h)) + sum(Mycelium._psd_inv(Fa))
+        end
+        θ0 = randn(rng, 3)
+        @test Mycelium._psd_rank(Mycelium._psd_factor(J(θ0))) == r
+        @test ForwardDiff.gradient(F, θ0) ≈ rp_cd(F, θ0) rtol = 1e-5 atol = 1e-6
+    end
+    # a tangent that changes the rank (a flat direction becoming determined) has no derivative
+    @test_throws ArgumentError ForwardDiff.gradient(θ -> Mycelium._psd_logdet(Mycelium._psd_factor([1.0 0; 0 θ[1]])), [0.0])
+
+    # a regime factor whose x is wider than its output and has no message: dx − dz flat directions
+    # in every regime, at every parameter
+    for seed in 1:5
+        rng = Xoshiro(300 + seed)
+        dz = rand(rng, 1:2); dx = dz + rand(rng, 1:2); K = rand(rng, 2:3)
+        f, p = rp_factor(rng, dz, dx, K)
+        msgs = (z = rp_gauss(rng, dz, (S = randn(rng, dz, dz); S * S' + I)), x = nothing,
+                k = CategoricalBelief(Val(:log), (l = randn(rng, K); l .- log(sum(exp.(l)))), nothing))
+        jt = Mycelium._cluster_joint(Mycelium.as_cluster(f), msgs, (factor = p,), nothing)
+        @test all(Jκ -> Mycelium._psd_factor(Jκ) isa Mycelium._Flat && Mycelium._psd_rank(Mycelium._psd_factor(Jκ)) == 2dz, jt.J)
+        θ0 = LenticulumCore._flatten(p)
+        F(θ) = rp_total(first(local_free_energy(f, msgs, LenticulumCore._unflatten(θ, p), NamedTuple())))
+        gf = ForwardDiff.gradient(F, θ0)
+        @test gf ≈ rp_cd(F, θ0) atol = 1e-6
+        @test only(Zygote.gradient(F, θ0)) ≈ gf atol = 1e-10
+    end
+
+    # P24's former limit: x does not enter at all (A.x = 0). In the parameters other than A.x the
+    # rank is constant; along A.x a flat direction becomes determined at second order, where the
+    # value jumps (the derivative given there is the constant-rank one, `cluster.md`)
     rng = Xoshiro(299)
     f, p = rp_factor(rng, 2, 1, 2)
     msgs = (z = rp_gauss(rng, 2, Matrix(1.0I, 2, 2)), x = nothing)
-    p1 = merge(p, (A = (z = p.A.z, x = zeros(2, 1, 2)),))     # x does not enter: flat
-    @test isfinite(rp_total(first(local_free_energy(f, msgs, p1, NamedTuple()))))
-    @test_broken (try ForwardDiff.gradient(θ -> rp_total(first(local_free_energy(f, msgs, LenticulumCore._unflatten(θ, p1), NamedTuple()))),
-                                           LenticulumCore._flatten(p1)) isa AbstractVector catch; false end)
+    p1 = merge(p, (A = (z = p.A.z, x = zeros(2, 1, 2)),))
+    q0 = (A = (z = p1.A.z,), b = p1.b, logw = p1.logw, L = p1.L)
+    Fq(θ) = (q = LenticulumCore._unflatten(θ, q0);
+             rp_total(first(local_free_energy(f, msgs, merge(q, (A = (z = q.A.z, x = p1.A.x),)), NamedTuple()))))
+    θq = LenticulumCore._flatten(q0)
+    gq = ForwardDiff.gradient(Fq, θq)
+    @test gq ≈ rp_cd(Fq, θq) atol = 1e-6
+    @test only(Zygote.gradient(Fq, θq)) ≈ gq atol = 1e-10
 end
 
 # The benchmark's model (`bench/rxinfer_baseline.jl`): a mixture of regressions, one RegimeFactor

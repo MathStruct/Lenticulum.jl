@@ -700,10 +700,10 @@ _cached(chol::AbstractDict, k, f) = get!(f, chol, k)
 # to all assignments only if they leave equally many directions flat, which is checked
 # (`_same_flatness`); a linear term reaching a flat direction makes the integral diverge and is
 # refused (`_check_range`).
-struct _Flat
-    U::Matrix{Float64}          # an orthonormal basis of the range
-    λ::Vector{Float64}          # J's eigenvalues on it
-    N::Matrix{Float64}          # an orthonormal basis of the null space
+struct _Flat{T,KT}
+    U::Matrix{T}                # an orthonormal basis of the range
+    K::KT                       # UᵀJU, factorised: J's eigenvalues as a `Diagonal`, or a Cholesky (P26)
+    N::Matrix{T}                # an orthonormal basis of the null space
 end
 const _FLAT_RTOL = 1e-10
 # Flat means an eigenvalue at most _FLAT_RTOL times the largest. A Cholesky factorisation can
@@ -713,16 +713,22 @@ function _psd_factor(J::AbstractMatrix)
     scale = maximum(abs, LinearAlgebra.diag(J); init = 0.0)
     C = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(J); check = false)
     LinearAlgebra.issuccess(C) && minimum(abs2, LinearAlgebra.diag(C.U); init = Inf) > _FLAT_RTOL * scale && return C
-    eltype(J) <: LinearAlgebra.BlasFloat || throw(ArgumentError(
-        "cluster: a joint precision with flat directions (or near-singular) under a derivative ($(eltype(J))): the diffuse " *
-        "limit takes an eigendecomposition, which has no rule for this number type (Feature Backlog P26)"))
+    return _flat_factor(J, C)
+end
+# The eigendecomposition's side of `_psd_factor`, given J's (possibly failed) Cholesky `C`. Other
+# number types: a dual J has a method in `MyceliumForwardDiffFlatExt` (the derivative at constant
+# rank, P26); the rest have none.
+function _flat_factor(J::AbstractMatrix{<:LinearAlgebra.BlasFloat}, C)
     E = LinearAlgebra.eigen(LinearAlgebra.Symmetric(Matrix(J)))
     λmax = maximum(abs, E.values; init = 0.0)
     any(E.values .< -sqrt(eps()) * max(λmax, 1.0)) && throw(ArgumentError("cluster: an indefinite joint precision"))
     keep = E.values .> _FLAT_RTOL * λmax
     all(keep) && LinearAlgebra.issuccess(C) && return C
-    return _Flat(E.vectors[:, keep], E.values[keep], E.vectors[:, .!keep])
+    return _Flat(E.vectors[:, keep], LinearAlgebra.Diagonal(E.values[keep]), E.vectors[:, .!keep])
 end
+_flat_factor(J::AbstractMatrix, _) = throw(ArgumentError(
+    "cluster: a joint precision with flat directions (or near-singular) of number type $(eltype(J)): the diffuse " *
+    "limit takes an eigendecomposition, which has a rule only for floats and first-order ForwardDiff duals (P26)"))
 # Whether a precision Λ (of a message or marginal, eliminated from a joint of diagonal scale
 # `scale`) is definite: its Cholesky pivots above the flat threshold.
 function _definite(Λ, scale)
@@ -731,13 +737,13 @@ function _definite(Λ, scale)
     return ok, C
 end
 _psd_solve(C::LinearAlgebra.Cholesky, B) = C \ B
-_psd_solve(F::_Flat, B) = F.U * ((F.U' * B) ./ F.λ)
+_psd_solve(F::_Flat, B) = F.U * (F.K \ (F.U' * B))
 _psd_logdet(C::LinearAlgebra.Cholesky) = logdet(C)
-_psd_logdet(F::_Flat) = sum(log, F.λ; init = 0.0)
+_psd_logdet(F::_Flat) = _psd_rank(F) == 0 ? zero(eltype(F.U)) : logdet(F.K)
 _psd_rank(C::LinearAlgebra.Cholesky) = size(C, 1)
-_psd_rank(F::_Flat) = length(F.λ)
+_psd_rank(F::_Flat) = size(F.U, 2)
 _psd_inv(C::LinearAlgebra.Cholesky) = Matrix(inv(C))
-_psd_inv(F::_Flat) = F.U * LinearAlgebra.Diagonal(1 ./ F.λ) * F.U'
+_psd_inv(F::_Flat) = F.U * (F.K \ Matrix(F.U'))
 _check_range(::LinearAlgebra.Cholesky, _, _) = nothing
 function _check_range(F::_Flat, H, what)
     isempty(H) && return nothing

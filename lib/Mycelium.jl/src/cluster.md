@@ -440,6 +440,49 @@ $10^{-4}$, with Gaussian messages).
   every graded part weighted; and the clustered mixture of factor analysers through
   `scalar_free_energy` on the store with block rows (were `@test_broken`).
 
+## Flat directions under a derivative (2026-11-16, Feature Backlog P26)
+
+The diffuse limit ("Flat directions", above) splits $J$ by an eigendecomposition, which has no rule for
+dual numbers; until P26 ForwardDiff (and so Zygote, whose rule runs ForwardDiff, "Derivatives at fixed
+messages") refused a cluster whose joint precision has flat directions. The quantities the limit uses,
+$J^+$, $\operatorname{pdet} J$ and the range, are smooth on the positive semidefinite matrices of one rank
+$r$, whose tangents at $J$ are the symmetric $D$ with $N^\top D N = 0$ ($N$ a basis of $\ker J$). With
+$J = U \Lambda U^\top$ on the range, the range and the null space move only into each other to first order,
+
+$$
+U(\varepsilon) = U + \varepsilon\, N N^\top D U \Lambda^{-1}, \qquad
+N(\varepsilon) = N - \varepsilon\, U \Lambda^{-1} U^\top D N ,
+$$
+
+both orthonormal to first order (check: $J(\varepsilon) N(\varepsilon) = O(\varepsilon^2)$ and
+$U(\varepsilon)^\top N(\varepsilon) = O(\varepsilon^2)$), and $U(\varepsilon)^\top J(\varepsilon) U(\varepsilon) = \Lambda + \varepsilon\, U^\top D U + O(\varepsilon^2)$, since $J N = 0$.
+
+- **Implementation.** `_Flat` holds $U$, $K = U^\top J U$ factorised (a `Diagonal` of the eigenvalues
+  for floats, a Cholesky for duals) and $N$; `_psd_solve`, `_psd_inv` and `_psd_logdet` read $K$.
+  `_psd_factor` hands a $J$ that Cholesky does not take to `_flat_factor`: for floats the
+  eigendecomposition as before; for first-order ForwardDiff duals of a float the extension
+  `MyceliumForwardDiffFlatExt` (loaded with ForwardDiff alone) decides flatness on the values, then
+  builds $U(\varepsilon)$, $N(\varepsilon)$ and $K = U^\top J U$ from the duals, as above. No eigenvector is
+  differentiated, so eigenvalues that repeat on the range are no difficulty.
+- **Rank changes are refused.** A partial $D$ with $\max |N^\top D N| > \sqrt{\epsilon}\,\max(\max|D|, \max \lambda)$
+  makes a flat direction determined to first order; there the limit drops a different constant and has no
+  derivative, and the extension throws an `ArgumentError`. A direction that becomes determined only at
+  second order passes the test: at $A_x = 0$ (a variable that enters no factor) the cross block of $D$ in
+  $A_x$ is nonzero but $N^\top D N = 0$. The value is discontinuous there: once $A_x$ leaves 0 by more than
+  the flatness threshold lets pass, the direction counts as determined and the free energy goes like
+  $\log |A_x|$ (a scratch run of P24's example, 2026-11-16, not kept as a test). The derivative given in
+  $A_x$ is the one along the matrices of constant rank, not of the value path. A model whose flat
+  directions are flat for every parameter (a map $A_x$ with fewer rows than columns, below) is not affected.
+- **Other number types.** Nested duals (a Hessian) and other non-float types still throw an
+  `ArgumentError` naming P26 on the flat path.
+- **Tests** (Lenticulum `test/regime_plate.jl`, testset "flat directions under a derivative"): twenty
+  random $J(\theta)$ of rank $r < n$ with a rotating range, on half of them $J = c\,QQ^\top$ (all eigenvalues
+  on the range equal), `_psd_logdet`, `_psd_solve` and `_psd_inv` through ForwardDiff against central
+  differences ($10^{-5}$ relative); a rank-changing tangent refused; five random regime factors whose $x$
+  is wider than their output and has no message ($d_x - d_z$ flat directions in every regime, checked),
+  ForwardDiff of the free energy against central differences ($10^{-6}$) and Zygote against ForwardDiff
+  ($10^{-10}$); and P24's former `@test_broken` ($A_x = 0$) in the parameters other than $A_x$.
+
 ## What it does not do
 
 - **Factors outside the conditionally linear-Gaussian class.** A factor needs `cluster_form`
@@ -456,10 +499,10 @@ $10^{-4}$, with Gaussian messages).
   to a node outside, and edges that are not bidirectional, diagonal and attached. The cluster node
   itself is a belief-propagation node; differentiating through inference (`adjoint = :implicit`)
   is not tested with it.
-- **AD where the joint has flat directions.** A joint precision with flat directions takes an
-  eigendecomposition, which has no rule for dual numbers: ForwardDiff (and so Zygote) of a cluster's
-  free energy there throws an `ArgumentError` (Feature Backlog P26, `@test_broken` in Lenticulum
-  `test/regime_plate.jl`). No tangent reaches the incoming messages under Zygote (below).
+- **AD where the rank of the joint changes.** ForwardDiff (and so Zygote) through flat directions is
+  the derivative at constant rank (above); a tangent that changes the rank to first order is refused, one
+  that changes it at second order ($A_x$ leaving 0) gets the constant-rank derivative, and nested duals
+  are refused. No tangent reaches the incoming messages under Zygote ("Derivatives at fixed messages").
 - **Grouping rewires nothing.** `overlap_groups` chooses the groups; putting a partial sum per
   group into the graph, which is what makes the groups pay (below), is an edit of the graph. For
   switches feeding a Lenticulum linear factor, Lenticulum's `partial_sums` makes it
