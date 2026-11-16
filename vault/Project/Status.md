@@ -7,13 +7,13 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-16, after P23 (Zygote through the constraint and switching cavity free energies), not committed.
+**Last updated:** 2026-11-16, after P23 (Zygote through the constraint and switching cavity free energies), committed and pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at `b184cc82` (pushed) with P23 uncommitted: LenticulumCore `gaussian_belief.jl`/`.md` and its ChainRulesCore ext; Lenticulum `constraint`, `switching`, `gaussian`, `exposure`, `hard_constraint`, `likelihood`, `nonlinear`, `Lenticulum.jl`, its ChainRulesCore ext; notes `constraint.md`, `switching.md`, Mycelium `free_energy.md`, `cluster.md`; tests `zygote_cavity.jl` (new), `plates.jl`, `regime_plate.jl`, `runtests.jl`; [[Feature Backlog]], [[LP-037 Findings of the review of P23]]. Verified: see below |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at the P23 commit `52dbe11d` (pushed): LenticulumCore `gaussian_belief.jl`/`.md` and its ChainRulesCore ext; Lenticulum `constraint`, `switching`, `gaussian`, `exposure`, `hard_constraint`, `likelihood`, `nonlinear`, `Lenticulum.jl`, its ChainRulesCore ext; notes `constraint.md`, `switching.md`, Mycelium `free_energy.md`, `cluster.md`; tests `zygote_cavity.jl` (new), `plates.jl`, `regime_plate.jl`, `runtests.jl`; [[Feature Backlog]], [[LP-037 Findings of the review of P23]]. Verified: see below |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | fast-forwarded to `b184cc82`, with the P23 diff applied (without the `likelihood.jl` fix); Mistral's probes in `scratch/p23/`. Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-p20-applied-stale-2026-11-16`, `-p22-…`, `-i21-…`, `-i20-…`, `-i19-…`, older |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
@@ -22,7 +22,7 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 
 ## Done last
 
-- **P23** (uncommitted): `Zygote.gradient` in `ps` of the cavity free energies of
+- **P23** (committed and pushed, `52dbe11d`): `Zygote.gradient` in `ps` of the cavity free energies of
   `LinearConstraintFactor` and `SwitchingConstraintFactor` (EP sites), per node and through
   `scalar_free_energy`, per edge and on plate blocks. Five blockers: in-place `_blockdiag` (now
   `cat`), `inv(::Cholesky)` (now `LenticulumCore._spd_inv` with an rrule, symmetric part; also in
@@ -40,7 +40,7 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 - Review: Mistral, one run, $1.28, six probes **executed** (the brief's exact command line worked).
   One finding, an `inv(_chol(...))` my regex missed in `likelihood.jl`; replaced, its impact not
   reproduced ([[LP-037 Findings of the review of P23]]). Archive `../Lenticulum.jl-Review-2026-11-16/p23/`.
-- Next: commit P23 when asked; then P21 or P24 (both design tasks), or another backlog item.
+- Next: P21 or P24 (both design tasks), or another backlog item.
 
 ## Open
 
