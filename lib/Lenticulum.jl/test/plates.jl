@@ -151,6 +151,10 @@ pl_fa_nlp(X, W, c) = -sum(pl_lognormal(X[:, i], c, W * W' + PL_σ2 * I) for i in
         # held Float64 fields until a 2026-11-03 review)
         Fθ(sx, θ) = first(LenticulumCore.scalar_free_energy(sx, g, merge(ps, (lik = LenticulumCore._unflatten(θ, ps.lik),)), st))
         @test ForwardDiff.gradient(θ -> Fθ(s, θ), pl_flat(ps.lik)) ≈ ForwardDiff.gradient(θ -> Fθ(se, θ), pl_flat(ps.lik)) atol = 1e-10
+        # Zygote cannot take this free energy on blocks or per edge (P23): the constraint factor's
+        # cavity energy fills a block-diagonal matrix and inverts a Cholesky factor
+        θ0 = pl_flat(ps.lik)
+        @test_broken (try only(Zygote.gradient(θ -> Fθ(se, θ), θ0)) ≈ ForwardDiff.gradient(θ -> Fθ(se, θ), θ0) catch; false end)
     end
 
     @testset "a grouped sweep gives the sequential schedule's messages" begin
@@ -414,6 +418,16 @@ end
         end
         Fθ(sx, θ) = first(LenticulumCore.scalar_free_energy(sx, g, merge(ps, (sw = LenticulumCore._unflatten(θ, ps.sw),)), st))
         @test ForwardDiff.gradient(θ -> Fθ(s, θ), pl_flat(ps.sw)) ≈ ForwardDiff.gradient(θ -> Fθ(se, θ), pl_flat(ps.sw)) atol = 1e-10
+        # Zygote on blocks (P20: it failed there), against ForwardDiff and against Zygote per edge. With
+        # latent x (EP sites) it cannot run even per edge (P23: the block-diagonal precision is filled in place).
+        θ0 = pl_flat(ps.sw) .+ 0.05 .* randn(Xoshiro(12), length(pl_flat(ps.sw)))
+        if tpl === pl_sw_latent!
+            @test_broken (try only(Zygote.gradient(θ -> Fθ(se, θ), θ0)) ≈ ForwardDiff.gradient(θ -> Fθ(se, θ), θ0) catch; false end)
+        else
+            Gz = only(Zygote.gradient(θ -> Fθ(s, θ), θ0))
+            @test Gz ≈ ForwardDiff.gradient(θ -> Fθ(s, θ), θ0) atol = 1e-10
+            @test Gz ≈ only(Zygote.gradient(θ -> Fθ(se, θ), θ0)) atol = 1e-10
+        end
     end
     # the categorical block's operations, column for column as the per-belief rules
     rng = Xoshiro(2)
@@ -529,5 +543,35 @@ pl_eye(d) = Matrix(1.0I, d, d)
     for i in eachindex(fs)
         m1, _ = factor_message(fs[i], :y, nothing, (z = replica(zin, i),), nothing, ps.up, NamedTuple())
         @test belief_distance(replica(blk, i), m1) < 1e-12
+    end
+end
+
+# P20: Zygote through `scalar_free_energy` on a store with block rows failed (`sum(...; init)`, then
+# the mutating bookkeeping and the factors' batched code). Random plates of priors with a learned
+# noise and data; oracles: ForwardDiff on the same store, and Zygote on the same messages held per edge.
+@testset "Zygote through the free energy on message blocks (P20)" begin
+    for seed in 1:4
+        rng = Xoshiro(seed)
+        D, N = rand(rng, 1:3), rand(rng, 2:7)
+        X = randn(rng, D, N)
+        Σ = (A = randn(rng, D, D); A * A' + I)
+        b = GraphBuilder()
+        plate!(b, :obs, N) do p, i
+            variable!(p, :x, D)
+            factor!(p, :prior, GaussianPrior(:x, randn(rng, D), Σ; learn_noise = true))
+            factor!(p, :data, DataFactor(:x, X[:, i]))
+            connect!(p, :prior, :x, :x); connect!(p, :data, :x, :x; direction = Emitting())
+        end
+        g = build(b)
+        ps = LuxCore.initialparameters(Xoshiro(0), g); st = LuxCore.initialstates(Xoshiro(0), g)
+        s = MessageStore(g)
+        _, st = propagate!(s, g, plate_schedule(g), ps, st; maxsweeps = 3)
+        se = MessageStore(copy(s.to_variable), copy(s.to_factor), s.iteration)
+        @test !isempty(Mycelium._energy_rows(s, g)) && isempty(Mycelium._energy_rows(se, g))
+        Fθ(sx, θ) = first(LenticulumCore.scalar_free_energy(sx, g, merge(ps, (prior = LenticulumCore._unflatten(θ, ps.prior),)), st))
+        θ0 = pl_flat(ps.prior) .+ 0.2 .* randn(rng, length(pl_flat(ps.prior)))
+        Gz = only(Zygote.gradient(θ -> Fθ(s, θ), θ0))
+        @test Gz ≈ ForwardDiff.gradient(θ -> Fθ(s, θ), θ0) atol = 1e-10
+        @test Gz ≈ only(Zygote.gradient(θ -> Fθ(se, θ), θ0)) atol = 1e-10
     end
 end

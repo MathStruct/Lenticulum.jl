@@ -507,8 +507,9 @@ compares this with the old write-backs, one at a time, on 50 random graphs: keys
 shuffled, keys tied, factors with and without state. `_keypositions`, `_slot`, `_state_writes` and
 `_key_groups` are `@non_differentiable` (`MyceliumChainRulesCoreExt`). A scratch test checked that
 Zygote and ForwardDiff differentiate through `getfield(tree, i)` with a run-time `i` and through a
-`Dict` lookup marked that way. The block-row path already mutated (`covered .= true`), so Zygote
-cannot run through it (P20); it uses the buffer.
+`Dict` lookup marked that way. The block-row path mutated (`covered .= true`), so Zygote could
+not run through it; it uses the buffer, and since P20 Zygote runs through a row by an `rrule`
+([[free_energy]] "Zygote on block rows").
 
 **The gradient drivers.** `_envelope_gradient` called `tied_factors(g, key)` for every key, a
 scan of all factors, and `_energy_rows(s, g)` for every key. `parameter_step` read `ps`, the

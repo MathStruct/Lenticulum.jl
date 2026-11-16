@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-15, after P22 (a plate schedule on a store with another block numbering), committed and pushed.
+**Last updated:** 2026-11-16, after P20 (Zygote through the free energy on plate block rows), not committed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at the P22 commit `2289cf0e` (pushed): `lib/Mycelium.jl/src/plates.jl`, `plates.md`, Lenticulum `test/regime_plate.jl`, [[Feature Backlog]]. verified (below) |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `0a1ef31c` (I21) with the P22 diff applied; probes in `scratch/p22/`, older in `scratch/i21/` etc. (untracked). Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-i21-applied-stale-2026-11-15`, `mistral-wt-i20-applied-stale-2026-11-15`, `mistral-wt-i19-applied-stale-2026-11-15`, `mistral-wt-ridge-applied-stale-2026-11-13` and the older ones of 2026-11-12 |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at `f748da5f` with P20 uncommitted: `lib/Mycelium.jl/src/free_energy.jl`, `free_energy.md`, `passing.md`, `ext/MyceliumChainRulesCoreExt.jl`, Lenticulum `test/plates.jl`, [[Feature Backlog]]. Verified: see below |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `f748da5f` with the P20 diff applied; Mistral's (unparsable) probes in `scratch/p20/`. Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-p22-applied-stale-2026-11-16`, `mistral-wt-i21-…`, `-i20-…`, `-i19-…` of 2026-11-15, `mistral-wt-ridge-applied-stale-2026-11-13` and older |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -22,25 +22,32 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 
 ## Done last
 
-- **P22** (committed and pushed): `sweep!` with a `PlateSchedule` checks once per sweep that the store numbers
-  its block rows as `MessageStore(g)` does (`_graph_layout`), and otherwise runs the groups without
-  their plans; before, a hand-built store with renumbered rows got $F$ = 2.68 against 14.54, silently
-  ([[plates]] "A store with another block numbering"). Test: Lenticulum `test/regime_plate.jl`, "PlateSchedule
-  on a store with another block numbering (P22)", which failed before the fix (4 failures, 2 errors) and passes after (14/14).
-- Verified: all eight suites pass (`~/.cache/lenticulum/p22/suite_*.log`). Not run: `docs/make.jl`,
-  `check_notes.py`, device tests (no device code).
-- Review: Mistral, no defects (mostly code reading, no probe outputs recorded; archive
-  `../Lenticulum.jl-Review-2026-11-15/p22/`). No problem note, as there are no findings.
-- I21 (before): committed and pushed; see [[Feature Backlog]] "Done".
-- Next: P20 (Zygote through `sum(...; init)` in `_row_scalar`, probably
-  small), or P21 (a design task), or another backlog item.
+- **P20** (not committed): `Zygote.gradient` of `scalar_free_energy` on a store with block rows.
+  Four blockers, not one: `_row_scalar`'s `sum(...; init)`, the covered-node masks (`_mark!`,
+  `@non_differentiable`), the variable rows' term (`@non_differentiable`, reads only blocks), and
+  the factors' batched code (an `rrule` on `_row_scalar_energy` that differentiates the same row
+  replica by replica through `local_free_energy`). It gives the derivative at fixed messages, as
+  ForwardDiff does; an envelope-gradient first version was dropped because it differed from
+  ForwardDiff by 0.78 (LP-020; [[free_energy]] "Zygote on block rows").
+- Verified: Lenticulum `test/plates.jl` passes (P20 testset 12/12; the switching testset errored before the
+  fix); all eight suites pass (`~/.cache/lenticulum/p20/suite_*.log`;
+  in ImplicitLayers Mooncake's `MooncakeLogExpFunctionsExt` failed to precompile, a version mismatch
+  in that environment, and the suite passed). Not run: `docs/make.jl`, device tests (no device code).
+  `check_notes.py`: no new hits.
+- Found: P23 (backlog): Zygote cannot take `LinearConstraintFactor`, EP-switching or cluster-node
+  free energies even per edge; on a clustered regime plate ForwardDiff fails too (`Float64(::Dual)`).
+  `@test_broken` for the first two.
+- Review: Mistral, two runs, no probe executed: the first prefixed every command with `cd … &&`,
+  which the review agent's allowlist refuses; the second, told so, still never ran `julia`, and its
+  three probes do not parse. Static reading: no defect. Archive `../Lenticulum.jl-Review-2026-11-16/p20/`.
+  No problem note (no findings).
+- Next: commit P20 (when asked); then P21 (a design task), P23, or another backlog item.
 
 ## Open
 
 - **P21:** ForwardDiff through a relation factor's flat-input path, and `NonlinearFactor` at a dual
   expansion point (`@test_broken` in Lenticulum `test/forms_crossing.jl`).
-- **P20:** Zygote through a plated free energy fails on `sum(...; init)` (found by Mistral; the
-  same before P7).
+- **P23:** Zygote through constraint, EP-switching and cluster-node free energies (backlog).
 - AlgebraicFactors, ImplicitLayers and Adversarial run in CI only weekly: a change to the core
   should run their suites locally too (that is how the AlgebraicFactors break was found).
 - Mistral review agent: `vibe ... --agent review --trust --workdir ../Lenticulum.jl-mistral`
@@ -54,4 +61,6 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
   tolerance, a parenthesis, a keyword read for a NamedTuple): run and repair its probes before
   believing a failure. On I20 it kept the answer file but was stopped by `--max-price 1` after 71
   turns: `cost_usd` counts list prices even for the free Mistral Large (3.9 M input tokens, $1.01), so
-  give a free-model review `--max-price 3` to reach its turn limit.
+  give a free-model review `--max-price 3` to reach its turn limit. On P20 (2026-11-16) both runs lost
+  every command to a `cd … &&` prefix (not on the allowlist): consider allowing it in
+  `~/.vibe/agents/review.toml` or starting the brief with an example command line.

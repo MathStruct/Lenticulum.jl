@@ -304,18 +304,18 @@ function _factor_terms_rows(s, g, @nospecialize(ps), @nospecialize(st), rows; sc
         trees === nothing && continue                # untied with parameters or state: node by node
         psf, stf0, stf = trees
         factors = identity.([g.factors[i].factor for i in row.fids])
-        E, stf = local_free_energies(factors, msgs, psf, stf)
-        length(E) == length(row.fids) || throw(ArgumentError(
-            "local_free_energies of $(nameof(typeof(f1.factor))) returned $(length(E)) energies for $(length(row.fids)) replicas"))
-        row.keys === nothing || _empty_graph_state(stf) || continue
         if scalar
-            total += _row_scalar(factors, E)
+            Fr, stf = _row_scalar_energy(factors, msgs, psf, stf)
+            row.keys === nothing || _empty_graph_state(stf) || continue
+            total += Fr
         else
+            E, stf = _row_energies(factors, msgs, psf, stf)
+            row.keys === nothing || _empty_graph_state(stf) || continue
             for (i, fid) in enumerate(row.fids)
                 results[fid] = E[i]
             end
         end
-        covered[row.fids] .= true
+        _mark!(covered, row.fids)
         st = _group_writeback(st, f1, row.keys, stf0, stf)
     end
     for f in g.factors
@@ -330,9 +330,36 @@ function _factor_terms_rows(s, g, @nospecialize(ps), @nospecialize(st), rows; sc
     return scalar ? total : results, _tree(st)
 end
 
+# A row's energies, one per replica, checked for their number.
+function _row_energies(factors, msgs, ps, st)
+    E, st = local_free_energies(factors, msgs, ps, st)
+    length(E) == length(factors) || throw(ArgumentError(
+        "local_free_energies of $(nameof(typeof(first(factors)))) returned $(length(E)) energies for $(length(factors)) replicas"))
+    return E, st
+end
+
+# A row's scalarised free energy, `(F, st)`. Reverse-mode AD runs through `_columns_scalar` instead
+# (`rrule` in `MyceliumChainRulesCoreExt`), since the factors' batched code mutates (P20).
+function _row_scalar_energy(factors, msgs, ps, st)
+    E, st = _row_energies(factors, msgs, ps, st)
+    return _row_scalar(factors, E), st
+end
+
+# The same sum replica by replica, from the row's columns `cols[i] = _column(msgs, i)`, each with
+# the incoming state (a row's state is empty). What reverse-mode AD differentiates.
+_columns_scalar(factors, cols, ps, st) =
+    sum(map((f, m) -> LenticulumCore.scalarise(LenticulumCore.scalarisation(f), first(local_free_energy(f, m, ps, st))), factors, cols))
+
+# Marks `ids` as done in a mask of covered nodes. A separate function so that it can be marked
+# `@non_differentiable` (`MyceliumChainRulesCoreExt`): Zygote refuses the mutation otherwise,
+# although the mask carries no gradient (P20).
+_mark!(mask::BitVector, ids) = (mask[ids] .= true; mask)
+
 # The sum of a row's scalarised energies; `factors` concretely typed, so this compiles per type.
+# `sum(map(...))`, not `sum(f, itr; init)`: ChainRules has no rule for the keyword, so Zygote
+# failed here (P20). A row has at least one factor, so the sum needs no `init`.
 _row_scalar(factors::AbstractVector, E::AbstractVector) =
-    sum(i -> LenticulumCore.scalarise(LenticulumCore.scalarisation(factors[i]), E[i]), eachindex(factors, E); init = 0.0)
+    sum(map((f, e) -> LenticulumCore.scalarise(LenticulumCore.scalarisation(f), e), factors, E))
 
 # The variable terms of a plate's variable rows in one block operation each: the marginal block
 # (the combine of the rows of to-variable messages) and its entropies. Returns the total and the
@@ -349,7 +376,7 @@ function _variable_terms_rows(s, g)
             t = _variable_row_term(s, g, s.to_variable, bp, vids)
             t === nothing && continue
             total += t
-            done[vids] .= true
+            _mark!(done, vids)
         end
     end
     return total, done

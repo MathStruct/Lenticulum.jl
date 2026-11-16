@@ -363,6 +363,52 @@ edited in place (edits build a new graph), and a layout is compared by identity,
 Test: Lenticulum `test/regime_plate.jl`, "energy rows kept per store layout".
 
 
+### Zygote on block rows (P20, 2026-11-16)
+
+`Zygote.gradient` of `scalar_free_energy` in `ps` failed on a store with block rows, while it
+worked on the same messages held per edge. Mistral's review of 2026-11-11 found it at the
+`sum(...; init = 0.0)` of `_row_scalar`, for which ChainRules has no rule. Fixing that showed three
+more blockers, met one after the other: the masks of covered nodes are written in place
+(`covered[row.fids] .= true`), the variable rows' entropies build typed index vectors
+(`_variable_row_term`), and every factor type's batched `local_free_energies` fills arrays (the
+default writes into a `Vector{Any}`, the Gaussian prior's `factor_beliefs` pushes, `_blockdiag`
+fills a matrix of zeros).
+
+- `_row_scalar` is `sum(map(...))`; a row has at least one factor.
+- The masks are written by `_mark!`, and `_variable_terms_rows` is `@non_differentiable`: it reads
+  only the store's blocks, which do not depend on `ps`, and a store built inside AD from message
+  vectors has no block rows.
+- A row's scalar energy goes through `_row_scalar_energy`, whose `rrule`
+  (`MyceliumChainRulesCoreExt`) keeps the batched primal and runs the caller's AD through
+  `_columns_scalar`: the same energy replica by replica, each through `local_free_energy` on its
+  column, cut outside AD. Every replica gets the incoming state, which is empty on a row
+  (`_check_tied_state`; untied rows only when every key's state is empty). No tangent reaches the
+  messages, the factors or the state.
+
+That is the derivative at fixed messages, what ForwardDiff computes. A first version took the
+envelope argument of `free_energy_gradient` instead (the `rrule` differentiated
+`belief_free_energies` at the frozen `factor_beliefs`). On the factor-analysis plate it agreed
+with `free_energy_gradient` to 2e-16 and differed from ForwardDiff by 0.78, at the converged
+messages and away from them (a scratch script, not kept). The two gradients are different
+quantities (LP-020), and a rule must give the derivative of the function it is attached to, so
+that version was dropped.
+
+What it does not do. The reverse pass is the per-replica code, so it is only as differentiable as
+the factor's `local_free_energy` is: for `LinearConstraintFactor` and for switching factors with
+EP sites it is not (`_blockdiag` in `constraint.jl` and `inv(::Cholesky)`; P23, `@test_broken` in
+Lenticulum `test/plates.jl`). It assumes that a factor's batched `local_free_energies` equals the
+sum of its per-replica energies, which the tests check for the Gaussian prior and observed
+switching factors (ForwardDiff on blocks is the oracle). On a clustered regime plate the values
+agree (to 1e-14, a scratch probe), but no gradient can be compared: neither Zygote (a `push!`)
+nor ForwardDiff (`Float64(::Dual)`) takes that free energy, per edge as on blocks (P23), while
+`free_energy_gradient` does, through the fixed-belief energies. The
+reverse pass costs one `local_free_energy` per replica, not one batched call.
+
+Tests: Lenticulum `test/plates.jl`, "Zygote through the free energy on message blocks (P20)"
+(random plates of priors with a learned noise, against ForwardDiff on blocks and Zygote per edge)
+and the observed switching plates in "Plates of switching factors on message blocks". Before the
+change the switching testset stopped with the `MethodError` of `_row_scalar`.
+
 ## Expectation-propagation and mixture-reduction nodes (2026-11-03)
 
 An `ExpectationPropagationRule()` node is counted like a belief-propagation node: its
