@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-16, after P21 (ForwardDiff through the flat path with only η dual), committed and pushed.
+**Last updated:** 2026-11-16, after P13 (the exactness of a tree sweep checked at run time), committed and pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at the P21 commit `a22157e1` (pushed): LenticulumCore `extended_gaussian.jl`/`.md` (`_flat_split`); Lenticulum `gaussian.jl`/`.md`, `nonlinear.jl`/`.md`, `constraint.jl` (docstring); `test/forms_crossing.jl`; [[Feature Backlog]] (P21 done, P25 new), [[LP-038 Findings of the review of P21]], Problem Log. Verified: see below |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | fast-forwarded to `5eac9e5e`, with the P21 diff applied (before the switching testset); Mistral's probes in `scratch/p21/`. Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-p23-applied-stale-2026-11-16`, `-p20-…`, `-p22-…`, `-i21-…`, `-i20-…`, `-i19-…`, older |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | at the P13 commit `e7ddaf70` (pushed): Mycelium `passing.jl`/`.md`, `factors.jl`, `cluster.jl`, `Mycelium.jl` (export), `test/runtests.jl`; Lenticulum `Lenticulum.jl` (declarations), `test/exact_report.jl` (new), `test/gaussian_oracle.jl`, `test/runtests.jl`; [[Bethe Free Energy]], [[Feature Backlog]], [[LP-039 Findings of the review of P13]], Problem Log |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | fast-forwarded to `86da7a51`, with the P13 diff applied; Mistral's probes in `scratch/p13/`. Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-p21-applied-stale-2026-11-16`, `-p23-…`, `-p20-…`, `-p22-…`, `-i21-…`, `-i20-…`, `-i19-…`, older |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -22,26 +22,22 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 
 ## Done last
 
-- **P21** (committed and pushed, `a22157e1`): ForwardDiff through a relation factor's flat path when only η is dual (a
-  derivative by `b`, `c` or an observation). A flagged input of duals is split on its precision's
-  values (`_improper_split_dual` → `LenticulumCore._flat_split`, which `extended` now uses too); a
-  precision of zero-partial duals is accepted, one with nonzero partials throws an `ArgumentError`
-  (P25, `@test_broken`). `_jacobian` is generic in the element type (`NonlinearFactor` at a dual
-  expansion point). Found on the way: `norm` of duals whose value is exactly 0 is `NaN`, which made
-  the split's range check fail; it reads values now. [[gaussian]] "Dual inputs on the flat path".
-- Verified: `test/forms_crossing.jl` run alone after the last edit, all testsets pass (P21: 614 + 271 +
-  30 + 160 checks, one `@test_broken`), `~/.cache/lenticulum/p21/fc.out`. The eight suites
-  (`~/.cache/lenticulum/p21/suite_*.log`) all pass; they ran before the switching testset (test
-  only) and the note and docstring edits were added, so the Lenticulum suite has not run with the
-  final `forms_crossing.jl` as part of `Pkg.test` (the file alone has). `check_notes.py`: no new
-  hits. Not run: `docs/make.jl`, device tests (no device code).
-- Review: Mistral, $1.12, ran **no** probe (its julia commands were refused by the approval
-  callback, although the brief had the exact command line that worked on P23). Its seven probes
-  were run by hand: every failure was the probe's own error; the gaps it named passed in a repair
-  probe and two became tests ([[LP-038 Findings of the review of P21]]). Archive
-  `../Lenticulum.jl-Review-2026-11-16/p21/`.
-- Next: P24 (cluster nodes under ForwardDiff/Zygote, a design task) or
-  P25, or another backlog item.
+- **P13** (committed and pushed, `e7ddaf70`): `ConvergenceReport` has a field `exact`. After the one sweep of an undamped
+  tree schedule it is set only when every node that sends a message declares
+  `Mycelium.exact_messages` (opt-in; declared for Mycelium's data, prior, relay, table and cluster
+  factors and Lenticulum's Gaussian, prior, linear/hard constraint and switching factors), none is a
+  `MixtureReduction` node, and no factor received a mixture on one edge while sending on another;
+  `reason` names each. Before, a switching chain under belief propagation was reported "exact" while
+  its marginals were up to 0.011 off enumeration. [[passing]] "Exactness checked at run time".
+- Verified: `test/exact_report.jl` (99 checks, each claim against enumeration or a closed form) and
+  `gaussian_oracle.jl` (`rep.exact` on 40 random trees) pass run alone (`~/.cache/lenticulum/p13/run.out`);
+  all eight suites pass (`~/.cache/lenticulum/p13/suite_*.log`; the Lenticulum suite ran the P13
+  testset, 99 checks). Not run: `docs/make.jl`.
+- Review: Mistral, $0.98, four probes ran; one finding (wrappers not declared exact), intended, no
+  change ([[LP-039 Findings of the review of P13]]). Archive `../Lenticulum.jl-Review-2026-11-16/p13/`.
+- P21 before it: committed and pushed (`a22157e1`), [[LP-038 Findings of the review of P21]].
+- Next: P24 (cluster nodes under ForwardDiff/Zygote, design: make the
+  cluster joint generic in its element type and non-mutating) or another backlog item.
 
 ## Open
 
@@ -49,6 +45,9 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 - **P24:** ForwardDiff and Zygote through cluster-node free energies at fixed messages (backlog).
 - AlgebraicFactors, ImplicitLayers and Adversarial run in CI only weekly: a change to the core
   should run their suites locally too (that is how the AlgebraicFactors break was found).
+- Mistral review agent, refused commands: on P13 its six refusals all began with `cd … &&`, and its
+  `julia` commands without output redirection ran; on P21 the refused `julia` command had `> … 2>&1`
+  (which ran on P23). Next brief: give the command without redirection and say "never prefix `cd`".
 - Mistral review agent: `vibe ... --agent review --trust --workdir ../Lenticulum.jl-mistral`
   (`~/.claude/CLAUDE.md`). A review needed about 140 turns; give it 100 and continue the session
   with `vibe -c` if it stops. On I6 it kept probing through three continuations (about 175 turns,
