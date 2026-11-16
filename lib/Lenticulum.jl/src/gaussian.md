@@ -317,9 +317,34 @@ give the same message (40 trials, 279 checks). A tree of a prior, a `GaussianFac
 relation under `infer!` with a tree schedule. Run against the code before this change, the first
 testset fails with the `MethodError` above.
 
-Not checked: extended inputs in plates (`_block_parts` returns `nothing` for them, which should
-send a plate down the per-replica path; not run), in the AD paths (`_gradient_message`), and to
-`NonlinearFactor` with a partly flat cavity, which `_expansion` refuses through `_moments`.
+**In plates (P4, 2026-11-16).** Extended messages in a plate are stacked as `VectorBlock`s
+(`belief_block`), for which `_block_parts` is `nothing`, so the block methods of
+`LinearConstraintFactor` and `SwitchingConstraintFactor` take the per-replica path, and
+`GaussianFactor`, which has no block method, always does. `test/extended_plates.jl`: a plate of four
+replicas, each with an observation, a `GaussianFactor` and a hard relation (10 random instances,
+hard messages reaching the `GaussianFactor`s), matches the dense Gaussian of each replica
+conditioned on its observation and the relation, to $10^{-7}$ absolute and $10^{-9}$ relative; a
+plate of five replicas in which every `LinearConstraintFactor` receives an extended input (8
+instances) gives the messages of the same tasks sent one by one to $10^{-8}$, and each replica's
+marginals as its own graph to $10^{-10}$. No code changed: the per-replica fallback was already
+right; only the test was missing.
+
+Two limits found on the way, `@test_broken` in that file:
+
+- a `SwitchingConstraintFactor` on a variable that a hard relation also reaches: its mixture
+  message (or, with `ExpectationPropagationRule`, the EP projection of the cavity) meets the
+  extended message in Mycelium's mixture product, which has no rule for an extended component
+  (`ArgumentError: no product rule for mixture components`), in a plate and in a single graph
+  alike ([[Feature Backlog]] P27);
+- the coupled replay (`free_energy_gradient` with `schedule`, `ExactCoupling` edges) through a
+  `HardConstraintFactor` under ForwardDiff and Zygote: the hard factor's inputs carry dual numbers
+  (a derivative by an upstream $A$), and `ExtendedGaussian` holds only `AbstractFloat`s; under
+  Zygote `_independent_join` receives a tuple. Reference differences agree with
+  $-\log Z$ of the dense model to $10^{-9}$ (5 random trees, a scratch probe, not a test). This is
+  the AD half of P4, still open.
+
+Not checked: extended inputs to `NonlinearFactor` with a partly flat cavity, which `_expansion`
+refuses through `_moments`.
 
 ## Improper messages as extended Gaussians (2026-11-11)
 

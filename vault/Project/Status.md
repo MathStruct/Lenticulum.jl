@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-16, after P25 (ForwardDiff through the relation factors' flat path when its flat directions move, at constant rank), committed on `dev-danielb` on top of P26; both pushed (`3101cf20`).
+**Last updated:** 2026-11-16, after P4's plate half (extended-Gaussian inputs in plates: tested, no code change), committed on `dev-danielb`; not pushed. P4's AD half is open and next.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P26 (`8a6a9f41`) and P25 (`3101cf20`) committed and pushed. P25: Lenticulum `src/gaussian.jl`/`.md`, `src/constraint.jl`, `src/switching.jl`, `ext/LenticulumForwardDiffExt.jl`/`.md`, `test/forms_crossing.jl`; [[Feature Backlog]], [[LP-042 Findings of the review of P25]], Problem Log, this note |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | fast-forwarded to `8a6a9f41`, with the first P25 diff applied (before the LP-042 fix); Mistral's probes in `scratch/p25/`. Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-p26-applied-stale-2026-11-16`, `-p24-…`, `-p13-…`, `-p21-…`, `-p23-…`, `-p20-…`, `-p22-…`, `-i21-…`, `-i20-…`, `-i19-…`, older |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P4 plates: `lib/Lenticulum.jl/test/extended_plates.jl` (new, in `runtests.jl`), `src/gaussian.md` "Extended Gaussian inputs" (In plates), [[Feature Backlog]] (P4 partial, P27 new), this note. P25/P26 pushed (`3101cf20`) |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `8a6a9f41` with the first P25 diff applied; Mistral's probes in `scratch/p25/`. Test environments: `~/.cache/lenticulum/i19/env-mistral` (this worktree), `~/.cache/lenticulum/i20/env` (the main checkout). Stashes, all droppable: `mistral-wt-p26-applied-stale-2026-11-16` and older |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -22,24 +22,35 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 
 ## Done last
 
-- **P25** (committed): a flagged input whose precision is dual (a derivative by $A$ upstream), and
-  dual coefficients or covariances on the flat path, under ForwardDiff at constant rank. P26's
-  construction applied twice: the split of Λ (`_moving_flat_split`) and the complement of range(B)
-  in the residual metric with its log pseudo-determinant (`_range_complement`, also used by the
-  switching factor's `_residual_metric_logdet`), dual methods in `LenticulumForwardDiffExt`. A
-  first-order rank change and nested duals are an `ArgumentError`. [[lib/Lenticulum.jl/src/gaussian|gaussian]]
-  "Flat directions that move".
-- Verified: `test/forms_crossing.jl` in full (the two P25 testsets: 281 checks against central
-  differences of the value path, 200 refusals and identities; they error on the code before P25);
-  the Lenticulum suite (`~/.cache/lenticulum/p25/suite_Lenticulum.log`). No other package changed
-  (only `docs` and `bench` depend on Lenticulum). Not run: `docs/make.jl`, the device tests.
-- Review: Mistral, $1.18, stopped at 100 turns with one entry; its probes were run here: one
-  finding (nested duals in `_range_complement` gave a `MethodError`), fixed with a regression test
-  ([[LP-042 Findings of the review of P25]]). Archive `../Lenticulum.jl-Review-2026-11-16/p25/`.
-- Next: another backlog item; the derivative work on the flat path is complete up to the limits below.
+- **P4, plates** (committed): extended messages in a plate are `VectorBlock`s and take the
+  per-replica path; it was already right. `test/extended_plates.jl`: a plate of `GaussianFactor`s
+  under hard relations against the dense conditioned Gaussian (10 instances × 4 replicas), and
+  `LinearConstraintFactor`'s block method with an extended input in every replica against the
+  sequential tasks and each replica alone (8 × 5). Known limits as `@test_broken`: mixture × extended
+  (new row P27) and the coupled replay through a hard relation under ForwardDiff and Zygote.
+- Verified: the new file (849 pass, 3 broken) and the Lenticulum suite
+  (`~/.cache/lenticulum/p4/suite_Lenticulum_plates.log`). Test-only change, no external review.
+- Found, not in P4: with `DiagonalCoupling` the fixed-belief gradient refuses a graph whose
+  variables have hard directions ("no canonical form"); that is P2.
+
+## Next: P4's AD half
+
+The coupled replay (`free_energy_gradient(...; schedule, ad)`, `ExactCoupling`) through a
+`HardConstraintFactor` fails: ForwardDiff at `ExtendedGaussian`'s `T<:AbstractFloat` (inside
+`_as_extended` of the hard factor's dual inputs), Zygote at `_independent_join` of a tuple.
+Reference differences agree with the dense $-\log Z$ to $10^{-9}$ (probes in the session scratch,
+re-creatable from the broken testset). What it needs (to be designed, LenticulumCore's core type):
+`ExtendedGaussian{T<:Real}` with every subspace basis (`_orth`, `_complement`, `hard_directions`,
+the kept eigenvectors of `_canonical_part` and `_from_potential`) taken on the values and the duals
+carried through the reduced inverses, a refusal when a derivative moves a null space (as P21 before
+P25); `extended(::GaussianBelief)` with dual Λ; a non-mutating `_independent_join`; and the replay's
+loss, the Bethe free energy, through the hard factor's term (an SVD) and `support_entropy`
+(`eigvals`). Oracle: $-\log Z$ of the dense model (the broken testset's tree), ForwardDiff and Zygote
+against it and against reference differences.
 
 ## Open
 
+- **P4 AD half:** above. **P27:** mixture × extended product.
 - **P25/P26 limits:** a parameter that changes a rank only at second order (a backward message's
   $A^\top R^{-1}A$ as $A$ leaves a rank-deficient value; $A_x$ leaving 0 in a cluster) gets the
   constant-rank derivative while the value is discontinuous there; Zygote does not go through the
