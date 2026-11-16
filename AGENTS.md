@@ -26,8 +26,9 @@ push to it deploys a preview of the site, the vault to `<site>/preview/` and the
 `<site>/api/preview/` (`docs/make.jl` chooses from the branch; `docs/site/README.md`).
 Working for the maintainer, use `dev-danielb`; working for anyone else, use a branch of your
 own and target `dev`. The restructured repository (`refactor`, November 2026) is merged into
-`dev-danielb`; `master` follows when the maintainer merges it. Do not commit, push or merge
-unless you are asked to.
+`dev-danielb`; `master` follows when the maintainer merges it. An agent working in the
+maintainer's checkout commits its work to `dev-danielb` at the end of each task, without being
+asked, once the task's gates pass (see Commits); it does not push or merge unless asked.
 
 **Helper agents and worktrees.** An agent that implements a work package for the maintainer
 (another model, a subagent) works in its own worktree beside this one,
@@ -155,9 +156,13 @@ KaTeX, the TikZ diagrams); Obsidian's rendering differs in places. Both builds m
 - Since Julia 1.12 the main thread is in the `:interactive` pool; a busy task spawned there can
   starve it (`bench/jit_latency.jl`).
 
-**Commits.** When asked to commit, write what changed and why; an agent's commit names it as a
-co-author. The bibliography, `CITATION.cff` and `.zenodo.json` are generated: commit them
-together with the `refs.bib` change that produced them.
+**Commits.** A task ends with a commit: the suites of the packages it touched (and of those
+that depend on them) pass, the review is triaged, `Status.md` and the backlog are updated, and
+then the change is committed, together with those notes. A task whose gates fail is not committed;
+say so instead. Helper agents in their own worktrees still commit only when their brief says so.
+Write what changed and why; an agent's commit names it as a co-author. The bibliography,
+`CITATION.cff` and `.zenodo.json` are generated: commit them together with the `refs.bib` change
+that produced them.
 
 ## Credit
 
