@@ -411,6 +411,9 @@ end
 # --- The Bethe contribution: the linear model's, around the factor's incoming beliefs ----
 
 Mycelium.uses_cavity(::NonlinearFactor) = true
+# its backward message linearises at the target's cavity, so one tree sweep need not be a fixed
+# point: such trees are iterated and their residual checked (I15)
+Mycelium.message_uses_cavity(::NonlinearFactor) = true
 
 """
     Mycelium.local_free_energy(f::NonlinearFactor, msgs, ps, st)

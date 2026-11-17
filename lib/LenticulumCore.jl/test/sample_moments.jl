@@ -31,3 +31,43 @@ using LenticulumCore, LinearAlgebra, Random, Statistics, Test
     @test belief_mean(SampleBelief(reshape([1.0, 2.0], 2, 1))) == [1.0, 2.0]
     @test belief_cov(SampleBelief(reshape([1.0, 2.0], 2, 1))) == zeros(2, 2)
 end
+
+# I21: the sample moments are pure reductions — no Float64 accumulator, no mutation — so they
+# differentiate under ForwardDiff and Zygote and keep the samples' scalar type. Oracles: the
+# weighted sums written out, and the derivative of the closed form.
+using ForwardDiff, Zygote
+
+@testset "I21: sample moments differentiate and preserve the scalar type" begin
+    # matrix columns, unweighted: ForwardDiff through the mean and the covariance
+    d = ForwardDiff.derivative(t -> sum(belief_mean(SampleBelief(reshape([t, 2t], 1, 2)))), 1.0)
+    @test d ≈ 1.5
+    X = [1.0 2.0 4.0; 0.5 -1.0 2.0]
+    m = X * [1 / 3, 1 / 3, 1 / 3]
+    C = sum((1 / 3) .* (X[:, i] .- m) * (X[:, i] .- m)' for i in 1:3)
+    g = ForwardDiff.gradient(x -> sum(belief_cov(SampleBelief(x))), X)
+    @test g ≈ 2 .* (X .- m) ./ 3 rtol = 1e-10            # d sum(C)/d X[:,i] = 2 w_i (X[:,i] - m)
+    # vector of vectors, weighted: Zygote through mean and covariance against the closed form
+    pts = [[1.0, 0.5], [2.0, -1.0], [4.0, 2.0]]
+    w = [0.2, 0.3, 0.5]
+    b = SampleBelief(pts, w)
+    wn = w ./ sum(w)
+    m0 = sum(wn[i] .* pts[i] for i in 1:3)
+    C0 = sum(wn[i] .* (pts[i] .- m0) * (pts[i] .- m0)' for i in 1:3)
+    @test belief_mean(b) ≈ m0 && belief_cov(b) ≈ C0
+    gm, = Zygote.gradient(x -> sum(belief_mean(SampleBelief(x, w))), pts)
+    @test gm ≈ [wn[i] .* ones(2) for i in 1:3]
+    gC, = Zygote.gradient(x -> sum(belief_cov(SampleBelief(x, w))), pts)
+    @test gC ≈ [2 .* wn[i] .* (pts[i] .- m0) for i in 1:3]
+    # scalar samples: Zygote, and a length-one vector out
+    gs, = Zygote.gradient(x -> sum(belief_mean(SampleBelief(x))), [1.0, 2.0])
+    @test gs ≈ [0.5, 0.5]
+    @test belief_mean(SampleBelief([1.0, 2.0])) isa Vector{<:Real} && length(belief_mean(SampleBelief([1.0, 2.0]))) == 1
+    # scalar type preservation: Float32 samples give Float32 moments, also unweighted
+    X32 = Float32[1 2 4; 0.5 -1 2]
+    @test belief_mean(SampleBelief(X32)) isa Vector{Float32}
+    @test belief_cov(SampleBelief(X32)) isa Matrix{Float32}
+    @test belief_mean(SampleBelief(X32, Float32[0.2, 0.3, 0.5])) isa Vector{Float32}
+    @test belief_mean(SampleBelief([Float32(1), Float32(2)])) == [1.5f0]
+    # and the values still match the Float64 oracle
+    @test belief_mean(SampleBelief(X32)) ≈ vec(mean(Float64.(X32); dims = 2)) rtol = 1e-6
+end

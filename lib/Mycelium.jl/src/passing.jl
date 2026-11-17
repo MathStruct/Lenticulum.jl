@@ -581,10 +581,26 @@ Base.show(io::IO, r::ConvergenceReport) = print(io,
     " after ", r.sweeps, " sweep(s), residual ", r.residual, "; ", r.reason, ")")
 
 # One tree sweep is a fixed point when every message depends on upstream messages only: belief
-# propagation and MixtureReduction() nodes. Expectation-propagation and mean-field messages also read the
-# target side (the cavity, the marginals), so those graphs are iterated like any other.
-# (A fixed point, not exactness: `_inexact_reasons` decides that.)
-_tree_exact(g::FactorGraph) = all(f -> f.rule isa BeliefPropagation || f.rule isa MixtureReduction, g.factors)
+# propagation and MixtureReduction() nodes whose messages do not read the target's cavity.
+# Expectation-propagation and mean-field messages also read the target side (the cavity, the
+# marginals), so those graphs are iterated like any other. (A fixed point, not exactness:
+# `_inexact_reasons` decides that.)
+"""
+    message_uses_cavity(factor) -> Bool
+
+Whether the factor's variable-bound messages read the target's cavity — the `prior` argument of
+[`factor_message`](@ref), the other messages into the target channel. `false` by default; a
+belief-propagation message that linearises at the cavity (a `NonlinearFactor` going backwards,
+say) declares `true`.
+
+A message independent of the target cavity makes one tree sweep a fixed point
+([`propagate!`](@ref)); a message that reads the cavity need not be, and such a tree is iterated
+and checked like any other graph.
+"""
+message_uses_cavity(factor) = false
+
+_tree_exact(g::FactorGraph) =
+    all(f -> (f.rule isa BeliefPropagation || f.rule isa MixtureReduction) && !message_uses_cavity(f.factor), g.factors)
 
 """
     exact_messages(f) -> Bool
@@ -632,7 +648,8 @@ end
 Run the schedule to convergence, or to `maxsweeps`.
 
 For a [`TreeSchedule`](@ref) without damping, on a graph of [`BeliefPropagation`](@ref) and
-[`MixtureReduction`](@ref) nodes, one sweep is enough: it is the fixed point, and the loop stops
+[`MixtureReduction`](@ref) nodes whose messages do not read the target's cavity
+([`message_uses_cavity`](@ref)), one sweep is enough: it is the fixed point, and the loop stops
 after one. The report calls it **exact** (`report.exact`) only when nothing approximated: every
 node that sends a message declares [`exact_messages`](@ref), none is a `MixtureReduction` node, and
 no factor received a mixture on one edge and sent on another (it collapses the mixture to its
@@ -675,8 +692,9 @@ function propagate!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, ps
     # `tol = 0` runs to `maxsweeps` unless a sweep changes nothing (MyceliumLearning's adjoint tests).
     rtol >= 0 || throw(ArgumentError("rtol must be non-negative; got $rtol"))
     rtol > 0 && !(tol >= 0) && throw(ArgumentError("with rtol > 0, tol must be non-negative; got $tol"))
-    # Undamped, one tree sweep is exact. Damping keeps part of each stored message, so from a
-    # warm start one sweep is not the fixed point: iterate and check like any schedule.
+    # Undamped, one tree sweep is exact when no message reads the target's cavity. Damping keeps
+    # part of each stored message, so from a warm start one sweep is not the fixed point: iterate
+    # and check like any schedule.
     if sched isa TreeSchedule && iszero(damping) && _tree_exact(g)
         _, st = sweep!(s, g, sched, ps, st; damping)
         why = _inexact_reasons(s, g)

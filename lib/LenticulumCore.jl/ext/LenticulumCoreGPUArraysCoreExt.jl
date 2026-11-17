@@ -16,8 +16,11 @@ LC._precision_isproper(M::Diagonal{T,<:AbstractGPUArray}) where {T} =
     all(x -> isfinite(x) && x > 0, M.diag)
 LC.isuninformative(b::LC.GaussianBelief{<:AbstractGPUArray,<:Diagonal{T,<:AbstractGPUArray}}) where {T} =
     all(iszero,b.Λ.diag) && all(iszero,b.η)
+# The device moment methods go through the same `_improper_check` as the CPU ones: a belief
+# declared improper is a likelihood, and reading its moments or normaliser is an error there too,
+# whatever the numerical precision looks like (I19).
 function LC.belief_cov(b::LC.GaussianBelief{<:AbstractGPUArray,<:Diagonal{T,<:AbstractGPUArray}}) where {T}
-    LC._precision_factor(b.Λ)
+    LC._improper_check(b, "belief_cov")
     return Diagonal(inv.(b.Λ.diag))
 end
 function LC.Gaussian(μ::AbstractGPUArray{T,1}, Σ::Diagonal{S,<:AbstractGPUArray}) where {T,S}
@@ -26,11 +29,11 @@ function LC.Gaussian(μ::AbstractGPUArray{T,1}, Σ::Diagonal{S,<:AbstractGPUArra
     return LC.GaussianBelief(λ .* μ, Diagonal(λ))
 end
 function LC.belief_mean(b::LC.GaussianBelief{<:AbstractGPUArray,<:Diagonal{T,<:AbstractGPUArray}}) where {T}
-    LC._precision_factor(b.Λ)
+    LC._improper_check(b, "belief_mean")
     return b.η ./ b.Λ.diag
 end
 function LC.logpartition(b::LC.GaussianBelief{<:AbstractGPUArray,<:Diagonal{T,<:AbstractGPUArray}}) where {T}
-    LC._precision_factor(b.Λ)
+    LC._improper_check(b, "logpartition")
     return sum(b.η .* (b.η ./ b.Λ.diag))/2 - sum(log, b.Λ.diag)/2 +
            T(LC.dimension(b))*log(T(2)*T(π))/2
 end

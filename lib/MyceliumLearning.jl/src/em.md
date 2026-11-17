@@ -122,3 +122,13 @@ confirmed and fixed:
 
 Codex was tried first. Every model, the configured default included, was refused with "not
 supported when using Codex with a ChatGPT account".
+
+## Detecting an `m_step` with the call site's arguments (I22, 2026-11-17)
+
+`_has_m_step(f)` asked `which(m_step, Tuple{typeof(f), MomentStats, Any, Any})`, so a method
+specialised on the parameter type (`ps::NamedTuple`, say) was invisible — `which` with `Any` for
+those arguments finds only the fallback — and the factor was silently skipped instead of having
+its M-step used. Detection now queries with the concrete parameter tree and freeze list of the call
+(`_has_m_step(f, ps, frozen)`), which is what `m_step` itself will dispatch on. Tests:
+MyceliumLearning `test/m_step_detection.jl` — a typed-parameter extension is detected for its own
+parameter type and not for another, the plain fallback is not.

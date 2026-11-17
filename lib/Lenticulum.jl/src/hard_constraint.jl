@@ -182,7 +182,7 @@ function Mycelium.local_free_energy(f::HardConstraintFactor{names}, msgs, ps, st
     # N = N₀ − G⁺ΔN₀ and tr(G⁺Δ), with Δ the tangent of G (LenticulumCore `extended_gaussian.md`,
     # "Derivatives"). Full row rank is an open condition: no tangent changes it.
     U0, S0, V0, _ = LenticulumCore._value_svd(G)
-    tol = maximum(size(G)) * eps(Float64) * LenticulumCore._scale(S0)
+    tol = maximum(size(G)) * _eps_eltype(eltype(S0)) * LenticulumCore._scale(S0)
     (k >= m && count(>(tol), S0) == m) || throw(ArgumentError(
         "HardConstraintFactor: its $m equations have rank $(count(>(tol), S0)) on the directions its \
          inputs leave free (redundant equations, or equations on directions an input fixes \

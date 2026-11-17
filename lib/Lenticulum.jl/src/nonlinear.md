@@ -229,3 +229,10 @@ linear model: for $f(x) = x^2$ at $x_0 = 0$ it is $\mathcal N(f(x_0), Q)$, altho
 $[0, \infty)$ ([[LP-049 Findings of the review of P28]], probe 7); choose `x0` away from critical points. A partly flat input on $x$ forwards (an extended Gaussian with some flat
 directions) still has no forward path: `_moments` refuses it, as before. Loopy schedules and plates
 with this polarity are not tested.
+
+## The tree shortcut and the cavity (I15, 2026-11-17)
+
+The backward message linearises at the target's cavity, so one tree sweep is not necessarily a
+fixed point even under BP; `NonlinearFactor` now declares `Mycelium.message_uses_cavity(::NonlinearFactor) = true`,
+which keeps such trees off the one-sweep shortcut of `propagate!` (Mycelium `passing.md`). Test:
+`test/i15_nonlinear_tree.jl`.

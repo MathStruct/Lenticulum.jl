@@ -196,8 +196,40 @@ relative_residual(a::GaussianBelief, b::GaussianBelief, atol, rtol) = dimension(
 # Damping is a convex combination of canonical parameters. Legitimate: the PSD cone is
 # convex, so a damped message is still a valid (possibly improper) Gaussian.
 can_damp(::GaussianBelief, ::GaussianBelief) = true
-_damp(a::GaussianBelief, b::GaussianBelief, α::Real) =
-    GaussianBelief(α .* a.η .+ (1 - α) .* b.η, α .* a.Λ .+ (1 - α) .* b.Λ, a.improper && b.improper)
+function _damp(a::GaussianBelief, b::GaussianBelief, α::Real)
+    Λ = α .* a.Λ .+ (1 - α) .* b.Λ
+    return GaussianBelief(α .* a.η .+ (1 - α) .* b.η, Λ, _damped_improper(a, b, Λ))
+end
+
+# Whether a damped pair of sites keeps the improper declaration. A flag says its precision is
+# mathematically singular even when rounding makes it look positive definite, so two flagged
+# sites damp to a proper belief only when their numerical nullspaces are genuinely complementary:
+# each side singular (the flag's claim, visible in the spectrum) and the sum full rank. Two
+# coincident nullspaces, a flag contradicted by a full-rank side, or a singular sum stay improper
+# (I18).
+function _damped_improper(a::GaussianBelief, b::GaussianBelief, Λ)
+    (a.improper && b.improper) || return false
+    n = size(Λ, 1)
+    return !(_rank_deficient(a.Λ, n) && _rank_deficient(b.Λ, n) && !_rank_deficient(Λ, n))
+end
+_rank_deficient(M, n) = _numerical_rank(M) < n
+# The rank of a precision, on its values (`stop_gradient`: a rank has no derivative), with the
+# tolerance of the decomposition's element type — a Float32 precision carries Float32 rounding
+# (I17); duals and anything else keep the Float64 default.
+function _numerical_rank(M::AbstractMatrix)
+    s = LinearAlgebra.svdvals(LenticulumCore.stop_gradient(M))
+    isempty(s) && return 0
+    T = eltype(s)
+    tol = maximum(size(M)) * (T <: AbstractFloat ? eps(T) : eps(Float64)) * first(s)
+    return count(>(tol), s)
+end
+function _numerical_rank(D::LinearAlgebra.Diagonal)
+    d = LenticulumCore.stop_gradient(D.diag)
+    isempty(d) && return 0
+    T = eltype(d)
+    tol = length(d) * (T <: AbstractFloat ? eps(T) : eps(Float64)) * maximum(abs, d)
+    return count(x -> abs(x) > tol, d)
+end
 
 # Product rule for mixture components: the pooled Gaussian and the log of the overlap
 # ∫ p_c p_d. An improper d (a likelihood message exp(ηᵀx − xᵀΛx/2)) has no normaliser; the

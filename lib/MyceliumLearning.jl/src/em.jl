@@ -48,7 +48,11 @@ their values in `ps`. `nothing` (the default) means no closed form: [`em_step`](
 Lenticulum implements it for its constraint factors.
 """
 m_step(factor, stats, ps, frozen) = nothing
-_has_m_step(f) = which(m_step, Tuple{typeof(f),MomentStats,Any,Any}) !== which(m_step, Tuple{Any,Any,Any,Any})
+# Whether `factor` has an `m_step` for the arguments the call site will pass. Asking `which` with
+# `Any` for the parameter and freeze arguments hides methods specialised on their type (I22), so
+# the query is made with the concrete parameter tree and freeze list of the call.
+_has_m_step(f, ps, frozen) =
+    which(m_step, Tuple{typeof(f), MomentStats, typeof(ps), typeof(frozen)}) !== which(m_step, Tuple{Any, Any, Any, Any})
 
 # The statistics of factor i of cluster node c under its belief b.
 function _moment_stats(c::ClusterFactor, i::Int, @nospecialize(F::ClusterForm), b::FrozenClusterBelief)
@@ -173,11 +177,12 @@ function moment_statistics(s::AbstractMessageStore, g::FactorGraph, @nospecializ
     for row in (batched ? _energy_rows(s, g) : _EnergyRow[])
         f1 = g.factors[first(row.fids)]
         alone = !(f1.factor isa ClusterFactor)
-        (LenticulumCore.islearnable(f1.factor) && f1.freeze !== :all && (!alone || _has_m_step(f1.factor))) || continue
+        psn = _subtree(ps, f1.params)
+        (LenticulumCore.islearnable(f1.factor) && f1.freeze !== :all &&
+            (!alone || _has_m_step(f1.factor, psn, LenticulumCore._freeze_paths(f1.freeze)))) || continue
         msgs = _row_messages(s, row)
         msgs === nothing && continue
         cs = [g.factors[i].factor for i in row.fids]
-        psn = _subtree(ps, f1.params)
         B = factor_beliefs(cs, msgs, psn, _subtree(st, f1.params))
         B isa FrozenClusterBeliefs || continue
         if alone
@@ -188,8 +193,8 @@ function moment_statistics(s::AbstractMessageStore, g::FactorGraph, @nospecializ
         end
         c = cs[1]
         for (i, f) in enumerate(c.factors)
-            LenticulumCore.islearnable(f) && _has_m_step(f) || continue
             k = c.keys[i]
+            LenticulumCore.islearnable(f) && _has_m_step(f, _subtree(psn, k), _inner_freeze(f1.freeze, k)) || continue
             _push_stats!(acc, (f1.params, k), f, _moment_stats(c, i, cluster_form(f, _subtree(psn, k)), B), _inner_freeze(f1.freeze, k))
         end
         union!(covered, row.fids)
@@ -203,12 +208,12 @@ function moment_statistics(s::AbstractMessageStore, g::FactorGraph, @nospecializ
             c = fn.factor
             b = factor_belief(c, messages_into(s, g, fn.id), psn, stn)
             for (i, f) in enumerate(c.factors)
-                LenticulumCore.islearnable(f) && _has_m_step(f) || continue
                 k = c.keys[i]
+                LenticulumCore.islearnable(f) && _has_m_step(f, _subtree(psn, k), _inner_freeze(fn.freeze, k)) || continue
                 F = cluster_form(f, _subtree(psn, k))
                 _push_stats!(acc, (fn.params, k), f, _moment_stats(c, i, F, b), _inner_freeze(fn.freeze, k))
             end
-        elseif _has_m_step(fn.factor)
+        elseif _has_m_step(fn.factor, psn, LenticulumCore._freeze_paths(fn.freeze))
             b = factor_belief(fn.factor, messages_into(s, g, fn.id), psn, stn)
             b isa FrozenClusterBelief || continue
             c = as_cluster(fn.factor)

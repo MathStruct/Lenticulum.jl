@@ -690,6 +690,7 @@ end
 
 include("lp018.jl")
 include("lp019.jl")
+include("device_improper.jl")
 include("state_tree.jl")
 include("emit_plan.jl")
 include("forms_crossing.jl")
@@ -701,6 +702,40 @@ include("mixture_reduction.jl")
     a1 = GaussianBelief([1.0], fill(1.0, 1, 1), true); b1 = GaussianBelief([2.0], fill(1.0, 1, 1), true)
     @test !LenticulumCore.isproper(damp(a1, b1, 0.5))
     @test !damp(a1, GaussianBelief([2.0], fill(1.0, 1, 1)), 0.5).improper      # one proper side decides
+end
+
+# I18: two declared-improper sites with complementary nullspaces damp to a proper belief (the sum
+# is positive definite); coincident nullspaces, a flag contradicted by a full-rank side and the
+# damping endpoints keep the declaration. Oracles: the precisions written out, and belief_cov.
+@testset "I18: damping decides properness from the combined support" begin
+    a = GaussianBelief(zeros(2), Diagonal([1.0, 0.0]), true)      # flat along e₂
+    b = GaussianBelief(zeros(2), Diagonal([0.0, 1.0]), true)      # flat along e₁
+    c = damp(a, b, 0.5)
+    @test !c.improper && isproper(c)
+    @test c.Λ ≈ Diagonal([0.5, 0.5]) && belief_cov(c) ≈ 2.0 * Matrix(1.0I, 2, 2)
+    # coincident nullspaces stay improper
+    d = damp(a, GaussianBelief(zeros(2), Diagonal([2.0, 0.0]), true), 0.5)
+    @test d.improper && !isproper(d)
+    @test_throws ArgumentError belief_cov(d)
+    # a flag the spectrum contradicts (full-rank precision, declared improper) is kept: the
+    # nullspace it claims is not visible, so complementarity cannot be verified
+    e = damp(GaussianBelief([1.0], fill(1.0, 1, 1), true), GaussianBelief([2.0], fill(1.0, 1, 1), true), 0.5)
+    @test e.improper && !isproper(e)
+    # endpoints: the damped belief is the flagged side itself, and is improper there
+    @test damp(a, b, 1.0).improper && damp(a, b, 0.0).improper
+    # one proper side: proper, as before
+    @test !damp(a, GaussianBelief(zeros(2), Diagonal([1.0, 1.0])), 0.5).improper
+    # dense (non-diagonal) precisions with complementary nullspaces
+    a2 = GaussianBelief(zeros(2), Diagonal([1.0, 0.0]), true)
+    b2 = GaussianBelief(zeros(2), [0.0 0.0; 0.0 1.0], true)
+    @test !damp(a2, b2, 0.5).improper
+    # Float32 precisions: the rank tolerance is eps(Float32), so a 1e-7 entry counts as zero
+    a32 = GaussianBelief(zeros(Float32, 2), Diagonal(Float32[1, 0]), true)
+    b32 = GaussianBelief(zeros(Float32, 2), Diagonal(Float32[0, 1]), true)
+    @test !damp(a32, b32, 0.5f0).improper
+    a32c = GaussianBelief(zeros(Float32, 2), Diagonal(Float32[1, 1f-8]), true)   # roundoff-level entry
+    b32c = GaussianBelief(zeros(Float32, 2), Diagonal(Float32[2, 1f-8]), true)   # coincident null direction
+    @test damp(a32c, b32c, 0.5f0).improper
 end
 
 @testset "clamps that differ by rounding are one clamp" begin

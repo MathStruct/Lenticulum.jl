@@ -7,6 +7,7 @@ using Test
 include("conformance.jl")
 include("gradient_couplings.jl")
 include("graph_adjoint.jl")
+include("m_step_detection.jl")
 
 # Device (JLArrays) coverage is slow; it runs with LENTICULUM_DEVICE_TESTS=true.
 if get(ENV, "LENTICULUM_DEVICE_TESTS", "false") == "true"

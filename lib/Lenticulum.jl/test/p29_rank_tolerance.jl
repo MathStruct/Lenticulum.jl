@@ -153,3 +153,33 @@ end
     g = NonlinearFactor(y -> [NaN, y[1]], 1 => 2; noise = 0.1)
     @test !all(isfinite, Lenticulum._jacobian(g, [0.3]))
 end
+
+@testset "I17: the rank tolerance follows the element type (Float32 maps)" begin
+    # a Float32 map that is singular up to Float32 rounding: eps(Float64) would call it full rank
+    A32 = Float32[1 2; 2 4]
+    s32 = svdvals(A32)
+    @test rank(A32) == 1 && s32[2] < 2 * eps(Float32) * s32[1]
+    @test Lenticulum._rank_deficient_svd(A32) && Lenticulum._rank_deficient(A32)
+    # the same rounding-level singular value in Float64 arithmetic is real information
+    A64 = Float64[1 2; 2 4 + 2.6e-8]
+    s64 = svdvals(A64)
+    @test s64[2] > 2 * eps(Float64) * s64[1]
+    @test !Lenticulum._rank_deficient(A64)
+    # a full-rank Float32 map stays full rank
+    @test !Lenticulum._rank_deficient(Float32[1 0; 0 1]) && !Lenticulum._rank_deficient(Float32[1 2; 3 4])
+    # rectangular: more columns than rows is always deficient
+    @test Lenticulum._rank_deficient(Float32[1 2 3; 4 5 6])
+    # the public no-input forward message: with flat x and y = A x + noise, the output stays
+    # informative orthogonal to range(A) — for v = [-2, 1]/sqrt(5), v'y carries the noise variance
+    f = GaussianFactor(2 => 2)
+    ps = (A = A32, b = zeros(Float32, 2))
+    msg, _ = Mycelium.factor_message(f, :y, nothing, (x = TrivialBelief(),), nothing, ps, (;))
+    @test !(msg isa TrivialBelief)
+    g = msg isa LenticulumCore.ExtendedGaussian ? GaussianBelief(msg) : msg
+    v = [-2.0, 1.0] / sqrt(5)
+    @test v' * Matrix(g.Λ) * v ≈ 1 / 0.01 rtol = 1e-5          # noise = 0.1, so Q = 0.01 I
+    # the Float64-exact singular map takes the same path (it was never misclassified)
+    msg64, _ = Mycelium.factor_message(f, :y, nothing, (x = TrivialBelief(),), nothing,
+                                      (A = Float64[1 2; 2 4], b = zeros(2)), (;))
+    @test !(msg64 isa TrivialBelief)
+end

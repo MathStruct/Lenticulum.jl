@@ -681,3 +681,18 @@ and `propagate!` reports convergence after 2 sweeps with every mean still at the
 error 1), under the absolute criterion as well. The spanning-tree, Anderson and residual schedules
 are not affected. Fixed by I22 (two quiet sweeps, "Convergence on marginals" above); the
 `@test_broken` in `test/p9_relative_tol.jl` is now its regression test.
+
+## The tree shortcut and cavity-reading messages (I15, 2026-11-17)
+
+The one-sweep shortcut of `propagate!` on a `TreeSchedule` checked only the inference rule. A BP
+`NonlinearFactor` linearises its backward message at the target's cavity, so one collect/distribute
+pass need not be a fixed point, yet the report claimed `converged` after one sweep. The shortcut is
+now restricted to messages guaranteed independent of the target cavity: the new trait
+`message_uses_cavity(factor)` (default `false`, declared `true` by `NonlinearFactor`) is part of
+`_tree_exact`, and a tree with a cavity-reading message is iterated with its residual checked like
+any other graph, so the report distinguishes actual convergence from the shortcut. Follow-ups, not
+done: `DEQFactor` and `DiffusionFactor` (ImplicitLayers, VariationalDiffusion — off the reviewed
+paths) also read the `prior` in their messages and should declare the trait when those packages are
+reviewed. Tests: Lenticulum `test/i15_nonlinear_tree.jl` — another sweep moves the marginal for
+both root choices, the report no longer claims a one-sweep fixed point, and a linear-Gaussian tree
+keeps the one-sweep exact report.

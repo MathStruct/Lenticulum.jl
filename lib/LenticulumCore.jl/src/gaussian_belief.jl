@@ -176,34 +176,35 @@ AdversarialFactors, `ratio.jl`, and existed only with it loaded). See `open_mode
 """
 function belief_mean(b::SampleBelief)
     w = _moment_weights(b)
-    pts = _sample_points(b)
-    acc = zeros(Float64, length(first(pts)))
-    for i in eachindex(pts)
-        acc .+= w[i] .* float.(pts[i])
-    end
-    return acc
+    return vec(_samples_matrix(b) * w)
 end
 
 function belief_cov(b::SampleBelief)
     w = _moment_weights(b)
-    m = belief_mean(b)
-    d = length(m)
-    acc = zeros(Float64, d, d)
-    pts = _sample_points(b)
-    for i in eachindex(pts)
-        r = float.(pts[i]) .- m
-        acc .+= w[i] .* (r * r')
-    end
-    return acc
+    S = _samples_matrix(b)
+    m = vec(S * w)
+    X = S .- m
+    return (X .* w') * X'
 end
+
+# the samples as a matrix, columns one sample: a matrix already is, a vector of vectors or of
+# scalars is one horizontal concatenation (a cat, which both AD backends pull back)
+_samples_matrix(b::SampleBelief) = b.samples isa AbstractMatrix ? b.samples : hcat(b.samples...)
 
 _sample_points(b::SampleBelief) = b.samples isa AbstractMatrix ? eachcol(b.samples) : b.samples
 # divided by the largest weight first, so that weights near floatmax do not overflow the sum.
 # Not Mycelium's `_sample_weights` (messages.jl), which returns uniform weights for all-zero ones;
 # the constructor refuses those, so the difference is not reached (LP-029, F4).
+# The moments are pure reductions (a matrix-vector product and a centred cross-product), so they
+# differentiate under ForwardDiff and Zygote and keep the samples' scalar type: unweighted
+# Float32 samples give Float32 moments, integer samples are floated (I21).
 function _moment_weights(b::SampleBelief)
-    n = length(_sample_points(b))
-    b.weights === nothing && return fill(1 / n, n)
+    pts = _sample_points(b)
+    n = length(pts)
+    p0 = first(pts)
+    T = p0 isa AbstractArray ? eltype(p0) : typeof(p0)
+    F = T <: AbstractFloat ? T : Float64
+    b.weights === nothing && return fill(one(F) / n, n)
     w = float.(b.weights)
     m = maximum(w)
     m > 0 || throw(ArgumentError("all sample weights are zero"))

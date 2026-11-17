@@ -318,8 +318,13 @@ function _rank_deficient_svd(A)
     size(A, 1) < size(A, 2) && return true
     s = LinearAlgebra.svdvals(LenticulumCore.stop_gradient(A))
     isempty(s) && return false
-    return count(>(maximum(size(A)) * eps(Float64) * first(s)), s) < size(A, 2)
+    return count(>(maximum(size(A)) * _eps_eltype(eltype(s)) * first(s)), s) < size(A, 2)
 end
+
+# eps of a decomposition's element type: a Float32 map has Float32 rounding, so its singular
+# values are only trustworthy to eps(Float32) (I17); duals and anything else keep Float64.
+_eps_eltype(::Type{T}) where {T<:AbstractFloat} = eps(T)
+_eps_eltype(::Type) = eps(Float64)
 
 # An input that is informative in some directions and flat in others: a declared-improper or
 # singular Gaussian. (Zero precision is "no input", handled by the callers.)

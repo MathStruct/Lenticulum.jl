@@ -99,8 +99,16 @@ function MyceliumLearning.m_step(f::RegimeFactor, st::MyceliumLearning.MomentSta
     return out
 end
 
-# the fixed output coefficient enters the minimiser (W_F), so tied factors must share it
-MyceliumLearning.m_step_signature(f::Union{LinearConstraintFactor,SwitchingConstraintFactor,RegimeFactor}) = (f.output, f.output_coeff)
+# What of a factor besides its parameters enters its m_step's minimiser, so that tied factors pool
+# their statistics only when these agree: the fixed output coefficient enters the minimiser (W_F),
+# and so does the fixed noise — a common noise precision cancels within one factor's regression but
+# not across tied factors with different ones, where the pooled objective is a different weighted
+# least squares (I16). A learned noise is a parameter, tied through `ps` already, so only the fixed
+# one is listed.
+MyceliumLearning.m_step_signature(f::Union{LinearConstraintFactor,SwitchingConstraintFactor}) = (f.output, f.output_coeff, f.Q)
+MyceliumLearning.m_step_signature(f::RegimeFactor) =
+    f.learn_noise ? (f.output, f.output_coeff) : (f.output, f.output_coeff, f.Q)
+MyceliumLearning.m_step_signature(f::GaussianFactor) = f.noise_learning === nothing ? f.Q : nothing
 
 # --- The Gaussian factors ---------------------------------------------------------------------
 

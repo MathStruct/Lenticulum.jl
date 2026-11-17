@@ -654,3 +654,18 @@ covariance to canonical form once when the replicas share them, and gives every 
 message; otherwise each replica is converted on its own. The covariance is read through
 `noise_covariance(f, ps)`, so a learned covariance is handled; caching the belief in the factor
 would not be. Checked by `test/plates.jl` (the grouped sweep against the sequential one).
+
+## Rank tolerance follows the element type (I17, 2026-11-17)
+
+`_rank_deficient_svd` used `eps(Float64)` for singular values computed in Float32, so a Float32
+map that is singular up to Float32 rounding (e.g. `Float32[1 2; 2 4]`, second singular value
+`6.6e-8`) was called full rank and the no-input forward message dropped the constraint the output
+still carries orthogonal to `range(A)`. The threshold now uses `_eps_eltype(eltype(s))`:
+`eps(Float32)` for Float32 decompositions, `eps(Float64)` otherwise (duals included). The same
+audit fixed `_range_svd` and `_projected_rank` in `constraint.jl` (the projection `Li * At`
+promotes to the wider element type, so its tolerance is that type's) and the rank test of
+`HardConstraintFactor`'s free energy; `exposure.jl` already promotes to Float64 explicitly and
+`LenticulumCore._eig_tol` already uses the element type, so they were left as they are. Tests:
+Lenticulum `test/p29_rank_tolerance.jl`, "I17" — Float32 deficient against a Float64 oracle that
+keeps the same rounding-level singular value, full-rank Float32 maps, and the no-input forward
+message's precision along `[-2, 1]/sqrt(5)`.

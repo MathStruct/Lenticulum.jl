@@ -7,7 +7,7 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-17, after I22 (`:marginals` needs two quiet sweeps), committed on `dev-danielb`, not pushed (everything up to P28 is pushed; P29, P9 and I22 are not).
+**Last updated:** 2026-11-17, after the fixes for the open GitHub issues I15–I22 (one commit on `dev-danielb`, pushed; PR opened). Not run: no Julia in this environment — the suites of all touched packages (LenticulumCore, Mycelium, MyceliumLearning, Lenticulum, and the weekly packages that depend on them) must be run before merge; device tests (`LENTICULUM_DEVICE_TESTS=true`) cover I18/I19.
 
 ## Branches and worktrees
 
@@ -27,6 +27,27 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **I15–I22** (committed, pushed; one PR): fixes for the eight open GitHub issues, each with a
+  regression test and a note beside its source file. **I15** the tree shortcut of `propagate!` now
+  requires `!message_uses_cavity(factor)` (new trait, declared by `NonlinearFactor`), so a nonlinear
+  tree is iterated and its residual checked instead of reporting a one-sweep fixed point.
+  **I16** the fixed noise is part of `m_step_signature`, so tied factors with different fixed noise
+  are refused instead of pooled into a wrong M-step. **I17** rank tolerances use the
+  decomposition's element type (`_eps_eltype`) in `_rank_deficient_svd`, `_range_svd`,
+  `_projected_rank` and the hard-constraint rank test; Float32 maps are no longer misclassified.
+  **I18** damping decides the improper flag from the combined support (`_damped_improper`), on CPU
+  and on device; complementary nullspaces damp to a proper belief. **I19** the device diagonal
+  moment methods go through `_improper_check` like the CPU ones. **I20** the batched per-replica
+  constraint kernel runs only on plain host float arrays; dual coefficients take the per-replica
+  path. **I21** `SampleBelief` moments are pure reductions (cat/matmul/broadcast), differentiable
+  under ForwardDiff and Zygote, scalar-type preserving. **I22** `_has_m_step(f, ps, frozen)` queries
+  `which` with the concrete call-site arguments, so `m_step` methods specialised on the parameter
+  type are seen. Tests added: `sample_moments.jl` (I21), Mycelium `runtests.jl` + `device_improper.jl`
+  (I18/I19), `m_step_detection.jl` (I22), Lenticulum `i15_nonlinear_tree.jl`, `p29_rank_tolerance.jl`
+  (I17), `plate_block_duals.jl` (I20), `em.jl` (I16). Not run here (no Julia): the suites of
+  LenticulumCore, Mycelium, MyceliumLearning, Lenticulum and the weekly packages, plus the device
+  tests. Follow-up noted in `passing.md`: `DEQFactor`/`DiffusionFactor` also read the prior in
+  their messages and should declare `message_uses_cavity` when those packages are reviewed.
 - **I22** (committed): `propagate!(...; criterion = :marginals)` stops only after two sweeps in a row
   within the bound (`:messages` still after one). Flooding's second sweep from an empty store changes
   only messages to factors, so one quiet sweep stopped the loopy divider with every mean at the prior.

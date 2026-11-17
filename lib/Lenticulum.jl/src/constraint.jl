@@ -410,7 +410,7 @@ function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{na
     others = _other_channels(Val(names), Val(target))
     parts = map(c -> (c, _block_parts(_get(inputs, c), f.dims[c], n)), others)
     same = all(h -> h === f || (isequal(h.Q, f.Q) && h.dims == f.dims), fs)
-    if same && any(p -> p[2] === nothing, parts)
+    if same && any(p -> p[2] === nothing, parts) && _plain_batch_arrays(_coeffs(fs[1], ps), ps.c, f.Q, inputs)
         # inputs with a precision per replica (EP sites, L-SPEC-006 §8.4): one loop, no belief objects
         out = _linear_block_each(_coeffs(fs[1], ps), float.(ps.c), f.Q, target, others, inputs, f.dims, n)
         out === nothing || return out, st
@@ -438,6 +438,21 @@ function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{na
     H = (K * c) .- H
     return Mycelium.GaussianBlock(H, Λ, fill(improper, n)), st
 end
+
+# The batched per-replica kernel materialises Float64 coefficients, constants and accumulators
+# (`_linear_block_each` and friends), so it runs only when every array it touches is a plain host
+# float array (I20). Dual coefficients — an AD parameter — or device arrays take the per-replica
+# path below instead, which preserves their scalar types.
+_plain_batch_arrays(A, c, Q, inputs) =
+    _plain_floats(A) && _plain_floats(c) && _plain_floats(Q) && all(_plain_block, values(inputs))
+_plain_floats(x::AbstractArray) = x isa Array && eltype(x) <: AbstractFloat
+_plain_floats(x::AbstractArray{<:AbstractArray}) = x isa Array && all(_plain_floats, x)   # per-replica precisions
+_plain_floats(x::NamedTuple) = all(_plain_floats, values(x))
+_plain_floats(x::Tuple) = all(_plain_floats, x)
+_plain_floats(x) = false
+_plain_block(b::Mycelium.PointBlock) = _plain_floats(b.X)
+_plain_block(b::Mycelium.GaussianBlock) = _plain_floats(b.η) && _plain_floats(b.Λ)
+_plain_block(b) = true                    # TrivialBlock and friends: no array to convert
 
 # The messages of tied replicas whose inputs have a precision per replica: points, and proper
 # Gaussian blocks with a shared or a per-replica precision; no flat directions (those take the
@@ -572,7 +587,7 @@ _range_complement(B) = throw(ArgumentError(
      (P25); it has $(eltype(B))"))
 function _range_svd(B)
     F = LinearAlgebra.svd(B; full = true)
-    tol = maximum(size(B)) * eps(Float64) * maximum(F.S; init = 0.0)
+    tol = maximum(size(B)) * _eps_eltype(eltype(F.S)) * maximum(F.S; init = 0.0)
     return F, count(>(tol), F.S)
 end
 
@@ -583,7 +598,10 @@ function _projected_rank(Ta, LiAt)
     s = LinearAlgebra.svdvals(LenticulumCore.stop_gradient(Ta))
     isempty(s) && return 0
     scale = maximum(LinearAlgebra.svdvals(LenticulumCore.stop_gradient(LiAt)))
-    return count(>(maximum(size(LiAt)) * eps(Float64) * scale), s)
+    # the projection `Li * At` promotes to the wider of the two element types, so its rounding is
+    # at that type's eps (I17)
+    T = promote_type(eltype(s), eltype(LiAt))
+    return count(>(maximum(size(LiAt)) * _eps_eltype(T) * scale), s)
 end
 
 """

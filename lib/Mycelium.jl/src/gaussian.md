@@ -283,3 +283,18 @@ Tested in `test/mixture_reduction.jl` with Mycelium and LenticulumCore only: on 
 moment-matched Gaussian at one, and otherwise the requested number of components with the total mean
 and covariance kept to $10^{-10}$. Mistral compared the moved functions with the code before the move on
 40 random mixtures and found them identical ([[LP-029 Findings of the review of P17 and P18]]).
+
+## Damping and the improper flag (I18, 2026-11-17)
+
+`_damp` combined the metadata as `a.improper && b.improper`, so two improper sites with
+complementary nullspaces — whose weighted precision sum is positive definite — kept the result
+improper and `belief_cov` refused it. The flag of a damped pair is now decided from the combined
+support (`_damped_improper`): when both sides are flagged, the result is proper only if each
+precision is numerically rank-deficient (the flag's claim, visible in the spectrum) and the sum is
+full rank; coincident nullspaces, a flag contradicted by a full-rank side, and a singular sum stay
+improper, and the endpoints reduce to the flagged side's own. The rank is computed on values
+(`stop_gradient`) with the tolerance of the decomposition's element type (`_numerical_rank`), so
+a Float32 precision is judged at `eps(Float32)`. The device `_damp` (diagonal precisions) applies
+the same rule through reductions only. Tests: `test/runtests.jl`, "I18" (complementary, coincident,
+contradicted flags, endpoints, dense and diagonal precisions, Float32), and
+`test/device_improper.jl` under `LENTICULUM_DEVICE_TESTS=true`.

@@ -251,3 +251,45 @@ end
     fw = GaussianFactor(2 => 3; noise = 1.0, learn_noise = true, noise_prior = WishartPrecisionPrior(5.0, Matrix(1.0I, 3, 3)))
     @test_throws ArgumentError cluster_form(fw, LuxCore.initialparameters(Xoshiro(1), fw))
 end
+
+@testset "EM: tied factors with different fixed noise are not pooled (I16)" begin
+    # A common noise precision cancels within one factor's M-step, but not across tied factors:
+    # pooling their statistics unweighted and solving one regression moved c from the optimum
+    # 10/101 to 5 and raised the free energy. The fixed noise is now part of `m_step_signature`,
+    # so the incompatible tie is refused before pooling.
+    b = GraphBuilder()
+    for (i, (y, q)) in enumerate(((0.0, 1.0), (10.0, 100.0)))
+        v = Symbol(:x, i); fn = Symbol(:f, i); dn = Symbol(:d, i)
+        variable!(b, v, 1)
+        f = LinearConstraintFactor((x = 1,), 1; noise = q, output = :x)
+        factor!(b, fn, Mycelium.as_cluster(f); params = :shared)
+        connect!(b, fn, :x, v)
+        factor!(b, dn, DataFactor(:x, [y])); connect!(b, dn, :x, v; direction = Emitting())
+    end
+    g = build(b); sched = SequentialSchedule(all_tasks(g))
+    ps = (shared = (factor = (A = (;), c = [10 / 101]),),)
+    s = MessageStore(g); st = (;)
+    for _ in 1:3
+        sweep!(s, g, sched, ps, st)
+    end
+    @test_throws r"differ in fixed structure" em_step(s, g, ps, st)
+    # tied factors that do share the fixed noise still pool, and the M-step is the joint optimum
+    # of 0.5*((0-c)^2 + (10-c)^2)/1, which is c = 5
+    b2 = GraphBuilder()
+    for (i, y) in enumerate((0.0, 10.0))
+        v = Symbol(:x, i); fn = Symbol(:f, i); dn = Symbol(:d, i)
+        variable!(b2, v, 1)
+        f = LinearConstraintFactor((x = 1,), 1; noise = 1.0, output = :x)
+        factor!(b2, fn, Mycelium.as_cluster(f); params = :shared)
+        connect!(b2, fn, :x, v)
+        factor!(b2, dn, DataFactor(:x, [y])); connect!(b2, dn, :x, v; direction = Emitting())
+    end
+    g2 = build(b2)
+    ps2 = (shared = (factor = (A = (;), c = [0.0]),),)
+    s2 = MessageStore(g2)
+    for _ in 1:3
+        sweep!(s2, g2, SequentialSchedule(all_tasks(g2)), ps2, (;))
+    end
+    ps2m = em_step(s2, g2, ps2, (;))
+    @test ps2m.shared.factor.c ≈ [5.0]
+end

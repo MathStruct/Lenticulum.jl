@@ -56,8 +56,11 @@ end
 function M._damp(a::GaussianBelief{<:AbstractGPUArray,<:Diagonal{T,<:AbstractGPUArray}},
         b::GaussianBelief{<:AbstractGPUArray,<:Diagonal{S,<:AbstractGPUArray}}, α::Real) where {T,S}
     w = convert(T, α)
-    return GaussianBelief(w .* a.η .+ (one(w) - w) .* b.η,
-        Diagonal(w .* a.Λ.diag .+ (one(w) - w) .* b.Λ.diag), a.improper && b.improper)
+    η = w .* a.η .+ (one(w) - w) .* b.η
+    d = w .* a.Λ.diag .+ (one(w) - w) .* b.Λ.diag
+    # the same combined-support properness rule as on the CPU (I18); `_numerical_rank` of a
+    # Diagonal reads its entries with reductions only, so it stays device-safe
+    return GaussianBelief(η, Diagonal(d), M._damped_improper(a, b, Diagonal(d)))
 end
 function M.variable_entropy(b::GaussianBelief{<:AbstractGPUArray,<:Diagonal{T,<:AbstractGPUArray}}) where {T}
     isproper(b) || throw(ArgumentError("variable_entropy requires a proper Gaussian message"))
