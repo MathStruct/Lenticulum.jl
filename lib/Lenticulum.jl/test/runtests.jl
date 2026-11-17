@@ -308,7 +308,7 @@ end
     @test LuxCore.parameterlength(f) == 6 + 3
     @test LenticulumCore.islearnable(f)
     @test !LenticulumCore.isunidirectional(f)      # bidirectional: it is a relation
-    @test length(LenticulumCore.supported_polarities(f)) == 2
+    @test length(LenticulumCore.supported_polarities(f)) == 3
     @test !Mycelium.issink(f)
 
     # both polarities are supported; neither is privileged
@@ -316,6 +316,9 @@ end
     bwd = LenticulumCore.Polarity(; x = Unobserved(), y = Observed())
     @test LenticulumCore.supports_polarity(f, fwd)
     @test LenticulumCore.supports_polarity(f, bwd)
+    # P3: forwards with x latent (no input) is supported; backwards with y latent is not
+    @test LenticulumCore.supports_polarity(f, LenticulumCore.Polarity(; x = Latent(), y = Unobserved()))
+    @test !LenticulumCore.supports_polarity(f, LenticulumCore.Polarity(; x = Unobserved(), y = Latent()))
 
     # assemble really produces a lens (the operation with no Lux counterpart)
     lens, _ = LenticulumCore.assemble(f, fwd, ps, st)
@@ -1336,6 +1339,7 @@ include("hard_constraint.jl")
 include("hard_plates.jl")
 
 include("extended_inputs.jl")
+include("p3_no_input.jl")
 include("extended_plates.jl")
 include("mixture_extended.jl")
 include("forms_crossing.jl")

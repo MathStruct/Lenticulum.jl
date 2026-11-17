@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-17, after P5 (`HardConstraintFactor`'s free energy with a singular noise), committed on `dev-danielb`, not pushed.
+**Last updated:** 2026-11-17, after P3 (`GaussianFactor`'s exact forward message with no input on $x$), committed on `dev-danielb`, not pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P2, P6, P27 and P5 committed. Not pushed |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `d494fd73` with the P5 diff (before the F1 fix) applied; Mistral's probes in `scratch/p5/` (copied to `../Lenticulum.jl-Review-2026-11-17/p5/`); its environment `scratch/p6env` (packages developed from the worktree, plus ForwardDiff, Zygote, Test) serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P2, P6, P27, P5 and P3 committed. Not pushed |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `0ca25bcd` with the P3 diff (before the F1 fix) applied; Mistral's probes in `scratch/p3/` (copied to `../Lenticulum.jl-Review-2026-11-17/p3/`); its environment `scratch/p6env` (packages developed from the worktree, plus ForwardDiff, Zygote, Test) serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -27,21 +27,21 @@ DifferentiationInterface, then `julia -t auto --project=<env> -e 'include("lib/L
 
 ## Done last
 
-- **P5** (committed): `HardConstraintFactor`'s free energy with a singular nonzero noise, exact along
-  its null space and soft along its range (the soft part joins the inputs' precision; the exact part
-  is the noise-free term). The noise is split at `_eig_tol`. Details in [[hard_constraint]] "Free energy
-  with a singular noise" and [[Backlog Done 2026-11]].
-- Review: [[LP-047 Findings of the review of P5]] (Mistral; no defect in the new code; F1, a flat factor
-  belief accepted by `_reduced_residual_statistics` in `constraint.jl`, shared with
-  `LinearConstraintFactor`, fixed: it now refuses a precision below `_eig_tol`).
-- Verified: the Lenticulum suite passes after the F1 fix (logs in `~/.cache/lenticulum/p5/`). No other
-  package changed and none depends on Lenticulum, so no other suite was run. Vault build and
-  `docs/make.jl` not run.
+- **P3** (committed): a `GaussianFactor` whose input $x$ carries no information (no message,
+  `TrivialBelief()`, zero precision, a mixture of uninformative components) sends the exact forward
+  message, flat along $\operatorname{range}(A)$ and fixed off it (`_no_input_forward`, through the
+  flat path). `GaussianFactor` supports the polarity $x$ `Latent()`, $y$ the target, so Mycelium calls
+  it when $x$ has no message. Details in [[lib/Lenticulum.jl/src/gaussian|gaussian]] "No input on x" and [[Backlog Done 2026-11]].
+- Review: [[LP-048 Findings of the review of P3]] (Mistral; no defect in the new code; F1, a mixture of
+  uninformative components threw in `moment_match`, older than P3, fixed).
+- Verified: the Lenticulum suite passes (logs in `~/.cache/lenticulum/p3/`). No other package
+  changed and none depends on Lenticulum. Vault build and `docs/make.jl` not run. Not measured: the
+  effect on loopy schedules; plates of `GaussianFactor`s with an empty input untested.
 
 ## Next
 
 No row is set; pick one with the maintainer. Close to P5: a learned noise with hard messages (refused in
-`GaussianFactor`/`GaussianPrior`), P3 (`TrivialBelief()` on the exact flat path), a residual-space
+`GaussianFactor`/`GaussianPrior`), the same no-input forward message for `NonlinearFactor` (P28), a residual-space
 formulation of the positive definite path for nearly singular noise (LP-047 finding 4; no row yet).
 Left open by P27 (no rows yet): the Bethe free energy with a mixture marginal under BP (no
 `variable_entropy` for mixtures, Gaussian ones included), derivatives through the new rules, two
@@ -96,4 +96,4 @@ extended components with hard directions.
   file with four of them at the 100-turn limit (\$0): one right finding; its fifth probe's reference lost
   digits at 1e6 (a false report): check a reviewer's reference before its claim. On P5 the same brief: four probes, the answer file
   records only the first, no summary (\$0); the maintainer ran the rest (one probe needed a one-line repair)
-  and probe 2's properness check found F1.
+  and probe 2's properness check found F1. On P3 the first run crashed inside vibe on its first command (a validation error of its own); the rerun reached 100 turns with only probe 1 in the answer file: run its later probes yourself.

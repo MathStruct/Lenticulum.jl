@@ -297,9 +297,8 @@ so a hard relation could not share a variable with them. Four methods do it:
 - `_partly_flat(b::ExtendedGaussian)` is true for **any** flat direction, also when it is flat
   everywhere, so `GaussianFactor` computes that message exactly. With $n_{\text{in}} < n_{\text{out}}$
   an everywhere-flat input on $x$ still fixes $y$ off $\operatorname{range}(A)$, up to the noise.
-  The `TrivialBelief()` input (no message) keeps the old shortcut, which returns `TrivialBelief()`
-  and drops that information. Whether it should also take the exact path is a row of the
-  [[Feature Backlog]]: it changes the first sweep of every schedule.
+  The `TrivialBelief()` input (no message) kept the old shortcut, which returned `TrivialBelief()`
+  and dropped that information, until P3 ("No input on x" below).
 - `_canon(b::ExtendedGaussian, n)`, for the free energy, goes through `GaussianBelief(b)`: zero
   precision along flat directions, and an `ArgumentError` for hard ones, which have no canonical
   form (the entropy row of the backlog). `_mf_split` takes it for mean-field nodes.
@@ -346,6 +345,59 @@ Two limits found on the way, `@test_broken` in that file:
 
 Not checked: extended inputs to `NonlinearFactor` with a partly flat cavity, which `_expansion`
 refuses through `_moments`.
+
+## No input on x (P3, 2026-11-17)
+
+**Theory.** With nothing known about $x$, the relation $y = Ax + b + \varepsilon$ still says
+something about $y$: $x$ integrated out under a flat prior (the limit $\tau \to \infty$ of
+$\mathcal N(0, \tau I)$) leaves $y$ flat along $\operatorname{range}(A)$ and Gaussian off it. With
+$U$ an orthonormal basis of $\operatorname{null}(A^\top)$ the message is
+
+$$
+\Lambda = U (U^\top Q U)^{-1} U^\top, \qquad \eta = \Lambda b,
+$$
+
+of rank $n_{\text{out}} - \operatorname{rank}(A)$: informative whenever $A$ is short of full row
+rank, as for every $A$ with $n_{\text{in}} < n_{\text{out}}$. The message backwards with no input
+on $y$ is `TrivialBelief()` exactly, since every column of $A$ is reachable.
+
+**Implementation.** Two changes.
+
+- `_message` and `_gradient_message` send a forward message whose input carries no information (no
+  message, `TrivialBelief()`, a zero precision, a mixture whose every component carries no
+  information, which `_moments` now reports as no input instead of passing it to `moment_match`) through
+  `_no_input_forward`, which takes the flat path of the relation factors (`_flat_message`,
+  `constraint.md` §4.1; `_split_moments` already made such an input `_flat_part(n)`). A square $A$ of
+  full rank is answered `TrivialBelief()` by the memoised rank test, without the flat path. Before,
+  these inputs returned `TrivialBelief()`; an everywhere-flat `ExtendedGaussian` already took the flat
+  path, so the two forms of "no information" now agree.
+- In a graph, Mycelium does not call the factor when no input is informative unless the factor
+  supports the resulting polarity (`_make_plan`, `passing.jl`): $x$ `Latent()`, $y$ the target. So
+  `GaussianFactor` now supports that polarity (and lists it in `supported_polarities`), as
+  `LinearConstraintFactor` supports every polarity with one target. The mirror, $y$ latent and $x$
+  the target, stays unsupported: its message is `TrivialBelief()`, which Mycelium sends for it anyway.
+
+**Measured** (`test/p3_no_input.jl`): 80 random factors with $n_{\text{in}}, n_{\text{out}} \in 1{:}4$
+and random rank (deficient ones included), seven forms of the empty input (two of them mixtures,
+which threw in `moment_match` until the review, [[LP-048 Findings of the review of P3]]),
+`factor_message` and `_gradient_message`: 1120 messages, all equal to the closed form above (through `GaussianBelief` of
+the extended message) to $10^{-8}$ relative, `TrivialBelief()` exactly when $U$ is empty. A graph
+of $x$ with no other factor, a `GaussianFactor` and a prior on $y$ (20 instances,
+$n_{\text{in}} < n_{\text{out}}$): the marginal of $y$ under `infer!` with a tree schedule matches the
+dense posterior with $x \sim \mathcal N(0, \tau I)$, $\tau = 10^{30}$ in `BigFloat`, to $10^{-8}$
+relative. Before the change every one of those 20 marginals was the prior alone.
+
+**What changes for existing schedules.** In the first sweep of a schedule a `GaussianFactor` whose
+input has no message yet now sends an informative message to $y$ when $A$ is not of full row rank,
+where it sent `TrivialBelief()`. The fixed point of a tree is unchanged (the later message replaces
+it); a loopy schedule may take a different path to its fixed point (an expectation, not measured).
+Measured on the existing tests: the whole Lenticulum suite passes with the change, and the only
+assertion that had to change was the count of `GaussianFactor`'s polarities (2 → 3, `runtests.jl`).
+
+**Does not do.** A `NonlinearFactor` with no input still sends `TrivialBelief()`. A plate of
+`GaussianFactor`s with an empty input is not tested (it has no block method, so the replicas go one
+by one). The free energy of a `GaussianFactor` whose $x$ has no
+information is not covered (no entropy for a flat marginal; the entropy row of the backlog).
 
 ## Improper messages as extended Gaussians (2026-11-11)
 

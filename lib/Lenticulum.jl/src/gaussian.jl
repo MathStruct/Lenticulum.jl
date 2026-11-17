@@ -97,17 +97,23 @@ LenticulumCore.channels(f::GaussianFactor) = (
     LenticulumCore.Channel(f.in_channel, f.nin),
     LenticulumCore.Channel(f.out_channel, f.nout),
 )
+# The third polarity, x `Latent()` and y the target, is the forward message with no input on x:
+# x integrated out under a flat prior, which still fixes y off range(A) (P3; gaussian.md, "No input
+# on x"). Its mirror (y latent, x the target) is not supported: that message is always
+# `TrivialBelief()`, which Mycelium sends for an unsupported polarity anyway.
 function LenticulumCore.supported_polarities(f::GaussianFactor)
-    O, U = LenticulumCore.Observed(), LenticulumCore.Unobserved()
+    O, U, L = LenticulumCore.Observed(), LenticulumCore.Unobserved(), LenticulumCore.Latent()
     ks = (f.in_channel, f.out_channel)
     return (LenticulumCore.Polarity(NamedTuple{ks}((O, U))),
-            LenticulumCore.Polarity(NamedTuple{ks}((U, O))))
+            LenticulumCore.Polarity(NamedTuple{ks}((U, O))),
+            LenticulumCore.Polarity(NamedTuple{ks}((L, U))))
 end
 function LenticulumCore.supports_polarity(f::GaussianFactor, p::LenticulumCore.Polarity)
     keys(p) == (f.in_channel, f.out_channel) || return false
     pi_, po = p[f.in_channel], p[f.out_channel]
     return (pi_ isa LenticulumCore.Observed && po isa LenticulumCore.Unobserved) ||
-           (pi_ isa LenticulumCore.Unobserved && po isa LenticulumCore.Observed)
+           (pi_ isa LenticulumCore.Unobserved && po isa LenticulumCore.Observed) ||
+           (pi_ isa LenticulumCore.Latent && po isa LenticulumCore.Unobserved)
 end
 LenticulumCore.islearnable(::GaussianFactor) = true
 
@@ -262,7 +268,7 @@ function _message(f::GaussianFactor, target::Symbol, inputs, ps, st)
         src = _get(inputs, f.in_channel)
         _partly_flat(src) && return _flat_message(f, target, f.in_channel, f.nin, src, ps, st)
         m, S = _moments(src, f.nin)
-        m === nothing && return (LenticulumCore.TrivialBelief(), st)
+        m === nothing && return _no_input_forward(f, src, ps, st)
         Σ = A * S * A' + noise_covariance(f, ps)
         Λ = _spd_inv(Σ, "ASAᵀ + Q")
         return (GaussianBelief(Λ * (A * m .+ b), Λ), st)
@@ -320,9 +326,9 @@ end
 _partly_flat(b) = false
 _partly_flat(b::GaussianBelief) = !all(iszero, b.Λ) && !isproper(b)
 # An extended Gaussian with any flat direction takes the flat path, also when it is flat
-# everywhere: with nin < nout the exact forward message still fixes y off range(A), which the
-# `TrivialBelief()` shortcut of `_moments` (no input, no message) gives up (gaussian.md,
-# "Extended Gaussian inputs").
+# everywhere: with nin < nout the exact forward message still fixes y off range(A) (gaussian.md,
+# "Extended Gaussian inputs"). Inputs with no information of other forms reach the same path
+# through `_no_input_forward` (P3).
 _partly_flat(b::LenticulumCore.ExtendedGaussian) = size(b.D, 2) > 0
 
 # The message for a partly flat input, through the relation −A x + y = b + ε and the
@@ -331,6 +337,18 @@ _partly_flat(b::LenticulumCore.ExtendedGaussian) = size(b.D, 2) > 0
 function _flat_message(f::GaussianFactor, target, other, dim, src, ps, st)
     return _linear_message(_gaussian_blocks(f, ps), float.(ps.b), noise_covariance(f, ps), target,
                            [(other, _split_moments(src, dim))], st)
+end
+
+# The forward message when x carries no information (no message, `TrivialBelief()`, zero
+# precision, an everywhere-flat input): x is integrated out under a flat prior, so y is flat along
+# range(A) and still fixed off it, up to the noise (P3; gaussian.md, "No input on x"). The flat path
+# computes that; it gives `TrivialBelief()` when A has full row rank. A square A of full rank is
+# answered without it, by the memoised rank test. The backward message with no input on y is
+# `TrivialBelief()` exactly (A's columns are all reachable), so it keeps the shortcut.
+function _no_input_forward(f::GaussianFactor, src, ps, st)
+    A = ps.A
+    size(A, 1) == size(A, 2) && !_rank_deficient(A) && return (LenticulumCore.TrivialBelief(), st)
+    return _flat_message(f, f.out_channel, f.in_channel, f.nin, src, ps, st)
 end
 
 _get(inputs, k) = haskey(inputs, k) ? getfield(inputs, k) : nothing
@@ -352,7 +370,7 @@ function MyceliumLearning._gradient_message(ad, f::GaussianFactor, target::Symbo
     end
     if target === f.out_channel
         m,S=_moments(_get(inputs,f.in_channel),f.nin)
-        m === nothing && return LenticulumCore.TrivialBelief(),st
+        m === nothing && return _no_input_forward(f, _get(inputs, f.in_channel), ps, st)
         V=ps.A*S*ps.A'+noise_covariance(f,ps)
         Λ=inv(Symmetric(V))
         return GaussianBelief(Λ*(ps.A*m+ps.b),Λ),st
@@ -376,8 +394,12 @@ end
 # A Gaussian mixture is collapsed to its total mean and covariance (`moment_match`, the projection
 # step of assumed-density filtering). The message is then exact for the collapsed input, not for
 # the mixture: an approximation, documented in `gaussian.md` §"Mixture inputs".
-_moments(b::LenticulumCore.MixtureBelief{<:GaussianBelief}, n) = _moments(moment_match(b), n)
-_moments(b::LenticulumCore.MixtureBelief{<:LenticulumCore.ExtendedGaussian}, n) = _moments(moment_match(b), n)
+# A mixture whose every component carries no information (zero precision, flat everywhere) is no
+# input, whatever its weights; `moment_match` refuses such components (LP-048 F1).
+_moments(b::LenticulumCore.MixtureBelief{<:GaussianBelief}, n) =
+    all(c -> all(iszero, c.Λ), b.components) ? (nothing, nothing) : _moments(moment_match(b), n)
+_moments(b::LenticulumCore.MixtureBelief{<:LenticulumCore.ExtendedGaussian}, n) =
+    all(c -> (_check_dim(c, n); size(c.D, 2) == n), b.components) ? (nothing, nothing) : _moments(moment_match(b), n)
 # An extended Gaussian without flat directions is its moments (Σ singular along its hard
 # directions, which the noise of every relation factor covers); everywhere flat it carries no
 # information. Partly flat ones go through `_split_moments` (callers test `_partly_flat` first).
