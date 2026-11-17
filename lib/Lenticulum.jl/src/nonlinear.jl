@@ -66,10 +66,12 @@ in one graph.
 - `jacobian(x)` is ``\\partial f/\\partial x`` (an `nout × nin` matrix); without it, central
   differences. The package depends on no AD backend; pass e.g.
   `x -> ForwardDiff.jacobian(f, x)` for an exact one.
-- `x0` is the expansion point used when a backward message is asked for before anything is
-  known about `x` (no cavity belief). Without it such a message is uninformative.
+- `x0` is the expansion point used when nothing is known about `x`: for a backward message with
+  no cavity belief, and for a forward message with no input on `x` (the linear model at `x0` with
+  `x` flat, which fixes `y` off the tangent plane of `f`'s image). Without it such messages are
+  uninformative.
 
-Both polarities are supported, like `GaussianFactor`. It has no parameters (`f` is fixed).
+Both polarities are supported, like `GaussianFactor`; with `x0` also `x` `Latent()`, `y` the target. It has no parameters (`f` is fixed).
 Messages are approximate (`SolverInversion` marks that), exact when `f` is affine.
 """
 struct NonlinearFactor{F,J,Qm<:AbstractMatrix,M,X} <: LenticulumCore.AbstractLenticulumFactor
@@ -108,17 +110,22 @@ LenticulumCore.channels(f::NonlinearFactor) = (
     LenticulumCore.Channel(f.in_channel, f.nin),
     LenticulumCore.Channel(f.out_channel, f.nout),
 )
+# With an expansion point `x0`, also x `Latent()` and y the target: the forward message with no
+# input on x, that of the linearisation at x0 (P28; nonlinear.md, "No input on x"). Without x0 that
+# message is `TrivialBelief()`, which Mycelium sends for an unsupported polarity anyway.
 function LenticulumCore.supported_polarities(f::NonlinearFactor)
-    O, U = LenticulumCore.Observed(), LenticulumCore.Unobserved()
+    O, U, L = LenticulumCore.Observed(), LenticulumCore.Unobserved(), LenticulumCore.Latent()
     ks = (f.in_channel, f.out_channel)
-    return (LenticulumCore.Polarity(NamedTuple{ks}((O, U))),
-            LenticulumCore.Polarity(NamedTuple{ks}((U, O))))
+    two = (LenticulumCore.Polarity(NamedTuple{ks}((O, U))),
+           LenticulumCore.Polarity(NamedTuple{ks}((U, O))))
+    return f.x0 === nothing ? two : (two..., LenticulumCore.Polarity(NamedTuple{ks}((L, U))))
 end
 function LenticulumCore.supports_polarity(f::NonlinearFactor, p::LenticulumCore.Polarity)
     keys(p) == (f.in_channel, f.out_channel) || return false
     pi_, po = p[f.in_channel], p[f.out_channel]
     return (pi_ isa LenticulumCore.Observed && po isa LenticulumCore.Unobserved) ||
-           (pi_ isa LenticulumCore.Unobserved && po isa LenticulumCore.Observed)
+           (pi_ isa LenticulumCore.Unobserved && po isa LenticulumCore.Observed) ||
+           (f.x0 !== nothing && pi_ isa LenticulumCore.Latent && po isa LenticulumCore.Unobserved)
 end
 LenticulumCore.islearnable(::NonlinearFactor) = false
 LenticulumCore.energyspace(::NonlinearFactor) = LenticulumCore.energyspace(GaussianFactor(1 => 1))
@@ -234,8 +241,9 @@ Mycelium.factor_message(f::NonlinearFactor, target::Symbol, polarity, inputs, pr
 
 function _nl_message(f::NonlinearFactor, target::Symbol, inputs, prior)
     if target === f.out_channel
-        m, S = _moments(_get(inputs, f.in_channel), f.nin)
-        m === nothing && return LenticulumCore.TrivialBelief()
+        src = _get(inputs, f.in_channel)
+        m, S = _moments(src, f.nin)
+        m === nothing && return _nl_no_input_forward(f, src)
         A, b, Ω = linearize(f, m, S)
         Λ = _spd_inv(A * S * A' + Ω + f.Q, "ASAᵀ + Ω + Q")
         return GaussianBelief(Λ * (A * m .+ b), Λ)
@@ -253,6 +261,21 @@ function _nl_message(f::NonlinearFactor, target::Symbol, inputs, prior)
         return _likelihood(f, my, Sy, x̄, P)
     end
     throw(ArgumentError("channel :$target is not a channel of this NonlinearFactor"))
+end
+
+# The forward message when x carries no information (P28; nonlinear.md, "No input on x"): a flat x
+# gives no point to linearise at, so the factor's `x0` is used, and the message is `GaussianFactor`'s
+# exact one for the linear model there (P3): y flat along range(A), fixed off it up to the noise.
+# The unscented transform of a point is the Jacobian (`_linearize` with S = 0), so both methods
+# agree. Without x0 nothing is known about where f is evaluated: `TrivialBelief()`, as before.
+# A square A of full rank is answered without the flat path; the rank test is the unmemoised one,
+# because A is a fresh array on every call and would only fill the memo of `_rank_deficient`.
+function _nl_no_input_forward(f::NonlinearFactor, src)
+    f.x0 === nothing && return LenticulumCore.TrivialBelief()
+    A, b, Ω = linearize(f, f.x0, zeros(f.nin, f.nin))
+    size(A, 1) == size(A, 2) && !_rank_deficient_svd(A) && return LenticulumCore.TrivialBelief()
+    g = GaussianFactor(f.nin, f.nout, f.in_channel, f.out_channel, f.Q .+ Ω, nothing, nothing)
+    return first(_flat_message(g, f.out_channel, f.in_channel, f.nin, src, (A = A, b = b), nothing))
 end
 
 function _likelihood(f, my, Sy, x̄, P)

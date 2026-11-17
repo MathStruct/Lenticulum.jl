@@ -394,7 +394,8 @@ it); a loopy schedule may take a different path to its fixed point (an expectati
 Measured on the existing tests: the whole Lenticulum suite passes with the change, and the only
 assertion that had to change was the count of `GaussianFactor`'s polarities (2 → 3, `runtests.jl`).
 
-**Does not do.** A `NonlinearFactor` with no input still sends `TrivialBelief()`. A plate of
+**Does not do.** A `NonlinearFactor` with no input sends this message for its linearisation at
+`x0`, and `TrivialBelief()` without `x0` (P28, [[lib/Lenticulum.jl/src/nonlinear|nonlinear]] "No input on x"). A plate of
 `GaussianFactor`s with an empty input is not tested (it has no block method, so the replicas go one
 by one). The free energy of a `GaussianFactor` whose $x$ has no
 information is not covered (no entropy for a flat marginal; the entropy row of the backlog).

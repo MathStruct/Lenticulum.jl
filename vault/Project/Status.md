@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-17, after P3 (`GaussianFactor`'s exact forward message with no input on $x$), committed on `dev-danielb`, not pushed.
+**Last updated:** 2026-11-17, after P28 (`NonlinearFactor`'s forward message with no input on $x$, at `x0`), committed on `dev-danielb`, not pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P2, P6, P27, P5 and P3 committed. Not pushed |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `0ca25bcd` with the P3 diff (before the F1 fix) applied; Mistral's probes in `scratch/p3/` (copied to `../Lenticulum.jl-Review-2026-11-17/p3/`); its environment `scratch/p6env` (packages developed from the worktree, plus ForwardDiff, Zygote, Test) serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P2, P6, P27, P5, P3 and P28 committed. Not pushed |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `cd22f574` with the P28 diff applied; Mistral's probes in `scratch/p28/` (copied to `../Lenticulum.jl-Review-2026-11-17/p28/`); its environment `scratch/p6env` (packages developed from the worktree, plus ForwardDiff, Zygote, Test) serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -27,23 +27,23 @@ DifferentiationInterface, then `julia -t auto --project=<env> -e 'include("lib/L
 
 ## Done last
 
-- **P3** (committed): a `GaussianFactor` whose input $x$ carries no information (no message,
-  `TrivialBelief()`, zero precision, a mixture of uninformative components) sends the exact forward
-  message, flat along $\operatorname{range}(A)$ and fixed off it (`_no_input_forward`, through the
-  flat path). `GaussianFactor` supports the polarity $x$ `Latent()`, $y$ the target, so Mycelium calls
-  it when $x$ has no message. Details in [[lib/Lenticulum.jl/src/gaussian|gaussian]] "No input on x" and [[Backlog Done 2026-11]].
-- Review: [[LP-048 Findings of the review of P3]] (Mistral; no defect in the new code; F1, a mixture of
-  uninformative components threw in `moment_match`, older than P3, fixed).
-- Verified: the Lenticulum suite passes (logs in `~/.cache/lenticulum/p3/`). No other package
-  changed and none depends on Lenticulum. Vault build and `docs/make.jl` not run. Not measured: the
-  effect on loopy schedules; plates of `GaussianFactor`s with an empty input untested.
+- **P28** (committed): a `NonlinearFactor` whose input $x$ carries no information sends, with `x0`,
+  P3's flat-$x$ message for its linear model at `x0` (`_nl_no_input_forward`); without `x0`,
+  `TrivialBelief()` as before. The polarity $x$ `Latent()`, $y$ the target, is listed only with `x0`.
+  Details in [[lib/Lenticulum.jl/src/nonlinear|nonlinear]] "No input on x" and [[Backlog Done 2026-11]].
+- Review: [[LP-049 Findings of the review of P28]] (Mistral; no defect in seven probes; at a critical
+  point of $f$ the message is overconfident, noted).
+- Known limit, new row P29: a difference Jacobian of an $f$ that depends on fewer directions than $x$
+  has full numerical rank, so the message loses directions (conservative; `@test_broken`).
+- Verified: the Lenticulum suite passes (logs in `~/.cache/lenticulum/p28/`). No other package
+  changed. Vault build and `docs/make.jl` not run. Not tested: Zygote through the new path.
 
 ## Next
 
-No row is set; pick one with the maintainer. Close to P5: a learned noise with hard messages (refused in
-`GaussianFactor`/`GaussianPrior`), the same no-input forward message for `NonlinearFactor` (P28), a residual-space
-formulation of the positive definite path for nearly singular noise (LP-047 finding 4; no row yet).
-Left open by P27 (no rows yet): the Bethe free energy with a mixture marginal under BP (no
+No row is set; pick one with the maintainer. Small and close: P29 (a rank tolerance for difference
+Jacobians). Close to P5: a learned noise with hard messages (refused in `GaussianFactor`/`GaussianPrior`),
+a residual-space formulation of the positive definite path for nearly singular noise (LP-047 finding 4;
+no row yet). Left open by P27 (no rows yet): the Bethe free energy with a mixture marginal under BP (no
 `variable_entropy` for mixtures, Gaussian ones included), derivatives through the new rules, two
 extended components with hard directions.
 
@@ -96,4 +96,4 @@ extended components with hard directions.
   file with four of them at the 100-turn limit (\$0): one right finding; its fifth probe's reference lost
   digits at 1e6 (a false report): check a reviewer's reference before its claim. On P5 the same brief: four probes, the answer file
   records only the first, no summary (\$0); the maintainer ran the rest (one probe needed a one-line repair)
-  and probe 2's properness check found F1. On P3 the first run crashed inside vibe on its first command (a validation error of its own); the rerun reached 100 turns with only probe 1 in the answer file: run its later probes yourself.
+  and probe 2's properness check found F1. On P3 the first run crashed inside vibe on its first command (a validation error of its own); the rerun reached 100 turns with only probe 1 in the answer file: run its later probes yourself. On P28 the same: four probes recorded, three more written but not recorded (all passed when run). Another user's `vibe-rs --continue` runs on this machine: wait on the PID of your own run, not `pgrep -x vibe-rs`.

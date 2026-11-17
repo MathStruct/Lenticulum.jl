@@ -1340,6 +1340,7 @@ include("hard_plates.jl")
 
 include("extended_inputs.jl")
 include("p3_no_input.jl")
+include("p28_no_input.jl")
 include("extended_plates.jl")
 include("mixture_extended.jl")
 include("forms_crossing.jl")

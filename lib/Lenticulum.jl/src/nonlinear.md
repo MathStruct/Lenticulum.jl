@@ -124,3 +124,47 @@ the messages reach.
 down the graph) goes through the linear model's relation and the flat-direction limit, as for
 `GaussianFactor` ([[lib/Lenticulum.jl/src/gaussian|gaussian]], "Improper inputs"); the backward message is declared
 improper when the linear model's coefficient is rank-deficient.
+
+## No input on x (P28, 2026-11-17)
+
+**Theory.** With nothing known about $x$, $y = f(x) + \varepsilon$ still says that $y$ lies near
+the image of $f$, which for $n_{\text{in}} < n_{\text{out}}$ is a proper submanifold. That message is
+not Gaussian. Its local linear version at a point $x_0$ is the message of the linear model
+$y \approx Ax + b + \varepsilon$, $A = \partial f/\partial x\,(x_0)$, $b = f(x_0) - Ax_0$, with $x$
+flat: $y$ flat along $\operatorname{range}(A)$ and Gaussian off it, the closed form of
+[[lib/Lenticulum.jl/src/gaussian|gaussian]] "No input on x". It describes the tangent plane at
+$f(x_0)$, so it is good only where $f$ stays close to that plane.
+
+**Implementation.** A flat $x$ gives no point to linearise at, so the factor's `x0` is used, the
+point already used for a backward message with no cavity. `_nl_no_input_forward` linearises there
+(the unscented transform of a point is the Jacobian, so both methods give the same message) and
+sends `GaussianFactor`'s flat-path message for $(A, b, Q)$. Without `x0` the message stays
+`TrivialBelief()`. The polarity $x$ `Latent()`, $y$ the target, which Mycelium needs to call the
+factor when $x$ has no message (P3), is listed by `supported_polarities` only when `x0` is set, so
+a factor without `x0` behaves as before. Every input form of P3's "no information" is handled (no
+message, `TrivialBelief()`, zero precision, an everywhere-flat extended Gaussian, mixtures of these).
+
+**Measured** (`test/p28_no_input.jl`): $f(x) = \tanh(Wx + c)$ with random $W$ of random rank,
+$n_{\text{in}}, n_{\text{out}} \in 1{:}4$, 60 factors, both methods, the seven empty input forms:
+with an exact Jacobian every message equals the closed form for the hand-written Jacobian at $x_0$
+to $10^{-8}$, and `TrivialBelief()` exactly when $\operatorname{null}(A^\top)$ is empty; with central
+differences and $W$ of full rank, to $10^{-5}$. Without `x0` every message is `TrivialBelief()`.
+An affine $f$ gives `GaussianFactor`'s message to $10^{-10}$, and in a graph ($x$ with no other
+factor, a prior on $y$, 20 instances, $n_{\text{in}} < n_{\text{out}}$) the marginal of $y$ under
+`infer!` matches the dense posterior with $x \sim \mathcal N(0, \tau I)$, $\tau = 10^{30}$ in
+`BigFloat`, to $10^{-8}$.
+
+**Difficulty: central differences and rank.** When $f$ depends on fewer directions than $x$ has
+($W$ rank-deficient), the difference Jacobian carries an error of about $10^{-10}$, far above the
+rank test's threshold ($\max(n_{\text{in}}, n_{\text{out}})\,\varepsilon\,s_1$), so it has full
+numerical rank and the message loses directions of $\operatorname{null}(A^\top)$: in 21 of the test's
+draws. It only discards information (the test checks that its precision never exceeds the
+exact one) and is recorded as `@test_broken`. A rank tolerance tied to the Jacobian's accuracy is
+backlog row P29; pass `jacobian` for an exact rank.
+
+**Does not do.** Linearise anywhere but `x0` (a flat $x$ has no mean; the cavity of $y$ is not
+used to choose a point). At an `x0` where the Jacobian loses rank the message is as confident as the
+linear model: for $f(x) = x^2$ at $x_0 = 0$ it is $\mathcal N(f(x_0), Q)$, although $y$ ranges over
+$[0, \infty)$ ([[LP-049 Findings of the review of P28]], probe 7); choose `x0` away from critical points. A partly flat input on $x$ forwards (an extended Gaussian with some flat
+directions) still has no forward path: `_moments` refuses it, as before. Loopy schedules and plates
+with this polarity are not tested.
