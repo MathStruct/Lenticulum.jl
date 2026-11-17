@@ -611,3 +611,52 @@ switching factor's mixture, exact and equal to the closed-form mixture moments a
 `NonlinearFactor`, not declared; sequential and damped schedules, never exact. The 40 random
 Gaussian trees of `test/gaussian_oracle.jl` and Mycelium's chain (data, relay, absorbing loss)
 assert `rep.exact`.
+
+## A relative convergence criterion (P9, 2026-11-17)
+
+**Why.** The default criterion, a sweep's largest `belief_distance` at most `tol`, is absolute in
+the natural parameters, so it depends on the units of the model. The loopy voltage divider of
+Lenticulum's `runtests.jl`, written in units $c$ (every value times $c$, every variance times $c^2$,
+so every precision over $c^2$), was run under flooding (Lenticulum `test/p9_relative_tol.jl`, measured
+2026-11-17). At $c = 10^{-4}$ (precisions about $10^8$) `tol = 1e-11` is below the rounding of the
+messages and is never met in 3000 sweeps. At $c = 10^4$ `tol = 1e-8` is met after 205 sweeps with the
+means still $3.4\cdot10^{-7}$ off, relative to the dense joint solve. At $c = 1$ the same `tol` gives
+$9\cdot10^{-12}$.
+
+**What.** `propagate!(...; rtol)` with `rtol > 0`: a message has converged when each group of its
+parameters changed by at most `tol + rtol·s`, with `s` the larger $\|\cdot\|_\infty$ of that group on
+the two sides. The groups are $\eta$ and $\Lambda$ of a `GaussianBelief`; $\mu$, $\Sigma$ and the
+flat-direction projector (scale 1) of an `ExtendedGaussian`; the point of a `DiracBelief` (Euclidean
+norms); the weights (scale 1) and the components of a mixture. Every other pair gets its
+`belief_distance` at scale 1 (`relative_residual` in `messages.jl`). Under `criterion = :marginals`
+the groups are the means and the covariances (`_moment_residual`). The residual is reported in units
+of the bound and convergence means at most 1. On the divider with `tol = 0, rtol = 1e-10`, flooding
+takes 337 sweeps at every $c$ from $10^{-4}$ to $10^4$, with relative error $4.6\cdot10^{-11}$. The
+spanning-tree, Anderson and residual schedules and `:marginals` also take the same number of sweeps
+at every scale, within two. `rtol = 0`, the default, keeps the absolute criterion unchanged; `tol` is
+the floor for groups near zero.
+
+**How it reaches the sweeps.** The tolerance is a `ScopedValue` (`_RELATIVE_TOL`) that
+`propagate!` sets around its loop. `_step!`, the plate sweeps (`_block_residual`, with column-wise
+reductions for Gaussian and point blocks in `blocks.jl`) and through them the residual and Anderson
+schedules read it. So no keyword is threaded through every `sweep!` method, and a `sweep!` called
+outside `propagate!` still reports absolute distances. The residual schedule's priorities are then
+relative too, which is the point: an edge with large precisions no longer outranks every other edge
+because of its units.
+
+**What it does not do.** A group's scale is its own largest entry, so a Gaussian whose mean is near
+zero has $\eta \approx 0$ while its rounding is of order $\epsilon\|\Lambda\|\|\mu\|$; there `tol` is
+the floor, and `tol = 0` may not be met. The scale of $\eta$ is not $\|\Lambda\|\|\mu\|$, because
+improper messages have no mean. Sample and potential beliefs have no scale (scale 1). The default stays
+absolute: making `rtol` the default would change every schedule's stopping point. Dual numbers: the
+residual math and the tree schedule differentiate under `rtol > 0`. Whether a change is zero is
+decided on the primal value (`_primal`), since a dual's comparisons break ties by the partials
+(LP-051). An iterated `infer!` with dual parameters throws in `ConvergenceReport` whatever `rtol`
+is (I23). Not tested: device blocks under the relative path (the block methods use reductions and
+no scalar indexing, but were not run on JLArrays).
+
+**Found on the way.** Under flooding, `criterion = :marginals` can stop too early: flooding moves
+information one hop per sweep, so on the divider its second sweep changes messages but no marginal,
+and `propagate!` reports convergence after 2 sweeps with every mean still at the prior (relative
+error 1), under the absolute criterion as well. The spanning-tree, Anderson and residual schedules
+are not affected. It is a `@test_broken` in `test/p9_relative_tol.jl` and a backlog row (I-section).

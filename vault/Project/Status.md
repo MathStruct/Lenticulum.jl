@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-17, after P29 (the rank of `NonlinearFactor`'s difference Jacobian), committed on `dev-danielb`, not pushed (everything up to P28 is pushed).
+**Last updated:** 2026-11-17, after P9 (a relative convergence criterion), committed on `dev-danielb`, not pushed (everything up to P28 is pushed; P29 and P9 are not).
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | pushed up to P28 (`27770961`); P29 committed on top, not pushed |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `27770961` with the first P29 diff applied; the reviewer's probes in `scratch/p29/` (copied to `../Lenticulum.jl-Review-2026-11-17/p29/`); its environment `scratch/p6env` (packages developed from the worktree, plus ForwardDiff, Zygote, Test) serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | pushed up to P28 (`27770961`); P29 and P9 committed on top, not pushed |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `91005dbc` (P29) with the first P9 diff applied; the reviewer's probes in `scratch/p9/` (copied to `../Lenticulum.jl-Review-2026-11-17/p9/probes/`); its environment `scratch/p6env` (packages developed from the worktree, plus ForwardDiff, Zygote, Test) serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -27,25 +27,31 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
-- **P29** (committed): a `NonlinearFactor`'s difference Jacobian is cut to the rank its accuracy
-  supports (`_rank_clean`: per-entry error bounds, rounding plus Richardson truncation with a second
-  step only in a gray zone; rank decided in error-scaled coordinates; an oblique projection that keeps
-  ForwardDiff's derivative). P28's `@test_broken` is a test now. Details in
-  [[lib/Lenticulum.jl/src/nonlinear|nonlinear]] "The rank of a difference Jacobian", `bench/p29_difference_rank.jl`
-  and [[Backlog Done 2026-11]].
-- Review: [[LP-050 Findings of the review of P29]] (Claude Sonnet; three defects, reproduced, fixed;
-  the fixes not reviewed again).
-- Verified: `test/p29_rank_tolerance.jl` and the Lenticulum suite (logs in `~/.cache/lenticulum/p29/`).
-  No other package changed. Vault build and `docs/make.jl` not run. Not tested: Zygote through `_jacobian`.
+- **P9** (committed): `propagate!(...; rtol)`. With `rtol > 0` each group of a message's parameters
+  (η, Λ; μ, Σ, the flat projector; points; mixture weights and components; means and covariances under
+  `:marginals`) may change by at most `tol + rtol·s`. The residual is reported in units of that bound.
+  The tolerance reaches every sweep (plates, residual, Anderson) through the scoped value `_RELATIVE_TOL`.
+  The default `rtol = 0` is unchanged. Measured: the loopy divider in units $10^{-4}$ to $10^4$ takes the
+  same sweeps at every unit. Details: Mycelium `passing.md` "A relative convergence criterion",
+  [[Backlog Done 2026-11]].
+- Review: [[LP-051 Findings of the review of P9]] (Mistral Large, \$0; one defect reproduced and fixed;
+  found I23, which predates P9). vibe 3.1.2 works again (it failed on P29 this morning).
+- Found on the way, rows only: **I22** (`criterion = :marginals` under flooding reports convergence after
+  2 sweeps with the means not moved; `@test_broken` in `test/p9_relative_tol.jl`; `HybridSchedule`
+  defaults to `:marginals`, so it is high priority) and **I23** (an iterated `infer!` with dual
+  parameters throws in `ConvergenceReport`).
+- Verified: `test/p9_relative_tol.jl` and the Mycelium, MyceliumLearning and Lenticulum suites (logs in
+  `~/.cache/lenticulum/p9/`). Not run: VariationalDiffusion, ImplicitLayers, AdversarialFactors,
+  AlgebraicFactors (they depend on Mycelium, and the default path is unchanged); the device tests; the
+  vault build and `docs/make.jl`.
 
 ## Next
 
-No row is set; pick one with the maintainer. Close to P5: a learned noise with hard messages (refused
-in `GaussianFactor`/`GaussianPrior`), a residual-space formulation of the positive definite path for
-nearly singular noise (LP-047 finding 4; no row yet). Left open by P27 (no rows yet): the Bethe free
-energy with a mixture marginal under BP (no `variable_entropy` for mixtures, Gaussian ones included),
-derivatives through the new rules, two extended components with hard directions. Small on path A:
-P9 (a relative convergence criterion for Gaussian messages).
+No row is set; pick one with the maintainer. Suggested: **I22** (a false "converged", small; decide
+the rule: two quiet sweeps, or a message residual that does not rise), then I23 (small). Close to P5:
+a learned noise with hard messages, a residual-space formulation of the positive definite path
+(LP-047 finding 4; no row yet). Left open by P27 (no rows yet): the Bethe free energy with a mixture
+marginal under BP, derivatives through the new rules, two extended components with hard directions.
 
 ## Open
 
@@ -70,9 +76,6 @@ P9 (a relative convergence criterion for Gaussian messages).
 - Mistral review agent, refused commands: on P13 its six refusals all began with `cd … &&`, and its
   `julia` commands without output redirection ran; on P21 the refused `julia` command had `> … 2>&1`
   (which ran on P23). Next brief: give the command without redirection and say "never prefix `cd`".
-- **vibe broken (2026-11-17):** three P29 review runs (fresh, `-c`, fresh) stopped at the agent's first
-  shell command with vibe's own `validation error for tagged-union[RustAcceptedApplyResult,…] … arguments
-  Input should be an object`. Check `vibe` (update?) before the next review; a Sonnet subagent stood in.
 - Mistral review agent: `vibe ... --agent review --trust --workdir ../Lenticulum.jl-mistral`
   (`~/.claude/CLAUDE.md`). A review needed about 140 turns; give it 100 and continue the session
   with `vibe -c` if it stops. On I6 it kept probing through three continuations (about 175 turns,
@@ -99,4 +102,4 @@ P9 (a relative convergence criterion for Gaussian messages).
   file with four of them at the 100-turn limit (\$0): one right finding; its fifth probe's reference lost
   digits at 1e6 (a false report): check a reviewer's reference before its claim. On P5 the same brief: four probes, the answer file
   records only the first, no summary (\$0); the maintainer ran the rest (one probe needed a one-line repair)
-  and probe 2's properness check found F1. On P3 the first run crashed inside vibe on its first command (a validation error of its own); the rerun reached 100 turns with only probe 1 in the answer file: run its later probes yourself. On P28 the same: four probes recorded, three more written but not recorded (all passed when run). Another user's `vibe-rs --continue` runs on this machine: wait on the PID of your own run, not `pgrep -x vibe-rs`.
+  and probe 2's properness check found F1. On P3 the first run crashed inside vibe on its first command (a validation error of its own); the rerun reached 100 turns with only probe 1 in the answer file: run its later probes yourself. On P28 the same: four probes recorded, three more written but not recorded (all passed when run). On P9 (vibe 3.1.2, after it had failed on P29): five probes recorded, the sixth (the one with the findings) written and not recorded. Another user's `vibe-rs --continue` runs on this machine: wait on the PID of your own run, not `pgrep -x vibe-rs`.

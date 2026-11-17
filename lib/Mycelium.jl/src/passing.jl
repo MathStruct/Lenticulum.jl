@@ -276,7 +276,7 @@ function _step!(s::MessageStore, g::FactorGraph, t::MessageTask, @nospecialize(p
         belief = excluded_marginal(s, g, e.variable, t.edge)
         belief = e.detach ? LenticulumCore.stop_gradient(belief) : belief
         old = s.to_factor[t.edge]
-        res = belief_distance(old === nothing ? nothing : old.belief, belief)
+        res = _residual(old === nothing ? nothing : old.belief, belief)
         if commit
             s.to_factor[t.edge] = Message(belief, s.iteration)
         end
@@ -322,7 +322,7 @@ function _step!(s::MessageStore, g::FactorGraph, t::MessageTask, @nospecialize(p
             belief = damp(belief, old.belief, 1 - damping)
         end
         belief = e.detach ? LenticulumCore.stop_gradient(belief) : belief
-        res = belief_distance(old === nothing ? nothing : old.belief, belief)
+        res = _residual(old === nothing ? nothing : old.belief, belief)
         if commit
             s.to_variable[t.edge] = Message(belief, s.iteration)
         end
@@ -651,12 +651,27 @@ largest change of a variable's marginal, compared by moments: means and covarian
 weights of a mixture or a categorical). Messages of mixtures with very narrow components have a
 rounding floor in natural parameters that their moments do not, so hybrid graphs default to
 `:marginals` ([`hybrid_schedule`](@ref)).
+
+`rtol > 0` makes the criterion relative (P9): a message, or a marginal, has converged when each
+group of its parameters changed by at most `tol + rtol·s`, with `s` the size of that group
+([`relative_residual`](@ref): ``\\eta`` and ``\\Lambda`` of a Gaussian message, means and
+covariances of a marginal, each against its own largest entry). The absolute bound alone is not
+scale-free: a precision of ``10^8`` carries rounding of about ``10^{-8}`` and never meets the
+default `tol`, and beliefs whose parameters are all about ``10^{-6}`` meet it while still moving
+by a percent. With `rtol > 0` the sweeps (the residual schedule's priorities too) and the report
+give the residual in units of that bound, and convergence is a residual of at most 1; `tol` is
+then the floor for parameters near zero, and `tol = 0` makes the criterion purely relative.
+`rtol = 0`, the default, keeps the absolute criterion.
 """
 function propagate!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, ps, st;
-                    maxsweeps::Int = 100, tol::Real = 1e-8, damping::Real = 0.0,
+                    maxsweeps::Int = 100, tol::Real = 1e-8, rtol::Real = 0.0, damping::Real = 0.0,
                     record = nothing, criterion::Symbol = _default_criterion(sched))
     0 <= damping < 1 || throw(ArgumentError("damping must be in [0, 1); got $damping"))
     criterion in (:messages, :marginals) || throw(ArgumentError("criterion must be :messages or :marginals"))
+    # Checked only for the relative criterion: the absolute one keeps its old behaviour, where
+    # `tol = 0` runs to `maxsweeps` unless a sweep changes nothing (MyceliumLearning's adjoint tests).
+    rtol >= 0 || throw(ArgumentError("rtol must be non-negative; got $rtol"))
+    rtol > 0 && !(tol >= 0) && throw(ArgumentError("with rtol > 0, tol must be non-negative; got $tol"))
     # Undamped, one tree sweep is exact. Damping keeps part of each stored message, so from a
     # warm start one sweep is not the fixed point: iterate and check like any schedule.
     if sched isa TreeSchedule && iszero(damping) && _tree_exact(g)
@@ -666,6 +681,16 @@ function propagate!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, ps
         return ConvergenceReport(true, 1, 0.0,
             "tree schedule: one sweep is the fixed point, not exact: " * join(why, "; "), false), st
     end
+    rtol > 0 || return _iterate!(s, g, sched, ps, st, maxsweeps, tol, nothing, damping, record, criterion)
+    t = (Float64(tol), Float64(rtol))
+    return Base.ScopedValues.with(_RELATIVE_TOL => t) do
+        _iterate!(s, g, sched, ps, st, maxsweeps, tol, t, damping, record, criterion)
+    end
+end
+
+# The sweeps of `propagate!` until the residual meets the bound: `tol` (absolute), or 1 when `rel`
+# is `(tol, rtol)` and the sweeps report residuals in units of their bounds (`_RELATIVE_TOL`).
+function _iterate!(s, g, sched, ps, st, maxsweeps, tol, rel, damping, record, criterion)
     res = Inf
     margs = criterion === :marginals ? _all_marginals(s, g) : nothing
     for i in 1:maxsweeps
@@ -673,12 +698,15 @@ function propagate!(s::MessageStore, g::FactorGraph, sched::AbstractSchedule, ps
             sweep!(s, g, sched, ps, st; damping, record) : sweep!(s, g, sched, ps, st; damping)
         if criterion === :marginals
             new = _all_marginals(s, g)
-            res = maximum(v -> _moment_distance(margs[v], new[v]), eachindex(new); init = 0.0)
+            res = rel === nothing ?
+                maximum(v -> _moment_distance(margs[v], new[v]), eachindex(new); init = 0.0) :
+                maximum(v -> _moment_residual(margs[v], new[v], rel[1], rel[2]), eachindex(new); init = 0.0)
             margs = new
         end
-        if res <= tol
+        if res <= (rel === nothing ? tol : 1)
+            what = criterion === :marginals ? "marginals changed by less than " : "residual below "
             return ConvergenceReport(true, i, float(res),
-                criterion === :marginals ? "marginals changed by less than tol" : "residual below tol"), st
+                what * (rel === nothing ? "tol" : "tol + rtol·scale (residual in units of that bound)")), st
         end
     end
     reason = isfinite(res) ? "hit maxsweeps" :

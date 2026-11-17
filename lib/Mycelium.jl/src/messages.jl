@@ -374,6 +374,65 @@ _numeric_distance(a::Number, b::Number) = abs(float(a - b))
 _numeric_distance(a::AbstractArray, b::AbstractArray) = sqrt(sum(abs2, a .- b))
 _numeric_distance(a, b) = a == b ? 0.0 : Inf
 
+# --- Relative residuals (P9) ------------------------------------------------------------------
+
+"""
+    relative_residual(a, b, atol, rtol) -> Real
+
+How much a message changed, in units of the bound ``\\mathrm{atol} + \\mathrm{rtol}\\cdot s``: at
+most 1 means the change is within it. The change and the scale ``s`` are taken per group of
+parameters, and the largest ratio is returned:
+
+- `GaussianBelief`: ``\\eta`` and ``\\Lambda`` separately, each ``\\|\\Delta\\|_\\infty`` against the
+  larger ``\\|\\cdot\\|_\\infty`` of the two sides; so a precision of ``10^8`` is compared at its own
+  rounding, not at an absolute `tol`.
+- `ExtendedGaussian`: ``\\mu``, ``\\Sigma`` the same way, and the flat-direction projector at scale 1.
+- `DiracBelief` of numbers or arrays: the Euclidean norm of the difference against the larger norm.
+- `MixtureBelief`: the weights' total variation at scale 1, and each component as above.
+- every other pair (categoricals, samples, potentials): [`belief_distance`](@ref) at scale 1, so
+  `Inf` stays `Inf`.
+
+A zero change is 0 whatever the bound; a positive change against a zero bound is `Inf`.
+[`propagate!`](@ref) uses it when given `rtol > 0`.
+"""
+relative_residual(a, b, atol, rtol) = _ratio(belief_distance(a, b), 1, atol, rtol)
+function relative_residual(a::LenticulumCore.DiracBelief, b::LenticulumCore.DiracBelief, atol, rtol)
+    a.value == b.value && return 0.0
+    return _ratio(_numeric_distance(a.value, b.value),
+                  max(_numeric_scale(a.value), _numeric_scale(b.value)), atol, rtol)
+end
+function relative_residual(a::LenticulumCore.MixtureBelief, b::LenticulumCore.MixtureBelief, atol, rtol)
+    length(a.components) == length(b.components) || return Inf
+    w = _ratio(sum(abs, exp.(a.logw) .- exp.(b.logw)) / 2, 1, atol, rtol)
+    return max(w, maximum(k -> relative_residual(a.components[k], b.components[k], atol, rtol),
+                          eachindex(a.components); init = 0.0))
+end
+
+# `d` in units of `atol + rtol·s`. Whether `d` is zero is decided on its primal value: a dual
+# number's comparisons break ties by the partials (`Dual(0, 1) <= 0` is false), and a zero change
+# with a tangent against a zero bound would give 0/0.
+_ratio(d, s, atol, rtol) = _primal(d) <= 0 ? zero(d) : d / (atol + rtol * s)
+# The value of a number without its tangents (the ForwardDiff extension adds the dual method).
+_primal(x) = x
+# The change and the scale of one group of parameters (an array, or a number).
+_group_ratio(x, y, atol, rtol) = _ratio(maximum(abs, x .- y; init = 0.0),
+    max(maximum(abs, x; init = 0.0), maximum(abs, y; init = 0.0)), atol, rtol)
+_numeric_scale(x::Number) = abs(float(x))
+_numeric_scale(x::AbstractArray) = sqrt(sum(abs2, x))
+_numeric_scale(x) = 1.0
+
+# The relative tolerance `(atol, rtol)` of the running `propagate!`, or `nothing` for the
+# absolute residual. A scoped value, so every sweep (plates, the residual and Anderson schedules)
+# and every task it spawns reads the same one without a keyword threaded through each.
+const _RELATIVE_TOL = Base.ScopedValues.ScopedValue{Union{Nothing,NTuple{2,Float64}}}(nothing)
+
+# The residual a sweep reports for one message: `belief_distance`, or under a relative tolerance
+# the ratio to its bound.
+function _residual(a, b)
+    t = _RELATIVE_TOL[]
+    return t === nothing ? belief_distance(a, b) : relative_residual(a, b, t[1], t[2])
+end
+
 # --- Marginals and the exclusion principle ---------------------------------
 
 """
@@ -478,4 +537,19 @@ function _moment_distance(a::LenticulumCore.MixtureBelief, b::LenticulumCore.Mix
     length(a.components) == length(b.components) || return Inf
     w = maximum(abs, exp.(a.logw) .- exp.(b.logw); init = 0.0)
     return max(w, maximum(k -> _moment_distance(a.components[k], b.components[k]), eachindex(a.components); init = 0.0))
+end
+
+# The same under a relative tolerance: means and covariances as groups of their own (P9).
+_moment_residual(a, b, atol, rtol) = relative_residual(a, b, atol, rtol)
+function _moment_residual(a::GaussianBelief, b::GaussianBelief, atol, rtol)
+    (LenticulumCore.isproper(a) && LenticulumCore.isproper(b) && size(a.Λ) == size(b.Λ)) ||
+        return relative_residual(a, b, atol, rtol)
+    return max(_group_ratio(LenticulumCore.belief_mean(a), LenticulumCore.belief_mean(b), atol, rtol),
+               _group_ratio(LenticulumCore.belief_cov(a), LenticulumCore.belief_cov(b), atol, rtol))
+end
+function _moment_residual(a::LenticulumCore.MixtureBelief, b::LenticulumCore.MixtureBelief, atol, rtol)
+    length(a.components) == length(b.components) || return Inf
+    w = _ratio(maximum(abs, exp.(a.logw) .- exp.(b.logw); init = 0.0), 1, atol, rtol)
+    return max(w, maximum(k -> _moment_residual(a.components[k], b.components[k], atol, rtol),
+                          eachindex(a.components); init = 0.0))
 end

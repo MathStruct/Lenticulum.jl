@@ -361,6 +361,39 @@ function block_distance(a::BeliefBlock, b::BeliefBlock)
     return maximum(i -> belief_distance(replica(a, i), replica(b, i)), 1:nreplicas(a); init = 0.0)
 end
 
+# Under a relative tolerance (P9): the largest `relative_residual` over the columns. Gaussian and
+# point blocks per column with reductions (no scalar indexing of a device array); categoricals at
+# scale 1 as their beliefs are; any other pair replica by replica.
+block_relative_residual(::Nothing, ::BeliefBlock, atol, rtol) = Inf
+block_relative_residual(::TrivialBlock, ::TrivialBlock, atol, rtol) = 0.0
+block_relative_residual(a::CategoricalBlock, b::CategoricalBlock, atol, rtol) = _ratio(block_distance(a, b), 1, atol, rtol)
+function block_relative_residual(a::GaussianBlock, b::GaussianBlock, atol, rtol)
+    size(a.η) == size(b.η) || return Inf
+    dη = Array(vec(maximum(abs, a.η .- b.η; dims = 1)))
+    sη = Array(vec(max.(maximum(abs, a.η; dims = 1), maximum(abs, b.η; dims = 1))))
+    r = maximum(i -> _ratio(dη[i], sη[i], atol, rtol), eachindex(dη); init = 0.0)
+    rΛ = _shared(a) && _shared(b) ? _group_ratio(a.Λ, b.Λ, atol, rtol) :
+         maximum(i -> _group_ratio(_precision(a, i), _precision(b, i), atol, rtol), 1:nreplicas(a); init = 0.0)
+    return max(r, rΛ)
+end
+function block_relative_residual(a::PointBlock, b::PointBlock, atol, rtol)
+    size(a.X) == size(b.X) || return Inf
+    a.X === b.X && return 0.0
+    d = Array(vec(sqrt.(sum(abs2, a.X .- b.X; dims = 1))))
+    s = Array(vec(max.(sqrt.(sum(abs2, a.X; dims = 1)), sqrt.(sum(abs2, b.X; dims = 1)))))
+    return maximum(i -> _ratio(d[i], s[i], atol, rtol), eachindex(d); init = 0.0)
+end
+function block_relative_residual(a::BeliefBlock, b::BeliefBlock, atol, rtol)
+    nreplicas(a) == nreplicas(b) || return Inf
+    return maximum(i -> relative_residual(replica(a, i), replica(b, i), atol, rtol), 1:nreplicas(a); init = 0.0)
+end
+
+# The residual a plate sweep reports for one block (`_residual` in messages.jl).
+function _block_residual(a, b)
+    t = _RELATIVE_TOL[]
+    return t === nothing ? block_distance(a, b) : block_relative_residual(a, b, t[1], t[2])
+end
+
 # Whether every column is uninformative (`true`), none is (`false`), or some are (`missing`).
 _uninformative(::TrivialBlock) = true
 _uninformative(::PointBlock) = false

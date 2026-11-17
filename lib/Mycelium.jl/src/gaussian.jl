@@ -113,6 +113,22 @@ belief_distance(a::GaussianBelief, b::_EG) = belief_distance(b, a)
 belief_distance(a::_EG, ::LenticulumCore.TrivialBelief) = belief_distance(a, LenticulumCore.extended(LenticulumCore.TrivialBelief(), LenticulumCore.dimension(a)))
 belief_distance(::LenticulumCore.TrivialBelief, b::_EG) = belief_distance(b, LenticulumCore.TrivialBelief())
 
+# Relative residuals (P9, `relative_residual` in messages.jl): the same groups, each against its
+# own scale; the flat-direction projector at scale 1. Mixed pairs are converted as above.
+function relative_residual(a::_EG, b::_EG, atol, rtol)
+    LenticulumCore.dimension(a) == LenticulumCore.dimension(b) || return Inf
+    return max(_group_ratio(a.μ, b.μ, atol, rtol), _group_ratio(a.Σ, b.Σ, atol, rtol),
+               _ratio(maximum(abs, a.D * a.D' .- b.D * b.D'; init = 0.0), 1, atol, rtol))
+end
+relative_residual(a::_EG, b::LenticulumCore.DiracBelief, atol, rtol) = relative_residual(a, LenticulumCore.extended(b), atol, rtol)
+relative_residual(a::LenticulumCore.DiracBelief, b::_EG, atol, rtol) = relative_residual(LenticulumCore.extended(a), b, atol, rtol)
+relative_residual(a::_EG, b::GaussianBelief, atol, rtol) = _extendable(b) || !_soft(a) ?
+    relative_residual(a, LenticulumCore.extended(b), atol, rtol) : relative_residual(GaussianBelief(a), b, atol, rtol)
+relative_residual(a::GaussianBelief, b::_EG, atol, rtol) = relative_residual(b, a, atol, rtol)
+relative_residual(a::_EG, ::LenticulumCore.TrivialBelief, atol, rtol) =
+    relative_residual(a, LenticulumCore.extended(LenticulumCore.TrivialBelief(), LenticulumCore.dimension(a)), atol, rtol)
+relative_residual(a::LenticulumCore.TrivialBelief, b::_EG, atol, rtol) = relative_residual(b, a, atol, rtol)
+
 # Damping is the geometric mixture new^α · old^(1-α), as for canonical Gaussians: precisions mix,
 # a direction flat on one side becomes informative gradually, and hard directions take the
 # weighted average of the two values (`LenticulumCore._damp_extended`).
@@ -174,6 +190,8 @@ function belief_distance(a::GaussianBelief, b::GaussianBelief)
         maximum(abs, a.η .- b.η; init = 0.0), maximum(abs, a.Λ .- b.Λ; init = 0.0))
     return Inf
 end
+relative_residual(a::GaussianBelief, b::GaussianBelief, atol, rtol) = dimension(a) == dimension(b) ?
+    max(_group_ratio(a.η, b.η, atol, rtol), _group_ratio(a.Λ, b.Λ, atol, rtol)) : Inf
 
 # Damping is a convex combination of canonical parameters. Legitimate: the PSD cone is
 # convex, so a damped message is still a valid (possibly improper) Gaussian.

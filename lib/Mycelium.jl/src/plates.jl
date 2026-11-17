@@ -507,7 +507,7 @@ function _step_to_factor_group!(s, g, grp)
         belief = excluded_marginal(s, g, e.variable, t.edge)
         belief = e.detach ? LenticulumCore.stop_gradient(belief) : belief
         old = s.to_factor[t.edge]
-        maxres = max(maxres, belief_distance(old === nothing ? nothing : old.belief, belief))
+        maxres = max(maxres, _residual(old === nothing ? nothing : old.belief, belief))
         s.to_factor[t.edge] = Message(belief, s.iteration)
     end
     return maxres
@@ -546,7 +546,7 @@ function _step_cavity!(s, g, grp, plan::_CavityPlan)
         acc = combine_blocks(acc, b)
     end
     old = _row_block(s.to_factor, plan.target)
-    res = old isa BeliefBlock ? block_distance(old, acc) : Inf
+    res = old isa BeliefBlock ? _block_residual(old, acc) : Inf
     _set_block!(s.to_factor, plan.target, acc, s.iteration)
     return res
 end
@@ -597,7 +597,7 @@ function _step_group!(s, g, grp, ps, st, damping)
             belief = damp(belief, old.belief, 1 - damping)
         end
         belief = e.detach ? LenticulumCore.stop_gradient(belief) : belief
-        maxres = max(maxres, belief_distance(old === nothing ? nothing : old.belief, belief))
+        maxres = max(maxres, _residual(old === nothing ? nothing : old.belief, belief))
         s.to_variable[t.edge] = Message(belief, s.iteration)
     end
     return maxres, _writeback(st, fn.params, stf0, stf)
@@ -697,7 +697,7 @@ function _step_blocks!(s, g, grp, plan::_GroupPlan, @nospecialize(ps), @nospecia
     end
     r = plan.rows[plan.target]
     old = _row_block(s.to_variable, r)
-    res = old isa BeliefBlock ? block_distance(old, out) : Inf
+    res = old isa BeliefBlock ? _block_residual(old, out) : Inf
     _set_block!(s.to_variable, r, out, s.iteration)
     return res, st
 end
@@ -732,7 +732,7 @@ function _commit_group!(s, g, grp, beliefs, damping)
             belief = damp(belief, old.belief, 1 - damping)
         end
         belief = e.detach ? LenticulumCore.stop_gradient(belief) : belief
-        maxres = max(maxres, belief_distance(old === nothing ? nothing : old.belief, belief))
+        maxres = max(maxres, _residual(old === nothing ? nothing : old.belief, belief))
         s.to_variable[t.edge] = Message(belief, s.iteration)
     end
     return maxres

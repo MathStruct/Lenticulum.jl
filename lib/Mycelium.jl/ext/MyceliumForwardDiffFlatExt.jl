@@ -17,6 +17,9 @@
 module MyceliumForwardDiffFlatExt
 using Mycelium, ForwardDiff, LinearAlgebra
 
+# The primal value of a residual (`_ratio`, P9).
+Mycelium._primal(x::ForwardDiff.Dual) = Mycelium._primal(ForwardDiff.value(x))
+
 function Mycelium._flat_factor(J::AbstractMatrix{ForwardDiff.Dual{Tg,V,P}}, C) where {Tg,V<:LinearAlgebra.BlasFloat,P}
     J0 = ForwardDiff.value.(J)
     F0 = Mycelium._flat_factor(J0, LinearAlgebra.cholesky(Symmetric(J0); check = false))
