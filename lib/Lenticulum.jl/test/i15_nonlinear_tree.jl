@@ -29,7 +29,8 @@ using Test, Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random
         if root === :prior
             @test norm(m2 .- m1) > 1e-8
         else
-            @test norm(m1 .- [2.0]) > 1e-8
+            @test norm(m1 .- [2.0]) > 1e-8                  # the observation moved x off its prior mean
+            @test m2 ≈ m1 rtol = 1e-10                       # and the second sweep changes nothing
         end
     end
     # a tree whose messages do not read the cavity keeps the one-sweep exact report

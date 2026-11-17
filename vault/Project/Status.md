@@ -7,13 +7,13 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-17, after I24 (`:marginals` under partial residual sweeps), committed on `dev-danielb` with I23 before it, rebased onto the cloud agent's GitHub-issue fixes (`407a4196`) and pushed.
+**Last updated:** 2026-11-18, after the review of PR #23 (the Mistral cloud agent's I15–I22 commits): all accepted, one amendment (LP-055). I23 and I24 were rebased onto `9d94e548`, which the agent had pushed after them, and committed on `dev-danielb`; not pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | pushed, with I23 and I24 on top of the cloud agent's commits `74274922`, `407a4196` |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; **not pushed**. PR #23 (`dev-danielb` → `dev`) is open |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `3655c0c1` (I23) with the first I24 diff applied (without the LP-054 fix); the reviewer's probes in `scratch/i24/` (copied to `../Lenticulum.jl-Review-2026-11-17/i24/probes/`); its environment `scratch/p6env` serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
@@ -27,6 +27,12 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **Review of PR #23** ([[LP-055 Findings of the review of PR 23]]): the cloud agent's three commits
+  (`74274922`, `407a4196`, `9d94e548`) were read and accepted. Amendment: the I21 `SampleBelief`
+  moments refused tuple weights (AdversarialFactors LP-018.9 errored); they are now collected, and
+  points are stacked with `reshape`/`reduce(hcat, …)`. The I15 test also checks the fixed point for root
+  `:data`. Device tests (Mycelium) pass. I20 sends device and view inputs to the per-replica
+  path too; this has not been benchmarked.
 - **GitHub issues I15–I22** (a Mistral cloud agent, commits `74274922` and `407a4196` on `dev-danielb`; these ids are GitHub issue numbers, not the backlog rows of the same names): fixes for the eight open GitHub issues, each with a
   regression test and a note beside its source file. **I15** the tree shortcut of `propagate!` now
   requires `!message_uses_cavity(factor)` (new trait, declared by `NonlinearFactor`), so a nonlinear

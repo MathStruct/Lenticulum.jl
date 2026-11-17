@@ -187,9 +187,13 @@ function belief_cov(b::SampleBelief)
     return (X .* w') * X'
 end
 
-# the samples as a matrix, columns one sample: a matrix already is, a vector of vectors or of
-# scalars is one horizontal concatenation (a cat, which both AD backends pull back)
-_samples_matrix(b::SampleBelief) = b.samples isa AbstractMatrix ? b.samples : hcat(b.samples...)
+# the samples as a matrix, columns one sample: a matrix already is, a vector of scalars is one
+# row (a reshape), a vector of vectors one `reduce(hcat, …)` (ChainRules pulls it back; a splatted
+# `hcat` compiles a method per sample count)
+_samples_matrix(b::SampleBelief) = _samples_matrix(b.samples)
+_samples_matrix(S::AbstractMatrix) = S
+_samples_matrix(v::AbstractVector{<:Number}) = reshape(v, 1, :)
+_samples_matrix(v::AbstractVector) = reduce(hcat, v)
 
 _sample_points(b::SampleBelief) = b.samples isa AbstractMatrix ? eachcol(b.samples) : b.samples
 # divided by the largest weight first, so that weights near floatmax do not overflow the sum.
@@ -205,7 +209,7 @@ function _moment_weights(b::SampleBelief)
     T = p0 isa AbstractArray ? eltype(p0) : typeof(p0)
     F = T <: AbstractFloat ? T : Float64
     b.weights === nothing && return fill(one(F) / n, n)
-    w = float.(b.weights)
+    w = float.(collect(b.weights))   # weights may be a tuple (AdversarialFactors' particle weights)
     m = maximum(w)
     m > 0 || throw(ArgumentError("all sample weights are zero"))
     w = w ./ m

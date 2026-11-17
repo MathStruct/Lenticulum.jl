@@ -70,4 +70,10 @@ using ForwardDiff, Zygote
     @test belief_mean(SampleBelief([Float32(1), Float32(2)])) == [1.5f0]
     # and the values still match the Float64 oracle
     @test belief_mean(SampleBelief(X32)) ≈ vec(mean(Float64.(X32); dims = 2)) rtol = 1e-6
+    # weights given as a tuple, as AdversarialFactors passes them (regression of I21: the matrix
+    # product refused a tuple), and vectors of vectors against the matrix form
+    pts2 = [[1.0, 0.0], [3.0, 2.0]]
+    @test belief_mean(SampleBelief(pts2, (0.25, 0.75))) ≈ [2.5, 1.5]
+    @test belief_cov(SampleBelief(pts2, (0.25, 0.75))) ≈ 0.1875 .* [4.0 4.0; 4.0 4.0]
+    @test belief_cov(SampleBelief(pts2, [0.25, 0.75])) ≈ belief_cov(SampleBelief([1.0 3.0; 0.0 2.0], [0.25, 0.75]))
 end
