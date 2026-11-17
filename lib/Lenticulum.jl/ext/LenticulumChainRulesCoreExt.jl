@@ -12,7 +12,6 @@ ChainRulesCore.@non_differentiable LT._rank_deficient(A)
 # the SVD of the flat path is of values; `_range_complement` carries the derivative (P4)
 ChainRulesCore.@non_differentiable LT._range_svd(B)
 ChainRulesCore.@non_differentiable LT._partly_flat(b)
-ChainRulesCore.@non_differentiable LT._free_channels(names, msgs)
 # true inside a reverse pass (Zygote): the batched plate path of HardConstraintFactor (P6) takes
 # its decompositions on values only and steps aside for the per-replica path, which carries them
 ChainRulesCore.rrule(::typeof(LT._within_gradient)) = true, _ -> (NoTangent(),)

@@ -329,25 +329,21 @@ end
 The factor's own belief ``b_c(x, k) \\propto f(x, k)\\, \\mu_k(k) \\prod_i \\mu_i(x_i)``, summarised:
 the outcome posterior `q`, the per-outcome residual means ``\\bar r_k`` (columns), the residual
 covariance (one for all outcomes) and the entropy ``H(x \\mid k)`` (also one for all outcomes).
-Dirac channels are substituted out, as in [`residual_statistics`](@ref). A Gaussian-mixture
-message is collapsed to its moments first.
+Dirac channels, and the hard directions of extended-Gaussian messages, are substituted out, as in
+[`residual_statistics`](@ref); ``H(x \\mid k)`` is then relative to Lebesgue measure on the belief's
+support. A Gaussian-mixture message is collapsed to its moments first.
 """
 function switch_statistics(f::SwitchingConstraintFactor{names}, msgs, ps) where {names}
-    shift = zeros(f.m)
-    free = _free_channels(names, msgs)
-    for n in names
-        b = _get(msgs, n)
-        b isa LenticulumCore.DiracBelief && (shift = shift .+ _coeffs(f, ps)[n] * _vec(b.value))
-    end
-    Ceff = ps.b .- shift                                       # column k: c_k = b_k − Σ_Dirac A_j v_j
+    # Points and hard directions substituted out (`_reduced_relation`, P2): the residual is
+    # G s − c_k over the coordinates s left, c_k = b_k − Σ_Dirac A_j v_j − Σ_hard A_j x0_j.
+    G, shift, canon = _reduced_relation(_coeffs(f, ps), zeros(f.m), msgs, f.dims, names)
+    Ceff = ps.b .+ shift                                       # shift = −Σ A_j x0_j
     CQ = _chol(f.Q, "Q")
     QiC = CQ \ Ceff
     logZ = [-LinearAlgebra.dot(Ceff[:, k], QiC[:, k]) / 2 for k in 1:f.K]
-    if isempty(free)
+    if size(G, 2) == 0
         rbar, Cr, Hx = -Ceff, zeros(f.m, f.m), 0.0
     else
-        G = reduce(hcat, (_coeffs(f, ps)[n] for n in free))
-        canon = [_canon(_collapse(_get(msgs, n)), f.dims[n]) for n in free]
         Λ = G' * (CQ \ G) + _blockdiag(map(last, canon))
         CΛ = _chol(Λ, "factor belief precision")
         etas = G' * QiC .+ reduce(vcat, map(first, canon))    # column k: η_k
@@ -363,10 +359,6 @@ function switch_statistics(f::SwitchingConstraintFactor{names}, msgs, ps) where 
     q = exp.(l .- _logsumexp(l))
     return q, rbar, Cr, Hx
 end
-
-# The channels whose message is not a point: structure, not values (non-differentiable, so that
-# Zygote does not meet a `push!`, P23).
-_free_channels(names, msgs) = Symbol[n for n in names if !(_get(msgs, n) isa LenticulumCore.DiracBelief)]
 
 _collapse(b::LenticulumCore.MixtureBelief{<:GaussianBelief}) = moment_match(b)
 _collapse(b) = b

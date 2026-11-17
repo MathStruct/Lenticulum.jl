@@ -794,28 +794,49 @@ end
 # The belief of a factor whose residual is affine, r = Σ_i R_i x_i + r0, with weight W:
 # b ∝ exp(-½ rᵀ W r) ∏ μ_i. Point channels move into r0. `r0` may have K columns (one per
 # outcome of a switching factor), giving K means and one shared covariance.
+#
+# A message with hard directions (an extended Gaussian from a `HardConstraintFactor`, P2) is
+# substituted as in `_reduced_relation`: x = x0 + U s, with U orthonormal along its other
+# directions. The belief is solved in s, its entropy taken there (relative to Lebesgue measure on
+# its support, as `local_free_energy` takes it), and its mean and covariance lifted back to x
+# (x0 + U m_s, U Σ_s Uᵀ, singular along the hard directions), so that `_frozen_residual` reads it
+# unchanged. A channel hard in every direction is held as the point x0.
 function _affine_gaussian_belief(blocks, r0, W, msgs, dims; q = nothing)
     points = Pair{Symbol,Vector{Float64}}[]
     free = Symbol[]
+    Gs, canon, lifts = Any[], Any[], Any[]
     for n in keys(blocks)
-        b = _get(msgs, n)
+        b = _collapse(_get(msgs, n))
         if b isa LenticulumCore.DiracBelief
             v = _vec(b.value)
             push!(points, n => v)
             r0 = r0 .+ blocks[n] * v
+        elseif _is_hard(b)
+            _check_dim(b, dims[n])
+            x0, U, ηs, Λs = LenticulumCore._hard_reduction(b)
+            r0 = r0 .+ blocks[n] * x0
+            if size(U, 2) == 0
+                push!(points, n => Vector{Float64}(x0))
+            else
+                push!(free, n); push!(Gs, blocks[n] * U); push!(canon, (ηs, Λs)); push!(lifts, (x0, U))
+            end
         else
-            push!(free, n)
+            push!(free, n); push!(Gs, blocks[n]); push!(canon, _canon(b, dims[n])); push!(lifts, nothing)
         end
     end
     isempty(free) && return FrozenGaussianBelief(points, free, zeros(0, size(r0, 2)), zeros(0, 0), 0.0, q)
-    G = reduce(hcat, (blocks[n] for n in free))
-    canon = [_canon(_collapse(_get(msgs, n)), dims[n]) for n in free]
+    G = reduce(hcat, Gs)
     Λ = G' * W * G + _blockdiag(map(last, canon))
     η = reduce(vcat, map(first, canon)) .- G' * (W * r0)
     CΛ = _chol(Λ, "factor belief precision")
     Σ = inv(CΛ)
     H = Mycelium.variable_entropy(GaussianBelief(zeros(size(Λ, 1)), Λ))
-    return FrozenGaussianBelief(points, free, CΛ \ η, Σ, H, q)
+    M = CΛ \ η
+    all(isnothing, lifts) && return FrozenGaussianBelief(points, free, M, Σ, H, q)
+    x0 = reduce(vcat, [l === nothing ? zeros(dims[n]) : l[1] for (n, l) in zip(free, lifts)])
+    L = _blockdiag([l === nothing ? Matrix(1.0I, dims[n], dims[n]) : Matrix(l[2]) for (n, l) in zip(free, lifts)])
+    Σx = L * Σ * L'
+    return FrozenGaussianBelief(points, free, x0 .+ L * M, (Σx + Σx') / 2, H, q)
 end
 
 # Mean (K columns if r0 has them) and covariance of the residual under a frozen belief,
@@ -906,6 +927,8 @@ the parameters and `negentropy` does not. Agrees with `local_free_energy` at the
 evaluated at. See [`FrozenGaussianBelief`](@ref).
 """
 function Mycelium.factor_belief(f::GaussianFactor, msgs, ps, st)
+    f.noise_learning === nothing || !any(_is_hard, values(msgs)) || throw(ArgumentError(
+        "a GaussianFactor with a learned noise does not take hard messages in its free energy"))
     Qi, _ = _noise_metrics(f.noise_learning, f.Q, ps)
     return _affine_gaussian_belief(_gaussian_blocks(f, ps), -ps.b, Qi, msgs, _gaussian_dims(f))
 end
@@ -922,6 +945,8 @@ end
 As for [`GaussianFactor`](@ref), with residual ``x - \\mu``; only a learnable noise moves.
 """
 function Mycelium.factor_belief(f::GaussianPrior, msgs, ps, st)
+    f.noise_learning === nothing || !_is_hard(_get(msgs, f.channel)) || throw(ArgumentError(
+        "a GaussianPrior with a learned covariance does not take hard messages in its free energy"))
     Λ0 = f.noise_learning === nothing ? _prior_precision(f.Σ) : first(_noise_metrics(f.noise_learning, f.Σ, ps))
     n = length(f.μ)
     return _affine_gaussian_belief(NamedTuple{(f.channel,)}((Matrix(1.0I, n, n),)), -f.μ, Λ0, msgs,

@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-17, after P6 (`HardConstraintFactor` in plates and on `MeanField()` nodes), committed on `dev-danielb`, not pushed.
+**Last updated:** 2026-11-17, after P2 (hard inputs in the switching free energy, the frozen beliefs of the gradient and plates), committed on `dev-danielb`, not pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P6 committed (Lenticulum `hard_constraint.jl`/`.md`, its ChainRulesCore extension, `test/hard_plates.jl`; LenticulumCore `extended_gaussian.jl`/`.md`, a trusted constructor). Not pushed |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `9038f2c0` with the P6 diff applied; Mistral's probes in `scratch/p6/`, its environment `scratch/p6env` (Lenticulum and the core packages developed from the worktree, plus ForwardDiff, Zygote, Test). The older review state is on the branch `mistral/p4ad-stale-2026-11-17` (droppable), the older stashes too |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P2 committed (Lenticulum `switching.jl`/`.md`, `gaussian.jl`/`.md`, `test/hard_inputs.jl`; LenticulumCore `extended_gaussian.md`). Not pushed |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `01b0adea` with the P2 diff applied; Mistral's probes in `scratch/p2/` (copied to `../Lenticulum.jl-Review-2026-11-17/p2/`); its environment `scratch/p6env` (packages developed from the worktree, plus ForwardDiff, Zygote, Test) serves any review |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -27,24 +27,26 @@ Running one Lenticulum test file alone: the package has no test project (test de
 
 ## Done last
 
-- **P6** (committed): `factor_messages` of `HardConstraintFactor` shares replica 1's decompositions
-  when the replicas' inputs share their structure (33x at 100 replicas, 62x at 1000), otherwise per
-  replica; mean-field nodes take `LinearConstraintFactor`'s rule with a positive definite noise and
-  refuse an exact relation with the reason. Details in [[Backlog Done 2026-11]] (2026-11-17) and
-  [[hard_constraint]] "Plates (P6)", "Mean-field nodes".
-- Review: [[LP-044 Findings of the review of P6]] (Mistral; three findings, fixed with tests).
-- Verified: the suites of LenticulumCore, Mycelium, MyceliumLearning, Lenticulum, VariationalDiffusion,
-  ImplicitLayers, AlgebraicFactors, AdversarialFactors pass (logs in `~/.cache/lenticulum/p6/`, Lenticulum
-  in `suite_Lenticulum3.log`); the vault build passes; `docs/make.jl` not run.
+- **P2** (committed): `switch_statistics` built on `_reduced_relation`, so `SwitchingConstraintFactor`'s
+  term takes hard inputs; `_affine_gaussian_belief` substitutes hard directions and lifts the belief
+  back, so `factor_belief` of `GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor` and the
+  switching factor takes them, and the envelope gradient and the `DiagonalCoupling` replay run on
+  graphs with hard relations (they refused, "no canonical form"). Plates needed only tests. Details in
+  [[Backlog Done 2026-11]] (2026-11-17), [[switching]] "Hard inputs in the free energy",
+  [[lib/Lenticulum.jl/src/gaussian|gaussian]] "Free energy with hard inputs".
+- Review: [[LP-045 Findings of the review of P2]] (Mistral; no defect; a Zygote testset added for its gap).
+- Verified: the suites of Lenticulum, AlgebraicFactors and ImplicitLayers pass (logs in
+  `~/.cache/lenticulum/p2/`); the Zygote testset was added after the Lenticulum suite ran and passed
+  on its own (`test/hard_inputs.jl` alone). LenticulumCore, Mycelium, MyceliumLearning and
+  VariationalDiffusion not rerun (no code change there; one note in LenticulumCore). Vault build and
+  `docs/make.jl` not run.
 
 ## Next
 
-P2 is what P4 unblocked and is still open (hard inputs in the free energies of
-`SwitchingConstraintFactor`, the plate paths and the frozen beliefs of the gradient; with
-`DiagonalCoupling` the fixed-belief gradient refuses a graph whose variables have hard directions,
-"no canonical form"). Not designed yet; pick it or another row with the maintainer. Smaller
-follow-ups P6 left: P27 (mixture × extended), and a block type for extended Gaussians if a plate
-of hard relations is measured to spend its time at the variables.
+No row is set; pick one with the maintainer. Close to P2: P27 (mixture × extended, which would let a
+switching factor with a latent outcome share a variable with a hard relation), P5 (a singular nonzero
+noise in `HardConstraintFactor`'s free energy), a learned noise with hard messages (refused in
+`GaussianFactor`/`GaussianPrior`), P3 (`TrivialBelief()` on the exact flat path).
 
 ## Open
 

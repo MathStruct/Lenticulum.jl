@@ -1341,5 +1341,6 @@ include("forms_crossing.jl")
 
 include("hard_free_energy.jl")
 include("hard_gradient.jl")
+include("hard_inputs.jl")
 
 include("aqua.jl")

@@ -550,9 +550,33 @@ variables (`lib/LenticulumCore.jl/src/extended_gaussian.md`, "Entropy").
 and anything else enters with $U = I$. `GaussianFactor` and `GaussianPrior` keep their own code and
 call it only when a message is hard (`_is_hard`). With a learned noise or covariance they refuse a
 hard message in the free energy. Checked by the tree oracle of `test/hard_free_energy.jl`, where
-hard messages reach both (`hard_constraint.md`, "Measured"). Not handled: `SwitchingConstraintFactor`
-(its `_canon` refuses hard directions), the plate paths, the frozen beliefs of the gradient
-(`factor_belief`), and the exposed-parameter rules.
+hard messages reach both (`hard_constraint.md`, "Measured").
+
+**The rest (P2, 2026-11-17).** `SwitchingConstraintFactor`'s `switch_statistics` is built on
+`_reduced_relation` too, so its term takes hard inputs (`switching.md`). The frozen factor belief
+of the gradient, `_affine_gaussian_belief` (`GaussianFactor`, `GaussianPrior`,
+`LinearConstraintFactor`, `SwitchingConstraintFactor`), substitutes hard directions the same way:
+it solves the belief in $s$, takes the entropy there, and lifts the mean and covariance back to
+$x$ ($x_0 + U m_s$, $U \Sigma_s U^\top$, singular along the hard directions), so that
+`_frozen_residual` reads it unchanged; a channel hard in every direction is held as the point
+$x_0$. With a learned noise or covariance `factor_belief` refuses a hard message, as
+`local_free_energy` does. The plate paths needed no code: block messages holding extended
+Gaussians (`VectorBlock`s) make the batched `factor_beliefs` return `nothing`, and the free energy
+and the gradient go replica by replica through the methods above.
+
+Tests (`test/hard_inputs.jl`; every testset fails or errors against the code before this change):
+the envelope gradient and the replay with `DiagonalCoupling` on every edge against d$(-\log Z)$ of
+the dense model (12 random trees, to $10^{-7}$); a switching factor with an observed outcome beside
+a hard relation, $F = -\log Z$ and its gradient by `(A, b, logw)` (15 trees); the switching term
+against its softened limit and, with $K = 1$, against `LinearConstraintFactor`'s (60 random
+factors); `belief_free_energy ∘ factor_belief` against `local_free_energy` for the four factors;
+a plate's free energy and gradient against the sums over its replicas (6 plates of 4); Zygote
+against ForwardDiff through the switching term with hard inputs (28 checks, added after the review,
+LP-045).
+
+Not handled: the exposed-parameter rules, a learned noise with hard messages, and a switching
+factor with a latent outcome on a variable a hard relation reaches (its mixture message meets the
+extended one at the variable: P27).
 
 ## Batched factor beliefs (2026-11-03)
 

@@ -217,8 +217,9 @@ draws at least one, and the review (LP-043) found Zygote failing there.
   relative to its support (above); with flat directions there is none.
 - **Factors.** `HardConstraintFactor` emits it; the message store's distance and damping take it
   (Mycelium `gaussian.jl`); every relation factor takes it as input, and `GaussianFactor`,
-  `GaussianPrior`, `LinearConstraintFactor` and `HardConstraintFactor` take hard inputs in their
-  free energies. `GaussianFactor`, `NonlinearFactor` and `LinearConstraintFactor` emit it for
+  `GaussianPrior`, `LinearConstraintFactor`, `SwitchingConstraintFactor` and `HardConstraintFactor`
+  take hard inputs in their free energies, the first four also in the frozen beliefs of the
+  gradient (P2). `GaussianFactor`, `NonlinearFactor` and `LinearConstraintFactor` emit it for
   improper messages; the `improper` flag of `GaussianBelief` remains, by decision, for AD, plates and mixtures
   ([[Backlog Done 2026-11]], 2026-11-11).
 - **Gradients where a rank changes.** A tangent that changes the number of flat, hard or Gaussian

@@ -348,9 +348,32 @@ M-steps are in `m_steps.md` §3.
 `switch_statistics` collected its free channels with `push!` and built the joint precision with
 the in-place `_blockdiag`, and a mixture message is collapsed through `inv(::Cholesky)`, so Zygote could not take `local_free_energy` in `ps`, which
 blocked Zygote through the free energy of a plate with latent inputs (EP sites). The free channels
-come from `_free_channels`, non-differentiable (which channels are points is structure), and the
+came from `_free_channels`, non-differentiable (which channels are points is structure); since P2
+they come from `_reduced_relation`, which builds tuples rather than pushing, and the
 shared fixes are those of `constraint.md` ("Zygote through the cavity free energy"). Tests:
 `test/zygote_cavity.jl` (random factors, proper, point and mixture messages, a categorical or no
 message on the switch; Zygote against ForwardDiff to $10^{-8}$) and the latent switching plate of
 `test/plates.jl` (on blocks and per edge, to $10^{-10}$; it was `@test_broken`).
 
+
+## Hard inputs in the free energy (P2, 2026-11-17)
+
+A message from a `HardConstraintFactor` can fix a channel exactly along some directions (an
+extended Gaussian with hard directions). `switch_statistics` used to substitute only points and
+sent everything else through `_canon`, which refuses hard directions ("no canonical form"). It is
+now built on `_reduced_relation` (`constraint.md`), as `LinearConstraintFactor`'s
+`residual_statistics` is: points move into the constants, a hard input becomes $x = x_0 + U s$ with
+$U$ orthonormal along its other directions, so $c_k = b_k - \sum_j A_j x_{0,j}$ and the coordinates
+left are $s$. The outcome posterior, the per-outcome residual means and the shared covariance follow
+as before; $H(x \mid k)$ is taken in $s$, relative to Lebesgue measure on the belief's support, the
+convention of `hard_constraint.md` ("Free energy"). With $h$ hard directions the term is the limit
+of the term with variance $\varepsilon$ along them, plus $\tfrac h2 \log 2\pi e\varepsilon$; with
+$K = 1$ it is `LinearConstraintFactor`'s. The frozen belief of §7 takes hard inputs through
+`_affine_gaussian_belief` (`gaussian.md`, "Free energy with hard inputs"). Tests:
+`test/hard_inputs.jl`.
+
+Not handled: an unobserved outcome on a variable that a hard relation reaches. The factor's message
+to that variable is a mixture, and Mycelium's product has no rule for a mixture times an extended
+Gaussian (P27); with the outcome observed the message is a single Gaussian and the tree oracle
+passes. The plate method `factor_beliefs` returns `nothing` for extended blocks, so a plate takes
+the per-replica path.
