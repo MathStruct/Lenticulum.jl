@@ -677,6 +677,14 @@ function _reduced_residual_statistics(G, c_eff, canon, Q)
     Qi = _spd_inv(Q, "Q")
     Λ = G' * Qi * G + _blockdiag(map(last, canon))
     η = G' * (Qi * c_eff) + reduce(vcat, map(first, canon))
+    # A flat factor belief (an improper posterior) has no free energy. Decided by the relative
+    # tolerance `_eig_tol`, as the hard relation decides it: a rank-deficient Λ often comes out with
+    # an eigenvalue of 1e-16 rather than 0, which `GaussianBelief` took for proper, and its
+    # entropy was then a finite number made of rounding (review of P5, F1).
+    λ = LinearAlgebra.eigvals(Symmetric(LenticulumCore.stop_gradient((Λ + Λ') / 2)))
+    minimum(λ) > LenticulumCore._eig_tol(λ) || throw(ArgumentError(
+        "the factor belief is flat in some direction (its precision has the eigenvalue \
+         $(minimum(λ)) of $(maximum(λ))): an improper posterior has no free energy"))
     bel = GaussianBelief(η, Λ)
     mb, Σ = belief_mean(bel), belief_cov(bel)
     return (G * mb .- c_eff, G * Σ * G', Mycelium.variable_entropy(bel))

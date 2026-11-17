@@ -25,8 +25,10 @@ Inputs may be `GaussianBelief`s (also improper), `DiracBelief`s, `ExtendedGaussi
 no information (`TrivialBelief()`, no message, a latent channel). A mixture is collapsed to its
 total moments (`moment_match`), as the relation factors collapse one.
 
-Messages only: the factor has no free energy (a relation without noise has no finite one in
-closed form) and is not learnable through the free energy; `local_free_energy` throws.
+Its Bethe term (`local_free_energy`) is the finite limit of the noisy relation's as the noise
+vanishes along the exact directions, for a zero, singular or positive definite noise (see its
+docstring). Its own `A` and `c` are not learnable (`islearnable` is `false`); gradients of the
+other factors go through it.
 
 ```julia
 # Kirchhoff's current law at a node, exactly: i₁ + i₂ + i₃ = 0
@@ -145,19 +147,34 @@ remaining coordinates ``s`` (orthonormal along each input's support).
   full row rank: redundant equations, or equations on directions an input already fixes exactly,
   have an infinite free energy, and throw. So does a factor belief that is flat along ``R``.
 - **With a positive definite noise**, `LinearConstraintFactor`'s free energy.
+- **With a singular nonzero noise** ``Q = Q_s D Q_s^\\top`` (P5), exact along its null space
+  ``Q_h`` and soft along its range: the soft equations ``Q_s^\\top(\\tilde G s - \\tilde c) \\sim \\mathcal N(0, D)``
+  join the inputs' precision, the exact ones ``Q_h^\\top \\tilde G s = Q_h^\\top \\tilde c`` give the term
+  above, and `fit` and `complexity` gain the soft residual's
+  ``\\tfrac12\\mathbb E\\,[r^\\top D^{-1} r] + \\tfrac12\\log\\det 2\\pi D``. The exact equations need full row rank.
 
-A noise that is singular but not zero is not implemented. See `hard_constraint.md`, "Free energy".
+See `hard_constraint.md`, "Free energy".
 """
 function Mycelium.local_free_energy(f::HardConstraintFactor{names}, msgs, ps, st) where {names}
     G, c, canon = _reduced_relation(ps.A, ps.c, msgs, f.dims, names)
+    soft = nothing
     if !iszero(f.Q)
-        isposdef(Symmetric(f.Q)) || throw(ArgumentError(
-            "HardConstraintFactor: the free energy with a singular nonzero noise is not implemented"))
-        r̄, Cr, H = _reduced_residual_statistics(G, c, canon, f.Q)
-        Qi = _spd_inv(f.Q, "Q")
-        fit = (r̄' * (Qi * r̄) + tr(Qi * Cr)) / 2
-        complexity = logdet(_chol(2π .* f.Q, "2πQ")) / 2
-        return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -H)), st
+        # positive definite by the eigenvalue tolerance the messages use (`_eig_tol`), not by
+        # `isposdef`: a rank-deficient B Bᵀ has eigenvalues of 1e-16 that a Cholesky accepts
+        Qh, Qs, d = _noise_split(f.Q)
+        if size(Qh, 2) == 0
+            r̄, Cr, H = _reduced_residual_statistics(G, c, canon, f.Q)
+            Qi = _spd_inv(f.Q, "Q")
+            fit = (r̄' * (Qi * r̄) + tr(Qi * Cr)) / 2
+            complexity = logdet(_chol(2π .* f.Q, "2πQ")) / 2
+            return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -H)), st
+        end
+        # P5: a singular nonzero noise Q = Qs D Qsᵀ (Qs, Qh orthonormal bases of its range and null
+        # space). The relation is exact along Qh, Qhᵀ(G s − c) = 0, and soft along Qs,
+        # Qsᵀ(G s − c) ~ N(0, D): the soft part joins the inputs' precision, the exact part is the
+        # noise-free term below (`hard_constraint.md`, "Free energy with a singular noise").
+        soft =(G = Qs' * G, c = Qs' * c, d = d)
+        G, c = Qh' * G, Qh' * c
     end
     m, k = size(G)
     # G (and the messages) may carry derivatives (P4): the SVD is of the values, and G of full row
@@ -175,8 +192,10 @@ function Mycelium.local_free_energy(f::HardConstraintFactor{names}, msgs, ps, st
     N = V0[:, (m + 1):k] .- Gp * (Δ * V0[:, (m + 1):k])  # R = s0 + range(N), any solution s0
     complexity = LenticulumCore._logsum(S0) + sum(Gp' .* Δ)   # ½ log det(G Gᵀ)
     H = 0.0                                              # k = m: R is a point
+    Λz = nothing
     if k > m                                             # the entropy needs only the precision on R
         Λs = _blockdiag(map(last, canon))
+        soft === nothing || (Λs = Λs .+ soft.G' * (soft.G ./ soft.d))
         Λz = N' * Λs * N
         Λz = (Λz + Λz') / 2
         λz = LinearAlgebra.eigvals(Symmetric(LenticulumCore.stop_gradient(Λz)))
@@ -185,7 +204,34 @@ function Mycelium.local_free_energy(f::HardConstraintFactor{names}, msgs, ps, st
              solution set (an improper posterior); it has no free energy"))
         H = (k - m) * (1 + log(2π)) / 2 - logdet(_chol(Λz, "the factor belief's precision on R")) / 2
     end
-    return LenticulumCore.GradedEnergy((fit = 0.0, complexity = complexity, negentropy = -H)), st
+    soft === nothing &&
+        return LenticulumCore.GradedEnergy((fit = 0.0, complexity = complexity, negentropy = -H)), st
+    # The soft residual r = Gs s − cs under the factor belief on R: s = s0 + N z with s0 a solution
+    # of G s0 = c (in plain arithmetic, so that it carries the tangent of G and c) and
+    # z ~ N(Λz⁻¹ Nᵀ(η' − Λ' s0), Λz⁻¹), η' and Λ' the inputs' information and precision with the
+    # soft part added. The mean does not depend on which solution s0 is taken.
+    s0 = G' * ((G * G') \ c)
+    if Λz === nothing
+        s̄, Cs = s0, nothing
+    else
+        ηs = reduce(vcat, map(first, canon)) .+ soft.G' * (soft.c ./ soft.d)   # Λs has the soft part (above)
+        Sz = inv(Symmetric(Λz))
+        s̄ = s0 .+ N * (Sz * (N' * (ηs .- Λs * s0)))
+        Cs = N * Sz * N'
+    end
+    r̄ = soft.G * s̄ .- soft.c
+    fit = sum(abs2.(r̄) ./ soft.d) / 2
+    Cs === nothing || (fit += tr((soft.G' * (soft.G ./ soft.d)) * Cs) / 2)
+    complexity += sum(log.(2π .* soft.d)) / 2
+    return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -H)), st
+end
+
+# A positive semidefinite noise split into its null space Qh (exact directions), its range Qs and
+# the positive eigenvalues d on it. The noise is a constant of the factor (Float64, no tangent).
+function _noise_split(Q::AbstractMatrix)
+    λ, V = LinearAlgebra.eigen(Symmetric(Q))
+    pos = λ .> LenticulumCore._eig_tol(λ)
+    return V[:, .!pos], V[:, pos], λ[pos]
 end
 
 # --- Plates (P6) --------------------------------------------------------------

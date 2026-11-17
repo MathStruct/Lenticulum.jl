@@ -195,6 +195,14 @@ needing its own branch — `gaussian.jl` has three hand-written branches for wha
 here. The cost is that the code path depends on the *runtime type* of each incoming message,
 so it is not type-stable across belief types.
 
+A factor belief that is flat in some direction (inputs that leave a coordinate free and an $A$
+that does not reach it) has no free energy, and `residual_statistics` throws. It decides flatness
+by the relative tolerance `_eig_tol` on the belief's precision, as `HardConstraintFactor` does
+(2026-11-17, [[LP-047 Findings of the review of P5]]): before, it relied on `GaussianBelief`, which
+took an eigenvalue of $10^{-16}$ (a rank-deficient precision after rounding) for a proper one, and
+the entropy was then a finite number made of rounding; with two uninformative inputs that happened
+in 25 of 400 random draws (`test/hard_free_energy.jl`, "Review of P5, F1").
+
 ### 4.5 `Q` is a hyperparameter, and the hard relation is unreachable
 
 $Q \to 0$ recovers the hard relation $\{x : \sum_i A_i x_i = c\}$, which is what

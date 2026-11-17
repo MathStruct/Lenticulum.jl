@@ -76,14 +76,52 @@ receives a hard message substitutes its hard directions out, as above
 (`lib/Lenticulum.jl/src/gaussian.md`, "Free energy with hard inputs"). A clamped variable keeps
 $H(\delta) = 0$, the case of every direction hard.
 
-The term is infinite, and refused, in three cases:
+The term is infinite, and refused, in two cases:
 
 - $\tilde G$ has rank below $m$: redundant equations, or equations on a direction an input already
   fixes exactly ($\delta(0)$, two hard constraints on one direction);
-- $N^\top\Lambda N$ is singular: the factor belief is flat along $R$, an improper posterior;
-- the noise is singular but nonzero. Splitting it into hard and soft parts is not implemented.
+- $N^\top\Lambda N$ is singular: the factor belief is flat along $R$, an improper posterior.
 
 With a positive definite noise the term is `LinearConstraintFactor`'s.
+
+## Free energy with a singular noise (P5, 2026-11-17)
+
+A noise $Q \succeq 0$ of rank $0 < r < m$ is written $Q = Q_s D Q_s^\top$, with $Q_s$ ($m \times r$) an orthonormal
+basis of its range, $D$ its positive eigenvalues, and $Q_h$ ($m \times (m - r)$) an orthonormal basis of its
+null space; an eigenvalue counts as zero below LenticulumCore's `_eig_tol` (the tolerance the
+messages use; `isposdef` would accept a rank-deficient $BB^\top$, whose zero eigenvalues come out
+as $10^{-16}$). The relation is the limit of the noise $Q_\varepsilon = Q + \varepsilon Q_h Q_h^\top$, and since
+$[Q_s\ Q_h]$ is orthogonal its density factors exactly:
+
+$$
+\mathcal N(\tilde G s;\, \tilde c,\, Q_\varepsilon) \;=\; \mathcal N(G_s s;\, c_s,\, D)\;\mathcal N(G_h s;\, c_h,\, \varepsilon I),
+\qquad G_s = Q_s^\top \tilde G,\ c_s = Q_s^\top \tilde c,\ G_h = Q_h^\top \tilde G,\ c_h = Q_h^\top \tilde c .
+$$
+
+The soft factor does not depend on $\varepsilon$, so it joins the inputs: the precision $\Lambda' = \Lambda + G_s^\top D^{-1} G_s$ and
+information $\eta' = \eta + G_s^\top D^{-1} c_s$. The exact factor is the noise-free case above with $(G_h, c_h)$
+for $(\tilde G, \tilde c)$ and $\Lambda'$ for $\Lambda$, and the soft factor adds its average energy under the
+factor belief on $R = \{G_h s = c_h\}$:
+
+$$
+F_f \;=\; \tfrac12\log\det(G_h G_h^\top) \;-\; H_R(b_f) \;+\; \tfrac12\,\mathbb E_{b_f}\bigl[r^\top D^{-1} r\bigr] \;+\; \tfrac12\log\det(2\pi D),
+\qquad r = G_s s - c_s,
+$$
+
+with $H_R$ from $N^\top \Lambda' N$ ($N$ a basis of $\operatorname{null}(G_h)$). Under $b_f$, $s = s_0 + N z$ with $s_0$ any
+solution of $G_h s_0 = c_h$ and $z \sim \mathcal N\bigl((N^\top\Lambda'N)^{-1}N^\top(\eta' - \Lambda' s_0),\ (N^\top\Lambda'N)^{-1}\bigr)$; the
+mean of $s$ does not depend on the choice of $s_0$. With $r = 0$ soft equations this is the noise-free term, and
+with $r = m$ it is `LinearConstraintFactor`'s. The rank condition is on $G_h$ alone: the soft equations may
+outnumber the free coordinates.
+
+Graded as `fit` $= \tfrac12\mathbb E[r^\top D^{-1} r]$, `complexity` $= \tfrac12\log\det G_hG_h^\top + \tfrac12\log\det 2\pi D$,
+`negentropy` $= -H_R$.
+
+**Derivatives.** $Q$ is a constant of the factor (`Float64`), so its split is taken once, on values,
+and carries no tangent. $G_h = Q_h^\top \tilde G$ carries the inputs' tangents, and its SVD takes P4's
+constant-rank terms as before; $s_0 = G_h^\top (G_h G_h^\top)^{-1} c_h$ and the soft part are plain arithmetic,
+so ForwardDiff and Zygote go through them. `islearnable` stays `false`, so the row's "learnable" means
+the derivatives of the other factors' parameters through this term (`test/hard_gradient.jl`).
 
 ## Implementation
 
@@ -120,7 +158,14 @@ With a positive definite noise the term is `LinearConstraintFactor`'s.
 |---|---|---|
 | the Bethe free energy of a tree (`scalar_free_energy` after `infer!`) against $-\log Z = -\log \mathcal N(c;\, C\mu,\, C\Sigma C^\top)$ of the dense model; marginals against the conditioned Gaussian | 40 random trees: prior → `GaussianFactor` → $u$ → `GaussianFactor` → $w$, a prior on $v$, a hard relation on $(u, v)$ with up to $\dim u + \dim v$ equations; in 25 of them $u$ ends with hard directions, in 19 $v$ (so hard messages reach both `GaussianFactor`s and the prior on $v$) | within the test's $10^{-7}(1 + \lvert\log Z\rvert)$ |
 | the term without noise against the noisy relation's term at $\varepsilon = 10^{-30}$, from its formula in 512-bit arithmetic, on the same reduced relation | 80 draws of 2–3 channels (points, proper Gaussians, extended Gaussians with hard directions); the 64 with a free coordinate | largest relative difference $1.3 \cdot 10^{-15}$ (the test asks for $10^{-9}$) |
-| refusals: redundant equations on a clamped input, a belief flat along $R$, a singular nonzero noise; with a positive definite noise, `LinearConstraintFactor`'s value | 4 | exact |
+| refusals: redundant equations on a clamped input, a belief flat along $R$, redundant exact equations of a singular noise; with a positive definite noise, `LinearConstraintFactor`'s value | 4 | exact |
+| P5, singular noise: the tree above with a noise of rank $0 < r < m$ (up to $\dim u + \dim v + 1$ equations): marginals against the conditioned Gaussian with $C\Sigma C^\top + Q$, the Bethe free energy against $-\log Z$ | 40 random trees, $u$ with hard directions in 17 | within $10^{-7}$ (marginals) and $10^{-7}(1 + \lvert\log Z\rvert)$ |
+| P5: the term against the noisy relation's with noise $Q_sDQ_s^\top + \varepsilon Q_hQ_h^\top$, $\varepsilon = 10^{-30}$, 512-bit | 80 draws as above, the 70 with a free coordinate | largest relative difference $3.8 \cdot 10^{-15}$ (the test asks for $10^{-9}$) |
+| P5 by hand: $x \sim \mathcal N(0, I_2)$, $x = \varepsilon$ with $\varepsilon \sim \mathcal N(0, \operatorname{diag}(1, 0))$ | 1 | marginal $\operatorname{diag}(0.5, 0)$; $F = \tfrac12\log 4\pi + \tfrac12\log 2\pi$ |
+
+`test/hard_gradient.jl`, P5: the coupled replay through a relation with a singular noise against
+ForwardDiff of the dense $-\log Z$, on 12 random trees: reference differences within $10^{-5}$,
+ForwardDiff and Zygote within $10^{-7}$ relative.
 
 ## Plates (P6)
 
@@ -199,7 +244,11 @@ rule for an exact relation; a `MeanField()` node wants a positive definite noise
   rank, LenticulumCore `extended_gaussian.md`, "Derivatives"); `test/hard_gradient.jl` checks it
   against the gradient of the dense $-\log Z$ on random trees. `fit_em` with the factor in the graph
   is not tested.
-- **Free energy with a singular nonzero noise**: refused (above).
+- **A nearly singular noise** (an eigenvalue above `_eig_tol` but tiny, say a relative $10^{-11}$)
+  counts as positive definite and goes through `LinearConstraintFactor`'s formulas, messages
+  included, which invert it: 6 of 20 random trees with such a noise were off by up to $1.6\cdot10^{-6}$
+  in $F$ and $4\cdot10^{-5}$ in the marginals ([[LP-047 Findings of the review of P5]], finding 4; a
+  review script, not a test). A formulation in the residual space would avoid the inverse.
 - **Plates whose inputs differ in structure**, dual numbers and Zygote take the per-replica path
   ("Plates"); there is no block type for extended Gaussians.
 - **Mean-field messages** (`MeanField()` nodes) of an exact relation: refused ("Mean-field nodes").
@@ -217,3 +266,11 @@ orthonormal basis of the complement of $D$, which is empty in that case, so $\Si
 The damped flooding run of one instance (an ill-conditioned $A$) stops at a residual of
 $3.8 \cdot 10^{-10}$, a rounding floor of the absolute convergence bound (LP-024's open row), so the test
 asks for $10^{-8}$; its marginals agree to $10^{-7}$.
+
+P5's first tree test failed in one instance: a noise $BB^\top$ of rank 1 had a zero eigenvalue
+computed as about $10^{-16}$, `isposdef` accepted it, and the free energy took
+`LinearConstraintFactor`'s path while the messages (which split at `_eig_tol`) had treated that
+direction as exact. The free energy now decides positive definiteness by the same tolerance. The
+512-bit oracle met the same rounding the other way: $Q + \varepsilon Q_hQ_h^\top$ at $\varepsilon = 10^{-30}$ was
+indefinite, as $Q$'s null eigenvalues in `Float64` are $\pm 10^{-17}$; the oracle rebuilds the noise
+from its split.
