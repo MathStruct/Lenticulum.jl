@@ -677,8 +677,9 @@ largest change of a variable's marginal, compared by moments: means and covarian
 weights of a mixture or a categorical). `:marginals` needs two sweeps in a row within the bound:
 a marginal reads only the messages to its variable, and a sweep can change messages to factors
 alone (flooding from an empty store does on its second sweep), which reach the marginals one sweep
-later (I22). Messages of mixtures with very narrow components have a
-rounding floor in natural parameters that their moments do not, so hybrid graphs default to
+later (I22). A `ResidualSchedule` that covers only part of the tasks per sweep (`maxtasks`) also
+needs, under `:marginals`, every pending message residual within the bound when it stops (I24).
+Messages of mixtures with very narrow components have a rounding floor in natural parameters that their moments do not, so hybrid graphs default to
 `:marginals` ([`hybrid_schedule`](@ref)).
 
 `rtol > 0` makes the criterion relative (P9): a message, or a marginal, has converged when each
@@ -724,9 +725,19 @@ function _iterate!(s, g, sched, ps, st, maxsweeps, tol, rel, damping, record, cr
     res = Inf
     margs = criterion === :marginals ? _all_marginals(s, g) : nothing
     quiet = 0           # consecutive sweeps whose residual met the bound (I22)
+    bound = rel === nothing ? tol : 1
+    # A residual sweep with `maxtasks` below the number of tasks commits only part of the
+    # messages, possibly only messages to factors, so quiet marginals say nothing about the rest
+    # (I24, LP-052). Under `:marginals` it must also leave every pending message residual within
+    # the bound, which makes the stop a fixed point of the messages as well. The sweep's residual
+    # is at least its first update, the largest pending residual at its start: a cheap filter.
+    # The sweep's own updates can raise residuals after that (LP-054 F1), so the stop is checked
+    # with one scan of every task.
+    partial = criterion === :marginals && sched isa ResidualSchedule && sched.maxtasks < length(all_tasks(g))
     for i in 1:maxsweeps
         res, st = sched isa ResidualSchedule ?
             sweep!(s, g, sched, ps, st; damping, record) : sweep!(s, g, sched, ps, st; damping)
+        pending = _primal(res)
         if criterion === :marginals
             new = _all_marginals(s, g)
             res = rel === nothing ?
@@ -737,14 +748,21 @@ function _iterate!(s, g, sched, ps, st, maxsweeps, tol, rel, damping, record, cr
         # Convergence is decided on the primal value: a dual's comparisons break ties by its
         # partials, and the report holds a Float64 (I23).
         res = _primal(res)
-        quiet = res <= (rel === nothing ? tol : 1) ? quiet + 1 : 0
+        partial && (res = max(res, pending))
+        quiet = res <= bound ? quiet + 1 : 0
         # A marginal reads only the messages to its variable. A sweep can change messages to
         # factors and leave every marginal as it was (flooding's second sweep from an empty store:
         # the priors have reached the variables, but not yet the factors that pass them on); the
         # change reaches the marginals one sweep later. So `:marginals` needs two quiet sweeps in
         # a row (I22); `:messages` sees every message and needs one.
         if quiet >= (criterion === :marginals ? 2 : 1)
-            what = criterion === :marginals ? "marginals changed, in two sweeps in a row, by less than " : "residual below "
+            if partial
+                p = _max_pending(s, g, ps, st, damping)
+                res = max(res, p)
+                p <= bound || continue
+            end
+            what = !partial ? (criterion === :marginals ? "marginals changed, in two sweeps in a row, by less than " : "residual below ") :
+                "marginals changed, in two sweeps in a row, and every pending message residual (partial residual sweeps), by less than "
             return ConvergenceReport(true, i, res,
                 what * (rel === nothing ? "tol" : "tol + rtol·scale (residual in units of that bound)")), st
         end
@@ -753,6 +771,17 @@ function _iterate!(s, g, sched, ps, st, maxsweeps, tol, rel, damping, record, cr
         "residual is Inf: no `belief_distance` method for these belief types, so convergence \
          cannot be verified (see messages.md). Ran to maxsweeps rather than claim success."
     return ConvergenceReport(false, maxsweeps, res, reason), st
+end
+
+# The largest residual of a task that could be committed now, without committing it (I24).
+function _max_pending(s::MessageStore, g::FactorGraph, ps, st, damping)
+    m = 0.0
+    ps, st = _indexed(ps), _statebuffer(st)
+    for t in all_tasks(g)
+        _, res, _, skip = _step!(s, g, t, ps, _readonly(st); damping, commit = false)
+        skip || (m = max(m, _primal(res)))
+    end
+    return m
 end
 
 """

@@ -223,9 +223,24 @@ an unchanged marginal means unchanged messages to it, which a change that cancel
 would break; that is not excluded, only unlikely. In-place schedules can lag the same way (a message
 to a factor computed after the one it feeds in a sweep), and the same count covers one sweep of lag
 there. The cost is one more sweep for every `:marginals` run, including the hybrid schedules.
-Not covered: a `ResidualSchedule` whose `maxtasks` is below the number of tasks commits only part
-of a sweep, and two quiet partial sweeps say nothing; it still stops after 2 sweeps with every
-marginal trivial (LP-052 F1, backlog I24, a `@test_broken` in `test/p9_relative_tol.jl`).
+**Partial residual sweeps (I24, 2026-11-17).** A `ResidualSchedule` whose `maxtasks` is below the
+number of tasks (also the default `maxtasks = 10_000` on a larger graph) commits only part of a sweep,
+possibly only messages to factors, so two quiet partial sweeps say nothing: on the divider it stopped
+after 2 sweeps with every marginal trivial (LP-052 F1). Such a run now also needs every pending
+message residual within the bound when it stops, which makes the stop a fixed point of the messages
+too, in the units of the criterion (absolute or relative). The sweep's residual is a cheap filter: it
+is at least the sweep's first update, which is the largest pending residual at the start of the
+sweep. It is not enough on its own: the sweep's later updates can raise other residuals, and the
+review measured up to 2.7 times the bound at the report when only that was checked (LP-054 F1). So
+when the marginals have been quiet twice and the filter passes, one scan of every task (evaluated,
+not committed) decides; if a residual is above the bound the run goes on. The report gives the
+largest of the residuals and says "every pending message residual" in its `reason`. A sweep that
+covers every task is unchanged, and so is `:messages`. A partial run whose messages have no
+`belief_distance` (residual `Inf`) now never reports convergence under `:marginals` (by the code;
+not run). Measured on the divider (`maxtasks` 1 and 3, damping 0 and 0.3, `tol` from 1e-11 to 1e-9):
+every pending residual within the bound after the report; a warm start stops after 4–15 sweeps
+against 515–1106 cold. Test: `test/p9_relative_tol.jl`, the I24 lines (also the relative criterion,
+against the dense solve and a scan of the pending residuals).
 
 ## `factor_messages` on blocks (2026-11-03)
 

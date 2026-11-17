@@ -134,16 +134,42 @@ p9_relerr(marg, m) = maximum(abs, p9_means(marg) .- m) / maximum(abs, m)
                 @test rep.converged && rep.sweeps > 2 && p9_relerr(marg, m) < 1e-8
             end
         end
-        # Known defect (backlog I24, LP-052 F1): a ResidualSchedule with maxtasks below the number
-        # of tasks commits only part of a sweep, which can be messages to factors alone, so two quiet
-        # sweeps still say nothing: `:marginals` stops after 2 sweeps with every marginal trivial.
+        # I24 (regression; LP-052 F1): a ResidualSchedule with maxtasks below the number of tasks
+        # commits only part of a sweep, which can be messages to factors alone, so two quiet sweeps
+        # of the marginals said nothing: `:marginals` stopped after 2 sweeps with every marginal
+        # trivial. A partial residual sweep now also needs the largest pending message residual
+        # within the bound, checked over every task when the run is about to stop (the last
+        # sweep's own updates can raise residuals after its first: LP-054 F1 measured 2.6e-11
+        # against tol = 1e-11 when only the sweep's first update was checked). Oracles: the dense
+        # solve, and a scan of every pending residual after the report.
         g, ps, st, m = p9_divider(1.0)
-        for mt in (1, 3)
-            marg, rep, _, _ = infer!(g, ResidualSchedule(maxtasks = mt), ps, st; maxsweeps = 20000, tol = 1e-11,
-                                     criterion = :marginals)
-            @test_broken rep.converged && all(v -> marg[v] isa GaussianBelief, (:v, :i1, :i2)) &&
-                         p9_relerr(marg, m) < 1e-8
+        for mt in (1, 3), kw in ((tol = 1e-11,), (tol = 0.0, rtol = 1e-10))
+            marg, rep, _, _ = infer!(g, ResidualSchedule(maxtasks = mt), ps, st; maxsweeps = 20000,
+                                     criterion = :marginals, kw...)
+            @test rep.converged && rep.sweeps > 2 && all(v -> marg[v] isa GaussianBelief, (:v, :i1, :i2)) &&
+                  p9_relerr(marg, m) < 1e-8
+            @test occursin("pending", rep.reason)
         end
+        p9_pending(s, g, ps, st; damping = 0.0) = maximum(t -> step!(s, g, t, ps, st; damping, commit = false)[2], all_tasks(g))
+        for tol in (1e-11, 5e-11, 1e-9), (mt, damping) in ((1, 0.0), (3, 0.3))
+            s = MessageStore(g)
+            rep, _ = propagate!(s, g, ResidualSchedule(maxtasks = mt), ps, st; maxsweeps = 30000, tol, damping,
+                                criterion = :marginals)
+            @test rep.converged && p9_pending(s, g, ps, st; damping) <= tol && rep.residual <= tol
+            # warm start: a second run on the converged store stops soon (measured 4–15 sweeps against
+            # 515–1106 cold: each sweep's updates can lift a residual above the bound for a while)
+            rep2, _ = propagate!(s, g, ResidualSchedule(maxtasks = mt), ps, st; maxsweeps = 30000, tol, damping,
+                                 criterion = :marginals)
+            @test rep2.converged && rep2.sweeps < rep.sweeps ÷ 10 && p9_pending(s, g, ps, st; damping) <= tol
+        end
+        let s = MessageStore(g), kw = (tol = 0.0, rtol = 1e-10)
+            rep, _ = propagate!(s, g, ResidualSchedule(maxtasks = 1), ps, st; maxsweeps = 30000, criterion = :marginals, kw...)
+            pend = Base.ScopedValues.with(() -> p9_pending(s, g, ps, st), Mycelium._RELATIVE_TOL => (kw.tol, kw.rtol))
+            @test rep.converged && pend <= 1
+        end
+        # a sweep that covers every task is unchanged: no pending-residual condition
+        marg, rep, _, _ = infer!(g, ResidualSchedule(), ps, st; maxsweeps = 20000, tol = 1e-11, criterion = :marginals)
+        @test rep.converged && !occursin("pending", rep.reason) && p9_relerr(marg, m) < 1e-8
         # the same model in other units needs the same sweeps (up to rounding, one or two)
         for (name, s) in sweeps
             @test maximum(s) - minimum(s) <= 2
