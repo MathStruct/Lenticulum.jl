@@ -156,11 +156,72 @@ factor, a prior on $y$, 20 instances, $n_{\text{in}} < n_{\text{out}}$) the marg
 
 **Difficulty: central differences and rank.** When $f$ depends on fewer directions than $x$ has
 ($W$ rank-deficient), the difference Jacobian carries an error of about $10^{-10}$, far above the
-rank test's threshold ($\max(n_{\text{in}}, n_{\text{out}})\,\varepsilon\,s_1$), so it has full
-numerical rank and the message loses directions of $\operatorname{null}(A^\top)$: in 21 of the test's
-draws. It only discards information (the test checks that its precision never exceeds the
-exact one) and is recorded as `@test_broken`. A rank tolerance tied to the Jacobian's accuracy is
-backlog row P29; pass `jacobian` for an exact rank.
+rank test's threshold ($\max(n_{\text{in}}, n_{\text{out}})\,\varepsilon\,s_1$), so it had full
+numerical rank and the message lost directions of $\operatorname{null}(A^\top)$ (21 of the test's
+draws). Since P29 the difference Jacobian is cut to the rank its accuracy supports (next section);
+the test now requires the exact message in those draws too.
+
+## The rank of a difference Jacobian (P29, 2026-11-17)
+
+**Problem.** Every rank test of the messages (`_rank_deficient`, the flat path's null space of
+$A^\top$) is relative to $\varepsilon$. A Jacobian from central differences is accurate to about
+$10^{-10}$ relative, so when $\operatorname{rank}(\partial f/\partial x) = r < \min(n_{\text{in}}, n_{\text{out}})$
+its $\min - r$ smallest singular values are of that size instead of zero. The forward message with no
+input on $x$ then loses directions (conservative), and a backward message is not declared improper:
+it is sent as a `GaussianBelief` whose precision has eigenvalues of order $10^{-20}$, which a later
+factor inverts.
+
+**What is done** (`_rank_clean` in `nonlinear.jl`). Each entry of $J$ gets an error bound
+$B_{ji} = R_{ji} + \tfrac13 \lvert J(h) - J(2h)\rvert_{ji}$: the rounding of $f$'s values over the step
+and of the shifted point, $R_{ji} = \varepsilon\bigl((\lvert f^+_j\rvert + \lvert f^-_j\rvert)/2h_i + \lvert x_i\rvert\lvert J_{ji}\rvert/h_i\bigr)$,
+and the truncation error by Richardson's estimate. The rank is decided where every entry's bound
+is at most 1: with diagonal powers of two $D_r$, $D_c$ such that $B \le r c^\top$,
+
+$$
+\tilde J = D_r^{-1} J D_c^{-1}, \qquad \lVert \operatorname{error}(\tilde J)\rVert_2 \le \sqrt{n_{\text{out}} n_{\text{in}}},
+$$
+
+and the singular values of $\tilde J$ below $\kappa\sqrt{n_{\text{out}} n_{\text{in}}}$, $\kappa = 10$, are cut,
+by the oblique projection $P = D_c^{-1}\tilde V_r \tilde V_r^\top D_c$ on the right: $D_r^{-1}(JP)D_c^{-1}$ is
+$\tilde J$'s truncated SVD, and $JP$ has rank exactly $r$ for the $\varepsilon$-relative tests downstream.
+A first version used one global bound ($\max\lvert f\rvert$, the smallest step); the review found that
+rows of very different size ($[10^{-3}x_1,\ 10^7 + x_2]$) or steps of very different size ($x = [0, 10^6]$)
+then hid a singular value of $10^{-3}$ that its own entries resolve to $10^{-12}$.
+
+With dual numbers (ForwardDiff) $P$, computed from the values, is a constant, and
+$(J - \operatorname{value}(J))(I - P)$, whose value is exactly zero, is added: it gives back the derivative
+of $J$ in the cut directions. Without it, where the rank changes at the point ($f(x) = x^2$ at
+$x_1 = 0$) the derivative of $J$ lost its entries in those directions (review). A non-finite $J$ is
+returned as it is.
+
+$J(2h)$ costs $2 n_{\text{in}}$ more evaluations of $f$ and is computed only in a gray zone: a singular
+value of $J$ below $10^{-3} s_1$, or of the rounding-scaled $\tilde J$ below $10^3\sqrt{mn}$; a
+well-conditioned $J$ costs nothing extra.
+
+Measured by `bench/p29_difference_rank.jl` (20 000 random $f = g(Wx + c)$, $g$ one of $\tanh$, affine,
+$\sin +$ quadratic, $W$ of random rank scaled by $10^{\pm 2}$; 2026-11-17): a bound on rounding alone
+is not enough, the raw error exceeds it by more than 94 times in 1% of the draws and by up to
+$3 \cdot 10^4$, from $h^2 f'''$, which also leaves the true range of $J$. With the Richardson term the
+cleaned rank equals the exact one in 19 663 draws, is never above it, and is below it in 337, where
+exact singular values of at most $1.7 \cdot 10^{-8}$ (18.7 rounding bounds) were cut, mostly a
+saturated coordinate of $\tanh$. Cutting makes a message more confident (one more direction of
+$\operatorname{null}(A^\top)$); it is bounded by the error estimate, not removed. $\kappa$ was not tuned.
+
+**Tested** (`test/p29_rank_tolerance.jl`): on 400 draws of three maps, every instance whose singular
+values are resolvable (none in $(10^{-12} s_1, 10^{-5} s_1)$, none below $10^{-6}$) has the exact
+rank and agrees with the exact Jacobian to $10^{-5}$; a backward message for $W$ of rank below
+$n_{\text{in}}$ is an `ExtendedGaussian` flat along $\operatorname{null}(A)$ and equal to the message with
+the exact Jacobian; the number of evaluations of $f$ ($2n_{\text{in}}$, or $4n_{\text{in}}$ in the gray
+zone); ForwardDiff through the forward message against central differences, $W$ of rank 1; the
+three findings of the review ([[LP-050 Findings of the review of P29]]); and P28's no-input test
+without its `@test_broken`. On the code before P29 the first testset fails in 393 of 2344 checks.
+
+**Does not do.** A Jacobian lying wholly below the difference error (a saturated $\tanh$) is cut to
+zero, as if $f$ were constant there; differences cannot resolve it, pass `jacobian`. A singular value
+near the error bound is kept or cut by $\kappa$, not by $f$; the bound is per entry, so a
+singular value that mixes entries of very different accuracy is judged by the coarse ones. The unscented
+transform with $S \ne 0$ fits its $A$ by regression and is not cut. Zygote through `_jacobian` is
+unchanged (it builds $J$ by mutation). User-supplied Jacobians are used as given.
 
 **Does not do.** Linearise anywhere but `x0` (a flat $x$ has no mean; the cavity of $y$ is not
 used to choose a point). At an `x0` where the Jacobian loses rank the message is as confident as the

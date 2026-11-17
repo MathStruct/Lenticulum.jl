@@ -154,13 +154,79 @@ function _jacobian(f::NonlinearFactor, x)
         J = f.jacobian(x)
         return Matrix{promote_type(Float64, eltype(x), eltype(J))}(J)
     end
+    J, R = _difference_jacobian(f, x, 1)
+    return _rank_clean(f, x, J, R)
+end
+
+# Central differences with the step `scale · 1e-6 (1 + |xᵢ|)`, and a bound on the rounding error of
+# each entry: the rounding of f's values over the step, eps (|f⁺ⱼ| + |f⁻ⱼ|) / 2hᵢ, and of the shifted
+# point, eps |xᵢ| / hᵢ · |Jⱼᵢ|.
+function _difference_jacobian(f::NonlinearFactor, x, scale)
     J = zeros(promote_type(Float64, eltype(x)), f.nout, f.nin)
+    R = zeros(f.nout, f.nin)
     for i in 1:f.nin
-        h = 1e-6 * (1 + abs(LenticulumCore.stop_gradient(x[i])))
+        xi = abs(LenticulumCore.stop_gradient(x[i]))
+        h = scale * 1e-6 * (1 + xi)
         e = zeros(f.nin); e[i] = h
-        J[:, i] = (_vec(f.f(x .+ e)) .- _vec(f.f(x .- e))) ./ (2h)
+        fp, fm = _vec(f.f(x .+ e)), _vec(f.f(x .- e))
+        J[:, i] = (fp .- fm) ./ (2h)
+        R[:, i] = eps(Float64) .* ((abs.(LenticulumCore.stop_gradient(fp)) .+ abs.(LenticulumCore.stop_gradient(fm))) ./ (2h) .+
+                                   xi / h .* abs.(LenticulumCore.stop_gradient(J[:, i])))
     end
-    return J
+    return J, R
+end
+
+# P29 (nonlinear.md, "The rank of a difference Jacobian"): central differences are accurate to
+# about 1e-10 relative, so a Jacobian of rank r below min(nout, nin) comes out with full numerical
+# rank, and the rank tests of the messages (eps-relative) lose what f does not depend on. So the
+# singular values below the difference error are cut. The error is bounded per entry, B = R + |J(h)
+# − J(2h)|/3 (rounding, and truncation by Richardson), and the rank is decided in the coordinates
+# where every entry's bound is at most 1: J̃ = D_r⁻¹ J D_c⁻¹, D_r and D_c diagonal powers of two with
+# B ≤ r cᵀ, so ‖error(J̃)‖₂ ≤ √(mn), and the singular values of J̃ below κ√(mn) are cut. Rows of very
+# different size, or steps of very different size, then do not hide a small singular value that
+# its own entries resolve (review of P29). The cut is the oblique projection P = D_c⁻¹ Ṽ Ṽᵀ D_c on the
+# right: D_r⁻¹ (J P) D_c⁻¹ is J̃'s truncated SVD, and J P has exactly rank r for the tests
+# downstream. With dual numbers P is a constant and (J − value(J))(I − P), whose value is exactly
+# zero, gives back the derivative of J in the cut directions, which matters where the rank changes
+# at the point (f = x.^2 at 0). J(2h) is computed only in a gray zone (a singular value of J below
+# 1e-3 σ₁, or of the rounding-scaled J̃ below 10³√(mn)); a well-conditioned J costs no extra
+# evaluation of f. A non-finite J is returned as it is. κ = 10, measured in
+# bench/p29_difference_rank.jl.
+const _FD_RANK_KAPPA = 10.0
+
+# powers of two r, c with B ≤ r cᵀ (each column, then each row, at its largest bound); a zero bound
+# is floored at eps times the largest
+function _error_scales(B)
+    pow2(v) = exp2(ceil(log2(v)))
+    m = maximum(B)
+    c = [pow2(max(maximum(view(B, :, i)), eps(Float64) * m)) for i in axes(B, 2)]
+    Bc = B ./ c'
+    r = [pow2(max(maximum(view(Bc, j, :)), eps(Float64))) for j in axes(B, 1)]
+    return r, c
+end
+
+function _rank_clean(f::NonlinearFactor, x, J, R)
+    isempty(J) && return J
+    Jv = Matrix{Float64}(LenticulumCore.stop_gradient(J))
+    all(isfinite, Jv) && all(isfinite, R) || return J
+    maximum(R) == 0 && return J                        # f's values exactly zero: nothing rounded
+    s = LinearAlgebra.svdvals(Jv)
+    lim = sqrt(length(J))
+    r0, c0 = _error_scales(R)
+    if !(s[end] <= 1e-3 * s[1])
+        last(LinearAlgebra.svdvals(Jv ./ (r0 * c0'))) > 1e3 * lim && return J
+    end
+    J2, _ = _difference_jacobian(f, x, 2)
+    B = R .+ abs.(Jv .- Matrix{Float64}(LenticulumCore.stop_gradient(J2))) ./ 3
+    all(isfinite, B) || return J
+    rs, cs = _error_scales(B)
+    F = LinearAlgebra.svd(Jv ./ (rs * cs'))
+    k = count(>(_FD_RANK_KAPPA * lim), F.S)
+    k == length(F.S) && return J
+    V = F.V[:, 1:k]
+    P = Diagonal(1 ./ cs) * (V * V') * Diagonal(cs)
+    eltype(J) === Float64 && return J * P
+    return J * P .+ (J .- Jv) * (I - P)
 end
 
 """

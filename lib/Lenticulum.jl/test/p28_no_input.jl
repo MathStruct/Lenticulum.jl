@@ -62,9 +62,9 @@ end # module
                 nmsg += 1
                 got = PN.canon(first(Mycelium.factor_message(f, :y, nothing, inputs, nothing, NamedTuple(), NamedTuple())))
                 if jac === nothing && deficient
-                    # Known limit: the difference error (~1e-10) gives the Jacobian full numerical
-                    # rank, so the rank test loses directions of null(Aᵀ). That only discards
-                    # information: the message never claims more than the exact one.
+                    # The difference error (~1e-10) gave the Jacobian full numerical rank, so the
+                    # rank test lost directions of null(Aᵀ); since P29 the singular values below
+                    # the difference error are cut (test/p29_rank_tolerance.jl). Never more than exact:
                     nfd += 1
                     Λe = expected === nothing ? zeros(nout, nout) : expected[2]
                     Λg = got === nothing ? zeros(nout, nout) : got[2]
@@ -91,7 +91,7 @@ end # module
     @test 0 < ntrivial < nmsg
     @test ndeficient > 0
     @test nfd > 0
-    @test_broken nfd_agree == nfd          # a rank tolerance for difference Jacobians (backlog P29)
+    @test nfd_agree == nfd                 # the rank tolerance of difference Jacobians (P29)
 end
 
 @testset "P28: the polarity x Latent(), y the target, only with x0" begin
