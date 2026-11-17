@@ -377,6 +377,7 @@ end
 # step of assumed-density filtering). The message is then exact for the collapsed input, not for
 # the mixture: an approximation, documented in `gaussian.md` §"Mixture inputs".
 _moments(b::LenticulumCore.MixtureBelief{<:GaussianBelief}, n) = _moments(moment_match(b), n)
+_moments(b::LenticulumCore.MixtureBelief{<:LenticulumCore.ExtendedGaussian}, n) = _moments(moment_match(b), n)
 # An extended Gaussian without flat directions is its moments (Σ singular along its hard
 # directions, which the noise of every relation factor covers); everywhere flat it carries no
 # information. Partly flat ones go through `_split_moments` (callers test `_partly_flat` first).

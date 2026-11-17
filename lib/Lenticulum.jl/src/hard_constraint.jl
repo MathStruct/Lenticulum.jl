@@ -22,7 +22,8 @@ softens the relation in the directions where it is positive; with a positive def
 messages are those of `LinearConstraintFactor` with that noise.
 
 Inputs may be `GaussianBelief`s (also improper), `DiracBelief`s, `ExtendedGaussian`s, or carry
-no information (`TrivialBelief()`, no message, a latent channel). Mixtures are refused.
+no information (`TrivialBelief()`, no message, a latent channel). A mixture is collapsed to its
+total moments (`moment_match`), as the relation factors collapse one.
 
 Messages only: the factor has no free energy (a relation without noise has no finite one in
 closed form) and is not learnable through the free energy; `local_free_energy` throws.
@@ -89,8 +90,10 @@ LenticulumCore.scalarisation(::HardConstraintFactor) = LenticulumCore.GradedScal
 
 # an input as an extended Gaussian of dimension n
 _as_extended(b, n) = LenticulumCore.extended(b, n)
-_as_extended(b::LenticulumCore.MixtureBelief, n) = throw(ArgumentError(
-    "HardConstraintFactor does not take mixture inputs; collapse them first (`moment_match`)"))
+# A mixture is collapsed to its total moments, as the relation factors do (`gaussian.md`, "Mixture
+# inputs"): the message is exact for the collapsed input, an assumed-density approximation for the
+# mixture (P27). Before P27 it was refused.
+_as_extended(b::LenticulumCore.MixtureBelief, n) = LenticulumCore.extended(moment_match(b), n)
 
 """
     Mycelium.factor_message(f::HardConstraintFactor, target, polarity, inputs, prior, ps, st)

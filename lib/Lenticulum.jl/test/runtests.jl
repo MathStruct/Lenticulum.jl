@@ -1337,6 +1337,7 @@ include("hard_plates.jl")
 
 include("extended_inputs.jl")
 include("extended_plates.jl")
+include("mixture_extended.jl")
 include("forms_crossing.jl")
 
 include("hard_free_energy.jl")

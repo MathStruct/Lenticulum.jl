@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-17, after P2 (hard inputs in the switching free energy, the frozen beliefs of the gradient and plates), committed on `dev-danielb`, not pushed.
+**Last updated:** 2026-11-17, after P27 (a Gaussian mixture times an extended Gaussian), committed on `dev-danielb`, not pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P2 committed (Lenticulum `switching.jl`/`.md`, `gaussian.jl`/`.md`, `test/hard_inputs.jl`; LenticulumCore `extended_gaussian.md`). Not pushed |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `01b0adea` with the P2 diff applied; Mistral's probes in `scratch/p2/` (copied to `../Lenticulum.jl-Review-2026-11-17/p2/`); its environment `scratch/p6env` (packages developed from the worktree, plus ForwardDiff, Zygote, Test) serves any review |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | P2, P6 and P27 committed. Not pushed |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `7d1014f8` with the P27 diff applied; Mistral's probes in `scratch/p27/` (copied to `../Lenticulum.jl-Review-2026-11-17/p27/`); its environment `scratch/p6env` (packages developed from the worktree, plus ForwardDiff, Zygote, Test) serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -22,37 +22,40 @@ credentials (`git -c credential.helper= -c credential.helper='!gh auth git-crede
 
 Running one Lenticulum test file alone: the package has no test project (test dependencies are
 `[extras]`), so make a scratch environment that develops `lib/LenticulumCore.jl`, `lib/Mycelium.jl`,
-`lib/MyceliumLearning.jl`, `lib/Lenticulum.jl` and adds Test, LuxCore, ForwardDiff, Zygote, then
-`julia -t auto --project=<env> -e 'include("lib/Lenticulum.jl/test/<file>.jl")'`.
+`lib/MyceliumLearning.jl`, `lib/Lenticulum.jl` and adds Test, LuxCore, ForwardDiff, Zygote, ADTypes,
+DifferentiationInterface, then `julia -t auto --project=<env> -e 'include("lib/Lenticulum.jl/test/<file>.jl")'`.
 
 ## Done last
 
-- **P2** (committed): `switch_statistics` built on `_reduced_relation`, so `SwitchingConstraintFactor`'s
-  term takes hard inputs; `_affine_gaussian_belief` substitutes hard directions and lifts the belief
-  back, so `factor_belief` of `GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor` and the
-  switching factor takes them, and the envelope gradient and the `DiagonalCoupling` replay run on
-  graphs with hard relations (they refused, "no canonical form"). Plates needed only tests. Details in
-  [[Backlog Done 2026-11]] (2026-11-17), [[switching]] "Hard inputs in the free energy",
-  [[lib/Lenticulum.jl/src/gaussian|gaussian]] "Free energy with hard inputs".
-- Review: [[LP-045 Findings of the review of P2]] (Mistral; no defect; a Zygote testset added for its gap).
-- Verified: the suites of Lenticulum, AlgebraicFactors and ImplicitLayers pass (logs in
-  `~/.cache/lenticulum/p2/`); the Zygote testset was added after the Lenticulum suite ran and passed
-  on its own (`test/hard_inputs.jl` alone). LenticulumCore, Mycelium, MyceliumLearning and
-  VariationalDiffusion not rerun (no code change there; one note in LenticulumCore). Vault build and
-  `docs/make.jl` not run.
+- **P27** (committed): a `SwitchingConstraintFactor` (BP or EP rule) on a variable a
+  `HardConstraintFactor` reaches. Mycelium: `combine_with_overlap` of a Gaussian and an
+  `ExtendedGaussian` (`_extended_overlap`), `ep_project`/`ep_divide` of extended Gaussians, and an
+  indefinite Gaussian times an extended one (`_potential_conjoin`). Lenticulum: the relation factors
+  collapse mixture inputs, also of extended components, to their moments (`HardConstraintFactor`
+  refused them). Details in Mycelium [[lib/Mycelium.jl/src/gaussian|gaussian]] "Mixtures meeting
+  extended Gaussians" and [[Backlog Done 2026-11]].
+- Review: [[LP-046 Findings of the review of P27]] (Mistral; `ep_divide` did not check the hard values,
+  fixed; a far-from-origin report not reproduced).
+- Verified: the suites of Mycelium, MyceliumLearning, Lenticulum, VariationalDiffusion,
+  AlgebraicFactors, AdversarialFactors and ImplicitLayers pass (logs in `~/.cache/lenticulum/p27/`);
+  the five dependents ran before the F1 fix (one `return nothing` in `ep_divide` of extended
+  Gaussians, which none of them calls); Mycelium and Lenticulum ran after it. LenticulumCore not
+  rerun (no change there). Vault build and `docs/make.jl` not run.
 
 ## Next
 
-No row is set; pick one with the maintainer. Close to P2: P27 (mixture × extended, which would let a
-switching factor with a latent outcome share a variable with a hard relation), P5 (a singular nonzero
-noise in `HardConstraintFactor`'s free energy), a learned noise with hard messages (refused in
-`GaussianFactor`/`GaussianPrior`), P3 (`TrivialBelief()` on the exact flat path).
+No row is set; pick one with the maintainer. Close to P27 and P2: P5 (a singular nonzero noise in
+`HardConstraintFactor`'s free energy), a learned noise with hard messages (refused in
+`GaussianFactor`/`GaussianPrior`), P3 (`TrivialBelief()` on the exact flat path). Left open by P27
+(no rows yet): the Bethe free energy with a mixture marginal under BP (no `variable_entropy` for
+mixtures, Gaussian ones included), derivatives through the new rules, two extended components with
+hard directions.
 
 ## Open
 
 - **P4 limits:** Zygote has no rank check (a rank-changing tangent gives the constant-rank
   derivative silently); second derivatives (nested duals) through extended Gaussians are refused;
-  `_moving_flat_split` (P25) stays ForwardDiff-only. **P27:** mixture × extended product.
+  `_moving_flat_split` (P25) stays ForwardDiff-only.
 - **P25/P26 limits:** a parameter that changes a rank only at second order (a backward message's
   $A^\top R^{-1}A$ as $A$ leaves a rank-deficient value; $A_x$ leaving 0 in a cluster) gets the
   constant-rank derivative while the value is discontinuous there; Zygote does not go through the
@@ -93,4 +96,6 @@ noise in `HardConstraintFactor`'s free energy), a learned noise with hard messag
   A watcher `while pgrep -f "vibe -p …"` matches its own command line and never ends: match `vibe-rs` with `pgrep -x` or wait on the PID.
   On P6 (2026-11-17) the brief gave the exact command line, a ready environment (`scratch/p6env`),
   "never prefix `cd`" and the answer-file rule: ten probes, a finished answer file, three right
-  findings, \$0. Keep that brief as the model (`../Lenticulum.jl-Review-2026-11-17/p6/review-brief.md`).
+  findings, \$0. Keep that brief as the model (`../Lenticulum.jl-Review-2026-11-17/p6/review-brief.md`). On P27 the same brief form gave five probes and an answer
+  file with four of them at the 100-turn limit (\$0): one right finding; its fifth probe's reference lost
+  digits at 1e6 (a false report): check a reviewer's reference before its claim.

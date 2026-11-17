@@ -92,7 +92,9 @@ With a positive definite noise the term is `LinearConstraintFactor`'s.
   positive semidefinite `m × m` matrix (soft along its range, hard elsewhere).
 - Inputs become extended Gaussians by `LenticulumCore.extended`: a `GaussianBelief` (also improper), a
   `DiracBelief`, an `ExtendedGaussian`, or nothing (`TrivialBelief()`, no message: flat). A
-  mixture is refused rather than collapsed silently.
+  mixture (of Gaussians or of extended Gaussians) is collapsed to its total moments
+  (`moment_match`), as `LinearConstraintFactor` collapses one: exact for the collapsed input, an
+  assumed-density approximation for the mixture (P27, 2026-11-17; refused before).
 - The message is always an `ExtendedGaussian`, also when it could be a `GaussianBelief`, so its type
   does not depend on the data. Mycelium's `combine`, `belief_distance` and `damp` take it
   (`lib/Mycelium.jl/src/gaussian.md`, "Extended Gaussians"), so the factor runs under any schedule.
@@ -201,7 +203,8 @@ rule for an exact relation; a `MeanField()` node wants a positive definite noise
 - **Plates whose inputs differ in structure**, dual numbers and Zygote take the per-replica path
   ("Plates"); there is no block type for extended Gaussians.
 - **Mean-field messages** (`MeanField()` nodes) of an exact relation: refused ("Mean-field nodes").
-- **Mixture inputs**: refused; `LinearConstraintFactor` collapses them to their moments.
+- **Mixture inputs** exactly: they are collapsed to their moments (P27), not expanded into one
+  message per component.
 
 ## Difficulties
 

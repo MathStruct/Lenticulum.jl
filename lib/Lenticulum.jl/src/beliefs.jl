@@ -29,7 +29,9 @@ end
 The Gaussian with the same mean and covariance as `b`: the minimiser of ``\\mathrm{KL}(b \\,\\|\\, q)``
 over Gaussians ``q``, i.e. the projection step of expectation propagation. Defined for a
 `SampleBelief` (weighted sample mean and covariance; vector or matrix samples), a
-`MixtureBelief` of Gaussians (total mean and covariance), and a Gaussian (itself).
+`MixtureBelief` of Gaussians (total mean and covariance), and a Gaussian (itself). A `MixtureBelief`
+of `ExtendedGaussian`s without flat directions gives an `ExtendedGaussian` with the total moments
+(its covariance may be singular).
 """
 moment_match(b::GaussianBelief) = b
 
@@ -54,4 +56,16 @@ function moment_match(m::LenticulumCore.MixtureBelief{<:GaussianBelief})
     μ = sum(w[k] .* μs[k] for k in eachindex(w))
     Σ = sum(w[k] .* (belief_cov(m.components[k]) .+ (μs[k] .- μ) * (μs[k] .- μ)') for k in eachindex(w))
     return Gaussian(μ, Matrix(Symmetric(Σ)))
+end
+
+# A mixture of extended Gaussians (the product of a Gaussian mixture with a hard relation's
+# message, P27): the same total moments, as an extended Gaussian, whose covariance may be singular
+# (a direction that every component fixes to one value stays hard). A component flat anywhere has
+# no moments: `belief_mean` refuses it.
+function moment_match(m::LenticulumCore.MixtureBelief{<:LenticulumCore.ExtendedGaussian})
+    w = LenticulumCore.mixture_weights(m)
+    μs = [belief_mean(c) for c in m.components]
+    μ = sum(w[k] .* μs[k] for k in eachindex(w))
+    Σ = sum(w[k] .* (belief_cov(m.components[k]) .+ (μs[k] .- μ) * (μs[k] .- μ)') for k in eachindex(w))
+    return LenticulumCore.ExtendedGaussian(μ, Matrix(Symmetric(Σ)))
 end

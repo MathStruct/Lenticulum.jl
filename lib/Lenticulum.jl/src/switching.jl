@@ -360,7 +360,7 @@ function switch_statistics(f::SwitchingConstraintFactor{names}, msgs, ps) where 
     return q, rbar, Cr, Hx
 end
 
-_collapse(b::LenticulumCore.MixtureBelief{<:GaussianBelief}) = moment_match(b)
+_collapse(b::LenticulumCore.MixtureBelief{<:Union{GaussianBelief,LenticulumCore.ExtendedGaussian}}) = moment_match(b)
 _collapse(b) = b
 
 Mycelium.uses_cavity(::SwitchingConstraintFactor) = true

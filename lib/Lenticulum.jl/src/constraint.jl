@@ -609,8 +609,10 @@ _mf_split(b, n) = (zeros(n), nothing, Matrix(1.0LinearAlgebra.I, n, n))
 _mf_split(b::LenticulumCore.DiracBelief, n) = (_vec(b.value), nothing, nothing)
 _mf_split(b::GaussianBelief, n) = ((m, _, N) = _split_moments(b, n); (m, nothing, N))
 _mf_split(b::LenticulumCore.ExtendedGaussian, n) = ((m, _, N) = _split_moments(b, n); (m, nothing, N))
-_mf_split(b::LenticulumCore.MixtureBelief{<:GaussianBelief}, n) =
-    all(isproper, b.components) ? (belief_mean(moment_match(b)), nothing, nothing) : _mf_split(nothing, n)
+_mf_split(b::LenticulumCore.MixtureBelief{<:Union{GaussianBelief,LenticulumCore.ExtendedGaussian}}, n) =
+    all(_has_moments, b.components) ? (belief_mean(moment_match(b)), nothing, nothing) : _mf_split(nothing, n)
+_has_moments(c::GaussianBelief) = isproper(c)
+_has_moments(c::LenticulumCore.ExtendedGaussian) = size(c.D, 2) == 0
 
 # --- The Bethe contribution ------------------------------------------------
 

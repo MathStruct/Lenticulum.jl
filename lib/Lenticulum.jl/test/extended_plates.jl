@@ -7,7 +7,8 @@
 # Oracles: the dense Gaussian of one replica conditioned on its observation and on the relation
 # (for a plate of GaussianFactors), the same tasks sent one by one (`SequentialSchedule`), and each
 # replica as its own graph (for LinearConstraintFactor's block method). Known limits are
-# `@test_broken`: a mixture message meeting an extended one. The coupled replay through a hard
+# `@test_broken`. A mixture message meeting an extended one was one until P27 (`mixture_extended.jl`
+# has its oracle). The coupled replay through a hard
 # relation under ForwardDiff and Zygote, broken until P4's AD half, is tested here against
 # reference differences and in `hard_gradient.jl` against the dense −log Z.
 
@@ -167,8 +168,9 @@ end
 @testset "P4: known limits (broken), and the replay through a hard relation" begin
     XP = ExtendedPlates
     rng = Xoshiro(5)
-    # a switching factor's mixture message meets the hard relation's extended one on u: Mycelium's
-    # mixture product has no rule for an extended component (Feature Backlog, P27)
+    # a switching factor's mixture message meets the hard relation's extended one on u: broken until
+    # P27 (Mycelium's mixture product had no rule for an extended component); the values are checked
+    # against enumeration in `mixture_extended.jl`
     d = (1, 2, 1, 1, 2)
     fx = (Qw = XP.spd(rng, 1), μv = randn(rng, 1), Σv = XP.spd(rng, 1), μy = randn(rng, 1),
           Σy = XP.spd(rng, 1), Qy = XP.spd(rng, 1), Qs = XP.spd(rng, 2), switching = true)
@@ -180,7 +182,7 @@ end
         e isa ArgumentError || rethrow()
         false
     end
-    @test_broken mixed
+    @test mixed
     # the coupled replay through a hard relation: broken before P4's AD half (ExtendedGaussian
     # held only floats under ForwardDiff, and its join took no tuple under Zygote)
     gb = GraphBuilder()

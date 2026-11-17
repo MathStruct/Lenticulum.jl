@@ -178,6 +178,96 @@ therefore has a finite counting term, and flat directions (an improper marginal)
 with a hard relation the Bethe free energy is then $-\log Z$ (Lenticulum `test/hard_free_energy.jl`;
 the convention is in `lib/LenticulumCore.jl/src/extended_gaussian.md`, "Entropy").
 
+## Mixtures meeting extended Gaussians (2026-11-17, P27)
+
+A `SwitchingConstraintFactor` on a variable that a `HardConstraintFactor` also reaches sends a
+mixture of Gaussians where the relation sends an extended Gaussian with hard directions. The
+mixture product (`_mixture_product`, `messages.jl`) needs `combine_with_overlap` for the pair, and
+had none: `ArgumentError: no product rule for mixture components`.
+
+**The overlap.** Let $d$ fix $H^\top x = h$ (its hard directions $H$, orthonormal) and be Gaussian
+or flat on its support $S$, written $x = x_0 + U s$ with $U$ an orthonormal basis of $H^\perp$
+(LenticulumCore `_hard_reduction`), where its Gaussian part is the canonical pair $(\eta_s,
+\Lambda_s)$. The weight of a component $c$ is
+
+$$
+Z \;=\; \int_S p_c(x)\, p_d(x)\, d\sigma(x),
+$$
+
+with $\sigma$ Lebesgue measure on $S$ in the coordinates $s$. It is the limit of
+$\int p_c(x)\,\mathcal N(x;\mu_d,\Sigma_d+\varepsilon I)\,dx$ as $\varepsilon\to0$, and finite: for $d$
+flat nowhere it is $\mathbb E_{x\sim d}[p_c(x)]$, an expectation under a probability measure on $S$,
+so weights of components against supports of any dimension compare. A proper $c$ factors on $S$
+into the density of its marginal $H^\top x$ at $h$ and its conditional given $H^\top x = h$, whose
+canonical form in $s$ is $(U^\top(\eta_c-\Lambda_c x_0),\, U^\top\Lambda_c U)$:
+
+$$
+\log Z \;=\; \log\mathcal N\bigl(h;\, H^\top\mu_c,\, H^\top\Sigma_c H\bigr) \;+\; \log\int c_s(s)\, d_s(s)\, ds .
+$$
+
+The second term is the Gaussian overlap above (`_overlap`), exact for $d$ proper on $S$ and up to a
+constant of $d$ alone when $d$ is flat somewhere (as for an improper Gaussian site: the weights of
+one mixture against the one site are right). Neither term subtracts large log-partitions. An
+improper $c$ (an unnormalised exponential) has no marginal; its term is its value at $x_0$ plus the
+overlap of its restriction. Without hard directions the rule is the Gaussian pair's. Two extended
+Gaussians that both have hard directions are refused: two laws on lower-dimensional supports meet
+in a set of measure zero for both, and their overlap is not finite. Code: `_extended_overlap`.
+
+**Expectation propagation.** With `ExpectationPropagationRule()` on the switching node the cavity
+is extended, and the tilted belief (cavity × mixture) a mixture of extended Gaussians that share
+the cavity's hard directions. `ep_project` of it is the extended Gaussian of the total moments,
+zero variance along those directions, so they stay hard (`nothing` if a component is flat
+somewhere). `ep_divide(p, cavity)` is defined on the cavity's support only, where both are
+Gaussian with log densities $\eta^\top x - \tfrac12 x^\top\Lambda x + \text{const}$ for their canonical
+parts (zero precision along hard and flat directions): the site is the `GaussianBelief`
+$(\eta_p-\eta_c,\,\Lambda_p-\Lambda_c)$, flat along the hard directions, declared improper, and as
+any Gaussian site possibly indefinite. A projection whose hard directions or hard values differ from
+the cavity's gives `nothing` (the update is skipped; the values were not checked before the review,
+[[LP-046 Findings of the review of P27]], F1).
+
+**An indefinite Gaussian times an extended one.** `combine(a::GaussianBelief, b::ExtendedGaussian)`
+went through `extended(a)`, which refuses a negative direction, so the site above could not meet
+the cavity again. For an indefinite `a` (`_indefinite`) the product is now the product of
+potentials $[H_b^\top x = H_b^\top\mu_b]\cdot\exp((\eta_a+\eta_b)^\top x - \tfrac12 x^\top(\Lambda_a+\Lambda_b)x)$
+through LenticulumCore `_from_potential` (`_potential_conjoin`). It checks that the summed precision is
+positive semidefinite on what $b$ leaves free, since `_psd_split` would count a negative eigenvalue
+as a zero one and return a flat direction where the product is not normalisable. It also checks
+that nothing is left along a direction where the precision is zero. Other Gaussians take the old
+path unchanged.
+
+**Lenticulum's side.** The messages that leave the variable carry the mixture into the relation
+factors: `HardConstraintFactor` refused a mixture input, and `LinearConstraintFactor` collapsed only
+Gaussian mixtures. Both now collapse a mixture, also of extended components, to its total moments
+(`moment_match`), as they collapse Gaussian mixtures (assumed-density filtering, Lenticulum
+`gaussian.md`, "Mixture inputs").
+
+**Tests.** `test/overlap.jl`, "P27: combine_with_overlap of a Gaussian and an extended Gaussian":
+60 random instances (2 to 4 dimensions, 1 to $n$ hard directions, flat directions, proper and
+improper components) against the closed form $\log\int c\,dd$ over $x = \mu_d + Gz + Ft$ (z standard
+normal, t Lebesgue), to $10^{-9}$, plus a translation by $10^6$, the point, the refusal and the soft
+case (383 checks).
+"P27: expectation propagation with an extended cavity": `combine(ep_divide(p, cavity), cavity)` gives
+$p$ back on 40 random instances, indefinite sites among them, and the product of an indefinite
+Gaussian with a hard relation against the dense solve on the support, and the refusal of F1
+(285 checks). Lenticulum
+`test/mixture_extended.jl`: switching factor and hard relation on one variable, in plates, under
+both schedules and both rules, against enumeration of the outcome (1152 checks, largest error
+$1.4\times10^{-11}$).
+
+**What it does not do.** Two extended components with hard directions: refused (above). No
+re-centring for an improper component far from the origin (LP-019's reference point is used only
+for an improper Gaussian site), so it may lose digits there; not measured. A proper one does not:
+a translation of both sides by $10^6$ changes `logZ` by less than $10^{-7}$ (tested). Derivatives (ForwardDiff,
+Zygote) through the new overlap and through `_potential_conjoin` are not tested. The Bethe free
+energy of a graph whose variable marginal is a mixture has no `variable_entropy` (not for Gaussian
+mixtures either: a mixture's entropy has no closed form), so `scalar_free_energy` refuses it under
+`BeliefPropagation()`; under `ExpectationPropagationRule()` the marginal is the projection and it
+runs (probe, not a test).
+
+**Difficulties.** The first oracle, the limit $\Sigma_d + \varepsilon HH^\top$ and $L\cdot FF^\top$, agreed only
+to $10^{-6}$ (truncation at large $\varepsilon$, rounding at small); the closed form over $x = \mu_d + Gz +
+Ft$ replaced it. The silent flat direction of `_potential_conjoin` was found by its refusal test.
+
 ## Mixture reduction (2026-11-12, P17)
 
 `reduce_mixture(m; max_components, prune)` and `reduce_message(::MixtureBelief{<:GaussianBelief}, M)`,

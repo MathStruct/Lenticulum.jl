@@ -372,8 +372,13 @@ $K = 1$ it is `LinearConstraintFactor`'s. The frozen belief of §7 takes hard in
 `_affine_gaussian_belief` (`gaussian.md`, "Free energy with hard inputs"). Tests:
 `test/hard_inputs.jl`.
 
-Not handled: an unobserved outcome on a variable that a hard relation reaches. The factor's message
-to that variable is a mixture, and Mycelium's product has no rule for a mixture times an extended
-Gaussian (P27); with the outcome observed the message is a single Gaussian and the tree oracle
-passes. The plate method `factor_beliefs` returns `nothing` for extended blocks, so a plate takes
+An unobserved outcome on a variable that a hard relation reaches: the factor's message to that
+variable is a mixture, and Mycelium's product had no rule for a mixture times an extended Gaussian
+until P27 (2026-11-17, Mycelium `gaussian.md`, "Mixtures meeting extended Gaussians"). Inference
+runs under `BeliefPropagation()` and `ExpectationPropagationRule()`, checked against enumeration of
+the outcome in `test/mixture_extended.jl`. The messages leaving the variable collapse the mixture
+(assumed-density filtering), so on a graph where the switching factor is not a leaf the marginals
+are approximate. The factor's free energy with that latent outcome and a hard input is not checked
+against an oracle; the Bethe total refuses the mixture marginal under `BeliefPropagation()` (no
+`variable_entropy`). The plate method `factor_beliefs` returns `nothing` for extended blocks, so a plate takes
 the per-replica path.

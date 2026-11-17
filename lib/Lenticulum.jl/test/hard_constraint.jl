@@ -121,9 +121,12 @@ end
 @testset "HardConstraintFactor: refusals" begin
     f = HardConstraintFactor((x = 2,), 1)
     @test_throws ArgumentError HardConstraintFactor((x = 2,), 1; noise = -1.0)
-    @test_throws ArgumentError Mycelium.factor_message(HardConstraintFactor((x = 1, y = 1), 1), :y, nothing,
+    # a mixture input is collapsed to its moments (P27; refused before): x + y = 0 with x from
+    # ½N(0, 1) + ½N(1, 1), whose moments are (0.5, 1.25), gives y ~ N(-0.5, 1.25)
+    mixmsg, _ = Mycelium.factor_message(HardConstraintFactor((x = 1, y = 1), 1), :y, nothing,
         (x = LenticulumCore.MixtureBelief([Gaussian([0.0], fill(1.0, 1, 1)), Gaussian([1.0], fill(1.0, 1, 1))], [0.5, 0.5]),), nothing,
         (A = (x = ones(1, 1), y = ones(1, 1)), c = [0.0]), NamedTuple())
+    @test mixmsg.μ ≈ [-0.5] && mixmsg.Σ ≈ fill(1.25, 1, 1) && size(mixmsg.D, 2) == 0
     # no input: the factor belief is flat along the solution set, an improper posterior
     @test_throws ArgumentError Mycelium.local_free_energy(f, NamedTuple(), (A = (x = ones(1, 2),), c = [0.0]), NamedTuple())
     @test !LenticulumCore.islearnable(f)

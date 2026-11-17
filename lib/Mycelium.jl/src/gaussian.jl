@@ -35,9 +35,36 @@ combine(::GaussianBelief, b::LenticulumCore.DiracBelief) = b
 const _EG = LenticulumCore.ExtendedGaussian
 combine(a::_EG, b::_EG) = LenticulumCore._conjoin(a, b)
 combine(a::_EG, b::GaussianBelief) = _extendable(b) || !_soft(a) ?
-    LenticulumCore._conjoin(a, LenticulumCore.extended(b)) : combine(GaussianBelief(a), b)
+    (_indefinite(b) ? _potential_conjoin(b, a) : LenticulumCore._conjoin(a, LenticulumCore.extended(b))) :
+    combine(GaussianBelief(a), b)
 combine(a::GaussianBelief, b::_EG) = _extendable(a) || !_soft(b) ?
-    LenticulumCore._conjoin(LenticulumCore.extended(a), b) : combine(a, GaussianBelief(b))
+    (_indefinite(a) ? _potential_conjoin(a, b) : LenticulumCore._conjoin(LenticulumCore.extended(a), b)) :
+    combine(a, GaussianBelief(b))
+
+# A Gaussian with a negative direction (an expectation-propagation site, P27) has no extended form,
+# but its product with an extended Gaussian can still be one: the potential [Hᵀx = Hᵀμ_b] ·
+# exp((η_a + η_b)ᵀx − xᵀ(Λ_a + Λ_b)x/2), normalisable when the summed precision is positive on what
+# b's hard directions leave free (`_from_potential` refuses a negative direction there). Along a
+# direction where it is zero the potential must be constant, not exp(linear): checked, since
+# `_from_potential` would drop that component.
+function _potential_conjoin(a::GaussianBelief, b::_EG)
+    H = LenticulumCore.hard_directions(b)
+    ηb, Λb = LenticulumCore._canonical_part(b)
+    η, Λ = a.η .+ ηb, Matrix(a.Λ) .+ Λb
+    # `_psd_split` would count a negative direction as a zero one (flat): refuse it first
+    U = LenticulumCore._complement(H)
+    LenticulumCore._check_psd(LenticulumCore._symmetric_part(U' * Λ * U),
+        "the product of an indefinite Gaussian and an extended Gaussian is not normalisable: its \
+         precision is negative on the support")
+    r = LenticulumCore._from_potential(Matrix(H'), H' * b.μ, η, Λ;
+                                       scale = LinearAlgebra.norm(LenticulumCore.stop_gradient(b.μ)))
+    g = r.D' * (η - Λ * r.μ)
+    LinearAlgebra.norm(LenticulumCore.stop_gradient(g)) <=
+        sqrt(eps(Float64)) * max(LinearAlgebra.norm(LenticulumCore.stop_gradient(η)), 1.0) || throw(ArgumentError(
+        "the product of an indefinite Gaussian and an extended Gaussian is not normalisable: it grows \
+         exponentially along a direction where its precision is zero"))
+    return r
+end
 
 # A `GaussianBelief` of dual numbers (ForwardDiff) meets an extended Gaussian in canonical form when
 # the extended side has no hard directions: the canonical sum needs no decomposition, and the
@@ -236,6 +263,72 @@ function _overlap(c::GaussianBelief, d::GaussianBelief, ref)
     return cd, logZ
 end
 
+# --- A Gaussian component times an extended Gaussian (P27) ---------------------------------
+#
+# A mixture message (a switching factor's) meeting the extended message of a hard relation. The
+# extended side d is written in coordinates along its support S = {x : Hᵀx = h}: x = x₀ + U s,
+# with U an orthonormal basis of H⊥ (`_hard_reduction`), where its Gaussian part is the canonical
+# pair d_s = (η_s, Λ_s), flat where Λ_s is zero. The overlap is that of c with d's law on S:
+#
+#     log Z = log ∫_S p_c(x) p_d(x) dσ(x),      σ Lebesgue on S in the coordinates s,
+#
+# the limit of ∫ p_c N(x; μ_d, Σ_d + εI) dx as ε → 0, finite for a proper c (no divergent factor:
+# Z is the expectation of p_c under a probability measure on S). A proper c factors on S as the
+# density of its marginal Hᵀx at h times its conditional given Hᵀx = h, whose canonical form in s
+# is (Uᵀ(η_c − Λ_c x₀), UᵀΛ_cU), so
+#
+#     log Z = log N(h; Hᵀμ_c, HᵀΣ_cH) + log ∫ c_s(s) d_s(s) ds,
+#
+# the second term the Gaussian overlap of `_overlap`, exact for d proper on S and up to a constant
+# of d alone when d is flat somewhere (as for two Gaussians: the weights of one mixture against
+# the one site are right). Neither term subtracts large log-partitions. An improper c (an
+# unnormalised exponential) has no marginal: its value at x₀ times the overlap of its restriction,
+# exact but evaluated in absolute coordinates (no re-centring: far from the origin it loses digits,
+# LP-019). Without hard directions the rule is that of the Gaussian pair. The product itself is
+# `combine(c, d)`. Two extended Gaussians that both have hard directions are refused: their
+# supports meet in a set of measure zero for both, and the overlap of two singular laws has no
+# finite value to compare across pairs.
+combine_with_overlap(c::GaussianBelief, d::_EG) = _extended_overlap(c, d)
+combine_with_overlap(d::_EG, c::GaussianBelief) = _extended_overlap(c, d)
+function combine_with_overlap(a::_EG, b::_EG)
+    _soft(b) && return _extended_overlap(GaussianBelief(b), a)
+    _soft(a) && return _extended_overlap(GaussianBelief(a), b)
+    throw(ArgumentError(
+        "no product rule for mixture components that are both extended Gaussians with hard \
+         directions: the overlap of two laws on lower-dimensional supports is not finite"))
+end
+
+function _extended_overlap(c::GaussianBelief, d::_EG)
+    n = dimension(c)
+    n == LenticulumCore.dimension(d) || throw(DimensionMismatch(
+        "cannot combine beliefs of dimension $n and $(LenticulumCore.dimension(d))"))
+    cd = combine(c, d)
+    if _soft(d)
+        g = GaussianBelief(d)
+        return cd, (_improper_first(c, g) ? _overlap(g, c, nothing) : _overlap(c, g, nothing))[2]
+    end
+    x0, U, ηs, Λs = LenticulumCore._hard_reduction(d)
+    H = LenticulumCore.hard_directions(d)
+    Λc = _sym(c.Λ)
+    flat = size(d.D, 2) > 0
+    if isproper(c)
+        μc = LenticulumCore.belief_mean(c)
+        Σh = LenticulumCore._symmetric_part(H' * LenticulumCore.belief_cov(c) * H)
+        δ = H' * (x0 - μc)
+        C = LenticulumCore._precision_factor(Σh)
+        logZ = -LinearAlgebra.dot(δ, LenticulumCore._precision_solve(C, δ)) / 2 -
+               (LenticulumCore._precision_logdet(C) + length(δ) * log(2π)) / 2
+        size(U, 2) == 0 && return cd, logZ
+        cs = GaussianBelief(U' * (c.η - Λc * x0), LenticulumCore._symmetric_part(U' * Λc * U))
+        return cd, logZ + _overlap(cs, GaussianBelief(ηs, Λs, flat), nothing)[2]
+    end
+    logZ = LinearAlgebra.dot(c.η, x0) - LinearAlgebra.dot(x0, Λc * x0) / 2
+    size(U, 2) == 0 && return cd, logZ
+    cs = GaussianBelief(U' * (c.η - Λc * x0), LenticulumCore._symmetric_part(U' * Λc * U), true)
+    ds = GaussianBelief(ηs, Λs, flat)
+    return cd, logZ + (isproper(ds) ? _overlap(ds, cs, nothing) : _overlap(cs, ds, nothing))[2]
+end
+
 # --- Expectation propagation (`passing.md`, "Expectation propagation") -----------------
 
 # The projection of a Gaussian mixture: its total mean and covariance. Only proper components
@@ -263,6 +356,43 @@ function ep_divide(p::GaussianBelief, c::GaussianBelief)
     return GaussianBelief(p.η - c.η, Λ, !LinearAlgebra.isposdef(LinearAlgebra.Symmetric(Matrix(Λ))))
 end
 ep_divide(p::GaussianBelief, ::LenticulumCore.TrivialBelief) = p
+
+# Expectation propagation with an extended cavity (P27): a switching factor's mixture message on a
+# variable a hard relation reaches. The tilted belief is a mixture of extended Gaussians that share
+# the cavity's hard directions; its projection is the extended Gaussian of the total moments (zero
+# variance along those directions, so they stay hard). A component flat anywhere has no moments:
+# `nothing`, the update is skipped. The site p / cavity is defined on the cavity's support S only;
+# there both are Gaussian, with log densities ηᵀx − xᵀΛx/2 + const for (η, Λ) their canonical parts
+# (`_canonical_part`, zero precision along the hard and flat directions), so the site is the
+# Gaussian (η_p − η_c, Λ_p − Λ_c), flat along the hard directions (the cavity imposes them) and
+# possibly indefinite, as Gaussian sites are; its product with the cavity is p again
+# (`_potential_conjoin`). A projection whose hard directions or hard values differ from the
+# cavity's (a component fixed a further direction) has no such site: `nothing`.
+function ep_project(m::LenticulumCore.MixtureBelief{<:_EG})
+    all(c -> size(c.D, 2) == 0, m.components) || return nothing
+    w = LenticulumCore.mixture_weights(m)
+    w = w ./ sum(w)
+    μ = sum(w[k] .* m.components[k].μ for k in eachindex(w))
+    Σ = sum(w[k] .* (m.components[k].Σ .+ (m.components[k].μ .- μ) * (m.components[k].μ .- μ)') for k in eachindex(w))
+    return _EG(μ, Matrix(LinearAlgebra.Symmetric(Σ)))
+end
+
+function ep_divide(p::_EG, c::_EG)
+    n = LenticulumCore.dimension(p)
+    n == LenticulumCore.dimension(c) || throw(DimensionMismatch(
+        "cannot divide beliefs of dimension $n and $(LenticulumCore.dimension(c))"))
+    Hp, Hc = LenticulumCore.hard_directions(p), LenticulumCore.hard_directions(c)
+    (size(Hp, 2) == size(Hc, 2) && LinearAlgebra.norm(Hp * Hp' - Hc * Hc') <= sqrt(eps(Float64))) || return nothing
+    # and the same values there: a projection fixing them elsewhere has no site either (LP-046, F1)
+    δ = LenticulumCore.stop_gradient(Hc' * (p.μ - c.μ))
+    LinearAlgebra.norm(δ) <= sqrt(eps(Float64)) * max(LinearAlgebra.norm(LenticulumCore.stop_gradient(c.μ)), 1.0) ||
+        return nothing
+    ηp, Λp = LenticulumCore._canonical_part(p)
+    ηc, Λc = LenticulumCore._canonical_part(c)
+    Λ = LenticulumCore._symmetric_part(Λp - Λc)
+    return GaussianBelief(ηp - ηc, Λ, size(Hp, 2) > 0 || !LinearAlgebra.isposdef(LinearAlgebra.Symmetric(Matrix(Λ))))
+end
+ep_divide(p::_EG, ::LenticulumCore.TrivialBelief) = p
 
 # A Gaussian input with a negative direction (beyond rounding). A sign test has no derivative, so it
 # runs on values (`stop_gradient` strips ForwardDiff duals, for which `eigvals` has no method).

@@ -333,9 +333,10 @@ Two limits found on the way, `@test_broken` in that file:
 
 - a `SwitchingConstraintFactor` on a variable that a hard relation also reaches: its mixture
   message (or, with `ExpectationPropagationRule`, the EP projection of the cavity) meets the
-  extended message in Mycelium's mixture product, which has no rule for an extended component
+  extended message in Mycelium's mixture product, which had no rule for an extended component
   (`ArgumentError: no product rule for mixture components`), in a plate and in a single graph
-  alike ([[Feature Backlog]] P27);
+  alike. Done in P27 (2026-11-17): Mycelium `gaussian.md`, "Mixtures meeting extended Gaussians";
+  `test/mixture_extended.jl` checks it against enumeration of the outcome;
 - the coupled replay (`free_energy_gradient` with `schedule`, `ExactCoupling` edges) through a
   `HardConstraintFactor` under ForwardDiff and Zygote: the hard factor's inputs carry dual numbers
   (a derivative by an upstream $A$), and `ExtendedGaussian` holds only `AbstractFloat`s; under
@@ -574,9 +575,11 @@ a plate's free energy and gradient against the sums over its replicas (6 plates 
 against ForwardDiff through the switching term with hard inputs (28 checks, added after the review,
 LP-045).
 
-Not handled: the exposed-parameter rules, a learned noise with hard messages, and a switching
-factor with a latent outcome on a variable a hard relation reaches (its mixture message meets the
-extended one at the variable: P27).
+Not handled: the exposed-parameter rules and a learned noise with hard messages. A switching
+factor with a latent outcome on a variable a hard relation reaches runs since P27 (2026-11-17):
+inference and the parameter gradient; the scalar free energy only under `ExpectationPropagationRule()`
+(a mixture marginal has no `variable_entropy`). The free energy and gradient were run on one probe
+graph, not checked against an oracle.
 
 ## Batched factor beliefs (2026-11-03)
 
