@@ -13,6 +13,9 @@ ChainRulesCore.@non_differentiable LT._rank_deficient(A)
 ChainRulesCore.@non_differentiable LT._range_svd(B)
 ChainRulesCore.@non_differentiable LT._partly_flat(b)
 ChainRulesCore.@non_differentiable LT._free_channels(names, msgs)
+# true inside a reverse pass (Zygote): the batched plate path of HardConstraintFactor (P6) takes
+# its decompositions on values only and steps aside for the per-replica path, which carries them
+ChainRulesCore.rrule(::typeof(LT._within_gradient)) = true, _ -> (NoTangent(),)
 
 function ChainRulesCore.rrule(::typeof(LT._clip_precision), P, cap)
     E = eigen(Symmetric(P))

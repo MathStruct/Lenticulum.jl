@@ -5,7 +5,7 @@
 > `LinearConstraintFactor(…; noise = 1e-8)` approximates. Its free energy is the finite limit of the
 > noisy relation's as the noise vanishes.
 
-> Sources: Stein & Samuelson, *A Category for unifying Gaussian Probability and Nondeterminism*, CALCO 2023 (Gaussian relations: a linear relation composed with Gaussian noise). code: `hard_constraint.jl`; the belief algebra in `lib/LenticulumCore.jl/src/extended_gaussian.jl`. tests: `test/hard_constraint.jl`.
+> Sources: Stein & Samuelson, *A Category for unifying Gaussian Probability and Nondeterminism*, CALCO 2023 (Gaussian relations: a linear relation composed with Gaussian noise). code: `hard_constraint.jl`; the belief algebra in `lib/LenticulumCore.jl/src/extended_gaussian.jl`. tests: `test/hard_constraint.jl`, `test/hard_plates.jl` (plates and mean-field nodes, P6).
 >
 > Bibliography: [[Bibliography#^stein2023gaussian|Stein & Samuelson 2023]]
 >
@@ -120,6 +120,74 @@ With a positive definite noise the term is `LinearConstraintFactor`'s.
 | the term without noise against the noisy relation's term at $\varepsilon = 10^{-30}$, from its formula in 512-bit arithmetic, on the same reduced relation | 80 draws of 2–3 channels (points, proper Gaussians, extended Gaussians with hard directions); the 64 with a free coordinate | largest relative difference $1.3 \cdot 10^{-15}$ (the test asks for $10^{-9}$) |
 | refusals: redundant equations on a clamped input, a belief flat along $R$, a singular nonzero noise; with a positive definite noise, `LinearConstraintFactor`'s value | 4 | exact |
 
+## Plates (P6)
+
+A plate of tied hard relations (`factor_messages`, one call for all replicas) shares the work when
+the replicas have one noise and one set of dimensions, and each channel's inputs share their
+covariance and flat directions across the replicas: points, no message, `TrivialBelief()`,
+Gaussians of one precision (also improper, flat along its null space), extended Gaussians of one
+`Σ` and `D`. That is the case of data under a shared prior. Every decomposition in
+`factor_message` (the hard and flat directions of the pushforward $r$, its pseudo-inverse precision
+$\Lambda_r$, the SVD of $C = H^\top A_t$ and the precision on its null space) then depends on the
+covariances only, so replica 1 computes them, and each replica's message has replica 1's $\Sigma$ and
+$D$ with the mean
+
+$$
+\mu_i \;=\; \Pi_o\Bigl[\,P H^\top + G\bigl(A_t^\top \Lambda_r - \Lambda_p P H^\top\bigr)\Bigr]\,\Pi_r\Bigl(c - \textstyle\sum_{n \ne t} A_n m_{n,i}\Bigr),
+$$
+
+where $m_{n,i}$ is replica $i$'s input mean on channel $n$, $\Pi_r$ projects onto the complement of the
+pushforward's flat directions, $H$ is its hard directions, $P = C^+$, $N$ a basis of $\operatorname{null}(C)$,
+$\Lambda_p = A_t^\top\Lambda_r A_t$, $G = N (N^\top \Lambda_p N)^+ N^\top$, and $\Pi_o$ projects onto the complement of
+the message's flat directions. This is `_from_potential`'s $x = x_0 + N S_z N^\top(\eta - \Lambda_p x_0)$, with
+$x_0 = P H^\top \mu_r$ and $\eta = A_t^\top \Lambda_r \mu_r$, written as one matrix for all replicas. Whether a replica's
+hard constraints have a common solution depends on its mean, so it is checked per replica, with
+`_from_potential`'s residual and tolerance: a contradiction in replica $i$ throws as it would alone.
+The messages are built with a trusted `ExtendedGaussian` constructor (the parts are already a
+normalised representative), so a replica costs a few matrix-vector products and no decomposition.
+
+Anything else takes `factor_message` per replica: inputs that differ in structure, any number that is
+not a `Float64` (ForwardDiff duals), and a Zygote reverse pass (`_within_gradient()` is `true`
+there through an `rrule`), since the shared path takes its decompositions on values without the
+constant-rank derivative terms of LenticulumCore's. The per-replica loop is a comprehension, as
+Zygote cannot differentiate writes into a vector (Mycelium's default loop writes; P6 found that
+Zygote through it fails).
+
+From message blocks the result is a `VectorBlock` of the messages: there is no block type for
+extended Gaussians, so the variable's side combines them replica by replica.
+
+**Measured** (`test/hard_plates.jl`, 300 random instances: 2 or 3 channels of dimension 1 to 3, every
+kind of input, zero, positive definite and singular noise, 2 to 5 replicas; 278 went through the
+shared path, 22 were refused by the per-replica path and by the batch alike): the largest relative
+deviation from `factor_message` over mean, covariance and flat projector is $9.5 \cdot 10^{-12}$. The
+graph-level oracle is `test/extended_plates.jl` (a plate of `GaussianFactor`s under hard relations
+against the dense conditioned Gaussian), which now goes through this method: counted once with
+an instrumented copy, 261 of its group steps took the shared path and 20 the per-replica one. Timing (one machine,
+2026-11-17, a relation on $(u, v, t)$ of dimensions $(3, 2, 3)$, $m = 3$, Gaussian $u$ of one precision and
+point $v$, the message to $t$; a scratch script, not in the repository, so a rough figure): 0.045 ms
+against 0.27 ms for 10 replicas, 0.081 against 2.7 ms for 100, 0.44 against 27 ms for 1000.
+
+Review: [[LP-044 Findings of the review of P6]] (the block fallback under Zygote, fixed: it built the
+block with `belief_block`, which Zygote cannot take; argument lengths now checked).
+
+## Mean-field nodes
+
+With a positive definite noise the factor is `LinearConstraintFactor` with that noise, and its
+mean-field message and average energy are that factor's (LP-044; tested equal on random factors). With
+zero noise, or a singular one (exact along its null space), they are refused with the reason. The mean-field message $\exp \mathbb E_q[\log f]$ of the
+relation is the limit, as $\varepsilon \to 0$, of `LinearConstraintFactor`'s with noise $\varepsilon I$:
+$\mathcal N^{-1}(A_t^\top \bar d/\varepsilon, A_t^\top A_t/\varepsilon)$ with $\bar d = c - \sum_{i \ne t} A_i \mathbb E_q[x_i]$, hard along
+$\operatorname{range}(A_t^\top)$ at $A_t x_t = \bar d$. The marginal $q(x_t) \propto p(x_t)\,\mu_{f\to t}(x_t)$ then
+sits there exactly, whatever the prior says along those directions. Two scalar variables with
+$u - v = 0$ and priors $\mathcal N(0, 1)$, $\mathcal N(2, 1)$: the update is $\mathbb E u \leftarrow \mathbb E v$,
+$\mathbb E v \leftarrow \mathbb E u$, so every $u = v$ is a fixed point and the iteration stays where it starts, while
+the posterior has mean 1. With noise $\varepsilon$ the update is $\mathbb E u \leftarrow \mathbb E v/(1 + \varepsilon)$ (and alike), a
+contraction by $(1 + \varepsilon)^{-2}$ per sweep that vanishes as $\varepsilon \to 0$. The average energy
+$\mathbb E_q[-\log f]$ is infinite unless each $A_i x_i$ is deterministic under $q$; its finite part is not the
+Bethe one either, as the divergent terms (the factor's $\tfrac m2\log\varepsilon$, the variables'
+$\tfrac{\operatorname{rank} A_i}{2}\log\varepsilon$) do not cancel unless $\sum_i \operatorname{rank} A_i = m$. Belief propagation, exact on trees, is the
+rule for an exact relation; a `MeanField()` node wants a positive definite noise.
+
 ## What it does not do
 
 - **Learning**: `islearnable` is `false`: its own `A` and `c` get no gradient. Other factors in
@@ -130,9 +198,9 @@ With a positive definite noise the term is `LinearConstraintFactor`'s.
   against the gradient of the dense $-\log Z$ on random trees. `fit_em` with the factor in the graph
   is not tested.
 - **Free energy with a singular nonzero noise**: refused (above).
-- **Batched plates**: the factor has no `factor_messages` block method; a plate of hard
-  constraints runs per replica.
-- **Mean-field messages** (`MeanField()` nodes): not implemented.
+- **Plates whose inputs differ in structure**, dual numbers and Zygote take the per-replica path
+  ("Plates"); there is no block type for extended Gaussians.
+- **Mean-field messages** (`MeanField()` nodes) of an exact relation: refused ("Mean-field nodes").
 - **Mixture inputs**: refused; `LinearConstraintFactor` collapses them to their moments.
 
 ## Difficulties

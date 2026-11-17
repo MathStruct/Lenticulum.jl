@@ -184,3 +184,233 @@ function Mycelium.local_free_energy(f::HardConstraintFactor{names}, msgs, ps, st
     end
     return LenticulumCore.GradedEnergy((fit = 0.0, complexity = complexity, negentropy = -H)), st
 end
+
+# --- Plates (P6) --------------------------------------------------------------
+
+# Inside a reverse pass (Zygote) this is `true` (LenticulumChainRulesCoreExt).
+_within_gradient() = false
+
+"""
+    Mycelium.factor_messages(fs::AbstractVector{<:HardConstraintFactor}, target, polarity, inputs, priors, ps, st)
+
+The messages of tied replicas (a plate), as `factor_message` gives them one by one. When the
+replicas have one noise and dimensions, and each channel's inputs share their covariance and flat
+directions across the replicas (points, `TrivialBelief()`, Gaussians of one precision, extended
+Gaussians of one `Σ` and `D`; as with data and a shared prior), every decomposition of
+`factor_message` depends on replica 1 only: the message of replica ``i`` is
+
+```math
+\\mu_i \\;=\\; L\\,\\Pi_r\\Bigl(c - \\textstyle\\sum_{n \\ne t} A_n m_{n,i}\\Bigr), \\qquad \\Sigma_i = \\Sigma_1,\\quad D_i = D_1,
+```
+
+with ``m_{n,i}`` the inputs' means, ``\\Pi_r`` the projection of the pushforward onto the complement
+of its flat directions and ``L`` the linear map of `preimage` from that mean to the message's
+(`hard_constraint.md`, "Plates"). Each replica's hard constraints are checked for a contradiction
+as `preimage` checks them. Otherwise (anything else, dual numbers, a Zygote pass) each replica
+goes through `factor_message`. `inputs` is a vector of per-replica `NamedTuple`s, or a
+`NamedTuple` of `BeliefBlock`s, which gives a `VectorBlock`.
+"""
+function Mycelium.factor_messages(fs::AbstractVector{<:HardConstraintFactor{names}}, target::Symbol, polarity,
+                                  inputs::AbstractVector, priors::AbstractVector, ps, st) where {names}
+    target in names || throw(ArgumentError("channel :$target is not a channel of this factor ($(names))"))
+    length(fs) == length(inputs) == length(priors) || throw(DimensionMismatch(
+        "$(length(fs)) factors, $(length(inputs)) inputs and $(length(priors)) priors"))
+    out = _hard_shared_messages(fs, target, ps, length(inputs),
+                                n -> [haskey(inp, n) ? getfield(inp, n) : nothing for inp in inputs],
+                                _hard_channel_parts)
+    out === nothing || return out, st
+    return _hard_each(fs, target, polarity, inputs, priors, ps, st)
+end
+
+function Mycelium.factor_messages(fs::AbstractVector{<:HardConstraintFactor{names}}, target::Symbol, polarity,
+                                  inputs::NamedTuple, priors::AbstractVector, ps, st) where {names}
+    target in names || throw(ArgumentError("channel :$target is not a channel of this factor ($(names))"))
+    n = length(fs)
+    out = _hard_shared_messages(fs, target, ps, n,
+                                c -> haskey(inputs, c) ? getfield(inputs, c) : Mycelium.TrivialBlock(n),
+                                _hard_block_parts)
+    out === nothing || return Mycelium.VectorBlock(out), st
+    cols = [NamedTuple{keys(inputs)}(map(b -> Mycelium.replica(b, i), values(inputs))) for i in 1:n]
+    beliefs, st = _hard_each(fs, target, polarity, cols, priors, ps, st)
+    # every message is an ExtendedGaussian, which `belief_block` would put in a VectorBlock too; built
+    # directly, since `belief_block`'s copy into a `Vector{Any}` stops Zygote (LP-044)
+    return Mycelium.VectorBlock(Vector{Any}(beliefs)), st
+end
+
+# Each replica through `factor_message`, which leaves `st` as it is. A comprehension, not writes
+# into a vector: Zygote cannot differentiate those (Mycelium's default loop writes).
+function _hard_each(fs, target, polarity, inputs, priors, ps, st)
+    length(fs) == length(inputs) == length(priors) || throw(DimensionMismatch(
+        "$(length(fs)) factors, $(length(inputs)) inputs and $(length(priors)) priors"))
+    beliefs = [first(Mycelium.factor_message(fs[i], target, polarity, inputs[i], priors[i], ps, st))
+               for i in eachindex(fs, inputs, priors)]
+    return beliefs, st
+end
+
+# One channel's inputs over `k` replicas as shared parts (M, Σ, D): M the d × k matrix of the
+# normalised means, Σ and D those of every replica. `nothing` when they are not shared, or not of
+# Float64 (dual numbers take the per-replica path, which carries their derivatives).
+function _hard_channel_parts(bs::AbstractVector, d::Int, k::Int)
+    all(b -> b === nothing || b isa LenticulumCore.TrivialBelief, bs) &&
+        return zeros(d, k), zeros(d, d), Matrix(1.0I, d, d)
+    b1 = first(bs)
+    if b1 isa LenticulumCore.DiracBelief
+        all(b -> b isa LenticulumCore.DiracBelief && b.value isa AbstractVector{Float64} && length(b.value) == d, bs) ||
+            return nothing
+        return reduce(hcat, [b.value for b in bs]), zeros(d, d), zeros(d, 0)
+    elseif b1 isa GaussianBelief
+        all(b -> b isa GaussianBelief && eltype(b.η) === Float64 && length(b.η) == d &&
+                 b.improper == b1.improper && (b.Λ === b1.Λ || isequal(b.Λ, b1.Λ)), bs) || return nothing
+        eltype(b1.Λ) === Float64 || return nothing
+        return _hard_gaussian_parts(b1, reduce(hcat, [b.η for b in bs]))
+    elseif b1 isa LenticulumCore.ExtendedGaussian{Float64}
+        all(b -> b isa LenticulumCore.ExtendedGaussian{Float64} && length(b.μ) == d &&
+                 (b.Σ === b1.Σ || isequal(b.Σ, b1.Σ)) && (b.D === b1.D || isequal(b.D, b1.D)), bs) || return nothing
+        return reduce(hcat, [b.μ for b in bs]), b1.Σ, b1.D
+    end
+    return nothing
+end
+
+# The same from a message block.
+_hard_block_parts(b::Mycelium.TrivialBlock, d::Int, k::Int) = _hard_channel_parts(Any[nothing], d, k)
+function _hard_block_parts(b::Mycelium.PointBlock, d::Int, k::Int)
+    (eltype(b.X) === Float64 && size(b.X, 1) == d) || return nothing
+    return Matrix(b.X), zeros(d, d), zeros(d, 0)
+end
+function _hard_block_parts(b::Mycelium.GaussianBlock, d::Int, k::Int)
+    (b.Λ isa AbstractMatrix && eltype(b.Λ) === Float64 && eltype(b.η) === Float64 && size(b.η, 1) == d &&
+     allequal(b.improper)) || return nothing
+    return _hard_gaussian_parts(Mycelium.replica(b, 1), Matrix(b.η))
+end
+_hard_block_parts(b::Mycelium.VectorBlock, d::Int, k::Int) = _hard_channel_parts(b.beliefs, d, k)
+_hard_block_parts(b, d::Int, k::Int) = nothing
+
+# Gaussians of one precision Λ with the information vectors as the columns of H: `extended` of the
+# first gives Σ = Λ⁺ and D = null(Λ), and the means are Σ ηᵢ. An improper ηᵢ must lie in the range
+# of Λ, as `extended` checks; otherwise `nothing`, and the per-replica path throws its error.
+function _hard_gaussian_parts(b1::GaussianBelief, H::AbstractMatrix)
+    e = LenticulumCore.extended(b1)
+    D = e.D
+    if size(D, 2) > 0
+        for i in axes(H, 2)
+            η = view(H, :, i)
+            LinearAlgebra.norm(D' * η) <= sqrt(eps(Float64)) * LinearAlgebra.norm(η) || return nothing
+        end
+    end
+    return e.Σ * H, e.Σ, D
+end
+
+# The messages of every replica from shared parts, or `nothing` when the replicas do not share
+# them. `get(n)` is channel n's inputs, `parts(x, d, k)` turns them into (M, Σ, D).
+function _hard_shared_messages(fs, target, ps, k, get, parts)
+    length(fs) == k || throw(DimensionMismatch("$(length(fs)) factors and $k inputs"))
+    k > 1 || return nothing
+    _within_gradient() && return nothing
+    f = first(fs)
+    all(h -> h === f || (h.dims == f.dims && isequal(h.Q, f.Q)), fs) || return nothing
+    names = keys(f.dims)
+    At = getfield(ps.A, target)
+    eltype(At) === Float64 && eltype(ps.c) === Float64 || return nothing
+    others = Tuple(n for n in names if n !== target)
+    all(n -> eltype(getfield(ps.A, n)) === Float64, others) || return nothing
+    chans = Any[]
+    for n in others
+        p = parts(get(n), f.dims[n], k)
+        p === nothing && return nothing
+        push!(chans, p)
+    end
+    return _hard_shared_kernel(f, Matrix(At), Vector{Float64}(ps.c), others, ps.A, chans, k)
+end
+
+# Replica 1 through the path of `factor_message` (its decompositions are every replica's), then
+# the linear map from the inputs' means to the message mean, applied to all replicas at once.
+function _hard_shared_kernel(f, At, c, others, A, chans, k)
+    LC = LenticulumCore
+    if isempty(others)
+        msg = LC.preimage(LC.ExtendedGaussian(c, f.Q), At)
+        return Any[msg for _ in 1:k]
+    end
+    joint1 = LC._independent_join([LC.ExtendedGaussian(M[:, 1], Σ, D) for (M, Σ, D) in chans])
+    Mo = reduce(hcat, [-Matrix(getfield(A, n)) for n in others])
+    r1 = LC.pushforward(joint1, Mo, c, f.Q)
+    msg1 = LC.preimage(r1, At)
+    # the pushforward's mean, every replica: Πr (Mo J + c), Πr onto the complement of its flat directions
+    Ur = LC._complement(r1.D)
+    J = reduce(vcat, [M for (M, _, _) in chans])
+    μr = Ur * (Ur' * (Mo * J .+ c))
+    # `preimage(r, At)`: the potential [C x = H'μr] · exp(ηᵀx − xᵀΛp x/2) with C = H'At, η = At'Λr μr
+    H = LC.hard_directions(r1)
+    _, Λr = LC._canonical_part(r1)
+    C = H' * At
+    Λp = At' * Λr * At
+    nt = size(At, 2)
+    if size(C, 1) == 0
+        P, N = zeros(nt, 0), Matrix(1.0I, nt, nt)
+    else
+        U0, S0, V0, rk = LC._value_svd(C)
+        P = V0[:, 1:rk] * (U0[:, 1:rk]' ./ S0[1:rk])
+        N = V0[:, (rk + 1):nt]
+        # each replica's constraints must have a common solution (`_from_potential`, strict)
+        Z = H' * μr
+        R = C * (P * Z) .- Z
+        for i in 1:k
+            zi, ri = view(Z, :, i), view(R, :, i)
+            tol = sqrt(eps(Float64)) * max(LinearAlgebra.norm(zi), LinearAlgebra.norm(view(μr, :, i)), 1.0)
+            LinearAlgebra.norm(ri) <= tol || throw(ArgumentError(
+                "contradictory hard constraints: they fix a direction to different values \
+                 (residual $(LinearAlgebra.norm(ri)), replica $i)"))
+        end
+    end
+    # x = x0 + N Sz Nᵀ(η − Λp x0), x0 = P H'μr
+    L = P * H'
+    if size(N, 2) > 0
+        Λz = N' * Λp * N
+        V, K, _ = LC._psd_split((Λz + Λz') / 2, "the precision of a product")
+        G = N * LC._split_pinv(V, K) * N'
+        L = L .- G * (Λp * L) .+ G * (At' * Λr)
+    end
+    Uo = LC._complement(msg1.D)
+    X = Uo * (Uo' * (L * μr))                    # normalised: onto the complement of the flat directions
+    out = Vector{Any}(undef, k)
+    out[1] = msg1
+    for i in 2:k
+        out[i] = LC.ExtendedGaussian(Val(:normalised), X[:, i], msg1.Σ, msg1.D)
+    end
+    return out
+end
+
+# --- Mean-field nodes --------------------------------------------------------
+
+"""
+    Mycelium.mean_field_message(f::HardConstraintFactor, target, polarity, beliefs, ps, st)
+    Mycelium.mean_field_energy(f::HardConstraintFactor, marginals, ps, st)
+
+With a positive definite noise the factor is `LinearConstraintFactor` with that noise, and these are
+its methods. Otherwise refused, with the reason. The mean-field message ``\\exp \\mathbb E_q[\\log f]`` of an
+exact relation is the limit of `LinearConstraintFactor`'s with noise ``\\varepsilon I \\to 0``: hard along
+``\\operatorname{range}(A_t^\\top)``, at ``A_t x_t = c - \\sum_{i\\ne t} A_i \\mathbb E_q[x_i]``. Along those
+directions the variable's marginal then sits exactly where the others' means put it, whatever its
+prior says there, so an assignment that satisfies the relation is a fixed point and the iteration
+does not leave it; and the average energy ``\\mathbb E_q[-\\log f]`` is infinite unless every
+``A_i x_i`` is deterministic under ``q`` (`hard_constraint.md`, "Mean-field nodes"). A singular nonzero
+noise is exact along its null space and refused alike. Keep the node on `BeliefPropagation()`
+(exact on trees), or give the relation a positive definite noise.
+"""
+function Mycelium.mean_field_message(f::HardConstraintFactor, target::Symbol, polarity, beliefs, ps, st)
+    return Mycelium.mean_field_message(_noisy_twin(f), target, polarity, beliefs, ps, st)
+end
+Mycelium.mean_field_energy(f::HardConstraintFactor, marginals, ps, st) =
+    Mycelium.mean_field_energy(_noisy_twin(f), marginals, ps, st)
+
+# The LinearConstraintFactor with the same channels, equations and (positive definite) noise; the
+# parameters (A, c) are laid out alike.
+function _noisy_twin(f::HardConstraintFactor)
+    isposdef(Symmetric(f.Q)) || throw(ArgumentError(_HARD_MEAN_FIELD))
+    return LinearConstraintFactor(f.dims, f.m; noise = f.Q)
+end
+
+const _HARD_MEAN_FIELD = "HardConstraintFactor without a positive definite noise has no mean-field \
+    message: under an exact relation a MeanField() node puts each variable where the others' means \
+    fix it, ignoring its prior along the directions the relation fixes, so the iteration stays where \
+    it starts there, and its average energy is infinite. Keep the node on BeliefPropagation(), or \
+    give the relation a positive definite noise"

@@ -1333,6 +1333,7 @@ include("gaussian_oracle.jl")
 include("i18.jl")
 
 include("hard_constraint.jl")
+include("hard_plates.jl")
 
 include("extended_inputs.jl")
 include("extended_plates.jl")

@@ -56,6 +56,12 @@ struct ExtendedGaussian{T<:Real} <: AbstractBelief
         S = U * Σu * U'
         return new{T}(U * (U' * Vector{T}(μ)), (S + S') / 2, B)
     end
+    # Internal, trusted: parts that are already a normalised representative (`D` orthonormal, `μ`
+    # and `Σ` on its complement, `Σ` symmetric positive semidefinite), stored without a check. For
+    # the replicas of a plate that share `Σ` and `D` (Lenticulum's `HardConstraintFactor` block
+    # method, P6); the caller guarantees the normalisation.
+    ExtendedGaussian(::Val{:normalised}, μ::Vector{T}, Σ::Matrix{T}, D::Matrix{T}) where {T<:Real} =
+        new{T}(μ, Σ, D)
 end
 ExtendedGaussian(μ::AbstractVector, Σ::AbstractMatrix) = ExtendedGaussian(μ, Σ, zeros(eltype(μ), length(μ), 0))
 

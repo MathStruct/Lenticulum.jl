@@ -69,6 +69,10 @@ extended Gaussians is therefore always one, or a contradiction.
 - **Normalised representative.** The constructor orthonormalises $D$ (an SVD, dependent columns
   dropped) and projects $\mu$ and $\Sigma$ onto $D^\perp$, since nothing along $D$ is observable.
   Two representatives of one law then agree up to the basis of $D$; the tests compare $P_D$.
+  An internal constructor, `ExtendedGaussian(Val(:normalised), μ, Σ, D)`, stores parts that are
+  already normalised without checking them: Lenticulum's plate method of `HardConstraintFactor`
+  (P6) builds each replica's message from replica 1's $\Sigma$ and $D$ and a mean it projects onto
+  $D^\perp$ itself (`hard_constraint.md`, "Plates"). Nothing else uses it.
 - **Tolerances.** An eigenvalue or singular value below $16\,n\,\epsilon\,\lambda_{\max}$ counts as zero, the
   rule `_split_moments` used before. So a direction with variance below about $10^{-14}$ of the
   largest is hard: a deliberate choice, since a covariance that small is a constraint in all but
