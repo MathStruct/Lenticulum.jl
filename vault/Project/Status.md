@@ -7,13 +7,13 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-18, after the review of PR #23 (the Mistral cloud agent's I15–I22 commits): all accepted, one amendment (LP-055). I23 and I24 were rebased onto `9d94e548`, which the agent had pushed after them, and committed on `dev-danielb`; not pushed.
+**Last updated:** 2026-11-18, after the review of PR #23 (the Mistral cloud agent's I15–I22 commits): all accepted, one amendment (LP-055). I23 and I24 were rebased onto `9d94e548`, which the agent had pushed after them, and committed on `dev-danielb` and pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; **not pushed**. PR #23 (`dev-danielb` → `dev`) is open |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) is open |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `3655c0c1` (I23) with the first I24 diff applied (without the LP-054 fix); the reviewer's probes in `scratch/i24/` (copied to `../Lenticulum.jl-Review-2026-11-17/i24/probes/`); its environment `scratch/p6env` serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
