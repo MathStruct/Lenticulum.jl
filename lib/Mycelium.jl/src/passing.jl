@@ -541,6 +541,9 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::ResidualSchedule, @nospe
         for (i, t) in enumerate(ts)
             _, res, _, skip = _step!(s, g, t, ps, _readonly(st); damping, commit = false)
             skip && continue                # cannot be committed: never the best task
+            # chosen on the primal value: a dual breaks ties by its partials, and the
+            # tangents must not choose the order of the updates (LP-053 F1)
+            res = _primal(res)
             age = _task_age(s, t)
             if res > best_res || (res == best_res && age < best_age)
                 best_idx = i
@@ -567,6 +570,9 @@ is the expected outcome, and callers must decide whether to trust the marginals.
 tree schedule's single sweep claims it, and only when nothing on the way approximated (P13,
 [`exact_messages`](@ref)); `reason` then says "one sweep is exact", and otherwise names what
 approximated. An iterated schedule never claims it.
+
+`residual` is a `Float64`. Under ForwardDiff the sweeps' residuals are dual numbers; the report
+holds their primal value, and convergence is decided on it (I23).
 """
 struct ConvergenceReport
     converged::Bool
@@ -574,8 +580,11 @@ struct ConvergenceReport
     residual::Float64
     reason::String
     exact::Bool
+    # The residual is a diagnostic, not a value to differentiate: under ForwardDiff the sweeps'
+    # residuals are dual numbers, and the report keeps their primal value (I23).
+    ConvergenceReport(converged, sweeps, residual, reason, exact = false) =
+        new(converged, sweeps, Float64(_primal(residual)), reason, exact)
 end
-ConvergenceReport(converged, sweeps, residual, reason) = ConvergenceReport(converged, sweeps, residual, reason, false)
 Base.show(io::IO, r::ConvergenceReport) = print(io,
     "ConvergenceReport(", r.converged ? "converged" : "NOT converged",
     " after ", r.sweeps, " sweep(s), residual ", r.residual, "; ", r.reason, ")")
@@ -725,6 +734,9 @@ function _iterate!(s, g, sched, ps, st, maxsweeps, tol, rel, damping, record, cr
                 maximum(v -> _moment_residual(margs[v], new[v], rel[1], rel[2]), eachindex(new); init = 0.0)
             margs = new
         end
+        # Convergence is decided on the primal value: a dual's comparisons break ties by its
+        # partials, and the report holds a Float64 (I23).
+        res = _primal(res)
         quiet = res <= (rel === nothing ? tol : 1) ? quiet + 1 : 0
         # A marginal reads only the messages to its variable. A sweep can change messages to
         # factors and leave every marginal as it was (flooding's second sweep from an empty store:
@@ -733,14 +745,14 @@ function _iterate!(s, g, sched, ps, st, maxsweeps, tol, rel, damping, record, cr
         # a row (I22); `:messages` sees every message and needs one.
         if quiet >= (criterion === :marginals ? 2 : 1)
             what = criterion === :marginals ? "marginals changed, in two sweeps in a row, by less than " : "residual below "
-            return ConvergenceReport(true, i, float(res),
+            return ConvergenceReport(true, i, res,
                 what * (rel === nothing ? "tol" : "tol + rtol·scale (residual in units of that bound)")), st
         end
     end
     reason = isfinite(res) ? "hit maxsweeps" :
         "residual is Inf: no `belief_distance` method for these belief types, so convergence \
          cannot be verified (see messages.md). Ran to maxsweeps rather than claim success."
-    return ConvergenceReport(false, maxsweeps, float(res), reason), st
+    return ConvergenceReport(false, maxsweeps, res, reason), st
 end
 
 """

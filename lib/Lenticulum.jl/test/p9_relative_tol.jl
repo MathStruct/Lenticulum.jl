@@ -204,4 +204,59 @@ p9_relerr(marg, m) = maximum(abs, p9_means(marg) .- m) / maximum(abs, m)
         end
         @test allequal(r.sweeps for r in reps)
     end
+
+    # I23 (regression): an iterated `infer!` with dual parameters threw a `MethodError` in the
+    # `ConvergenceReport` constructor (`residual::Float64` from a dual), with `rtol = 0` as well.
+    # The report now holds the primal residual. Oracle: the exact means are linear in the source
+    # `ohm1.c`, so their derivative is the dense solve with the source's direction, and Gaussian BP's
+    # fixed point has the exact means.
+    @testset "I23: iterated inference with dual parameters" begin
+        g, ps, st, _ = p9_divider(1.0)
+        G = [1.0 P9_R1 0; 1 0 -P9_R2; 0 1 -1]; q = 1e-3
+        dm = (G' * G / q + I / 1e4) \ (G' * [1.0, 0, 0] / q)
+        withsource(x) = merge(ps, (ohm1 = merge(ps.ohm1, (; c = [x])),))
+        for (name, sched) in ((:flooding, flooding_schedule(g)), (:spanning, spanning_tree_schedule(g)),
+                              (:residual, ResidualSchedule())),
+            kw in ((tol = 1e-12,), (tol = 0.0, rtol = 1e-12), (tol = 1e-12, criterion = :marginals))
+            reps = ConvergenceReport[]
+            f(x) = begin
+                marg, rep, _, _ = infer!(g, sched, withsource(x[1]), st; maxsweeps = 5000, kw...)
+                push!(reps, rep)
+                p9_means(marg)
+            end
+            J = ForwardDiff.jacobian(f, [P9_VS])
+            rep = only(reps)
+            @test rep.converged && rep.residual isa Float64 && isfinite(rep.residual)
+            @test J[:, 1] ≈ dm rtol = 1e-6
+            # about the same sweeps as without duals: dual matrices take the generic linear algebra,
+            # whose rounding differs, so the residuals near the bound differ in the last digits
+            # (measured: at most one sweep more or fewer)
+            _, rep0, _, _ = infer!(g, sched, ps, st; maxsweeps = 5000, kw...)
+            @test abs(rep.sweeps - rep0.sweeps) <= 1
+        end
+        # The tangents do not steer the iteration: the same tasks in the same order whatever the
+        # partials (LP-053 F1: the residual schedule chose its task by comparing dual residuals,
+        # and a dual breaks ties by its partials; damped, the run stopped at 111 or 110 sweeps).
+        for (sched, kw) in ((ResidualSchedule(), (tol = 1e-12, damping = 0.3)), (ResidualSchedule(; maxtasks = 3), (tol = 1e-12,)),
+                            (flooding_schedule(g), (tol = 1e-12,)))
+            runs = map((1.0, -2.5, 0.0)) do t
+                s = MessageStore(g); order = MessageTask[]
+                rep, _ = propagate!(s, g, sched, withsource(ForwardDiff.Dual{Nothing}(P9_VS, t)), st;
+                                    maxsweeps = 8000, record = order, kw...)
+                (rep.converged, rep.sweeps, rep.residual, order)
+            end
+            @test all(r -> r[1], runs) && allequal(runs)
+        end
+        # not converged: the report of `maxsweeps` holds the primal residual too
+        d = ForwardDiff.derivative(P9_VS) do x
+            marg, rep, _, _ = infer!(g, flooding_schedule(g), withsource(x), st; maxsweeps = 3, tol = 0.0)
+            @test !rep.converged && rep.sweeps == 3 && rep.residual isa Float64
+            p9_means(marg)[1]
+        end
+        @test isfinite(d)
+        # nested duals (second derivative): the means are linear in the source, so it is zero
+        H = ForwardDiff.hessian(x -> p9_means(infer!(g, flooding_schedule(g), withsource(x[1]), st;
+                                                      maxsweeps = 5000, tol = 1e-12)[1])[1], [P9_VS])
+        @test abs(H[1, 1]) < 1e-8
+    end
 end

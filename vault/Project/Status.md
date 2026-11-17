@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-17, after the fixes for the open GitHub issues I15–I22 (one commit on `dev-danielb`, pushed; PR opened). Not run: no Julia in this environment — the suites of all touched packages (LenticulumCore, Mycelium, MyceliumLearning, Lenticulum, and the weekly packages that depend on them) must be run before merge; device tests (`LENTICULUM_DEVICE_TESTS=true`) cover I18/I19.
+**Last updated:** 2026-11-17, after I23 (iterated inference with dual parameters), committed on `dev-danielb`, not pushed (everything up to I22 is pushed).
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | pushed up to P28 (`27770961`); P29, P9 and I22 committed on top, not pushed |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `5505123b` (P9) with the I22 diff applied; the reviewer's probes in `scratch/i22/` (copied to `../Lenticulum.jl-Review-2026-11-17/i22/probes/`); its environment `scratch/p6env` (packages developed from the worktree, plus ForwardDiff, Zygote, Test) serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | pushed up to I22 (`be4b67e6`) and the `AGENTS.md` change (`3ec67646`); I23 committed on top, not pushed |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `3ec67646` with the first I23 diff applied (without the LP-053 fix); the reviewer's probes in `scratch/i23/` (copied to `../Lenticulum.jl-Review-2026-11-17/i23/probes/`); its environment `scratch/p6env` serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -27,7 +27,7 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
-- **I15–I22** (committed, pushed; one PR): fixes for the eight open GitHub issues, each with a
+- **GitHub issues I15–I22** (a Mistral cloud agent, commits `74274922` and `407a4196` on `dev-danielb`; these ids are GitHub issue numbers, not the backlog rows of the same names): fixes for the eight open GitHub issues, each with a
   regression test and a note beside its source file. **I15** the tree shortcut of `propagate!` now
   requires `!message_uses_cavity(factor)` (new trait, declared by `NonlinearFactor`), so a nonlinear
   tree is iterated and its residual checked instead of reporting a one-sweep fixed point.
@@ -48,32 +48,29 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
   LenticulumCore, Mycelium, MyceliumLearning, Lenticulum and the weekly packages, plus the device
   tests. Follow-up noted in `passing.md`: `DEQFactor`/`DiffusionFactor` also read the prior in
   their messages and should declare `message_uses_cavity` when those packages are reviewed.
-- **I22** (committed): `propagate!(...; criterion = :marginals)` stops only after two sweeps in a row
-  within the bound (`:messages` still after one). Flooding's second sweep from an empty store changes
-  only messages to factors, so one quiet sweep stopped the loopy divider with every mean at the prior.
-  Argument that two suffice under flooding: Mycelium `passing.md` "Convergence on marginals". The former
-  `@test_broken` in `test/p9_relative_tol.jl` is its regression test. Cost: one more sweep per
-  `:marginals` run.
-- Reviews: [[LP-052 Findings of the review of I22]]. Mistral Large (\$0): nine probes and a finished
-  answer file with the P6 brief form. Codex (`codex exec review --uncommitted`, premium again): no
-  finding, no tests run. One defect reproduced that predates I22: **I24**, partial residual sweeps
-  (`ResidualSchedule(maxtasks)` below the task count) still stop `:marginals` after 2 sweeps with
-  trivial marginals; `@test_broken`, row only.
-- Verified: all seven suites (Mycelium, MyceliumLearning, Lenticulum, VariationalDiffusion,
-  ImplicitLayers, AdversarialFactors, AlgebraicFactors; logs in `~/.cache/lenticulum/i22/`), and the
-  P9 file after the `@test_broken` was added (183 pass, 2 broken). Not run: device tests, the vault
-  build and `docs/make.jl`.
-- Not mine, left uncommitted: an edit to `AGENTS.md` (a Codex worktree `../Lenticulum.jl-codex`,
-  branches `codex/<topic>`) appeared in the checkout during the session.
+- **I23** (committed): an iterated `infer!` / `propagate!` with ForwardDiff dual parameters threw in
+  `ConvergenceReport` (`residual::Float64`). The report holds the primal residual, `_iterate!` decides
+  convergence on it, and the residual schedule picks its next task on it (LP-053 F1: the tangents
+  changed the order of updates and the stopping sweep). Test: `test/p9_relative_tol.jl` "I23" (the
+  Jacobian of the means against the dense solve on three schedules × three criteria, a second
+  derivative, the same task order for three tangents). Under duals `AndersonSchedule` runs without its
+  memory (noted in `passing.md`).
+- Review: [[LP-053 Findings of the review of I23]]. Mistral Large (\$0, P6 brief form): three probes,
+  finished answer file, one right finding. Codex was out of quota.
+- Verified: all seven suites (logs in `~/.cache/lenticulum/i23/`; the Lenticulum run saw the I24 test
+  written meanwhile and failed only there, so the P9 file was rerun at the I23 state: 216 pass,
+  2 broken). Not run: device tests, Zygote through an iterated `infer!`, the vault build and
+  `docs/make.jl`.
 
 ## Next
 
-No row is set; pick one with the maintainer. Small: **I23** (an iterated `infer!` with dual
-parameters throws in `ConvergenceReport`: report the primal value), **I24** (decide the rule for
-partial residual sweeps). Close to P5: a learned noise with hard messages, a residual-space
-formulation of the positive definite path (LP-047 finding 4; no row yet). Left open by P27 (no rows
-yet): the Bethe free energy with a mixture marginal under BP, derivatives through the new rules, two
-extended components with hard directions.
+**I24** is in progress (the rule chosen with the maintainer: a partial residual sweep under
+`:marginals` also needs the largest pending message residual within the bound). Then, no row set:
+I3 (the choice of spanning tree, alternating trees); close to P5: a learned noise with hard messages, a
+residual-space formulation of the positive definite path (LP-047 finding 4; no row yet). Left open by
+P27 (no rows yet): the Bethe free energy with a mixture marginal under BP, derivatives through the new
+rules, two extended components with hard directions. `ImplicitLayers`' `SolveReport` also has
+`residual::Float64` (not checked whether duals reach it; that package is unreviewed).
 
 ## Open
 
@@ -124,4 +121,4 @@ extended components with hard directions.
   file with four of them at the 100-turn limit (\$0): one right finding; its fifth probe's reference lost
   digits at 1e6 (a false report): check a reviewer's reference before its claim. On P5 the same brief: four probes, the answer file
   records only the first, no summary (\$0); the maintainer ran the rest (one probe needed a one-line repair)
-  and probe 2's properness check found F1. On P3 the first run crashed inside vibe on its first command (a validation error of its own); the rerun reached 100 turns with only probe 1 in the answer file: run its later probes yourself. On P28 the same: four probes recorded, three more written but not recorded (all passed when run). On P9 (vibe 3.1.2, after it had failed on P29): five probes recorded, the sixth (the one with the findings) written and not recorded. On I22 (P6 brief form): nine probes, all recorded, a finished answer with "Not run" and "Unverified" sections, one right finding, \$0. Another user's `vibe-rs --continue` runs on this machine: wait on the PID of your own run, not `pgrep -x vibe-rs`.
+  and probe 2's properness check found F1. On P3 the first run crashed inside vibe on its first command (a validation error of its own); the rerun reached 100 turns with only probe 1 in the answer file: run its later probes yourself. On P28 the same: four probes recorded, three more written but not recorded (all passed when run). On P9 (vibe 3.1.2, after it had failed on P29): five probes recorded, the sixth (the one with the findings) written and not recorded. On I22 (P6 brief form): nine probes, all recorded, a finished answer with "Not run" and "Unverified" sections, one right finding, \$0. On I23 (same form, `--max-price 3`): three probes, all recorded, one right finding, \$0; vibe exited 3 at its turn limit after writing the answer. Another user's `vibe-rs --continue` runs on this machine: wait on the PID of your own run, not `pgrep -x vibe-rs`.

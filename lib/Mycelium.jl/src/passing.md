@@ -671,8 +671,16 @@ improper messages have no mean. Sample and potential beliefs have no scale (scal
 absolute: making `rtol` the default would change every schedule's stopping point. Dual numbers: the
 residual math and the tree schedule differentiate under `rtol > 0`. Whether a change is zero is
 decided on the primal value (`_primal`), since a dual's comparisons break ties by the partials
-(LP-051). An iterated `infer!` with dual parameters throws in `ConvergenceReport` whatever `rtol`
-is (I23). Not tested: device blocks under the relative path (the block methods use reductions and
+(LP-051). An iterated `infer!` with dual parameters used to throw in `ConvergenceReport` whatever
+`rtol` was; since I23 the report holds the primal residual, `_iterate!` decides convergence on it,
+and the derivative of the fixed point's means matches the dense solve on flooding, spanning-tree and
+residual schedules, under both criteria (`test/p9_relative_tol.jl`, "I23"). With duals the sweep
+count can differ by one from the float run, since dual matrices take the generic linear algebra and
+round differently. The residual schedule chooses its next task on the primal residual too, so the
+tangents do not change the order of the updates (LP-053). `AndersonSchedule` runs without its memory
+under duals (`_anderson_state` mixes only `Float64` messages): its derivatives are right, but it takes
+the inner schedule's sweeps. The derivative is that of the iterates at the stopping sweep, not the implicit
+derivative of the fixed point; it is close to it only when the iteration has converged. Not tested: device blocks under the relative path (the block methods use reductions and
 no scalar indexing, but were not run on JLArrays).
 
 **Found on the way.** Under flooding, `criterion = :marginals` can stop too early: flooding moves
