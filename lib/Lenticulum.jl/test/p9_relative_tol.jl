@@ -126,13 +126,23 @@ p9_relerr(marg, m) = maximum(abs, p9_means(marg) .- m) / maximum(abs, m)
                                      criterion = :marginals)
             @test rep.converged && p9_relerr(marg, m) < 1e-8
             push!(get!(sweeps, :marginals, Int[]), rep.sweeps)
-            # Known defect, not of P9 (absolute criterion too; backlog I-row "marginals criterion
-            # under flooding"): flooding moves information one hop per sweep, so its second sweep
-            # leaves every marginal at the prior while messages still change, and `:marginals`
-            # reports convergence after 2 sweeps with the means not moved (relative error 1).
-            marg, rep, _, _ = infer!(g, flooding_schedule(g), ps, st; maxsweeps = 3000, tol = 1e-11 * c,
+            # I22 (regression): flooding moves information one hop per sweep, so its second sweep
+            # leaves every marginal at the prior while messages to factors still change; with one
+            # quiet sweep `:marginals` stopped there (relative error 1). It now needs two in a row.
+            for kw in ((tol = 1e-11 * c,), (tol = 0.0, rtol = 1e-10))
+                marg, rep, _, _ = infer!(g, flooding_schedule(g), ps, st; maxsweeps = 3000, criterion = :marginals, kw...)
+                @test rep.converged && rep.sweeps > 2 && p9_relerr(marg, m) < 1e-8
+            end
+        end
+        # Known defect (backlog I24, LP-052 F1): a ResidualSchedule with maxtasks below the number
+        # of tasks commits only part of a sweep, which can be messages to factors alone, so two quiet
+        # sweeps still say nothing: `:marginals` stops after 2 sweeps with every marginal trivial.
+        g, ps, st, m = p9_divider(1.0)
+        for mt in (1, 3)
+            marg, rep, _, _ = infer!(g, ResidualSchedule(maxtasks = mt), ps, st; maxsweeps = 20000, tol = 1e-11,
                                      criterion = :marginals)
-            @test_broken rep.converged && p9_relerr(marg, m) < 1e-8
+            @test_broken rep.converged && all(v -> marg[v] isa GaussianBelief, (:v, :i1, :i2)) &&
+                         p9_relerr(marg, m) < 1e-8
         end
         # the same model in other units needs the same sweeps (up to rounding, one or two)
         for (name, s) in sweeps

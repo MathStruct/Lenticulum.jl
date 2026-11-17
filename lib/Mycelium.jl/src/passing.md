@@ -207,6 +207,26 @@ so `test/switching_constraint.jl` converges its hybrid at `tol = 1e-10`. It is t
 `HybridSchedule` and for plate schedules lifted from one; it costs one marginal per variable per
 sweep.
 
+**Two quiet sweeps (I22, 2026-11-17).** A marginal reads only the messages to its variable, so one
+sweep within the bound does not show that the messages to factors are settled. Under flooding from
+an empty store the second sweep is such a sweep: the priors have reached their variables, but the
+factors that pass them on have not yet seen them, so every marginal stays at its prior. With one
+quiet sweep, `:marginals` stopped there on the loopy divider of `test/p9_relative_tol.jl` (relative
+error 1, absolute and relative tolerance alike). `_iterate!` now counts consecutive sweeps within
+the bound and stops `:marginals` at two; `:messages` still stops at one.
+
+Why two suffice under flooding: write $V_t$ and $F_t$ for the messages to variables and to factors
+after sweep $t$; flooding computes $V_t = f(F_{t-1})$ and $F_t = g(V_{t-1})$. If sweeps $t$ and
+$t+1$ leave $V$ unchanged ($V_{t-1} = V_t = V_{t+1}$), then $F_{t+1} = g(V_t) = g(V_{t-1}) = F_t$,
+and from there $V_{t+2} = f(F_{t+1}) = f(F_t) = V_{t+1}$: a fixed point. The argument assumes that
+an unchanged marginal means unchanged messages to it, which a change that cancels in the product
+would break; that is not excluded, only unlikely. In-place schedules can lag the same way (a message
+to a factor computed after the one it feeds in a sweep), and the same count covers one sweep of lag
+there. The cost is one more sweep for every `:marginals` run, including the hybrid schedules.
+Not covered: a `ResidualSchedule` whose `maxtasks` is below the number of tasks commits only part
+of a sweep, and two quiet partial sweeps say nothing; it still stops after 2 sweeps with every
+marginal trivial (LP-052 F1, backlog I24, a `@test_broken` in `test/p9_relative_tol.jl`).
+
 ## `factor_messages` on blocks (2026-11-03)
 
 A second method of `factor_messages` takes `inputs` as a `NamedTuple` of `BeliefBlock`s and
@@ -659,4 +679,5 @@ no scalar indexing, but were not run on JLArrays).
 information one hop per sweep, so on the divider its second sweep changes messages but no marginal,
 and `propagate!` reports convergence after 2 sweeps with every mean still at the prior (relative
 error 1), under the absolute criterion as well. The spanning-tree, Anderson and residual schedules
-are not affected. It is a `@test_broken` in `test/p9_relative_tol.jl` and a backlog row (I-section).
+are not affected. Fixed by I22 (two quiet sweeps, "Convergence on marginals" above); the
+`@test_broken` in `test/p9_relative_tol.jl` is now its regression test.

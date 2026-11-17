@@ -648,7 +648,10 @@ applies where [`can_damp`](@ref) is true; elsewhere it is a no-op. Callers can i
 `criterion` is what must change by at most `tol` between sweeps: `:messages` (the largest
 [`belief_distance`](@ref) of a sweep's messages to the ones they replace) or `:marginals` (the
 largest change of a variable's marginal, compared by moments: means and covariances, and the
-weights of a mixture or a categorical). Messages of mixtures with very narrow components have a
+weights of a mixture or a categorical). `:marginals` needs two sweeps in a row within the bound:
+a marginal reads only the messages to its variable, and a sweep can change messages to factors
+alone (flooding from an empty store does on its second sweep), which reach the marginals one sweep
+later (I22). Messages of mixtures with very narrow components have a
 rounding floor in natural parameters that their moments do not, so hybrid graphs default to
 `:marginals` ([`hybrid_schedule`](@ref)).
 
@@ -693,6 +696,7 @@ end
 function _iterate!(s, g, sched, ps, st, maxsweeps, tol, rel, damping, record, criterion)
     res = Inf
     margs = criterion === :marginals ? _all_marginals(s, g) : nothing
+    quiet = 0           # consecutive sweeps whose residual met the bound (I22)
     for i in 1:maxsweeps
         res, st = sched isa ResidualSchedule ?
             sweep!(s, g, sched, ps, st; damping, record) : sweep!(s, g, sched, ps, st; damping)
@@ -703,8 +707,14 @@ function _iterate!(s, g, sched, ps, st, maxsweeps, tol, rel, damping, record, cr
                 maximum(v -> _moment_residual(margs[v], new[v], rel[1], rel[2]), eachindex(new); init = 0.0)
             margs = new
         end
-        if res <= (rel === nothing ? tol : 1)
-            what = criterion === :marginals ? "marginals changed by less than " : "residual below "
+        quiet = res <= (rel === nothing ? tol : 1) ? quiet + 1 : 0
+        # A marginal reads only the messages to its variable. A sweep can change messages to
+        # factors and leave every marginal as it was (flooding's second sweep from an empty store:
+        # the priors have reached the variables, but not yet the factors that pass them on); the
+        # change reaches the marginals one sweep later. So `:marginals` needs two quiet sweeps in
+        # a row (I22); `:messages` sees every message and needs one.
+        if quiet >= (criterion === :marginals ? 2 : 1)
+            what = criterion === :marginals ? "marginals changed, in two sweeps in a row, by less than " : "residual below "
             return ConvergenceReport(true, i, float(res),
                 what * (rel === nothing ? "tol" : "tol + rtol·scale (residual in units of that bound)")), st
         end
