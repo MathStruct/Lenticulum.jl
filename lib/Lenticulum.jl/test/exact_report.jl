@@ -82,7 +82,7 @@ isdefined(@__MODULE__, :cl_additive) || include(joinpath(@__DIR__, "cluster.jl")
         end
     end
 
-    @testset "a factor that does not declare exact messages: NonlinearFactor" begin
+    @testset "a factor whose messages read the cavity: NonlinearFactor (I15)" begin
         gb = GraphBuilder(); variable!(gb, :x, 2); variable!(gb, :y, 1)
         factor!(gb, :prior, GaussianPrior(:x, zeros(2), Matrix(1.0I, 2, 2))); connect!(gb, :prior, :x, :x)
         factor!(gb, :nl, NonlinearFactor(x -> tanh.([1.0 2.0] * x), 2 => 1; noise = fill(0.3, 1, 1)))
@@ -90,7 +90,10 @@ isdefined(@__MODULE__, :cl_additive) || include(joinpath(@__DIR__, "cluster.jl")
         factor!(gb, :d, DataFactor(:y, [0.4])); connect!(gb, :d, :y, :y; direction = Emitting())
         g = build(gb)
         _, rep, _, _ = infer!(g, tree_schedule(g), LuxCore.initialparameters(Xoshiro(1), g), NamedTuple())
-        @test !rep.exact && occursin("node :nl (NonlinearFactor) does not declare exact messages", rep.reason)
+        # its backward message linearises at the target's cavity, so the tree is iterated and
+        # the residual checked: the report never claims exactness, nor a one-sweep fixed point
+        @test !rep.exact
+        @test !(rep.converged && rep.sweeps == 1)
     end
 
     @testset "iterated schedules never claim exactness" begin

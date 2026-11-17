@@ -177,7 +177,7 @@ end
     @test !(msg isa TrivialBelief)
     g = msg isa LenticulumCore.ExtendedGaussian ? GaussianBelief(msg) : msg
     v = [-2.0, 1.0] / sqrt(5)
-    @test v' * Matrix(g.Λ) * v ≈ 1 / 0.01 rtol = 1e-5          # noise = 0.1, so Q = 0.01 I
+    @test v' * Matrix(g.Λ) * v ≈ 1 / 0.1 rtol = 1e-5            # noise = 0.1, so Q = 0.1 I
     # the Float64-exact singular map takes the same path (it was never misclassified)
     msg64, _ = Mycelium.factor_message(f, :y, nothing, (x = TrivialBelief(),), nothing,
                                       (A = Float64[1 2; 2 4], b = zeros(2)), (;))

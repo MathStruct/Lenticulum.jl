@@ -21,7 +21,7 @@ if get(ENV, "LENTICULUM_DEVICE_TESTS", "false") == "true"
             p = GaussianBelief(JLArray(T[1]), Diagonal(JLArray(T[2])))
             q = GaussianBelief([T(1)], Diagonal([T(2)]))
             @test Array(belief_mean(p)) ≈ belief_mean(q)
-            @test Array(belief_cov(p).diag) ≈ belief_cov(q).diag
+            @test Array(belief_cov(p)) ≈ Matrix(belief_cov(q))     # the CPU one is dense (inv of a Cholesky)
             @test logpartition(p) ≈ logpartition(q) rtol = sqrt(eps(T))
         end
     end

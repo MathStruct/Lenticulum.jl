@@ -44,8 +44,8 @@ using ForwardDiff, Zygote
     X = [1.0 2.0 4.0; 0.5 -1.0 2.0]
     m = X * [1 / 3, 1 / 3, 1 / 3]
     C = sum((1 / 3) .* (X[:, i] .- m) * (X[:, i] .- m)' for i in 1:3)
-    g = ForwardDiff.gradient(x -> sum(belief_cov(SampleBelief(x))), X)
-    @test g ≈ 2 .* (X .- m) ./ 3 rtol = 1e-10            # d sum(C)/d X[:,i] = 2 w_i (X[:,i] - m)
+    g = ForwardDiff.gradient(x -> tr(belief_cov(SampleBelief(x))), X)
+    @test g ≈ 2 .* (X .- m) ./ 3 rtol = 1e-10            # d tr(C)/d X[:,i] = 2 w_i (X[:,i] - m)
     # vector of vectors, weighted: Zygote through mean and covariance against the closed form
     pts = [[1.0, 0.5], [2.0, -1.0], [4.0, 2.0]]
     w = [0.2, 0.3, 0.5]
@@ -56,7 +56,7 @@ using ForwardDiff, Zygote
     @test belief_mean(b) ≈ m0 && belief_cov(b) ≈ C0
     gm, = Zygote.gradient(x -> sum(belief_mean(SampleBelief(x, w))), pts)
     @test gm ≈ [wn[i] .* ones(2) for i in 1:3]
-    gC, = Zygote.gradient(x -> sum(belief_cov(SampleBelief(x, w))), pts)
+    gC, = Zygote.gradient(x -> tr(belief_cov(SampleBelief(x, w))), pts)
     @test gC ≈ [2 .* wn[i] .* (pts[i] .- m0) for i in 1:3]
     # scalar samples: Zygote, and a length-one vector out
     gs, = Zygote.gradient(x -> sum(belief_mean(SampleBelief(x))), [1.0, 2.0])
