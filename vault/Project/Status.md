@@ -7,7 +7,7 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-18, after I3 (the choice of spanning tree, alternating trees): implemented by Codex, reviewed by Mistral Large (LP-056, no defect), committed on `dev-danielb`, not pushed.
+**Last updated:** 2026-11-18, after I25 (default spanning-tree weights, `coupling_weights`): reviewed by Mistral Large (LP-057, no defect), committed on `dev-danielb`, not pushed.
 
 ## Branches and worktrees
 
@@ -15,7 +15,7 @@
 |---|---|---|
 | `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
 | `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/i3-spanning-trees` | at `0eef33ca` with I3 uncommitted (merged into `dev-danielb` as a diff); can be reset for the next Codex package |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `0eef33ca` with the I3 diff applied; the reviewer's probes in `scratch/i3/` (copied to `../Lenticulum.jl-Review-2026-11-18/i3/`); its environment `scratch/p6env` serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `6340896f` with the I25 diff applied; the reviewer's probes in `scratch/i25/` (copied to `../Lenticulum.jl-Review-2026-11-18/i25/`); its environment `scratch/p6env` serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -28,6 +28,15 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **I25** (2026-11-18): `coupling_weights(g, ps; normalize = true, default, hard)` in Lenticulum
+  (`coupling.jl`, `coupling.md`), with `coupling_precision(f, ps)` per linear-Gaussian factor type.
+  Weight = largest $\lVert D_u^{-1/2} J_{ab} D_v^{-1/2}\rVert$ over the factor's variable pairs (raw
+  $\lVert J_{ab}\rVert$ with `normalize = false`). Bench (`bench/bp_trees.jl`, log in
+  `~/.cache/lenticulum/i25/`): raw = the hand-made `1/q` exactly; normalised equal on anisotropic grids,
+  8–16 % more evaluations plain on isotropic/random (±3 % with Anderson). Default kept normalised for
+  unit invariance, which is not measured: **a decision for the maintainer** (flip the default to raw, or
+  measure a mixed-scale graph). Review [[LP-057 Findings of the review of I25]]. Lenticulum suite passed;
+  only notes changed in Mycelium.
 - **I3** (2026-11-18): `spanning_tree_schedule(g; weights, ntrees)`. `weights` (callable on factor
   indices or Dict by name) gives a maximum-weight spanning forest (Kruskal); `ntrees = K`/`:cover`
   appends trees preferring unused edges. Default unchanged (checked against the old function on
@@ -84,7 +93,7 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Next
 
-No row is set; pick one with the maintainer. **I25** (default tree weights from the factors; small, follows I3). Close to P5: a learned noise with hard messages, a residual-space formulation
+No row is set; pick one with the maintainer. Follow-up of I25 (no row): a mixed-scale benchmark to decide `normalize`'s default. Close to P5: a learned noise with hard messages, a residual-space formulation
 of the positive definite path (LP-047 finding 4; no row yet). Left open by P27 (no rows yet): the
 Bethe free energy with a mixture marginal under BP, derivatives through the new rules, two extended
 components with hard directions. Small: `ImplicitLayers`' `SolveReport` also has

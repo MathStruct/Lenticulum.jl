@@ -1336,6 +1336,7 @@ include("lp018_interop.jl")
 include("lp019_interop.jl")
 include("gaussian_oracle.jl")
 include("i3_spanning_trees.jl")
+include("i25_coupling_weights.jl")
 include("i18.jl")
 
 include("hard_constraint.jl")

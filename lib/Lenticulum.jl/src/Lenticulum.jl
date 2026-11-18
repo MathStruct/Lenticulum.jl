@@ -35,6 +35,8 @@ turned out to be wrong; see `The Gaussian Factor.md` §"What this caught".
   predictive over discrete outcomes; see `likelihood.md`.
 - `switching.jl` — [`SwitchingConstraintFactor`](@ref): a linear constraint whose right-hand
   side is chosen by a discrete outcome, closed form in every direction; see `switching.md`.
+- `coupling.jl` — [`coupling_weights`](@ref): each factor's coupling strength, as default weights
+  for `spanning_tree_schedule`; see `coupling.md`.
 """
 module Lenticulum
 
@@ -60,6 +62,7 @@ include("likelihood.jl")
 include("switching.jl")
 include("regime.jl")
 include("m_steps.jl")
+include("coupling.jl")
 
 # The factors whose belief-propagation messages are exact for point, categorical and Gaussian
 # inputs (also flat ones), each tested against a closed form (`test/gaussian_oracle.jl`,
@@ -85,6 +88,7 @@ export RegimeFactor, regime_covariances
 export FrozenGaussianBelief, FrozenSwitchingBeliefs
 export LikelihoodFactor, LikelihoodModel, Laplace, ExpectationPropagation, predictive, log_evidence
 export AbstractLikelihood, PoissonLikelihood, BivariatePoissonLikelihood, OrdinalProbitLikelihood
+export coupling_precision, coupling_weights
 export npredictors, obsdim, loglikelihood, loglikelihood_derivatives, outcomes, outcome_logprobs
 
 end # module

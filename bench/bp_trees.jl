@@ -2,6 +2,7 @@
 # Gaussian grids with pv = 100 and isotropic, anisotropic, or seeded log-uniform edge noise.
 # Each mean is checked against the dense precision solve; second run timed after warm-up.
 # Recorded in lib/Mycelium.jl/src/schedules.md, "Choice of tree and alternating trees".
+# "coupling" is `coupling_weights(g, ps)` (I25, normalised); "coupling raw" its `normalize = false`.
 # Run: julia --project=bench bench/bp_trees.jl
 include("divider.jl")
 using Random
@@ -43,7 +44,9 @@ function run_trees(n, mode)
     specs = [("flooding", nothing), ("BFS", (;)), ("precision", (; weights=precision)),
              ("q control", (; weights=qs)), ("BFS 2", (; ntrees=2)),
              ("BFS cover", (; ntrees=:cover)), ("precision 2", (; weights=precision, ntrees=2)),
-             ("precision cover", (; weights=precision, ntrees=:cover))]
+             ("precision cover", (; weights=precision, ntrees=:cover)),
+             ("coupling", (; weights=coupling_weights(g, ps))),
+             ("coupling raw", (; weights=coupling_weights(g, ps; normalize=false)))]
     println("\n$n × $n, $mode, pv=100, seed=20261118")
     println("| schedule | sweeps | evaluations | trees | seconds | mean error | converged |")
     println("|---|---:|---:|---:|---:|---:|---|")

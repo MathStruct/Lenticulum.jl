@@ -256,8 +256,9 @@ Difficulties: connectivity must be tracked on the structure before legal-task pr
 rebuilt from the surviving messages loses edges whose tasks are both illegal). Weight ordering
 compares directly instead of negating, so unsigned weights keep the descending order.
 
-What this does not do: no automatic weights (Mycelium does not know what a factor's coupling
-strength is; for Gaussian factors `1/q`, or a norm of `A' R⁻¹ A`, is the caller's choice); no
+Default weights (I25): Mycelium does not know a factor's coupling strength; Lenticulum's
+`coupling_weights(g, ps)` computes one for its linear-Gaussian factors (`lib/Lenticulum.jl/src/coupling.md`).
+What this does not do: no
 adaptation of trees during inference; no tree-appearance probabilities or tree-reweighted
 objective (the fixed points are ordinary BP's; TRP is cited as motivation, no theorem used); no
 convergence guarantee; plates and mean-field nodes as before (`plate_schedule`,
