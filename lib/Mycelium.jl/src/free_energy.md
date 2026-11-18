@@ -475,5 +475,7 @@ of the Gaussian entropy and log-partition in the precision under ForwardDiff and
 
 Not covered: cluster nodes (`cluster.jl` computes in Float64 by design, `_numtype`), overlay and
 mixture energies, the gradient drivers of `MyceliumLearning`. And Lenticulum's linear-Gaussian
-factors send Float64 messages for Float32 parameters, so a Lenticulum Gaussian graph is still
-Float64 throughout: that is backlog row P30, not this one.
+factors sent Float64 messages for Float32 parameters; P30 fixed that (Lenticulum `gaussian.md`,
+"Element type"). P30 also found that `variable_free_energy` negated a point's entropy `false` to the
+Int `0`, and `c * false` with an Int counting number is the Int `0` too: both now return `false`
+(`_negate`, `_variable_term`).

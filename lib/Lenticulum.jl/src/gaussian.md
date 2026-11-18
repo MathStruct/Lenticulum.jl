@@ -669,3 +669,46 @@ promotes to the wider element type, so its tolerance is that type's) and the ran
 Lenticulum `test/p29_rank_tolerance.jl`, "GH-17" — Float32 deficient against a Float64 oracle that
 keeps the same rounding-level singular value, full-rank Float32 maps, and the no-input forward
 message's precision along `[-2, 1]/sqrt(5)`.
+
+## Element type (P30, 2026-11-18)
+
+Messages, marginals and free-energy terms are in the type that Julia's promotion gives the values a
+computation reads (`A`, `b`, the noise, the prior's `μ` and `Σ`, the incoming messages, the data);
+nothing is converted. Float32 parameters, noise and data give a Float32 graph end to end; Float32
+parameters with Float64 data give Float64. Before P30 the zero buffers (`zeros(n)`), identities
+(`Matrix{Float64}(I, …)`, `Matrix(1.0I, …)`), `log(2π)`, `2π .* Q`, the `0.0` energies and the
+`Vector{Float64}` copies in `FrozenGaussianBelief(s)` put Float64 into every message. They now take
+the element type of their inputs; `log(2π)` is `LenticulumCore._log2π(T)`; an identically zero energy
+or entropy is `false`, as in Mycelium (`free_energy.md`, "Element type in, element type out"), and
+its negation stays `false` (`_negentropy`; `-false` is the Int `0`). The default
+`eigenvalue_floor` of learnable noise is `one(T) / 1000000` in the noise's float type (the same value
+as before for Float64). The rank memo (`_RANK_MEMO`) holds `Matrix{Float32}` as well as
+`Matrix{Float64}`, with the same weak-reference and copy checks.
+
+Three Float64 sources sat in LenticulumCore's extended-Gaussian algebra, which every partly flat or
+hard message goes through, and were fixed with it: the product `_conjoin` took `sqrt` of its Int
+default weights, `preimage` floated its Int default offset, and `extended(::TrivialBelief, n)` had no
+element type to take (it now has an optional third argument, used by `HardConstraintFactor`); also
+`_logsum`, `_scale` and `marginalise` (`extended_gaussian.md`, "Element type").
+
+Struct changes: `FrozenGaussianBelief{P,M,S,H,Q}` and `FrozenGaussianBeliefs{P,M,S,H}` take their
+points' and entropy's types; `LinearConstraintFactor` its fixed output coefficient's (`C`);
+`HardConstraintFactor` its noise matrix's (`Q`).
+
+Test: `test/p30_element_type.jl`. Random trees of `GaussianPrior` and `GaussianFactor`s (square and
+rectangular `A`, so that extended messages occur; fixed and learnable noise; an observed leaf), built
+from one draw in Float32 and in Float64: every message and marginal of the Float32 graph is Float32,
+its marginals and free energy agree with the Float64 graph's to `rtol = 1e-3`, and the Float64 graph
+agrees with a dense joint solve to `1e-9`; every part of `factor_free_energies` and
+`variable_corrections` is Float32 or `false`. The same for two priors joined by a
+`GaussianFactor`, a `LinearConstraintFactor` and a `HardConstraintFactor`, node by node and as a
+plate of three replicas, against the closed-form conditioning; frozen beliefs, mean-field messages
+and energies, the per-replica batched constraint kernel against the per-node message, both noise
+hyperpriors, Int inputs, ForwardDiff and Zygote derivatives in Float32, the promotion case, and the
+memo (a hit, and a matrix changed in place recomputed).
+
+Not covered: `nonlinear.jl`, `switching.jl`, `regime.jl`, `likelihood.jl`, `m_steps.jl`,
+`exposure.jl` and `coupling.jl` still put Float64 in (an inventory with line numbers is in
+`../Lenticulum.jl-Review-2026-11-18/p30/out-of-scope.md`, outside the repository; backlog row P31). The shared fast kernel of
+`HardConstraintFactor` on plates is Float64 only; Float32 replicas take the per-replica path. Device
+arrays were not tested with Float32 parameters beyond the existing device tests.

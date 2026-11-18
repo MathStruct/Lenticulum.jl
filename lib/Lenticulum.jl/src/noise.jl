@@ -17,7 +17,9 @@ struct WishartPrecisionPrior{T,M}
         size(V, 2) == d && issymmetric(V) && isposdef(Symmetric(V)) ||
             throw(ArgumentError("Wishart scale must be symmetric positive definite"))
         isfinite(df) && df > d - 1 || throw(ArgumentError("Wishart df must exceed dimension - 1"))
-        new{typeof(float(df)),typeof(V)}(float(df), V)
+        # an Int df takes the scale's float type, so it does not widen a Float32 prior (P30 review)
+        dfv = df isa Integer ? convert(eltype(V), df) : float(df)
+        new{typeof(dfv),typeof(V)}(dfv, V)
     end
 end
 
@@ -124,15 +126,15 @@ end
 _noise_penalty(::Nothing, P, logdetQ) = zero(logdetQ)
 function _noise_penalty(p::WishartPrecisionPrior, P, logdetQ)
     d, ν = size(P, 1), p.df
-    loggamma_d = d * (d - 1) / 4 * log(π) +
+    loggamma_d = d * (d - 1) * log(oftype(ν, π)) / 4 +
                  sum(SpecialFunctions.loggamma((ν + 1 - j) / 2) for j in 1:d)
-    return (tr(p.scale \ P) + (ν - d - 1) * logdetQ + ν * d * log(2) +
+    return (tr(p.scale \ P) + (ν - d - 1) * logdetQ + ν * d * log(oftype(ν, 2)) +
             ν * logdet(p.scale)) / 2 + loggamma_d
 end
 function _noise_penalty(p::LogNormalVariancePrior, P, logdetQ)
     logvar = -log.(diag(P))
     return sum(logvar .+ ((logvar .- p.logmean) ./ p.logstd).^2 ./ 2 .+
-               log.(p.logstd) .+ log(2π) / 2)
+               log.(p.logstd) .+ LenticulumCore._log2π(float(promote_type(eltype(P), eltype(p.logmean), eltype(p.logstd)))) / 2)
 end
 
 struct LearnedPrecisionNorm <: LenticulumCore.AbstractPointScalarisation end

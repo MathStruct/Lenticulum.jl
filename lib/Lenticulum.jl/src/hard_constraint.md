@@ -279,3 +279,10 @@ from its split.
 
 The full-row-rank test of the free energy used `eps(Float64)` on the singular values of `G`; it now
 uses `_eps_eltype(eltype(S0))`, so a Float32 coefficient matrix is judged at Float32 rounding.
+
+## Element type (P30)
+
+`Q` is a type parameter, not a Float64 copy; normalisers, the zero entropy (`false`) and the shared
+kernel's buffers take their inputs' type, and an absent input is `extended(TrivialBelief(), n, T)`
+with `T` the type of `c`. The shared plate kernel still accepts Float64 only; Float32 replicas take
+the per-replica path. Test: `gaussian.md`, "Element type".

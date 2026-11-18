@@ -380,3 +380,11 @@ device inputs go through the per-replica path, which preserves their scalar type
 Lenticulum `test/plate_block_duals.jl` — ForwardDiff through the batched call against the finite
 difference, batched against per-replica messages term for term, the shared-precision batched path
 under duals, and Float32 blocks.
+
+## Element type (P30)
+
+Messages and energies are in the promoted type of the coefficients, constant, noise and inputs; the
+flat and point buffers and the per-replica batch workspaces take that type, and the fixed output
+coefficient is a type parameter of `LinearConstraintFactor` (its default identity in the noise's
+float type). `SwitchingFactor` and `RegimeFactor` still call the four-argument `_output_coeff`, which
+keeps Float64 (their fields are `Matrix{Float64}`). Details and the test: `gaussian.md`, "Element type".

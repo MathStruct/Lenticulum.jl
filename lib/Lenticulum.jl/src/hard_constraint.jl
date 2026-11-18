@@ -36,10 +36,10 @@ f  = HardConstraintFactor((i1 = 1, i2 = 1, i3 = 1), 1)
 ps = (A = (i1 = ones(1, 1), i2 = ones(1, 1), i3 = ones(1, 1)), c = [0.0])
 ```
 """
-struct HardConstraintFactor{names,D<:Tuple,W,B} <: LenticulumCore.AbstractLenticulumFactor
+struct HardConstraintFactor{names,D<:Tuple,W,B,Q<:AbstractMatrix} <: LenticulumCore.AbstractLenticulumFactor
     dims::NamedTuple{names,D}
     m::Int
-    Q::Matrix{Float64}
+    Q::Q
     init_coeff::W
     init_constant::B
 end
@@ -51,7 +51,7 @@ function HardConstraintFactor(dims::NamedTuple, m::Int; noise = 0,
     all(d -> d isa Int && d > 0, values(dims)) ||
         throw(ArgumentError("channel dimensions must be positive Ints; got $(dims)"))
     m > 0 || throw(ArgumentError("the residual dimension m must be positive; got $m"))
-    Q = noise isa Real ? Matrix{Float64}(noise * I, m, m) : Matrix{Float64}(noise)
+    Q = _as_cov(noise, m)
     size(Q) == (m, m) || throw(DimensionMismatch("noise must be $m × $m; got $(size(Q))"))
     LenticulumCore._nearly_symmetric(Q) || throw(ArgumentError("noise covariance must be symmetric"))
     Q = Matrix(LenticulumCore._symmetric_part(Q))
@@ -91,11 +91,11 @@ LenticulumCore.scalarisation(::HardConstraintFactor) = LenticulumCore.GradedScal
 ))
 
 # an input as an extended Gaussian of dimension n
-_as_extended(b, n) = LenticulumCore.extended(b, n)
+_as_extended(b, n, T) = LenticulumCore.extended(b, n, T)   # T: the type of no input (P30)
 # A mixture is collapsed to its total moments, as the relation factors do (`gaussian.md`, "Mixture
 # inputs"): the message is exact for the collapsed input, an assumed-density approximation for the
 # mixture (P27). Before P27 it was refused.
-_as_extended(b::LenticulumCore.MixtureBelief, n) = LenticulumCore.extended(moment_match(b), n)
+_as_extended(b::LenticulumCore.MixtureBelief, n, T) = LenticulumCore.extended(moment_match(b), n)
 
 """
     Mycelium.factor_message(f::HardConstraintFactor, target, polarity, inputs, prior, ps, st)
@@ -119,7 +119,7 @@ function Mycelium.factor_message(f::HardConstraintFactor{names}, target::Symbol,
         r = LenticulumCore.ExtendedGaussian(float.(ps.c), f.Q)
     else
         input(n) = haskey(inputs, n) ? getfield(inputs, n) : nothing
-        joint = LenticulumCore._independent_join([_as_extended(input(n), f.dims[n]) for n in others])
+        joint = LenticulumCore._independent_join([_as_extended(input(n), f.dims[n], float(eltype(ps.c))) for n in others])
         M = reduce(hcat, [-Matrix(getfield(A, n)) for n in others])
         r = LenticulumCore.pushforward(joint, M, float.(ps.c), f.Q)
     end
@@ -166,8 +166,8 @@ function Mycelium.local_free_energy(f::HardConstraintFactor{names}, msgs, ps, st
             r̄, Cr, H = _reduced_residual_statistics(G, c, canon, f.Q)
             Qi = _spd_inv(f.Q, "Q")
             fit = (r̄' * (Qi * r̄) + tr(Qi * Cr)) / 2
-            complexity = logdet(_chol(2π .* f.Q, "2πQ")) / 2
-            return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -H)), st
+            complexity = logdet(_chol((2 * float(eltype(f.Q))(π)) .* f.Q, "2πQ")) / 2
+            return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = _negentropy(H))), st
         end
         # P5: a singular nonzero noise Q = Qs D Qsᵀ (Qs, Qh orthonormal bases of its range and null
         # space). The relation is exact along Qh, Qhᵀ(G s − c) = 0, and soft along Qs,
@@ -191,7 +191,7 @@ function Mycelium.local_free_energy(f::HardConstraintFactor{names}, msgs, ps, st
     Gp = V0[:, 1:m] * (U0[:, 1:m]' ./ S0[1:m])          # G⁺ at the value
     N = V0[:, (m + 1):k] .- Gp * (Δ * V0[:, (m + 1):k])  # R = s0 + range(N), any solution s0
     complexity = LenticulumCore._logsum(S0) + sum(Gp' .* Δ)   # ½ log det(G Gᵀ)
-    H = 0.0                                              # k = m: R is a point
+    H = false                                              # k = m: R is a point
     Λz = nothing
     if k > m                                             # the entropy needs only the precision on R
         Λs = _blockdiag(map(last, canon))
@@ -202,10 +202,10 @@ function Mycelium.local_free_energy(f::HardConstraintFactor{names}, msgs, ps, st
         minimum(λz) > LenticulumCore._eig_tol(λz) || throw(ArgumentError(
             "HardConstraintFactor: the factor belief is flat along the relation's \
              solution set (an improper posterior); it has no free energy"))
-        H = (k - m) * (1 + log(2π)) / 2 - logdet(_chol(Λz, "the factor belief's precision on R")) / 2
+        H = (k - m) * (1 + LenticulumCore._log2π(eltype(Λz))) / 2 - logdet(_chol(Λz, "the factor belief's precision on R")) / 2
     end
     soft === nothing &&
-        return LenticulumCore.GradedEnergy((fit = 0.0, complexity = complexity, negentropy = -H)), st
+        return LenticulumCore.GradedEnergy((fit = false, complexity = complexity, negentropy = _negentropy(H))), st
     # The soft residual r = Gs s − cs under the factor belief on R: s = s0 + N z with s0 a solution
     # of G s0 = c (in plain arithmetic, so that it carries the tangent of G and c) and
     # z ~ N(Λz⁻¹ Nᵀ(η' − Λ' s0), Λz⁻¹), η' and Λ' the inputs' information and precision with the
@@ -222,12 +222,12 @@ function Mycelium.local_free_energy(f::HardConstraintFactor{names}, msgs, ps, st
     r̄ = soft.G * s̄ .- soft.c
     fit = sum(abs2.(r̄) ./ soft.d) / 2
     Cs === nothing || (fit += tr((soft.G' * (soft.G ./ soft.d)) * Cs) / 2)
-    complexity += sum(log.(2π .* soft.d)) / 2
-    return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -H)), st
+    complexity += sum(log.((2 * eltype(soft.d)(π)) .* soft.d)) / 2
+    return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = _negentropy(H))), st
 end
 
 # A positive semidefinite noise split into its null space Qh (exact directions), its range Qs and
-# the positive eigenvalues d on it. The noise is a constant of the factor (Float64, no tangent).
+# the positive eigenvalues d on it. The noise is a constant of the factor (no tangent).
 function _noise_split(Q::AbstractMatrix)
     λ, V = LinearAlgebra.eigen(Symmetric(Q))
     pos = λ .> LenticulumCore._eig_tol(λ)
@@ -298,15 +298,15 @@ end
 
 # One channel's inputs over `k` replicas as shared parts (M, Σ, D): M the d × k matrix of the
 # normalised means, Σ and D those of every replica. `nothing` when they are not shared, or not of
-# Float64 (dual numbers take the per-replica path, which carries their derivatives).
+# Float64 (Float32 and dual numbers take the per-replica path).
 function _hard_channel_parts(bs::AbstractVector, d::Int, k::Int)
     all(b -> b === nothing || b isa LenticulumCore.TrivialBelief, bs) &&
-        return zeros(d, k), zeros(d, d), Matrix(1.0I, d, d)
+        return zeros(Bool, d, k), zeros(Bool, d, d), Matrix{Bool}(I, d, d)
     b1 = first(bs)
     if b1 isa LenticulumCore.DiracBelief
         all(b -> b isa LenticulumCore.DiracBelief && b.value isa AbstractVector{Float64} && length(b.value) == d, bs) ||
             return nothing
-        return reduce(hcat, [b.value for b in bs]), zeros(d, d), zeros(d, 0)
+        return reduce(hcat, [b.value for b in bs]), zeros(eltype(b1.value), d, d), zeros(eltype(b1.value), d, 0)
     elseif b1 isa GaussianBelief
         all(b -> b isa GaussianBelief && eltype(b.η) === Float64 && length(b.η) == d &&
                  b.improper == b1.improper && (b.Λ === b1.Λ || isequal(b.Λ, b1.Λ)), bs) || return nothing
@@ -324,7 +324,7 @@ end
 _hard_block_parts(b::Mycelium.TrivialBlock, d::Int, k::Int) = _hard_channel_parts(Any[nothing], d, k)
 function _hard_block_parts(b::Mycelium.PointBlock, d::Int, k::Int)
     (eltype(b.X) === Float64 && size(b.X, 1) == d) || return nothing
-    return Matrix(b.X), zeros(d, d), zeros(d, 0)
+    return Matrix(b.X), zeros(eltype(b.X), d, d), zeros(eltype(b.X), d, 0)
 end
 function _hard_block_parts(b::Mycelium.GaussianBlock, d::Int, k::Int)
     (b.Λ isa AbstractMatrix && eltype(b.Λ) === Float64 && eltype(b.η) === Float64 && size(b.η, 1) == d &&
@@ -343,7 +343,7 @@ function _hard_gaussian_parts(b1::GaussianBelief, H::AbstractMatrix)
     if size(D, 2) > 0
         for i in axes(H, 2)
             η = view(H, :, i)
-            LinearAlgebra.norm(D' * η) <= sqrt(eps(Float64)) * LinearAlgebra.norm(η) || return nothing
+            LinearAlgebra.norm(D' * η) <= sqrt(eps(eltype(e.Σ))) * LinearAlgebra.norm(η) || return nothing
         end
     end
     return e.Σ * H, e.Σ, D
@@ -368,7 +368,7 @@ function _hard_shared_messages(fs, target, ps, k, get, parts)
         p === nothing && return nothing
         push!(chans, p)
     end
-    return _hard_shared_kernel(f, Matrix(At), Vector{Float64}(ps.c), others, ps.A, chans, k)
+    return _hard_shared_kernel(f, Matrix(At), copy(ps.c), others, ps.A, chans, k)
 end
 
 # Replica 1 through the path of `factor_message` (its decompositions are every replica's), then
@@ -394,7 +394,7 @@ function _hard_shared_kernel(f, At, c, others, A, chans, k)
     Λp = At' * Λr * At
     nt = size(At, 2)
     if size(C, 1) == 0
-        P, N = zeros(nt, 0), Matrix(1.0I, nt, nt)
+        P, N = zeros(eltype(Λp), nt, 0), Matrix{eltype(Λp)}(I, nt, nt)
     else
         U0, S0, V0, rk = LC._value_svd(C)
         P = V0[:, 1:rk] * (U0[:, 1:rk]' ./ S0[1:rk])
@@ -404,7 +404,7 @@ function _hard_shared_kernel(f, At, c, others, A, chans, k)
         R = C * (P * Z) .- Z
         for i in 1:k
             zi, ri = view(Z, :, i), view(R, :, i)
-            tol = sqrt(eps(Float64)) * max(LinearAlgebra.norm(zi), LinearAlgebra.norm(view(μr, :, i)), 1.0)
+            tol = sqrt(eps(eltype(μr))) * max(LinearAlgebra.norm(zi), LinearAlgebra.norm(view(μr, :, i)), one(eltype(μr)))
             LinearAlgebra.norm(ri) <= tol || throw(ArgumentError(
                 "contradictory hard constraints: they fix a direction to different values \
                  (residual $(LinearAlgebra.norm(ri)), replica $i)"))

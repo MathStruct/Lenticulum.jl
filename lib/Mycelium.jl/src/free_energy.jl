@@ -478,7 +478,10 @@ The Bethe free energy is ``F_\\beta = \\sum_\\alpha c_\\alpha F_\\alpha`` over f
 subtracted ``d_v`` times. (The sign matters only once a belief has non-zero entropy; see
 `free_energy.md` §6.)
 """
-variable_free_energy(b) = -variable_entropy(b)
+variable_free_energy(b) = _negate(variable_entropy(b))
+# `-false` is the Int 0, which would lose the strong zero of a point's entropy (P8, P30)
+_negate(h) = -h
+_negate(h::Bool) = h ? -1 : false
 
 """
     variable_corrections(store, g) -> GradedEnergy
@@ -496,7 +499,9 @@ end
 # marginal may be one with no entropy in closed form, such as a Gaussian mixture.
 function _variable_term(s, g, vid)
     c = counting_number(g, vid)
-    return c == 0 ? false : c * variable_free_energy(marginal(s, g, vid))
+    c == 0 && return false
+    h = variable_free_energy(marginal(s, g, vid))
+    return h === false ? false : c * h   # an Int count times a strong zero is an Int 0 (P30)
 end
 
 """

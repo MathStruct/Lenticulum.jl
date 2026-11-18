@@ -110,7 +110,7 @@ belief_distance(a::LenticulumCore.DiracBelief, b::_EG) = belief_distance(Lenticu
 belief_distance(a::_EG, b::GaussianBelief) = _extendable(b) || !_soft(a) ?
     belief_distance(a, LenticulumCore.extended(b)) : belief_distance(GaussianBelief(a), b)
 belief_distance(a::GaussianBelief, b::_EG) = belief_distance(b, a)
-belief_distance(a::_EG, ::LenticulumCore.TrivialBelief) = belief_distance(a, LenticulumCore.extended(LenticulumCore.TrivialBelief(), LenticulumCore.dimension(a)))
+belief_distance(a::_EG, ::LenticulumCore.TrivialBelief) = belief_distance(a, LenticulumCore.extended(LenticulumCore.TrivialBelief(), LenticulumCore.dimension(a), float(eltype(a.μ))))
 belief_distance(::LenticulumCore.TrivialBelief, b::_EG) = belief_distance(b, LenticulumCore.TrivialBelief())
 
 # Relative residuals (P9, `relative_residual` in messages.jl): the same groups, each against its
@@ -126,7 +126,7 @@ relative_residual(a::_EG, b::GaussianBelief, atol, rtol) = _extendable(b) || !_s
     relative_residual(a, LenticulumCore.extended(b), atol, rtol) : relative_residual(GaussianBelief(a), b, atol, rtol)
 relative_residual(a::GaussianBelief, b::_EG, atol, rtol) = relative_residual(b, a, atol, rtol)
 relative_residual(a::_EG, ::LenticulumCore.TrivialBelief, atol, rtol) =
-    relative_residual(a, LenticulumCore.extended(LenticulumCore.TrivialBelief(), LenticulumCore.dimension(a)), atol, rtol)
+    relative_residual(a, LenticulumCore.extended(LenticulumCore.TrivialBelief(), LenticulumCore.dimension(a), float(eltype(a.μ))), atol, rtol)
 relative_residual(a::LenticulumCore.TrivialBelief, b::_EG, atol, rtol) = relative_residual(b, a, atol, rtol)
 
 # Damping is the geometric mixture new^α · old^(1-α), as for canonical Gaussians: precisions mix,

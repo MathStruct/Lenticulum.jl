@@ -111,3 +111,9 @@ calculations use the current guarded covariance. The prior mean remains fixed.
 Device execution, higher-order AD and AD backends beyond these two are not established.
 Finite trainable entries and numerically representable SPD matrices are assumed;
 arbitrarily large optimiser steps can still overflow exponentials.
+
+## Element type (P30)
+
+The Wishart and log-normal normalisers form `π`, `2` and `log(2π)` in their inputs' types, and the
+default eigenvalue floor is `one(T) / 1000000` in the initial covariance's float type; an explicit
+floor keeps its own. Test: `gaussian.md`, "Element type".

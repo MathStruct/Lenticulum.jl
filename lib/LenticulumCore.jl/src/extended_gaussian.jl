@@ -121,8 +121,9 @@ end
 # null spaces at the value must vanish. Floats and Zygote: nothing to check (ForwardDiff: the ext).
 _check_constant_rank(X, Δ, scale, what) = nothing
 # the size of a spectrum of values (not differentiated: Zygote has no rule for `maximum` with `init`)
-_scale(λ) = maximum(abs, λ; init = 0.0)
-_logsum(λ) = sum(log, λ; init = 0.0)
+# Both start from a zero of the spectrum's float type, so a Float32 spectrum stays Float32 (P30).
+_scale(λ) = maximum(abs, λ; init = zero(float(eltype(λ))))
+_logsum(λ) = sum(log, λ; init = zero(float(eltype(λ))))
 
 # A symmetric positive semidefinite S split at constant rank: V a basis of its range and N of its
 # null space, at the value V₀, N₀ with eigenvalues λ, moved to first order by
@@ -303,8 +304,11 @@ function extended(b::DiracBelief)
 end
 extended(b::ExtendedGaussian) = b
 extended(b, n::Integer) = extended(b)
-extended(::TrivialBelief, n::Integer) = ExtendedGaussian(zeros(n), zeros(n, n), Matrix(1.0I, n, n))
-extended(::Nothing, n::Integer) = extended(TrivialBelief(), n)
+# No information has no element type: `T` gives it (P30), Float64 by default.
+extended(::TrivialBelief, n::Integer, ::Type{T} = Float64) where {T} =
+    ExtendedGaussian(zeros(T, n), zeros(T, n, n), Matrix{T}(I, n, n))
+extended(::Nothing, n::Integer, ::Type{T} = Float64) where {T} = extended(TrivialBelief(), n, T)
+extended(b, n::Integer, ::Type) = extended(b, n)
 
 """
     GaussianBelief(b::ExtendedGaussian)
@@ -345,9 +349,9 @@ selection matrix.
 """
 function marginalise(b::ExtendedGaussian, idx)
     n = length(b.μ)
-    S = zeros(length(idx), n)
+    S = zeros(float(eltype(b.μ)), length(idx), n)
     for (r, j) in enumerate(idx)
-        S[r, j] = 1.0
+        S[r, j] = 1
     end
     return pushforward(b, S)
 end
@@ -364,6 +368,9 @@ function _conjoin(a::ExtendedGaussian, b::ExtendedGaussian; wa::Real = 1, wb::Re
     n = length(a.μ)
     n == length(b.μ) || throw(DimensionMismatch("beliefs of dimension $n and $(length(b.μ))"))
     Ha, Hb = hard_directions(a), hard_directions(b)
+    # integer weights (the default 1) take the beliefs' float type, so `sqrt` does not widen (P30)
+    T = float(promote_type(eltype(a.μ), eltype(b.μ)))
+    wa, wb = _weight(wa, T), _weight(wb, T)
     C = vcat(sqrt(wa) .* Ha', sqrt(wb) .* Hb')
     c = vcat(sqrt(wa) .* (Ha' * a.μ), sqrt(wb) .* (Hb' * b.μ))
     ηa, Λa = _canonical_part(a)
@@ -371,6 +378,9 @@ function _conjoin(a::ExtendedGaussian, b::ExtendedGaussian; wa::Real = 1, wb::Re
     return _from_potential(C, c, wa .* ηa .+ wb .* ηb, wa .* Λa .+ wb .* Λb;
                            strict, scale = max(norm(stop_gradient(a.μ)), norm(stop_gradient(b.μ))))
 end
+
+_weight(w::Integer, ::Type{T}) where {T} = T(w)
+_weight(w, ::Type) = w
 
 # The extended Gaussian of the potential  [Cx = c] · exp(ηᵀx − xᵀΛx/2)  on ℝⁿ: hard where C
 # constrains, Gaussian where Λ is positive on what C leaves free, flat elsewhere. With `strict`,
@@ -425,7 +435,8 @@ hard direction of `b`, Gaussian with precision ``M^\\top \\Sigma^+ M`` where `b`
 """
 function preimage(b::ExtendedGaussian, M::AbstractMatrix, c = 0)
     size(M, 1) == length(b.μ) || throw(DimensionMismatch("M has $(size(M, 1)) rows, the belief dimension $(length(b.μ))"))
-    cv = c isa Number ? fill(float(c), size(M, 1)) : c
+    # an integer offset (the default 0) takes the belief's float type (P30)
+    cv = c isa Number ? fill(c isa Integer ? convert(float(eltype(b.μ)), c) : float(c), size(M, 1)) : c
     H = hard_directions(b)
     η, Λ = _canonical_part(b)
     return _from_potential(H' * M, H' * (b.μ .- cv), M' * (η .- Λ * cv), M' * Λ * M;

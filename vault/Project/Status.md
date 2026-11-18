@@ -7,15 +7,15 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-18, after P8 (the graph free energy in the element type of its messages), committed on `dev-danielb`, not pushed.
+**Last updated:** 2026-11-18, after P30 (Lenticulum's linear-Gaussian factors in the element type of their parameters), committed on `dev-danielb`, not pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
 | `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
-| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/next` | clean at `3d0bc449` (P8), reset 2026-11-18 with the maintainer's approval (the I3 diff it held is merged in `dev-danielb`); ready for the next Codex package (rename the branch to `codex/<topic>`) |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `6340896f` with the I25 diff applied; the reviewer's probes in `scratch/i25/` (copied to `../Lenticulum.jl-Review-2026-11-18/i25/`); its environment `scratch/p6env` serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
+| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/p30` | at `3d0bc449` with the P30 diff uncommitted (merged into `dev-danielb` as a diff); reset it before the next Codex package |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `3d0bc449` with the P30 diff applied; the reviewer's probes in `scratch/p30/` (copied to `../Lenticulum.jl-Review-2026-11-18/p30/`), and an environment of the old code in `scratch/p30/oldenv`; `scratch/p6env` serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -28,6 +28,17 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **P30** (2026-11-18): with Float32 parameters, noise, priors and data, Lenticulum's
+  `GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor` and `HardConstraintFactor` send Float32
+  messages and give Float32 (or `false`) energies, also extended messages, plates, mean field and
+  learnable noise; promotion decides, nothing is converted. Codex implemented the Lenticulum part
+  (one run); its test left 218 checks broken on Float64 sources in LenticulumCore's extended-Gaussian
+  algebra and Mycelium's `variable_corrections` (`-false === 0`), which the session fixed. Test
+  `lib/Lenticulum.jl/test/p30_element_type.jl` (2124 checks). Review [[LP-059 Findings of the review of P30]]
+  (Mistral, \$0; one defect, an Int Wishart `df`, fixed). Float64 results bit for bit unchanged
+  against `3d0bc449`. All eight suites and the Mycelium device tests passed (logs
+  `~/.cache/lenticulum/p30/gates/`; Lenticulum rerun on the final code, `Lenticulum-final.log`). New
+  row **P31**: the rest of Lenticulum (nonlinear, switching, regime, likelihoods, M-steps) is still Float64.
 - **P8** (2026-11-18, chosen by the maintainer): Mycelium's graph free energy keeps the element type
   of its terms (sums from `false`, exact zeros as `false`, `log(2π)` via `LenticulumCore._log2π(T)`,
   `scalar_free_energy` returns `float(total)`). Test `lib/Mycelium.jl/test/element_type.jl`. Review
@@ -105,7 +116,7 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Next
 
-No row is set; pick one with the maintainer. P30 (Lenticulum's Gaussian factors in Float32) follows P8 directly. Close to P5: a learned noise with hard messages, a residual-space formulation
+No row is set; pick one with the maintainer. P31 (the rest of Lenticulum in Float32) follows P30 directly. Close to P5: a learned noise with hard messages, a residual-space formulation
 of the positive definite path (LP-047 finding 4; no row yet). Left open by P27 (no rows yet): the
 Bethe free energy with a mixture marginal under BP, derivatives through the new rules, two extended
 components with hard directions. Small: `ImplicitLayers`' `SolveReport` also has
@@ -161,4 +172,4 @@ components with hard directions. Small: `ImplicitLayers`' `SolveReport` also has
   file with four of them at the 100-turn limit (\$0): one right finding; its fifth probe's reference lost
   digits at 1e6 (a false report): check a reviewer's reference before its claim. On P5 the same brief: four probes, the answer file
   records only the first, no summary (\$0); the maintainer ran the rest (one probe needed a one-line repair)
-  and probe 2's properness check found F1. On P3 the first run crashed inside vibe on its first command (a validation error of its own); the rerun reached 100 turns with only probe 1 in the answer file: run its later probes yourself. On P28 the same: four probes recorded, three more written but not recorded (all passed when run). On P9 (vibe 3.1.2, after it had failed on P29): five probes recorded, the sixth (the one with the findings) written and not recorded. On I22 (P6 brief form): nine probes, all recorded, a finished answer with "Not run" and "Unverified" sections, one right finding, \$0. On I23 (same form, `--max-price 3`): three probes, all recorded, one right finding, \$0; vibe exited 3 at its turn limit after writing the answer. On I24 (same form): twelve probes, a finished answer with tables, one right finding, \$0. Another user's `vibe-rs --continue` runs on this machine: wait on the PID of your own run, not `pgrep -x vibe-rs`.
+  and probe 2's properness check found F1. On P3 the first run crashed inside vibe on its first command (a validation error of its own); the rerun reached 100 turns with only probe 1 in the answer file: run its later probes yourself. On P28 the same: four probes recorded, three more written but not recorded (all passed when run). On P9 (vibe 3.1.2, after it had failed on P29): five probes recorded, the sixth (the one with the findings) written and not recorded. On I22 (P6 brief form): nine probes, all recorded, a finished answer with "Not run" and "Unverified" sections, one right finding, \$0. On I23 (same form, `--max-price 3`): three probes, all recorded, one right finding, \$0; vibe exited 3 at its turn limit after writing the answer. On I24 (same form): twelve probes, a finished answer with tables, one right finding, \$0. Another user's `vibe-rs --continue` runs on this machine: wait on the PID of your own run, not `pgrep -x vibe-rs`. On P30 (P6 brief form, `--max-price 3`): five probes, three recorded, no summary at the turn limit (\$0); of the two unrecorded, one needed an import repaired (`SpecialFunctions` is not in `p6env`: use `Lenticulum.SpecialFunctions`) and showed the one defect. Its old-versus-new bitwise comparison (`probe2_f64_same.jl` with `scratch/p30/oldenv`) is reusable.

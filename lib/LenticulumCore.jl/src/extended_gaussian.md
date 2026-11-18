@@ -210,6 +210,16 @@ relation (some fixing $u$ and $v$ entirely) against the ForwardDiff gradient of 
 A belief with no Gaussian direction (only hard or flat ones) is tested on its own: the loop above
 draws at least one, and the review (LP-043) found Zygote failing there.
 
+## Element type (P30, 2026-11-18)
+
+The algebra keeps the element type of its beliefs: `_conjoin` converts Int weights (the default 1) to
+the beliefs' float type before `sqrt`, `preimage` its Int offset (default 0), `marginalise` builds
+its selection matrix in the belief's type, and `_logsum` and `_scale` start from a zero of the
+spectrum's type. Before, each put a Float64 into Float32 messages. `extended(::TrivialBelief, n, T =
+Float64)` and `extended(nothing, n, T)` take the type of a belief that carries no information, which
+has none of its own. Float weights (damping) are not converted: a Float64 damping weight on Float32
+beliefs widens the product, by promotion. Test: Lenticulum `test/p30_element_type.jl`.
+
 ## What it does not do
 
 - **Density and log-partition.** A belief with a flat or hard direction has no density with
