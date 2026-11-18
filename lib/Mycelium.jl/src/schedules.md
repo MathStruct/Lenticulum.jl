@@ -23,7 +23,7 @@ emits). `islegal(g, task)` is the predicate; every generator filters on it.
 | `flooding_schedule` | nothing | all legal tasks, double-buffered |
 | `tree_schedule` | `istree` | inward (reverse BFS) + outward (BFS) |
 | `forward_backward_schedule` | `isdag` or `istree` | topological sweep for a DAG; tree inward/outward sweeps otherwise |
-| `spanning_tree_schedule` | nothing | the messages off a breadth-first spanning tree, then its inward and outward sweeps, in place |
+| `spanning_tree_schedule` | nothing | off-forest messages, then one or more forests’ inward/outward sweeps in place (BFS or weighted Kruskal) |
 | `AndersonSchedule(inner; m)` | a static `inner` | `inner`'s sweep with Anderson mixing of the last $m + 1$ sweeps (`anderson.md`) |
 
 `tree_schedule` roots at a leaf, BFS to record which endpoint of each edge is the *child*, then
@@ -167,10 +167,98 @@ schedule", which asserts fewer than a quarter and the same marginals).
 What it does not do:
 - **No guarantee.** Loopy BP stays loopy; the fixed points are flooding's, and whether it converges
   where flooding does not is untested.
-- **One tree, chosen by breadth-first search.** On a graph with several loops a message crosses
-  the tree in one sweep but each off-tree edge only once; which tree to pick, or alternating
-  trees (tree-based reparameterisation proper), is open and unmeasured.
+- **Tree choice and alternating trees** were added by I3 (2026-11-18), described below.
+  The default remains one breadth-first tree.
 - **Mean-field nodes are not separated**: their messages are scheduled like any other.
   `hybrid_schedule` is the schedule for those graphs.
 - **Plates**: `plate_schedule` is not built on it.
 
+
+## Choice of tree and alternating trees (2026-11-18)
+
+The heuristic is to put strong couplings inside a tree, so an inward/outward sweep propagates
+those dependencies across the component before returning to the weaker off-tree connections.
+This is a heuristic, not an optimality claim for convergence speed. A maximum-weight forest
+maximises the sum of its edge weights; it does not minimise the spectral radius of a BP sweep.
+For the Gaussian constraints measured here the proposed weight is the coupling precision `1/q`;
+`q` is the opposite preference, included as a control.
+
+Tree-based reparameterisation (Wainwright, Jaakkola & Willsky, 2003,
+`docs/src/refs.bib`, `wainwright2003trp`) views tree updates as reorganising the same distribution's
+local factors and propagating information exactly through selected trees. Here the implementation
+only composes ordinary BP message updates in static tree orders. It does not introduce tree
+appearance probabilities, fractional counting numbers, or a tree-reweighted objective.
+
+`_spanning_forests` returns structural edge masks, independently of message legality. Tree 1 is
+the original breadth-first forest without weights; otherwise Kruskal with a path-compressed
+union-find selects a maximum-weight forest. An edge inherits its factor's weight. Equal weights
+prefer lower edge indices. Later forests order edges by increasing earlier use count, decreasing
+weight, then increasing index. `:cover` adds forests until every edge is covered: the first unused
+edge in each Kruskal order joins distinct singleton sets and is accepted, so progress is guaranteed.
+On an acyclic graph the first forest already covers every edge.
+
+Each forest is rooted at the resolved `root`, then the lowest-index unseen variable, then the
+lowest-index unseen factor in the other components. `_tree_sweeps` accepts an `edge_in` predicate;
+its default leaves the tree, plate, and hybrid callers unchanged. The returned sequential task
+list starts with legal tasks outside every forest, followed by each forest's inward tasks of all
+components and then its outward tasks. A shared task appears once per forest. The existing
+`sweep!` maximum over every evaluation is unchanged; a later small update cannot hide an earlier
+large residual. K trees cost approximately K tree sweeps; fewer sweeps need not mean fewer message
+evaluations or less wall time.
+
+**Measured** (`julia --project=bench bench/bp_trees.jl`, 2026-11-18; output kept in
+`~/.cache/lenticulum/i3/bp_trees.out`). 10 × 10 Gaussian grids, prior variance 100, each grid
+constraint with its own noise `q`: isotropic `q = 1`; "horizontal" `q = 0.01` on horizontal edges
+and 1 on vertical; "vertical" the transpose; "random" `log10 q ~ U[-2, 1]` (seed 20261118).
+`infer!` to a residual of `1e-11`, at most 20 000 sweeps. Message evaluations = sweeps × the
+schedule's task count (a task in two trees counts twice); "precision" is `weights = 1/q`
+(priors weight 1), "q" the minimum-weight control `weights = q`, "2" is `ntrees = 2`. On these
+grids `ntrees = 2` already covers every edge, so `:cover` gave the same rows.
+
+| message evaluations (sweeps) | isotropic | horizontal | vertical | random |
+|---|---:|---:|---:|---:|
+| flooding | 6 472 200 (7 035) | > 18.4 M (not conv.) | > 18.4 M (not conv.) | > 18.4 M (not conv.) |
+| BFS | 1 017 520 (1 106) | 5 882 480 (6 394) | 2 186 840 (2 377) | 4 063 640 (4 417) |
+| precision | = BFS | 2 139 000 (2 325) | = BFS | 2 369 920 (2 576) |
+| q (control) | = BFS | = BFS | 6 376 520 (6 931) | 5 761 960 (6 263) |
+| BFS, 2 trees | 1 631 216 (1 076) | 10 980 388 (7 243) | 2 994 100 (1 975) | 5 289 324 (3 489) |
+| precision, 2 trees | = BFS, 2 trees | 2 862 208 (1 888) | = BFS, 2 trees | 3 191 180 (2 105) |
+| flooding + A(3) | 686 320 (746) | 4 278 000 (4 650) | 6 060 960 (6 588) | 2 150 040 (2 337) |
+| BFS + A(3) | 107 640 (117) | 792 120 (861) | 161 920 (176) | 196 880 (214) |
+| precision + A(3) | = BFS + A(3) | **147 200 (160)** | = BFS + A(3) | **67 160 (73)** |
+| q + A(3) | = BFS + A(3) | = BFS + A(3) | 1 128 840 (1 227) | 327 520 (356) |
+| precision, 2 trees + A(3) | 213 756 (141) | 191 016 (126) | 174 340 (115) | 86 412 (57) |
+
+Every converged run's largest mean error against the dense solve is below `6e-10`. "= BFS" rows
+are the same forest, not a coincidence of counts: with equal weights (isotropic) Kruskal's
+lowest-index tie-break picks the breadth-first tree on this grid, and on the vertical grid the
+corner-rooted BFS tree already holds every strong (vertical) edge, so it is a maximum-weight tree
+(checked by comparing `_spanning_forests` masks, 2026-11-18). On the horizontal grid BFS holds
+the weak direction (tree weight 10 180 against the maximum 18 199) and is 2.8 times (plain) and
+5.4 times (with Anderson) slower than the precision tree; the minimum-weight control is never better than BFS.
+
+So: **weight the tree by coupling strength** (1.7–5.4 times fewer evaluations where BFS picks badly,
+never worse here); **alternating trees did not pay**: they cut sweeps by up to 20 % (with BFS on the horizontal grid they added sweeps) but cost
+1.65 times the evaluations per sweep, so in evaluations they lose to one tree in every setting, with and without
+Anderson. The 20 × 20 random grid was started and stopped (flooding alone needed 250 s for 20 000
+sweeps); it is not measured. Wall times are in the output file but ran beside test suites, so
+they are not recorded here.
+
+Verification: `test/runtests.jl` ("weighted and alternating spanning forests") checks relay graphs,
+weights and their errors, rooting, disconnected components, coverage and the task count.
+`lib/Lenticulum.jl/test/i3_spanning_trees.jl` checks one sweep on random Gaussian trees (exact
+means and covariances), one sweep of a weighted tree on loopy graphs whose off-tree constraints
+carry no information (exact; this test fails if the weighted tree's order is replaced by the
+BFS order), and `infer!` on diagonally dominant loopy graphs with every option and with Anderson
+(exact means).
+
+Difficulties: connectivity must be tracked on the structure before legal-task pruning (a forest
+rebuilt from the surviving messages loses edges whose tasks are both illegal). Weight ordering
+compares directly instead of negating, so unsigned weights keep the descending order.
+
+What this does not do: no automatic weights (Mycelium does not know what a factor's coupling
+strength is; for Gaussian factors `1/q`, or a norm of `A' R⁻¹ A`, is the caller's choice); no
+adaptation of trees during inference; no tree-appearance probabilities or tree-reweighted
+objective (the fixed points are ordinary BP's; TRP is cited as motivation, no theorem used); no
+convergence guarantee; plates and mean-field nodes as before (`plate_schedule`,
+`hybrid_schedule` do not take weights). Untested: graphs where BP oscillates, non-Gaussian graphs.

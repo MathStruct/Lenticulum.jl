@@ -198,51 +198,134 @@ function tree_schedule(g::FactorGraph; root = nothing)
     return _tree_sweeps(g, _resolve_tree_root(g, root))
 end
 
+# Components and their BFS edges, independent of message legality.
+function _forest_components(g, rootnode; edge_in = _ -> true)
+    seen = falses(nvariables(g) + nfactors(g))
+    roots = Tuple{Symbol,Int}[]
+    forest = falses(nedges(g))
+    nodes = vcat([rootnode], [(:variable, v) for v in 1:nvariables(g)],
+                 [(:factor, f) for f in 1:nfactors(g)])
+    nodeid(kind, id) = kind === :variable ? id : nvariables(g) + id
+    for node in nodes
+        seen[nodeid(node...)] && continue
+        push!(roots, node)
+        queue = [node]; seen[nodeid(node...)] = true
+        i = 1
+        while i <= length(queue)
+            kind, id = queue[i]; i += 1
+            edges = kind === :variable ? g.edges_of_variable[id] : g.edges_of_factor[id]
+            for ei in edges
+                edge_in(ei) || continue
+                e = g.edges[ei]
+                next = kind === :variable ? (:factor, e.factor) : (:variable, e.variable)
+                seen[nodeid(next...)] && continue
+                seen[nodeid(next...)] = true
+                forest[ei] = true
+                push!(queue, next)
+            end
+        end
+    end
+    return roots, forest
+end
+
+function _spanning_forests(g::FactorGraph; root = nothing, weights = nothing, ntrees = 1)
+    (ntrees isa Int && ntrees > 0 || ntrees === :cover) ||
+        throw(ArgumentError("ntrees must be a positive Int or :cover"))
+    (weights === nothing || weights isa AbstractDict || applicable(weights, 1)) ||
+        throw(ArgumentError("weights must be nothing, a dictionary keyed by factor name, or a callable on factor indices"))
+    names = Dict(fi => name for (name, fi) in g.factor_index)
+    fw = [weights === nothing ? 0 : weights isa AbstractDict ?
+          (haskey(weights, names[fi]) ? weights[names[fi]] :
+           throw(ArgumentError("missing weight for factor $(names[fi])"))) : weights(fi)
+          for fi in 1:nfactors(g)]
+    all(w -> w isa Real && isfinite(w), fw) ||
+        throw(ArgumentError("factor weights must be finite real numbers"))
+    ew = [fw[e.factor] for e in g.edges]
+    forests = BitVector[]
+    uses = zeros(Int, nedges(g))
+    while isempty(forests) || (ntrees === :cover ? any(iszero, uses) : length(forests) < ntrees)
+        if isempty(forests) && weights === nothing
+            _, tree = _forest_components(g, _resolve_tree_root(g, root))
+        else
+            parent = collect(1:(nvariables(g) + nfactors(g)))
+            function findroot(i)
+                while parent[i] != i
+                    parent[i] = parent[parent[i]]
+                    i = parent[i]
+                end
+                return i
+            end
+            tree = falses(nedges(g))
+            edge_less(a, b) = uses[a] != uses[b] ? uses[a] < uses[b] :
+                ew[a] != ew[b] ? ew[a] > ew[b] : a < b
+            for ei in sortperm(1:nedges(g); lt = edge_less)
+                e = g.edges[ei]
+                a, b = findroot(e.variable), findroot(nvariables(g) + e.factor)
+                a == b && continue
+                parent[a] = b
+                tree[ei] = true
+            end
+        end
+        push!(forests, tree)
+        uses .+= tree
+    end
+    return forests
+end
+
 """
-    spanning_tree_schedule(g; root = nothing) -> SequentialSchedule
+    spanning_tree_schedule(g; root = nothing, weights = nothing, ntrees = 1) -> SequentialSchedule
 
 A static schedule for a **loopy** graph: the messages on the edges outside a spanning tree, then
 the tree's inward and outward sweeps, all in place. One sweep carries information across the whole
 tree, so on a graph with one loop a message goes once round the loop each way per sweep, where
 flooding moves it one edge.
 
-The tree is the breadth-first one of [`tree_schedule`](@ref), from `root` (as there) in the
-component containing it and from a node of each other component; on a tree the schedule is
-`tree_schedule`'s inward and outward lists, but iterated like any [`SequentialSchedule`](@ref)
-rather than stopped after one sweep. These are the updates of tree-based reparameterisation
-(Wainwright, Jaakkola & Willsky, 2003).
+With `weights = nothing`, tree 1 is the breadth-first tree from `root` (resolved as in
+[`tree_schedule`](@ref)). Otherwise `weights` is a callable on factor indices or a dictionary
+keyed by factor name, with finite real values for every factor. Kruskal selects a maximum-weight
+spanning forest; each edge inherits its factor's weight, with ties broken by lower edge index.
+Each component is rooted at `root` when present, then its lowest-index variable or factor.
+
+`ntrees` is a positive `Int` or `:cover`. Later forests prefer edges used fewer times, then
+higher weight (zero without weights), then lower edge index. `:cover` stops once every edge
+belongs to a forest. Tasks in no forest come first, followed by each forest's inward tasks of
+all components and then its outward tasks. Repeated tasks are evaluated once per tree, so a
+sweep with K trees costs approximately K tree sweeps. On a tree, one forest gives
+`tree_schedule`'s task order. This is a static tree-based reparameterisation order
+(Wainwright, Jaakkola & Willsky, 2003), without tree appearance weights or a modified objective.
 
 There is no convergence guarantee on a loopy graph, and the fixed points are flooding's (a
 schedule changes the map, not its fixed points). Measured on the resistive divider (one loop of
-six edges; `bench/bp_schedules.jl`, `vault/Control/Composing Optimisers.md` §4.2), it needs 0.17 to
+six edges; `bench/bp_schedules.jl`, `vault/Gaussian Graphs/Composing Optimisers.md` §4.2), it needs 0.17 to
 0.18 of flooding's message evaluations to an error of ``10^{-10}``. For graphs with
 [`MeanField`](@ref) nodes use [`hybrid_schedule`](@ref), which treats them separately.
+
+Measured in `bench/bp_trees.jl`: on the 10 × 10 horizontal-strong grid, precision weights
+with Anderson(3) used 147200 message evaluations against BFS with Anderson(3)'s 792120;
+on the seeded random-noise 10 × 10 grid, the corresponding figures were 67160 and 196880.
+Two precision-weighted trees with Anderson(3) used 191016 and 86412 evaluations respectively,
+despite taking fewer sweeps than one tree in both settings.
 """
-function spanning_tree_schedule(g::FactorGraph; root = nothing)
-    seenv = falses(nvariables(g)); seenf = falses(nfactors(g))
-    inward = MessageTask[]; outward = MessageTask[]
-    function grow!(rootnode)
-        ts = _tree_sweeps(g, rootnode)
-        rootnode[1] === :variable ? (seenv[rootnode[2]] = true) : (seenf[rootnode[2]] = true)
-        for t in vcat(ts.inward, ts.outward)
-            e = g.edges[t.edge]
-            seenv[e.variable] = true; seenf[e.factor] = true
+function spanning_tree_schedule(g::FactorGraph; root = nothing, weights = nothing, ntrees = 1)
+    forests = _spanning_forests(g; root, weights, ntrees)
+    tree_tasks = MessageTask[]
+    for forest in forests
+        roots, _ = _forest_components(g, _resolve_tree_root(g, root); edge_in = ei -> forest[ei])
+        inward = MessageTask[]; outward = MessageTask[]
+        for rootnode in roots
+            ts = _tree_sweeps(g, rootnode; edge_in = ei -> forest[ei])
+            append!(inward, ts.inward); append!(outward, ts.outward)
         end
-        # a component's inward sweep must not wait for another's outward sweep: keep them together
-        append!(inward, ts.inward); append!(outward, ts.outward)
+        append!(tree_tasks, inward); append!(tree_tasks, outward)
     end
-    grow!(_resolve_tree_root(g, root))
-    for v in 1:nvariables(g); seenv[v] || grow!((:variable, v)); end
-    for f in 1:nfactors(g); seenf[f] || grow!((:factor, f)); end
-    tree = vcat(inward, outward)
-    intree = Set(tree)
+    intree = Set(tree_tasks)
     offtree = [t for t in all_tasks(g) if !(t in intree)]
-    return SequentialSchedule(vcat(offtree, tree))
+    return SequentialSchedule(vcat(offtree, tree_tasks))
 end
 
 # The inward and outward sweeps of the component containing `rootnode`, which must be a tree
 # (`tree_schedule` checks the whole graph; `plate_schedule` checks one component).
-function _tree_sweeps(g::FactorGraph, rootnode; skip = _ -> false)
+function _tree_sweeps(g::FactorGraph, rootnode; skip = _ -> false, edge_in = _ -> true)
     # breadth-first from the root, recording for each edge which endpoint is the child
     order = Tuple{Symbol,Int}[rootnode]
     seenv = falses(nvariables(g)); seenf = falses(nfactors(g))
@@ -254,6 +337,7 @@ function _tree_sweeps(g::FactorGraph, rootnode; skip = _ -> false)
         kind, id = order[i]; i += 1
         if kind === :variable
             for ei in g.edges_of_variable[id]
+                edge_in(ei) || continue
                 f = g.edges[ei].factor
                 (seenf[f] || skip(f)) && continue
                 seenf[f] = true
@@ -263,6 +347,7 @@ function _tree_sweeps(g::FactorGraph, rootnode; skip = _ -> false)
             end
         else
             for ei in g.edges_of_factor[id]
+                edge_in(ei) || continue
                 v = g.edges[ei].variable
                 seenv[v] && continue
                 seenv[v] = true

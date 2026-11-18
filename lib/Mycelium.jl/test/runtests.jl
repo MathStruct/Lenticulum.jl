@@ -252,6 +252,74 @@ end
     @test tasks(spanning_tree_schedule(bt; root = :y)) == tasks(tree_schedule(bt; root = :y))
 end
 
+@testset "weighted and alternating spanning forests" begin
+    for disconnected in (false, true)
+        b = GraphBuilder()
+        for v in (:a, :c); variable!(b, v); end
+        for f in (:f, :g)
+            factor!(b, f, RelayFactor(:p, :q))
+            connect!(b, f, :p, :a); connect!(b, f, :q, :c)
+        end
+        if disconnected
+            variable!(b, :z1); variable!(b, :z2)
+            factor!(b, :h, RelayFactor(:p, :q))
+            connect!(b, :h, :p, :z1); connect!(b, :h, :q, :z2)
+        end
+        g = build(b)
+        weights = Dict(name => 1 for name in keys(g.factor_index))
+        @test tasks(spanning_tree_schedule(g)) == tasks(spanning_tree_schedule(g; ntrees = 1))
+        for strong in (:f, :g)
+            w = merge(weights, Dict(strong => 2))
+            for wt in (w, fi -> w[g.factors[fi].name])
+                forest = only(Mycelium._spanning_forests(g; weights = wt))
+                @test all(forest[ei] for ei in g.edges_of_factor[g.factor_index[strong]])
+                @test g.edges[only(findall(!, forest))].factor != g.factor_index[strong]
+            end
+        end
+        @test tasks(spanning_tree_schedule(g; weights)) == tasks(spanning_tree_schedule(g; weights))
+        @test_throws ArgumentError spanning_tree_schedule(g; weights = Dict(:f => 1))
+        for bad in (1.0, [1, 2], "w")   # neither a Dict nor callable on a factor index
+            @test_throws ArgumentError spanning_tree_schedule(g; weights = bad)
+        end
+        for bad in (NaN, Inf)
+            @test_throws ArgumentError spanning_tree_schedule(g; weights = fi -> bad)
+        end
+        for bad in (0, -1, :foo, 1.5)
+            @test_throws ArgumentError spanning_tree_schedule(g; ntrees = bad)
+        end
+        for w in (nothing, weights), k in (1, 2, 3, :cover), root in (nothing, :c, :f)
+            forests = Mycelium._spanning_forests(g; weights = w, ntrees = k, root)
+            sc = spanning_tree_schedule(g; weights = w, ntrees = k, root)
+            legal = Mycelium.all_tasks(g)
+            @test Set(tasks(sc)) == Set(legal)
+            @test all(count(tree) == nvariables(g) + nfactors(g) - (disconnected ? 2 : 1) for tree in forests)
+            covered = reduce(.|, forests)
+            @test length(tasks(sc)) == count(t -> !covered[t.edge], legal) +
+                  sum(count(t -> tree[t.edge], legal) for tree in forests)
+            k == 1 && @test length(tasks(sc)) == length(legal)
+            if k === :cover
+                @test length(forests) == 2
+                @test all(covered)
+                offset = 0
+                for tree in forests
+                    segment = tasks(sc)[offset + 1:offset + 2count(tree)]
+                    @test Set(t.edge for t in segment) == Set(findall(tree))
+                    offset += 2count(tree)
+                end
+            end
+        end
+    end
+    b = GraphBuilder()
+    variable!(b, :a); variable!(b, :c)
+    factor!(b, :f, RelayFactor(:p, :q))
+    connect!(b, :f, :p, :a); connect!(b, :f, :q, :c)
+    g = build(b)
+    for k in (1, :cover), root in (nothing, :a, :f)
+        @test tasks(spanning_tree_schedule(g; weights = fi -> -3, ntrees = k, root)) == tasks(tree_schedule(g; root))
+        @test length(Mycelium._spanning_forests(g; ntrees = k)) == 1
+    end
+end
+
 @testset "Anderson schedule: messages it cannot mix pass through unchanged" begin
     # relays without data carry no Gaussian messages: the accelerated sweep is the inner one
     b = GraphBuilder()

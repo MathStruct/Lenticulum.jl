@@ -7,14 +7,15 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-18, after the review of PR #23 (the Mistral cloud agent's GH-15–GH-22 commits): all accepted, one amendment (LP-055). I23 and I24 were rebased onto `9d94e548`, which the agent had pushed after them, and committed on `dev-danielb` and pushed.
+**Last updated:** 2026-11-18, after I3 (the choice of spanning tree, alternating trees): implemented by Codex, reviewed by Mistral Large (LP-056, no defect), committed on `dev-danielb`, not pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
 | `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `3655c0c1` (I23) with the first I24 diff applied (without the LP-054 fix); the reviewer's probes in `scratch/i24/` (copied to `../Lenticulum.jl-Review-2026-11-17/i24/probes/`); its environment `scratch/p6env` serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
+| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/i3-spanning-trees` | at `0eef33ca` with I3 uncommitted (merged into `dev-danielb` as a diff); can be reset for the next Codex package |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `0eef33ca` with the I3 diff applied; the reviewer's probes in `scratch/i3/` (copied to `../Lenticulum.jl-Review-2026-11-18/i3/`); its environment `scratch/p6env` serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -27,6 +28,15 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **I3** (2026-11-18): `spanning_tree_schedule(g; weights, ntrees)`. `weights` (callable on factor
+  indices or Dict by name) gives a maximum-weight spanning forest (Kruskal); `ntrees = K`/`:cover`
+  appends trees preferring unused edges. Default unchanged (checked against the old function on
+  6 484 graph/root pairs by the reviewer). `bench/bp_trees.jl`: weights `1/q` 1.7–5.4 times fewer
+  evaluations than BFS where BFS holds the weak direction, never worse; alternating trees lose in
+  evaluations everywhere. Recorded in `schedules.md`, [[Composing Optimisers]] §4.4,
+  [[LP-056 Findings of the review of I3]]. Codex implemented (`codex exec -C ../Lenticulum.jl-codex`,
+  one run, about 1 h with suites and benchmark; its tree oracle could not tell weighted from BFS
+  order, so the maintainer added a loopy test). Follow-up row I25 (default weights from factors).
 - **CI** (2026-11-18): Julia 1.12, the oldest supported, no longer runs on every push; the core packages run on it weekly (`Weekly.yml`, job `oldest`: Mondays and on demand). `CI.yml` keeps the current release and the device tests.
 - **Review of PR #23** ([[LP-055 Findings of the review of PR 23]]): the cloud agent's three commits
   (`74274922`, `407a4196`, `9d94e548`) were read and accepted. Amendment: the GH-21 `SampleBelief`
@@ -74,8 +84,7 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Next
 
-No row is set; pick one with the maintainer. **I3** (the choice of spanning tree, alternating
-trees; marked high). Close to P5: a learned noise with hard messages, a residual-space formulation
+No row is set; pick one with the maintainer. **I25** (default tree weights from the factors; small, follows I3). Close to P5: a learned noise with hard messages, a residual-space formulation
 of the positive definite path (LP-047 finding 4; no row yet). Left open by P27 (no rows yet): the
 Bethe free energy with a mixture marginal under BP, derivatives through the new rules, two extended
 components with hard directions. Small: `ImplicitLayers`' `SolveReport` also has
