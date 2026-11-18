@@ -207,7 +207,7 @@
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Parked/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-11-16T23:44:05.987Z</lastmod>
+    <lastmod>2026-11-18T09:29:52.519Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Parked/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
@@ -279,7 +279,7 @@
     <lastmod>2026-11-10T18:39:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog/Backlog-Done-2026-11</loc>
-    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
+    <lastmod>2026-11-18T00:36:37.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog/Backlog-F-Families</loc>
     <lastmod>2026-11-16T21:10:39.000Z</lastmod>
@@ -288,7 +288,7 @@
     <lastmod>2026-11-16T23:40:23.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog/Backlog-I-Inference-and-Graph-Execution</loc>
-    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
+    <lastmod>2026-11-17T23:18:27.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog/Backlog-L-Learning</loc>
     <lastmod>2026-11-16T21:10:39.000Z</lastmod>
@@ -297,7 +297,7 @@
     <lastmod>2026-11-16T21:10:39.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog/Backlog-P-The-Three-Paths</loc>
-    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
+    <lastmod>2026-11-17T17:51:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Feature-Backlog/Backlog-S-Structure-Search-and-Editing</loc>
     <lastmod>2026-11-16T21:10:39.000Z</lastmod>
@@ -381,7 +381,7 @@
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-024-Findings-of-the-review-of-2026-11-09</loc>
-    <lastmod>2026-11-16T20:48:38.000Z</lastmod>
+    <lastmod>2026-11-17T17:51:28.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-025-Findings-of-the-review-of-I5</loc>
     <lastmod>2026-11-12T09:31:21.000Z</lastmod>
@@ -440,8 +440,44 @@
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-043-Findings-of-the-review-of-P4</loc>
     <lastmod>2026-11-16T20:19:13.000Z</lastmod>
   </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-044-Findings-of-the-review-of-P6</loc>
+    <lastmod>2026-11-17T01:16:00.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-045-Findings-of-the-review-of-P2</loc>
+    <lastmod>2026-11-18T09:29:32.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-046-Findings-of-the-review-of-P27</loc>
+    <lastmod>2026-11-17T06:56:59.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-047-Findings-of-the-review-of-P5</loc>
+    <lastmod>2026-11-17T10:50:02.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-048-Findings-of-the-review-of-P3</loc>
+    <lastmod>2026-11-17T12:08:18.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-049-Findings-of-the-review-of-P28</loc>
+    <lastmod>2026-11-17T15:02:26.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-050-Findings-of-the-review-of-P29</loc>
+    <lastmod>2026-11-17T16:09:58.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-051-Findings-of-the-review-of-P9</loc>
+    <lastmod>2026-11-17T17:51:28.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-052-Findings-of-the-review-of-I22</loc>
+    <lastmod>2026-11-17T19:17:26.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-053-Findings-of-the-review-of-I23</loc>
+    <lastmod>2026-11-17T23:18:27.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-054-Findings-of-the-review-of-I24</loc>
+    <lastmod>2026-11-17T23:18:27.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/LP-055-Findings-of-the-review-of-PR-23</loc>
+    <lastmod>2026-11-18T00:36:37.000Z</lastmod>
+  </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Problems/Problem-Log</loc>
-    <lastmod>2026-11-16T20:48:38.000Z</lastmod>
+    <lastmod>2026-11-17T23:52:39.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Refactor-2026-11</loc>
     <lastmod>2026-11-16T20:48:38.000Z</lastmod>
@@ -483,7 +519,7 @@
     <lastmod>2026-11-04T23:01:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/Project/Status</loc>
-    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
+    <lastmod>2026-11-18T00:46:19.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/README</loc>
     <lastmod>2026-11-16T20:50:41.000Z</lastmod>
@@ -672,34 +708,34 @@
     <lastmod>2026-11-10T10:53:33.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Lenticulum.jl/constraint</loc>
-    <lastmod>2026-11-16T10:19:20.000Z</lastmod>
+    <lastmod>2026-11-18T00:36:37.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Lenticulum.jl/exposure</loc>
     <lastmod>2026-11-10T10:53:33.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Lenticulum.jl/gaussian</loc>
-    <lastmod>2026-11-16T16:17:51.000Z</lastmod>
+    <lastmod>2026-11-18T00:36:37.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Lenticulum.jl/hard_constraint</loc>
-    <lastmod>2026-11-16T20:19:13.000Z</lastmod>
+    <lastmod>2026-11-18T00:36:37.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Lenticulum.jl/likelihood</loc>
     <lastmod>2026-11-10T10:53:33.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Lenticulum.jl/m_steps</loc>
-    <lastmod>2026-11-10T10:53:33.000Z</lastmod>
+    <lastmod>2026-11-18T00:36:37.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Lenticulum.jl/noise</loc>
     <lastmod>2026-11-10T10:53:33.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Lenticulum.jl/nonlinear</loc>
-    <lastmod>2026-11-16T11:00:23.000Z</lastmod>
+    <lastmod>2026-11-18T00:36:37.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Lenticulum.jl/regime</loc>
     <lastmod>2026-11-12T22:29:30.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Lenticulum.jl/switching</loc>
-    <lastmod>2026-11-16T10:19:20.000Z</lastmod>
+    <lastmod>2026-11-17T06:56:59.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/LenticulumCore</loc>
     <lastmod>2026-10-27T10:34:02.000Z</lastmod>
@@ -714,10 +750,10 @@
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/extended_gaussian</loc>
-    <lastmod>2026-11-16T21:10:39.000Z</lastmod>
+    <lastmod>2026-11-17T05:17:13.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/gaussian_belief</loc>
-    <lastmod>2026-11-16T10:19:20.000Z</lastmod>
+    <lastmod>2026-11-18T00:36:37.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/LenticulumCore.jl/interop</loc>
     <lastmod>2026-10-29T20:31:05.000Z</lastmod>
@@ -759,7 +795,7 @@
     <lastmod>2026-11-16T10:19:20.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/gaussian</loc>
-    <lastmod>2026-11-16T20:19:13.000Z</lastmod>
+    <lastmod>2026-11-18T00:36:37.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/graph</loc>
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
@@ -771,7 +807,7 @@
     <lastmod>2026-11-05T15:29:23.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/passing</loc>
-    <lastmod>2026-11-16T11:46:11.000Z</lastmod>
+    <lastmod>2026-11-18T00:36:37.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/Mycelium.jl/plates</loc>
     <lastmod>2026-11-15T23:37:21.000Z</lastmod>
@@ -789,7 +825,7 @@
     <lastmod>2026-11-10T10:53:33.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/MyceliumLearning.jl/em</loc>
-    <lastmod>2026-11-10T10:53:33.000Z</lastmod>
+    <lastmod>2026-11-18T00:36:37.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/preview/lib/MyceliumLearning.jl/gradient</loc>
     <lastmod>2026-11-10T10:53:33.000Z</lastmod>
