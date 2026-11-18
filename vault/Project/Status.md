@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-18, after the I25 follow-up (mixed-scale benchmark; `normalize = true` kept), committed on `dev-danielb`, not pushed.
+**Last updated:** 2026-11-18, after P8 (the graph free energy in the element type of its messages), committed on `dev-danielb`, not pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
 | `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
-| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/i3-spanning-trees` | at `0eef33ca` with I3 uncommitted (merged into `dev-danielb` as a diff); can be reset for the next Codex package |
+| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/i3-spanning-trees` | at `0eef33ca` with I3 uncommitted (merged into `dev-danielb` as a diff); can be reset for the next Codex package (resetting it from a session was refused by the auto-mode classifier on 2026-11-18: the maintainer resets it, or approves) |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `6340896f` with the I25 diff applied; the reviewer's probes in `scratch/i25/` (copied to `../Lenticulum.jl-Review-2026-11-18/i25/`); its environment `scratch/p6env` serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
@@ -28,6 +28,13 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **P8** (2026-11-18, chosen by the maintainer): Mycelium's graph free energy keeps the element type
+  of its terms (sums from `false`, exact zeros as `false`, `log(2π)` via `LenticulumCore._log2π(T)`,
+  `scalar_free_energy` returns `float(total)`). Test `lib/Mycelium.jl/test/element_type.jl`. Review
+  [[LP-058 Findings of the review of P8]] (Codex, read-only in the main checkout; two defects fixed).
+  All eight suites passed on the final code plus the Mycelium device tests (logs in
+  `~/.cache/lenticulum/p8/`). New row **P30**: Lenticulum's Gaussian factors still send Float64
+  messages for Float32 parameters, so a Lenticulum graph is not yet Float32 end to end.
 - **I25 follow-up** (2026-11-18, chosen by the maintainer): `bench/bp_trees_scale.jl`, the I3 grids in
   mixed units, unit-free stopping (log `~/.cache/lenticulum/i25b/`). Normalised weights keep their tree
   across scales (up to rounding ties on the isotropic grid); raw ones need up to 51 % more plain
@@ -98,7 +105,7 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Next
 
-No row is set; pick one with the maintainer. Close to P5: a learned noise with hard messages, a residual-space formulation
+No row is set; pick one with the maintainer. P30 (Lenticulum's Gaussian factors in Float32) follows P8 directly. Close to P5: a learned noise with hard messages, a residual-space formulation
 of the positive definite path (LP-047 finding 4; no row yet). Left open by P27 (no rows yet): the
 Bethe free energy with a mixture marginal under BP, derivatives through the new rules, two extended
 components with hard directions. Small: `ImplicitLayers`' `SolveReport` also has

@@ -228,7 +228,8 @@ function support_entropy(b::ExtendedGaussian{T}) where {T}
     r = size(K, 1)
     r == 0 && return zero(T)
     # log det K = Σ log λᵢ: K is diagonal at the value, up to rounding
-    return r * (1 + log(2π)) / 2 + logdet(_chol(K, "the covariance on the support")) / 2
+    ld = logdet(_chol(K, "the covariance on the support"))
+    return r * (1 + _log2π(typeof(ld))) / 2 + ld / 2
 end
 
 # The belief in coordinates along its non-hard directions: x = x0 + U s, with x0 the point it

@@ -81,22 +81,24 @@ entropy of a point mass is ``-\\infty``, but the *correction term* it contribute
 because a clamped variable carries no free bits — this is the convention BP uses for
 observed nodes). Anything else throws rather than guess.
 """
-variable_entropy(::LenticulumCore.DiracBelief) = 0.0
-variable_entropy(::LenticulumCore.TrivialBelief) = 0.0
+# `false` is Julia's strong additive zero: `false + x === x` for every number type, so an entropy
+# that is identically zero does not widen a Float32 or dual total (P8).
+variable_entropy(::LenticulumCore.DiracBelief) = false
+variable_entropy(::LenticulumCore.TrivialBelief) = false
 variable_entropy(b::LenticulumCore.CategoricalBelief) =
-    -sum(l == -Inf ? 0.0 : exp(l) * l for l in b.logp)   # Shannon entropy, 0 log 0 = 0
+    -sum(l == -Inf ? zero(l) : exp(l) * l for l in b.logp)   # Shannon entropy, 0 log 0 = 0
 function variable_entropy(m::LenticulumCore.MixtureBelief{<:LenticulumCore.CategoricalBelief})
     # Exact Shannon entropy of the marginalized categorical distribution
-    isempty(m.components) && return 0.0
+    isempty(m.components) && return false
     c1 = first(m.components)
     n = length(c1.logp)
     w = LenticulumCore.mixture_weights(m)
-    p = zeros(Float64, n)
+    p = zeros(float(promote_type(eltype(w), map(c -> eltype(c.logp), m.components)...)), n)
     for (wk, ck) in zip(w, m.components)
         _same_support(c1, ck) || throw(ArgumentError("mixture components must share support"))
         p .+= wk .* LenticulumCore.probabilities(ck)
     end
-    return -sum(pk <= 0 ? 0.0 : pk * log(pk) for pk in p)
+    return -sum(pk <= 0 ? zero(pk) : pk * log(pk) for pk in p)
 end
 variable_entropy(b) = throw(ArgumentError(
     "no `variable_entropy` for $(typeof(b)). The Bethe counting correction needs the \
@@ -295,7 +297,7 @@ function _factor_terms_rows(s, g, @nospecialize(ps), @nospecialize(st), rows; sc
     ps, st = _indexed(ps), _statebuffer(st)      # mutates, like the rest of this path: not for Zygote
     results = scalar ? nothing : Vector{Any}(nothing, nfactors(g))
     covered = falses(nfactors(g))
-    total = 0.0
+    total = false                                 # the strong zero: the sum keeps the terms' type (P8)
     for row in rows
         msgs = _row_messages(s, row)
         msgs === nothing && continue
@@ -366,7 +368,7 @@ _row_scalar(factors::AbstractVector, E::AbstractVector) =
 # variables it covered; a row with a pinned variable, a partly filled row, or edges outside
 # block rows is left to the per-variable path.
 function _variable_terms_rows(s, g)
-    total, done = 0.0, falses(nvariables(g))
+    total, done = false, falses(nvariables(g))
     _has_rows(s, g) || return total, done
     bp = BitVector([_cavity_rule(f.rule) for f in g.factors])
     for pl in g.plates
@@ -398,7 +400,7 @@ function _variable_row_term(s, g::FactorGraph, idx::EdgeMessages, bp::BitVector,
         end
     end
     c = counting_number(g, first(vids))
-    c == 0 && return 0.0
+    c == 0 && return false
     acc = TrivialBlock(length(vids))
     for r in rows
         b = _row_block(idx, r)
@@ -410,14 +412,14 @@ function _variable_row_term(s, g::FactorGraph, idx::EdgeMessages, bp::BitVector,
 end
 
 # The entropy of each column, `variable_entropy` of its belief; one evaluation for a shared precision.
-_block_entropies(b::PointBlock) = zeros(nreplicas(b))
-_block_entropies(b::TrivialBlock) = zeros(nreplicas(b))
+_block_entropies(b::PointBlock) = falses(nreplicas(b))
+_block_entropies(b::TrivialBlock) = falses(nreplicas(b))
 function _block_entropies(b::GaussianBlock)
     _shared(b) && all(==(b.improper[1]), b.improper) && return fill(variable_entropy(replica(b, 1)), nreplicas(b))
     return [variable_entropy(replica(b, i)) for i in 1:nreplicas(b)]
 end
 _block_entropies(b::CategoricalBlock) =
-    [-sum(k -> b.logp[k, i] == -Inf ? 0.0 : exp(b.logp[k, i]) * b.logp[k, i], axes(b.logp, 1)) for i in axes(b.logp, 2)]
+    [-sum(k -> b.logp[k, i] == -Inf ? zero(b.logp[k, i]) : exp(b.logp[k, i]) * b.logp[k, i], axes(b.logp, 1)) for i in axes(b.logp, 2)]
 _block_entropies(b::BeliefBlock) = [variable_entropy(replica(b, i)) for i in 1:nreplicas(b)]
 
 # The gradient's scalar for a plate row on batched beliefs: the replicas' scalarised free energies.
@@ -494,7 +496,7 @@ end
 # marginal may be one with no entropy in closed form, such as a Gaussian mixture.
 function _variable_term(s, g, vid)
     c = counting_number(g, vid)
-    return c == 0 ? 0.0 : c * variable_free_energy(marginal(s, g, vid))
+    return c == 0 ? false : c * variable_free_energy(marginal(s, g, vid))
 end
 
 """
@@ -578,7 +580,7 @@ Uses [`factor_free_energies`](@ref), including its cavity edge-direction check.
 """
 function LenticulumCore.scalar_free_energy(s::MessageStore, g::FactorGraph, @nospecialize(ps), @nospecialize(st))
     rows = _energy_rows(s, g)
-    total = 0.0
+    total = false                                 # the strong zero: the sum keeps the terms' type (P8)
     if isempty(rows)
         F, st = _factor_terms(s, g, ps, st)
         for (f, Ff) in zip(g.factors, F)
@@ -595,7 +597,7 @@ function LenticulumCore.scalar_free_energy(s::MessageStore, g::FactorGraph, @nos
         done[v.id] && continue
         total += _variable_term(s, g, v.id)
     end
-    return total, st
+    return float(total), st                       # a graph of exact zeros only gives 0.0, not `false`
 end
 
 # --- Checks shared with the gradient drivers (`MyceliumLearning`) ------------------------

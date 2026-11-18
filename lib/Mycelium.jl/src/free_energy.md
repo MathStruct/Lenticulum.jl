@@ -448,3 +448,32 @@ Since 2026-11-05 the hook also has a form by channel, `learns_unnormalised(facto
 channels a `DataFactor` observes), which by default is the one-argument form when any channel is
 observed; `DEQFactor` overrides it to fire only with its state observed.
 
+## Element type in, element type out (P8, 2026-11-18)
+
+The graph free energy is in the number type of its terms: a graph whose messages are all Float32
+gives a Float32 `scalar_free_energy`, and each part of `factor_free_energies` and
+`variable_corrections` is Float32 or an exact zero. Before, every total started at `0.0`, and four
+Float64 constants entered the sum: the zero energy of `DataFactor`, `OptimiserFactor` and an empty
+`RelayFactor`; the zero entropy of a point or trivial marginal (and the counting term of a variable
+of degree 1); the `0 log 0` of a categorical entropy; and `log(2π)` in the Gaussian entropy
+(`variable_entropy`, LenticulumCore's `support_entropy` and `logpartition`).
+
+The rule now: a term that is identically zero is `false`, Julia's strong additive zero
+(`false + x === x` for every number type, dual numbers included), so it contributes no type; a sum
+starts from `false`; a zero inside a sum over real terms is `zero` of those terms; and `log(2π)` is
+`LenticulumCore._log2π(T)` in the type `T` of the log-determinant it is added to. A computation on
+a type is constant to reverse-mode AD. Consequence for callers: such a zero is a `Bool`, and a sum
+of them an `Int`; it compares `==` to `0.0` but not `===`. `scalar_free_energy` returns `float` of
+its total, so a graph of exact zeros only gives `0.0` (review, [[LP-058 Findings of the review of P8]]).
+The entropy of a mixture of categoricals is accumulated in the type promoted over all its components.
+
+Test: `test/element_type.jl`, a graph with Gaussian, categorical and point marginals of degree 2,
+built in Float32 and in Float64, node by node and as a plate of three replicas (every factor in a
+batched row, every variable in a row term); the Float32 total agrees with the Float64 one to
+`rtol = 1e-5`; also the review's cases (a zero-only graph, a mixed-type mixture) and the derivatives
+of the Gaussian entropy and log-partition in the precision under ForwardDiff and Zygote.
+
+Not covered: cluster nodes (`cluster.jl` computes in Float64 by design, `_numtype`), overlay and
+mixture energies, the gradient drivers of `MyceliumLearning`. And Lenticulum's linear-Gaussian
+factors send Float64 messages for Float32 parameters, so a Lenticulum Gaussian graph is still
+Float64 throughout: that is backlog row P30, not this one.

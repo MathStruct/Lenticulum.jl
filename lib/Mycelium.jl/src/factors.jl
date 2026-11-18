@@ -132,8 +132,9 @@ LenticulumCore.islearnable(::DataFactor) = false
 
 factor_message(f::DataFactor, ::Symbol, _, _, _, ps, st) =
     (LenticulumCore.DiracBelief(f.value), st)
-local_free_energy(::DataFactor, _, ps, st) = (0.0, st)
-local_free_energies(fs::AbstractVector{<:DataFactor}, ::NamedTuple, ps, st) = (zeros(length(fs)), st)
+# `false`, the strong zero: a data factor's energy does not widen the graph's total (P8)
+local_free_energy(::DataFactor, _, ps, st) = (false, st)
+local_free_energies(fs::AbstractVector{<:DataFactor}, ::NamedTuple, ps, st) = (falses(length(fs)), st)
 # On blocks (a plate sweep): the points of real-vector data as one block.
 function factor_messages(fs::AbstractVector{<:DataFactor}, ::Symbol, _, ::NamedTuple, ::AbstractVector, ps, st)
     v1 = first(fs).value
@@ -193,7 +194,7 @@ function local_free_energy(f::PriorFactor, beliefs, ps, st)
     elseif bel isa LenticulumCore.CategoricalBelief
         p = LenticulumCore.probabilities(bel)
         states = bel.labels === nothing ? (1:length(p)) : bel.labels
-        U = sum(p[i] == 0 ? 0.0 : p[i] * f.nlogp(s) for (i, s) in enumerate(states))
+        U = sum(p[i] == 0 ? zero(p[i]) : p[i] * f.nlogp(s) for (i, s) in enumerate(states))
         return (U - variable_entropy(bel), st)
     elseif bel isa LenticulumCore.GaussianBelief && f.belief isa LenticulumCore.GaussianBelief
         U = f.nlogp(LenticulumCore.belief_mean(bel)) +
@@ -222,7 +223,7 @@ function LenticulumCore.free_energy(f::PriorFactor, π, y, ps, st)
     end
     p = LenticulumCore.probabilities(bel)
     states = bel.labels === nothing ? (1:length(p)) : bel.labels
-    U = sum(p[i] == 0 ? 0.0 : p[i] * f.nlogp(s) for (i, s) in enumerate(states))
+    U = sum(p[i] == 0 ? zero(p[i]) : p[i] * f.nlogp(s) for (i, s) in enumerate(states))
     return (U - variable_entropy(bel), st)
 end
 
@@ -328,7 +329,7 @@ end
 uses_cavity(::RelayFactor) = true
 function local_free_energy(f::RelayFactor, beliefs, ps, st)
     ms = filter(!isnothing, (get(beliefs, f.a, nothing), get(beliefs, f.b, nothing)))
-    isempty(ms) && return (0.0, st)
+    isempty(ms) && return (false, st)
     return (-variable_entropy(foldl(combine, ms)), st)
 end
 
@@ -454,7 +455,7 @@ function factor_message(f::OptimiserFactor, ::Symbol, _, _, _, ps, st)
         "OptimiserFactor on channel :$(f.channel) requires state fields `:p` and `:state` in `st`"))
     return (LenticulumCore.DiracBelief(rule_get(f.rule, st.state, st.p)), st)
 end
-local_free_energy(::OptimiserFactor, _, ps, st) = (0.0, st)
+local_free_energy(::OptimiserFactor, _, ps, st) = (false, st)
 
 # Game quantities for structural sources and the terminal loss. A sink has no inferred
 # variables: game_y supplies all its channels as point observations.

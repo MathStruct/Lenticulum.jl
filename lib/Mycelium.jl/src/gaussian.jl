@@ -171,7 +171,8 @@ implementing it is what exposed the sign bug recorded in `free_energy.md` §6.
 function variable_entropy(b::GaussianBelief)
     C = LenticulumCore._improper_check(b, "variable_entropy")
     n = dimension(b)
-    return n * (1 + log(2π)) / 2 - LenticulumCore._precision_logdet(C) / 2
+    ld = LenticulumCore._precision_logdet(C)
+    return n * (1 + LenticulumCore._log2π(typeof(ld))) / 2 - ld / 2
 end
 
 """

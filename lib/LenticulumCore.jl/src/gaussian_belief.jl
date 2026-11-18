@@ -249,7 +249,8 @@ end
 function logpartition(b::GaussianBelief)
     C = _improper_check(b, "logpartition")
     n = dimension(b)
-    return (b.η' * _precision_solve(C, b.η)) / 2 - _precision_logdet(C) / 2 + n * log(2π) / 2
+    ld = _precision_logdet(C)
+    return (b.η' * _precision_solve(C, b.η)) / 2 - ld / 2 + n * _log2π(typeof(ld)) / 2
 end
 
 function Base.show(io::IO, b::GaussianBelief)
@@ -271,5 +272,10 @@ function _precision_factor(M)
 end
 
 _precision_logdet(C) = logdet(C)
+
+# log(2π) in the number type `T` of the value it is added to: the Float64 constant `log(2π)` widens
+# a Float32 energy (P8). `T` is a type, not a value, so reverse-mode AD sees a constant.
+_log2π(::Type{T}) where {T<:Real} = log(2 * convert(T, π))     # floats and duals
+_log2π(::Type{<:Integer}) = log(2π)
 
 _precision_solve(C, η) = C \ η

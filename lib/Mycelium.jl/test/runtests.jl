@@ -763,6 +763,7 @@ include("state_tree.jl")
 include("emit_plan.jl")
 include("forms_crossing.jl")
 include("mixture_reduction.jl")
+include("element_type.jl")
 # review of 2026-11-09
 @testset "damping keeps a message's improper declaration" begin
     a = GaussianBelief([1.0, 0.0], [1.0 0.0; 0.0 0.0], true); b = GaussianBelief([2.0, 0.0], [1.0 0.0; 0.0 0.0], true)
