@@ -7,8 +7,10 @@
 include("divider.jl")
 using Random
 
-function trees_grid(n, mode; seed = 20261118)
-    rng = Xoshiro(seed); pv = 100.0
+# `scale` (length n², default ones) states variable v in units s_v: y_v = x_v / s_v, so the prior is
+# N(m/s, pv/s²), a constraint reads s_u y_u - s_v y_v, and `exact` is in the y units.
+function trees_grid(n, mode; seed = 20261118, scale = ones(n*n))
+    rng = Xoshiro(seed); pv = 100.0; sc = scale
     m = randn(rng, n*n)
     name(i,j) = Symbol(:x, i, :_, j)
     idx(i,j) = (j-1)*n+i
@@ -17,7 +19,7 @@ function trees_grid(n, mode; seed = 20261118)
     for j in 1:n, i in 1:n
         v, f = name(i,j), Symbol(:p, i, :_, j)
         variable!(b, v, 1)
-        factor!(b, f, GaussianPrior(:x, [m[idx(i,j)]], fill(pv, 1, 1)))
+        factor!(b, f, GaussianPrior(:x, [m[idx(i,j)] / sc[idx(i,j)]], fill(pv / sc[idx(i,j)]^2, 1, 1)))
         connect!(b, f, :x, v); pd[f] = NamedTuple(); qs[f] = 1.0
     end
     for j in 1:n, i in 1:n, (di,dj) in ((1,0), (0,1))
@@ -28,13 +30,13 @@ function trees_grid(n, mode; seed = 20261118)
         f = Symbol(:s, i, :_, j, :_, di)
         factor!(b, f, LinearConstraintFactor((a=1, b=1), 1; noise=fill(q,1,1)))
         connect!(b, f, :a, name(i,j)); connect!(b, f, :b, name(i+di,j+dj))
-        pd[f] = (A=(a=Ones1,b=-Ones1), c=[0.0]); qs[f] = q
         a,c = idx(i,j),idx(i+di,j+dj)
+        pd[f] = (A=(a=fill(sc[a],1,1),b=fill(-sc[c],1,1)), c=[0.0]); qs[f] = q
         J[a,a] += 1/q; J[c,c] += 1/q; J[a,c] -= 1/q; J[c,a] -= 1/q
     end
     g = validate(build(b)); ps = NamedTuple(pd)
     st = NamedTuple(k => NamedTuple() for k in keys(ps))
-    exact = J \ (m/pv)
+    exact = (J \ (m/pv)) ./ sc
     return g, ps, st, exact, qs
 end
 

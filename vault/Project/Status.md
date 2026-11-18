@@ -7,7 +7,7 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-18, after I25 (default spanning-tree weights, `coupling_weights`): reviewed by Mistral Large (LP-057, no defect), committed on `dev-danielb`, not pushed.
+**Last updated:** 2026-11-18, after the I25 follow-up (mixed-scale benchmark; `normalize = true` kept), committed on `dev-danielb`, not pushed.
 
 ## Branches and worktrees
 
@@ -28,14 +28,19 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **I25 follow-up** (2026-11-18, chosen by the maintainer): `bench/bp_trees_scale.jl`, the I3 grids in
+  mixed units, unit-free stopping (log `~/.cache/lenticulum/i25b/`). Normalised weights keep their tree
+  across scales (up to rounding ties on the isotropic grid); raw ones need up to 51 % more plain
+  evaluations, 2.5 times with Anderson; normalised loses at most 17 % on a shared scale. Default kept;
+  `coupling.md` §3. Side finding: Anderson(3) is not scale-equivariant (no row). Bench and notes only,
+  so no suite was run and there was no review.
 - **I25** (2026-11-18): `coupling_weights(g, ps; normalize = true, default, hard)` in Lenticulum
   (`coupling.jl`, `coupling.md`), with `coupling_precision(f, ps)` per linear-Gaussian factor type.
   Weight = largest $\lVert D_u^{-1/2} J_{ab} D_v^{-1/2}\rVert$ over the factor's variable pairs (raw
   $\lVert J_{ab}\rVert$ with `normalize = false`). Bench (`bench/bp_trees.jl`, log in
   `~/.cache/lenticulum/i25/`): raw = the hand-made `1/q` exactly; normalised equal on anisotropic grids,
   8–16 % more evaluations plain on isotropic/random (±3 % with Anderson). Default kept normalised for
-  unit invariance, which is not measured: **a decision for the maintainer** (flip the default to raw, or
-  measure a mixed-scale graph). Review [[LP-057 Findings of the review of I25]]. Lenticulum suite passed;
+  unit invariance (measured by the follow-up above). Review [[LP-057 Findings of the review of I25]]. Lenticulum suite passed;
   only notes changed in Mycelium.
 - **I3** (2026-11-18): `spanning_tree_schedule(g; weights, ntrees)`. `weights` (callable on factor
   indices or Dict by name) gives a maximum-weight spanning forest (Kruskal); `ntrees = K`/`:cover`
@@ -93,7 +98,7 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Next
 
-No row is set; pick one with the maintainer. Follow-up of I25 (no row): a mixed-scale benchmark to decide `normalize`'s default. Close to P5: a learned noise with hard messages, a residual-space formulation
+No row is set; pick one with the maintainer. Close to P5: a learned noise with hard messages, a residual-space formulation
 of the positive definite path (LP-047 finding 4; no row yet). Left open by P27 (no rows yet): the
 Bethe free energy with a mixture marginal under BP, derivatives through the new rules, two extended
 components with hard directions. Small: `ImplicitLayers`' `SolveReport` also has

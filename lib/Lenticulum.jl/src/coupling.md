@@ -83,8 +83,56 @@ the same tree where the anisotropy is uniform and a different one elsewhere: on 
 16 % more evaluations plain and 3 % with Anderson; on the random grid 8 % more plain and 3 % fewer
 with Anderson. So on these grids, whose variables share one scale, **normalisation does not pay**;
 its case is graphs whose variables have different units or scales, where raw weights rank couplings
-by units. That case is not measured. The default is `normalize = true` for that invariance; pass
-`normalize = false` when the variables share a scale.
+by units (measured next).
+
+### Normalised or raw: variables of mixed scales
+
+`julia --project=bench bench/bp_trees_scale.jl` (2026-11-18; log `~/.cache/lenticulum/i25b/bp_trees_scale.log`)
+states the same grids in mixed units, $y_v = x_v / s_v$: "blocks" puts the right half of the grid in
+units $10^{-3}$ (numbers 1000 times larger), "random" draws $s_v = 10^{U(-3,3)}$. The model is the
+same; the raw weight of a constraint becomes $s_u s_v / q$. Stopping is relative (`tol = 0`,
+`rtol = 1e-10`), so it does not depend on the units either. Every run converged, with errors at most
+`6e-9` in the original units.
+
+Gaussian BP is equivariant under such a rescaling, and the plain runs confirm it: a schedule with a
+fixed tree (BFS, `1/q`) takes the same number of sweeps at every scale. Message evaluations, plain
+(with Anderson(3) in brackets); "1/q" is the tree of the physical precisions, the target:
+
+| noise, scale | 1/q | coupling (normalised) | coupling raw |
+|---|---:|---:|---:|
+| isotropic, none | 959 560 (103 040) | 1 120 560 (101 200) | 959 560 (103 040) |
+| isotropic, blocks | 959 560 (101 200) | 1 104 920 (115 920) | 959 560 (101 200) |
+| isotropic, random | 959 560 (92 000) | 990 840 (83 720) | 1 043 280 (92 920) |
+| horizontal, none | 1 758 120 (122 360) | 1 758 120 (122 360) | 1 758 120 (122 360) |
+| horizontal, blocks | 1 758 120 (47 840) | 1 758 120 (47 840) | 2 241 120 (115 920) |
+| horizontal, random | 1 758 120 (54 280) | 1 753 520 (57 960) | 2 655 120 (143 520) |
+| random, none | 1 901 640 (61 640) | 2 068 160 (59 800) | 1 901 640 (61 640) |
+| random, blocks | 1 901 640 (44 160) | 2 068 160 (62 560) | 2 088 400 (71 760) |
+| random, random | 1 901 640 (48 760) | 2 068 160 (54 280) | 2 530 000 (92 000) |
+
+- The normalised weights choose the same tree at every scale where the couplings differ (horizontal
+  and random noise: 379 and 369 of the 379 edges of the `1/q` tree, in every row). On the isotropic
+  grid many normalised weights are equal in exact arithmetic, and rounding breaks the ties
+  differently at each scale (357, 351, 339 shared edges), so the tree does change there, though not
+  because of the units. The 378 against 379 in "horizontal, random" is the same kind of tie.
+- The raw weights follow the units. On mixed scales where the noise singles out strong edges
+  (horizontal and random noise) they need 1 to 51 % more plain evaluations than normalised
+  (horizontal/blocks 2.24 M against 1.76 M, horizontal/random 2.66 M against 1.75 M), and with
+  Anderson 1.15 to 2.5 times as many. On the isotropic grid with blocks, raw happens to equal `1/q`:
+  its three weight classes (inside the left half, across, inside the right half) are each tied,
+  and Kruskal's tie-break by edge index then gives the BFS tree, which is the `1/q` tree here.
+- Normalised against the `1/q` target on mixed scales: 0 to 15 % more plain evaluations; with
+  Anderson from 9 % fewer to 42 % more (random/blocks 62 560 against 44 160).
+- With one shared scale (the "none" rows) raw equals `1/q`, and normalised costs up to 17 % more plain
+  (isotropic) and at most 2 % more with Anderson.
+- Anderson acceleration is not equivariant: with the tree fixed, its counts vary with the scale
+  (BFS + A(3) on the horizontal grid: 616 400, 879 520, 882 280), because its least-squares mixing
+  weights depend on the message parameters' units.
+
+**Default: `normalize = true`** (kept 2026-11-18 on this measurement). Its largest loss in these
+eighteen settings is 17 % plain against raw (isotropic, one scale); raw's largest loss against it is
+51 % plain and 2.5 times with Anderson (mixed scales). Pass `normalize = false` when the variables are
+known to share one scale. Only 10 × 10 scalar grids were measured.
 
 ## 4. What it does not do
 
