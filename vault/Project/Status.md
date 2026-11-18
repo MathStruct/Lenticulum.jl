@@ -14,7 +14,7 @@
 | checkout | branch | state |
 |---|---|---|
 | `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
-| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/i3-spanning-trees` | at `0eef33ca` with I3 uncommitted (merged into `dev-danielb` as a diff); can be reset for the next Codex package (resetting it from a session was refused by the auto-mode classifier on 2026-11-18: the maintainer resets it, or approves) |
+| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/next` | clean at `3d0bc449` (P8), reset 2026-11-18 with the maintainer's approval (the I3 diff it held is merged in `dev-danielb`); ready for the next Codex package (rename the branch to `codex/<topic>`) |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `6340896f` with the I25 diff applied; the reviewer's probes in `scratch/i25/` (copied to `../Lenticulum.jl-Review-2026-11-18/i25/`); its environment `scratch/p6env` serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
