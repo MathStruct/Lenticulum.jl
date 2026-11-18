@@ -7,7 +7,7 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-18, after P31 (the rest of Lenticulum in the element type of its parameters), committed on `dev-danielb`, not pushed.
+**Last updated:** 2026-11-18, after P31 (the rest of Lenticulum in the element type of its parameters), committed and pushed on `dev-danielb`.
 
 ## Branches and worktrees
 
