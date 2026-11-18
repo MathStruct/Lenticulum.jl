@@ -8,7 +8,7 @@
 > [[lib/Lenticulum.jl/src/gaussian|gaussian]] "Free energy with hard inputs".
 
 > Sources: a review of the uncommitted P2 change by Mistral (`vibe --agent review`, Mistral Large 4,
-> `--max-price 3`, $0 against the budget; list price \$0.83), in the helper worktree
+> `--max-price 3`, \$0 against the budget; list price \$0.83), in the helper worktree
 > `Lenticulum.jl-mistral` at `01b0adea` with the diff applied. The brief, the answer, the probes and
 > the maintainer's scripts are in `../Lenticulum.jl-Review-2026-11-17/p2/`.
 > code: `lib/Lenticulum.jl/src/switching.jl`, `lib/Lenticulum.jl/src/gaussian.jl`; tests:
