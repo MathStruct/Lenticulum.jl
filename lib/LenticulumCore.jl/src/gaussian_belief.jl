@@ -201,7 +201,7 @@ _sample_points(b::SampleBelief) = b.samples isa AbstractMatrix ? eachcol(b.sampl
 # the constructor refuses those, so the difference is not reached (LP-029, F4).
 # The moments are pure reductions (a matrix-vector product and a centred cross-product), so they
 # differentiate under ForwardDiff and Zygote and keep the samples' scalar type: unweighted
-# Float32 samples give Float32 moments, integer samples are floated (I21).
+# Float32 samples give Float32 moments, integer samples are floated (GH-21).
 function _moment_weights(b::SampleBelief)
     pts = _sample_points(b)
     n = length(pts)

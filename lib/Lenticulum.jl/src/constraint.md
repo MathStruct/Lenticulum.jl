@@ -368,15 +368,15 @@ Not covered: extended Gaussians with flat directions in this test (they make the
 improper unless the other messages fix those directions).
 
 
-## Rank tolerances and the batched per-replica kernel (I17, I20, 2026-11-17)
+## Rank tolerances and the batched per-replica kernel (GH-17, GH-20, 2026-11-17)
 
 `_range_svd` and `_projected_rank` hard-coded `eps(Float64)`; both now use the element type of the
 decomposition (`_eps_eltype`), with the projection's tolerance at the promoted type of `Ta` and
-`LiAt` (I17). The batched per-replica kernel `_linear_block_each`/`_block_moments_each`/
+`LiAt` (GH-17). The batched per-replica kernel `_linear_block_each`/`_block_moments_each`/
 `_linear_block_loop` materialises `Matrix{Float64}` coefficients and accumulators, which threw
 `Float64(::Dual)` as soon as an active coefficient carried a derivative; the batch is now taken
 only when every array it touches is a plain host float array (`_plain_batch_arrays`), and dual or
-device inputs go through the per-replica path, which preserves their scalar types (I20). Tests:
+device inputs go through the per-replica path, which preserves their scalar types (GH-20). Tests:
 Lenticulum `test/plate_block_duals.jl` — ForwardDiff through the batched call against the finite
 difference, batched against per-replica messages term for term, the shared-precision batched path
 under duals, and Float32 blocks.

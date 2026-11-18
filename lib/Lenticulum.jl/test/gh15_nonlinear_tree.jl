@@ -1,11 +1,13 @@
-# I15: a BP NonlinearFactor reads the target cavity for its expansion, so one collect/distribute
+# GH-15: a BP NonlinearFactor reads the target cavity for its expansion, so one collect/distribute
 # pass need not be a fixed point. The tree shortcut of `propagate!` is therefore restricted to
 # messages that do not read the cavity (`message_uses_cavity`), and such a tree is iterated with
-# its residual checked. Oracles: a second sweep from a fresh store moves the marginal (both root
-# choices), and a tree whose messages do not read the cavity keeps the one-sweep exact report.
+# its residual checked. Oracles: rooted at :prior, a second sweep from a fresh store moves the
+# marginal; rooted at :data, one sweep is the fixed point (the backward message is sent after the
+# cavity is known) and the second changes nothing; a tree whose messages do not read the cavity keeps
+# the one-sweep exact report.
 using Test, Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random
 
-@testset "I15: a nonlinear tree is iterated, not declared a one-sweep fixed point" begin
+@testset "GH-15: a nonlinear tree is iterated, not declared a one-sweep fixed point" begin
     b = GraphBuilder(); variable!(b, :x, 1); variable!(b, :y, 1)
     factor!(b, :prior, GaussianPrior(:x, 2., 1.)); connect!(b, :prior, :x, :x)
     factor!(b, :nl, NonlinearFactor(x -> x .^ 2, 1 => 1; noise = 0.1))

@@ -1,11 +1,11 @@
-# I19/I18 on a device (JLArrays emulation, `LENTICULUM_DEVICE_TESTS=true`): the diagonal device
+# GH-19/GH-18 on a device (JLArrays emulation, `LENTICULUM_DEVICE_TESTS=true`): the diagonal device
 # moment methods apply the same declared-improper guard as the CPU ones — a tagged belief is a
 # likelihood, and reading its moments or normaliser is an error there too — and device damping
 # decides properness from the combined support, as on the CPU. Oracles: the CPU beliefs themselves.
 if get(ENV, "LENTICULUM_DEVICE_TESTS", "false") == "true"
     using JLArrays
 
-    @testset "I19: device diagonal Gaussians keep the improper contract" begin
+    @testset "GH-19: device diagonal Gaussians keep the improper contract" begin
         JLArrays.allowscalar(false)
         for T in (Float32, Float64)
             b = GaussianBelief(JLArray(T[1]), Diagonal(JLArray(T[1])), true)
@@ -27,7 +27,7 @@ if get(ENV, "LENTICULUM_DEVICE_TESTS", "false") == "true"
         end
     end
 
-    @testset "I18 device: damping decides properness from the combined support" begin
+    @testset "GH-18 device: damping decides properness from the combined support" begin
         JLArrays.allowscalar(false)
         a = GaussianBelief(JLArray([0.0, 0.0]), Diagonal(JLArray([1.0, 0.0])), true)
         b = GaussianBelief(JLArray([0.0, 0.0]), Diagonal(JLArray([0.0, 1.0])), true)

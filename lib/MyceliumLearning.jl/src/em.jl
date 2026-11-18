@@ -49,7 +49,7 @@ Lenticulum implements it for its constraint factors.
 """
 m_step(factor, stats, ps, frozen) = nothing
 # Whether `factor` has an `m_step` for the arguments the call site will pass. Asking `which` with
-# `Any` for the parameter and freeze arguments hides methods specialised on their type (I22), so
+# `Any` for the parameter and freeze arguments hides methods specialised on their type (GH-22), so
 # the query is made with the concrete parameter tree and freeze list of the call.
 _has_m_step(f, ps, frozen) =
     which(m_step, Tuple{typeof(f), MomentStats, typeof(ps), typeof(frozen)}) !== which(m_step, Tuple{Any, Any, Any, Any})

@@ -1,4 +1,4 @@
-# I20: the batched per-replica message kernel materialises Float64 coefficients and accumulators,
+# GH-20: the batched per-replica message kernel materialises Float64 coefficients and accumulators,
 # so it runs only when every array it touches is a plain host float array; dual (AD) coefficients
 # take the per-replica path, which preserves their scalar types. Oracles: the batched and the
 # per-replica messages agree term for term, and ForwardDiff through the batched call matches the
@@ -6,7 +6,7 @@
 using Test, Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, ForwardDiff
 using LenticulumCore: TrivialBelief
 
-@testset "I20: batched constraint messages preserve dual coefficients" begin
+@testset "GH-20: batched constraint messages preserve dual coefficients" begin
     f = LinearConstraintFactor((x = 1, y = 1), 1; noise = 1.0)
     fs = [f, f]
     # one Gaussian block input with a precision per replica

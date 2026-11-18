@@ -322,7 +322,7 @@ function _rank_deficient_svd(A)
 end
 
 # eps of a decomposition's element type: a Float32 map has Float32 rounding, so its singular
-# values are only trustworthy to eps(Float32) (I17); duals and anything else keep Float64.
+# values are only trustworthy to eps(Float32) (GH-17); duals and anything else keep Float64.
 _eps_eltype(::Type{T}) where {T<:AbstractFloat} = eps(T)
 _eps_eltype(::Type) = eps(Float64)
 

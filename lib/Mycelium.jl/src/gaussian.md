@@ -284,7 +284,7 @@ moment-matched Gaussian at one, and otherwise the requested number of components
 and covariance kept to $10^{-10}$. Mistral compared the moved functions with the code before the move on
 40 random mixtures and found them identical ([[LP-029 Findings of the review of P17 and P18]]).
 
-## Damping and the improper flag (I18, 2026-11-17)
+## Damping and the improper flag (GH-18, 2026-11-17)
 
 `_damp` combined the metadata as `a.improper && b.improper`, so two improper sites with
 complementary nullspaces — whose weighted precision sum is positive definite — kept the result
@@ -295,6 +295,6 @@ full rank; coincident nullspaces, a flag contradicted by a full-rank side, and a
 improper, and the endpoints reduce to the flagged side's own. The rank is computed on values
 (`stop_gradient`) with the tolerance of the decomposition's element type (`_numerical_rank`), so
 a Float32 precision is judged at `eps(Float32)`. The device `_damp` (diagonal precisions) applies
-the same rule through reductions only. Tests: `test/runtests.jl`, "I18" (complementary, coincident,
+the same rule through reductions only. Tests: `test/runtests.jl`, "GH-18" (complementary, coincident,
 contradicted flags, endpoints, dense and diagonal precisions, Float32), and
 `test/device_improper.jl` under `LENTICULUM_DEVICE_TESTS=true`.

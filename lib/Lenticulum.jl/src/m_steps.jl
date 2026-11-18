@@ -103,7 +103,7 @@ end
 # their statistics only when these agree: the fixed output coefficient enters the minimiser (W_F),
 # and so does the fixed noise — a common noise precision cancels within one factor's regression but
 # not across tied factors with different ones, where the pooled objective is a different weighted
-# least squares (I16). A learned noise is a parameter, tied through `ps` already, so only the fixed
+# least squares (GH-16). A learned noise is a parameter, tied through `ps` already, so only the fixed
 # one is listed.
 MyceliumLearning.m_step_signature(f::Union{LinearConstraintFactor,SwitchingConstraintFactor}) = (f.output, f.output_coeff, f.Q)
 MyceliumLearning.m_step_signature(f::RegimeFactor) =

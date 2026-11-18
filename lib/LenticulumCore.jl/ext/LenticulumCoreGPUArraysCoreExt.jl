@@ -18,7 +18,7 @@ LC.isuninformative(b::LC.GaussianBelief{<:AbstractGPUArray,<:Diagonal{T,<:Abstra
     all(iszero,b.Λ.diag) && all(iszero,b.η)
 # The device moment methods go through the same `_improper_check` as the CPU ones: a belief
 # declared improper is a likelihood, and reading its moments or normaliser is an error there too,
-# whatever the numerical precision looks like (I19).
+# whatever the numerical precision looks like (GH-19).
 function LC.belief_cov(b::LC.GaussianBelief{<:AbstractGPUArray,<:Diagonal{T,<:AbstractGPUArray}}) where {T}
     LC._improper_check(b, "belief_cov")
     return Diagonal(inv.(b.Λ.diag))

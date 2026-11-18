@@ -704,10 +704,10 @@ include("mixture_reduction.jl")
     @test !damp(a1, GaussianBelief([2.0], fill(1.0, 1, 1)), 0.5).improper      # one proper side decides
 end
 
-# I18: two declared-improper sites with complementary nullspaces damp to a proper belief (the sum
+# GH-18: two declared-improper sites with complementary nullspaces damp to a proper belief (the sum
 # is positive definite); coincident nullspaces, a flag contradicted by a full-rank side and the
 # damping endpoints keep the declaration. Oracles: the precisions written out, and belief_cov.
-@testset "I18: damping decides properness from the combined support" begin
+@testset "GH-18: damping decides properness from the combined support" begin
     a = GaussianBelief(zeros(2), Diagonal([1.0, 0.0]), true)      # flat along e₂
     b = GaussianBelief(zeros(2), Diagonal([0.0, 1.0]), true)      # flat along e₁
     c = damp(a, b, 0.5)

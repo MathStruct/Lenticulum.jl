@@ -441,7 +441,7 @@ end
 
 # The batched per-replica kernel materialises Float64 coefficients, constants and accumulators
 # (`_linear_block_each` and friends), so it runs only when every array it touches is a plain host
-# float array (I20). Dual coefficients — an AD parameter — or device arrays take the per-replica
+# float array (GH-20). Dual coefficients — an AD parameter — or device arrays take the per-replica
 # path below instead, which preserves their scalar types.
 _plain_batch_arrays(A, c, Q, inputs) =
     _plain_floats(A) && _plain_floats(c) && _plain_floats(Q) && all(_plain_block, values(inputs))
@@ -599,7 +599,7 @@ function _projected_rank(Ta, LiAt)
     isempty(s) && return 0
     scale = maximum(LinearAlgebra.svdvals(LenticulumCore.stop_gradient(LiAt)))
     # the projection `Li * At` promotes to the wider of the two element types, so its rounding is
-    # at that type's eps (I17)
+    # at that type's eps (GH-17)
     T = promote_type(eltype(s), eltype(LiAt))
     return count(>(maximum(size(LiAt)) * _eps_eltype(T) * scale), s)
 end

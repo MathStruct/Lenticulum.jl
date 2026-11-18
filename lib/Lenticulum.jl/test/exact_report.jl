@@ -82,7 +82,7 @@ isdefined(@__MODULE__, :cl_additive) || include(joinpath(@__DIR__, "cluster.jl")
         end
     end
 
-    @testset "a factor whose messages read the cavity: NonlinearFactor (I15)" begin
+    @testset "a factor whose messages read the cavity: NonlinearFactor (GH-15)" begin
         gb = GraphBuilder(); variable!(gb, :x, 2); variable!(gb, :y, 1)
         factor!(gb, :prior, GaussianPrior(:x, zeros(2), Matrix(1.0I, 2, 2))); connect!(gb, :prior, :x, :x)
         factor!(gb, :nl, NonlinearFactor(x -> tanh.([1.0 2.0] * x), 2 => 1; noise = fill(0.3, 1, 1)))

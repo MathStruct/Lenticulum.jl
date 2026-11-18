@@ -171,7 +171,7 @@ Lenticulum uses it wherever it inverted a Cholesky factor. The same extension ma
 Test: Lenticulum `test/zygote_cavity.jl`, against ForwardDiff with a non-symmetric cotangent.
 
 
-## Sample moments (I21, 2026-11-17)
+## Sample moments (GH-21, 2026-11-17)
 
 `belief_mean`/`belief_cov` of a `SampleBelief` were host-Float64 accumulators with in-place `+=`,
 so even the mean was not differentiable (a `Float64(::Dual)` MethodError under ForwardDiff, a
@@ -181,6 +181,6 @@ covariance `(X .* w') * X'` with `X = S .- m`, with the weights typed by the sam
 when unweighted. Both backends differentiate through cat, matmul and broadcast; unweighted
 Float32 samples give Float32 moments, integer samples are floated. GPU particle moments were not
 validated (the repro was CPU); nothing here infers device support from the `AbstractArray`
-signatures. Tests: `test/sample_moments.jl`, "I21" — gradients against the closed-form weighted
+signatures. Tests: `test/sample_moments.jl`, "GH-21" — gradients against the closed-form weighted
 sums for matrix columns, vectors of vectors and scalars, weighted and unweighted, and the scalar
 types.

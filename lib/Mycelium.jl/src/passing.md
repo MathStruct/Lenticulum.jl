@@ -705,7 +705,7 @@ error 1), under the absolute criterion as well. The spanning-tree, Anderson and 
 are not affected. Fixed by I22 (two quiet sweeps, "Convergence on marginals" above); the
 `@test_broken` in `test/p9_relative_tol.jl` is now its regression test.
 
-## The tree shortcut and cavity-reading messages (I15, 2026-11-17)
+## The tree shortcut and cavity-reading messages (GH-15, 2026-11-17)
 
 The one-sweep shortcut of `propagate!` on a `TreeSchedule` checked only the inference rule. A BP
 `NonlinearFactor` linearises its backward message at the target's cavity, so one collect/distribute
@@ -716,6 +716,6 @@ now restricted to messages guaranteed independent of the target cavity: the new 
 any other graph, so the report distinguishes actual convergence from the shortcut. Follow-ups, not
 done: `DEQFactor` and `DiffusionFactor` (ImplicitLayers, VariationalDiffusion — off the reviewed
 paths) also read the `prior` in their messages and should declare the trait when those packages are
-reviewed. Tests: Lenticulum `test/i15_nonlinear_tree.jl` — another sweep moves the marginal for
-both root choices, the report no longer claims a one-sweep fixed point, and a linear-Gaussian tree
+reviewed. Tests: Lenticulum `test/gh15_nonlinear_tree.jl` — rooted at `:prior` another sweep moves the
+marginal, rooted at `:data` one sweep is the fixed point and the second changes nothing; the report no longer claims a one-sweep fixed point, and a linear-Gaussian tree
 keeps the one-sweep exact report.

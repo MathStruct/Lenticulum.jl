@@ -32,12 +32,12 @@ using LenticulumCore, LinearAlgebra, Random, Statistics, Test
     @test belief_cov(SampleBelief(reshape([1.0, 2.0], 2, 1))) == zeros(2, 2)
 end
 
-# I21: the sample moments are pure reductions — no Float64 accumulator, no mutation — so they
+# GH-21: the sample moments are pure reductions — no Float64 accumulator, no mutation — so they
 # differentiate under ForwardDiff and Zygote and keep the samples' scalar type. Oracles: the
 # weighted sums written out, and the derivative of the closed form.
 using ForwardDiff, Zygote
 
-@testset "I21: sample moments differentiate and preserve the scalar type" begin
+@testset "GH-21: sample moments differentiate and preserve the scalar type" begin
     # matrix columns, unweighted: ForwardDiff through the mean and the covariance
     d = ForwardDiff.derivative(t -> sum(belief_mean(SampleBelief(reshape([t, 2t], 1, 2)))), 1.0)
     @test d ≈ 1.5
@@ -70,7 +70,7 @@ using ForwardDiff, Zygote
     @test belief_mean(SampleBelief([Float32(1), Float32(2)])) == [1.5f0]
     # and the values still match the Float64 oracle
     @test belief_mean(SampleBelief(X32)) ≈ vec(mean(Float64.(X32); dims = 2)) rtol = 1e-6
-    # weights given as a tuple, as AdversarialFactors passes them (regression of I21: the matrix
+    # weights given as a tuple, as AdversarialFactors passes them (regression of GH-21: the matrix
     # product refused a tuple), and vectors of vectors against the matrix form
     pts2 = [[1.0, 0.0], [3.0, 2.0]]
     @test belief_mean(SampleBelief(pts2, (0.25, 0.75))) ≈ [2.5, 1.5]

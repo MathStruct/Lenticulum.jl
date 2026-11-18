@@ -7,7 +7,7 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-18, after the review of PR #23 (the Mistral cloud agent's I15–I22 commits): all accepted, one amendment (LP-055). I23 and I24 were rebased onto `9d94e548`, which the agent had pushed after them, and committed on `dev-danielb` and pushed.
+**Last updated:** 2026-11-18, after the review of PR #23 (the Mistral cloud agent's GH-15–GH-22 commits): all accepted, one amendment (LP-055). I23 and I24 were rebased onto `9d94e548`, which the agent had pushed after them, and committed on `dev-danielb` and pushed.
 
 ## Branches and worktrees
 
@@ -28,29 +28,29 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 ## Done last
 
 - **Review of PR #23** ([[LP-055 Findings of the review of PR 23]]): the cloud agent's three commits
-  (`74274922`, `407a4196`, `9d94e548`) were read and accepted. Amendment: the I21 `SampleBelief`
+  (`74274922`, `407a4196`, `9d94e548`) were read and accepted. Amendment: the GH-21 `SampleBelief`
   moments refused tuple weights (AdversarialFactors LP-018.9 errored); they are now collected, and
-  points are stacked with `reshape`/`reduce(hcat, …)`. The I15 test also checks the fixed point for root
-  `:data`. Device tests (Mycelium) pass. I20 sends device and view inputs to the per-replica
+  points are stacked with `reshape`/`reduce(hcat, …)`. The GH-15 test also checks the fixed point for root
+  `:data`. Device tests (Mycelium) pass. GH-20 sends device and view inputs to the per-replica
   path too; this has not been benchmarked.
-- **GitHub issues I15–I22** (a Mistral cloud agent, commits `74274922` and `407a4196` on `dev-danielb`; these ids are GitHub issue numbers, not the backlog rows of the same names): fixes for the eight open GitHub issues, each with a
-  regression test and a note beside its source file. **I15** the tree shortcut of `propagate!` now
+- **GitHub issues GH-15–GH-22** (a Mistral cloud agent, commits `74274922` and `407a4196` on `dev-danielb`; GH-n is GitHub issue #n; the backlog's I rows are a separate series): fixes for the eight open GitHub issues, each with a
+  regression test and a note beside its source file. **GH-15** the tree shortcut of `propagate!` now
   requires `!message_uses_cavity(factor)` (new trait, declared by `NonlinearFactor`), so a nonlinear
   tree is iterated and its residual checked instead of reporting a one-sweep fixed point.
-  **I16** the fixed noise is part of `m_step_signature`, so tied factors with different fixed noise
-  are refused instead of pooled into a wrong M-step. **I17** rank tolerances use the
+  **GH-16** the fixed noise is part of `m_step_signature`, so tied factors with different fixed noise
+  are refused instead of pooled into a wrong M-step. **GH-17** rank tolerances use the
   decomposition's element type (`_eps_eltype`) in `_rank_deficient_svd`, `_range_svd`,
   `_projected_rank` and the hard-constraint rank test; Float32 maps are no longer misclassified.
-  **I18** damping decides the improper flag from the combined support (`_damped_improper`), on CPU
-  and on device; complementary nullspaces damp to a proper belief. **I19** the device diagonal
-  moment methods go through `_improper_check` like the CPU ones. **I20** the batched per-replica
+  **GH-18** damping decides the improper flag from the combined support (`_damped_improper`), on CPU
+  and on device; complementary nullspaces damp to a proper belief. **GH-19** the device diagonal
+  moment methods go through `_improper_check` like the CPU ones. **GH-20** the batched per-replica
   constraint kernel runs only on plain host float arrays; dual coefficients take the per-replica
-  path. **I21** `SampleBelief` moments are pure reductions (cat/matmul/broadcast), differentiable
-  under ForwardDiff and Zygote, scalar-type preserving. **I22** `_has_m_step(f, ps, frozen)` queries
+  path. **GH-21** `SampleBelief` moments are pure reductions (cat/matmul/broadcast), differentiable
+  under ForwardDiff and Zygote, scalar-type preserving. **GH-22** `_has_m_step(f, ps, frozen)` queries
   `which` with the concrete call-site arguments, so `m_step` methods specialised on the parameter
-  type are seen. Tests added: `sample_moments.jl` (I21), Mycelium `runtests.jl` + `device_improper.jl`
-  (I18/I19), `m_step_detection.jl` (I22), Lenticulum `i15_nonlinear_tree.jl`, `p29_rank_tolerance.jl`
-  (I17), `plate_block_duals.jl` (I20), `em.jl` (I16). Not run here (no Julia): the suites of
+  type are seen. Tests added: `sample_moments.jl` (GH-21), Mycelium `runtests.jl` + `device_improper.jl`
+  (GH-18/GH-19), `m_step_detection.jl` (GH-22), Lenticulum `gh15_nonlinear_tree.jl`, `p29_rank_tolerance.jl`
+  (GH-17), `plate_block_duals.jl` (GH-20), `em.jl` (GH-16). Not run here (no Julia): the suites of
   LenticulumCore, Mycelium, MyceliumLearning, Lenticulum and the weekly packages, plus the device
   tests. Follow-up noted in `passing.md`: `DEQFactor`/`DiffusionFactor` also read the prior in
   their messages and should declare `message_uses_cavity` when those packages are reviewed.

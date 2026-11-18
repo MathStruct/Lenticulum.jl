@@ -79,7 +79,7 @@ the eigenvalue floor included). Learned noise is allowed in a cluster node, a no
 - No MAP M-step for noise priors (Wishart, log-normal); no M-step for `NonlinearFactor`,
   `LikelihoodFactor` (not learnable) or the other families.
 
-## Tied factors and the fixed noise (I16, 2026-11-17)
+## Tied factors and the fixed noise (GH-16, 2026-11-17)
 
 `m_step_signature` listed only the output channel and its fixed coefficient, so tied factors with
 different fixed noise pooled their `MomentStats` and one unweighted regression served both — a
@@ -88,5 +88,5 @@ pooled objective is a different weighted least squares (the repro moved the opti
 to `5` and raised the free energy). The fixed noise is now part of the signature of the constraint
 factors and of a `GaussianFactor` whose noise is not learned (a learned noise is a parameter, tied
 through `ps` already), and an incompatible tie is refused with the existing "differ in fixed
-structure" error before pooling. Tests: Lenticulum `test/em.jl`, "I16" — the heterogeneous-noise
+structure" error before pooling. Tests: Lenticulum `test/em.jl`, "GH-16" — the heterogeneous-noise
 tie throws, and a same-noise tie pools to the joint optimum.

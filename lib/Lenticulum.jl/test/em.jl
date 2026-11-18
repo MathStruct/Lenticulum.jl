@@ -252,7 +252,7 @@ end
     @test_throws ArgumentError cluster_form(fw, LuxCore.initialparameters(Xoshiro(1), fw))
 end
 
-@testset "EM: tied factors with different fixed noise are not pooled (I16)" begin
+@testset "EM: tied factors with different fixed noise are not pooled (GH-16)" begin
     # A common noise precision cancels within one factor's M-step, but not across tied factors:
     # pooling their statistics unweighted and solving one regression moved c from the optimum
     # 10/101 to 5 and raised the free energy. The fixed noise is now part of `m_step_signature`,

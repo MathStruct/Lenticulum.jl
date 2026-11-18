@@ -1,4 +1,4 @@
-# I22: whether a factor has an `m_step` is asked with the concrete arguments of the call site, so a
+# GH-22: whether a factor has an `m_step` is asked with the concrete arguments of the call site, so a
 # method specialised on the parameter type (a typed NamedTuple, say) is seen, where asking `which`
 # with `Any` for the parameter and freeze arguments hid it. Oracles: dispatch itself.
 using Test
@@ -12,7 +12,7 @@ struct OtherParamsFactor end
 MyceliumLearning.m_step(::TypedParamFactor, ::MomentStats, ps::NamedTuple{(:a,)}, frozen) = ps
 MyceliumLearning.m_step(::OtherParamsFactor, ::MomentStats, ps::NamedTuple{(:b,)}, frozen) = ps
 
-@testset "I22: m_step detection uses the concrete call-site arguments" begin
+@testset "GH-22: m_step detection uses the concrete call-site arguments" begin
     st = MomentStats([:x], [1], 1)
     @test m_step(TypedParamFactor(), st, (a = 1,), ()) == (a = 1,)
     @test _has_m_step(TypedParamFactor(), (a = 1,), ())                 # specialised on the parameter type

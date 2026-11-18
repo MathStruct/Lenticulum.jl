@@ -412,7 +412,7 @@ end
 
 Mycelium.uses_cavity(::NonlinearFactor) = true
 # its backward message linearises at the target's cavity, so one tree sweep need not be a fixed
-# point: such trees are iterated and their residual checked (I15)
+# point: such trees are iterated and their residual checked (GH-15)
 Mycelium.message_uses_cavity(::NonlinearFactor) = true
 
 """

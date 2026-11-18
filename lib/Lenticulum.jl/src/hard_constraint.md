@@ -275,7 +275,7 @@ direction as exact. The free energy now decides positive definiteness by the sam
 indefinite, as $Q$'s null eigenvalues in `Float64` are $\pm 10^{-17}$; the oracle rebuilds the noise
 from its split.
 
-## Rank tolerance of the free-energy check (I17, 2026-11-17)
+## Rank tolerance of the free-energy check (GH-17, 2026-11-17)
 
 The full-row-rank test of the free energy used `eps(Float64)` on the singular values of `G`; it now
 uses `_eps_eltype(eltype(S0))`, so a Float32 coefficient matrix is judged at Float32 rounding.

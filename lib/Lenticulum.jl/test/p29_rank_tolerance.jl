@@ -154,7 +154,7 @@ end
     @test !all(isfinite, Lenticulum._jacobian(g, [0.3]))
 end
 
-@testset "I17: the rank tolerance follows the element type (Float32 maps)" begin
+@testset "GH-17: the rank tolerance follows the element type (Float32 maps)" begin
     # a Float32 map that is singular up to Float32 rounding: eps(Float64) would call it full rank
     A32 = Float32[1 2; 2 4]
     s32 = svdvals(A32)

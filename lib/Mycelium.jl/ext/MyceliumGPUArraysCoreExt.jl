@@ -58,7 +58,7 @@ function M._damp(a::GaussianBelief{<:AbstractGPUArray,<:Diagonal{T,<:AbstractGPU
     w = convert(T, α)
     η = w .* a.η .+ (one(w) - w) .* b.η
     d = w .* a.Λ.diag .+ (one(w) - w) .* b.Λ.diag
-    # the same combined-support properness rule as on the CPU (I18); `_numerical_rank` of a
+    # the same combined-support properness rule as on the CPU (GH-18); `_numerical_rank` of a
     # Diagonal reads its entries with reductions only, so it stays device-safe
     return GaussianBelief(η, Diagonal(d), M._damped_improper(a, b, Diagonal(d)))
 end

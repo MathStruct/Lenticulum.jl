@@ -206,7 +206,7 @@ end
 # sites damp to a proper belief only when their numerical nullspaces are genuinely complementary:
 # each side singular (the flag's claim, visible in the spectrum) and the sum full rank. Two
 # coincident nullspaces, a flag contradicted by a full-rank side, or a singular sum stay improper
-# (I18).
+# (GH-18).
 function _damped_improper(a::GaussianBelief, b::GaussianBelief, Λ)
     (a.improper && b.improper) || return false
     n = size(Λ, 1)
@@ -215,7 +215,7 @@ end
 _rank_deficient(M, n) = _numerical_rank(M) < n
 # The rank of a precision, on its values (`stop_gradient`: a rank has no derivative), with the
 # tolerance of the decomposition's element type — a Float32 precision carries Float32 rounding
-# (I17); duals and anything else keep the Float64 default.
+# (GH-17); duals and anything else keep the Float64 default.
 function _numerical_rank(M::AbstractMatrix)
     s = LinearAlgebra.svdvals(LenticulumCore.stop_gradient(M))
     isempty(s) && return 0
