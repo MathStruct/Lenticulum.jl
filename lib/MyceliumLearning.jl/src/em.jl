@@ -15,26 +15,32 @@
 # ---------------------------------------------------------------------------
 
 """
-    MomentStats
+    MomentStats{T}
 
 The moment statistics of one factor's continuous channels under a belief, per outcome `k` of the
 factor (one outcome without a switch): `n[k]` the mass, `m[:, k]` the sum of the means, `S[:, :, k]`
 the sum of the second moments ``\\mathbb E[x x^\\top]``, with `x` the channels `channels` (dimensions
 `dims`) stacked in that order. Sums over the assignments of a cluster node's belief, the tied
-nodes and the replicas of a plate. Read by [`m_step`](@ref).
+nodes and the replicas of a plate. The three-argument constructor defaults to Float64;
+`MomentStats{T}(channels, dims, K)` allocates in `T`. Read by [`m_step`](@ref).
 """
-struct MomentStats
+struct MomentStats{T}
     channels::Vector{Symbol}
     dims::Vector{Int}
-    n::Vector{Float64}
-    m::Matrix{Float64}
-    S::Array{Float64,3}
+    n::Vector{T}
+    m::Matrix{T}
+    S::Array{T,3}
 end
-MomentStats(chs, dims, K) = (d = sum(dims; init = 0); MomentStats(chs, dims, zeros(K), zeros(d, K), zeros(d, d, K)))
+MomentStats(chs, dims, K) = MomentStats{Float64}(chs, dims, K)
+MomentStats{T}(chs, dims, K) where {T} = (d = sum(dims; init = 0); MomentStats{T}(chs, dims, zeros(T, K), zeros(T, d, K), zeros(T, d, d, K)))
 
 function _add!(a::MomentStats, b::MomentStats)
     (a.channels == b.channels && a.dims == b.dims && length(a.n) == length(b.n)) || throw(ArgumentError(
         "em_step: tied factors with different channels or outcomes cannot pool their statistics"))
+    T = promote_type(eltype(a.n), eltype(b.n))
+    if eltype(a.n) !== T
+        a = MomentStats(a.channels, a.dims, T.(a.n), T.(a.m), T.(a.S))
+    end
     a.n .+= b.n; a.m .+= b.m; a.S .+= b.S
     return a
 end
@@ -60,12 +66,13 @@ function _moment_stats(c::ClusterFactor, i::Int, @nospecialize(F::ClusterForm), 
     K = size(F.C, 2)
     chs = collect(keys(F.A))
     dims = [size(getfield(F.A, ch), 2) for ch in chs]
-    st = MomentStats(chs, dims, K)
+    T = typeof(float(zero(promote_type(eltype(b.q), eltype(b.M)))))
+    st = MomentStats{T}(chs, dims, K)
     kcol = _switch_columns(c, F, w, b.assignments)
     offs = cumsum([0; dims])
     # per class: the covariance of x (free channels only; points have none)
     Σx = map(b.Σ) do Σ
-        X = zeros(sum(dims; init = 0), sum(dims; init = 0))
+        X = zeros(T, sum(dims; init = 0), sum(dims; init = 0))
         for (p, cp) in enumerate(chs), (r, cr) in enumerate(chs)
             vp, vr = w[cp], w[cr]
             (haskey(b.offset, vp) && haskey(b.offset, vr)) || continue
@@ -76,7 +83,7 @@ function _moment_stats(c::ClusterFactor, i::Int, @nospecialize(F::ClusterForm), 
     for a in eachindex(b.q)
         qa = b.q[a]
         qa > 0 || continue
-        μ = isempty(chs) ? Float64[] : reduce(vcat, [haskey(b.points, w[ch]) ? b.points[w[ch]] : b.M[b.offset[w[ch]], a] for ch in chs])
+        μ = isempty(chs) ? T[] : reduce(vcat, [haskey(b.points, w[ch]) ? b.points[w[ch]] : b.M[b.offset[w[ch]], a] for ch in chs])
         k = kcol[a]
         st.n[k] += qa
         st.m[:, k] .+= qa .* μ
@@ -93,20 +100,21 @@ function _moment_stats(c::ClusterFactor, i::Int, @nospecialize(F::ClusterForm), 
     K = size(F.C, 2)
     chs = collect(keys(F.A))
     dims = [size(getfield(F.A, ch), 2) for ch in chs]
-    st = MomentStats(chs, dims, K)
+    T = typeof(float(zero(promote_type(eltype(B.q), eltype(B.M)))))
+    st = MomentStats{T}(chs, dims, K)
     nA, N = size(B.q)
     kk = repeat(_switch_columns(c, F, w, B.assignments), N)          # column (r - 1)·nA + a
     q = vec(B.q)
     if isempty(chs)
         for k in 1:K
-            st.n[k] = sum(q[kk .== k]; init = 0.0)
+            st.n[k] = sum(q[kk .== k]; init = zero(T))
         end
         return st
     end
     X = reduce(vcat, [haskey(B.points, w[ch]) ? repeat(B.points[w[ch]]; inner = (1, nA)) : B.M[B.offset[w[ch]], :] for ch in chs])
     offs = cumsum([0; dims])
     Σx = map(B.Σ) do Σ
-        S = zeros(sum(dims), sum(dims))
+        S = zeros(T, sum(dims), sum(dims))
         for (p, cp) in enumerate(chs), (r, cr) in enumerate(chs)
             (haskey(B.offset, w[cp]) && haskey(B.offset, w[cr])) || continue
             S[(offs[p] + 1):offs[p + 1], (offs[r] + 1):offs[r + 1]] .= Σ[B.offset[w[cp]], B.offset[w[cr]]]
@@ -118,11 +126,11 @@ function _moment_stats(c::ClusterFactor, i::Int, @nospecialize(F::ClusterForm), 
         idx = findall(==(k), kk)
         wq = q[idx]
         Xk = X[:, idx]
-        st.n[k] = sum(wq; init = 0.0)
+        st.n[k] = sum(wq; init = zero(T))
         st.m[:, k] .= Xk * wq
         st.S[:, :, k] .= (Xk .* wq') * Xk'
         for κ in eachindex(Σx)
-            st.S[:, :, k] .+= sum(wq[cls[idx] .== κ]; init = 0.0) .* Σx[κ]
+            st.S[:, :, k] .+= sum(wq[cls[idx] .== κ]; init = zero(T)) .* Σx[κ]
         end
     end
     return st
@@ -242,7 +250,7 @@ function _push_stats!(acc, key, f, stats, frozen)
         isequal(m_step_signature(acc[key][1]), m_step_signature(f)) || throw(ArgumentError(
             "em_step: tied factors under :$(key[end] === nothing ? key[1] : key[end]) differ in fixed structure " *
             "($(m_step_signature(acc[key][1])) against $(m_step_signature(f))); one M-step cannot serve both"))
-        _add!(acc[key][2], stats)
+        acc[key] = (acc[key][1], _add!(acc[key][2], stats), acc[key][3])
     else
         acc[key] = (f, stats, frozen)
     end
@@ -257,6 +265,14 @@ function _try_estep(estep, p)
         err isa Union{ArgumentError,DomainError,LinearAlgebra.PosDefException,LinearAlgebra.SingularException} || rethrow()
         return Inf
     end
+end
+
+# A history starts at its first energy's type and widens if a later E-step is wider.
+function _push_energy!(Fs, F)
+    T = promote_type(eltype(Fs), typeof(F))
+    out = T === eltype(Fs) ? Fs : T[Fs...]
+    push!(out, F)
+    return out
 end
 
 """
@@ -290,11 +306,11 @@ function fit_em(g::FactorGraph, ps, st; schedule, sweeps::Int = 2, iters::Int = 
     lkeys = Tuple(filter(k -> haskey(ps, k), unique(fn.params for fn in g.factors if LenticulumCore.islearnable(fn.factor) && fn.freeze !== :all)))
     learned(p) = NamedTuple{lkeys}(map(k -> getfield(p, k), lkeys))
     flat(p) = LenticulumCore._flatten_active(learned(p))
-    Fs = Float64[]
+    Fs = Union{}[]
     converged = false
     for _ in 1:iters
         F = estep(ps)
-        push!(Fs, F)
+        Fs = _push_energy!(Fs, F)
         # |ΔF| < tol: with approximate beliefs F can rise, and a rise is not convergence (review of
         # 2026-11-05, Mistral)
         length(Fs) >= 2 && abs(Fs[end - 1] - F) < tol && (converged = true; break)
@@ -312,7 +328,7 @@ function fit_em(g::FactorGraph, ps, st; schedule, sweeps::Int = 2, iters::Int = 
             ps = p2
             continue
         end
-        α = min(-LinearAlgebra.norm(r) / nv, -1.0)
+        α = min(-LinearAlgebra.norm(r) / nv, -one(nv))
         # plain arrays, not views of the flat vector: a new parameter type recompiles inference
         pext = merge(ps, _dense(LenticulumCore._unflatten(θ0 .- 2α .* r .+ α^2 .* v, learned(ps))))
         Fext = _try_estep(estep, pext)
@@ -323,6 +339,6 @@ function fit_em(g::FactorGraph, ps, st; schedule, sweeps::Int = 2, iters::Int = 
         end
         ps = p2                                   # the extrapolation went uphill: plain EM
     end
-    converged || push!(Fs, estep(ps))             # the returned store and `Fs[end]` belong to `ps`
+    converged || (Fs = _push_energy!(Fs, estep(ps)))             # the returned store and `Fs[end]` belong to `ps`
     return ps, Fs, s
 end

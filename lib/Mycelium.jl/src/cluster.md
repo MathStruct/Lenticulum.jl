@@ -542,3 +542,40 @@ cluster nodes with an observed switch that differs between replicas"): a batched
 54.76 against the exact 71.59, and the statistics' masses [6, 0] against [3, 3]. The observed state
 is now part of the shape, so such replicas go replica by replica. The defect dates from the batched
 path (2026-11-04); the examples observe no discrete variable, so their results are unaffected.
+
+## Element type
+
+P32 selects a joint's floating type by promoting its forms and incoming messages, starting
+from the neutral type `Bool`, then taking `typeof(float(zero(T)))` (also valid for ForwardDiff
+duals). No data or parameters are narrowed. Integer-only and empty inputs retain the Float64
+fallback. Prior and table forms allocate their empty buffers and constants in their inputs'
+types. Standalone tables select neutral-message constants from the promotion of the table
+and all incoming messages before doing arithmetic, without converting the table. This keeps
+an integer table with Float32 categorical inputs in Float32, even with an earlier missing
+channel; integer-only inputs still float to Float64. An all-impossible table slice returns its typed negative-infinite maximum from
+`_lse`, so other possible states do not acquire Float64 weights. Normalisers use `LenticulumCore._log2π(T)`; entropy floors use the primal floating type
+and exact energy zeros are `false`. Moment and residual buffers follow their inputs.
+
+`test/element_type.jl` checks paired Float32/Float64 clusters against discrete enumeration,
+mixed incoming precision, dual joints and messages, marginals and energies.
+The shared stacked batch implementation in `cluster_batch.jl` remains Float64-only:
+`_plain(ps)` rejects Float32 parameter trees, selecting the generic per-replica path.
+Empty trees retain their previous Float64 batch eligibility, but an additional joint-type
+check requires the forms and incoming messages to promote to Float64 for every replica.
+Thus fixed Float32 priors and tables also take the per-replica path.
+**Thresholds** (review of P32, [[LP-061 Findings of the review of P32]]). Codex's version kept the
+Float64 values of the flat and range tolerances (`_FLAT_RTOL = 1e-10`, `sqrt(eps())`). In Float32 a
+singular joint keeps rounding eigenvalues of a few `eps(Float32)·λmax` (5e-7·λmax in the review's
+rank-2 regime joint), so the flat direction was missed: the message to the switch was off by 2e-2,
+a tilt along the null space was accepted, and a flat graph was refused as divergent. The thresholds
+now follow the precision of the joint's numbers (`_primal_eps(T)`, a dual's value type):
+`_flat_rtol(T) = 1e-10·(eps(T)/eps(Float64))^(5/8)`, exactly `1e-10` for Float64 (Float64 results
+unchanged bit for bit) and ≈ 2.9e-5 for Float32; the indefinite and range tests use `sqrt(eps(T))`.
+The power 5/8 is a choice (1e-10 ≈ eps(Float64)^(5/8)), not derived. Consequence: in Float32 a joint
+direction whose eigenvalue is below ≈ 2.9e-5 of the largest is flat. A Float32 cluster of a variable
+with prior variances 1 and 1e-6 (condition ≈ 1e6, about 8·eps(Float32)) is refused as divergent,
+where before P32 the joint was computed in Float64 and ran
+(`~/.cache/lenticulum/p32/nearsing.jl`; variances 1 and 1e-4 give the closed form to 5e-8). Such a
+model needs Float64. Tests: `lib/Lenticulum.jl/test/cluster_flat.jl`, "Flat directions in Float32".
+Differentiation through mutated cluster messages remains outside the
+existing Zygote rule's coverage. Device coverage is limited to the existing device suite.

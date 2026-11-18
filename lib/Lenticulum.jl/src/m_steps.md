@@ -100,9 +100,11 @@ hyperparameters are cast at use.
 
 Regression workspaces and parameter copies follow promotion of parameters and statistics, and the
 outcome-mass floor is cast at use. The solve itself preserves Float32, as checked against an
-independent regression oracle in `p31_element_type.jl`. End-to-end EM remains Float64 because
-`MyceliumLearning.MomentStats` has Float64 fields (`lib/MyceliumLearning.jl/src/em.jl:29–31`); P31
-records this as broken rather than converting its output back to Float32.
+independent regression oracle in `p31_element_type.jl`. End-to-end EM was Float64 until P32 made
+`MyceliumLearning.MomentStats{T}` generic; an EM step on Float32 inputs now returns Float32 parameters
+(`p31_element_type.jl`). Accelerated EM (`accelerate = true`) still widens through
+`LenticulumCore/src/parameter_tree.jl` (an empty flattened subtree is `Float64[]`; MyceliumLearning
+`element_type.jl`, `@test_broken`).
 
 Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
 for every mixed precision, derivative, or device configuration.

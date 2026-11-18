@@ -269,3 +269,13 @@ that `combine(site, mix)` no longer throws keeps passing.
 `combine(DiracBelief(k), b::CategoricalBelief)` returned the point whatever `b` said. A point of
 probability zero under `b` is a contradiction (zero mass), so it now throws, as two different
 points do. Test: Mycelium `test/runtests.jl`.
+
+## Element type
+
+P32 makes mixture-product weights follow promotion of the component weights and overlaps.
+A single belief contributes the neutral exact log-weight `false`, replacing `0.0`.
+The weight buffer starts without a fixed numeric type and widens by promotion as each pair's
+overlap is read. No weights or parameters are narrowed; Float64 arithmetic order is unchanged.
+Lenticulum's `test/p31_element_type.jl` covers a Float32 switching likelihood combined with a
+Float32 Gaussian prior. This does not change sample reweighting, residual comparisons or the
+rules for disjoint supports.

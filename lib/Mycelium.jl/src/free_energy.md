@@ -473,7 +473,7 @@ batched row, every variable in a row term); the Float32 total agrees with the Fl
 `rtol = 1e-5`; also the review's cases (a zero-only graph, a mixed-type mixture) and the derivatives
 of the Gaussian entropy and log-partition in the precision under ForwardDiff and Zygote.
 
-Not covered: cluster nodes (`cluster.jl` computes in Float64 by design, `_numtype`), overlay and
+Cluster nodes computed in Float64 until P32 (`cluster.md`, "Element type"). Not covered: overlay and
 mixture energies, the gradient drivers of `MyceliumLearning`. And Lenticulum's linear-Gaussian
 factors sent Float64 messages for Float32 parameters; P30 fixed that (Lenticulum `gaussian.md`,
 "Element type"). P30 also found that `variable_free_energy` negated a point's entropy `false` to the

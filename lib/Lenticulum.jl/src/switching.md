@@ -394,9 +394,9 @@ The fixed output coefficient, frozen plate points, mixture expansion storage, an
 preserve their scalar types. Gaussian normalisers use `LenticulumCore._log2π`; absent outcome
 messages use exact neutral zeros, while an observed outcome uses the noise type for its log
 indicator. Cluster forms and the overlap/partial-sum utilities preserve matrix element types.
-Mycelium cluster inference still promotes its joint with Float64 (`cluster.jl`, `_numtype` and
-`_joint_numtype`); Gaussian mixture products also widen their weights in `gaussian.jl`, `_overlap`.
-Those upstream paths are outside this change.
+Mycelium cluster inference promoted its joint with Float64 (`cluster.jl`, `_numtype` and
+`_joint_numtype`), and Gaussian mixture products widened their weights (`gaussian.jl`, `_overlap`);
+P32 removed both (Mycelium `cluster.md`, `gaussian.md`), so a regime graph is Float32 end to end.
 
 Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
 for every mixed precision, derivative, or device configuration.

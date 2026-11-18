@@ -173,3 +173,42 @@ fl_close(a, b; atol) = typeof(a) == typeof(b) &&
     er = try; factor_message(cs[3], :z, nothing, ins2[3], nothing, p, NamedTuple()); nothing; catch e; e; end
     @test eb isa ArgumentError && er isa ArgumentError && occursin("flat direction", eb.msg)
 end
+
+@testset "Flat directions in Float32 (P32 review)" begin
+    # P32 made cluster joints compute in Float32 for Float32 inputs; with Float64's flat threshold
+    # (1e-10) Float32 rounding read as a definite direction: the graph below was refused as divergent,
+    # the regime message was off by 2 % (31 % with W scaled by 1e3), and a tilt along the flat
+    # direction was not refused. The thresholds now scale with eps(T) (`cluster.jl`, `_flat_rtol`).
+    T = Float32
+    b = GraphBuilder()
+    variable!(b, :z, 1); variable!(b, :u, 1); variable!(b, :w, 1); variable!(b, :k, 2)
+    factor!(b, :data, DataFactor(:z, T[0.8])); connect!(b, :data, :z, :z; direction = Emitting())
+    factor!(b, :lc, LinearConstraintFactor((z = 1, u = 1, w = 1), 1; noise = T(0.3)))
+    connect!(b, :lc, :z, :z); connect!(b, :lc, :u, :u); connect!(b, :lc, :w, :w)
+    factor!(b, :sw, SwitchingConstraintFactor((u = 1, w = 1), 2, 1; noise = T(0.2)))
+    connect!(b, :sw, :u, :u); connect!(b, :sw, :w, :w); connect!(b, :sw, :k, :k)
+    g = cluster(build(b), :c, [:lc, :sw])
+    ps = cluster_parameters(g, :c, (data = NamedTuple(), lc = (A = (z = ones(T, 1, 1), u = -ones(T, 1, 1), w = ones(T, 1, 1)), c = T[0]),
+                                    sw = (A = (u = ones(T, 1, 1), w = -ones(T, 1, 1)), b = T[-1.0 1.5], logw = T.(log.([0.3, 0.7])))))
+    _, _, _, s = infer!(g, tree_schedule(g), ps, NamedTuple())
+    F = first(scalar_free_energy(s, g, ps, NamedTuple()))
+    @test F isa T
+    @test F ≈ -fl_lse([log(w) - (0.8 - bk)^2 / 1.0 - log(2π * 0.5) / 2 for (w, bk) in zip([0.3, 0.7], [-1.0, 1.5])]) + log(2) / 2 rtol = 1e-5
+    mu = cluster_marginal(s, g, :c, :u, ps)
+    @test all(c -> c isa GaussianBelief && !isproper(c) && norm(c.Λ) < 1e-4, mu isa MixtureBelief ? mu.components : [mu])
+
+    f = RegimeFactor((z = 2, x = 3), 2, 2; noise = [Matrix{T}(0.1I, 2, 2), T[0.3 0.1; 0.1 0.2]])
+    z = DiracBelief(T[0.3, 0.2])
+    for sc in (1, 100, 1000)
+        W = [T.(sc .* [1.0 0.3 -0.2; 0.0 1.0 0.5]), T.(sc .* [0.5 -1.0 0.0; 1.0 0.2 0.8])]
+        p = (A = (z = cat(Matrix{T}(I, 2, 2), Matrix{T}(I, 2, 2); dims = 3), x = cat(-W[1], -W[2]; dims = 3)),
+             b = T[0.0 1.0; 0.5 -1.0], logw = T.(log.([0.4, 0.6])))
+        mk, _ = factor_message(f, :k, nothing, (z = z,), nothing, p, NamedTuple())
+        lk = [log(w) - logdet(Float64.(Wk) * Float64.(Wk')) / 2 for (w, Wk) in zip([0.4, 0.6], W)]
+        @test eltype(mk.logp) === T
+        @test exp.(mk.logp) ≈ exp.(lk .- fl_lse(lk)) atol = 1e-5
+        # the tilt scaled with W: the range test is relative to the joint's linear terms (∝ W)
+        tilt = GaussianBelief(T(sc) .* T[1.0, -2.0, 0.5], zeros(T, 3, 3), true)
+        @test_throws ArgumentError factor_message(f, :k, nothing, (z = z, x = tilt), nothing, p, NamedTuple())
+    end
+end

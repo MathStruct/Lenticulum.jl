@@ -298,3 +298,15 @@ a Float32 precision is judged at `eps(Float32)`. The device `_damp` (diagonal pr
 the same rule through reductions only. Tests: `test/runtests.jl`, "GH-18" (complementary, coincident,
 contradicted flags, endpoints, dense and diagonal precisions, Float32), and
 `test/device_improper.jl` under `LENTICULUM_DEVICE_TESTS=true`.
+
+## Element type
+
+P32 removes Float64 normalisers from Gaussian log densities and overlap weights, including
+improper/improper and Gaussian/hard-extended products. Each `log(2π)` is evaluated with
+`LenticulumCore._log2π(T)` in the promoted computation's type; an absent reference shift is
+a typed zero. Inputs are not narrowed or converted to a fixed precision: mixed inputs promote.
+The Float64 arithmetic order is retained. `test/element_type.jl` checks proper overlaps against
+their closed form and exercises log densities, improper products and a hard point.
+Comparison tolerances, rank decisions and mixture reduction policy are unchanged; these are
+not energy or message storage types. Extended/extended algebra belongs to LenticulumCore and
+is not changed here.

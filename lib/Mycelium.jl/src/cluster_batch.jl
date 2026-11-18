@@ -54,10 +54,13 @@ function _input_shape(c::ClusterFactor, msgs, skip)
 end
 # The stacked joint is built in `Float64`; parameters of another number type (dual numbers under
 # ForwardDiff, P24) go replica by replica, whose joint is generic.
-_plain(@nospecialize(ps)) = _numtype(ps) === Float64
+_plain(@nospecialize(ps)) = typeof(float(zero(_numtype(ps)))) === Float64
 function _cluster_batchable(cs, msgs, skip, @nospecialize(ps))
     length(cs) >= 2 && _plain(ps) || return false
     c1, k1 = cs[1], _input_shape(cs[1], msgs[1], skip)
+    # Empty parameter trees are neutral: fixed forms and incoming data determine their type.
+    forms = [cluster_form(f, _subtree(ps, c1.keys[i])) for (i, f) in enumerate(c1.factors)]
+    all(m -> _joint_numtype(c1, forms, m, skip) === Float64, msgs) || return false
     return all(i -> _same_cluster(cs[i], c1) && isequal(_input_shape(cs[i], msgs[i], skip), k1), 2:length(cs))
 end
 

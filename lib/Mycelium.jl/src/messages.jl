@@ -252,7 +252,7 @@ _improper_first(c::LenticulumCore.GaussianBelief, d::LenticulumCore.GaussianBeli
     !LenticulumCore.isproper(c) && LenticulumCore.isproper(d)
 
 _parts(m::LenticulumCore.MixtureBelief) = (m.components, m.logw)
-_parts(b) = ([b], [0.0])
+_parts(b) = ([b], [false])
 
 # Re-centring drops ηᵀref − refᵀΛref/2, a constant of the site. It cancels in the weights only
 # when every pair shares it, i.e. when the other side is a single improper Gaussian and
@@ -269,7 +269,7 @@ end
 function _mixture_product(a, b)
     (ca, la), (cb, lb) = _parts(a), _parts(b)
     ra, rb = _reference(ca, cb), _reference(cb, ca)
-    comps, logw = Any[], Float64[]
+    comps, logw = Any[], Union{}[]
     for (i, c) in enumerate(ca), (j, d) in enumerate(cb)
         hasmethod(combine_with_overlap, Tuple{typeof(c),typeof(d)}) || throw(ArgumentError(
             "no product rule for mixture components of types $(typeof(c)) and $(typeof(d))"))
@@ -277,7 +277,11 @@ function _mixture_product(a, b)
         # put an improper site second whichever side of the product it came from (LP-019).
         cd, logZ = _improper_first(c, d) ? _pair_overlap(d, c, rb) : _pair_overlap(c, d, ra)
         logZ == -Inf && continue                              # disjoint: this pair contributes nothing
-        push!(comps, cd); push!(logw, la[i] + lb[j] + logZ)
+        push!(comps, cd)
+        w = la[i] + lb[j] + logZ
+        T = promote_type(eltype(logw), typeof(w))
+        T === eltype(logw) || (logw = T[logw...])
+        push!(logw, w)
     end
     isempty(comps) && throw(ArgumentError("contradictory beliefs: every component pair has disjoint support"))
     # Subtract the maximum before adding the correction: at |log w| ~ 1e16, m + log Σ… rounds

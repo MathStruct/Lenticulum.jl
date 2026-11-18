@@ -132,3 +132,30 @@ its M-step used. Detection now queries with the concrete parameter tree and free
 (`_has_m_step(f, ps, frozen)`), which is what `m_step` itself will dispatch on. Tests:
 MyceliumLearning `test/m_step_detection.jl` — a typed-parameter extension is detected for its own
 parameter type and not for another, the plain fallback is not.
+
+## Element type
+
+P32 makes `MomentStats{T}` store masses, means and second moments in `T`.
+`MomentStats(channels, dims, K)` retains its Float64 default; the explicit
+`MomentStats{T}(channels, dims, K)` constructor chooses storage. Collectors select the
+floating promotion of belief means and weights, including empty moment buffers and covariances.
+No data or parameters are narrowed. `_add!(a, b)` mutates and returns `a` when it can
+represent the promoted type; otherwise it returns a promoted copy. Callers must retain the
+return value, as `_push_stats!` now does. Existing `::MomentStats` M-step methods accept all
+parameterisations.
+
+The free-energy history starts with the first energy's type and widens by promotion if
+necessary. SQUAREM's bound uses `one(nv)` instead of a Float64 constant.
+`test/element_type.jl` checks collected Float32 statistics and mixed pooling against an
+exactly representable Float64 reference; Lenticulum's `test/p31_element_type.jl` checks a real
+Float32 EM update and history against a weighted-regression oracle.
+The shared stacked cluster beliefs remain Float64; Float32 uses per-replica collection.
+These changes do not extend the supported differentiation or device paths of EM.
+
+A remaining limit belongs to LenticulumCore: `_flatten_active_tree`
+(`LenticulumCore.jl/src/parameter_tree.jl:70`) returns `Float64[]` for an empty subtree.
+When a learnable cluster also holds a fixed factor with empty parameters, SQUAREM's flattened
+vector therefore widens to Float64, and so can its extrapolated parameters and history.
+`test/element_type.jl` reproduces this with an observed normal and a fixed prior; the parameter
+and history checks are `@test_broken`. Plain EM does not flatten parameters.
+Core is outside P32's allowed edit scope and is unchanged.

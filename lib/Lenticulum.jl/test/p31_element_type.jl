@@ -10,11 +10,11 @@ covof(b::DiracBelief) = zeros(eltype(b.value), length(b.value), length(b.value))
 covof(b::MixtureBelief) = belief_cov(moment_match(b))
 covof(b) = belief_cov(b)
 
-# Regime's inference goes through cluster.jl:574,582 (promote_type(Float64,...)).
-# MyceliumLearning/em.jl:29–31 stores all MomentStats in Float64.
+# P32 fixed Regime inference through cluster.jl:574,582.
+# P32 fixed MyceliumLearning/em.jl MomentStats storage.
 function typecheck(ok, upstream = false)
     if upstream
-        @test_broken ok
+        @test ok
     else
         @test ok
     end
@@ -46,9 +46,9 @@ function energies(s, g, ps, st; upstream = false)
         end
     end
     for v in values(variable_corrections(s, g).parts)
-        # Cluster outputs cause the categorical variable's Float64 correction.
+        # P32 fixed the categorical variable's Float64 correction from cluster outputs.
         if upstream && !scalar(v)
-            @test_broken scalar(v) # cluster.jl:574,582
+            @test scalar(v) # P32 fixed cluster.jl:574,582
         else
             @test scalar(v)
         end
@@ -62,7 +62,7 @@ function runpair(make; upstream = false, plate = false, oracle = nothing)
     @test r32.converged; @test r64.converged
     for v in g32.variables
         b32, b64 = m32[v.name], m64[v.name]
-        # Only Regime outputs and cavities downstream of them are affected.
+        # P32 fixed Regime outputs and their downstream cavities.
         checkbelief(b32, Float32; upstream = upstream && !(b32 isa DiracBelief))
         if b32 isa CategoricalBelief
             @test probabilities(b32) ≈ probabilities(b64) rtol=1e-3 atol=1e-5
@@ -215,7 +215,7 @@ end
     end
     msg=first(Mycelium.factor_message(f,:x,nothing,(y=b.y,k=b.k),nothing,p,nt))
     post=Mycelium.combine(b.x,msg)
-    @test_broken eltype(post.logw)===Float32 # Mycelium/src/gaussian.jl:298 log(2π) in _overlap
+    @test eltype(post.logw)===Float32 # P32 fixed Mycelium/src/gaussian.jl:298 log(2π) in _overlap
     for c in post.components; checkbelief(c,Float32); end
     # Independent Gaussian conditioning per outcome, with a categorical input.
     S=0.4+0.7^2*0.8; residuals = 0.3 .- 0.7*0.2 .- vec(p64.b)
@@ -362,6 +362,10 @@ end
     out,Fs,s=fit_em(g,p,st;schedule=SequentialSchedule(all_tasks(g)),iters=1,tol=-Inf)
     out64,Fs64,_=fit_em(g64,p64,st64;schedule=SequentialSchedule(all_tasks(g64)),iters=1,tol=-Inf)
     @test length(Fs)==2
+    @test eltype(Fs) === Float32
+    for (_, stats, _) in values(moment_statistics(s,g,out,st))
+        @test stats isa MomentStats{Float32}
+    end
     @test !isempty(moment_statistics(s,g,out,st))
     @test out.f.b != p.f.b
     # Independent one-step EM for the two regressions with shared fixed noise.
@@ -375,7 +379,7 @@ end
         @test exp(out64.f.logw[k]) ≈ sum(R[:,k])/20 atol=1e-10
     end
     for a in (out.f.A.x,out.f.b,out.f.logw)
-        @test_broken eltype(a) === Float32 # MyceliumLearning/src/em.jl:29–31 MomentStats
+        @test eltype(a) === Float32 # P32 fixed MyceliumLearning/src/em.jl MomentStats
     end
     @test out.f.A.x ≈ out64.f.A.x rtol=1e-3 atol=1e-5
     @test out.f.b ≈ out64.f.b rtol=1e-3 atol=1e-5
@@ -397,3 +401,41 @@ end
 end
 end
 end # module
+
+# P32 review (LP-061, finding M3): Float32 EM on a clustered regime plate tracks Float64. The
+# reviewer's 12-point problem is degenerate (each regime fits its points exactly, a noise variance
+# collapses and F falls without bound, non-monotonically even in Float64); with 60 points the
+# Float32 and Float64 histories agree to about 1e-6 (7e-7 measured over 15 iterations).
+function p32_em_plate(T, N)
+    rng = Xoshiro(4)
+    Wt = [randn(rng, 3, 2) for _ in 1:3]
+    μt = [[0.0, 3.0, 0.0], [3.0, -2.0, 1.0], [-3.0, 0.0, 2.0]]
+    Z = reduce(hcat, [(k = mod1(i, 3); Wt[k] * randn(rng, 2) .+ μt[k] .+ 0.2 .* randn(rng, 3)) for i in 1:N])
+    b = GraphBuilder()
+    for i in 1:N
+        r(s) = replica_name(s, i)
+        variable!(b, r(:z), 3); variable!(b, r(:x), 2); variable!(b, r(:k), 3)
+        factor!(b, r(:d), DataFactor(:z, T.(Z[:, i]))); connect!(b, r(:d), :z, r(:z); direction = Emitting())
+        factor!(b, r(:pr), GaussianPrior(:x, zeros(T, 2), Matrix{T}(I, 2, 2)); params = :pr); connect!(b, r(:pr), :x, r(:x))
+        factor!(b, r(:reg), RegimeFactor((z = 3, x = 2), 3, 3; learn_noise = true, output = :z, noise = T(0.5)); params = :reg)
+        connect!(b, r(:reg), :z, r(:z)); connect!(b, r(:reg), :x, r(:x)); connect!(b, r(:reg), :k, r(:k))
+    end
+    gc = cluster(as_plate(build(b), :pts, N), :pts, :c, [:pr, :reg]; params = :mix)
+    f = RegimeFactor((z = 3, x = 2), 3, 3; learn_noise = true, output = :z, noise = T(0.5))
+    p0 = map(x -> x isa AbstractArray ? T.(x) : x, merge(LuxCore.initialparameters(Xoshiro(2), f), (b = Z[:, 1:3],)))
+    p0 = merge(p0, (A = map(a -> T.(a), p0.A),))
+    nt = NamedTuple()
+    ps = merge(NamedTuple(replica_name(:d, i) => nt for i in 1:N), (mix = (pr = nt, reg = p0),))
+    return gc, ps
+end
+@testset "P32: Float32 EM on a regime plate tracks Float64" begin
+    nt = NamedTuple()
+    (g32, ps32), (g64, ps64) = p32_em_plate(Float32, 60), p32_em_plate(Float64, 60)
+    p32, F32, _ = fit_em(g32, ps32, nt; schedule = plate_schedule(g32), iters = 6, tol = 0)
+    p64, F64, _ = fit_em(g64, ps64, nt; schedule = plate_schedule(g64), iters = 6, tol = 0)
+    @test eltype(F32) === Float32 && eltype(F64) === Float64
+    @test all(x -> eltype(x) === Float32, (p32.mix.reg.b, p32.mix.reg.logw, p32.mix.reg.L, p32.mix.reg.A.x))
+    @test F32 ≈ F64 rtol = 1e-5
+    @test all(diff(F64) .<= 0)
+    @test p32.mix.reg.b ≈ p64.mix.reg.b rtol = 1e-4
+end

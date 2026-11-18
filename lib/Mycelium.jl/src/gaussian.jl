@@ -155,7 +155,7 @@ _damp(a::GaussianBelief, b::_EG, α::Real) = _extendable(a) || !_soft(b) ?
 function belief_logdensity(b::GaussianBelief, x::AbstractVector)
     C = LenticulumCore._improper_check(b, "belief_logdensity")
     d = x .- LenticulumCore._precision_solve(C, b.η)
-    return -dimension(b) * log(2π) / 2 + LenticulumCore._precision_logdet(C) / 2 - (d' * (b.Λ * d)) / 2
+    return -dimension(b) * LenticulumCore._log2π(eltype(d)) / 2 + LenticulumCore._precision_logdet(C) / 2 - (d' * (b.Λ * d)) / 2
 end
 
 """
@@ -255,12 +255,13 @@ function _improper_overlap(c::GaussianBelief, d::GaussianBelief, ref)
     dimension(c) == dimension(d) || throw(DimensionMismatch(
         "cannot combine beliefs of dimension $(dimension(c)) and $(dimension(d))"))
     η, Λ = c.η + d.η, c.Λ + d.Λ
-    shift = ref === nothing ? 0.0 : LinearAlgebra.dot(d.η, ref) - LinearAlgebra.dot(ref, _sym(d.Λ) * ref) / 2
+    T = promote_type(eltype(η), eltype(Λ))
+    shift = ref === nothing ? zero(T) : LinearAlgebra.dot(d.η, ref) - LinearAlgebra.dot(ref, _sym(d.Λ) * ref) / 2
     LenticulumCore._precision_isproper(Λ) || return GaussianBelief(η, Λ, true), -shift
     cd = GaussianBelief(η, Λ)
     C = LenticulumCore._precision_factor(_sym(Λ))
     logZ = LinearAlgebra.dot(η, LenticulumCore._precision_solve(C, η)) / 2 +
-           (dimension(cd) * log(2π) - LenticulumCore._precision_logdet(C)) / 2
+           (dimension(cd) * LenticulumCore._log2π(T) - LenticulumCore._precision_logdet(C)) / 2
     return cd, logZ - shift
 end
 
@@ -295,7 +296,7 @@ function _overlap(c::GaussianBelief, d::GaussianBelief, ref)
         δh = all(isfinite, δ) ? (δ ./ s) ./ 2 : (μc ./ s .- μd ./ s) ./ 2
         C = LenticulumCore._precision_factor(_scaled_sum(Σc, Σd, s))
         logZ = -2 * LinearAlgebra.dot(δh, LenticulumCore._precision_solve(C, δh)) -
-               (LenticulumCore._precision_logdet(C) + 2 * sum(log, s) + n * log(2π)) / 2
+               (LenticulumCore._precision_logdet(C) + 2 * sum(log, s) + n * LenticulumCore._log2π(eltype(δh))) / 2
     else
         # x = μ_c + u: ∫ N(u; 0, Σ_c) exp(rᵀu − uᵀΛu/2) du with r = η − Λμ_c, times the site
         # at μ_c relative to `ref`.
@@ -368,7 +369,7 @@ function _extended_overlap(c::GaussianBelief, d::_EG)
         δ = H' * (x0 - μc)
         C = LenticulumCore._precision_factor(Σh)
         logZ = -LinearAlgebra.dot(δ, LenticulumCore._precision_solve(C, δ)) / 2 -
-               (LenticulumCore._precision_logdet(C) + length(δ) * log(2π)) / 2
+               (LenticulumCore._precision_logdet(C) + length(δ) * LenticulumCore._log2π(eltype(δ))) / 2
         size(U, 2) == 0 && return cd, logZ
         cs = GaussianBelief(U' * (c.η - Λc * x0), LenticulumCore._symmetric_part(U' * Λc * U))
         return cd, logZ + _overlap(cs, GaussianBelief(ηs, Λs, flat), nothing)[2]

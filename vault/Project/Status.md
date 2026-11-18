@@ -7,15 +7,15 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-18, after P31 (the rest of Lenticulum in the element type of its parameters), committed and pushed on `dev-danielb`.
+**Last updated:** 2026-11-18, after P32 (cluster joints, EM statistics and the Gaussian overlap in the element type of their inputs), committed on `dev-danielb`, not pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
 | `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
-| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/p31` | at `6157f273` with the P31 diff uncommitted (merged into `dev-danielb` as a diff); reset it before the next Codex package |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `6157f273` with the P31 diff applied (the P30 state stashed, `stash@{0}`); probes in `scratch/p31/` (copied to `../Lenticulum.jl-Review-2026-11-18/p31/`); `scratch/p6env` serves any review, and `~/.cache/lenticulum/env-p29` (the main checkout's packages) serves as the old code for a bit-for-bit comparison before a commit. Before the next review: stash or reset to the commit under review, then apply its diff |
+| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/p32` | at `cb289789` with the P32 diff uncommitted (merged into `dev-danielb` as a diff); reset it before the next Codex package |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `cb289789` with Codex's P32 diff applied (without the threshold fix; the P31 state stashed, `stash@{0}`); probes in `scratch/p32/` (copied to `../Lenticulum.jl-Review-2026-11-18/p32/`); `scratch/p6env` serves any review, and `~/.cache/lenticulum/env-p29` (the main checkout's packages) serves as the old code for a bit-for-bit comparison before a commit. Before the next review: stash or reset to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -28,6 +28,21 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **P32** (2026-11-18): Mycelium's cluster joints (number type = floating promotion of forms and
+  messages, no Float64 floor), the Gaussian overlaps and mixture products, and MyceliumLearning's
+  `MomentStats{T}`/`fit_em` history keep the element type of their inputs; a Lenticulum graph, regime
+  and EM included, is Float32 end to end (the 128 `@test_broken` of `p31_element_type.jl` pass). Codex
+  implemented (one run; its sandbox could not write `~/.cache`, its logs went to `/tmp/lenticulum-p32`,
+  copied to `~/.cache/lenticulum/p32/`). Defect found by the session and the review alike: the flat/range
+  thresholds of cluster joints were Float64's; now scaled with eps(T) (`_flat_rtol`; Float32 joints of
+  condition above ≈ 3.5e4 are flat: `cluster.md` "Thresholds"). Review [[LP-061 Findings of the review of P32]]
+  (Mistral, \$0; its EM "divergence" was a degenerate 12-point problem; with 60 points Float32 tracks
+  Float64 to 7e-7, now a test). Float64 bit for bit unchanged against `cb289789` (Codex's script and the
+  flat probe). Suites passed on the final code: Mycelium, MyceliumLearning, Lenticulum, VariationalDiffusion,
+  AlgebraicFactors, ImplicitLayers, AdversarialFactors, Mycelium and MyceliumLearning device tests (logs
+  `~/.cache/lenticulum/p32/gates/`). The Lenticulum suite run may have started before the last test
+  ("P32: Float32 EM on a regime plate") was appended; that testset was run alone and passed. New row
+  **P33** (cluster batch path, accelerated EM, sample reweighting still Float64). Not run: the docs builds.
 - **P31** (2026-11-18): the rest of Lenticulum (switching, regime, nonlinear, likelihoods, M-steps, the
   hard-constraint plate kernel, exposure, coupling) keeps the element type of its parameters and data;
   constants cast at use, nothing else converted. Codex implemented (one run); test
@@ -125,12 +140,14 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Next
 
-No row is set; pick one with the maintainer. P32 (Mycelium's cluster joints, `MomentStats`/EM and the Gaussian overlap in Float32) follows P31 directly and would make a Lenticulum graph Float32 end to end, regime and EM included. Close to P5: a learned noise with hard messages, a residual-space formulation
+No row is set; pick one with the maintainer. P33 (what P32 left in Float64) is small and finishes the
+Float32 work. Close to P5: a learned noise with hard messages, a residual-space formulation
 of the positive definite path (LP-047 finding 4; no row yet). Left open by P27 (no rows yet): the
 Bethe free energy with a mixture marginal under BP, derivatives through the new rules, two extended
 components with hard directions. Small: `ImplicitLayers`' `SolveReport` also has
 `residual::Float64` (not checked whether duals reach it; that package is unreviewed);
-`AndersonSchedule` runs without its memory under duals (LP-053).
+`AndersonSchedule` runs without its memory under duals (LP-053). Benchmarks are deferred by the
+maintainer (2026-11-18).
 
 ## Open
 
