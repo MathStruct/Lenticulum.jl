@@ -13,7 +13,7 @@
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) is open |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `3655c0c1` (I23) with the first I24 diff applied (without the LP-054 fix); the reviewer's probes in `scratch/i24/` (copied to `../Lenticulum.jl-Review-2026-11-17/i24/probes/`); its environment `scratch/p6env` serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
