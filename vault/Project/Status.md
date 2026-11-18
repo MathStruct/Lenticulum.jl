@@ -27,6 +27,7 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **CI** (2026-11-18): Julia 1.12, the oldest supported, no longer runs on every push; the core packages run on it weekly (`Weekly.yml`, job `oldest`: Mondays and on demand). `CI.yml` keeps the current release and the device tests.
 - **Review of PR #23** ([[LP-055 Findings of the review of PR 23]]): the cloud agent's three commits
   (`74274922`, `407a4196`, `9d94e548`) were read and accepted. Amendment: the GH-21 `SampleBelief`
   moments refused tuple weights (AdversarialFactors LP-018.9 errored); they are now collected, and

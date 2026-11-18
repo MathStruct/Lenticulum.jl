@@ -14,9 +14,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # the current release, and 1.12, the oldest supported: `[sources]` (the packages' paths to each
-        # other) needs 1.11, and on 1.11 the Enzyme backend of the DEQ solve fails (2026-11-05)
-        julia: ['1', '1.12']
+        # the current release on every push; 1.12, the oldest supported, runs weekly (Weekly.yml, `oldest`)
+        julia: ['1']
         package:
           - lib/LenticulumCore.jl
           - lib/Mycelium.jl
