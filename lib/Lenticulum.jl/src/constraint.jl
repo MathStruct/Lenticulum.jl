@@ -88,8 +88,6 @@ function LinearConstraintFactor(
     Q = Matrix(LenticulumCore._symmetric_part(Q))   # one consistent matrix from here on
     isposdef(Symmetric(Q)) ||
         throw(ArgumentError("noise covariance Q must be positive definite"))
-    # The four-argument helper is also used by the out-of-scope switching/regime
-    # constructors, whose fixed fields still require Matrix{Float64}.
     C = output === nothing ? nothing : _output_coeff(dims, m, output, output_coeff,
         output_coeff isa LinearAlgebra.UniformScaling ?
             float(promote_type(eltype(Q), typeof(output_coeff.λ))) : float(eltype(output_coeff)))
@@ -99,7 +97,6 @@ end
 # --- A declared output channel (LP-022) ---------------------------------------------
 
 # The fixed coefficient of the output channel, checked: an invertible m × m matrix.
-_output_coeff(dims, m, output, C) = _output_coeff(dims, m, output, C, Float64)
 function _output_coeff(dims, m, output, C, ::Type{T}) where {T}
     output === nothing && return nothing
     output in keys(dims) || throw(ArgumentError("output :$output is not a continuous channel (has $(keys(dims)))"))

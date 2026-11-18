@@ -382,3 +382,21 @@ are approximate. The factor's free energy with that latent outcome and a hard in
 against an oracle; the Bethe total refuses the mixture marginal under `BeliefPropagation()` (no
 `variable_entropy`). The plate method `factor_beliefs` returns `nothing` for extended blocks, so a plate takes
 the per-replica path.
+
+
+## Element type
+
+Computation follows Julia promotion of the parameters, noise, incoming messages and data it reads;
+data and parameters are not converted to force a result type. Constants and numerical
+hyperparameters are cast at use.
+
+The fixed output coefficient, frozen plate points, mixture expansion storage, and plate workspaces
+preserve their scalar types. Gaussian normalisers use `LenticulumCore._log2π`; absent outcome
+messages use exact neutral zeros, while an observed outcome uses the noise type for its log
+indicator. Cluster forms and the overlap/partial-sum utilities preserve matrix element types.
+Mycelium cluster inference still promotes its joint with Float64 (`cluster.jl`, `_numtype` and
+`_joint_numtype`); Gaussian mixture products also widen their weights in `gaussian.jl`, `_overlap`.
+Those upstream paths are outside this change.
+
+Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
+for every mixed precision, derivative, or device configuration.

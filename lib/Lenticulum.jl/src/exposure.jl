@@ -33,7 +33,7 @@ function _exposed_blocks(f::GaussianFactor, msgs, ps)
         "a GaussianFactor with exposed parameters needs a point input on :$(f.in_channel); \
          with beliefs on both x and A the factor is bilinear (L-SPEC-003 §1.2), which is not implemented"))
     x0 = _vec(xb.value)
-    Im = Matrix{Float64}(I, f.nout, f.nout)
+    Im = Matrix{eltype(x0)}(I, f.nout, f.nout)
     K = LinearAlgebra.kron(x0', Im)
     A = haskey(ps, :A) ? LenticulumCore.DiracBelief(vec(ps.A)) : _get(msgs, :A)
     b = haskey(ps, :b) ? LenticulumCore.DiracBelief(ps.b) : _get(msgs, :b)
@@ -44,7 +44,7 @@ end
 # proper. A canonical belief with singular Λ is fine when the rows of C lie in its range
 # (C Λ⁺ Λ = C); `nothing` when the belief carries no information at all.
 function _projected_moments(bel, C, key)
-    bel isa LenticulumCore.DiracBelief && return C * _vec(bel.value), zeros(size(C, 1), size(C, 1))
+    bel isa LenticulumCore.DiracBelief && return C * _vec(bel.value), zeros(promote_type(eltype(C), eltype(_vec(bel.value))), size(C, 1), size(C, 1))
     (bel === nothing || bel isa LenticulumCore.TrivialBelief) && return nothing, nothing
     bel isa GaussianBelief || throw(ArgumentError("unsupported belief $(typeof(bel)) on :$key"))
     # η ≠ 0 with Λ = 0 is a linear site exp(ηᵀz), not "no information": it falls through to
@@ -54,18 +54,19 @@ function _projected_moments(bel, C, key)
         m, S = belief_mean(bel), belief_cov(bel)
         return C * m, C * S * C'
     end
-    # In Float64 whatever the input precision: eigenvectors with eigenvalue ≤ n·eps·λmax are
+    # In the belief precision: eigenvectors with eigenvalue ≤ n·eps·λmax are
     # the flat directions, and C must not see them beyond rounding (64·eps·‖C‖). Anything C
     # sees at all in a flat direction makes Cz improper, so the test is deliberately tight.
     # Equilibrate first, z = D z̃ with D = diag(Λᵢᵢ^{-1/2}) (1 where Λᵢᵢ = 0), so that the
     # flatness cut-off does not depend on the units of other coordinates (LP-019 fifth review).
-    Λ = Matrix{Float64}(LenticulumCore._symmetric_part(bel.Λ))
-    d = [λ > 0 ? 1 / sqrt(λ) : 1.0 for λ in LinearAlgebra.diag(Λ)]
+    T = promote_type(eltype(C), eltype(bel.η), eltype(bel.Λ))
+    Λ = Matrix{T}(LenticulumCore._symmetric_part(bel.Λ))
+    d = [λ > 0 ? 1 / sqrt(λ) : one(λ) for λ in LinearAlgebra.diag(Λ)]
     E = LinearAlgebra.eigen(LinearAlgebra.Symmetric(d .* Λ .* d'))
     λmax = maximum(abs, E.values)
-    flat = E.values .<= size(C, 2) * eps(Float64) * λmax
-    Cf = Matrix{Float64}(C) .* d'                                  # C̃ = C D
-    maximum(abs, Cf * E.vectors[:, flat]; init = 0.0) <= 64 * eps(Float64) * maximum(abs, Cf) ||
+    flat = E.values .<= size(C, 2) * eps(eltype(Λ)) * λmax
+    Cf = Matrix(C) .* d'                                  # C̃ = C D
+    maximum(abs, Cf * E.vectors[:, flat]; init = false) <= 64 * eps(eltype(Λ)) * maximum(abs, Cf) ||
         throw(ArgumentError("the belief on :$key is improper in directions this factor sees; put a prior on it"))
     V = E.vectors[:, .!flat]
     P = V * LinearAlgebra.Diagonal(1 ./ E.values[.!flat]) * V'   # Λ̃⁺ on the proper directions
@@ -95,8 +96,8 @@ function Mycelium.parameter_message(f::GaussianFactor, target::Symbol, polarity,
         "a GaussianFactor with exposed parameters cannot send to its input :$target while a \
          parameter carries a belief: the factor is bilinear there (L-SPEC-003 §1.2)"))
     Q = noise_covariance(f, ps)
-    s = zeros(f.nout)
-    V = Matrix{Float64}(Q)
+    s = zeros(eltype(Q), f.nout)
+    V = Matrix(Q)
     Ct = nothing
     for (k, C, bel) in _exposed_blocks(f, msgs, ps)
         if k === target
@@ -126,17 +127,17 @@ entropy; Gaussians relative to Lebesgue measure).
 """
 function Mycelium.parameter_free_energy(f::GaussianFactor, msgs, ps, st)
     Qi, logdetQ = _noise_metrics(f.noise_learning, f.Q, ps)
-    c = zeros(f.nout)
-    Cs, ηs, Λs = Matrix{Float64}[], Vector{Float64}[], Matrix{Float64}[]
+    c = zeros(eltype(Qi), f.nout)
+    Cs, ηs, Λs = Matrix[], Vector[], Matrix[]
     for (_, C, bel) in _exposed_blocks(f, msgs, ps)
         if bel isa LenticulumCore.DiracBelief
             c += C * _vec(bel.value)
         else
-            η, Λ = _canon(bel, size(C, 2))
+            η, Λ = _canon(bel, size(C, 2), eltype(Qi))
             push!(Cs, C); push!(ηs, η); push!(Λs, Λ)
         end
     end
-    isempty(Cs) && return _graded_free_energy(f, c, zeros(f.nout, f.nout), 0.0, Qi, logdetQ), st
+    isempty(Cs) && return _graded_free_energy(f, c, zeros(eltype(c), f.nout, f.nout), false, Qi, logdetQ), st
     G = reduce(hcat, Cs)
     Λ = G' * Qi * G + cat(Λs...; dims = (1, 2))
     η = reduce(vcat, ηs) - G' * (Qi * c)

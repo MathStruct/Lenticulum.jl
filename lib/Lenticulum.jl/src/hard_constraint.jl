@@ -298,22 +298,22 @@ end
 
 # One channel's inputs over `k` replicas as shared parts (M, Σ, D): M the d × k matrix of the
 # normalised means, Σ and D those of every replica. `nothing` when they are not shared, or not of
-# Float64 (Float32 and dual numbers take the per-replica path).
+# plain host floats (dual numbers take the per-replica path).
 function _hard_channel_parts(bs::AbstractVector, d::Int, k::Int)
     all(b -> b === nothing || b isa LenticulumCore.TrivialBelief, bs) &&
         return zeros(Bool, d, k), zeros(Bool, d, d), Matrix{Bool}(I, d, d)
     b1 = first(bs)
     if b1 isa LenticulumCore.DiracBelief
-        all(b -> b isa LenticulumCore.DiracBelief && b.value isa AbstractVector{Float64} && length(b.value) == d, bs) ||
+        all(b -> b isa LenticulumCore.DiracBelief && b.value isa AbstractVector{<:Union{Float32,Float64}} && length(b.value) == d, bs) ||
             return nothing
         return reduce(hcat, [b.value for b in bs]), zeros(eltype(b1.value), d, d), zeros(eltype(b1.value), d, 0)
     elseif b1 isa GaussianBelief
-        all(b -> b isa GaussianBelief && eltype(b.η) === Float64 && length(b.η) == d &&
+        all(b -> b isa GaussianBelief && eltype(b.η) <: Union{Float32,Float64} && length(b.η) == d &&
                  b.improper == b1.improper && (b.Λ === b1.Λ || isequal(b.Λ, b1.Λ)), bs) || return nothing
-        eltype(b1.Λ) === Float64 || return nothing
+        eltype(b1.Λ) <: Union{Float32,Float64} || return nothing
         return _hard_gaussian_parts(b1, reduce(hcat, [b.η for b in bs]))
-    elseif b1 isa LenticulumCore.ExtendedGaussian{Float64}
-        all(b -> b isa LenticulumCore.ExtendedGaussian{Float64} && length(b.μ) == d &&
+    elseif b1 isa LenticulumCore.ExtendedGaussian{<:Union{Float32,Float64}}
+        all(b -> b isa LenticulumCore.ExtendedGaussian{<:Union{Float32,Float64}} && length(b.μ) == d &&
                  (b.Σ === b1.Σ || isequal(b.Σ, b1.Σ)) && (b.D === b1.D || isequal(b.D, b1.D)), bs) || return nothing
         return reduce(hcat, [b.μ for b in bs]), b1.Σ, b1.D
     end
@@ -323,11 +323,11 @@ end
 # The same from a message block.
 _hard_block_parts(b::Mycelium.TrivialBlock, d::Int, k::Int) = _hard_channel_parts(Any[nothing], d, k)
 function _hard_block_parts(b::Mycelium.PointBlock, d::Int, k::Int)
-    (eltype(b.X) === Float64 && size(b.X, 1) == d) || return nothing
+    (eltype(b.X) <: Union{Float32,Float64} && size(b.X, 1) == d) || return nothing
     return Matrix(b.X), zeros(eltype(b.X), d, d), zeros(eltype(b.X), d, 0)
 end
 function _hard_block_parts(b::Mycelium.GaussianBlock, d::Int, k::Int)
-    (b.Λ isa AbstractMatrix && eltype(b.Λ) === Float64 && eltype(b.η) === Float64 && size(b.η, 1) == d &&
+    (b.Λ isa AbstractMatrix && eltype(b.Λ) <: Union{Float32,Float64} && eltype(b.η) <: Union{Float32,Float64} && size(b.η, 1) == d &&
      allequal(b.improper)) || return nothing
     return _hard_gaussian_parts(Mycelium.replica(b, 1), Matrix(b.η))
 end
@@ -359,9 +359,9 @@ function _hard_shared_messages(fs, target, ps, k, get, parts)
     all(h -> h === f || (h.dims == f.dims && isequal(h.Q, f.Q)), fs) || return nothing
     names = keys(f.dims)
     At = getfield(ps.A, target)
-    eltype(At) === Float64 && eltype(ps.c) === Float64 || return nothing
+    eltype(At) <: Union{Float32,Float64} && eltype(ps.c) <: Union{Float32,Float64} || return nothing
     others = Tuple(n for n in names if n !== target)
-    all(n -> eltype(getfield(ps.A, n)) === Float64, others) || return nothing
+    all(n -> eltype(getfield(ps.A, n)) <: Union{Float32,Float64}, others) || return nothing
     chans = Any[]
     for n in others
         p = parts(get(n), f.dims[n], k)

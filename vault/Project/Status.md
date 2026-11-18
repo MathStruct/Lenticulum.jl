@@ -7,15 +7,15 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-18, after P30 (Lenticulum's linear-Gaussian factors in the element type of their parameters), committed on `dev-danielb`, not pushed.
+**Last updated:** 2026-11-18, after P31 (the rest of Lenticulum in the element type of its parameters), committed on `dev-danielb`, not pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
 | `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
-| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/p30` | at `3d0bc449` with the P30 diff uncommitted (merged into `dev-danielb` as a diff); reset it before the next Codex package |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `3d0bc449` with the P30 diff applied; the reviewer's probes in `scratch/p30/` (copied to `../Lenticulum.jl-Review-2026-11-18/p30/`), and an environment of the old code in `scratch/p30/oldenv`; `scratch/p6env` serves any review. Before the next review: `git reset --hard` to the commit under review, then apply its diff |
+| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/p31` | at `6157f273` with the P31 diff uncommitted (merged into `dev-danielb` as a diff); reset it before the next Codex package |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `6157f273` with the P31 diff applied (the P30 state stashed, `stash@{0}`); probes in `scratch/p31/` (copied to `../Lenticulum.jl-Review-2026-11-18/p31/`); `scratch/p6env` serves any review, and `~/.cache/lenticulum/env-p29` (the main checkout's packages) serves as the old code for a bit-for-bit comparison before a commit. Before the next review: stash or reset to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -28,6 +28,15 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **P31** (2026-11-18): the rest of Lenticulum (switching, regime, nonlinear, likelihoods, M-steps, the
+  hard-constraint plate kernel, exposure, coupling) keeps the element type of its parameters and data;
+  constants cast at use, nothing else converted. Codex implemented (one run); test
+  `lib/Lenticulum.jl/test/p31_element_type.jl` (1347 pass, 128 broken, all on Mycelium/MyceliumLearning
+  sources: new row **P32**). Review [[LP-060 Findings of the review of P31]] (Mistral, \$0; recorded only its
+  baseline, the session ran its two probes): no defect; Float64 results bit for bit unchanged against
+  `6157f273`; ForwardDiff now goes through `LikelihoodFactor` (it threw before). Lenticulum suite passed
+  (Codex's run on the same diff, log `~/.cache/lenticulum/p31/lenticulum-suite.log`); no other package
+  changed and none depends on Lenticulum. Not run: device tests, the docs builds.
 - **P30** (2026-11-18): with Float32 parameters, noise, priors and data, Lenticulum's
   `GaussianFactor`, `GaussianPrior`, `LinearConstraintFactor` and `HardConstraintFactor` send Float32
   messages and give Float32 (or `false`) energies, also extended messages, plates, mean field and
@@ -116,7 +125,7 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Next
 
-No row is set; pick one with the maintainer. P31 (the rest of Lenticulum in Float32) follows P30 directly. Close to P5: a learned noise with hard messages, a residual-space formulation
+No row is set; pick one with the maintainer. P32 (Mycelium's cluster joints, `MomentStats`/EM and the Gaussian overlap in Float32) follows P31 directly and would make a Lenticulum graph Float32 end to end, regime and EM included. Close to P5: a learned noise with hard messages, a residual-space formulation
 of the positive definite path (LP-047 finding 4; no row yet). Left open by P27 (no rows yet): the
 Bethe free energy with a mixture marginal under BP, derivatives through the new rules, two extended
 components with hard directions. Small: `ImplicitLayers`' `SolveReport` also has

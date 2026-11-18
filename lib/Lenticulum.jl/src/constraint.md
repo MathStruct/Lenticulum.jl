@@ -386,5 +386,19 @@ under duals, and Float32 blocks.
 Messages and energies are in the promoted type of the coefficients, constant, noise and inputs; the
 flat and point buffers and the per-replica batch workspaces take that type, and the fixed output
 coefficient is a type parameter of `LinearConstraintFactor` (its default identity in the noise's
-float type). `SwitchingFactor` and `RegimeFactor` still call the four-argument `_output_coeff`, which
-keeps Float64 (their fields are `Matrix{Float64}`). Details and the test: `gaussian.md`, "Element type".
+float type). P31 extends the same selection rule to `SwitchingConstraintFactor` and `RegimeFactor`
+and removes the four-argument helper. Details and the P30 test: `gaussian.md`, "Element type".
+
+
+## Element type
+
+Computation follows Julia promotion of the parameters, noise, incoming messages and data it reads;
+data and parameters are not converted to force a result type. Constants and numerical
+hyperparameters are cast at use.
+
+The declared-output helper now always receives an explicit scalar type; switching and regime
+constructors use the same selection rule as `LinearConstraintFactor`. The legacy helper that
+selected Float64 has been removed.
+
+Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
+for every mixed precision, derivative, or device configuration.

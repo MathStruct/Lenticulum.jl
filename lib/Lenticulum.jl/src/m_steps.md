@@ -90,3 +90,19 @@ factors and of a `GaussianFactor` whose noise is not learned (a learned noise is
 through `ps` already), and an incompatible tie is refused with the existing "differ in fixed
 structure" error before pooling. Tests: Lenticulum `test/em.jl`, "GH-16" — the heterogeneous-noise
 tie throws, and a same-noise tie pools to the joint optimum.
+
+
+## Element type
+
+Computation follows Julia promotion of the parameters, noise, incoming messages and data it reads;
+data and parameters are not converted to force a result type. Constants and numerical
+hyperparameters are cast at use.
+
+Regression workspaces and parameter copies follow promotion of parameters and statistics, and the
+outcome-mass floor is cast at use. The solve itself preserves Float32, as checked against an
+independent regression oracle in `p31_element_type.jl`. End-to-end EM remains Float64 because
+`MyceliumLearning.MomentStats` has Float64 fields (`lib/MyceliumLearning.jl/src/em.jl:29–31`); P31
+records this as broken rather than converting its output back to Float32.
+
+Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
+for every mixed precision, derivative, or device configuration.

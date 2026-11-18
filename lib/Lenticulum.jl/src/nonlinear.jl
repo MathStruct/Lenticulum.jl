@@ -152,7 +152,7 @@ LenticulumCore.pointwise_scalarisation(f::NonlinearFactor) =
 function _jacobian(f::NonlinearFactor, x)
     if f.jacobian !== nothing
         J = f.jacobian(x)
-        return Matrix{promote_type(Float64, eltype(x), eltype(J))}(J)
+        return Matrix{promote_type(eltype(x), eltype(J))}(J)
     end
     J, R = _difference_jacobian(f, x, 1)
     return _rank_clean(f, x, J, R)
@@ -162,15 +162,24 @@ end
 # each entry: the rounding of f's values over the step, eps (|f⁺ⱼ| + |f⁻ⱼ|) / 2hᵢ, and of the shifted
 # point, eps |xᵢ| / hᵢ · |Jⱼᵢ|.
 function _difference_jacobian(f::NonlinearFactor, x, scale)
-    J = zeros(promote_type(Float64, eltype(x)), f.nout, f.nin)
-    R = zeros(f.nout, f.nin)
+    T = eltype(x)
+    V = eltype(LenticulumCore.stop_gradient(x))
+    J = zeros(T, f.nout, f.nin)
+    R = zeros(V, f.nout, f.nin)
     for i in 1:f.nin
         xi = abs(LenticulumCore.stop_gradient(x[i]))
-        h = scale * 1e-6 * (1 + xi)
-        e = zeros(f.nin); e[i] = h
+        h = scale * (V === Float64 ? V(1e-6) : cbrt(eps(V))) * (1 + xi)
+        e = zeros(V, f.nin); e[i] = h
         fp, fm = _vec(f.f(x .+ e)), _vec(f.f(x .- e))
+        if i == 1
+            # Learn the function's output type from the first difference pair: no extra f call.
+            JT = promote_type(T, eltype(fp), eltype(fm))
+            RT = promote_type(V, eltype(LenticulumCore.stop_gradient(fp)), eltype(LenticulumCore.stop_gradient(fm)))
+            JT === T || (J = zeros(JT, f.nout, f.nin))
+            RT === V || (R = zeros(RT, f.nout, f.nin))
+        end
         J[:, i] = (fp .- fm) ./ (2h)
-        R[:, i] = eps(Float64) .* ((abs.(LenticulumCore.stop_gradient(fp)) .+ abs.(LenticulumCore.stop_gradient(fm))) ./ (2h) .+
+        R[:, i] = eps(V) .* ((abs.(LenticulumCore.stop_gradient(fp)) .+ abs.(LenticulumCore.stop_gradient(fm))) ./ (2h) .+
                                    xi / h .* abs.(LenticulumCore.stop_gradient(J[:, i])))
     end
     return J, R
@@ -199,33 +208,33 @@ const _FD_RANK_KAPPA = 10.0
 function _error_scales(B)
     pow2(v) = exp2(ceil(log2(v)))
     m = maximum(B)
-    c = [pow2(max(maximum(view(B, :, i)), eps(Float64) * m)) for i in axes(B, 2)]
+    c = [pow2(max(maximum(view(B, :, i)), eps(eltype(B)) * m)) for i in axes(B, 2)]
     Bc = B ./ c'
-    r = [pow2(max(maximum(view(Bc, j, :)), eps(Float64))) for j in axes(B, 1)]
+    r = [pow2(max(maximum(view(Bc, j, :)), eps(eltype(B)))) for j in axes(B, 1)]
     return r, c
 end
 
 function _rank_clean(f::NonlinearFactor, x, J, R)
     isempty(J) && return J
-    Jv = Matrix{Float64}(LenticulumCore.stop_gradient(J))
+    Jv = Matrix(LenticulumCore.stop_gradient(J))
     all(isfinite, Jv) && all(isfinite, R) || return J
     maximum(R) == 0 && return J                        # f's values exactly zero: nothing rounded
     s = LinearAlgebra.svdvals(Jv)
-    lim = sqrt(length(J))
+    lim = sqrt(eltype(Jv)(length(J)))
     r0, c0 = _error_scales(R)
     if !(s[end] <= 1e-3 * s[1])
         last(LinearAlgebra.svdvals(Jv ./ (r0 * c0'))) > 1e3 * lim && return J
     end
     J2, _ = _difference_jacobian(f, x, 2)
-    B = R .+ abs.(Jv .- Matrix{Float64}(LenticulumCore.stop_gradient(J2))) ./ 3
+    B = R .+ abs.(Jv .- Matrix(LenticulumCore.stop_gradient(J2))) ./ 3
     all(isfinite, B) || return J
     rs, cs = _error_scales(B)
     F = LinearAlgebra.svd(Jv ./ (rs * cs'))
-    k = count(>(_FD_RANK_KAPPA * lim), F.S)
+    k = count(>(eltype(Jv)(_FD_RANK_KAPPA) * lim), F.S)
     k == length(F.S) && return J
     V = F.V[:, 1:k]
     P = Diagonal(1 ./ cs) * (V * V') * Diagonal(cs)
-    eltype(J) === Float64 && return J * P
+    eltype(J) === eltype(Jv) && return J * P
     return J * P .+ (J .- Jv) * (I - P)
 end
 
@@ -242,35 +251,37 @@ linearize(f::NonlinearFactor, m, S) = _linearize(f.method, f, _vec(m), S)
 
 function _linearize(::Linearization, f, m, S)
     A = _jacobian(f, m)
-    return (A, _vec(f.f(m)) .- A * m, zeros(f.nout, f.nout))
+    return (A, _vec(f.f(m)) .- A * m, zeros(eltype(A), f.nout, f.nout))
 end
 
 function _linearize(u::Unscented, f, m, S)
     all(iszero, S) && return _linearize(Linearization(), f, m, S)
     n = length(m)
-    λ = u.α^2 * (n + u.κ) - n
-    E = LinearAlgebra.eigen(Symmetric(Matrix{Float64}(S)))
-    vals = max.(E.values, 0.0)
+    T = promote_type(eltype(m), eltype(S))
+    α, β, κ = T(u.α), T(u.β), T(u.κ)
+    λ = α^2 * (n + κ) - n
+    E = LinearAlgebra.eigen(Symmetric(Matrix(S)))
+    vals = max.(E.values, false)
     L = E.vectors * Diagonal(sqrt.(vals))                          # S = L Lᵀ, also when singular
     c = sqrt(n + λ)
     X = hcat(m, m .+ c .* L, m .- c .* L)                          # 2n + 1 sigma points
     wm = vcat(λ / (n + λ), fill(1 / (2(n + λ)), 2n))
-    wc = copy(wm); wc[1] += 1 - u.α^2 + u.β
+    wc = copy(wm); wc[1] += 1 - α^2 + β
     Y = reduce(hcat, (_vec(f.f(x)) for x in eachcol(X)))
     ȳ = Y * wm
     Dx, Dy = X .- m, Y .- ȳ
     Cxy = (Dx .* wc') * Dy'                                        # n × nout
     Syy = (Dy .* wc') * Dy'
-    tol = n * eps(Float64) * maximum(vals; init = 0.0)
-    inv_vals = [v > tol ? 1.0 / v : 0.0 for v in vals]
+    tol = n * eps(eltype(E.values)) * maximum(vals; init = false)
+    inv_vals = [v > tol ? one(v) / v : false for v in vals]
     Sinv_Cxy = E.vectors * (inv_vals .* (E.vectors' * Cxy))        # reuse E instead of rank + pinv
     A = Matrix(Sinv_Cxy')
     Ω = Syy .- A * S * A'
     EΩ = LinearAlgebra.eigen(Symmetric((Ω .+ Ω') ./ 2))
-    if minimum(EΩ.values; init = 0.0) < -1e-10 * (1 + maximum(abs, EΩ.values; init = 0.0))
+    if minimum(EΩ.values; init = false) < -1e-10 * (1 + maximum(abs, EΩ.values; init = false))
         @warn "Unscented linearize: residual covariance Ω = Syy - ASAᵀ has negative eigenvalue $(minimum(EΩ.values)) (due to negative centre weight wc[1] at α = $(u.α)); clamping to positive semidefinite. Consider α = 1.0 (cubature weights) if exact PSD residuals are required." maxlog = 1
     end
-    Ω_psd = EΩ.vectors * Diagonal(max.(EΩ.values, 0.0)) * EΩ.vectors'
+    Ω_psd = EΩ.vectors * Diagonal(max.(EΩ.values, false)) * EΩ.vectors'
     return (A, ȳ .- A * m, Matrix(Symmetric(Ω_psd)))
 end
 
@@ -279,7 +290,7 @@ function _expansion(f::NonlinearFactor, b)
     m, S = _moments(b, f.nin)
     m === nothing || return (m, S)
     f.x0 === nothing && return (nothing, nothing)
-    return (f.x0, zeros(f.nin, f.nin))
+    return (f.x0, zeros(eltype(f.x0), f.nin, f.nin))
 end
 
 # --- Messages -----------------------------------------------------------------------
@@ -338,7 +349,7 @@ end
 # because A is a fresh array on every call and would only fill the memo of `_rank_deficient`.
 function _nl_no_input_forward(f::NonlinearFactor, src)
     f.x0 === nothing && return LenticulumCore.TrivialBelief()
-    A, b, Ω = linearize(f, f.x0, zeros(f.nin, f.nin))
+    A, b, Ω = linearize(f, f.x0, zeros(eltype(f.x0), f.nin, f.nin))
     size(A, 1) == size(A, 2) && !_rank_deficient_svd(A) && return LenticulumCore.TrivialBelief()
     g = GaussianFactor(f.nin, f.nout, f.in_channel, f.out_channel, f.Q .+ Ω, nothing, nothing)
     return first(_flat_message(g, f.out_channel, f.in_channel, f.nin, src, (A = A, b = b), nothing))
@@ -437,5 +448,5 @@ end
 
 function LenticulumCore.entropy(f::NonlinearFactor, π, y, ps, st)
     F, st = LenticulumCore.free_energy(f, π, y, ps, st)
-    return LenticulumCore.GradedEnergy((fit = 0.0, complexity = 0.0, negentropy = -F[:negentropy])), st
+    return LenticulumCore.GradedEnergy((fit = false, complexity = false, negentropy = _negentropy(F[:negentropy]))), st
 end

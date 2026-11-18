@@ -17,7 +17,7 @@
 _frozen_path(frozen, path::Symbol...) = frozen === :all || any(p -> length(p) <= length(path) && Tuple(p) == path[1:length(p)], frozen)
 
 # W_L = −W_F S_FL S_LL⁺ + W_L (I − S_LL S_LL⁺), in place
-function _solve_blocks!(W::Matrix{Float64}, S::AbstractMatrix, learned::AbstractVector{Bool}, name)
+function _solve_blocks!(W::AbstractMatrix, S::AbstractMatrix, learned::AbstractVector{Bool}, name)
     any(learned) || return W
     fixed = .!learned
     any(fixed) || throw(ArgumentError(
@@ -29,7 +29,11 @@ function _solve_blocks!(W::Matrix{Float64}, S::AbstractMatrix, learned::Abstract
     return W
 end
 
-_normalised_logw(n) = (t = sum(n); log.(max.(n, floatmin(Float64)) ./ max(t, floatmin(Float64))))
+function _normalised_logw(n)
+    t = sum(n)
+    floor = oftype(float(t), floatmin(typeof(float(LenticulumCore.stop_gradient(t)))))
+    return log.(max.(n, floor) ./ max(t, floor))
+end
 
 # the column ranges of each channel in x
 _channel_cols(dims) = (o = cumsum([0; dims]); [(o[j] + 1):o[j + 1] for j in eachindex(dims)])
@@ -48,13 +52,13 @@ end
 function MyceliumLearning.m_step(f::Union{LinearConstraintFactor,SwitchingConstraintFactor}, st::MyceliumLearning.MomentStats, ps, frozen)
     A = _coeffs(f, ps)
     sw = f isa SwitchingConstraintFactor
-    C = sw ? Matrix{Float64}(ps.b) : reshape(Vector{Float64}(ps.c), :, 1)
+    C = sw ? Matrix(ps.b) : reshape(Vector(ps.c), :, 1)
     name = sw ? :b : :c
     K = size(C, 2)
     length(st.n) == K || throw(DimensionMismatch("m_step: $(length(st.n)) outcomes in the statistics, $K in the factor"))
     Sxx = dropdims(sum(st.S; dims = 3); dims = 3)
     Sφ = [Sxx st.m; st.m' Diagonal(st.n)]
-    W = hcat((Matrix{Float64}(A[c]) for c in st.channels)..., -C)
+    W = hcat((Matrix(A[c]) for c in st.channels)..., -C) .* one(eltype(Sφ))
     _solve_blocks!(W, Sφ, _learned_columns(f, st, frozen, K, name), nameof(typeof(f)))
     cols = _channel_cols(st.dims)
     d = sum(st.dims; init = 0)
@@ -72,14 +76,15 @@ function MyceliumLearning.m_step(f::RegimeFactor, st::MyceliumLearning.MomentSta
     learned = _learned_columns(f, st, frozen, 1, :b)
     cols = _channel_cols(st.dims)
     d = sum(st.dims; init = 0)
-    newA = map(c -> Array{Float64}(copy(A[c])), NamedTuple{keys(ps.A)}(keys(ps.A)))
-    b = Matrix{Float64}(copy(ps.b))
-    L = f.learn_noise ? Array{Float64}(copy(ps.L)) : nothing
+    T = promote_type(eltype(ps.b), eltype(st.S), eltype(st.m), eltype(st.n), f.learn_noise ? eltype(ps.L) : Bool, map(eltype, values(A))...)
+    newA = map(c -> Array{T}(copy(A[c])), NamedTuple{keys(ps.A)}(keys(ps.A)))
+    b = Matrix{T}(copy(ps.b))
+    L = f.learn_noise ? Array{T}(copy(ps.L)) : nothing
     learn_noise = f.learn_noise && !_frozen_path(frozen, :L)
     for k in 1:K
         st.n[k] > 0 || continue
         Sφ = [st.S[:, :, k] st.m[:, k]; st.m[:, k]' st.n[k]]
-        W = hcat((Matrix{Float64}(A[c][:, :, k]) for c in st.channels)..., -b[:, k])
+        W = hcat((Matrix(A[c][:, :, k]) for c in st.channels)..., -b[:, k])
         _solve_blocks!(W, Sφ, learned, :RegimeFactor)
         for c in keys(ps.A)
             newA[c][:, :, k] = W[:, cols[findfirst(==(c), st.channels)]]
@@ -131,8 +136,8 @@ function MyceliumLearning.m_step(f::GaussianFactor, st::MyceliumLearning.MomentS
     d = sum(st.dims)
     n = only(st.n)
     Sφ = [st.S[:, :, 1] st.m[:, 1]; st.m[:, 1]' n]
-    W = zeros(f.nout, d + 1)
-    W[:, cols[ix]] = -ps.A; W[:, cols[iy]] = Matrix(1.0I, f.nout, f.nout); W[:, d + 1] = -ps.b
+    W = zeros(promote_type(eltype(ps.A), eltype(ps.b), eltype(Sφ)), f.nout, d + 1)
+    W[:, cols[ix]] = -ps.A; W[:, cols[iy]] = Matrix{eltype(W)}(I, f.nout, f.nout); W[:, d + 1] = -ps.b
     learned = falses(d + 1)
     _frozen_path(frozen, :A) || (learned[cols[ix]] .= true)
     _frozen_path(frozen, :b) || (learned[d + 1] = true)

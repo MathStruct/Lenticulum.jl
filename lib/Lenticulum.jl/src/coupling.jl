@@ -24,10 +24,10 @@ coupling_precision(f, ps) = nothing
 
 function _stacked_precision(C::NamedTuple, dims::NamedTuple, P)
     names = keys(dims)
-    Cs = reduce(hcat, (Matrix{Float64}(C[n]) for n in names))
+    Cs = reduce(hcat, (Matrix(C[n]) for n in names))
     return (dims, Matrix(Symmetric(Cs' * P * Cs)))
 end
-_precision(Q) = Matrix(inv(Symmetric(Matrix{Float64}(Q))))
+_precision(Q) = Matrix(inv(Symmetric(Matrix(Q))))
 
 coupling_precision(f::GaussianFactor, ps) =
     _stacked_precision(_gaussian_blocks(f, ps), _gaussian_dims(f), _precision(noise_covariance(f, ps)))
@@ -49,14 +49,14 @@ end
 function _inv_sqrt_psd(D)
     λ, V = eigen(Symmetric(D))
     tol = LenticulumCore._eig_tol(λ)
-    return V * Diagonal([l > tol ? inv(sqrt(l)) : 0.0 for l in λ]) * V'
+    return V * Diagonal([l > tol ? inv(sqrt(l)) : zero(l) for l in λ]) * V'
 end
 
 _block_ranges(dims::NamedTuple) =
     NamedTuple{keys(dims)}(Tuple(range(s - d + 1; length = d) for (s, d) in zip(cumsum(collect(values(dims))), values(dims))))
 
 """
-    coupling_weights(g, ps; normalize = true, default = 0.0, hard = nothing) -> Dict{Symbol,Float64}
+    coupling_weights(g, ps; normalize = true, default = 0.0, hard = nothing) -> Dict{Symbol,T}
 
 A weight per factor of `g`, keyed by factor name, for
 `spanning_tree_schedule(g; weights = coupling_weights(g, ps))`: the strongest coupling the factor adds
@@ -76,7 +76,7 @@ finite weight in the graph plus one (not normalised); it adds nothing to ``D``. 
 linear-Gaussian form (`coupling_precision` returns `nothing`: `NonlinearFactor`, `LikelihoodFactor`,
 factors of other packages) gets `default` and adds nothing to ``D``.
 
-Parameters are read as `Float64`; this is a choice of schedule, not differentiated.
+Weights follow the promoted precision type; defaults are cast at use. This choice of schedule is not differentiated.
 """
 function coupling_weights(g::Mycelium.FactorGraph, ps; normalize::Bool = true, default::Real = 0.0,
                           hard::Union{Nothing,Real} = nothing)
@@ -90,7 +90,9 @@ function coupling_weights(g::Mycelium.FactorGraph, ps; normalize::Bool = true, d
     end
     # the variable of each connected channel, per factor
     chans = [Dict(g.edges[ei].channel => g.edges[ei].variable for ei in g.edges_of_factor[fi]) for fi in 1:nf]
-    D = Dict{Int,Matrix{Float64}}()
+    T = foldl(promote_type, (eltype(last(form)) for form in forms if form isa Tuple); init = Bool)
+    T = T === Bool ? typeof(float(default)) : T
+    D = Dict{Int,Matrix{T}}()
     if normalize
         for fi in 1:nf
             form = forms[fi]
@@ -104,18 +106,18 @@ function coupling_weights(g::Mycelium.FactorGraph, ps; normalize::Bool = true, d
         end
     end
     S = Dict(v => _inv_sqrt_psd(Dv) for (v, Dv) in D)
-    w = Vector{Float64}(undef, nf)
+    w = Vector{T}(undef, nf)
     ishard = falses(nf)
     for fi in 1:nf
         form = forms[fi]
         if form === :hard
-            ishard[fi] = true; w[fi] = 0.0; continue
+            ishard[fi] = true; w[fi] = zero(T); continue
         elseif form === nothing
-            w[fi] = float(default); continue
+            w[fi] = T(default); continue
         end
         dims, J = form; r = _block_ranges(dims)
         cs = [(c, v) for (c, v) in chans[fi] if haskey(r, c)]
-        best = 0.0
+        best = zero(T)
         for (i, (a, u)) in enumerate(cs), (b, v) in cs[i+1:end]
             u == v && continue
             Jab = J[r[a], r[b]]
@@ -125,8 +127,8 @@ function coupling_weights(g::Mycelium.FactorGraph, ps; normalize::Bool = true, d
         w[fi] = best
     end
     if any(ishard)
-        h = hard !== nothing ? float(hard) : normalize ? 1.0 :
-            maximum((w[fi] for fi in 1:nf if !ishard[fi]); init = 0.0) + 1.0
+        h = hard !== nothing ? T(hard) : normalize ? one(T) :
+            maximum((w[fi] for fi in 1:nf if !ishard[fi]); init = zero(T)) + one(T)
         w[ishard] .= h
     end
     all(isfinite, w) || throw(ArgumentError(

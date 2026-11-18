@@ -67,18 +67,18 @@ function loglikelihood_derivatives(L::AbstractLikelihood, y, z)
     k = length(z)
     ℓ0 = loglikelihood(L, y, z)
     grad(z) = begin
-        g = zeros(k)
+        g = zeros(typeof(ℓ0), k)
         for i in 1:k
-            h = 1e-5 * (1 + abs(z[i]))
-            e = zeros(k); e[i] = h
+            h = oftype(z[i], 1e-5) * (1 + abs(z[i]))
+            e = zeros(eltype(z), k); e[i] = h
             g[i] = (loglikelihood(L, y, z .+ e) - loglikelihood(L, y, z .- e)) / (2h)
         end
         g
     end
-    H = zeros(k, k)
+    H = zeros(typeof(ℓ0), k, k)
     for i in 1:k
-        h = 1e-4 * (1 + abs(z[i]))
-        e = zeros(k); e[i] = h
+        h = oftype(z[i], 1e-4) * (1 + abs(z[i]))
+        e = zeros(eltype(z), k); e[i] = h
         H[:, i] = (grad(z .+ e) .- grad(z .- e)) ./ (2h)
     end
     return ℓ0, grad(z), (H .+ H') ./ 2
@@ -101,6 +101,7 @@ function outcomes end
 outcome_logprobs(L::AbstractLikelihood, z) = [loglikelihood(L, o, z) for o in outcomes(L)]
 
 _logfact(n) = SpecialFunctions.logfactorial(n)
+_logfact(n, z) = oftype(z, _logfact(n))
 _count(y) = (isinteger(y) && y ≥ 0) ? Int(y) :
     throw(ArgumentError("a count must be a non-negative integer, got $y"))
 _mul_count(k::Integer, z::Real) = k == 0 ? zero(float(z)) : k * z
@@ -108,10 +109,10 @@ _mul_count(k::Integer, z::Real) = k == 0 ? zero(float(z)) : k * z
 # log P(Y = j) for j = 0 … N-1 and log P(Y ≥ N), Y ~ Poisson(e^z)
 function _poisson_lumped(z, N)
     λ = exp(z)
-    lp = [j * z - λ - _logfact(j) for j in 0:(N - 1)]
-    tail = 1 - sum(exp, lp; init = 0.0)
+    lp = [j * z - λ - _logfact(j, z) for j in 0:(N - 1)]
+    tail = 1 - sum(exp, lp; init = false)
     # the upper tail directly when it is small, so it is not lost to cancellation
-    t = tail > 1e-3 ? log(tail) : log(max(SpecialFunctions.gamma_inc(float(N), λ)[1], floatmin()))
+    t = tail > 1e-3 ? log(tail) : log(max(SpecialFunctions.gamma_inc(oftype(λ, N), λ)[1], floatmin(typeof(λ))))
     return vcat(lp, t)
 end
 
@@ -135,11 +136,11 @@ end
 npredictors(L::PoissonLikelihood) = L.k
 obsdim(L::PoissonLikelihood) = L.k
 loglikelihood(L::PoissonLikelihood, y, z) =
-    sum(_mul_count(_count(y[j]), z[j]) - exp(z[j]) - _logfact(_count(y[j])) for j in 1:L.k)
+    sum(_mul_count(_count(y[j]), z[j]) - exp(z[j]) - _logfact(_count(y[j]), z[j]) for j in 1:L.k)
 function loglikelihood_derivatives(L::PoissonLikelihood, y, z)
     λ = exp.(z)
     n = _count.(y)
-    return sum(_mul_count.(n, z) .- λ .- _logfact.(n)), n .- λ, Matrix(Diagonal(-λ))
+    return sum(_mul_count.(n, z) .- λ .- _logfact.(n, z)), n .- λ, Matrix(Diagonal(-λ))
 end
 outcomes(L::PoissonLikelihood) =
     vec([collect(float.(Tuple(c)) .- 1) for c in CartesianIndices(ntuple(_ -> L.maxcount + 1, L.k))])
@@ -170,7 +171,7 @@ obsdim(::BivariatePoissonLikelihood) = 2
 
 # log-weights of w₃ = j given y, without the common factor e^{-(λ₁+λ₂+λ₃)}
 _bp_terms(n1, n2, z) = [_mul_count(n1 - j, z[1]) + _mul_count(n2 - j, z[2]) + _mul_count(j, z[3]) -
-                        _logfact(n1 - j) - _logfact(n2 - j) - _logfact(j) for j in 0:min(n1, n2)]
+                        _logfact(n1 - j, z[1]) - _logfact(n2 - j, z[2]) - _logfact(j, z[3]) for j in 0:min(n1, n2)]
 
 function _logsumexp(v)
     m = maximum(v)
@@ -189,7 +190,7 @@ function loglikelihood_derivatives(::BivariatePoissonLikelihood, y, z)
     v = sum(p .* (j .- e3) .^ 2)
     λ = exp.(z)
     Ew = [n1 - e3, n2 - e3, e3]                 # E[w | y]; ∂ℓ/∂zᵢ = E[wᵢ | y] - λᵢ
-    s = [-1.0, -1.0, 1.0]                       # w = (n1, n2, 0) + s·w₃, so Cov(w | y) = v s sᵀ
+    s = [-1, -1, 1]                       # w = (n1, n2, 0) + s·w₃, so Cov(w | y) = v s sᵀ
     return lse - sum(λ), Ew .- λ, v .* (s * s') .- Diagonal(λ)
 end
 outcomes(L::BivariatePoissonLikelihood) =
@@ -199,11 +200,11 @@ function outcome_logprobs(L::BivariatePoissonLikelihood, z)
     P = [exp(loglikelihood(L, (i, j), z)) for i in 0:(N - 1), j in 0:(N - 1)]
     m1 = exp.(_poisson_lumped(log(exp(z[1]) + exp(z[3])), N))   # y₁ ~ Poisson(λ₁ + λ₃)
     m2 = exp.(_poisson_lumped(log(exp(z[2]) + exp(z[3])), N))
-    Q = zeros(N + 1, N + 1)
+    Q = zeros(eltype(P), N + 1, N + 1)
     Q[1:N, 1:N] .= P
-    Q[1:N, N + 1] .= max.(m1[1:N] .- vec(sum(P; dims = 2)), 0.0)   # y₁ = i, y₂ ≥ N
-    Q[N + 1, 1:N] .= max.(m2[1:N] .- vec(sum(P; dims = 1)), 0.0)   # y₁ ≥ N, y₂ = j
-    Q[N + 1, N + 1] = max(1 - sum(Q), 0.0)
+    Q[1:N, N + 1] .= max.(m1[1:N] .- vec(sum(P; dims = 2)), false)   # y₁ = i, y₂ ≥ N
+    Q[N + 1, 1:N] .= max.(m2[1:N] .- vec(sum(P; dims = 1)), false)   # y₁ ≥ N, y₂ = j
+    Q[N + 1, N + 1] = max(1 - sum(Q), false)
     return vec(log.(Q))
 end
 
@@ -221,11 +222,11 @@ P(y = k \\mid z) = \\Phi\\Bigl(\\frac{c_k - z}{\\sigma}\\Bigr) - \\Phi\\Bigl(\\f
 `cutpoints` are ``c_1 < \\dots < c_{K-1}``; one cutpoint is binary probit. Log-concave. The EP moments
 and the predictive are in closed form.
 """
-struct OrdinalProbitLikelihood <: AbstractLikelihood
-    cutpoints::Vector{Float64}
-    scale::Float64
+struct OrdinalProbitLikelihood{C<:AbstractVector,S<:Real} <: AbstractLikelihood
+    cutpoints::C
+    scale::S
 end
-function OrdinalProbitLikelihood(cutpoints::AbstractVector{<:Real}; scale::Real = 1.0)
+function OrdinalProbitLikelihood(cutpoints::AbstractVector{<:Real}; scale::Real = one(float(eltype(cutpoints))))
     isempty(cutpoints) && throw(ArgumentError("need at least one cutpoint"))
     issorted(cutpoints; lt = ≤) || throw(ArgumentError("cutpoints must be strictly increasing"))
     scale > 0 || throw(ArgumentError("scale must be positive"))
@@ -241,14 +242,14 @@ function _category(L::OrdinalProbitLikelihood, y)
     (isinteger(k) && 1 ≤ k ≤ K) || throw(ArgumentError("an ordinal observation must be one of 1, …, $K, got $k"))
     return Int(k)
 end
-_upper(L::OrdinalProbitLikelihood, k) = k > length(L.cutpoints) ? Inf : L.cutpoints[k]
-_lower(L::OrdinalProbitLikelihood, k) = k == 1 ? -Inf : L.cutpoints[k - 1]
+_upper(L::OrdinalProbitLikelihood, k) = k > length(L.cutpoints) ? oftype(L.scale, Inf) : L.cutpoints[k]
+_lower(L::OrdinalProbitLikelihood, k) = k == 1 ? oftype(L.scale, -Inf) : L.cutpoints[k - 1]
 
 const _SQRT2 = sqrt(2.0)
-_logϕ(u) = isinf(u) ? -Inf : -u^2 / 2 - log(2π) / 2
+_logϕ(u) = isinf(u) ? oftype(u, -Inf) : -u^2 / 2 - LenticulumCore._log2π(typeof(u)) / 2
 # log Φ(u), stable far into the lower tail
-_logΦ(u) = u == Inf ? 0.0 : u == -Inf ? -Inf :
-    u < -5 ? log(SpecialFunctions.erfcx(-u / _SQRT2) / 2) - u^2 / 2 : log(SpecialFunctions.erfc(-u / _SQRT2) / 2)
+_logΦ(u) = u == Inf ? zero(u) : u == -Inf ? oftype(u, -Inf) :
+    u < -5 ? log(SpecialFunctions.erfcx(-u / oftype(u, _SQRT2)) / 2) - u^2 / 2 : log(SpecialFunctions.erfc(-u / oftype(u, _SQRT2)) / 2)
 # Narrow intervals: integrate exp(-m*u-u²/2) on [-h,h]. The omitted terms
 # are O((h*(1+abs(m)))^6); the branch keeps them below double precision.
 _narrow_interval(a, b) = isfinite(a) && isfinite(b) && (a-b) * (1 + abs(a/2+b/2)) < 1e-3
@@ -270,9 +271,9 @@ function _logΦdiff(a, b)
     _narrow_interval(a, b) && return first(_narrow_normal(a, b))
     a ≤ 0 && return _logΦ(a) + log(-expm1(_logΦ(b) - _logΦ(a)))
     b ≥ 0 && return _logΦ(-b) + log(-expm1(_logΦ(-a) - _logΦ(-b)))
-    return log((SpecialFunctions.erf(a / _SQRT2) - SpecialFunctions.erf(b / _SQRT2)) / 2)
+    return log((SpecialFunctions.erf(a / oftype(a, _SQRT2)) - SpecialFunctions.erf(b / oftype(b, _SQRT2))) / 2)
 end
-_uϕ(u, logZ) = isinf(u) ? 0.0 : u * exp(_logϕ(u) - logZ)   # u φ(u) / Z, 0 at ±∞
+_uϕ(u, logZ) = isinf(u) ? zero(logZ) : u * exp(_logϕ(u) - logZ)   # u φ(u) / Z, 0 at ±∞
 
 # Compute a narrow category's width before subtracting the predictor: a tiny
 # interval about zero otherwise rounds to equal endpoints after a nonzero shift.
@@ -354,14 +355,14 @@ function _gauss_hermite(n::Integer)
 end
 
 # tensor grid in r dimensions: (r × N nodes, N weights)
-function _gh_grid(order, r)
+function _gh_grid(order, r, ::Type{T} = Float64) where {T}
     order^r ≤ 10^6 || throw(ArgumentError("a Gauss–Hermite grid of $order^$r points is too large; " *
                                          "use Laplace(), or a smaller order"))
     ξ, w = _gauss_hermite(order)
     idx = CartesianIndices(ntuple(_ -> order, r))
     X = reduce(hcat, ([ξ[c[i]] for i in 1:r] for c in vec(collect(idx))); init = zeros(r, 0))
     W = [prod((w[c[i]] for i in 1:r); init = 1.0) for c in vec(collect(idx))]
-    return X, W
+    return T.(X), T.(W)
 end
 
 # --- The factor ---------------------------------------------------------------------
@@ -392,11 +393,11 @@ the identity when the sizes agree) and `b` the offset (default zero); both fixed
 
 No parameters (`A`, `b` are fixed). See `likelihood.md`.
 """
-struct LikelihoodFactor{L<:AbstractLikelihood,M,X} <: LenticulumCore.AbstractLenticulumFactor
+struct LikelihoodFactor{L<:AbstractLikelihood,M,X,A<:AbstractMatrix,B<:AbstractVector} <: LenticulumCore.AbstractLenticulumFactor
     lik::L
     nin::Int
-    A::Matrix{Float64}
-    b::Vector{Float64}
+    A::A
+    b::B
     in_channel::Symbol
     out_channel::Symbol
     method::M
@@ -408,12 +409,12 @@ function LikelihoodFactor(lik::AbstractLikelihood, nin::Integer; A = nothing, b 
     k = npredictors(lik)
     if A === nothing
         nin == k || throw(ArgumentError("give A ($k × $nin): the likelihood reads $k predictors from $nin latents"))
-        Am = Matrix{Float64}(I, k, k)
+        Am = Matrix{b === nothing ? Bool : float(eltype(_vec(b)))}(I, k, k)
     else
-        Am = A isa Real ? fill(float(A), 1, 1) : Matrix{Float64}(A)
+        Am = A isa Real ? fill(float(A), 1, 1) : float.(Matrix(A))
     end
     size(Am) == (k, nin) || throw(DimensionMismatch("A must be $k × $nin, got $(size(Am))"))
-    bv = b === nothing ? zeros(k) : _vec(b)
+    bv = b === nothing ? zeros(eltype(Am), k) : _vec(b)
     length(bv) == k || throw(DimensionMismatch("b must have length $k"))
     method isa Union{Laplace,ExpectationPropagation} ||
         throw(ArgumentError("method must be Laplace() or ExpectationPropagation(), got $(typeof(method))"))
@@ -458,7 +459,7 @@ LenticulumCore.energy(f::LikelihoodFactor, x, a, y, ps, st) =
 # pointwise: that one-element vector, summed as it is (the likelihood is normalised in y, so there
 # is no separate complexity); its expectation is the `fit` summand of the free energy
 LenticulumCore.pointwise_energyspace(::LikelihoodFactor) = LenticulumCore.EuclideanEnergySpace(1)
-LenticulumCore.pointwise_scalarisation(::LikelihoodFactor) = LenticulumCore.WeightedSum([1.0])
+LenticulumCore.pointwise_scalarisation(::LikelihoodFactor) = LenticulumCore.WeightedSum([true])
 
 # --- The tilted distribution in the predictor's coordinates -------------------------------
 #
@@ -468,43 +469,45 @@ LenticulumCore.pointwise_scalarisation(::LikelihoodFactor) = LenticulumCore.Weig
 # and a Gaussian approximation of the latter, written as a site s(ζ) with cavity × s = q, is
 # the Gaussian approximation of the whole. The message on x is s(Uᵀ(Ax + b - μz)).
 
-struct _Tilted
-    μz::Vector{Float64}
-    U::Matrix{Float64}
-    D::Vector{Float64}
+struct _Tilted{M<:AbstractVector,U<:AbstractMatrix,D<:AbstractVector}
+    μz::M
+    U::U
+    D::D
 end
 
 function _tilted(f::LikelihoodFactor, m, S)
     μz = _predictor(f, m)
     Σz = Symmetric(f.A * S * f.A')
     E = LinearAlgebra.eigen(Σz)
-    keep = E.values .> 1e-12 * max(maximum(E.values; init = 0.0), floatmin())
+    T = eltype(E.values)
+    rank_tol = T === Float64 ? 1e-12 : max(T(1e-12), length(E.values)*eps(T))
+    keep = E.values .> rank_tol * max(maximum(E.values; init = false), floatmin(T))
     return _Tilted(μz, E.vectors[:, keep], E.values[keep])
 end
 
 # log N(ζ; 0, D) + ℓ(y, z(ζ)), with its gradient and Hessian in ζ
 function _tilted_derivatives(f, t::_Tilted, y, ζ)
     ℓ, g, H = loglikelihood_derivatives(f.lik, y, t.μz .+ t.U * ζ)
-    lp = -sum(ζ .^ 2 ./ t.D) / 2 - sum(log, 2π .* t.D) / 2
+    lp = -sum(ζ .^ 2 ./ t.D) / 2 - sum(log, (2 * eltype(t.D)(π)) .* t.D) / 2
     return lp + ℓ, t.U' * g .- ζ ./ t.D, t.U' * H * t.U .- Diagonal(1 ./ t.D)
 end
 
 # Newton's method with backtracking for the mode of the tilted density in ζ
 function _tilted_mode(f, t::_Tilted, y, iterations, tol)
-    ζ = zeros(length(t.D))
+    ζ = zeros(promote_type(eltype(t.D), eltype(t.μz)), length(t.D))
     φ, g, H = _tilted_derivatives(f, t, y, ζ)
     for _ in 1:iterations
         C = -Symmetric(H)
         all(isfinite, C) || break
-        δ = 0.0
-        cmax = maximum(abs, C; init = 0.0)
+        δ = zero(eltype(ζ))
+        cmax = maximum(abs, C; init = false)
         while !isposdef(C + δ * I)                 # Levenberg damping where the density is not log-concave
-            δ = max(2δ, 1e-8 * (1 + cmax))
+            δ = max(2δ, oftype(δ, 1e-8) * (1 + cmax))
             isfinite(δ) || break
         end
         isfinite(δ) || break
         Δ = (C + δ * I) \ g
-        s = 1.0
+        s = one(eltype(ζ))
         φn, gn, Hn = _tilted_derivatives(f, t, y, ζ .+ Δ)
         while !(isfinite(φn) && all(isfinite, gn) && all(isfinite, Hn) && φn ≥ φ - 1e-12 * abs(φ)) && s > 1e-10
             s /= 2
@@ -513,7 +516,7 @@ function _tilted_mode(f, t::_Tilted, y, iterations, tol)
         (isfinite(φn) && all(isfinite, gn) && all(isfinite, Hn)) || break
         ζ = ζ .+ s .* Δ
         φ, g, H = φn, gn, Hn
-        maximum(abs, s .* Δ; init = 0.0) < tol && break
+        maximum(abs, s .* Δ; init = false) < tol && break
     end
     isposdef(-Symmetric(H)) || throw(ArgumentError(
         "Laplace: the cavity × likelihood has no strict local maximum (its Hessian is not negative definite)"))
@@ -524,7 +527,7 @@ end
 function _approximate(::Laplace, f, t, y)
     ζ̂, φ, C = _tilted_mode(f, t, y, f.method.iterations, f.method.tol)
     r = length(ζ̂)
-    return ζ̂, _spd_inv(C, "the Laplace curvature"), φ + r * log(2π) / 2 - logdet(_chol(C, "C")) / 2
+    return ζ̂, _spd_inv(C, "the Laplace curvature"), φ + r * LenticulumCore._log2π(eltype(t.D)) / 2 - logdet(_chol(C, "C")) / 2
 end
 
 function _approximate(ep::ExpectationPropagation, f, t, y)
@@ -532,7 +535,7 @@ function _approximate(ep::ExpectationPropagation, f, t, y)
     ζ̂, _, C = _tilted_mode(f, t, y, ep.iterations, ep.tol)
     r = length(ζ̂)
     Lc = cholesky(Symmetric(_spd_inv(C, "the Laplace curvature"))).L
-    X, W = _gh_grid(ep.order, r)
+    X, W = _gh_grid(ep.order, r, eltype(t.D))
     Z = ζ̂ .+ Lc * X
     logv = [_tilted_derivatives(f, t, y, Z[:, i])[1] + sum(abs2, X[:, i]) / 2 + log(W[i]) for i in axes(Z, 2)]
     lse = _logsumexp(logv)
@@ -540,7 +543,7 @@ function _approximate(ep::ExpectationPropagation, f, t, y)
     μ = Z * w
     D = Z .- μ
     Σ = (D .* w') * D'
-    logZ = lse + logdet(Lc) + r * log(2π) / 2
+    logZ = lse + logdet(Lc) + r * LenticulumCore._log2π(eltype(t.D)) / 2
     return μ, Matrix(Symmetric(Σ)), logZ
 end
 
@@ -648,7 +651,7 @@ function predictive(f::LikelihoodFactor, belief)
         lp = _ordinal_logprobs(f.lik, t.μz[1], sqrt(f.lik.scale^2 + t.D[1]))
     else
         order = f.method isa ExpectationPropagation ? f.method.order : 20
-        X, W = _gh_grid(order, length(t.D))
+        X, W = _gh_grid(order, length(t.D), eltype(t.D))
         Zs = t.μz .+ t.U * (sqrt.(t.D) .* X)
         LP = reduce(hcat, (outcome_logprobs(f.lik, Zs[:, i]) for i in axes(Zs, 2)))
         lp = [_logsumexp(LP[j, :] .+ log.(W)) for j in axes(LP, 1)]
@@ -725,7 +728,7 @@ const _ENTROPY_TAIL = 1e-14
 function _poisson_tail_bounds(p, λ, n)
     r = λ / (n + 1)
     r < 1 && p < exp(-1) || return (Inf, Inf)
-    iszero(p) && return (0.0, 0.0)
+    iszero(p) && return (zero(p), zero(p))
     mass = p / (1 - r)
     entropy = -mass * log(p) - p * log(r) * r / (1 - r)^2
     return mass, entropy
@@ -735,23 +738,23 @@ end
 # Normalise only after summing; termination never uses the rounded accumulated mass.
 function _poisson_entropy(z; maxterms::Int = 1_000_000)
     λ = exp(z)
-    iszero(λ) && return 0.0
+    iszero(λ) && return zero(λ)
     isfinite(λ) && λ < maxterms || error("Poisson entropy exceeded maxterms=$maxterms")
     mode = floor(Int, λ)
-    terms = [1.0]
-    q = 1.0
+    terms = [one(λ)]
+    q = one(λ)
     for n in mode:-1:1
         q *= n / λ
         push!(terms, q)
     end
-    q = 1.0
+    q = one(λ)
     for n in (mode + 1):(maxterms - 1)
         q *= λ / n
         push!(terms, q)
         mass, entropy = _poisson_tail_bounds(q, λ, n)
         if mass < _ENTROPY_TAIL / 10 && entropy < _ENTROPY_TAIL / 10
             Z = sum(terms)
-            return log(Z) - sum(x -> iszero(x) ? 0.0 : x * log(x), terms) / Z
+            return log(Z) - sum(x -> iszero(x) ? zero(x) : x * log(x), terms) / Z
         end
     end
     error("Poisson entropy exceeded maxterms=$maxterms")
@@ -764,7 +767,7 @@ function _poisson_support(λ; maxterms::Int)
     isfinite(λ) && λ < maxterms || error("Poisson support exceeded maxterms=$maxterms")
     iszero(λ) && return 1
     for n in (floor(Int, λ) + 1):(maxterms - 1)
-        p = exp(n * log(λ) - λ - _logfact(n))
+        p = exp(n * log(λ) - λ - _logfact(n, λ))
         mass, entropy = _poisson_tail_bounds(p, λ, n)
         mass < _ENTROPY_TAIL / 100 && entropy < _ENTROPY_TAIL / 100 && return n + 1
     end
@@ -778,7 +781,7 @@ function _conditional_entropy(L::BivariatePoissonLikelihood, z;
     N1 ≤ maxcells ÷ N2 || error("Bivariate Poisson entropy exceeded maxcells=$maxcells")
     return -sum(begin
         l = loglikelihood(L, (i, j), z)
-        l == -Inf ? 0.0 : exp(l) * l
+        l == -Inf ? zero(l) : exp(l) * l
     end for i in 0:(N1 - 1), j in 0:(N2 - 1))
 end
 function _conditional_entropy(L::OrdinalProbitLikelihood, z)
@@ -816,16 +819,16 @@ function Mycelium.local_free_energy(f::LikelihoodFactor, msgs, ps, st)
             fit = _conditional_entropy(f.lik, t.μz)
         else
             order = f.method isa ExpectationPropagation ? f.method.order : 20
-            X, W = _gh_grid(order, length(t.D))
+            X, W = _gh_grid(order, length(t.D), eltype(t.D))
             fit = sum(W[i] * _conditional_entropy(f.lik,
                       t.μz .+ t.U * (sqrt.(t.D) .* X[:, i])) for i in eachindex(W))
         end
         Hx = Mycelium.variable_entropy(mx)
-        return LenticulumCore.GradedEnergy((fit = fit, complexity = 0.0, negentropy = -fit - Hx)), st
+        return LenticulumCore.GradedEnergy((fit = fit, complexity = false, negentropy = -fit - Hx)), st
     end
     if mx isa LenticulumCore.DiracBelief
         fit = -loglikelihood(f.lik, y, _predictor(f, mx.value))
-        return LenticulumCore.GradedEnergy((fit = fit, complexity = 0.0, negentropy = 0.0)), st
+        return LenticulumCore.GradedEnergy((fit = fit, complexity = false, negentropy = false)), st
     end
     q = Mycelium.combine(mx, _lik_message(f, f.in_channel, msgs, mx))
     q isa GaussianBelief && isproper(q) ||
@@ -833,10 +836,10 @@ function Mycelium.local_free_energy(f::LikelihoodFactor, msgs, ps, st)
     m, S = belief_mean(q), belief_cov(q)
     t = _tilted(f, m, S)
     order = f.method isa ExpectationPropagation ? f.method.order : 20
-    X, W = _gh_grid(order, length(t.D))
+    X, W = _gh_grid(order, length(t.D), eltype(t.D))
     fit = -sum(W[i] * loglikelihood(f.lik, y, t.μz .+ t.U * (sqrt.(t.D) .* X[:, i])) for i in eachindex(W))
     H = Mycelium.variable_entropy(q)
-    return LenticulumCore.GradedEnergy((fit = fit, complexity = 0.0, negentropy = -H)), st
+    return LenticulumCore.GradedEnergy((fit = fit, complexity = false, negentropy = -H)), st
 end
 
 function LenticulumCore.free_energy(f::LikelihoodFactor, π, y, ps, st)
@@ -845,5 +848,5 @@ end
 
 function LenticulumCore.entropy(f::LikelihoodFactor, π, y, ps, st)
     F, st = LenticulumCore.free_energy(f, π, y, ps, st)
-    return LenticulumCore.GradedEnergy((fit = 0.0, complexity = 0.0, negentropy = -F[:negentropy])), st
+    return LenticulumCore.GradedEnergy((fit = false, complexity = false, negentropy = _negentropy(F[:negentropy]))), st
 end

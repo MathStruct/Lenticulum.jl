@@ -707,8 +707,7 @@ and energies, the per-replica batched constraint kernel against the per-node mes
 hyperpriors, Int inputs, ForwardDiff and Zygote derivatives in Float32, the promotion case, and the
 memo (a hit, and a matrix changed in place recomputed).
 
-Not covered: `nonlinear.jl`, `switching.jl`, `regime.jl`, `likelihood.jl`, `m_steps.jl`,
-`exposure.jl` and `coupling.jl` still put Float64 in (an inventory with line numbers is in
-`../Lenticulum.jl-Review-2026-11-18/p30/out-of-scope.md`, outside the repository; backlog row P31). The shared fast kernel of
-`HardConstraintFactor` on plates is Float64 only; Float32 replicas take the per-replica path. Device
-arrays were not tested with Float32 parameters beyond the existing device tests.
+P31 extends this rule to the remaining Lenticulum factors and the shared hard-constraint plate
+kernel; see their implementation notes and `test/p31_element_type.jl`. Upstream cluster inference,
+mixture overlap weights, and EM statistics still inject Float64; those limits are recorded there.
+Device arrays were not tested with Float32 parameters beyond the existing device tests.

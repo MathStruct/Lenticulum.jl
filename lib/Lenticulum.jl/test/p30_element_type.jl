@@ -174,7 +174,7 @@ end
         end
         default_output = LinearConstraintFactor((x = 2, y = 2), 2; noise = T(0.4), output = :y)
         @test eltype(default_output.output_coeff) === T
-        # Shared helper compatibility: RegimeFactor's field remains Float64 (out of scope).
+        # Default Float64 noise gives a Float64 fixed output (P31 makes this field generic).
         @test eltype(RegimeFactor((x = 2, y = 2), 2, 2; output = :y).output_coeff) === Float64
         f = LinearConstraintFactor((x = 2, y = 2), 2; noise = T(0.4), output = :y, output_coeff = a)
         p = (A = (x = a,), c = zeros(T, 2))

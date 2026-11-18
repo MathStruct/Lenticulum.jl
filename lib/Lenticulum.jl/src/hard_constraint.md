@@ -284,5 +284,20 @@ uses `_eps_eltype(eltype(S0))`, so a Float32 coefficient matrix is judged at Flo
 
 `Q` is a type parameter, not a Float64 copy; normalisers, the zero entropy (`false`) and the shared
 kernel's buffers take their inputs' type, and an absent input is `extended(TrivialBelief(), n, T)`
-with `T` the type of `c`. The shared plate kernel still accepts Float64 only; Float32 replicas take
-the per-replica path. Test: `gaussian.md`, "Element type".
+with `T` the type of `c`. P31 also admits Float32 replicas to the shared plate kernel.
+Test: `gaussian.md`, "Element type".
+
+
+## Element type
+
+Computation follows Julia promotion of the parameters, noise, incoming messages and data it reads;
+data and parameters are not converted to force a result type. Constants and numerical
+hyperparameters are cast at use.
+
+The shared plate kernel already used typed arrays; its eligibility checks now admit Float32 as well
+as Float64 inputs and parameters. P31 compares the shared result with each replica separately and
+checks a plate against dense Gaussian conditioning. Dual inputs continue through the per-replica
+path. This does not extend the shared kernel to device arrays or new scalar types.
+
+Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
+for every mixed precision, derivative, or device configuration.

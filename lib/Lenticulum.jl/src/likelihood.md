@@ -201,3 +201,22 @@ intervals and both tails” (256-bit normal interval probabilities and derivativ
 including the reported category and $[8,9]$, $[-9,-8]$, with zero and shifted predictors).
 The 2026-10-29 full top-level run measured maximum absolute Poisson entropy error
 `8.881784197001252e-16` over the 32 rates, and `H(500) = 4.526075748658402`.
+
+
+## Element type
+
+Computation follows Julia promotion of the parameters, noise, incoming messages and data it reads;
+data and parameters are not converted to force a result type. Constants and numerical
+hyperparameters are cast at use.
+
+The factor matrices, ordinal cutpoints/scale, and tilted moments are generic. Defaults are neutral
+identities/zeros or follow the supplied cutpoints; supplied floating parameters are retained.
+Factorial constants, Gaussian constants, Newton damping, and quadrature nodes/weights enter
+arithmetic in its scalar type. Quadrature grids are still constructed in Float64, then cast at use.
+Exact energy zeros are `false`. For Float32, predictor rank detection uses the larger of the
+existing relative threshold and an epsilon-scaled dimension threshold (Float64 keeps its existing
+threshold), so a Float32 rank-deficient covariance does not retain rounding eigenvalues. This does
+not add new AD support for the eigen/Newton/quadrature algorithms.
+
+Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
+for every mixed precision, derivative, or device configuration.

@@ -151,3 +151,19 @@ weights and scaling of the raw ones under rescaling a variable; each factor type
 `coupling_precision` against its formula; hard, nonlinear and degenerate factors; on the anisotropic
 grids the raw weights give the `1/q` forest, the normalised ones keep every strong edge, and `infer!`
 reaches the dense solution.
+
+
+## Element type
+
+Computation follows Julia promotion of the parameters, noise, incoming messages and data it reads;
+data and parameters are not converted to force a result type. Constants and numerical
+hyperparameters are cast at use.
+
+Precision blocks and weights retain their promoted scalar type. Default and hard weights are cast at
+use, while pseudoinverse zeros use the eigenvalue type. P31 compares Float32 and Float64 weights
+with and without normalisation. An entirely unrecognised/hard-only graph falls back to the floating
+type of `default` because it has no finite precision from which to select a type. Ordering and
+differentiation support are otherwise unchanged.
+
+Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
+for every mixed precision, derivative, or device configuration.

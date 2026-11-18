@@ -46,7 +46,7 @@ whose regimes give improper components only if they share their precision.
 
 See `regime.md`.
 """
-struct RegimeFactor{names,D<:Tuple,Q<:AbstractArray,W,B} <: LenticulumCore.AbstractLenticulumFactor
+struct RegimeFactor{names,D<:Tuple,Q<:AbstractArray,W,B,C} <: LenticulumCore.AbstractLenticulumFactor
     dims::NamedTuple{names,D}
     K::Int
     m::Int
@@ -56,7 +56,7 @@ struct RegimeFactor{names,D<:Tuple,Q<:AbstractArray,W,B} <: LenticulumCore.Abstr
     init_coeff::W
     init_offsets::B
     output::Union{Symbol,Nothing}
-    output_coeff::Union{Matrix{Float64},Nothing}
+    output_coeff::C
 end
 
 function RegimeFactor(dims::NamedTuple, K::Int, m::Int; switch::Symbol = :k, noise = 0.1, learn_noise::Bool = false,
@@ -71,7 +71,7 @@ function RegimeFactor(dims::NamedTuple, K::Int, m::Int; switch::Symbol = :k, noi
     per = noise isa AbstractArray{<:Real,3} ? [noise[:, :, k] for k in axes(noise, 3)] :
           noise isa AbstractVector && !(eltype(noise) <: Real) ? noise : fill(noise, K)
     length(per) == K || throw(ArgumentError("noise: $(length(per)) covariances for $K regimes"))
-    Q = zeros(m, m, K)
+    Q = zeros(promote_type(map(q -> eltype(_as_cov(q, m)), per)...), m, m, K)
     for k in 1:K
         Qk = _as_cov(per[k], m)
         size(Qk) == (m, m) || throw(ArgumentError("noise covariance $k must have size ($m, $m)"))
@@ -80,14 +80,17 @@ function RegimeFactor(dims::NamedTuple, K::Int, m::Int; switch::Symbol = :k, noi
         isposdef(Symmetric(Qk)) || throw(ArgumentError("noise covariance $k must be positive definite"))
         Q[:, :, k] = Qk
     end
-    return RegimeFactor(dims, K, m, switch, Q, learn_noise, init_coeff, init_offsets, output, _output_coeff(dims, m, output, output_coeff))
+    C = output === nothing ? nothing : _output_coeff(dims, m, output, output_coeff,
+        output_coeff isa LinearAlgebra.UniformScaling ?
+            float(promote_type(eltype(Q), typeof(output_coeff.λ))) : float(eltype(output_coeff)))
+    return RegimeFactor(dims, K, m, switch, Q, learn_noise, init_coeff, init_offsets, output, C)
 end
 
 function LuxCore.initialparameters(rng::AbstractRNG, f::RegimeFactor)
     A = NamedTuple{_learned(f)}(map(n -> cat((f.init_coeff(rng, f.m, f.dims[n]) for _ in 1:f.K)...; dims = 3), _learned(f)))
-    base = (A = A, b = f.init_offsets(rng, f.m, f.K), logw = zeros(f.K))
+    base = (A = A, b = f.init_offsets(rng, f.m, f.K), logw = zeros(eltype(f.Q), f.K))
     f.learn_noise || return base
-    L = zeros(f.m, f.m, f.K)
+    L = zeros(eltype(f.Q), f.m, f.m, f.K)
     for k in 1:f.K
         C = cholesky(Symmetric(f.Q[:, :, k])).L
         L[:, :, k] = LinearAlgebra.tril(Matrix(C), -1) + Diagonal(log.(diag(C)))
@@ -119,7 +122,7 @@ LenticulumCore.scalarisation(::RegimeFactor) = LenticulumCore.GradedScalarisatio
 # L_k with the exponential of its diagonal; the strictly lower part masked (no mutation, for AD)
 function _regime_cholesky(R::AbstractMatrix)
     m = size(R, 1)
-    mask = [i > j ? 1.0 : 0.0 for i in 1:m, j in 1:m]
+    mask = [i > j for i in 1:m, j in 1:m]
     return R .* mask .+ Diagonal(exp.(diag(R)))
 end
 

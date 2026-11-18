@@ -236,3 +236,21 @@ The backward message linearises at the target's cavity, so one tree sweep is not
 fixed point even under BP; `NonlinearFactor` now declares `Mycelium.message_uses_cavity(::NonlinearFactor) = true`,
 which keeps such trees off the one-sweep shortcut of `propagate!` (Mycelium `passing.md`). Test:
 `test/gh15_nonlinear_tree.jl`.
+
+
+## Element type
+
+Computation follows Julia promotion of the parameters, noise, incoming messages and data it reads;
+data and parameters are not converted to force a result type. Constants and numerical
+hyperparameters are cast at use.
+
+User Jacobians and difference Jacobians retain the types of the values they read. The difference
+rule keeps the existing Float64 step; other float types use a cube-root-epsilon step to avoid
+subtracting nearly identical function values. Rank-error buffers use the primal type. Sigma-point
+tuning fields remain Float64, but enter arithmetic cast to the expansion computation type;
+covariance decompositions and zero residual covariances preserve their types. The user function and
+Jacobian decide their own output types. This does not add support for differentiating eigen
+decompositions that were unsupported before.
+
+Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
+for every mixed precision, derivative, or device configuration.

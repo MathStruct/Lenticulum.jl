@@ -59,3 +59,20 @@ grading as `local_free_energy` (shared through `_graded_free_energy`).
 matches the closed-form posterior, predictive and $-\log p(y)$; the random-slopes hierarchy
 built from thirty exposed regression factors matches the dense reference of
 `examples/hierarchical_models.jl` (means rtol $10^{-9}$, $-\log p(y)$ rtol $10^{-10}$).
+
+
+## Element type
+
+Computation follows Julia promotion of the parameters, noise, incoming messages and data it reads;
+data and parameters are not converted to force a result type. Constants and numerical
+hyperparameters are cast at use.
+
+Exposed-block identities, projected moments, precision decompositions, and free-energy workspaces
+preserve the input types. Empty covariance and entropy contributions are typed zeros or `false`.
+Improper-belief decompositions and rank tolerances use the promoted coefficient and belief type. P31
+checks parameter messages and free energy, including a paired exposed regression graph with a dense
+oracle. The existing requirement of a point input remains; bilinear inference is outside this
+change.
+
+Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
+for every mixed precision, derivative, or device configuration.

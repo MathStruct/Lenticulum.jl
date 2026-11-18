@@ -98,3 +98,19 @@ $2 \cdot 10^{-8}$ in $-\log p$; one shared noise level is 53.5 worse.
    `cat`, which Zygote has no adjoint for; a `map` works.
 3. **An ambiguous `noise`.** A real vector is a diagonal (as for the other factors), so
    per-regime noise is a vector of matrices or an $m \times m \times K$ array, not a vector of scalars.
+
+
+## Element type
+
+Computation follows Julia promotion of the parameters, noise, incoming messages and data it reads;
+data and parameters are not converted to force a result type. Constants and numerical
+hyperparameters are cast at use.
+
+The output coefficient is generic, the noise tensor follows promotion of its regime covariances, and
+initial noise coordinates/log weights use the noise type. The lower-triangular mask is Boolean.
+Messages and energies delegate to Mycelium cluster inference, whose joint type still includes
+Float64 (`lib/Mycelium.jl/src/cluster.jl:574,582`); the corresponding P31 checks are broken for that
+reason. Initial coefficient/offset callbacks continue to decide their own output types.
+
+Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
+for every mixed precision, derivative, or device configuration.
