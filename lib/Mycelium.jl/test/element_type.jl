@@ -106,7 +106,7 @@ end
         gc,c = p32_cluster(T,pa,pb,tab,μ); nt = NamedTuple()
         jt = Mycelium._cluster_joint(c, nt, nt, nothing)
         @test eltype(jt.H) === T
-        @test Mycelium._cluster_batchable([c,c],[nt,nt],nothing,nt) === (T === Float64)
+        @test Mycelium._cluster_batchable([c,c],[nt,nt],nothing,nt) === true
         msg = first(Mycelium.factor_message(c,:x,nothing,nt,nothing,nt,nt))
         @test eltype(msg.η) === T
         @test eltype(msg.Λ) === T
@@ -179,4 +179,116 @@ end
         point = LenticulumCore.extended(DiracBelief(T[0.7]))
         @test last(Mycelium.combine_with_overlap(a,point)) isa T
     end
+end
+
+@testset "P33 sample reweighting and damping" begin
+    X = reshape(Float32[-1,-0.5,0,0.25,0.5,1,1.5,2],1,:)
+    g32 = LenticulumCore.Gaussian(Float32[0.2],fill(1.5f0,1,1))
+    g64 = LenticulumCore.Gaussian(Float64[0.2],fill(1.5,1,1))
+    for weights in (nothing, Float32[1,2,3,4,4,3,2,1])
+        a = LenticulumCore.SampleBelief(X,weights)
+        a64 = LenticulumCore.SampleBelief(Float64.(X),weights === nothing ? nothing : Float64.(weights))
+        w = Mycelium.combine(a,g32).weights
+        @test eltype(w) === Float32
+        @test w ≈ Mycelium.combine(a64,g64).weights rtol=1e-5
+        @test eltype(Mycelium.combine(a,g64).weights) === Float64
+        @test eltype(Mycelium._sample_weights(a)) === Float32
+        b = LenticulumCore.SampleBelief(X,reverse(Float32[1,2,3,4,4,3,2,2]))
+        @test eltype(Mycelium.damp(a,b,0.3f0).weights) === Float32
+        @test Mycelium.belief_distance(a,b) isa Float32
+        av = LenticulumCore.SampleBelief(collect(eachcol(X)),weights)
+        @test eltype(Mycelium._sample_weights(av)) === Float32
+        @test Mycelium._sample_weights(av) == Mycelium._sample_weights(a)
+    end
+    # GH-21: moments remain differentiable; reweighting adds no mutation to the tape.
+    f(x) = sum(Mycelium.combine(LenticulumCore.SampleBelief(reshape(x,1,:)),g32).weights .* x)
+    x = vec(X)
+    @test ForwardDiff.gradient(f,x) ≈ only(Zygote.gradient(f,x)) rtol=1e-5
+end
+
+# A Gaussian residual x-y-μ[k], used to test the stacked path independently of Lenticulum.
+struct P33Residual <: LenticulumCore.AbstractLenticulumFactor end
+LenticulumCore.islearnable(::P33Residual) = true
+LenticulumCore.channels(::P33Residual) = (LenticulumCore.Channel(:x,1), LenticulumCore.Channel(:y,1), LenticulumCore.Channel(:k,2))
+Mycelium.cluster_switch(::P33Residual) = :k
+function Mycelium.cluster_form(::P33Residual, ps)
+    T = eltype(ps.μ)
+    Mycelium.ClusterForm((x=ones(T,1,1), y=-ones(T,1,1)), reshape(ps.μ,1,2), fill(T(0.75),1,1), log.(T[0.4,0.6]), :k)
+end
+function p33_plate(T)
+    b = GraphBuilder()
+    py = PriorFactor(:y,LenticulumCore.Gaussian(T[0.1],fill(T(1.25),1,1)),_ -> false)
+    plate!(b,:rep,4) do p,i
+        variable!(p,:x,1); variable!(p,:y,1); variable!(p,:k,2)
+        factor!(p,:r,P33Residual()); connect!(p,:r,:x,:x);connect!(p,:r,:y,:y);connect!(p,:r,:k,:k)
+        factor!(p,:py,py);connect!(p,:py,:y,:y)
+        factor!(p,:d,DataFactor(:x,T[i/4]));connect!(p,:d,:x,:x;direction=Emitting())
+    end
+    g = cluster(build(b),:rep,:c,[:r,:py];params=:mix)
+    return g, (mix=(r=(μ=T[-0.5,1],),py=(;)),)
+end
+function p33_plate_results(T)
+    g,ps = p33_plate(T); nt=(;)
+    s=MessageStore(g); for _=1:2; sweep!(s,g,plate_schedule(g),ps,nt); end
+    pl=only(plates(g)); cs=[g.factors[g.factor_index[replica_name(:c,i)]].factor for i=1:4]
+    inputs=[(x=DiracBelief(T[i/4]),) for i=1:4]
+    @test Mycelium._cluster_batchable(cs,inputs,nothing,ps.mix)
+    mixed=[i==2 ? (x=DiracBelief(Float64[i/4]),) : inputs[i] for i=1:4]
+    T===Float32 && @test !Mycelium._cluster_batchable(cs,mixed,nothing,ps.mix)
+    dualps=(r=(μ=ForwardDiff.Dual.(ps.mix.r.μ,one(T)),),py=(;))
+    @test !Mycelium._cluster_batchable(cs,inputs,nothing,dualps)
+    dualins=[(x=DiracBelief(ForwardDiff.Dual.(T[i/4],one(T))),) for i=1:4]
+    @test !Mycelium._cluster_batchable(cs,dualins,nothing,ps.mix)
+    B=Mycelium.factor_beliefs(cs,(x=Mycelium.belief_block([m.x for m in inputs]),),ps.mix,nt)
+    @test B isa Mycelium.FrozenClusterBeliefs{T}
+    jt,_,pts,nA=Mycelium._batch_joint(cs,inputs,ps.mix,nothing)
+    l,sel=Mycelium._discrete_parts(cs[1],jt,:k,Dict{Any,Any}())
+    kb=Mycelium._discrete_block(:k,l,sel,nA,4)
+    @test eltype(kb.logp) === T
+    @test exp.(kb.logp) ≈ B.q rtol=1e-5
+    blockmsg=first(Mycelium.factor_messages(cs,:x,nothing,nt,fill(nothing,4),ps.mix,nt))
+    @test eltype(blockmsg.logw) === T
+    wide=[(x=DiracBelief([Float64(i/4)+2.0^-40]),) for i=1:4]
+    @test Mycelium._cluster_batchable(cs,wide,nothing,ps.mix)
+    widejt,_,widepts,_=Mycelium._batch_joint(cs,wide,ps.mix,nothing)
+    @test eltype(widejt.H) === Float64
+    @test widepts[:x] == reduce(hcat,[m.x.value for m in wide])
+    Eb=first(Mycelium.belief_free_energies(cs,B,ps.mix,nt))
+    Ep=[first(Mycelium.local_free_energy(cs[i],inputs[i],ps.mix,nt)) for i=1:4]
+    for i=1:4
+        @test all(v -> v isa T, values(Eb[i].parts))
+        @test collect(values(Eb[i].parts)) ≈ collect(values(Ep[i].parts)) rtol=1e-5
+        per=Mycelium.factor_belief(cs[i],inputs[i],ps.mix,nt)
+        cols=(2i-1):(2i)
+        @test B.M[:,cols] ≈ per.M rtol=1e-5
+        @test B.q[:,i] ≈ per.q rtol=1e-5
+        # Enumeration: x|k ~ N(μ[k]+0.1, 2); posterior on k and marginal of y.
+        prob=[p*exp(-(T(i/4)-μ-T(0.1))^2/4)/sqrt(T(4)*T(π)) for (p,μ) in zip(T[0.4,0.6],ps.mix.r.μ)]
+        @test sum(values(Eb[i].parts)) ≈ -log(sum(prob)) rtol=1e-5
+        mk=cluster_marginal(s,g,replica_name(:c,i),:k,ps)
+        @test eltype(mk.logp) === T
+        @test exp.(mk.logp) ≈ prob/sum(prob) rtol=1e-5
+    end
+    mb=first(Mycelium.factor_messages(cs,:x,nothing,fill(nt,4),fill(nothing,4),ps.mix,nt))
+    for i=1:4
+        mr=first(Mycelium.factor_message(cs[i],:x,nothing,nt,nothing,ps.mix,nt))
+        @test eltype(mb[i].logw) === T
+        @test mb[i].logw ≈ mr.logw rtol=1e-5
+        for (a,b) in zip(mb[i].components,mr.components)
+            @test eltype(a.η) === T && eltype(a.Λ) === T
+            @test a.η ≈ b.η rtol=1e-5
+            @test a.Λ ≈ b.Λ rtol=1e-5
+        end
+    end
+    f(μ)=sum(sum(values(e.parts)) for e in first(Mycelium.belief_free_energies(cs,B,(r=(μ=μ,),py=(;)),nt)))
+    grad=only(Zygote.gradient(f,ps.mix.r.μ))
+    @test eltype(grad) === T
+    @test grad ≈ ForwardDiff.gradient(f,ps.mix.r.μ) rtol=1e-5
+    F=first(LenticulumCore.scalar_free_energy(s,g,ps,nt))
+    @test F isa T
+    return F,grad,mb[1].logw,B.M
+end
+@testset "P33 cluster plate element types" begin
+    a,b=p33_plate_results(Float32),p33_plate_results(Float64)
+    for (x,y) in zip(a,b); @test x ≈ y rtol=1e-3; end
 end

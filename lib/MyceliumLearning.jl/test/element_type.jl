@@ -69,7 +69,7 @@ MyceliumLearning.m_step(::P32Normal, stats::MomentStats, ps, frozen) =
     @test h == [1.0,1 + 2.0^-40]
 end
 
-@testset "P32 Core limit: accelerated EM with an empty fixed subtree" begin
+@testset "P33: accelerated EM with an empty fixed subtree" begin
     b = GraphBuilder(); variable!(b,:x,1)
     factor!(b,:p,P32Normal());connect!(b,:p,:x,:x)
     fixed = PriorFactor(:x,LenticulumCore.Gaussian(Float32[0],fill(2f0,1,1)),_ -> false)
@@ -79,8 +79,28 @@ end
     ps = cluster_parameters(gc,(p=(μ=Float32[-0.5],),fixed=NamedTuple()))
     out,Fs,_ = fit_em(gc,ps,NamedTuple();schedule=SequentialSchedule(all_tasks(gc)),
                       iters=1,tol=-Inf,accelerate=true)
-    # Outside P32's scope: LenticulumCore/src/parameter_tree.jl:70 returns Float64[] for
-    # the fixed factor's empty parameter subtree, widening SQUAREM's flattened vector.
-    @test_broken eltype(out.c.p.μ) === Float32
-    @test_broken eltype(Fs) === Float32
+    @test eltype(out.c.p.μ) === Float32
+    @test eltype(Fs) === Float32
+end
+
+@testset "P33 accelerated EM: well-conditioned data and fixed empty subtree" begin
+    function run(T)
+        b=GraphBuilder()
+        # Sixty observations with spread, sharing one learned mean; exact M-step is their mean.
+        X=[0.7 + sin(i)*0.4 for i=1:60]
+        plate!(b,:rep,60) do p,i
+            variable!(p,:x,1)
+            factor!(p,:p,P32Normal());connect!(p,:p,:x,:x)
+            factor!(p,:fixed,PriorFactor(:x,LenticulumCore.Gaussian(T[0],fill(T(2),1,1)),_ -> false));connect!(p,:fixed,:x,:x)
+            factor!(p,:d,DataFactor(:x,T[X[i]]));connect!(p,:d,:x,:x;direction=Emitting())
+        end
+        g=cluster(build(b),:rep,:c,[:p,:fixed];params=:shared)
+        ps=(shared=(p=(μ=T[-0.5],),fixed=(;)),)
+        out,Fs,_=fit_em(g,ps,(;);schedule=plate_schedule(g),iters=3,tol=-Inf,accelerate=true)
+        @test eltype(out.shared.p.μ) === T
+        @test eltype(Fs) === T
+        @test out.shared.p.μ ≈ [sum(X)/length(X)] rtol=1e-4
+        out.shared.p.μ
+    end
+    @test run(Float32) ≈ run(Float64) rtol=1e-4
 end

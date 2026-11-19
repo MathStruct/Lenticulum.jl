@@ -415,10 +415,9 @@ $10^{-4}$, with Gaussian messages).
 
 - **ForwardDiff.** The joint (`_cluster_joint`, `_enumerate_assignments`, `_log_integrals`,
   `_belief_parts`, `_continuous_parts`) is generic in its number type: `_ClusterJoint{T}` with `T`
-  the promotion of `Float64`, the forms' and the incoming messages' number types
+  the floating promotion of the forms' and the incoming messages' number types
   (`_joint_numtype`). The Cholesky factorisations are LinearAlgebra's generic ones. The stacked
-  joint of a plate (`cluster_batch.jl`) stays in `Float64`: parameters of another number type
-  (`_plain(ps)` false) go replica by replica.
+  joint of a plate (`cluster_batch.jl`) accepts plain floating types; duals go replica by replica.
 - **Zygote.** The joint is built by enumeration with `push!` and in-place writes. Instead of
   rewriting it without mutation, `_cluster_local_energy` (which `local_free_energy` of a
   `ClusterFactor` and of a `RegimeFactor` call) has an rrule in `ext/MyceliumForwardDiffExt.jl`
@@ -558,11 +557,23 @@ and exact energy zeros are `false`. Moment and residual buffers follow their inp
 
 `test/element_type.jl` checks paired Float32/Float64 clusters against discrete enumeration,
 mixed incoming precision, dual joints and messages, marginals and energies.
-The shared stacked batch implementation in `cluster_batch.jl` remains Float64-only:
-`_plain(ps)` rejects Float32 parameter trees, selecting the generic per-replica path.
-Empty trees retain their previous Float64 batch eligibility, but an additional joint-type
-check requires the forms and incoming messages to promote to Float64 for every replica.
-Thus fixed Float32 priors and tables also take the per-replica path.
+P33 extends the shared stacked path in `cluster_batch.jl` to a plain floating type
+`T <: AbstractFloat`. Every replica must have the same promoted joint type as well as
+matching factors and input shape. For vector inputs every replica is checked; for block inputs
+(a plate sweep) only the first column, since `_block_batchable` admits only blocks (one array per
+variable, so one element type for all columns). ForwardDiff duals
+and replicas with different joint types use the per-replica path. `FrozenClusterBeliefs{T}`
+holds typed probabilities, moments, covariances, entropies and point matrices; work buffers
+and normalising constants follow the joint or the arithmetic that reads the forms.
+Block points retain their floating input type before stacking; eligibility includes their
+type, so a wider observation widens the joint rather than being narrowed.
+
+`test/element_type.jl`, "P33 cluster plate element types", compares a plate with observed
+points and a discrete switch against per-replica calculations and explicit enumeration,
+and compares the stacked Zygote parameter gradient with ForwardDiff and Float64.
+This does not add differentiation through incoming messages or device batching; the
+existing storage/shape restrictions still apply. It does not change the flat thresholds.
+
 **Thresholds** (review of P32, [[LP-061 Findings of the review of P32]]). Codex's version kept the
 Float64 values of the flat and range tolerances (`_FLAT_RTOL = 1e-10`, `sqrt(eps())`). In Float32 a
 singular joint keeps rounding eigenvalues of a few `eps(Float32)·λmax` (5e-7·λmax in the review's

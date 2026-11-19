@@ -7,15 +7,15 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-18, after P32 (cluster joints, EM statistics and the Gaussian overlap in the element type of their inputs), committed on `dev-danielb`, not pushed.
+**Last updated:** 2026-11-19, after P33 (the cluster batch path, accelerated EM and sample reweighting in the element type of their inputs), committed on `dev-danielb`, not pushed. A Lenticulum graph is now Float32 end to end with no known Float64 source left on the message, energy or EM paths (stopping tolerances and comparison scores stay Float64: `~/.cache/lenticulum/p33/remaining-float64.md`).
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
 | `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
-| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/p32` | at `cb289789` with the P32 diff uncommitted (merged into `dev-danielb` as a diff); reset it before the next Codex package |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `cb289789` with Codex's P32 diff applied (without the threshold fix; the P31 state stashed, `stash@{0}`); probes in `scratch/p32/` (copied to `../Lenticulum.jl-Review-2026-11-18/p32/`); `scratch/p6env` serves any review, and `~/.cache/lenticulum/env-p29` (the main checkout's packages) serves as the old code for a bit-for-bit comparison before a commit. Before the next review: stash or reset to the commit under review, then apply its diff |
+| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/p33` | at `d3adbd6e` with the P33 diff uncommitted (merged into `dev-danielb` as a diff; the P32 worktree diff saved to `~/.cache/lenticulum/p32/codex-worktree-final.diff`); reset it before the next Codex package |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `d3adbd6e` with the P33 diff applied; probes in `scratch/p33/` (copied to `../Lenticulum.jl-Review-2026-11-19/p33/probes/`); `scratch/p6env` serves any review, and `~/.cache/lenticulum/env-p29` (the main checkout's packages) serves as the old code for a bit-for-bit comparison before a commit. Before the next review: reset to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -28,6 +28,19 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **P33** (2026-11-19): the stacked path of cluster plates (`cluster_batch.jl`) serves any plain
+  floating type (`FrozenClusterBeliefs{T}`), so Float32 plates are stacked; duals and replicas of
+  differing joint types go replica by replica. `_flatten_active` drops empty parts, so a fixed factor's
+  empty subtree no longer widens Float32 accelerated EM. Sample reweighting keeps its inputs' type and is
+  now Zygote-differentiable. Codex implemented (one run, logs copied to `~/.cache/lenticulum/p33/`); the
+  session made the block check read the first column only. Review [[LP-062 Findings of the review of P33]]
+  (Mistral, \$0, four probes, no defect; one more probe by the session). Float64 bit for bit unchanged
+  against `d3adbd6e` (Codex's script, rerun on the final code: 52 lines identical; the reviewer's: 128).
+  Suites passed on the final code: Mycelium, MyceliumLearning, Lenticulum, VariationalDiffusion,
+  AlgebraicFactors, ImplicitLayers, AdversarialFactors (`~/.cache/lenticulum/p33/gates/`); LenticulumCore
+  and the Mycelium/MyceliumLearning device tests passed on Codex's version, before the block-check change
+  (which touches neither). Not run: the docs builds; the speed of the stacked Float32 path (benchmarks
+  deferred).
 - **P32** (2026-11-18): Mycelium's cluster joints (number type = floating promotion of forms and
   messages, no Float64 floor), the Gaussian overlaps and mixture products, and MyceliumLearning's
   `MomentStats{T}`/`fit_em` history keep the element type of their inputs; a Lenticulum graph, regime
@@ -140,14 +153,13 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Next
 
-No row is set; pick one with the maintainer. P33 (what P32 left in Float64) is small and finishes the
-Float32 work. Close to P5: a learned noise with hard messages, a residual-space formulation
-of the positive definite path (LP-047 finding 4; no row yet). Left open by P27 (no rows yet): the
-Bethe free energy with a mixture marginal under BP, derivatives through the new rules, two extended
-components with hard directions. Small: `ImplicitLayers`' `SolveReport` also has
-`residual::Float64` (not checked whether duals reach it; that package is unreviewed);
-`AndersonSchedule` runs without its memory under duals (LP-053). Benchmarks are deferred by the
-maintainer (2026-11-18).
+No row is set; pick one with the maintainer. The Float32 work (P8, P30–P33) is finished. Close to P5:
+a learned noise with hard messages, a residual-space formulation of the positive definite path (LP-047
+finding 4; no row yet). Left open by P27 (no rows yet): the Bethe free energy with a mixture marginal
+under BP, derivatives through the new rules, two extended components with hard directions. Small:
+`ImplicitLayers`' `SolveReport` also has `residual::Float64` (not checked whether duals reach it; that
+package is unreviewed); `AndersonSchedule` runs without its memory under duals (LP-053). Benchmarks are
+deferred by the maintainer (2026-11-18), among them the speed of the Float32 stacked cluster path.
 
 ## Open
 
@@ -198,4 +210,4 @@ maintainer (2026-11-18).
   file with four of them at the 100-turn limit (\$0): one right finding; its fifth probe's reference lost
   digits at 1e6 (a false report): check a reviewer's reference before its claim. On P5 the same brief: four probes, the answer file
   records only the first, no summary (\$0); the maintainer ran the rest (one probe needed a one-line repair)
-  and probe 2's properness check found F1. On P3 the first run crashed inside vibe on its first command (a validation error of its own); the rerun reached 100 turns with only probe 1 in the answer file: run its later probes yourself. On P28 the same: four probes recorded, three more written but not recorded (all passed when run). On P9 (vibe 3.1.2, after it had failed on P29): five probes recorded, the sixth (the one with the findings) written and not recorded. On I22 (P6 brief form): nine probes, all recorded, a finished answer with "Not run" and "Unverified" sections, one right finding, \$0. On I23 (same form, `--max-price 3`): three probes, all recorded, one right finding, \$0; vibe exited 3 at its turn limit after writing the answer. On I24 (same form): twelve probes, a finished answer with tables, one right finding, \$0. Another user's `vibe-rs --continue` runs on this machine: wait on the PID of your own run, not `pgrep -x vibe-rs`. On P30 (P6 brief form, `--max-price 3`): five probes, three recorded, no summary at the turn limit (\$0); of the two unrecorded, one needed an import repaired (`SpecialFunctions` is not in `p6env`: use `Lenticulum.SpecialFunctions`) and showed the one defect. Its old-versus-new bitwise comparison (`probe2_f64_same.jl` with `scratch/p30/oldenv`) is reusable.
+  and probe 2's properness check found F1. On P3 the first run crashed inside vibe on its first command (a validation error of its own); the rerun reached 100 turns with only probe 1 in the answer file: run its later probes yourself. On P28 the same: four probes recorded, three more written but not recorded (all passed when run). On P9 (vibe 3.1.2, after it had failed on P29): five probes recorded, the sixth (the one with the findings) written and not recorded. On I22 (P6 brief form): nine probes, all recorded, a finished answer with "Not run" and "Unverified" sections, one right finding, \$0. On I23 (same form, `--max-price 3`): three probes, all recorded, one right finding, \$0; vibe exited 3 at its turn limit after writing the answer. On I24 (same form): twelve probes, a finished answer with tables, one right finding, \$0. Another user's `vibe-rs --continue` runs on this machine: wait on the PID of your own run, not `pgrep -x vibe-rs`. On P33 (P6 brief form, `--max-price 3`): four probes, all recorded, no summary (exit 3 at the turn limit), \$0; the session ran the open edge itself. On P30 (P6 brief form, `--max-price 3`): five probes, three recorded, no summary at the turn limit (\$0); of the two unrecorded, one needed an import repaired (`SpecialFunctions` is not in `p6env`: use `Lenticulum.SpecialFunctions`) and showed the one defect. Its old-versus-new bitwise comparison (`probe2_f64_same.jl` with `scratch/p30/oldenv`) is reusable.

@@ -279,3 +279,20 @@ overlap is read. No weights or parameters are narrowed; Float64 arithmetic order
 Lenticulum's `test/p31_element_type.jl` covers a Float32 switching likelihood combined with a
 Float32 Gaussian prior. This does not change sample reweighting, residual comparisons or the
 rules for disjoint supports.
+
+## Element type (P33)
+
+Sample reweighting starts unweighted log-weights with zeros of the evaluated log-density
+type. Given weights combine with those densities by Julia promotion; samples and parameters
+are not converted. Normalisation is functional so the same arithmetic is differentiable
+under Zygote and ForwardDiff. `_sample_weights` uses the floating promotion of the samples'
+numeric elements when no weights are supplied, and the given weights' floating type otherwise.
+Damping promotes those normalised weights with its coefficient; a Float64 coefficient can
+therefore widen Float32 weights. Sample distance uses a neutral zero for its point reduction.
+
+Evidence: `test/element_type.jl`, "P33 sample reweighting and damping", checks weighted and
+unweighted Float32 samples, mixed Gaussian precision, vector and matrix samples, damping,
+and matching ForwardDiff/Zygote reweighting gradients. Sample moments remain covered by
+`../../LenticulumCore.jl/test/sample_moments.jl` (GH-21). Arbitrary densities choose their own
+return type; this change does not force them into the samples' type. Other belief distances,
+residual tolerances and importance-weight warning thresholds are outside P33.

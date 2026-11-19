@@ -52,16 +52,23 @@ function _input_shape(c::ClusterFactor, msgs, skip)
         return bb isa GaussianBelief ? (:gauss, bb.Λ) : (:none,)
     end
 end
-# The stacked joint is built in `Float64`; parameters of another number type (dual numbers under
-# ForwardDiff, P24) go replica by replica, whose joint is generic.
-_plain(@nospecialize(ps)) = typeof(float(zero(_numtype(ps)))) === Float64
+# Plain floating joints share the stacked path; duals keep the per-replica path (P24).
+_plain(@nospecialize(ps)) = typeof(float(zero(_numtype(ps)))) <: AbstractFloat
+_batch_forms(c::ClusterFactor, @nospecialize(ps)) = [cluster_form(f, _subtree(ps, c.keys[i])) for (i, f) in enumerate(c.factors)]
 function _cluster_batchable(cs, msgs, skip, @nospecialize(ps))
     length(cs) >= 2 && _plain(ps) || return false
     c1, k1 = cs[1], _input_shape(cs[1], msgs[1], skip)
-    # Empty parameter trees are neutral: fixed forms and incoming data determine their type.
-    forms = [cluster_form(f, _subtree(ps, c1.keys[i])) for (i, f) in enumerate(c1.factors)]
-    all(m -> _joint_numtype(c1, forms, m, skip) === Float64, msgs) || return false
+    forms = _batch_forms(c1, ps)
+    T = _joint_numtype(c1, forms, msgs[1], skip)
+    T <: AbstractFloat || return false
+    all(m -> _joint_numtype(c1, forms, m, skip) === T, msgs) || return false
     return all(i -> _same_cluster(cs[i], c1) && isequal(_input_shape(cs[i], msgs[i], skip), k1), 2:length(cs))
+end
+# Blocks: `_block_batchable` admits only blocks (one array each), so every column has the number
+# type of the first, and checking that one suffices.
+function _cluster_batchable(cs, msgs::NamedTuple, skip, @nospecialize(ps))
+    _plain(ps) && _block_batchable(cs, msgs, skip) || return false
+    return _joint_numtype(cs[1], _batch_forms(cs[1], ps), _column(msgs, 1), skip) <: AbstractFloat
 end
 
 # The per-factor pieces of a joint that do not depend on the replica's data: per outcome group
@@ -79,7 +86,7 @@ function _joint_plan(c::ClusterFactor, jt::_ClusterJoint, @nospecialize(ps))
         kcol = _switch_columns(c, F, w, jt.assignments)
         groups = map(_varies(F) ? unique(kcol) : [0]) do k
             idx = k == 0 ? collect(eachindex(kcol)) : findall(==(k), kcol)
-            G = zeros(m, n)
+            G = zeros(eltype(jt.H), m, n)
             for (ch, Ach) in pairs(F.A)
                 v = w[ch]
                 haskey(jt.offset, v) && (G[:, jt.offset[v]] .+= _at(Ach, k))
@@ -107,9 +114,10 @@ function _batch_joint(cs, msgs, @nospecialize(ps), skip)
     jt1 = _cluster_joint(c, _batch_first(msgs), ps, skip)
     plan = _joint_plan(c, jt1, ps)
     n, nA = size(jt1.H)
+    T = eltype(jt1.H)
     # which continuous channels hold points is the same in every replica (`_input_shape`)
-    pts = Dict{Symbol,Matrix{Float64}}(v => _batch_points(msgs, v, skip) for v in keys(jt1.points))
-    Hd = zeros(n, nA, N); δ = zeros(nA, N)
+    pts = Dict{Symbol,Matrix{T}}(v => _batch_points(msgs, v, skip) for v in keys(jt1.points))
+    Hd = zeros(T, n, nA, N); δ = zeros(T, nA, N)
     for v in jt1.free
         _batch_eta!(Hd, jt1.offset[v], msgs, v, skip)
     end
@@ -124,13 +132,13 @@ function _batch_joint(cs, msgs, @nospecialize(ps), skip)
         end
         δ[idx, :] .+= Ck' * QS .- sum(S .* QS; dims = 1) ./ 2
     end
-    H = Matrix{Float64}(undef, n, nA * N); cst = Vector{Float64}(undef, nA * N)
+    H = Matrix{T}(undef, n, nA * N); cst = Vector{T}(undef, nA * N)
     for r in 1:N
         cols = ((r - 1) * nA + 1):(r * nA)
         @views H[:, cols] .= jt1.H .+ (Hd[:, :, r] .- Hd[:, :, 1])
         @views cst[cols] .= jt1.c .+ (δ[:, r] .- δ[:, 1])
     end
-    jt = _ClusterJoint(jt1.free, jt1.offset, Dict{Symbol,Vector{Float64}}(), jt1.assignments, jt1.J,
+    jt = _ClusterJoint(jt1.free, jt1.offset, Dict{Symbol,Vector{T}}(), jt1.assignments, jt1.J,
                        repeat(jt1.class, N), H, cst)
     return jt, jt1.class, pts, nA
 end
@@ -140,7 +148,7 @@ end
 _batch_first(msgs::AbstractVector) = msgs[1]
 _batch_first(msgs::NamedTuple) = _column(msgs, 1)
 _batch_points(msgs::AbstractVector, v, skip) = reduce(hcat, [_point_vector(_incoming(m, v, skip)) for m in msgs])
-_batch_points(msgs::NamedTuple, v, skip) = Matrix{Float64}(float.(_incoming(msgs, v, skip).X))
+_batch_points(msgs::NamedTuple, v, skip) = Matrix(float.(_incoming(msgs, v, skip).X))
 function _batch_eta!(Hd, off, msgs::AbstractVector, v, skip)
     for r in eachindex(msgs)
         b = _cluster_input(_incoming(msgs[r], v, skip))
@@ -175,7 +183,7 @@ _equal_columns(X) = all(i -> isequal(view(X, :, i), view(X, :, 1)), axes(X, 2))
 # blocks cannot vouch for go column by column, as the default for blocks does.
 function factor_messages(cs::AbstractVector{<:ClusterFactor}, target::Symbol, polarity, inputs::NamedTuple,
                          priors::AbstractVector, @nospecialize(ps), @nospecialize(st))
-    if !(_plain(ps) && _block_batchable(cs, inputs, target))
+    if !(_cluster_batchable(cs, inputs, target, ps))
         out, st = factor_messages(cs, target, polarity, [_column(inputs, i) for i in eachindex(cs)], priors, ps, st)
         return belief_block(out), st
     end
@@ -190,8 +198,8 @@ end
 # `_discrete_message` of every replica, as the columns of one block.
 function _discrete_block(target, l, sel, nA, N)
     L = reshape(l, nA, N)
-    logp = Matrix{Float64}(undef, length(sel), N)
-    lk = Vector{Float64}(undef, length(sel))
+    logp = Matrix{eltype(l)}(undef, length(sel), N)
+    lk = Vector{eltype(l)}(undef, length(sel))
     for r in 1:N
         for (k, s) in enumerate(sel)
             lk[k] = _lse(L[s, r])
@@ -268,20 +276,20 @@ its outcome), and the points of each substituted variable as columns. Returned b
 `factor_beliefs` for a vector of `ClusterFactor`s; `belief_free_energies` evaluates all replicas
 in stacked products.
 """
-struct FrozenClusterBeliefs
-    q::Matrix{Float64}
-    M::Matrix{Float64}
-    Σ::Vector{Matrix{Float64}}
-    H::Vector{Float64}
+struct FrozenClusterBeliefs{T<:AbstractFloat}
+    q::Matrix{T}
+    M::Matrix{T}
+    Σ::Vector{Matrix{T}}
+    H::Vector{T}
     class::Vector{Int}
     free::Vector{Symbol}
     offset::Dict{Symbol,UnitRange{Int}}
-    points::Dict{Symbol,Matrix{Float64}}
+    points::Dict{Symbol,Matrix{T}}
     assignments::Vector{Vector{Int}}
 end
 
 function factor_beliefs(cs::AbstractVector{<:ClusterFactor}, msgs::NamedTuple, @nospecialize(ps), @nospecialize(st))
-    if _plain(ps) && _block_batchable(cs, msgs, nothing)    # the blocks read directly, without columns
+    if _cluster_batchable(cs, msgs, nothing, ps)    # the blocks read directly, without columns
         jt, class, pts, nA = _batch_joint(cs, msgs, ps, nothing)
     else
         cols = [_column(msgs, i) for i in eachindex(cs)]
@@ -314,12 +322,13 @@ function belief_free_energies(cs::AbstractVector{<:ClusterFactor}, B::FrozenClus
     c = cs[1]
     nA, N = size(B.q)
     n = size(B.M, 1)
+    BT = eltype(B.M)
     terms = map(eachindex(c.factors)) do i
         F = cluster_form(c.factors[i], _subtree(ps, c.keys[i]))
         kcol, groups, feeds, pts = _batch_layout(c, i, F, B)
         cx = -vec(sum(B.q .* _finite_logw(F.logw[kcol]); dims = 1))
         m = size(F.C, 1)
-        m == 0 && return (zeros(N), cx)
+        m == 0 && return (zeros(eltype(cx), N), cx)
         parts = map(groups) do (k, idx, cols, cls)
             na = length(idx)
             qk = B.q[idx, :]
@@ -328,21 +337,21 @@ function belief_free_energies(cs::AbstractVector{<:ClusterFactor}, B::FrozenClus
                 R = R .+ repeat(_at(getfield(F.A, ch), k) * B.points[v]; inner = (1, na))
             end
             CQ = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Matrix(_at(F.Q, k))))
-            tr = zeros(N)
+            tr = zeros(BT, N)
             if n > 0
-                G = reduce(hcat, [isempty(chs) ? zeros(m, length(B.offset[v])) : reduce(+, [_at(getfield(F.A, ch), k) for ch in chs])
+                G = reduce(hcat, [isempty(chs) ? zeros(eltype(F.C), m, length(B.offset[v])) : reduce(+, [_at(getfield(F.A, ch), k) for ch in chs])
                                   for (v, chs) in zip(B.free, feeds)])
                 R = R .+ G * B.M[:, cols]
                 T = map(Σ -> LinearAlgebra.tr(CQ \ (G * Σ * G')), B.Σ)
                 tr = vec(sum(qk .* T[cls]; dims = 1))
             end
             quad = reshape(vec(sum(R .* (CQ \ R); dims = 1)), na, N)
-            ((vec(sum(qk .* quad; dims = 1)) .+ tr) ./ 2, vec(sum(qk; dims = 1)) .* ((logdet(CQ) + m * log(2π)) / 2))
+            ((vec(sum(qk .* quad; dims = 1)) .+ tr) ./ 2, vec(sum(qk; dims = 1)) .* ((logdet(CQ) + m * LenticulumCore._log2π(eltype(CQ))) / 2))
         end
         return (reduce(+, map(first, parts)), cx .+ reduce(+, map(last, parts)))
     end
     fit, complexity = reduce(+, map(first, terms)), reduce(+, map(last, terms))
-    Hq = vec(-sum(ifelse.(B.q .> 0, B.q .* log.(max.(B.q, floatmin(Float64))), 0.0); dims = 1))
+    Hq = vec(-sum(ifelse.(B.q .> 0, B.q .* log.(max.(B.q, floatmin(BT))), zero(BT)); dims = 1))
     Hx = vec(sum(B.q .* B.H[B.class]; dims = 1))
     return [LenticulumCore.GradedEnergy((fit = fit[r], complexity = complexity[r], negentropy = -Hq[r] - Hx[r])) for r in 1:N], st
 end

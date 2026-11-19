@@ -50,3 +50,19 @@ all-empty device arrays in Float32/Float64, including solved-state parameter
 gradients under ForwardDiff/Zygote against dense closed forms. Scalar parameter
 leaves remain unsupported on device vectors; use one-element arrays. The final
 full Core and dependent package runs verify the shared CPU helper too.
+
+## Active empty branches (P33)
+
+The CPU `_flatten_active_tree` now removes empty concatenation parts as the device
+extension already does. Empty subtrees in any position, including nested empty branches,
+are neutral: nonempty leaves alone determine promotion and traversal order. A wholly empty
+CPU tree may still return `Float64[]`; an all-empty device tree retains its copied device
+leaf as before. `_flatten` and rebuilding are unchanged, including allocation alongside the
+first array leaf with `similar`.
+
+Evidence: `test/parameter_ad.jl`, "P33 active flatten: empty branches are neutral", checks
+Float32/Float64 order, type, nested/all-empty trees and ForwardDiff/Zygote derivatives.
+`../../MyceliumLearning.jl/test/element_type.jl` checks accelerated EM with a fixed factor's
+empty parameter subtree, including a shared mean learned from sixty observations. The
+flatten contract is still restricted to numeric leaves and tuple/NamedTuple containers;
+this change adds no device scalar-leaf support or new AD backend.

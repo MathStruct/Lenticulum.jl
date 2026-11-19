@@ -75,3 +75,18 @@ end
         @test iszero(empty.v)
     end
 end
+
+@testset "P33 active flatten: empty branches are neutral" begin
+    for T in (Float32, Float64)
+        for tree in ((a=(;), b=T[1,2]), (a=T[1], b=(), c=T[2]),
+                     (a=T[1,2], b=(;)), (a=(b=(c=(),),), d=(e=T[1,2], f=(;))))
+            @test LenticulumCore._flatten_active(tree) isa Vector{T}
+            @test LenticulumCore._flatten_active(tree) == T[1,2]
+            @test LenticulumCore._flatten(tree) == T[1,2]
+            @test ForwardDiff.gradient(v -> sum(abs2, LenticulumCore._flatten_active((a=(), b=v))), T[1,2]) == T[2,4]
+            @test only(Zygote.gradient(v -> sum(abs2, LenticulumCore._flatten_active((a=(), b=v))), T[1,2])) == T[2,4]
+        end
+    end
+    @test LenticulumCore._flatten_active((a=(), b=(c=(;),))) == Float64[]
+    @test LenticulumCore._flatten_active((a=(), b=(c=(;),))) isa Vector{Float64}
+end

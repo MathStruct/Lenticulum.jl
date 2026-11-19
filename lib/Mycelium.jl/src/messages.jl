@@ -207,12 +207,13 @@ function _reweight(s::LenticulumCore.SampleBelief, b)
     pts = _points(s)
     hasmethod(belief_logdensity, Tuple{typeof(b),typeof(first(pts))}) || throw(ArgumentError(
         "cannot reweight samples by a $(typeof(b)): it has no `belief_logdensity`"))
-    logw0 = s.weights === nothing ? zeros(length(pts)) : log.(s.weights)
-    l = logw0 .+ [belief_logdensity(b, x) for x in pts]
+    densities = [belief_logdensity(b, x) for x in pts]
+    logw0 = s.weights === nothing ? zero.(densities) : log.(s.weights)
+    l = logw0 .+ densities
     m = maximum(l)
     m == -Inf && throw(ArgumentError("every sample has zero density under the other belief: disjoint supports"))
     w = exp.(l .- m)
-    w ./= sum(w)
+    w = w ./ sum(w)
     ess = 1 / sum(abs2, w)                                    # effective sample size
     ess < max(1.5, min(10, 0.01 * length(w))) && @warn(
         "importance reweighting degenerated: effective sample size $(round(ess; digits = 1)) of $(length(w)) samples. \
@@ -356,10 +357,13 @@ function belief_distance(a::LenticulumCore.MixtureBelief, b::LenticulumCore.Mixt
 end
 function _sample_weights(b::LenticulumCore.SampleBelief)
     n = length(_points(b))
-    b.weights === nothing && return fill(1 / n, n)
+    if b.weights === nothing
+        T = typeof(float(zero(mapreduce(_numtype, promote_type, _points(b); init = Bool))))
+        return fill(one(T) / n, n)
+    end
     w = float.(b.weights)
     m = maximum(w)
-    m > 0 || return fill(1 / n, n)
+    m > 0 || return fill(one(eltype(w)) / n, n)
     w = w ./ m
     return w ./ sum(w)
 end
@@ -369,7 +373,7 @@ function belief_distance(a::LenticulumCore.SampleBelief, b::LenticulumCore.Sampl
     wa, wb = _sample_weights(a), _sample_weights(b)
     wdist = sum(abs, wa .- wb) / 2
     a.samples == b.samples && return wdist
-    pdist = maximum(i -> _numeric_distance(pa[i], pb[i]), eachindex(pa); init = 0.0)
+    pdist = maximum(i -> _numeric_distance(pa[i], pb[i]), eachindex(pa); init = false)
     return max(wdist, pdist)
 end
 belief_distance(::LenticulumCore.AbstractBelief, ::LenticulumCore.AbstractBelief) = Inf

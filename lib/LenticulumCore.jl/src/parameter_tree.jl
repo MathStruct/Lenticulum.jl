@@ -66,7 +66,7 @@ function _flatten_active(x::Union{NamedTuple,Tuple})
     return _flatten_active_tree(_firstleaf(x), x)
 end
 function _flatten_active_tree(leaf, x)
-    parts = map(_flatten_active, values(x))
+    parts = filter(!isempty, map(_flatten_active, values(x)))
     return isempty(parts) ? Float64[] : reduce(vcat, parts)
 end
 
