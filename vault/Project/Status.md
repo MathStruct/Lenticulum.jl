@@ -7,7 +7,7 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-19, after P12 (`density_lambda` as the default λ of non-point `ImplicitProx` messages, chosen by the maintainer), committed on `dev-danielb`, not pushed. Before it, P33 finished the Float32 work: a Lenticulum graph is Float32 end to end (stopping tolerances and comparison scores stay Float64: `~/.cache/lenticulum/p33/remaining-float64.md`).
+**Last updated:** 2026-11-19, after the P33 benchmark (`bench/float32_cluster_plates.jl`: Float32 cluster plates measured), committed on `dev-danielb`, not pushed. Before it P12 (`density_lambda` as the default λ of non-point `ImplicitProx` messages) and P33, which finished the Float32 work: a Lenticulum graph is Float32 end to end (stopping tolerances and comparison scores stay Float64: `~/.cache/lenticulum/p33/remaining-float64.md`).
 
 ## Branches and worktrees
 
@@ -28,6 +28,13 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **P33 benchmark** (2026-11-19, benchmarks allowed by the maintainer): `bench/float32_cluster_plates.jl`,
+  `fit_em` (10 iterations) on two regime plates, Float64/Float32, stacked against forced per replica (the
+  pre-P33 Float32 path). A Float32 plate is now 14–33 times faster than before P33 and as fast as Float64
+  (0.94–1.01), 11–23 % less allocated; free energies agree (Float32/Float64 to 5e-7 relative). Recorded in
+  Mycelium `cluster.md` "Float32 plates, measured" (logs `~/.cache/lenticulum/p33-bench/`). Found on the way:
+  `RegimeFactor`'s default `noise = 0.1` makes its output coefficient Float64 and widens a Float32 plate
+  even with `learn_noise = true`; new row **P34**. Bench and notes only, so no suite was run and there was no review.
 - **P12** (2026-11-19, chosen by the maintainer): `ImplicitProx(nodes)` leaves `λ = nothing`; the
   `DiffusionFactor` constructor sets `density_lambda(schedule, nodes)` for `:gaussian`/`:mixture`
   messages and 1 for `:point` (point answers unchanged); a factor built field by field resolves it at
@@ -169,8 +176,9 @@ a learned noise with hard messages, a residual-space formulation of the positive
 finding 4; no row yet). Left open by P27 (no rows yet): the Bethe free energy with a mixture marginal
 under BP, derivatives through the new rules, two extended components with hard directions. Small:
 `ImplicitLayers`' `SolveReport` also has `residual::Float64` (not checked whether duals reach it; that
-package is unreviewed); `AndersonSchedule` runs without its memory under duals (LP-053). Benchmarks are
-deferred by the maintainer (2026-11-18), among them the speed of the Float32 stacked cluster path.
+package is unreviewed); `AndersonSchedule` runs without its memory under duals (LP-053). P34 (small:
+the output coefficient's number type from the parameters). Not benchmarked yet: GH-20's per-replica path for
+device and view inputs to the hard-constraint plate kernel.
 
 ## Open
 

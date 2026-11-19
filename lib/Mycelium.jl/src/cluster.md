@@ -574,6 +574,35 @@ and compares the stacked Zygote parameter gradient with ForwardDiff and Float64.
 This does not add differentiation through incoming messages or device batching; the
 existing storage/shape restrictions still apply. It does not change the flat thresholds.
 
+**Float32 plates, measured** (2026-11-19, `bench/float32_cluster_plates.jl`, one machine, 8 threads,
+Julia 1.13.1; logs `~/.cache/lenticulum/p33-bench/run1.log` and `run2.log`, the table from `run2`).
+`fit_em`, 10 iterations at `tol = 0`, best of three, on two regime plates: `reg1`, the mixture of two
+scalar regressions of `regime_plate_profile.jl` (one-factor clusters), and `reg3`, the plate of
+`p31_element_type.jl` (z ∈ R³, x ∈ R² with a prior, three regimes, a two-factor cluster). "Per replica"
+forces `_cluster_batchable` to `false`, which is the path a Float32 plate took before P33.
+
+| plate | $N$ | stacked F64 | stacked F32 | per replica F64 | per replica F32 (before P33) | allocated, stacked F64 / F32 |
+|---|---|---|---|---|---|---|
+| reg1 | 300 | 0.053 s | 0.054 s | 0.78 s | 0.77 s | 50.8 / 45.4 MiB |
+| reg1 | 3000 | 0.482 s | 0.488 s | 9.33 s | 9.21 s | 480 / 426 MiB |
+| reg3 | 300 | 0.036 s | 0.036 s | 0.90 s | 0.89 s | 44.7 / 34.7 MiB |
+| reg3 | 3000 | 0.321 s | 0.300 s | 10.1 s | 9.78 s | 416 / 320 MiB |
+
+So P33 makes a Float32 plate 14–33 times faster than before (it now takes the stacked path), and
+Float32 is as fast as Float64 on either path (ratios 0.94–1.01), with 11–23 % less allocated on the
+stacked path. Float32 does not pay off in speed here; an expectation, not measured: with joints of
+dimension 2–5 the time goes to per-call work and small allocations, not to arithmetic whose cost
+falls with the width. The final free energies agree: Float32 against Float64 on the stacked path to
+2e-8–5e-7 relative; per replica against stacked bit for bit or to 5e-11 in Float64, and to
+7e-7 relative in Float32 (rounding of a different order of operations). The per-replica Float64 time
+of reg3 at 3000 varied between runs (12.6 s in `run1`, 10.1 s in `run2`); the stacked times agreed to
+7 %.
+
+The `reg1` plate passes `noise = T(0.1)` to `RegimeFactor`: with the default `noise = 0.1` the
+fixed output coefficient (`output = :y`, `output_coeff = I`) is built as a Float64 array, so the
+whole Float32 plate is computed and returns its free energy in Float64, although with
+`learn_noise = true` the noise is the Float32 parameter `L` (Feature Backlog P34).
+
 **Thresholds** (review of P32, [[LP-061 Findings of the review of P32]]). Codex's version kept the
 Float64 values of the flat and range tolerances (`_FLAT_RTOL = 1e-10`, `sqrt(eps())`). In Float32 a
 singular joint keeps rounding eigenvalues of a few `eps(Float32)·λmax` (5e-7·λmax in the review's
