@@ -867,4 +867,7 @@ end
     @test Mycelium.damp(a, a2, 0.25).μ[2] ≈ 0.25 * 2.0 + 0.75 * 4.0
 end
 
+include("p36_exposure.jl")
+include("p36_overlay_ad.jl")
+
 include("aqua.jl")

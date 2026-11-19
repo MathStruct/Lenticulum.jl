@@ -17,4 +17,6 @@ else
     @info "Skipping device tests; set LENTICULUM_DEVICE_TESTS=true to run them."
 end
 
+include("sample_gradient.jl")
+
 include("aqua.jl")

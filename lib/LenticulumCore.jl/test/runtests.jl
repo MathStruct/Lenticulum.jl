@@ -436,4 +436,7 @@ include("extended_gaussian.jl")
 include("extended_gaussian_ad.jl")
 include("sample_moments.jl")
 
+include("statistical_game.jl")
+include("interop.jl")
+
 include("aqua.jl")

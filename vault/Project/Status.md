@@ -7,15 +7,15 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-19, after P35 (`MixtureProx` takes a modified Newton step where its curvature is indefinite; the full-size `proxdm_backprop_noise.jl` runs again), committed on `dev-danielb`, not pushed. Before it P15 (every benchmark and example at small size, a coverage report), P34, the P33 benchmark, P12 and P33, which finished the Float32 work: a Lenticulum graph is Float32 end to end (stopping tolerances and comparison scores stay Float64: `~/.cache/lenticulum/p33/remaining-float64.md`).
+**Last updated:** 2026-11-19, after P36 (each package's own suite reaches its own files: tests for exposure, overlay, Mycelium's ForwardDiff extensions, `sample_gradient`, statistical games and the ExponentialFamily extension; a weekly Reactant job), committed on `dev-danielb`, not pushed. Before it P35 (`MixtureProx` takes a modified Newton step where its curvature is indefinite), P15 (every benchmark and example at small size, a coverage report), P34, the P33 benchmark, P12 and P33, which finished the Float32 work: a Lenticulum graph is Float32 end to end (stopping tolerances and comparison scores stay Float64: `~/.cache/lenticulum/p33/remaining-float64.md`).
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
 | `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
-| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/p15` | at `f2bceb1d` with the P15 diff uncommitted (merged into `dev-danielb` as a diff, saved to `~/.cache/lenticulum/p15/p15.diff`); Codex's comparison scripts and logs in its `outputs/`; reset it before the next Codex package |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `f2bceb1d` with the P15 diff applied, bench and tools environments instantiated; probes in `scratch/p15/` (copied to `../Lenticulum.jl-Review-2026-11-19/p15/`); `scratch/p6env` serves any review, and `~/.cache/lenticulum/env-p29` (the main checkout's packages) serves as the old code for a bit-for-bit comparison before a commit. Before the next review: reset to the commit under review, then apply its diff |
+| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/p36` | at `9f933eb7` with the P36 diff uncommitted (merged into `dev-danielb` with one more testset; diff in `~/.cache/lenticulum/p36/p36.diff`); reset it before the next Codex package |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `9f933eb7` with the P36 diff applied (without the session's last testset); the test environments of LenticulumCore, Mycelium and MyceliumLearning instantiated (`--project=lib/<Pkg>.jl/test` serves probes); probes in `scratch/p36/` (copied to `../Lenticulum.jl-Review-2026-11-19/p36/mistral/`); `scratch/p6env` serves any review, and `~/.cache/lenticulum/env-p29` serves as the old code for a bit-for-bit comparison. Before the next review: reset to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -28,6 +28,23 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **P36** (2026-11-19, chosen as the only Section P row ready to start): tests in the owning package for
+  the files only other packages' tests reached: Mycelium `test/p36_exposure.jl`, `test/p36_overlay_ad.jl`
+  (exposure, overlay, the cluster Zygote rule, ForwardDiff through flat precisions), MyceliumLearning
+  `test/sample_gradient.jl`, LenticulumCore `test/statistical_game.jl`, `test/interop.jl` (the
+  ExponentialFamily checks moved there from Lenticulum's `runtests.jl`; new test dependencies). Weekly job
+  `reactant` in `Weekly.yml` (**not yet run on GitHub**; start it by hand after the next push, with
+  `Examples.yml` and `coverage`). Coverage of those files by their own suite now 89–100 %. Codex
+  implemented (one run); review [[LP-067 Findings of the review of P36]] (Mistral, \$0, by mutation: three
+  missing overlay checks, closed by a testset of the session that fails under each mutation). No source
+  defect. **Stale local Manifests**: the main checkout's untracked Manifests predated the newest
+  extensions, so Mycelium's local suite had never loaded its ForwardDiff extensions; `Pkg.resolve()` in
+  every package fixed six of eight (LP-067). Suites passed on the final code after that: LenticulumCore,
+  Mycelium, MyceliumLearning, Lenticulum (`~/.cache/lenticulum/p36/gates2/`; Mycelium's final run
+  `mycelium-final.log`). A first run of Mycelium beside two other suites failed the timing check
+  `state_tree.jl:131` (`s4 < 8s1`, 5.5 ms against 4.2 ms): load-sensitive, passes alone; no row. Not run:
+  device tests, the docs builds, VariationalDiffusion and the weekly packages (no file of theirs changed
+  apart from the CI job; their Manifests were resolved).
 - **P35** (2026-11-19, the next row): `MixtureProx` took steepest-descent steps where
   $K = I - \lambda\nabla^2\log p_t$ is indefinite and zigzagged in the full-size example (hundreds of
   iterations); now a modified Newton step (`_modified_newton_direction`: eigenvalue magnitudes, floored,
@@ -212,7 +229,7 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Next
 
-No row is set; pick one with the maintainer. New since P15: P36 (coverage gaps) and T3 (JET `@test_opt` tests on the inner kernels; a JET check of 2026-11-19 found no defect, one type instability on the flat path). Section P also has P10 (needs F2), P14 (shared solver layer, large:
+No row is set; pick one with the maintainer. Section P is down to rows that need a design or another row first. Section P also has P10 (needs F2), P14 (shared solver layer, large:
 design first), P16. Close to P5: a learned noise with hard messages, a residual-space formulation of the
 positive definite path (LP-047 finding 4; no row yet). Left open by P27 (no rows yet): the Bethe free energy
 with a mixture marginal under BP, derivatives through the new rules, two extended components with hard
@@ -222,6 +239,10 @@ benchmarked yet: GH-20's per-replica path for device and view inputs to the hard
 
 ## Open
 
+- **Local Manifests** are untracked and go stale: after adding a weak dependency, an extension or a test
+  dependency, run `Pkg.resolve()` in the package (and `--project=lib/<Pkg>.jl/test`), or its suite runs
+  without the new extension (LP-067). Other lower coverage left by the first report (no row): Mycelium
+  `anderson.jl` 29 %, `blocks.jl` 55 %, `plates.jl` 61 %; the device extensions run only with the device tests.
 - **P4 limits:** Zygote has no rank check (a rank-changing tangent gives the constant-rank
   derivative silently); second derivatives (nested duals) through extended Gaussians are refused;
   `_moving_flat_split` (P25) stays ForwardDiff-only.

@@ -878,42 +878,6 @@ RxInfer.@model function onestep(y)
 end
 
 @testset "interop: beliefs as RxInfer distributions and back" begin
-    g = Gaussian([1.0, -2.0], [2.0 0.5; 0.5 1.0])
-    d = as_distribution(g)
-    @test d isa MvNormalWeightedMeanPrecision
-    @test BayesBase.weightedmean_precision(d)[1] == g.η && BayesBase.weightedmean_precision(d)[2] == g.Λ
-    @test Distributions.mean(d) ≈ belief_mean(g) && Distributions.cov(d) ≈ belief_cov(g)
-    @test as_belief(d).η ≈ g.η && as_belief(d).Λ ≈ g.Λ                         # exact round trip
-    @test as_distribution(Gaussian(0.5, 2.0); univariate = true) isa NormalWeightedMeanPrecision
-    @test belief_cov(as_belief(NormalMeanVariance(0.5, 2.0))) ≈ fill(2.0, 1, 1)  # any parametrisation
-    @test belief_mean(as_belief(MvNormalMeanCovariance([1.0, 0.0], [1.0 0.0; 0.0 4.0]))) ≈ [1.0, 0.0]
-    @test belief_mean(as_belief(Distributions.MvNormal([1.0, 2.0], [1.0 0.0; 0.0 1.0]))) ≈ [1.0, 2.0]
-    # an improper Gaussian (a likelihood on one direction) converts too
-    lik = GaussianBelief([1.0, 0.0], [1.0 0.0; 0.0 0.0])
-    @test as_belief(as_distribution(lik)).Λ == lik.Λ
-    # pooling agrees with RxInfer's product
-    h = Gaussian([0.0, 1.0], [1.0 0.0; 0.0 3.0])
-    p = prod(GenericProd(), as_distribution(g), as_distribution(h))
-    @test as_belief(p).η ≈ combine(g, h).η && as_belief(p).Λ ≈ combine(g, h).Λ
-    # the discrete and particle beliefs
-    c = LenticulumCore.CategoricalBelief([0.2, 0.3, 0.5])
-    @test as_distribution(c) isa Categorical && Distributions.probs(as_distribution(c)) ≈ [0.2, 0.3, 0.5]
-    @test probabilities(as_belief(as_distribution(c))) ≈ [0.2, 0.3, 0.5]
-    @test probabilities(as_belief(Bernoulli(0.3))) ≈ [0.7, 0.3]
-    c2 = LenticulumCore.CategoricalBelief([0.5, 0.25, 0.25])
-    @test probabilities(combine(c, c2)) ≈ Distributions.probs(prod(GenericProd(), as_distribution(c), as_distribution(c2)))
-    x = as_distribution(DiracBelief([1.0, 2.0]))
-    @test x isa PointMass && as_belief(x).value == [1.0, 2.0]
-    m = LenticulumCore.MixtureBelief([Gaussian(-1.0, 0.5), Gaussian(2.0, 1.0)], [0.25, 0.75])
-    md = as_distribution(m)
-    @test md isa MixtureModel && Distributions.probs(md) ≈ [0.25, 0.75]
-    @test mixture_weights(as_belief(md)) ≈ [0.25, 0.75]
-    @test belief_mean(as_belief(md).components[2]) ≈ [2.0]
-    s = LenticulumCore.SampleBelief([[1.0], [2.0], [4.0]], [1.0, 1.0, 2.0])
-    sl = as_distribution(s)
-    @test sl isa SampleList && Distributions.mean(sl) ≈ [2.75]
-    @test as_belief(sl).weights ≈ [0.25, 0.25, 0.5]
-    @test_throws ArgumentError as_distribution(TrivialBelief())
     # the same conjugate model solved by RxInfer and by Lenticulum's Gaussian factors
     rx = RxInfer.infer(model = onestep(), data = (y = 3.0,))
     post_rx = as_belief(rx.posteriors[:x])

@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
   push:
     branches: [master, dev, dev-danielb]
-    paths: ['lib/ImplicitLayers.jl/**', 'lib/AdversarialFactors.jl/**', 'lib/AlgebraicFactors.jl/**', '.github/workflows/Weekly.yml']
+    paths: ['lib/ImplicitLayers.jl/**', 'lib/AdversarialFactors.jl/**', 'lib/AlgebraicFactors.jl/**', 'lib/VariationalDiffusion.jl/ext/**', 'lib/VariationalDiffusion.jl/test/reactant/**', '.github/workflows/Weekly.yml']
 jobs:
   weekly:
     name: ${{ matrix.package }} · weekly
@@ -92,3 +92,18 @@ jobs:
         with:
           name: coverage-${{ matrix.package }}
           path: ${{ runner.temp }}/coverage
+
+  reactant:
+    name: VariationalDiffusion · Reactant CPU · weekly
+    runs-on: ubuntu-latest
+    env:
+      JULIA_NUM_THREADS: auto
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      - name: Instantiate and test Reactant backend
+        run: |
+          julia --project=lib/VariationalDiffusion.jl/test/reactant -e 'using Pkg; Pkg.instantiate(); include("lib/VariationalDiffusion.jl/test/reactant/runtests.jl")'
