@@ -15,7 +15,7 @@
 
 | name | is |
 |---|---|
-| `FieldNodes`, `field_nodes`, `noisefree_nodes` | the fixed $(t_k, \varepsilon_k, w_k)$ that make the field deterministic |
+| `FieldNodes`, `field_nodes`, `noisefree_nodes` | the fixed $(t_k, \varepsilon_k, w_k)$ that make the field deterministic; for root queries `noisefree_nodes(n)` (no noise, one node per level) is the recommended choice (P10, `examples/nodes_calibration.md`) |
 | `ImplicitDiffusion` | the relation: a `NoisePredictor` plus a node set plus λ; `batched = true` evaluates one noise level per network call |
 | `prior_field`, `prior_jacobian`, `prior_vjp`, `prior_jvp` | $g_\theta(z)$, the block of $\partial g/\partial z$ on chosen coordinates (`coords`), $(\partial g/\partial z)^\top w$ and $(\partial g/\partial z)\,v$ |
 | `implicit_residual` | $r = g + \rho^2\odot(z - z_0)$ on the free coordinates |
@@ -45,6 +45,9 @@
 - both branches of the circle are found, and they merge near the branch point;
 - the smoothing bias is monotone in the levels and matches $R - (s^2+\sigma^2/\alpha^2)/(2R)$;
 - noise-free roots are Tweedie fixed points;
+- noise-free nodes over several levels give the gradient of the once-smoothed potential, and on the
+  ring about half the radial bias of `field_nodes` with 200 pairs per level at the same levels (ratio
+  0.4–0.6; with 8 pairs, as on the calibration benchmark, the reviewer of P10 measured 0.38 at $t \le 0.1$);
 - the Gaussian root and its derivative match the closed form;
 - every adjoint cotangent matches finite differences of the full solve;
 - training through inference reduces the loss by more than 50×;

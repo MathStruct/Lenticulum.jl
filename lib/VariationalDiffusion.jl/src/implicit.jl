@@ -55,6 +55,10 @@ The levels matter more than anything else here. A relation is only recovered at 
 below its own curvature scale: the default stops at ``t = 0.05`` (``\\sigma_t\\approx0.16``).
 RED-Diff's training-time range ``t\\in[t_{\\min},1]`` smooths a unit circle into a blob whose
 density peaks at the centre (`Implicit Diffusion Learners.md` §5).
+
+For root queries, [`noisefree_nodes`](@ref)`(n; levels)` is the recommended choice: one network
+evaluation per level, no draw, and on the calibration benchmark recall as high or higher in eight of nine
+settings, with less bias on the circle (`examples/nodes_calibration.md`).
 """
 function field_nodes(rng::AbstractRNG, n::Integer; levels = range(0.002, 0.05; length = 8),
                      samples::Integer = 4, antithetic::Bool = true, orthogonal::Bool = false)
@@ -96,6 +100,28 @@ coordinates — a fixed point of the Tweedie denoiser, i.e. a deep equilibrium m
 is the denoiser (`Deterministic Relaxation.md`).
 """
 noisefree_nodes(n::Integer, t::Real) = FieldNodes([float(t)], zeros(n, 1), [1.0])
+
+"""
+    noisefree_nodes(n; levels = range(0.002, 0.05; length = 8))
+
+No noise at each level in `levels`, equally weighted:
+``g(z) = \\frac1L\\sum_k \\lambda_{t_k}\\,\\varepsilon_\\theta(\\alpha_{t_k} z, t_k)``. For an exact noise
+predictor this is the gradient of ``\\frac1L\\sum_k \\lambda_{t_k}(\\sigma_k/\\alpha_k)\\,(-\\log p_{t_k}(\\alpha_k z))``:
+each level's potential is the density smoothed once, where `field_nodes` also averages that potential
+over shifts of size ``\\sigma_k/\\alpha_k`` (to second order a Laplacian term). The levels default to
+those of [`field_nodes`](@ref), with one network evaluation per level (unbatched) instead of
+`2·samples` with antithetic pairs. On a thin ring, where ``\\sigma_t^2/\\alpha_t^2`` is large against the
+ring's width squared, the radial bias is about half that of `field_nodes` at equal levels
+(`Implicit Diffusion Learners.md` §5); the two are compared on the calibration benchmark in
+`examples/nodes_calibration.md`. Levels must lie in ``(0, 1]``.
+"""
+function noisefree_nodes(n::Integer; levels = range(0.002, 0.05; length = 8))
+    n ≥ 1 || throw(ArgumentError("n must be positive, got $n"))
+    ts = collect(Float64, levels)
+    isempty(ts) && throw(ArgumentError("levels must not be empty"))
+    all(t -> 0 < t ≤ 1, ts) || throw(ArgumentError("every level must lie in (0, 1], got $ts"))
+    return FieldNodes(ts, zeros(n, length(ts)), fill(1 / length(ts), length(ts)))
+end
 
 """
     AbstractImplicitRelation

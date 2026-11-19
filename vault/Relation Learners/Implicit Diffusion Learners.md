@@ -201,8 +201,16 @@ density peaks at the centre**, and then the relation is a single point. For impl
 the noise levels used *at inference* must stay below the curvature scale of the relation.
 That is a design parameter (`levels` in `field_nodes`), and it is a bias–conditioning
 trade-off: small $\sigma_t$ means little bias but a stiff, ill-conditioned field ($\varepsilon^\ast$
-scales like $1/\sigma_t$ near the data). Noise-free nodes halve the bias at a given level and
-give up the averaging that smooths the field.
+scales like $1/\sigma_t$ near the data). Noise-free nodes halve the bias at a given level (where
+$\sigma_t^2/\alpha_t^2 \gg s^2$) and give up the averaging that smooths the field.
+
+On the calibration benchmark (learned models, not the closed form; `noisefree_nodes(n; levels)` with
+one node per level against `field_nodes` with 16, same levels; `lib/VariationalDiffusion.jl/examples/nodes_calibration.md`)
+the noise-free nodes have less bias on the circle (radial −0.0085 against −0.019 at $t \le 0.05$; 89 %
+of it at $t \le 0.01$, where the levels are small against the data's width and the ratio above tends to
+1), recall as much or more in eight of nine relation and level settings, and are 4 to 25 times faster.
+On two concentric circles at $t \le 0.05$ their bias is larger (−0.0135 against −0.0104): a learned
+predictor is not the exact score this section assumes. They are the recommended nodes for root queries.
 
 ## 6. Multi-valued relations and branches
 

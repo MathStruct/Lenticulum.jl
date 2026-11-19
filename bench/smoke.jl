@@ -28,7 +28,7 @@ const BENCH = joinpath(ROOT, "bench")
 const FOLDERS = [
     (dir = BENCH, project = BENCH, skip = ["divider.jl", "kalman_chain.jl", "smoke.jl"]),   # helpers, included
     (dir = joinpath(ROOT, "lib", "Lenticulum.jl", "examples"), project = BENCH, skip = String[]),
-    (dir = joinpath(ROOT, "lib", "VariationalDiffusion.jl", "examples"), project = BENCH, skip = ["gpu_energy.jl"]),
+    (dir = joinpath(ROOT, "lib", "VariationalDiffusion.jl", "examples"), project = BENCH, skip = ["gpu_energy.jl", "calibration_setup.jl"]),
 ]
 
 # Julia flags per script; the default is `-t auto`.

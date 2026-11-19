@@ -47,7 +47,6 @@ The open rows that need another open row (every row not drawn here needs nothing
 ```mermaid
 graph LR
   F2[F2 calibration<br/>benchmark] --> F3[F3 calibration<br/>remedies]
-  F2 --> P10[P10 noisefree vs<br/>field nodes]
   F2 --> F4[F4 posterior samplers]
   F2 --> L15[L15 time-independent<br/>energy]
   I15[I15 belief-space<br/>interface] --> I12[I12 Langevin on F]
@@ -73,7 +72,7 @@ graph LR
   G9[G9 open games] --> G10
 ```
 
-F2 is *partial*; its present problems (circle, lemniscate, rings) suffice for P10, F3, F4 and L15.
+F2 is *partial*; its present problems (circle, lemniscate, rings) suffice for F3, F4 and L15.
 
 **Proposed order (2026-11-11, until Daniel sets one):** of that list one thing is open, the energy
 threshold of F3 (off-relation detection), which needs an energy network. The rest is done (I5, P1,

@@ -3,7 +3,8 @@
 Run `julia -t auto --project=bench lib/VariationalDiffusion.jl/examples/calibration.jl` from the repository root
 (about 45 minutes on 8 CPU threads since the queries run in parallel and the remedies were added,
 nearly all of it in the root queries; `CALIBRATION_SMOKE=1` runs it at small size,
-to check the script). This answers the request of
+to check the script; the relations, training, queries and metrics are in `calibration_setup.jl`, shared
+with `nodes_calibration.jl`, which compares noise-free nodes with these). This answers the request of
 both reviews of 2026-11-04 ([[LP-023 Findings of the external reviews of 2026-11-04]]): measure how
 far the stable roots of a learned relation are from the relation, how many are spurious, and how
 many branches are recalled.

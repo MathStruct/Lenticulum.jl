@@ -454,6 +454,36 @@ end
     @test sol.z[2] ≈ 1 - (0.05^2 + (sigma(SCHED, t) / alpha(SCHED, t))^2) / 2 atol = 2e-3
 end
 
+@testset "noise-free nodes over several levels (P10)" begin
+    lv = [0.01, 0.02, 0.04]
+    n = noisefree_nodes(3; levels = lv)
+    @test n.t == lv && n.ε == zeros(3, 3) && n.w ≈ fill(1 / 3, 3)
+    @test noisefree_nodes(2).t == collect(range(0.002, 0.05; length = 8))   # field_nodes' levels
+    @test_throws ArgumentError noisefree_nodes(2; levels = Float64[])
+    for bad in ([0.0], [-0.001], [NaN], [Inf], [0.01, 1.5])
+        @test_throws ArgumentError noisefree_nodes(2; levels = bad)
+    end
+    @test_throws ArgumentError noisefree_nodes(0)
+    z = [0.3, 0.8]
+    one_level = first(prior_field(ImplicitDiffusion(RING, noisefree_nodes(2; levels = [0.03])), z, RPS, RST))
+    @test one_level == first(prior_field(ImplicitDiffusion(RING, noisefree_nodes(2, 0.03)), z, RPS, RST))
+    # the field is the gradient of Σ_k w_k λ_k (σ_k/α_k)(−log p_{t_k}(α_k z)), the closed-form mixture
+    m = ImplicitDiffusion(RING, noisefree_nodes(2; levels = lv))
+    Φ(z) = -sum(m.nodes.w[k] * (sigma(SCHED, t) / alpha(SCHED, t))^2 *       # λ_t σ_t/α_t with λ = 1
+                mixture_logdensity(RING.model, alpha(SCHED, t) .* z, t, RPS) for (k, t) in enumerate(m.nodes.t))
+    @test first(prior_field(m, z, RPS, RST)) ≈ [_fd(Φ, z, i) for i in 1:2] rtol = 1e-6
+    # at the same levels the radial bias is about half that of nodes with noise (Implicit Diffusion
+    # Learners §5), with 200 antithetic pairs per level: measured 0.52 and 0.46 for these two ranges
+    for levels in (range(0.002, 0.05; length = 8), range(0.004, 0.1; length = 8))
+        a, _ = implicit_infer(ImplicitDiffusion(RING, noisefree_nodes(2; levels)), [0.0, 0.9], HARDX, RPS, RST)
+        b, _ = implicit_infer(ImplicitDiffusion(RING, field_nodes(Xoshiro(1), 2; levels, samples = 200)),
+                              [0.0, 0.9], HARDX, RPS, RST)
+        @test a.converged && a.stable && b.converged && b.stable
+        @test a.z[2] < 1 && b.z[2] < 1                      # both inward
+        @test 0.4 < (1 - a.z[2]) / (1 - b.z[2]) < 0.6
+    end
+end
+
 @testset "deterministic relaxation: a fixed point of the Tweedie denoiser (a DEQ)" begin
     for t in (0.005, 0.03)
         m = ImplicitDiffusion(RING, noisefree_nodes(2, t))
