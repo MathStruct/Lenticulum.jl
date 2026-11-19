@@ -69,8 +69,9 @@ The **exact** proximal operator of ``-\\log p_t`` for the Gaussian-mixture data 
 the role a perfectly trained `ProxNetwork` would, so samplers and proximal inference can be
 checked against arithmetic. Uses ``\\nabla\\log p_t`` directly (not ``\\varepsilon/\\sigma_t``), so it is
 valid at ``t = 0``. Where ``-\\log p_t`` is not convex the prox can be multivalued; the solve
-returns the local minimiser reached from ``v``, escaping negative curvature at stationary
-points. Throws if the iteration or line search fails; no global minimum is promised.
+returns the local minimiser it reaches from ``v``, taking a modified Newton step (curvature
+magnitudes) where ``I - \\lambda\\nabla^2\\log p_t`` is indefinite and escaping negative curvature at
+stationary points. Throws if the iteration or line search fails; no global minimum is promised.
 """
 struct MixtureProx{G<:GaussianMixtureEps,T<:Real} <: AbstractProximalPredictor
     mixture::G
@@ -88,9 +89,28 @@ function _mixture_grad_hess(l::GaussianMixtureEps, x, t, μ)
     return (.-ū, H)
 end
 
+# Where K = I - λ∇²log p_t is indefinite, Newton's step is no descent direction. Steepest descent
+# (-r) zigzags across the stiff direction of a non-convex valley (P35: hundreds of iterations at
+# condition ≈ 200). Instead scale r by the eigenvalue magnitudes, floored at √eps·max|κ|
+# (Nocedal & Wright §3.4): d = -V |Κ|⁻¹ Vᵀ r, so dot(r, d) < 0 whenever r ≠ 0. The scaling is
+# taken on primal values: ForwardDiff's eigen rule divides by eigenvalue gaps (NaN partials at a
+# repeated eigenvalue), and the derivative of the answer comes from the last steps, which are
+# Newton steps on a positive definite K.
+function _modified_newton_direction(K, r)
+    E = LinearAlgebra.eigen(Symmetric(LenticulumCore.stop_gradient(Matrix(K))))
+    κ = abs.(E.values)
+    κmin = sqrt(eps(eltype(κ))) * max(one(eltype(κ)), maximum(κ))
+    return -(E.vectors * ((E.vectors' * r) ./ max.(κ, κmin)))
+end
+
 function proximal(p::MixtureProx, v, t, λ, ps, st)
     l = p.mixture
     obj(u) = sum(abs2, u .- v) / 2 - λ * mixture_logdensity(l, u, t, ps)
+    # the size of the terms obj sums, for its rounding: f can be small while λ log p_t is not
+    function objscale(u)
+        m = _mixture_parts(l, u, t, ps.μ)
+        return sum(abs2, u .- v) / 2 + abs(λ) * (abs(maximum(m.ℓ)) + abs(sum(log.(2π .* _vec(m.v, length(u))))) / 2)
+    end
     u = float.(copy(v))
     for _ in 1:(p.maxiters)
         g, H = _mixture_grad_hess(l, u, t, ps.μ)
@@ -106,8 +126,10 @@ function proximal(p::MixtureProx, v, t, λ, ps, st)
             curvature = first(E.values)
             d = E.vectors[:, 1]
             dot(r, d) > 0 && (d = -d)
+        elseif isposdef(K)
+            d = -(K \ r)
         else
-            d = isposdef(K) ? -(K \ r) : -r
+            d = _modified_newton_direction(K, r)
         end
         η, f0 = 1.0, obj(u)
         while obj(u .+ η .* d) > f0 - 1e-4 * (η * abs(dot(r, d)) + η^2 * abs(curvature))
@@ -115,7 +137,7 @@ function proximal(p::MixtureProx, v, t, λ, ps, st)
             # residual reaches tolerance. Accept a Newton step within roundoff
             # only if an independently recomputed optimality residual decreases.
             candidate = u .+ η .* d
-            if isposdef(K) && obj(candidate) ≤ f0 + 8eps(eltype(u)) * (1 + abs(f0))
+            if isposdef(K) && obj(candidate) ≤ f0 + 8eps(eltype(u)) * (1 + abs(f0) + objscale(u))
                 gc, _ = _mixture_grad_hess(l, candidate, t, ps.μ)
                 norm(candidate .- v .- λ .* gc) < norm(r) && break
             end

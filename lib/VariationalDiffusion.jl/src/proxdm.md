@@ -226,8 +226,9 @@ struct's bounds are part of it), so Julia never prefers it and silently calls th
 
 - **Non-convex priors make the prox multivalued.** For a mixture, $-\log p_t$ is not convex,
   and $\operatorname{prox}$ can have several minimisers. `MixtureProx` uses Newton where
-  $I - \lambda\nabla^2\log p_t$ is positive definite and a gradient step otherwise, and returns
-  the local minimiser reached from $v$. A learned `ProxNetwork` makes the same choice
+  $K = I - \lambda\nabla^2\log p_t$ is positive definite and a modified Newton step (the
+  eigenvalues of $K$ replaced by their magnitudes) otherwise, and returns the local minimiser
+  it reaches from $v$ (section P35 below). A learned `ProxNetwork` makes the same choice
   implicitly, wherever training put it.
 - **The PDA step-size limit.** $\gamma_k < 2$ fails for coarse grids near $t = T$ under the
   default VP schedule. The hybrid scheme removes it; PDA throws with a message saying so
@@ -273,6 +274,10 @@ one, on the 9 training points:
 Up to $\sigma(t_b) \approx 3\sigma(t_f)$ it points the same way and is shorter (smoother); beyond, the
 direction decorrelates.
 
+Numbers regenerated on 2026-11-19 after P35 (the example could not run at full size before;
+the cosines, the exact and $t_b = 0.01$ rows were unchanged, the others moved where the solver now
+reaches another local minimiser; log `~/.cache/lenticulum/p35/example-full-final.log`).
+
 **Training** (learning rate 0.01, five training sets: the grid and four random draws of 9
 inputs; median and range):
 
@@ -280,18 +285,18 @@ inputs; median and range):
 |---|---|---|---|---|
 | 0.005 (exact) | 1.3e-4 [4e-7, 6e-4] | 3 [0, 11] | 0.14 [0.08, 0.30] | 0.30 [0.28, 0.34] |
 | 0.01 | 7.5e-5 [5e-6, 3e-4] | 5 [1, 13] | 0.14 [0.07, 0.28] | 0.29 [0.26, 0.30] |
-| 0.02 | 1.1e-4 [3e-7, 3e-4] | 2 [0, 8] | 0.14 [0.09, 0.29] | 0.23 [0.15, 0.33] |
-| 0.05 | 2.6e-4 [2e-5, 2e-3] | 5 [0, 8] | 0.12 [0.05, 0.31] | 0.28 [0.05, 0.32] |
-| 0.1 | 6.6e-4 [3e-4, 1.7e-2] | 2 [0, 3] | 0.16 [0.12, 0.25] | 0.22 [0.10, 0.24] |
+| 0.02 | 1.1e-4 [3e-7, 3e-4] | 2 [0, 8] | 0.14 [0.09, 0.27] | 0.20 [0.15, 0.33] |
+| 0.05 | 3.2e-4 [2.5e-4, 8.7e-3] | 4 [0, 8] | 0.12 [0.07, 0.31] | 0.26 [0.17, 0.32] |
+| 0.1 | 6.6e-4 [3e-4, 2.5e-2] | 2 [0, 3] | 0.16 [0.12, 0.26] | 0.24 [0.10, 0.25] |
 
 At learning rate 0.03 (grid only) the exact adjoint reaches loss 1e-3 fastest (36 epochs, against
-43–53 for $t_b$ up to 0.05) and $t_b = 0.1$ never does.
+45–54 for $t_b$ up to 0.05) and $t_b = 0.1$ never does.
 
-**Reading.** The hypothesis is not supported here. Surrogates up to $t_b = 0.05$ train about as
-well as the exact gradient, none consistently better, and $t_b = 0.1$ is too biased: it stalls in
-one of five runs. On the grid training set alone, $t_b = 0.05$ looked best (test RMSE 0.05 against
-0.08, cold start 0.05 against 0.31) and $t_b = 0.02$ had no loss spikes against eleven; neither
-survived the other four sets, which is why the table reports five.
+**Reading.** The hypothesis is not supported here. Surrogates up to $t_b = 0.02$ train about as
+well as the exact gradient, none consistently better; $t_b = 0.05$ stays above loss 1e-3 on the grid
+set (8.7e-3 after 150 epochs) and $t_b = 0.1$ in one of five runs (2.5e-2): too biased. On the grid training set alone, $t_b = 0.05$ had the second-lowest warm-start test RMSE
+(0.067 against 0.079 exact) and $t_b = 0.02$ had no loss spikes against eleven and a cold-start
+RMSE of 0.15 against 0.31; neither survived the other four sets, which is why the table reports five.
 
 **Why this is not the last word.** The motivation was conditioning, and this problem has none to
 fix: one free coordinate, an exact prox, an adjoint solve that is a scalar division. The cases
@@ -315,3 +320,28 @@ residual decreases; this retains the existing sampler and tight-tolerance adjoin
 Evidence: `test/lp018.jl`, “LP-018.6 symmetric mixture prox escapes a maximum”, against
 the independent two-normal density and its local curvature; the existing “ProxDM: the
 exact prox, the sampler, proximal inference, the loss” tests cover the previous cases.
+
+## P35 indefinite curvature (2026-11-19)
+
+Where $K = I - \lambda\nabla^2\log p_t(u)$ is indefinite, the Newton step is not a descent
+direction. `MixtureProx` used to take the steepest-descent step $-r$ there. On a stiff,
+non-convex valley that zigzags: in the full-size `examples/proxdm_backprop_noise.jl` (64 means,
+$s = 0.05$, $t = 0.005$, $\lambda = 0.01$) $K$ had eigenvalues $-0.02$ and $4.07$ along the path, the
+residual grew from step to step, and the solve hit `maxiters = 100` (it needed several hundred
+iterations). The step is now $d = -V\,|\mathrm K|^{-1}V^\top r$ with $K = V\mathrm KV^\top$ and the
+magnitudes floored at $\sqrt{\varepsilon}\max(1, \max_i|\kappa_i|)$ (Nocedal and Wright, *Numerical
+Optimization*, §3.4), so $r^\top d < 0$ for every $r \ne 0$; backtracking on the same objective
+follows. Where $K$ is positive definite nothing changed. That case now converges in 15
+iterations, to the minimiser the old solver reached after its several hundred.
+
+The step along a direction of negative curvature is long (the residual divided by a small
+$|\kappa|$), so the solve can cross into a neighbouring basin that steepest descent would not have
+reached. On 3000 random mixtures (dimension 1–3, 2–40 means, the scratch comparison of the
+session, not in the repository), the old and new solvers ended at different local minimisers in
+59 cases; the new one was lower in 50 and at the global minimum (by multistart) in 29, the old
+one in 7. Neither solver needed more than 100 iterations on those instances; the slow case is rare.
+
+Evidence: `test/p35_mixture_prox.jl` (the example's case, which threw before; the direction on
+definite and indefinite matrices; 200 random mixtures, each answer a local minimiser below the
+starting objective).
+

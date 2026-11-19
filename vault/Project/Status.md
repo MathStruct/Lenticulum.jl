@@ -7,7 +7,7 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-19, after P15 (every benchmark and example at small size, `bench/smoke.jl`; a coverage report, `tools/coverage.jl`; both weekly in CI), committed on `dev-danielb`, not pushed. Before it P34, the P33 benchmark, P12 and P33, which finished the Float32 work: a Lenticulum graph is Float32 end to end (stopping tolerances and comparison scores stay Float64: `~/.cache/lenticulum/p33/remaining-float64.md`).
+**Last updated:** 2026-11-19, after P35 (`MixtureProx` takes a modified Newton step where its curvature is indefinite; the full-size `proxdm_backprop_noise.jl` runs again), committed on `dev-danielb`, not pushed. Before it P15 (every benchmark and example at small size, a coverage report), P34, the P33 benchmark, P12 and P33, which finished the Float32 work: a Lenticulum graph is Float32 end to end (stopping tolerances and comparison scores stay Float64: `~/.cache/lenticulum/p33/remaining-float64.md`).
 
 ## Branches and worktrees
 
@@ -28,6 +28,19 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **P35** (2026-11-19, the next row): `MixtureProx` took steepest-descent steps where
+  $K = I - \lambda\nabla^2\log p_t$ is indefinite and zigzagged in the full-size example (hundreds of
+  iterations); now a modified Newton step (`_modified_newton_direction`: eigenvalue magnitudes, floored,
+  on `stop_gradient(K)`), 15 iterations there. Review [[LP-066 Findings of the review of P35]] (Codex, one
+  run, workspace-write in the main checkout with probes in scratch; two right findings, both fixed: NaN
+  ForwardDiff partials through `eigen`; the LP-018 roundoff guard too tight where the objective is small
+  and λ log p is not, now scaled by the size of the terms). The new step can end in another local
+  minimiser (59 of 3000 random mixtures, lower in 50). Test `test/p35_mixture_prox.jl` (618 checks).
+  VariationalDiffusion suite passed on the final code (`~/.cache/lenticulum/p35/vd-suite-final.log`); the
+  example runs at full size and `proxdm.md` §8 is regenerated (the t_b ≥ 0.02 rows moved; the reading
+  now says t_b = 0.05 is already too biased on the grid set); smoke run ok. The bench Manifest was
+  stale after P15 (Zygote missing): `Pkg.resolve()` fixed it. Not run: the docs builds (a docstring
+  changed). Seen, no row: Float32 inputs to `MixtureProx` give Float64 answers (the mixture's schedule).
 - **P15** (2026-11-19, chosen by the maintainer): `LENTICULUM_SMOKE=true` runs every benchmark and every
   Lenticulum and VariationalDiffusion example at small size; unset, nothing changes (18 scripts compared at
   full size by Codex, the rest read). `julia --project=bench bench/smoke.jl [names]` runs them each in its
@@ -199,8 +212,7 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Next
 
-No row is set; pick one with the maintainer. New since P15: P35 (a full-size example fails in `MixtureProx`;
-small, path B), P36 (coverage gaps) and T3 (JET `@test_opt` tests on the inner kernels; a JET check of 2026-11-19 found no defect, one type instability on the flat path). Section P also has P10 (needs F2), P14 (shared solver layer, large:
+No row is set; pick one with the maintainer. New since P15: P36 (coverage gaps) and T3 (JET `@test_opt` tests on the inner kernels; a JET check of 2026-11-19 found no defect, one type instability on the flat path). Section P also has P10 (needs F2), P14 (shared solver layer, large:
 design first), P16. Close to P5: a learned noise with hard messages, a residual-space formulation of the
 positive definite path (LP-047 finding 4; no row yet). Left open by P27 (no rows yet): the Bethe free energy
 with a mixture marginal under BP, derivatives through the new rules, two extended components with hard

@@ -2313,4 +2313,6 @@ include("review_singular.jl")
 
 include("p12_default_lambda.jl")
 
+include("p35_mixture_prox.jl")
+
 include("aqua.jl")
