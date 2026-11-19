@@ -11,10 +11,13 @@
 #
 # Recorded in `lib/Mycelium.jl/src/cluster.md` and L-SPEC-009 §6.
 # Run:  julia --project=bench bench/cluster_overlap.jl
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 1 point and 2 sweeps, all four groupings.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, Printf, Statistics
 using MyceliumLearning
 
-const d, L, B, N = 8, 8, 4, 100
+const d, L, B, N = 8, 8, 4, (SMOKE ? 1 : 100)
 const E = Matrix(1.0I, d, d)
 sw_ps(W, l) = (A = (u = E,), b = hcat(zeros(d), W[:, l]), logw = zeros(2))
 
@@ -57,7 +60,7 @@ function posteriors(g, s, ps)
         return exp(cluster_marginal(s, g, node.name, k, ps).logp[2])
     end
 end
-function run(g, ps; sweeps = 50)
+function run(g, ps; sweeps = (SMOKE ? 2 : 50))
     s = MessageStore(g)
     for _ in 1:sweeps; sweep!(s, g, SequentialSchedule(all_tasks(g)), ps, NamedTuple()); end
     return posteriors(g, s, ps)
@@ -92,7 +95,7 @@ for n in 1:N
 end
 labels = Dict(:plain => "one factor per switch", :switches_only => "overlap clusters, no partial sum",
               :fixed => "blocks of 4, index order", :overlap => "blocks of 4, by overlap")
-@printf("%-34s %12s %12s\n", "E-step (loopy, 50 sweeps)", "mean |ΔP|", "max |ΔP|")
+@printf("%-34s %12s %12s\n", SMOKE ? "E-step (loopy, 2 sweeps)" : "E-step (loopy, 50 sweeps)", "mean |ΔP|", "max |ΔP|")
 for key in rows
     @printf("%-34s %12.4f %12.4f\n", labels[key], mean(errs[key]), maximum(errs[key]))
 end

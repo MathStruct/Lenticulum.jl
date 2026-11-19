@@ -1,0 +1,34 @@
+name: Examples
+# Every benchmark in bench/ and the examples of Lenticulum and VariationalDiffusion at small size (Feature
+# Backlog P15): bench/smoke.jl runs each in its own process with LENTICULUM_SMOKE=true and fails on an
+# error or a timeout. It checks that they still run, not what they measure. Once a week, on demand
+# (Actions → Examples → Run workflow), and when a benchmark or an example changes. The logs are
+# uploaded as the artifact `smoke-logs`; the table of results is on the run's summary page.
+on:
+  schedule:
+    - cron: '0 5 * * 1'          # Mondays, 05:00 UTC, an hour after Weekly.yml
+  workflow_dispatch:
+  push:
+    branches: [master, dev, dev-danielb]
+    paths: ['bench/**', 'lib/Lenticulum.jl/examples/**', 'lib/VariationalDiffusion.jl/examples/**', '.github/workflows/Examples.yml']
+jobs:
+  smoke:
+    name: benchmarks and examples · small size
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      - name: Instantiate the bench environment
+        run: julia --project=bench -e 'using Pkg; Pkg.instantiate()'
+      - name: Run every benchmark and example at small size
+        env:
+          OUT: ${{ runner.temp }}/smoke
+        run: julia --project=bench bench/smoke.jl
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-logs
+          path: ${{ runner.temp }}/smoke

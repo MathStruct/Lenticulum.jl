@@ -14,12 +14,15 @@
 #    scored by one function, −log p(y | x, θ̂) at their point estimates (RxInfer's posterior means,
 #    σ = 1/√E[τ]), with the labels matched; hand-written closed-form EM is the reference.
 
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 2–5 Kalman steps, 8 and 10 mixture points, 3 fit iterations and 1 timed run.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, MyceliumLearning, LinearAlgebra, LuxCore, Random, Printf
 import RxInfer
 using RxInfer: @model, @constraints, @initialization, MvNormalMeanCovariance, NormalMixture, Categorical,
     Dirichlet, GammaShapeRate, NormalMeanPrecision, infer, GraphPPL   # @model expands to GraphPPL calls
 
-const REPS = 5
+const REPS = SMOKE ? 1 : 5
 best(f) = (f(); minimum(@elapsed(f()) for _ in 1:REPS))
 
 # --- the model, as plain data ---------------------------------------------------------------
@@ -138,7 +141,8 @@ end
 
 # Beyond T = 1000 RxInfer's default run overflows the stack (its recursive message updates); its
 # documented remedy is the `limit_stack_depth` option, used there only.
-rx_options(T) = T > 1000 ? (limit_stack_depth = 100,) : (;)
+# The last small row exercises RxInfer's stack-limited path too.
+rx_options(T) = (T > 1000 || (SMOKE && T == 5)) ? (limit_stack_depth = 100,) : (;)
 ssm_rxinfer(m; free_energy = true) =
     infer(model = rx_ssm(A = m.A, H = m.H, Q = m.Q, R = m.R, μ0 = m.μ0, P0 = m.P0),
           data = (y = m.ys,), free_energy = free_energy, options = rx_options(m.T))
@@ -149,7 +153,7 @@ function run_ssm()
     println("1. Linear-Gaussian state-space model (constant velocity, position measurements)\n")
     @printf("%6s | %9s %9s %9s | %9s %9s | %8s %8s %8s %8s | %8s %8s\n", "T", "|F_L-F*|", "|F_R-F*|", "|F_L-F_R|",
             "err μ L", "err μ R", "L build", "L infer", "L F", "L all", "R", "R noFE")
-    for T in (10, 100, 1000, 2000)
+    for T in (SMOKE ? (2, 3, 4, 5) : (10, 100, 1000, 2000))
         m = ssm_data(Xoshiro(T), T)
         ref = ssm_dense(m)
         margL, FL = ssm_lenticulum(m)
@@ -206,7 +210,7 @@ mix_nll(x, y, a, c, σ, w) = -sum(lse([log(w[k]) - (y[i] - a[k] * x[i] - c[k])^2
 const START = (a = [0.5, -0.5], c = [0.0, 0.0], σ = [1.0, 1.0], w = [0.5, 0.5])
 
 # closed-form EM, until −log p changes by less than tol
-function mix_em_hand(x, y; tol = 1e-10, maxiter = 10_000)
+function mix_em_hand(x, y; tol = 1e-10, maxiter = (SMOKE ? 3 : 10_000))
     a, c, σ, w = copy(START.a), copy(START.c), copy(START.σ), copy(START.w)
     X = [x ones(length(x))]
     F = mix_nll(x, y, a, c, σ, w); it = 0
@@ -247,7 +251,7 @@ mix_ps(N) = merge(NamedTuple(s => NamedTuple() for i in 1:N for s in (replica_na
             L = reshape(log.(START.σ), 1, 1, 2)),))
 function mix_lenticulum(x, y, g; tol = 1e-10)
     schedule = isempty(plates(g)) ? SequentialSchedule(all_tasks(g)) : plate_schedule(g)
-    ps, Fs, _ = fit_em(g, mix_ps(length(x)), NamedTuple(); schedule, iters = 10_000, tol)
+    ps, Fs, _ = fit_em(g, mix_ps(length(x)), NamedTuple(); schedule, iters = (SMOKE ? 3 : 10_000), tol)
     p = ps.reg
     w = exp.(p.logw); w ./= sum(w)
     return (a = -vec(p.A.x), c = vec(p.b), σ = exp.(vec(p.L)), w, iters = length(Fs) - 1, F = last(Fs))
@@ -302,7 +306,7 @@ function run_mix()
     println("\n2. A mixture of two linear regressions, one noise level per line (a = (1, −1), c = (0, 0.5), σ = (0.2, 0.5))\n")
     @printf("%6s | %-10s | %8s %8s | %8s %8s | %8s %8s | %6s %6s | %14s | %6s %10s\n", "N", "method",
             "a1", "a2", "c1", "c2", "σ1", "σ2", "w1", "w2", "−log p(y|x,θ̂)", "iters", "time (ms)")
-    for N in (300, 3000)
+    for N in (SMOKE ? (8, 10) : (300, 3000))
         x, y = mix_data(N)
         ref = mix_em_hand(x, y)
         g = mix_graph(x, y)
@@ -310,7 +314,7 @@ function run_mix()
         gp = mix_graph(x, y; plated = true)
         Lp = mix_lenticulum(x, y, gp)
         # VMP to convergence: find the iteration count once, then time runs of that length
-        R0 = mix_rxinfer(x, y, 1000)
+        R0 = mix_rxinfer(x, y, SMOKE ? 3 : 1000)
         nR = rx_converged(R0.F)
         R = mix_rxinfer(x, y, nR)
         # the graph's free energy at the fit is −log p(y | x) (a forest, exact): checked against the score

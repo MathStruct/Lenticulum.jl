@@ -41,3 +41,5 @@ stress case retains three. The separate six-variable regression fixture recovers
 All are reported by the vault note; no consistency or general recovery guarantee is claimed.
 There is no deletion search, held-out tuning, non-Gaussian fitting, TDA implementation,
 joint-factor splitting, or parameter evidence integration.
+
+`LENTICULUM_SMOKE=true` (`bench/smoke.jl`) runs this example with 3 variables, 100 samples and 2 lasso penalties.

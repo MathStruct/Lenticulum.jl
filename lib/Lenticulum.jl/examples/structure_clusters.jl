@@ -2,7 +2,7 @@
 # the branch's moves (`experiment-qm`, examples/structure_switches.jl) done as edits of one Mycelium
 # graph and scored by its exact free energy. Extends `examples/structure_edits.jl` (J = 1) to J > 1.
 # Recorded in `examples/structure_clusters.md`.
-# Run:  julia -t auto --project=docs lib/Lenticulum.jl/examples/structure_clusters.jl   (an environment with ForwardDiff)
+# Run:  julia -t auto --project=bench lib/Lenticulum.jl/examples/structure_clusters.jl   (an environment with ForwardDiff)
 #       STRUCTURE_GREEDY=false skips the greedy search and runs the reference only;
 #       STRUCTURE_COMPOUND=false leaves out the compound moves and the data-driven splits (the branch's
 #       four moves only); STRUCTURE_FIT=em fits by EM in θ instead of 300 gradient steps;
@@ -29,6 +29,9 @@
 # warm start (2-means on the heaviest cluster's points), and the compound split tries every switch.
 # Fit: Momentum on the free-energy gradient at the exact beliefs (generalised EM), on c, log π, W and
 # the logits of p. Score: BIC = 2F + p log N, p = J(d + 1 + L(d + 1)) − 1.
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 2 points, 2 fit/k-means iterations and 1 candidate/reference start, with one search expansion.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, Printf, Statistics
 using MyceliumLearning
 using ADTypes, DifferentiationInterface, ForwardDiff
@@ -143,7 +146,7 @@ function unvec(v, J, L)
     return (a = a, C = C, W = W, r = r)
 end
 
-function fit_gradient(gc, ids, N, θ; steps = 300, η = 0.02, γ = 0.9, s0 = nothing)
+function fit_gradient(gc, ids, N, θ; steps = (SMOKE ? 2 : 300), η = 0.02, γ = 0.9, s0 = nothing)
     J, L = size(θ.C, 2), length(ids)
     sched = plate_schedule(gc)
     s = s0 === nothing ? MessageStore(gc) : s0
@@ -215,7 +218,7 @@ function em_θ(s, gc, ps, st, ids, N, X)
     end
     return full_ps(make_ps((a = a, C = C, W = W, r = r), ids), N)
 end
-function fit_by_em_once(gc, ids, N, θ; s0 = nothing, iters = 300, tol = 1e-4)
+function fit_by_em_once(gc, ids, N, θ; s0 = nothing, iters = (SMOKE ? 2 : 300), tol = 1e-4)
     ps, Fs, s = fit_em(gc, full_ps(make_ps(θ, ids), N), NamedTuple(); schedule = plate_schedule(gc), iters, tol,
                        accelerate = true, store = s0, mstep = (s, g, p, st) -> em_θ(s, g, p, st, ids, N, X))
     return θ_of(ps.mix, ids), Fs[end], s
@@ -224,7 +227,7 @@ end
 # (at (1, 0), three of four add-a-switch draws ended at BIC 31 942.95 by EM, one by gradient steps), so
 # each EM fit also starts from perturbed copies of its warm start (centres by S/2, offsets by S,
 # logits by 1; a separate generator, so the search's own draws are unchanged) and keeps the best.
-const RESTARTS = parse(Int, get(ENV, "STRUCTURE_RESTARTS", "4"))
+const RESTARTS = parse(Int, get(ENV, "STRUCTURE_RESTARTS", SMOKE ? "1" : "4"))
 const RESTART_RNG = Xoshiro(2026)
 perturb(θ, rng) = (a = θ.a, C = θ.C .+ (S / 2) .* randn(rng, size(θ.C)), W = θ.W .+ S .* randn(rng, size(θ.W)),
                    r = θ.r .+ randn(rng, size(θ.r)))
@@ -267,7 +270,7 @@ function data_split_θ(θ, s, gc, ids, X; j = argmax(weights(θ)))
     a, b = Tuple(argmax(((p, q),) -> norm(P[:, p] - P[:, q]), [(p, q) for p in axes(P, 2) for q in (p + 1):size(P, 2)]))
     μ = hcat(P[:, a], P[:, b])
     lab = ones(Int, size(P, 2))
-    for _ in 1:20
+    for _ in 1:(SMOKE ? 2 : 20)
         lab = [argmin([norm(P[:, t] - μ[:, k]) for k in 1:2]) for t in axes(P, 2)]
         for k in 1:2; any(==(k), lab) && (μ[:, k] = vec(mean(P[:, lab .== k]; dims = 2))); end
     end
@@ -304,7 +307,7 @@ end
 
 const COMPOUND = get(ENV, "STRUCTURE_COMPOUND", "true") != "false"
 rng = Xoshiro(5)
-const N = 200
+const N = SMOKE ? 2 : 200
 X = tree_data(N, rng)
 
 # every move's fitted candidates from one state: (move, BIC, g, gc, J, ids, θ, store, next)
@@ -314,7 +317,7 @@ function candidates(g, gc, J, ids, θ, s, next)
     L = length(ids)
     if L < 3                                                        # add a switch (4 draws)
         gA = add_switch(g, J, ids, next, N); idsA = [ids; next]; gcA = clustered(gA, idsA, N)
-        for _ in 1:4
+        for _ in 1:(SMOKE ? 1 : 4)
             θA, FA, sA = fit(gcA, idsA, N, add_θ(θ, rng); s0 = transfer(s, gc, gcA)); nf += 1
             push!(cands, ("add a switch", bic(FA, J, L + 1, N), gA, gcA, J, idsA, θA, sA, next + 1))
         end
@@ -327,7 +330,7 @@ function candidates(g, gc, J, ids, θ, s, next)
     end
     if J < 4                                                        # split the heaviest cluster (4 draws)
         gS = resize_clusters(g, J + 1, ids, N); gcS = clustered(gS, ids, N)
-        for _ in 1:4
+        for _ in 1:(SMOKE ? 1 : 4)
             θS, FS, sS = fit(gcS, ids, N, split_θ(θ, rng); s0 = transfer(s, gc, gcS)); nf += 1
             push!(cands, ("split a cluster", bic(FS, J + 1, L, N), gS, gcS, J + 1, ids, θS, sS, next))
         end
@@ -352,7 +355,7 @@ function candidates(g, gc, J, ids, θ, s, next)
     end
     if COMPOUND && J > 1 && L < 3                                   # merge, then add a switch
         gC = add_switch(resize_clusters(g, J - 1, ids, N), J - 1, ids, next, N); idsC = [ids; next]; gcC = clustered(gC, idsC, N)
-        for _ in 1:4
+        for _ in 1:(SMOKE ? 1 : 4)
             θC, FC, sC = fit(gcC, idsC, N, add_θ(merge_θ(θ), rng); s0 = transfer(s, gc, gcC)); nf += 1
             push!(cands, ("merge, add a switch", bic(FC, J - 1, L + 1, N), gC, gcC, J - 1, idsC, θC, sC, next + 1))
         end
@@ -386,6 +389,7 @@ while true
     global g, gc, J, ids, θ, s, best, next = gN, gcN, JN, idsN, θN, sN, score, nextN
     push!(path, "($J, $(length(ids)))")
     @printf("%-18s (J, L) = (%d, %d)  BIC = %9.2f   (%.0f s)\n", move, J, length(ids), best, time() - t0)
+    SMOKE && break # one expansion; the reference below exercises all move types
 end
 @printf("greedy search: (J, L) = (%d, %d) with %d fits in %.0f s; path %s\n", J, length(ids), nfits, time() - t0, join(path, " → "))
 println("weights ", round.(weights(θ); digits = 3), "   centres ", round.(θ.C; digits = 2))
@@ -420,12 +424,13 @@ while true
     foreach(b -> push!(seen, (b.J, length(b.ids))), beam)
     beam[1].score < bestst.score && (global bestst = beam[1])
     @printf("beam: %s   (%.0f s)\n", join([@sprintf("(%d, %d) %.2f", b.J, length(b.ids), b.score) for b in beam], ";  "), time() - tB)
+    SMOKE && break # bound smoke search iterations, retaining the requested beam width
 end
 @printf("beam search (k = %d): (J, L) = (%d, %d), BIC = %.2f with %d fits in %.0f s; path %s\n", BEAM, bestst.J,
         length(bestst.ids), bestst.score, nfitsB, time() - tB, join(bestst.path, " → "))
 # a final refit of the chosen structure (`STRUCTURE_REFIT=n`, default 32 with EM): half the starts
 # perturb its fit, half are random (centres at random data points), as the reference's; the best is kept
-nrefit = parse(Int, get(ENV, "STRUCTURE_REFIT", FIT == "em" ? "32" : "0"))
+nrefit = parse(Int, get(ENV, "STRUCTURE_REFIT", FIT == "em" ? (SMOKE ? "2" : "32") : "0"))
 if nrefit > 0
     tR = time()
     Jb, Lb = bestst.J, length(bestst.ids)
@@ -456,7 +461,18 @@ angs = (0.0, 0.5, 1.1)
          r = log.([0.5 0.4; 0.3 0.6; 0.7 0.5] ./ (1 .- [0.5 0.4; 0.3 0.6; 0.7 0.5])))
 _, FT, _ = fit(gcT, [1, 2], N, θtrue)
 @printf("(3, 2) from the generating parameters: BIC = %9.2f\n", bic(FT, 3, 2, N))
-for r in 1:4
+# Short fits can stop the greedy search before it reaches a state with all six moves.
+# Expand a two-cluster, one-switch state so smoke covers all six moves at their smallest sizes.
+if SMOKE && get(ENV, "STRUCTURE_GREEDY", "true") != "false"
+    gP = resize_clusters(remove_switch(gT, [1, 2], 2, N), 2, [1], N)
+    gcP = clustered(gP, [1], N)
+    θP, _, sP = fit(gcP, [1], N, drop_θ(merge_θ(θtrue), 2))
+    smoke_candidates, _ = candidates(gP, gcP, 2, [1], θP, sP, 2)
+    @assert Set(first.(smoke_candidates)) == Set(COMPOUND ?
+        ["add a switch", "remove a switch", "split a cluster", "merge two clusters", "split, remove a switch", "merge, add a switch"] :
+        ["add a switch", "remove a switch", "split a cluster", "merge two clusters"])
+end
+for r in 1:(SMOKE ? 1 : 4)
     θr = (a = zeros(3), C = X[:, rand(rng, 1:N, 3)], W = 2S .* randn(rng, d, 3, 2), r = zeros(3, 2))
     _, Fr, _ = fit(gcT, [1, 2], N, θr)
     @printf("(3, 2) from random start %d:          BIC = %9.2f\n", r, bic(Fr, 3, 2, N))

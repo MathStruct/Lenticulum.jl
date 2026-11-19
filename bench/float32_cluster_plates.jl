@@ -19,6 +19,9 @@
 # Run:  julia -t auto --project=bench bench/float32_cluster_plates.jl
 #       (NS = "300,3000", ITERS = 10, PLATES = "reg1,reg1d,reg1w,reg3", REPLICA = true (false: the stacked path
 #       only); output to stdout)
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 3 and 4 replicas, 2 EM iterations and 1 timed run per plate/type/path.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, MyceliumLearning, LinearAlgebra, LuxCore, Random, Printf
 
 const NT = NamedTuple()
@@ -66,8 +69,8 @@ function reg3_plate(T, N)                                        # as p32_em_pla
     return g, ps
 end
 
-const NS = parse.(Int, split(get(ENV, "NS", "300,3000"), ","))
-const ITERS = parse(Int, get(ENV, "ITERS", "10"))
+const NS = parse.(Int, split(get(ENV, "NS", SMOKE ? "3,4" : "300,3000"), ","))
+const ITERS = parse(Int, get(ENV, "ITERS", SMOKE ? "2" : "10"))
 const ALL_PLATES = (reg1 = reg1_plate, reg1d = (T, N) -> reg1_plate(T, N; kw = NamedTuple()),
                       reg1w = (T, N) -> reg1_plate(T, N; kw = (output_coeff = Matrix(1.0I, 1, 1),)), reg3 = reg3_plate)
 const PLATES = NamedTuple{Tuple(Symbol.(split(get(ENV, "PLATES", "reg1,reg1d,reg1w,reg3"), ",")))}(ALL_PLATES)
@@ -78,7 +81,7 @@ function measure(make, T, N)
     sched = plate_schedule(g)
     fit() = fit_em(g, ps, NT; schedule = sched, iters = ITERS, tol = 0)
     _, Fs, _ = fit()                                             # compile
-    t = minimum(_ -> (GC.gc(); @elapsed fit()), 1:3)
+    t = minimum(_ -> (GC.gc(); @elapsed fit()), 1:(SMOKE ? 1 : 3))
     a = @allocated fit()
     return (; t, a, F = last(Fs), n = length(Fs) - 1, FT = eltype(Fs))
 end

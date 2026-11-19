@@ -13,6 +13,9 @@ __pycache__/
 /lib/*/examples/*/Manifest.toml
 /docs/vault-build/
 /bench/Manifest.toml
+/tools/Manifest.toml
+*.cov
+*.mem
 
 # Obsidian: the plugin list (.obsidian/community-plugins.json) is tracked, the plugins are not;
 # workspace*.json is one person's window layout

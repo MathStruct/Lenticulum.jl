@@ -19,6 +19,9 @@
 #
 # Recorded in `vault/Control/Composing Optimisers.md` §4.2.
 # Run:  julia --project=bench bench/bp_schedules.jl
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 40 sweeps and 200 queue evaluations per method.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 include("divider.jl")
 
 relerr(x, xstar, ηi, Λi, sη, sΛ) = any(isnan, x) ? Inf :
@@ -87,7 +90,7 @@ function dependents(g, t)
 end
 
 # a static schedule: evaluations and sweeps to an error of 1e-10, and the rate per sweep
-function run_static(sched, g, ps, st, xstar, err; cap = 400_000)
+function run_static(sched, g, ps, st, xstar, err; cap = (SMOKE ? 40 : 400_000))
     s = MessageStore(g); e = Float64[]
     for k in 1:cap
         sweep!(s, g, sched, ps, st)
@@ -103,7 +106,7 @@ function run_static(sched, g, ps, st, xstar, err; cap = 400_000)
 end
 
 # residual BP with a priority queue; one "sweep" here is as many commits as there are tasks
-function run_queue(g, ps, st, xstar, err; cap = 10_000_000)
+function run_queue(g, ps, st, xstar, err; cap = (SMOKE ? 200 : 10_000_000))
     s = MessageStore(g)
     ts = Mycelium.all_tasks(g); n = length(ts)
     res = Dict{MessageTask,Float64}(); evals = 0
@@ -125,7 +128,7 @@ function run_queue(g, ps, st, xstar, err; cap = 10_000_000)
     return (; commits, sweeps = nothing, evals = nothing)
 end
 
-function study(R₁, R₂; cap = 400_000, slow = true)
+function study(R₁, R₂; cap = (SMOKE ? 40 : 400_000), slow = true)
     g, ps, st = divider_graph(R₁, R₂, 1e4)
     # the fixed point, by the loop order run to its rounding floor
     s = MessageStore(g); lo = loop_order(g)

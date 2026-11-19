@@ -63,7 +63,6 @@ graph LR
   S6[S6 scores<br/>beyond BIC] --> S7
   L7[L7 train!] --> L12[L12 learned optimisers]
   L9[L9 hypergradients] --> L12
-  P15[P15 coverage and<br/>examples job] --> T2[T2 benchmark<br/>regression tracking]
   G1[G1 reward and<br/>policy factors] --> G2[G2 posterior that<br/>keeps the dynamics]
   L3[L3 stop gradient] --> G4[G4 Bellman residual<br/>as a loss]
   P16[P16 owned<br/>scalarisations] --> G5[G5 payoff gradient<br/>through beliefs]

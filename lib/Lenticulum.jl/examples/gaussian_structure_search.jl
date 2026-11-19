@@ -1,10 +1,13 @@
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 3 variables, 100 samples and 2 lasso penalties.
 """
 LP-010: fixed-mean Gaussian structure search, using Lenticulum pairwise factors and
-Mycelium's Bethe normaliser. Run with `julia --project=docs lib/Lenticulum.jl/examples/gaussian_structure_search.jl`.
+Mycelium's Bethe normaliser. Run with `julia --project=bench lib/Lenticulum.jl/examples/gaussian_structure_search.jl`.
 No optional solver dependencies. See `gaussian_structure_search.md` and the vault note
 `Finding a Factor Graph` for the score, assumptions and limitations.
 """
 module GaussianStructureSearch
+
+const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 
 using Lenticulum
 using LenticulumCore
@@ -16,7 +19,7 @@ using Random
 const Edge = Tuple{Int,Int}
 all_edges(d) = Edge[(i, j) for i in 1:d for j in (i + 1):d]
 
-function chain_sample(; d = 8, n = 10000, seed = 1010, coupling = 0.12)
+function chain_sample(; d = (SMOKE ? 3 : 8), n = (SMOKE ? 100 : 10000), seed = 1010, coupling = 0.12)
     edges = Edge[(i, i + 1) for i in 1:(d - 1)]
     K = Matrix{Float64}(I, d, d)
     for (i, j) in edges
@@ -173,7 +176,7 @@ function graphical_lasso(S, λ; tol = 1e-9, maxiter = 20000)
     error("graphical lasso did not converge")
 end
 
-function glasso_search(S, n; lambdas = exp.(range(log(0.3), log(0.003); length = 30)))
+function glasso_search(S, n; lambdas = exp.(range(log(0.3), log(0.003); length = (SMOKE ? 2 : 30))))
     best = nothing
     for λ in lambdas
         fit = graphical_lasso(S, λ)
@@ -195,7 +198,7 @@ end
 
 function main()
     data = chain_sample()
-    println("seed=1010 d=8 n=$(data.n) coupling=0.12 known mean=0 true_edges=$(data.edges)")
+    println("seed=1010 d=$(size(data.K, 1)) n=$(data.n) coupling=0.12 known mean=0 true_edges=$(data.edges)")
     for penalty in (true, false)
         result = greedy_search(data.S, data.n; penalty)
         println("Bethe penalty=$penalty edges=$(result.edges) metrics=$(edge_metrics(result.edges, data.edges))")

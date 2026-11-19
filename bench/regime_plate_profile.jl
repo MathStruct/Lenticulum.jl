@@ -4,6 +4,9 @@
 # (one sample per ms) and writes a flat and a tree profile to `~/.cache/lenticulum/regime_plate_profile/`
 # (or `$OUT`). Recorded in `lib/Mycelium.jl/src/cluster.md`, "Batching in one stacked joint".
 # Run:  N=3000 julia -t auto --project=bench bench/regime_plate_profile.jl
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 4 replicas, 2 EM iterations, 1 timed run and a 10000-entry profile buffer.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, MyceliumLearning, LinearAlgebra, LuxCore, Random, Profile
 
 const START = (a = [0.5, -0.5], c = [0.0, 0.0], σ = [1.0, 1.0], w = [0.5, 0.5])
@@ -30,20 +33,20 @@ mix_ps(N) = merge(NamedTuple(s => NamedTuple() for i in 1:N for s in (replica_na
     (reg = (A = (x = reshape(-START.a, 1, 1, 2),), b = reshape(START.c, 1, 2), logw = log.(START.w),
             L = reshape(log.(START.σ), 1, 1, 2)),))
 
-N = parse(Int, get(ENV, "N", "3000"))
-out = get(ENV, "OUT", joinpath(homedir(), ".cache", "lenticulum", "regime_plate_profile")); mkpath(out)
+N = parse(Int, get(ENV, "N", SMOKE ? "4" : "3000"))
+out = get(ENV, "OUT", SMOKE ? mktempdir() : joinpath(homedir(), ".cache", "lenticulum", "regime_plate_profile")); mkpath(out)
 x, y = mix_data(N)
 g = mix_plate(x, y)
 ps, sched = mix_ps(N), plate_schedule(g)
 fit(iters) = fit_em(g, ps, NamedTuple(); schedule = sched, iters, tol = 1e-10)
-_, Fs, _ = fit(10_000)                                               # compile
-tf = minimum(_ -> (GC.gc(); @elapsed fit(10_000)), 1:3)
-t1 = minimum(_ -> (GC.gc(); @elapsed fit(1)), 1:3)
+_, Fs, _ = fit(SMOKE ? 2 : 10_000)                                               # compile
+tf = minimum(_ -> (GC.gc(); @elapsed fit(SMOKE ? 2 : 10_000)), 1:(SMOKE ? 1 : 3))
+t1 = minimum(_ -> (GC.gc(); @elapsed fit(1)), 1:(SMOKE ? 1 : 3))
 a1 = @allocated fit(1)
 println("N = $N: fit_em $(round(tf; digits = 3)) s, $(length(Fs) - 1) iterations, F = $(last(Fs)); ",
         "one iteration $(round(t1 * 1e3; digits = 1)) ms, $(round(a1 / 2^20; digits = 1)) MiB")
-Profile.clear(); Profile.init(n = 10^7, delay = 0.001)
-@profile fit(10_000)
+Profile.clear(); Profile.init(n = (SMOKE ? 10^4 : 10^7), delay = 0.001)
+@profile fit(SMOKE ? 2 : 10_000)
 open(io -> Profile.print(IOContext(io, :displaysize => (10000, 250)); format = :flat, sortedby = :count, mincount = 20),
      joinpath(out, "flat.txt"), "w")
 open(io -> Profile.print(IOContext(io, :displaysize => (10000, 250)); maxdepth = 40, mincount = 30, noisefloor = 2),

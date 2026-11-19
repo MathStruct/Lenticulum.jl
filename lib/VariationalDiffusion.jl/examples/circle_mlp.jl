@@ -5,12 +5,14 @@
 # branch, and the answer is differentiated by the implicit-function-theorem adjoint, checked
 # against finite differences. Runs on the CPU in about a minute.
 #
-#     cd lib/VariationalDiffusion.jl
-#     julia --project=test examples/circle_mlp.jl
+# Run: julia --project=bench lib/VariationalDiffusion.jl/examples/circle_mlp.jl
 #
 # Swap `AutoZygote()` for `AutoEnzyme(; mode = Enzyme.set_runtime_activity(Enzyme.Reverse))`,
 # `AutoMooncake()`, or `AutoReactant()` (with Reactant loaded) — nothing else changes.
 # See `src/backends.md`.
+# Smoke: LENTICULUM_SMOKE=true uses 8 training steps at batch 2, 2 nodes/level; all queries, adjoint and finite differences.
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
+
 using VariationalDiffusion, Lux, LuxCore, Random, LinearAlgebra, Printf, Optimisers
 using DifferentiationInterface, Zygote
 
@@ -31,12 +33,13 @@ function batch(rng, B)
     return (Float32.(vcat(xₜ, embed(t))), Float32.(ε))
 end
 
-function train(rng; steps = 6000)
+# Eight smoke steps are the first count (seed 0, batch 2) with a stable solve for the adjoint.
+function train(rng; steps = SMOKE ? 8 : 6000)
     ps, st = Lux.setup(rng, mlp)
     ts = Training.TrainState(mlp, ps, st, Optimisers.Adam(1.0f-3))
     for k in 1:steps
-        _, loss, _, ts = Training.single_train_step!(AutoZygote(), MSELoss(), batch(rng, 256), ts)
-        k % 2000 == 0 && @printf "step %5d   denoising loss %.4f\n" k loss
+        _, loss, _, ts = Training.single_train_step!(AutoZygote(), MSELoss(), batch(rng, SMOKE ? 2 : 256), ts)
+        (SMOKE || k % 2000 == 0) && @printf "step %5d   denoising loss %.4f\n" k loss
     end
     return ts.parameters, ts.states
 end
@@ -50,7 +53,7 @@ ps = f64(ps)
 
 # the trained network as a relation; ad = … is used only by the backward pass
 pred = NoisePredictor(mlp, sched; input, ad = AutoZygote())
-m = ImplicitDiffusion(pred, field_nodes(Xoshiro(1), 2; samples = 8))
+m = ImplicitDiffusion(pred, field_nodes(Xoshiro(1), 2; samples = SMOKE ? 2 : 8))
 for (x, y₀) in ((0.6, 0.5), (0.6, -0.5), (0.0, 0.7))
     sol, _ = implicit_infer(m, [x, y₀], [Inf, 0.0], ps, st)      # x clamped, y free
     @printf "x = %.1f, start y = %+.1f  →  y = %+.4f   radius %.4f   converged %s  stable %s\n" x y₀ sol.z[2] norm(sol.z) sol.converged sol.stable

@@ -60,3 +60,5 @@ The graph's fit and EM differ by $2.0 \cdot 10^{-8}$ in $-\log p$ and by at most
 - Timings: 21.7 s in the first run (one channel $z$, the message to $z$ left out of the schedule),
   29.4 s with that message, 50.5 s with separate channels $x$, $y$ and two data factors per point
   (2026-11-04). The values were the same in all three.
+
+`LENTICULUM_SMOKE=true` (`bench/smoke.jl`) runs this example with 8 points and 2 Adam steps (closed-form EM still converges).

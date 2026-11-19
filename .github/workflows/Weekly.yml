@@ -3,7 +3,8 @@ name: Weekly
 # AdversarialFactors, AlgebraicFactors. Not tested on every push: once a week, on demand (Actions → Weekly →
 # Run workflow), and when their own files change. A change in
 # the core can break them between two weekly runs; run the workflow before relying on one.
-# Also the core packages on the oldest supported Julia (job `oldest`), on the schedule and on demand only.
+# Also the core packages on the oldest supported Julia (job `oldest`) and their line coverage (job
+# `coverage`), on the schedule and on demand only.
 on:
   schedule:
     - cron: '0 4 * * 1'          # Mondays, 04:00 UTC
@@ -54,3 +55,40 @@ jobs:
       - uses: julia-actions/cache@v2
       - name: Test ${{ matrix.package }}
         run: julia --project=${{ matrix.package }} -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
+  # Line coverage of the core packages by their own suites (Feature Backlog P15): tools/coverage.jl runs
+  # `Pkg.test(coverage = true)` and writes lcov.info, a summary per file (also on the run's summary page)
+  # and the uncovered line ranges, uploaded as the artifact `coverage-<package>`. On the schedule and on
+  # demand only; a suite under coverage runs two to three times slower.
+  coverage:
+    if: github.event_name != 'push'
+    name: ${{ matrix.package }} · coverage · weekly
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - LenticulumCore.jl
+          - Mycelium.jl
+          - MyceliumLearning.jl
+          - Lenticulum.jl
+          - VariationalDiffusion.jl
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      - name: Coverage of lib/${{ matrix.package }}
+        env:
+          OUT: ${{ runner.temp }}/coverage
+          JULIA_NUM_THREADS: auto
+          LENTICULUM_DEVICE_TESTS: 'true'   # the device files (JLArrays) of Mycelium and MyceliumLearning count too
+        run: |
+          julia --project=lib/${{ matrix.package }} -e 'using Pkg; Pkg.instantiate()'
+          julia --project=tools -e 'using Pkg; Pkg.instantiate()'
+          julia --project=tools tools/coverage.jl --run lib/${{ matrix.package }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-${{ matrix.package }}
+          path: ${{ runner.temp }}/coverage

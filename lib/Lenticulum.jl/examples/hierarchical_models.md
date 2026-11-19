@@ -53,3 +53,5 @@ result is compared with a dense Gaussian conditioned by plain linear algebra
   0.25 and the test of complete pooling uses τ = 10⁻³.
 - μ's prior is N(0, 100²), not flat, so that the dense reference and the graph have the same
   proper prior; the pooled mean in the test includes its precision $10^{-4}$.
+
+`LENTICULUM_SMOKE=true` (`bench/smoke.jl`) runs this example with 2 slope groups with 2 points, 2 by 2 crossed effects and 2 tau grid points.

@@ -8,9 +8,12 @@
 # Two default threads are needed (the loop and the compiler); since Julia 1.12 the main thread
 # belongs to the interactive pool, so both tasks are spawned on :default. A busy loop spawned on
 # :interactive can land on the main thread and starve it.
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 2 functions per compiler variant and 0.1 seconds idle.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Printf
 
-const NFUNCS = parse(Int, get(ENV, "NFUNCS", "300"))
+const NFUNCS = parse(Int, get(ENV, "NFUNCS", SMOKE ? "2" : "300"))
 Threads.nthreads(:default) ≥ 2 || error("run with at least two default threads: julia -t 2,1 --gcthreads=2,1 bench/jit_latency.jl")
 
 # the control loop: arithmetic only; every 2000 iterations it records the worst gap seen
@@ -65,7 +68,7 @@ end
 
 @printf("Julia %s, %d default + %d interactive threads, %d GC threads, %d functions\n", VERSION,
         Threads.nthreads(:default), Threads.nthreads(:interactive), Threads.ngcthreads(), NFUNCS)
-run_bench("idle", () -> sleep(3))
+run_bench("idle", () -> sleep(SMOKE ? 0.1 : 3))
 run_bench("compiling on another thread", () -> fetch(Threads.@spawn :default compile_fresh(NFUNCS, 0)))
 run_bench("compiling, GC disabled meanwhile", () -> fetch(Threads.@spawn :default begin
     GC.enable(false)

@@ -1,8 +1,11 @@
 # Reproduce the calibration numbers in reddiff.md and RED-Diff as a Statistical Game.
-# Run: julia --project=lib/VariationalDiffusion.jl lib/VariationalDiffusion.jl/examples/lp018_calibration.jl
+# Run: julia --project=bench lib/VariationalDiffusion.jl/examples/lp018_calibration.jl
+# Smoke: LENTICULUM_SMOKE=true uses 2 quadrature nodes, 1 RED-Diff step/sample; every variance, clamp and seed.
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
+
 using VariationalDiffusion, LenticulumCore, LuxCore, Random
 s = VPSDE()
-function average_shrinkage(s, v; nodes = 20000)
+function average_shrinkage(s, v; nodes = SMOKE ? 2 : 20000)
     # Midpoint quadrature, independently of calibrate_lambda's trapezoidal rule.
     sum(begin
         t = s.tmin + (1-s.tmin)*(i-0.5)/nodes
@@ -22,7 +25,7 @@ ps, st = LuxCore.setup(Xoshiro(0), pred)
 for r in (1., 2.)
     want = 2r*r/(1+r*r)
     answers = [begin
-        cfg = REDDiff(λ=λ, steps=1500, samples=64, lr=0.1, adam=false, rng=MersenneTwister(seed))
+        cfg = REDDiff(λ=λ, steps=SMOKE ? 1 : 1500, samples=SMOKE ? 1 : 64, lr=0.1, adam=false, rng=MersenneTwister(seed))
         only(first(reddiff_solve(pred, cfg, [2.], x -> r*r .* (x .- 2.), (falses(1), [2.]), ps, st)))
     end for seed in 1:6]
     println((clamp=r, answers, maximum_relative_error=maximum(abs.(answers./want.-1)), mean_relative_error=abs(sum(answers)/length(answers)/want-1)))

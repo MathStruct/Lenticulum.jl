@@ -1,8 +1,7 @@
 # Calibration of implicit relations: how well the stable roots of a trained noise predictor's
 # field recover a known relation. Recorded in `examples/calibration.md`.
 #
-#     cd lib/VariationalDiffusion.jl
-#     julia -t auto --project=test examples/calibration.jl        (on all threads; the queries take most of the time)
+# Run: julia -t auto --project=bench lib/VariationalDiffusion.jl/examples/calibration.jl        (on all threads; the queries take most of the time)
 #
 # Three relations in R², each learned by the 3-layer MLP of `circle_mlp.jl` (denoising score
 # matching, 6000 Adam steps, data noise 0.02):
@@ -18,6 +17,9 @@
 #   - for circles, the radial bias of matched roots, mean (|z| − r).
 # Each model is queried with three choices of the field's noise levels (no retraining): low
 # (t ≤ 0.01), the default (`field_nodes`, t ≤ 0.05) and high (t ≤ 0.2).
+# Smoke: LENTICULUM_SMOKE=true uses 1 training step, 2 queries/relation, 2 starts and reduced reference data; all filters and levels.
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true" || get(ENV, "CALIBRATION_SMOKE", "") == "1"
+
 using VariationalDiffusion, Lux, LuxCore, Random, LinearAlgebra, Printf, Optimisers, Statistics
 using DifferentiationInterface, Zygote
 
@@ -27,7 +29,6 @@ embed(t) = vcat(sin.((2π .* t) .* FREQ), cos.((2π .* t) .* FREQ))
 input(x, t) = vcat(x, embed(t) .* ones(eltype(x), 1, size(x, 2)))
 const mlp = Chain(Dense(12 => 64, swish), Dense(64 => 64, swish), Dense(64 => 2))
 const τ = 0.1
-const SMOKE = get(ENV, "CALIBRATION_SMOKE", "") == "1"   # a run at small size, to check the script
 
 # --- the relations: a sampler and the branches y(x) --------------------------------------------
 circle_sample(rng, B) = (θ = 2π .* rand(rng, B); vcat(cos.(θ)', sin.(θ)'))
@@ -52,12 +53,12 @@ function batch(rng, sample, B)
     xₜ = alpha.(Ref(sched), t) .* x₀ .+ sigma.(Ref(sched), t) .* ε
     return (Float32.(vcat(xₜ, embed(t))), Float32.(ε))
 end
-function train(rng, sample; steps = SMOKE ? 200 : 6000)
+function train(rng, sample; steps = SMOKE ? 1 : 6000)
     ps, st = Lux.setup(rng, mlp)
     ts = Training.TrainState(mlp, ps, st, Optimisers.Adam(1.0f-3))
     loss = NaN
     for _ in 1:steps
-        _, loss, _, ts = Training.single_train_step!(AutoZygote(), MSELoss(), batch(rng, sample, 256), ts)
+        _, loss, _, ts = Training.single_train_step!(AutoZygote(), MSELoss(), batch(rng, sample, SMOKE ? 2 : 256), ts)
     end
     return ts.parameters, ts.states, loss
 end
@@ -72,9 +73,9 @@ function query_grid(m, ps, st, rel, ref; spread = 1.5, continuation = ())
     out = Vector{Any}(undef, length(rel.xs))
     Threads.@threads for q in eachindex(rel.xs)
         x = rel.xs[q]
-        SMOKE && q % 7 != 1 && (out[q] = []; continue)
+        SMOKE && !(q in (1, cld(length(rel.xs), 2))) && (out[q] = []; continue)
         z₀, ρ = [x, 0.0], [Inf, 0.0]
-        sols, _ = implicit_roots(m, z₀, ρ, ps, st; nstarts = 32, spread, rng = Xoshiro(q), continuation)
+        sols, _ = implicit_roots(m, z₀, ρ, ps, st; nstarts = SMOKE ? 1 : 32, spread, rng = Xoshiro(q), continuation)
         out[q] = [(y = s.z[2], trip = first(round_trip(m, s, z₀, ρ, ps, st)).distance ≤ τ,
                    ridge = first(ridge_residual(m, s, ρ, ps, st)).distance ≤ τ,
                    cov = !coverage(ref, s).flagged) for s in sols]
@@ -119,10 +120,10 @@ function calibrate(rel, grid, keep)
             minority = minority_total == 0 ? NaN : minority_found / minority_total)
 end
 
-const LEVELS = (("low, t ≤ 0.01", range(0.001, 0.01; length = 8), ()),
-                ("default, t ≤ 0.05", range(0.002, 0.05; length = 8), ()),
-                ("high, t ≤ 0.2", range(0.01, 0.2; length = 8), ()),
-                ("low, annealed", range(0.001, 0.01; length = 8), (16.0, 4.0)))   # t ≤ 0.16, then 0.04, then 0.01
+const LEVELS = (("low, t ≤ 0.01", range(0.001, 0.01; length = SMOKE ? 2 : 8), ()),
+                ("default, t ≤ 0.05", range(0.002, 0.05; length = SMOKE ? 2 : 8), ()),
+                ("high, t ≤ 0.2", range(0.01, 0.2; length = SMOKE ? 2 : 8), ()),
+                ("low, annealed", range(0.001, 0.01; length = SMOKE ? 2 : 8), (16.0, 4.0)))   # t ≤ 0.16, then 0.04, then 0.01
 const FILTERS = (("all roots", r -> true), ("round trip", r -> r.trip), ("ridge", r -> r.ridge),
                  ("coverage", r -> r.cov), ("both", r -> r.trip && r.cov), ("ridge+cov", r -> r.ridge && r.cov))
 
@@ -133,11 +134,11 @@ for (k, rel) in enumerate(RELATIONS)
     @printf "\n%s: trained in %.0f s, final denoising loss %.4f\n" rel.name time() - t0 loss
     pred = NoisePredictor(mlp, sched; input, ad = AutoZygote())
     rng = Xoshiro(200 + k)                                  # coverage: held-out data, not the training draws
-    data = rel.sample(rng, 2000) .+ 0.02 .* randn(rng, 2, 2000)
-    cal = rel.sample(rng, 300) .+ 0.02 .* randn(rng, 2, 300)
+    data = rel.sample(rng, SMOKE ? 4 : 2000) .+ 0.02 .* randn(rng, 2, SMOKE ? 4 : 2000)
+    cal = rel.sample(rng, SMOKE ? 2 : 300) .+ 0.02 .* randn(rng, 2, SMOKE ? 2 : 300)
     for (label, levels, continuation) in LEVELS
         t1 = time()
-        m = ImplicitDiffusion(pred, field_nodes(Xoshiro(1), 2; samples = 8, levels))
+        m = ImplicitDiffusion(pred, field_nodes(Xoshiro(1), 2; samples = SMOKE ? 2 : 8, levels))
         ref = coverage_reference(m, data, ps, st; t = 0.01, calibration = cal)
         grid = query_grid(m, ps, st, rel, ref; spread = rel.name == "two circles (0.9 / 0.1)" ? 2.5 : 1.5, continuation)
         @printf "  %s (%.0f s)\n" label time() - t1

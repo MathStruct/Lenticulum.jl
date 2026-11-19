@@ -4,6 +4,9 @@
 # Recorded in lib/Mycelium.jl/src/schedules.md, "Choice of tree and alternating trees".
 # "coupling" is `coupling_weights(g, ps)` (I25, normalised); "coupling raw" its `normalize = false`.
 # Run: julia --project=bench bench/bp_trees.jl
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 2 by 2 grids and 20 sweeps, all schedules and noise variants.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 include("divider.jl")
 using Random
 
@@ -57,8 +60,8 @@ function run_trees(n, mode)
         inner = kw === nothing ? flooding_schedule(g) : spanning_tree_schedule(g; kw...)
         k = kw === nothing ? 0 : length(Mycelium._spanning_forests(g; kw...))
         make_schedule() = accelerated ? AndersonSchedule(inner; m=3) : inner
-        infer!(g, make_schedule(), ps, st; maxsweeps=20_000, tol=1e-11)
-        elapsed = @elapsed (marg, rep, _, _) = infer!(g, make_schedule(), ps, st; maxsweeps=20_000, tol=1e-11)
+        infer!(g, make_schedule(), ps, st; maxsweeps=(SMOKE ? 20 : 20_000), tol=1e-11)
+        elapsed = @elapsed (marg, rep, _, _) = infer!(g, make_schedule(), ps, st; maxsweeps=(SMOKE ? 20 : 20_000), tol=1e-11)
         err = maximum(abs(only(belief_mean(marg[g.variables[i].name])) - exact[i]) for i in 1:nvariables(g))
         @printf("| %s | %d | %d | %d | %.3f | %.3e | %s |\n", label * (accelerated ? "+A(3)" : ""),
                 rep.sweeps, rep.sweeps*length(tasks(inner)), k, elapsed, err, rep.converged)
@@ -68,7 +71,7 @@ function run_trees(n, mode)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    for (n,mode) in ((10,:isotropic),(10,:horizontal),(10,:vertical),(10,:random))
+    for (n,mode) in ((SMOKE ? 2 : 10, :isotropic),(SMOKE ? 2 : 10, :horizontal),(SMOKE ? 2 : 10, :vertical),(SMOKE ? 2 : 10, :random))
         run_trees(n, mode)
     end
 end

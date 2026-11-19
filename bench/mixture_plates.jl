@@ -8,6 +8,9 @@
 # Each timing is the minimum over five runs after a warm-up; a sweep times a fresh store and one
 # sweep, sequential (edge by edge, as before message blocks) or grouped (`plate_schedule`), and the responsibilities read from it are checked against
 # the hand-written ones outside the timings.
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 2, 3 and 4 replicas, 3 settling sweeps and 1 timed run per method.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, Printf
 using MyceliumLearning
 
@@ -43,11 +46,11 @@ function by_hand(X, B, logw)
     P = exp.(R)
     return P ./ sum(P; dims = 1)
 end
-best(f) = (f(); minimum(@elapsed(f()) for _ in 1:5))
+best(f) = (f(); minimum(@elapsed(f()) for _ in 1:(SMOKE ? 1 : 5)))
 
 @printf("%6s %12s %12s %12s %12s %10s %12s %12s %12s %12s\n", "N", "sequential", "plate sweep", "both ways", "by hand", "max |Δp|",
         "F blocks", "F per edge", "∇F blocks", "∇F per edge")
-for N in (100, 1000, 3000)
+for N in (SMOKE ? (2, 3, 4) : (100, 1000, 3000))
     X = randn(Xoshiro(N), D, N) .* 2
     g = plate_graph(X)
     ps0 = LuxCore.initialparameters(Xoshiro(0), g)
@@ -78,14 +81,14 @@ function latent!(p, x)
 end
 println()
 @printf("%6s %14s %14s %10s\n", "N", "EP sequential", "EP grouped", "max |Δμ|")
-for N in (100, 1000, 3000)
+for N in (SMOKE ? (2, 3, 4) : (100, 1000, 3000))
     X = randn(Xoshiro(N), D, N) .* 2
     b = GraphBuilder(); plate!((p, i) -> latent!(p, X[:, i]), b, :obs, N); g = build(b)
     ps0 = LuxCore.initialparameters(Xoshiro(0), g)
     ps = merge(ps0, (sw = merge(ps0.sw, (A = (z = Matrix(1.0I, D, D),),)),
                      obs = (A = (x = Matrix(1.0I, D, D), z = -Matrix(1.0I, D, D)), c = zeros(D))))
     grouped = plate_schedule(g); seq = SequentialSchedule(tasks(grouped))
-    warm(sched) = (s = MessageStore(g); for _ in 1:10; sweep!(s, g, sched, ps, NamedTuple()); end; s)
+    warm(sched) = (s = MessageStore(g); for _ in 1:(SMOKE ? 3 : 10); sweep!(s, g, sched, ps, NamedTuple()); end; s)
     sg, ss = warm(grouped), warm(seq)
     pl = only(plates(g))
     Δ = maximum(i -> maximum(abs, belief_mean(marginal(sg, g, pl.variables[1, i])) .- belief_mean(marginal(ss, g, pl.variables[1, i]))), 1:N)
@@ -107,7 +110,7 @@ function two_layer!(p, x)
 end
 println()
 @printf("%6s %14s %14s %10s\n", "N", "2-layer seq.", "2-layer grp.", "max |Δμ|")
-for N in (100, 1000, 3000)
+for N in (SMOKE ? (2, 3, 4) : (100, 1000, 3000))
     X = randn(Xoshiro(N), D, N) .* 2
     b = GraphBuilder(); plate!((p, i) -> two_layer!(p, X[:, i]), b, :obs, N); g = build(b)
     ps0 = LuxCore.initialparameters(Xoshiro(0), g)
@@ -115,7 +118,7 @@ for N in (100, 1000, 3000)
     ps = merge(ps0, (sw = merge(ps0.sw, (A = (z = E,),)), down = (A = (x = E, y = -E), c = zeros(D)),
                      up = (A = (y = E, z = -E), c = zeros(D))))
     grouped = plate_schedule(g); seq = SequentialSchedule(tasks(grouped))
-    warm(sched) = (s = MessageStore(g); for _ in 1:10; sweep!(s, g, sched, ps, NamedTuple()); end; s)
+    warm(sched) = (s = MessageStore(g); for _ in 1:(SMOKE ? 3 : 10); sweep!(s, g, sched, ps, NamedTuple()); end; s)
     sg, ss = warm(grouped), warm(seq)
     pl = only(plates(g))
     Δ = maximum(i -> maximum(abs, belief_mean(marginal(sg, g, pl.variables[1, i])) .- belief_mean(marginal(ss, g, pl.variables[1, i]))), 1:N)

@@ -82,3 +82,5 @@ $L = 0, \dots, 4$. EM from the reference's random starts at $L = 4$ ends worse t
   the freeze. The 166 s above is from an earlier run on a less loaded machine.
 - How much `transfer` saves is not measured here: each component's tree is solved again in two
   sweeps. `test/structure_edits.jl` checks the warm start on a loopy graph.
+
+`LENTICULUM_SMOKE=true` (`bench/smoke.jl`) runs this example with 2 points, 2 fit iterations and 1 start per candidate/reference size, with one greedy expansion.

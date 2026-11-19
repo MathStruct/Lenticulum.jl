@@ -1,6 +1,6 @@
 # Greedy structure search over switch wirings, done as edits of one Mycelium graph and scored by its
 # exact free energy (Extending Mycelium §6, L-SPEC-010). Recorded in `examples/structure_edits.md`.
-# Run:  julia -t auto --project=docs lib/Lenticulum.jl/examples/structure_edits.jl   (an environment with ForwardDiff)
+# Run:  julia -t auto --project=bench lib/Lenticulum.jl/examples/structure_edits.jl   (an environment with ForwardDiff)
 #
 # The family is E3's additive wiring with L binary switches: z = c + Σₗ uₗ + ε, uₗ ∈ {bₗ₁, bₗ₂}. The
 # graph holds N points, each its own component (data, sum node, L switches), clustered per point
@@ -12,6 +12,9 @@
 # and scored by BIC = 2F + p log N with p = d + L(d + 1) free parameters (a shared offset, one
 # direction and one weight per switch). Greedy search starts at L = 0 and takes the best improving
 # move until none improves; the reference fits every L ≤ 4 the same way.
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 2 points, 2 fit iterations and 1 start per candidate/reference size, with one greedy expansion.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, Printf, Statistics
 using MyceliumLearning
 using ADTypes, DifferentiationInterface, ForwardDiff
@@ -80,7 +83,7 @@ full_ps(gc, inner, N) = merge(NamedTuple{Tuple(nm(:data, i) for i in 1:N)}(ntupl
 
 # Fit by gradient steps at the exact beliefs (Momentum on c, the offsets b and the log-weights; the
 # sum node's coefficients stay fixed). Returns the fitted parameters, F and the store.
-function fit_gradient(gc, L, N, c, sws; steps = 300, η = 0.02, γ = 0.9, s0 = nothing)
+function fit_gradient(gc, L, N, c, sws; steps = (SMOKE ? 2 : 300), η = 0.02, γ = 0.9, s0 = nothing)
     sched = plate_schedule(gc)                           # N components; two sweeps reach every cluster
     vel = nothing
     s = s0
@@ -109,7 +112,7 @@ function fit_gradient(gc, L, N, c, sws; steps = 300, η = 0.02, γ = 0.9, s0 = n
 end
 # Fit by EM instead (`STRUCTURE_FIT=em`): closed-form M-steps from the cluster beliefs, SQUAREM-
 # accelerated (`MyceliumLearning.fit_em`), until F falls by less than 1e-4 (BIC to 1e-3). The frozen coefficients stay.
-function fit_by_em(gc, L, N, c, sws; s0 = nothing, iters = 300, tol = 1e-4)
+function fit_by_em(gc, L, N, c, sws; s0 = nothing, iters = (SMOKE ? 2 : 300), tol = 1e-4)
     ps = full_ps(gc, make_ps(L, c, sws), N)
     ps, Fs, s = fit_em(gc, ps, NamedTuple(); schedule = plate_schedule(gc), iters, tol, accelerate = true, store = s0)
     return ps.mix.sum.c, Any[ps.mix[Symbol(:sw, l)] for l in 1:L], Fs[end], s
@@ -121,7 +124,7 @@ bic(F, L, N) = 2F + (d + L * (d + 1)) * log(N)
 # data: E3's 8-mode grid in 2-d, z = c + Σₗ kₗ Wₗ + ε, three switches
 rng = Xoshiro(3)
 const Wtrue = [2.0 0.0 1.0; 0.0 2.0 -1.0] .* 1.5
-const N = 200
+const N = SMOKE ? 2 : 200
 X = reduce(hcat, [Wtrue * rand(rng, Bool, 3) .+ [-1.0, 0.5] .+ sqrt(0.1) .* randn(rng, d) for _ in 1:N])
 
 g = base_graph(X)
@@ -136,7 +139,7 @@ while true
     cands = []
     # add a switch: warm start with the current fit and a new switch of small random offset (4 draws)
     gA = add_switch(g, L, N); gcA = clustered(gA, L + 1, N)
-    for r in 1:4
+    for r in 1:(SMOKE ? 1 : 4)
         new = (A = (u = E,), b = hcat(zeros(d), 0.5 .* randn(rng, d)), logw = zeros(2))
         cA, swA, FA, sA = fit(gcA, L + 1, N, c, [sws; new]; s0 = transfer(s, gc, gcA))
         push!(cands, (:add, bic(FA, L + 1, N), gA, gcA, L + 1, cA, swA, sA))
@@ -157,6 +160,7 @@ while true
     global g, gc, L, c, sws, s, best = gN, gcN, LN, cN, swN, sN, score
     push!(path, (L, best))
     @printf("%-6s ->  L = %d  BIC = %9.2f\n", move, L, best)
+    SMOKE && break # one expansion; the reference below exercises every switch count/removal
 end
 @printf("greedy search: L = %d in %.1f s; path %s\n", L, time() - t0, join(["L=$(p[1])" for p in path], " → "))
 
@@ -167,10 +171,24 @@ for Lr in 0:4
     gr = base_graph(X)
     for l in 0:(Lr - 1); gr = add_switch(gr, l, N); end
     gcr = clustered(gr, Lr, N)
-    bests = minimum(1:4) do r
+    bests = minimum(1:(SMOKE ? 1 : 4)) do r
         swr = [(A = (u = E,), b = hcat(zeros(d), 2 .* randn(rng, d)), logw = zeros(2)) for _ in 1:Lr]
         _, _, Fr, _ = fit(gcr, Lr, N, vec(mean(X; dims = 2)), swr)
         bic(Fr, Lr, N)
     end
     @printf("%3d %12.2f\n", Lr, bests)
+end
+
+# Short fits need not accept a switch in the greedy search; exercise both removal/renaming
+# branches on a four-switch reference graph as well.
+if SMOKE
+    let gr = base_graph(X)
+        for l in 0:3; gr = add_switch(gr, l, N); end
+        for l in (1, 4)
+            grR = remove_switch(gr, 4, N, l)
+            gcR = clustered(grR, 3, N)
+            swr = [(A = (u = E,), b = hcat(zeros(d), 2 .* randn(rng, d)), logw = zeros(2)) for _ in 1:3]
+            fit(gcR, 3, N, vec(mean(X; dims = 2)), swr)
+        end
+    end
 end

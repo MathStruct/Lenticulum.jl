@@ -1,7 +1,8 @@
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 2 slope groups with 2 points, 2 by 2 crossed effects and 2 tau grid points.
 """
 Hierarchical models as factor graphs: three linear-Gaussian examples, each checked against a
 dense Gaussian computed independently (plain linear algebra, no Lenticulum). Run with
-`julia --project=docs lib/Lenticulum.jl/examples/hierarchical_models.jl`; the test suite includes it. See
+`julia --project=bench lib/Lenticulum.jl/examples/hierarchical_models.jl`; the test suite includes it. See
 `hierarchical_models.md` and the vault note `Hierarchical Models`.
 
 1. The eight schools (Rubin 1981): random intercepts, a tree, exact. Shrinkage as the
@@ -12,6 +13,8 @@ dense Gaussian computed independently (plain linear algebra, no Lenticulum). Run
    exactly and the variances not.
 """
 module HierarchicalModels
+
+const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, Random, Printf
 using MyceliumLearning
@@ -99,7 +102,7 @@ end
 
 J groups, n points each, yᵢ = β₁ + β₂ xᵢ + σε with group weights βⱼ ~ N(β̄, Σβ).
 """
-function slopes_data(; J = 5, n = 6, seed = 7, β̄ = [1.0, 2.0], Σβ = Diagonal([0.5, 0.8] .^ 2), σ = 0.3)
+function slopes_data(; J = (SMOKE ? 2 : 5), n = (SMOKE ? 2 : 6), seed = 7, β̄ = [1.0, 2.0], Σβ = Diagonal([0.5, 0.8] .^ 2), σ = 0.3)
     rng = Xoshiro(seed)
     X = [hcat(ones(n), sort(2rand(rng, n) .- 1)) for _ in 1:J]
     β = [β̄ .+ sqrt(Σβ) * randn(rng, 2) for _ in 1:J]
@@ -181,7 +184,7 @@ y_rc = a_r + b_c + σε for every row r and column c (students × items, say), w
 a_r ~ N(0, σa²) and b_c ~ N(0, σb²). Every observation joins one row effect and one column
 effect, so the graph has (R-1)(C-1) independent loops.
 """
-function crossed_data(; R = 4, C = 3, seed = 3, σa = 1.0, σb = 0.7, σ = 0.5)
+function crossed_data(; R = (SMOKE ? 2 : 4), C = (SMOKE ? 2 : 3), seed = 3, σa = 1.0, σb = 0.7, σ = 0.5)
     rng = Xoshiro(seed)
     a, bb = σa .* randn(rng, R), σb .* randn(rng, C)
     y = [a[r] + bb[c] + σ * randn(rng) for r in 1:R, c in 1:C]
@@ -259,7 +262,7 @@ function main(; io = stdout)
     out[:shrinkage] = tab
 
     # 1c. marginal likelihood in τ, and a mixture over τ (uniform prior on the grid)
-    grid = collect(range(0.25, 40.0; length = 160))
+    grid = collect(range(0.25, 40.0; length = (SMOKE ? 2 : 160)))
     F = [schools_graph_posterior(τ).F for τ in grid]
     Fd = [schools_dense(τ).F for τ in grid]
     out[:F_grid_err] = maximum(abs.(F .- Fd))

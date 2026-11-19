@@ -64,7 +64,8 @@ not yet reviewed.
 | `vault/` | the Obsidian vault: `Foundations/`, one folder per path, `Design/`, `Project/`, `Research Questions/`, `Parked/` |
 | `lib/*/src/*.md` | implementation notes, one beside each source file |
 | `docs/` | Documenter pages, Literate tutorials (`docs/literate/`), the shared bibliography `docs/src/refs.bib`, and the Quartz build of the vault (`docs/site/`) |
-| `bench/` | benchmarks, each recorded in a note; `julia --project=bench bench/<name>.jl` (its Manifest is not tracked: `julia --project=bench -e 'using Pkg; Pkg.instantiate()'` once) |
+| `bench/` | benchmarks, each recorded in a note; `julia --project=bench bench/<name>.jl` (its Manifest is not tracked: `julia --project=bench -e 'using Pkg; Pkg.instantiate()'` once). The examples of Lenticulum and VariationalDiffusion run in the same environment. `julia --project=bench bench/smoke.jl` runs every benchmark and example at small size (`LENTICULUM_SMOKE=true`; weekly in CI, `.github/workflows/Examples.yml`): a new benchmark or example must honour that switch |
+| `tools/` | `julia --project=tools tools/coverage.jl --run [lib/<Pkg>.jl …]`: line coverage of each package's own suite (summary per file, uncovered ranges, `lcov.info`, to `~/.cache/lenticulum/coverage/`); weekly in CI (`Weekly.yml`, job `coverage`) |
 
 Each package has its own `Project.toml` and `test/`. Dependencies go one way:
 `LenticulumCore` ← `Mycelium` ← `MyceliumLearning` ← `Lenticulum`; `VariationalDiffusion`,

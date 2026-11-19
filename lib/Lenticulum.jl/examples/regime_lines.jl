@@ -1,7 +1,7 @@
 # Experiment E1's two crossing lines with one noise level per line, as one Mycelium graph of
 # RegimeFactors, fitted by the free-energy gradient and checked against closed-form EM.
 # Recorded in `examples/regime_lines.md`.
-# Run:  julia -t auto --project=docs lib/Lenticulum.jl/examples/regime_lines.jl   (an environment with ForwardDiff)
+# Run:  julia -t auto --project=bench lib/Lenticulum.jl/examples/regime_lines.jl   (an environment with ForwardDiff)
 #
 # Model: x ~ U(−3, 3), k ~ (w₁, w₂), y = a_k x + c_k + σ_k ε. As a factor on (y, x):
 # 0 = y − a_k x − c_k + ε_k, ε_k ~ N(0, σ_k²): the coefficients and the noise depend on the line,
@@ -11,11 +11,14 @@
 # coefficient is fixed at 1 and is not a parameter, which makes the factor a density of y (LP-022;
 # with it learnable, scaling it and σ together lowers F without bound). The reference is EM for a
 # mixture of linear regressions (weighted least squares per line), from the same start.
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 8 points and 2 Adam steps (closed-form EM still converges).
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, Printf, Statistics
 using MyceliumLearning
 using ADTypes, DifferentiationInterface, ForwardDiff
 
-const N = 300
+const N = SMOKE ? 8 : 300
 const TRUE = (a = [1.0, -1.0], c = [0.0, 0.5], σ = [0.2, 0.5], w = [0.5, 0.5])
 function data(rng)
     x = 6 .* rand(rng, N) .- 3
@@ -49,7 +52,7 @@ function nlp(θ, x, y)              # −Σ log p(y | x), the closed form
                 for i in 1:N)
 end
 
-function fit_graph(g, θ0; steps = 400, η = 0.05)
+function fit_graph(g, θ0; steps = (SMOKE ? 2 : 400), η = 0.05)
     θ = deepcopy(θ0)
     keysθ = (:a, :c, :logw, :logσ)
     m = Dict(k => zero(getfield(θ, k)) for k in keysθ); v = Dict(k => zero(getfield(θ, k)) for k in keysθ)
@@ -107,7 +110,7 @@ t_g = @elapsed θg, Fg = fit_graph(g, θ0)
 t_e = @elapsed θe, Fe, ite = fit_em(θ0, x, y)
 show(θ) = @sprintf "a = (%.3f, %.3f), c = (%.3f, %.3f), σ = (%.3f, %.3f), w = (%.3f, %.3f)" θ.a... θ.c... exp.(θ.logσ)... (exp.(θ.logw) ./ sum(exp.(θ.logw)))...
 println("generating:      ", show(θtrue), @sprintf("   −log p = %.4f", nlp(θtrue, x, y)))
-println("graph, 400 Adam: ", show(θg), @sprintf("   −log p = %.4f (%.1f s; F at the last step %.4f)", nlp(θg, x, y), t_g, Fg))
+println(SMOKE ? "graph, 2 Adam:   " : "graph, 400 Adam: ", show(θg), @sprintf("   −log p = %.4f (%.1f s; F at the last step %.4f)", nlp(θg, x, y), t_g, Fg))
 println("EM:              ", show(θe), @sprintf("   −log p = %.4f (%d iterations, %.2f s)", Fe, ite, t_e))
 # one noise level for both lines (what SwitchingConstraintFactor can state), by EM with σ tied
 function fit_em_tied(θ0, x, y; tol = 1e-12, maxit = 10_000)

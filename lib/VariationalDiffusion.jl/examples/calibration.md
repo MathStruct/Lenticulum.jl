@@ -1,8 +1,8 @@
 # Calibration of implicit relations
 
-Run `julia -t auto --project=test examples/calibration.jl` from `lib/VariationalDiffusion.jl`
+Run `julia -t auto --project=bench lib/VariationalDiffusion.jl/examples/calibration.jl` from the repository root
 (about 45 minutes on 8 CPU threads since the queries run in parallel and the remedies were added,
-nearly all of it in the root queries; `CALIBRATION_SMOKE=1` runs it at small size in a few minutes,
+nearly all of it in the root queries; `CALIBRATION_SMOKE=1` runs it at small size,
 to check the script). This answers the request of
 both reviews of 2026-11-04 ([[LP-023 Findings of the external reviews of 2026-11-04]]): measure how
 far the stable roots of a learned relation are from the relation, how many are spurious, and how
@@ -163,3 +163,5 @@ $\alpha = 0.05$, and one annealing schedule.
 Tried above: annealing, the round trip, the ridge residual, and rejection by coverage (reconstruction
 and distance; these models have no energy). Not tried: an energy threshold (needs an energy network), or a relation trained as a codimension-$k$
 residual. Each is a row in [[Feature Backlog]]; this example is the benchmark to measure them against.
+
+`LENTICULUM_SMOKE=true` (or `CALIBRATION_SMOKE=1`) checks all relations, noise choices and filters with one training step, two queries per relation and reduced nodes and reference data; these numbers do not measure calibration.

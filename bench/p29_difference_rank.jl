@@ -10,12 +10,15 @@
 # messages use; for the draws cut below the exact rank, the largest exact singular value that was
 # cut, absolute and in units of the rounding bound.
 
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 100 seeded random Jacobians.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LinearAlgebra, Random
 
 rk(A) = (s = svdvals(A); isempty(s) || s[1] == 0 ? 0 : count(>(maximum(size(A)) * eps() * s[1]), s))
 quantiles(v, ps) = (w = sort(v); [w[clamp(ceil(Int, p * length(w)), 1, length(w))] for p in ps])
 
-function main(; n = 20_000, seed = 29)
+function main(; n = (SMOKE ? 100 : 20_000), seed = 29)
     rng = Xoshiro(seed)
     ratios = Float64[]; same = 0; low = 0; high = 0; cut_abs = 0.0; cut_rel = 0.0
     for _ in 1:n

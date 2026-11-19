@@ -17,11 +17,14 @@
 #
 # Recorded in `vault/Control/Composing Optimisers.md` §4.3.
 # Run:  julia --project=bench bench/bp_anderson.jl
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 40 sweeps per method and 4 reference Anderson iterations.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 include("divider.jl")
 
 # runs the sweep with Anderson(m) (m = 0: the plain sweep); evaluations to an error < 1e-10, or,
 # with `iterations`, that many iterations and the point reached with its scaled residual
-function anderson(g, ps, st, sched, xstar, m; cap = 400_000, iterations = nothing)
+function anderson(g, ps, st, sched, xstar, m; cap = (SMOKE ? 40 : 400_000), iterations = nothing)
     ηi, Λi = 1:2:length(xstar), 2:2:length(xstar)
     sη, sΛ = maximum(abs, xstar[ηi]), maximum(abs, xstar[Λi])
     w = zeros(length(xstar)); w[ηi] .= 1 / sη; w[Λi] .= 1 / sΛ
@@ -65,9 +68,9 @@ function study(R₁, R₂; ms = (0, 1, 2, 3, 5, 10))
     # the reference is the plain sweep's rounding floor; check it against Anderson(3) run far past it
     ηi, Λi = 1:2:length(xstar), 2:2:length(xstar)
     sη, sΛ = maximum(abs, xstar[ηi]), maximum(abs, xstar[Λi])
-    a = anderson(g, ps, st, sp, xstar, 3; iterations = 300)
-    @printf("\nR₁ = %.0f, R₂ = %.0f: the reference against Anderson(3) after 300 iterations (scaled residual %.1e): %.1e\n",
-            R₁, R₂, a.residual, max(maximum(abs, a.x[ηi] .- xstar[ηi]) / sη, maximum(abs, a.x[Λi] .- xstar[Λi]) / sΛ))
+    a = anderson(g, ps, st, sp, xstar, 3; iterations = (SMOKE ? 4 : 300))
+    @printf("\nR₁ = %.0f, R₂ = %.0f: the reference against Anderson(3) after %d iterations (scaled residual %.1e): %.1e\n",
+            R₁, R₂, SMOKE ? 4 : 300, a.residual, max(maximum(abs, a.x[ηi] .- xstar[ηi]) / sη, maximum(abs, a.x[Λi] .- xstar[Λi]) / sΛ))
     @printf("R₁ = %.0f, R₂ = %.0f: message evaluations to an error < 1e-10 (restarts)\n", R₁, R₂)
     base = nothing
     for (name, sc) in (("flooding", flooding_schedule(g)), ("spanning", sp))
@@ -76,7 +79,7 @@ function study(R₁, R₂; ms = (0, 1, 2, 3, 5, 10))
             r = anderson(g, ps, st, sc, xstar, m)
             name == "flooding" && m == 0 && (base = r.evals)
             print(@sprintf("  m=%-2d %7s (%4s, %d)", m, something(r.evals, "–"),
-                           r.evals === nothing ? "–" : @sprintf("%.2f", r.evals / base), r.restarts))
+                           r.evals === nothing || base === nothing ? "–" : @sprintf("%.2f", r.evals / base), r.restarts))
         end
         println()
     end
@@ -94,14 +97,14 @@ println("\nThe library's AndersonSchedule, by infer! (tol = 1e-11 on the message
 for (R₁, R₂) in ((2.0, 3.0), (1.0, 3.0), (3.0, 2.0), (2.0, 2.0))
     g, ps, st = divider_graph(R₁, R₂, 1e4)
     sp = spanning_tree_schedule(g)
-    mp, rp, _, _ = infer!(g, sp, ps, st; maxsweeps = 400_000, tol = 1e-11)
-    mf, rf, _, _ = infer!(g, flooding_schedule(g), ps, st; maxsweeps = 400_000, tol = 1e-11)
+    mp, rp, _, _ = infer!(g, sp, ps, st; maxsweeps = (SMOKE ? 40 : 400_000), tol = 1e-11)
+    mf, rf, _, _ = infer!(g, flooding_schedule(g), ps, st; maxsweeps = (SMOKE ? 40 : 400_000), tol = 1e-11)
     @printf("  R₁ = %.0f, R₂ = %.0f: flooding %d sweeps, spanning %d", R₁, R₂, rf.sweeps, rp.sweeps)
     for (name, sc) in (("spanning+A(2)", AndersonSchedule(sp; m = 2)), ("spanning+A(3)", AndersonSchedule(sp; m = 3)),
                        ("flooding+A(3)", AndersonSchedule(flooding_schedule(g); m = 3)))
-        m, r, _, s = infer!(g, sc, ps, st; maxsweeps = 20_000, tol = 1e-11)
+        m, r, _, s = infer!(g, sc, ps, st; maxsweeps = (SMOKE ? 40 : 20_000), tol = 1e-11)
         d = maximum(abs(belief_mean(m[v])[1] - belief_mean(mp[v])[1]) for v in (:v, :i1, :i2))
-        @printf(", %s %s (%d restarts, |Δμ| %.0e)", name, r.converged ? string(r.sweeps) : "> 20000",
+        @printf(", %s %s (%d restarts, |Δμ| %.0e)", name, r.converged ? string(r.sweeps) : (SMOKE ? "> 40" : "> 20000"),
                 anderson_restarts(sc, s), d)
     end
     println()

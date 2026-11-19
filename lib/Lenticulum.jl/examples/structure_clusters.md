@@ -195,3 +195,5 @@ steps the same day.
   greedy search (970 s above, from an earlier run). The reference random starts in that run gave
   1420.82, 1420.65, 1584.92 and 2291.43.
 
+
+`LENTICULUM_SMOKE=true` (`bench/smoke.jl`) runs this example with 2 points, 2 fit/k-means iterations and 1 candidate/reference start, with one search expansion.

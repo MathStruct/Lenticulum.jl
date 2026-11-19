@@ -2,9 +2,12 @@
 # `_partly_flat` (an `isproper` of the input) and `_rank_deficient` (an SVD of A), against the whole
 # message. Recorded in lib/Lenticulum.jl/src/gaussian.md, "What the checks cost".
 # Run:  julia --project=bench bench/gaussian_message_cost.jl
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 1 call and 1 timed run per method/dimension.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, Random
 const L = Lenticulum
-function tmin(f, n=20000); f(); best=Inf; for _ in 1:5; t=@elapsed (for _ in 1:n; f(); end); best=min(best,t/n); end; best*1e6; end
+function tmin(f, n=(SMOKE ? 1 : 20000)); f(); best=Inf; for _ in 1:(SMOKE ? 1 : 5); t=@elapsed (for _ in 1:n; f(); end); best=min(best,t/n); end; best*1e6; end
 for d in (2, 6)
     rng = Xoshiro(1); M = randn(rng,d,d); Λ = M*M' + I; b = GaussianBelief(randn(rng,d), Λ); A = randn(rng,d,d)
     f = GaussianFactor(d => d; noise = 0.5)

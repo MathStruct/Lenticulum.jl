@@ -1,6 +1,6 @@
 # Chains of three to five diffusion relations: inference across factors that share no variable.
 #
-#     julia --project=lib/VariationalDiffusion.jl/test lib/VariationalDiffusion.jl/examples/chain.jl
+# Run: julia --project=bench lib/VariationalDiffusion.jl/examples/chain.jl
 #
 # A chain x₀ - x₁ - … - x_K of K relations p_k(x_{k-1}, x_k), with separators p(x_k) on the inner
 # variables:
@@ -22,6 +22,9 @@
 #
 # Results are recorded in `product.md` §4.
 
+# Smoke: LENTICULUM_SMOKE=true uses 2 nodes/level, 2 levels, 2 starts and 5 curve points; every K and separator/level variant.
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
+
 using VariationalDiffusion, LenticulumCore, Random, LinearAlgebra, LuxCore, Statistics, Printf
 
 const S = VPSDE()
@@ -39,8 +42,8 @@ function chain(rels, seps)
     return rel, Tuple(r[2] for r in [rels; seps]), Tuple(r[3] for r in [rels; seps])
 end
 
-nodes(levels) = (field_nodes(Xoshiro(1), 2; samples = 8, levels), field_nodes(Xoshiro(2), 1; samples = 8, levels))
-const LEVELS = range(0.002, 0.05; length = 8)           # the default of `field_nodes`
+nodes(levels) = (field_nodes(Xoshiro(1), 2; samples = SMOKE ? 2 : 8, levels), field_nodes(Xoshiro(2), 1; samples = SMOKE ? 2 : 8, levels))
+const LEVELS = range(0.002, 0.05; length = SMOKE ? 2 : 8)           # the default of `field_nodes`
 const n2, n1 = nodes(LEVELS)
 
 # --- the telephone chain ------------------------------------------------------------------------
@@ -49,7 +52,7 @@ const π₀ = [0.5, 0.5]
 const BLOBS = [1.0 1.0 -1.0 -1.0; 1.0 -1.0 1.0 -1.0]  # (a, b) = (+,+), (+,-), (-,+), (-,-)
 state(v) = v > 0 ? 1 : 2
 
-function telephone(K; separators = true, nstarts = 40 * 2^K)
+function telephone(K; separators = true, nstarts = SMOKE ? 1 : 40 * 2^K)
     πs = [π₀' * T^k for k in 0:K]
     rels = [relation(BLOBS, n2; w = [πs[k][state(a)] * T[state(a), state(b)] for (a, b) in eachcol(BLOBS)]) for k in 1:K]
     seps = separators ? [relation([1.0 -1.0], n1; w = vec(πs[k + 1])) for k in 1:(K - 1)] : []
@@ -78,7 +81,7 @@ end
 # --- a chain of curves -------------------------------------------------------------------------
 f(u) = 1.3 * sin(u)
 f′(u) = 1.3 * cos(u)
-const V = collect(range(-1.6, 1.6; length = 65))
+const V = collect(range(-1.6, 1.6; length = SMOKE ? 5 : 65))
 
 function curves(K; x₀ = 0.6, h = 1e-6, levels = LEVELS)
     m2, m1 = nodes(levels)
@@ -99,7 +102,7 @@ end
 println("\n(2) chain of curves x_k = 1.3 sin x_{k-1}: x₀ = 0.6 held")
 @printf("  %-2s %-15s %-17s %-9s %-9s %-11s %-11s %-11s %s\n", "K", "levels", "converged, stable", "x_K", "f^K(x₀)", "max bias",
         "dx_K/dx₀", "central FD", "(f^K)′(x₀)")
-for (name, levels) in (("0.002–0.05", LEVELS), ("0.0005–0.005", range(0.0005, 0.005; length = 8))), K in 3:5
+for (name, levels) in (("0.002–0.05", LEVELS), ("0.0005–0.005", range(0.0005, 0.005; length = SMOKE ? 2 : 8))), K in 3:5
     r = curves(K; levels)
     @printf("  %-2d %-15s %-17s %-9.4f %-9.4f %-11.4f %-11.5f %-11.5f %.5f\n", K, name, r.ok, r.xK, r.exact, r.bias, r.adjoint,
             r.fd, r.rule)

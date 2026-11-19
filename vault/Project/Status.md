@@ -7,15 +7,15 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-19, after P34 (the default output coefficient `I` takes the parameters' number type at use), committed on `dev-danielb`, not pushed. Before it the P33 benchmark, P12 and P33, which finished the Float32 work: a Lenticulum graph is Float32 end to end (stopping tolerances and comparison scores stay Float64: `~/.cache/lenticulum/p33/remaining-float64.md`); since P34 also with the default `noise` of a `RegimeFactor` with `learn_noise = true`.
+**Last updated:** 2026-11-19, after P15 (every benchmark and example at small size, `bench/smoke.jl`; a coverage report, `tools/coverage.jl`; both weekly in CI), committed on `dev-danielb`, not pushed. Before it P34, the P33 benchmark, P12 and P33, which finished the Float32 work: a Lenticulum graph is Float32 end to end (stopping tolerances and comparison scores stay Float64: `~/.cache/lenticulum/p33/remaining-float64.md`).
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
 | `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
-| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/p33` | at `d3adbd6e` with the P33 diff uncommitted (merged into `dev-danielb` as a diff; the P32 worktree diff saved to `~/.cache/lenticulum/p32/codex-worktree-final.diff`); reset it before the next Codex package |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `d3adbd6e` with the P33 diff applied; probes in `scratch/p33/` (copied to `../Lenticulum.jl-Review-2026-11-19/p33/probes/`); `scratch/p6env` serves any review, and `~/.cache/lenticulum/env-p29` (the main checkout's packages) serves as the old code for a bit-for-bit comparison before a commit. Before the next review: reset to the commit under review, then apply its diff |
+| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/p15` | at `f2bceb1d` with the P15 diff uncommitted (merged into `dev-danielb` as a diff, saved to `~/.cache/lenticulum/p15/p15.diff`); Codex's comparison scripts and logs in its `outputs/`; reset it before the next Codex package |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `f2bceb1d` with the P15 diff applied, bench and tools environments instantiated; probes in `scratch/p15/` (copied to `../Lenticulum.jl-Review-2026-11-19/p15/`); `scratch/p6env` serves any review, and `~/.cache/lenticulum/env-p29` (the main checkout's packages) serves as the old code for a bit-for-bit comparison before a commit. Before the next review: reset to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -28,6 +28,21 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **P15** (2026-11-19, chosen by the maintainer): `LENTICULUM_SMOKE=true` runs every benchmark and every
+  Lenticulum and VariationalDiffusion example at small size; unset, nothing changes (18 scripts compared at
+  full size by Codex, the rest read). `julia --project=bench bench/smoke.jl [names]` runs them each in its
+  own process (30 scripts, all `ok`, 2–63 s each; log `~/.cache/lenticulum/p15/smoke-all-codex/`); the
+  examples run in the bench environment now (their `Run` lines say so). `julia --project=tools
+  tools/coverage.jl --run [lib/<Pkg>.jl …]`: line coverage by each package's own suite. First report
+  (`~/.cache/lenticulum/p15/coverage/`, device tests off): LenticulumCore 71.4 %, Mycelium 71.3 %,
+  MyceliumLearning 79.2 %, Lenticulum 96.0 %, VariationalDiffusion 91.8 %; the five suites passed under
+  coverage on the final code (before two edits to the tool's logging, rechecked on a fake package). CI:
+  `Examples.yml` (new) and job `coverage` in `Weekly.yml`, both weekly and on demand; **neither has run on
+  GitHub yet**: start both by hand after the next push. Codex implemented the switch (two runs); the session
+  wrote the runner, the coverage tool and the workflows. Review [[LP-065 Findings of the review of P15]]
+  (Mistral, \$0, no defect). New rows **P35** (`proxdm_backprop_noise.jl` fails at full size with
+  `MixtureProx exceeded maxiters=100`, also before P15; reproduced with one `proximal` call) and **P36**
+  (files no test of their own package reaches). Not run: the docs builds (no doc page changed).
 - **P34** (2026-11-19, the next row; benchmarks allowed by the maintainer): the default `output_coeff = I`
   of the three constraint factors is stored as `Matrix{Bool}` and converted at use (`_coeffs(f, ps)`,
   `_fixed_at`) to the floating promotion of `ps.A` and the offsets; other integers and floating
@@ -184,13 +199,14 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Next
 
-No row is set; pick one with the maintainer. Section P has P10 (needs F2), P14 (shared solver layer, large: design first), P15 (coverage, examples job), P16. Close to P5:
-a learned noise with hard messages, a residual-space formulation of the positive definite path (LP-047
-finding 4; no row yet). Left open by P27 (no rows yet): the Bethe free energy with a mixture marginal
-under BP, derivatives through the new rules, two extended components with hard directions. Small:
-`ImplicitLayers`' `SolveReport` also has `residual::Float64` (not checked whether duals reach it; that
-package is unreviewed); `AndersonSchedule` runs without its memory under duals (LP-053). Not benchmarked yet: GH-20's per-replica path for
-device and view inputs to the hard-constraint plate kernel.
+No row is set; pick one with the maintainer. New since P15: P35 (a full-size example fails in `MixtureProx`;
+small, path B) and P36 (coverage gaps). Section P also has P10 (needs F2), P14 (shared solver layer, large:
+design first), P16. Close to P5: a learned noise with hard messages, a residual-space formulation of the
+positive definite path (LP-047 finding 4; no row yet). Left open by P27 (no rows yet): the Bethe free energy
+with a mixture marginal under BP, derivatives through the new rules, two extended components with hard
+directions. Small: `ImplicitLayers`' `SolveReport` also has `residual::Float64` (not checked whether duals
+reach it; that package is unreviewed); `AndersonSchedule` runs without its memory under duals (LP-053). Not
+benchmarked yet: GH-20's per-replica path for device and view inputs to the hard-constraint plate kernel.
 
 ## Open
 

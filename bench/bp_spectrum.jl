@@ -11,12 +11,15 @@
 # Recorded in `vault/Control/Composing Optimisers.md` §4 (experiment 1 of §5).
 # Run:  julia --project=bench bench/bp_spectrum.jl
 
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 40 sweeps per method.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 include("divider.jl")
 
 heavyball(λ, β) = (d = sqrt(complex((λ + β)^2 - 4β)); max(abs((λ + β + d) / 2), abs((λ + β - d) / 2)))
 relaxed(λs, α) = maximum(l -> abs(1 - α + α * l), λs)
 
-function study(R₁, R₂; maxsweeps = 5000, runs = true)
+function study(R₁, R₂; maxsweeps = (SMOKE ? 40 : 5000), runs = true)
     g, ps, st = divider_graph(R₁, R₂, 1e4)
     sched = flooding_schedule(g)
     s = MessageStore(g)
@@ -65,7 +68,7 @@ function study(R₁, R₂; maxsweeps = 5000, runs = true)
     floodk = 0
     for d in (0.0, 0.25, 0.5, 0.8)
         t = MessageStore(g); eη = Float64[]; eΛ = Float64[]
-        for k in 1:20000
+        for k in 1:(SMOKE ? 40 : 20000)
             sweep!(t, g, sched, ps, st; damping = d)
             x = getstate(t)
             push!(eη, any(isnan, x) ? Inf : maximum(abs, x[ηi] .- xstar[ηi]) / sη)
@@ -80,7 +83,7 @@ function study(R₁, R₂; maxsweeps = 5000, runs = true)
         b = findfirst(<(1e-12), e)
         rate = (b === nothing || b <= 37) ? NaN : (e[b] / e[b-36])^(1 / 36)
         @printf("  measured: Mycelium damping = %.2f: predicted rate %.4f, measured %.4f, sweeps to both errors < 1e-10: %s\n",
-                d, mycelium(d), rate, k10 === nothing ? "> 20000" : string(k10))
+                d, mycelium(d), rate, k10 === nothing ? (SMOKE ? "> 40" : "> 20000") : string(k10))
     end
     # the schedule as a modifier: a sequential sweep (in place) can carry a message round the loop in
     # one sweep, where flooding needs six. Both in flooding's task order and with as many updates per sweep
@@ -96,7 +99,7 @@ function study(R₁, R₂; maxsweeps = 5000, runs = true)
     for (name, sc) in (("sequential", SequentialSchedule(tasks(sched))), ("residual", rs),
                        ("replayed", SequentialSchedule(vcat(chosen, setdiff(tasks(sched), chosen)))))
         t = MessageStore(g); k10 = nothing; e = Float64[]
-        for k in 1:20000
+        for k in 1:(SMOKE ? 40 : 20000)
             sweep!(t, g, sc, ps, st)
             x = getstate(t)
             push!(e, any(isnan, x) ? Inf : max(maximum(abs, x[ηi] .- xstar[ηi]) / sη, maximum(abs, x[Λi] .- xstar[Λi]) / sΛ))
@@ -108,13 +111,13 @@ function study(R₁, R₂; maxsweeps = 5000, runs = true)
         # message evaluations per sweep: the residual schedule evaluates every task's candidate before
         # each of its commits (passing.jl), the others evaluate each of their tasks once
         evals = sc isa ResidualSchedule ? length(tasks(sched))^2 : length(tasks(sc))
-        @printf("  measured: %-10s schedule: rate %.4f per sweep (flooding ρ = %.4f, ρ^6 = %.4f), sweeps to both errors < 1e-10: %s, message evaluations: %s (flooding: %d)\n",
-                name, rate, ρη, ρη^6, k10 === nothing ? "> 20000" : string(k10),
-                k10 === nothing ? "–" : string(k10 * evals), floodk * length(tasks(sched)))
+        @printf("  measured: %-10s schedule: rate %.4f per sweep (flooding ρ = %.4f, ρ^6 = %.4f), sweeps to both errors < 1e-10: %s, message evaluations: %s (flooding: %s)\n",
+                name, rate, ρη, ρη^6, k10 === nothing ? (SMOKE ? "> 40" : "> 20000") : string(k10),
+                k10 === nothing ? "–" : string(k10 * evals), floodk === nothing ? "–" : string(floodk * length(tasks(sched))))
     end
 end
 
 study(2.0, 3.0)                                   # the test's divider
 study(1.0, 3.0)
 study(3.0, 2.0)
-study(2.0, 2.0; maxsweeps = 400_000, runs = false) # equal resistors: ρ ≈ 1, spectrum only
+study(2.0, 2.0; maxsweeps = (SMOKE ? 40 : 400_000), runs = false) # equal resistors: ρ ≈ 1, spectrum only

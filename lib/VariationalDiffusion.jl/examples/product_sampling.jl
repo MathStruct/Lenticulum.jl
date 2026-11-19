@@ -1,6 +1,6 @@
 # Products of relations: separators, and sampling a product with corrector steps and reweighting.
 #
-#     julia --project=lib/VariationalDiffusion.jl/test lib/VariationalDiffusion.jl/examples/product_sampling.jl
+# Run: julia --project=bench lib/VariationalDiffusion.jl/examples/product_sampling.jl
 #
 # Two closed-form problems where the exact product is known:
 #
@@ -12,6 +12,9 @@
 # Prints (1) the Laplace mixture of the chain with and without the separator, and (2) for each
 # sampler setting the mass on the main mode, the share of samples off every mode and the spread,
 # averaged over six seeds with 2000 chains each. Results are recorded in `product.md` §5–§6.
+
+# Smoke: LENTICULUM_SMOKE=true uses 2 sampler steps, 2 chains, 2 seeds and reduced mixtures; all six sampler settings.
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 
 using VariationalDiffusion, LenticulumCore, Random, LinearAlgebra, LuxCore, Statistics, Printf
 
@@ -25,7 +28,7 @@ end
 
 # --- the chain --------------------------------------------------------------------------------
 const W = [0.8, 0.2]
-n2, n1 = field_nodes(Xoshiro(1), 2; samples = 8), field_nodes(Xoshiro(2), 1; samples = 8)
+n2, n1 = field_nodes(Xoshiro(1), 2; samples = SMOKE ? 2 : 8), field_nodes(Xoshiro(2), 1; samples = SMOKE ? 2 : 8)
 lA = relation([-1.0 1.0; -1.0 1.0]; w = W, nodes = n2)
 lB = relation([-1.0 1.0; -2.0 2.0]; w = W, nodes = n2)
 lS = relation([-1.0 1.0]; w = W, nodes = n1)
@@ -34,7 +37,7 @@ println("(1) the chain's answers, Laplace mixture (implicit_mixture), exact weig
 for (name, rel, ps, st) in (("with separator", ProductRelation(lA[1] => [1, 2], lB[1] => [2, 3], lS[1] => [2]; weights = [1, 1, -1]),
                              (lA[2], lB[2], lS[2]), (lA[3], lB[3], lS[3])),
                             ("without", ProductRelation(lA[1] => [1, 2], lB[1] => [2, 3]), (lA[2], lB[2]), (lA[3], lB[3])))
-    mix, _ = implicit_mixture(rel, zeros(3), zeros(3), ps, st; nstarts = 30, spread = 1.5)
+    mix, _ = implicit_mixture(rel, zeros(3), zeros(3), ps, st; nstarts = SMOKE ? 1 : 30, spread = 1.5)
     w = exp.(mix.logw) ./ sum(exp.(mix.logw))
     @printf("  %-15s", name)
     for (c, wi) in zip(mix.components, w)
@@ -54,9 +57,9 @@ function chainstats(Z)
 end
 
 # --- circle ∩ line ----------------------------------------------------------------------------
-θ = range(0, 2π; length = 129)[1:128]
+θ = range(0, 2π; length = SMOKE ? 9 : 129)[1:(SMOKE ? 8 : 128)]
 μc, wc = vcat(cos.(θ)', sin.(θ)'), [sin(t) > 0 ? 3.0 : 1.0 for t in θ]
-u = range(-1.6, 1.6; length = 65)
+u = range(-1.6, 1.6; length = SMOKE ? 5 : 65)
 μl = vcat(u', u')
 lc, ll = relation(μc; w = wc), relation(μl)
 circ = (ProductRelation(lc[1], ll[1]), (lc[2], ll[2]), (lc[3], ll[3]))
@@ -80,8 +83,8 @@ function circstats(Z)
     return (main = mean(up), off = off,
             spread = (std((zu[1, :] .+ zu[2, :]) ./ sqrt(2)) + std((zu[1, :] .- zu[2, :]) ./ sqrt(2))) / 2)
 end
-let e = circstats(exact(20000, Xoshiro(9)))
-    @printf("\n(2) sampling, 100 steps, 2000 chains, mean ± sd over six seeds\n")
+let e = circstats(exact(SMOKE ? 4 : 20000, Xoshiro(9)))
+    println(SMOKE ? "\n(2) sampling, 2 steps, 2 chains, mean ± sd over two seeds" : "\n(2) sampling, 100 steps, 2000 chains, mean ± sd over six seeds")
     @printf("  exact: chain main 0.800 off 0.000 spread 0.050 | circle main %.3f off %.3f spread %.3f\n", e...)
 end
 
@@ -94,10 +97,10 @@ settings = [("plain", (;)),
 @printf("  %-24s %-15s %-8s %-8s %-15s %-8s %-8s %s\n", "sampler", "chain main", "off", "spread", "circle main", "off", "spread", "s/run")
 pm(v) = @sprintf("%.3f ± %.3f", mean(v), std(v))
 for (name, kw) in settings
-    rows = map(1:6) do seed
+    rows = map(1:(SMOKE ? 2 : 6)) do seed
         t = @elapsed begin
-            Zc, _ = implicit_sample(chain[1], zeros(3), zeros(3), chain[2], chain[3]; n = 2000, rng = Xoshiro(seed), kw...)
-            Zl, _ = implicit_sample(circ[1], zeros(2), zeros(2), circ[2], circ[3]; n = 2000, rng = Xoshiro(seed), kw...)
+            Zc, _ = implicit_sample(chain[1], zeros(3), zeros(3), chain[2], chain[3]; n = SMOKE ? 2 : 2000, steps = SMOKE ? 2 : 100, rng = Xoshiro(seed), kw...)
+            Zl, _ = implicit_sample(circ[1], zeros(2), zeros(2), circ[2], circ[3]; n = SMOKE ? 2 : 2000, steps = SMOKE ? 2 : 100, rng = Xoshiro(seed), kw...)
         end
         (chainstats(Zc), circstats(Zl), t / 2)
     end

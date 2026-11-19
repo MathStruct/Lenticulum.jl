@@ -9,6 +9,9 @@
 # M = P⁻¹WᵀΣ⁻¹(X − c). Each timing is the minimum over five runs after a warm-up, and times the
 # message passing only (a fresh store and one sweep); reading the posterior means out of the
 # stores is checked against the closed form outside the timings.
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 2, 3 and 4 replicas and 1 timed run per method.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, Printf
 using MyceliumLearning
 
@@ -57,10 +60,10 @@ function vectorised(X, W, c)
     return (I + Wt * W) \ (Wt * (X .- c))
 end
 
-best(f) = (f(); minimum(@elapsed(f()) for _ in 1:5))
+best(f) = (f(); minimum(@elapsed(f()) for _ in 1:(SMOKE ? 1 : 5)))
 
 @printf("%6s %12s %12s %12s %12s %12s %10s\n", "N", "loop+build", "loop", "plate seq", "plate grp", "by hand", "max |Δμ|")
-for N in (100, 300, 1000)
+for N in (SMOKE ? (2, 3, 4) : (100, 300, 1000))
     rng = Xoshiro(N)
     X = randn(rng, D, N); W = randn(rng, D, K); c = randn(rng, D)
     gs = [plate_graph(X[:, i:i]) for i in 1:N]
@@ -80,14 +83,14 @@ end
 # energy, after one grouped sweep. The first N in the loop pays the method's compilation.
 println()
 @printf("%6s %10s %16s %16s\n", "N", "build", "F, first call", "F, later call")
-for N in (100, 1000, 3000)
+for N in (SMOKE ? (2, 3, 4) : (100, 1000, 3000))
     rng = Xoshiro(N)
     X = randn(rng, D, N); W = randn(rng, D, K); c = randn(rng, D)
     tb = @elapsed (g = plate_graph(X))
     ps = setparams(g, W, c)
     s = plate_run(g, ps, plate_schedule(g))
     t1 = @elapsed LenticulumCore.scalar_free_energy(s, g, ps, NamedTuple())
-    t2 = minimum(@elapsed(LenticulumCore.scalar_free_energy(s, g, ps, NamedTuple())) for _ in 1:3)
+    t2 = minimum(@elapsed(LenticulumCore.scalar_free_energy(s, g, ps, NamedTuple())) for _ in 1:(SMOKE ? 1 : 3))
     @printf("%6d %8.2f s %14.3f s %13.1f ms\n", N, tb, t1, 1e3t2)
 end
 
@@ -96,7 +99,7 @@ end
 # blocks against the same messages held per edge (a store built from the edge vectors).
 println()
 @printf("%6s %14s %14s %16s %16s\n", "N", "F, blocks", "F, per edge", "∇F, blocks", "∇F, per edge")
-for N in (100, 1000, 3000)
+for N in (SMOKE ? (2, 3, 4) : (100, 1000, 3000))
     rng = Xoshiro(N)
     X = randn(rng, D, N); W = randn(rng, D, K); c = randn(rng, D)
     g = plate_graph(X); ps = setparams(g, W, c)
@@ -104,8 +107,8 @@ for N in (100, 1000, 3000)
     se = MessageStore(copy(s.to_variable), copy(s.to_factor), s.iteration)
     F(st) = first(LenticulumCore.scalar_free_energy(st, g, ps, NamedTuple()))
     @assert abs(F(s) - F(se)) <= 1e-10 * abs(F(se))
-    tF(st) = (F(st); minimum(@elapsed(F(st)) for _ in 1:3))
+    tF(st) = (F(st); minimum(@elapsed(F(st)) for _ in 1:(SMOKE ? 1 : 3)))
     tG(st) = (LenticulumCore.free_energy_gradient(st, g, ps, NamedTuple());
-              minimum(@elapsed(LenticulumCore.free_energy_gradient(st, g, ps, NamedTuple())) for _ in 1:3))
+              minimum(@elapsed(LenticulumCore.free_energy_gradient(st, g, ps, NamedTuple())) for _ in 1:(SMOKE ? 1 : 3)))
     @printf("%6d %11.2f ms %11.2f ms %13.2f ms %13.2f ms\n", N, 1e3tF(s), 1e3tF(se), 1e3tG(s), 1e3tG(se))
 end

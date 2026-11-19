@@ -14,6 +14,9 @@
 #
 # Recorded in `vault/Control/Composing Optimisers.md` §4.4.
 # Run:  julia --project=bench bench/bp_grid.jl
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 2 by 2 spectra, 2–4 by 2–4 grids and 20 inference sweeps.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 include("divider.jl")
 using Random
 
@@ -83,7 +86,7 @@ for (R₁, R₂) in ((2.0, 3.0), (2.0, 2.0))
     show_spectrum("flooding", sweep_spectrum(g, ps, st, flooding_schedule(g), s0)...)
     show_spectrum("spanning", sweep_spectrum(g, ps, st, sp, s0)...)
 end
-for (n, pv) in ((3, 10.0), (4, 100.0))
+for (n, pv) in (SMOKE ? ((2, 10.0), (2, 100.0)) : ((3, 10.0), (4, 100.0)))
     g, ps, st, _, ρR = grid_graph(n, pv)
     sp = spanning_tree_schedule(g)
     s0 = fixed_store(g, ps, st, sp)
@@ -92,8 +95,8 @@ for (n, pv) in ((3, 10.0), (4, 100.0))
     show_spectrum("spanning", sweep_spectrum(g, ps, st, sp, s0)...)
 end
 
-println("\n2. Sweeps to a message residual of 1e-11 (at most 20 000), and the largest error of a mean against J \\ h")
-for (n, pv) in ((5, 1.0), (5, 100.0), (10, 1.0), (10, 100.0), (10, 10_000.0), (20, 100.0))
+println("\n2. Sweeps to a message residual of 1e-11 (at most $(SMOKE ? "20" : "20 000")), and the largest error of a mean against J \\ h")
+for (n, pv) in (SMOKE ? ((2, 1.0), (2, 100.0), (3, 1.0), (3, 100.0), (3, 10_000.0), (4, 100.0)) : ((5, 1.0), (5, 100.0), (10, 1.0), (10, 100.0), (10, 10_000.0), (20, 100.0)))
     g, ps, st, exact, ρR = grid_graph(n, pv)
     sp = spanning_tree_schedule(g)
     @printf("\n%2d × %-2d grid, pv = %-6.0f (%d messages per sweep; ρ of the normalised couplings %.6f)\n", n, n, pv,
@@ -101,10 +104,11 @@ for (n, pv) in ((5, 1.0), (5, 100.0), (10, 1.0), (10, 100.0), (10, 10_000.0), (2
     for (name, sc) in (("flooding", flooding_schedule(g)), ("spanning", sp),
                        ("spanning+A(2)", AndersonSchedule(sp; m = 2)), ("spanning+A(3)", AndersonSchedule(sp; m = 3)),
                        ("spanning+A(5)", AndersonSchedule(sp; m = 5)), ("flooding+A(3)", AndersonSchedule(flooding_schedule(g); m = 3)))
-        t = @elapsed (marg, r, _, s) = infer!(g, sc, ps, st; maxsweeps = 20_000, tol = 1e-11)
+        SMOKE && infer!(g, sc, ps, st; maxsweeps = 20, tol = 1e-11) # one warm-up before the smoke timing
+        t = @elapsed (marg, r, _, s) = infer!(g, sc, ps, st; maxsweeps = (SMOKE ? 20 : 20_000), tol = 1e-11)
         err = maximum(abs(belief_mean(marg[v])[1] - exact[v]) for v in keys(exact))
         restarts = sc isa AndersonSchedule ? anderson_restarts(sc, s) : 0
-        @printf("  %-14s %s sweeps, error %.1e%s, %.2f s\n", name, r.converged ? @sprintf("%6d", r.sweeps) : "> 20000",
+        @printf("  %-14s %s sweeps, error %.1e%s, %.2f s\n", name, r.converged ? @sprintf("%6d", r.sweeps) : (SMOKE ? "> 20" : "> 20000"),
                 err, sc isa AndersonSchedule ? " ($restarts restarts)" : "", t)
     end
 end

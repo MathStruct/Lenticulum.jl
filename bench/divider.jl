@@ -1,6 +1,9 @@
 # The resistive divider of `test/runtests.jl` (`divider_graph`), with its resistors as arguments,
 # the message store written as one vector (scalar variables), and a schedule's fixed point. Shared by
 # the `bp_*.jl` benchmarks.
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with at most 40 fixed-point reference sweeps.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, Printf
 using MyceliumLearning
 using LenticulumCore: GaussianBelief
@@ -54,7 +57,7 @@ end
 
 # a schedule's fixed point: its sweeps run until the residual has not improved for 200 sweeps
 # (its rounding floor), returned as a store and as a vector
-function fixed_store(g, ps, st, sched; cap = 400_000)
+function fixed_store(g, ps, st, sched; cap = (SMOKE ? 40 : 400_000))
     s = MessageStore(g); best, kbest = Inf, 0
     for k in 1:cap
         r, _ = sweep!(s, g, sched, ps, st)

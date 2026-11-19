@@ -1,5 +1,8 @@
 # Scaling and allocation behaviour of `infer!` on a linear-Gaussian chain.
 # Run:  julia --project=bench bench/scaling.jl
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with chains of 2–7 variables, 10 stored messages and 1 timed access pass.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, Printf
 using MyceliumLearning
 
@@ -27,7 +30,7 @@ end
 
 println("chain scaling: infer! on a tree schedule\n")
 @printf("%6s %8s %10s %12s %14s %12s\n", "n", "edges", "msgs", "time (ms)", "alloc (MiB)", "alloc/msg")
-for n in (10, 25, 50, 100, 200, 400)
+for n in (SMOKE ? (2, 3, 4, 5, 6, 7) : (10, 25, 50, 100, 200, 400))
     g, ps, st = chain(n)
     sched = tree_schedule(g)
     nmsg = length(tasks(sched))
@@ -41,7 +44,7 @@ end
 # --- isolate the cost of the untyped store -------------------------------
 println("\nstore access: Vector{Any} vs a concretely typed vector")
 struct Msg; belief::GaussianBelief{Vector{Float64},Matrix{Float64}}; iteration::Int; end
-const N = 200_000
+const N = SMOKE ? 10 : 200_000
 gb = GaussianBelief([1.0], fill(2.0, 1, 1))
 
 any_store = Vector{Any}(undef, N); fill!(any_store, Msg(gb, 0))
@@ -51,8 +54,8 @@ sum_any(v)   = (s = 0.0; for i in eachindex(v); s += v[i].belief.η[1]; end; s)
 sum_typed(v) = (s = 0.0; for i in eachindex(v); s += v[i].belief.η[1]; end; s)
 
 sum_any(any_store); sum_typed(typed)              # warm up
-ta = @elapsed for _ in 1:20; sum_any(any_store); end
-tt = @elapsed for _ in 1:20; sum_typed(typed); end
+ta = @elapsed for _ in 1:(SMOKE ? 1 : 20); sum_any(any_store); end
+tt = @elapsed for _ in 1:(SMOKE ? 1 : 20); sum_typed(typed); end
 aa = @allocated sum_any(any_store)
 at = @allocated sum_typed(typed)
 @printf("  Vector{Any}: %7.2f ms   %9d bytes allocated\n", 1000ta, aa)

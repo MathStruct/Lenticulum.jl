@@ -6,6 +6,9 @@
 # "random" (s_v = 10^U(-3, 3), seeded). Errors are in the original units, against the dense solve.
 # Recorded in lib/Lenticulum.jl/src/coupling.md, "Normalised or raw".
 # Run: julia --project=bench bench/bp_trees_scale.jl
+# Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 2 by 2 grids and 20 sweeps, all noise and unit variants.
+
+@isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 include("bp_trees.jl")
 
 function scales(n, kind; seed = 20261119)
@@ -30,7 +33,7 @@ function run_scaled(n, mode, kind)
         inner = spanning_tree_schedule(g; kw...)
         forest = only(Mycelium._spanning_forests(g; kw...))
         make_schedule() = accelerated ? AndersonSchedule(inner; m=3) : inner
-        run() = infer!(g, make_schedule(), ps, st; maxsweeps=20_000, tol=0.0, rtol=1e-10)
+        run() = infer!(g, make_schedule(), ps, st; maxsweeps=(SMOKE ? 20 : 20_000), tol=0.0, rtol=1e-10)
         run()
         elapsed = @elapsed (marg, rep, _, _) = run()
         err = maximum(s[i] * abs(only(belief_mean(marg[g.variables[i].name])) - exact[i]) for i in 1:nvariables(g))
@@ -43,6 +46,6 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     for mode in (:isotropic, :horizontal, :random), kind in (:none, :blocks, :random)
-        run_scaled(10, mode, kind)
+        run_scaled(SMOKE ? 2 : 10, mode, kind)
     end
 end
