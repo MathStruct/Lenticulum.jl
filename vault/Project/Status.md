@@ -200,7 +200,7 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 ## Next
 
 No row is set; pick one with the maintainer. New since P15: P35 (a full-size example fails in `MixtureProx`;
-small, path B) and P36 (coverage gaps). Section P also has P10 (needs F2), P14 (shared solver layer, large:
+small, path B), P36 (coverage gaps) and T3 (JET `@test_opt` tests on the inner kernels; a JET check of 2026-11-19 found no defect, one type instability on the flat path). Section P also has P10 (needs F2), P14 (shared solver layer, large:
 design first), P16. Close to P5: a learned noise with hard messages, a residual-space formulation of the
 positive definite path (LP-047 finding 4; no row yet). Left open by P27 (no rows yet): the Bethe free energy
 with a mixture marginal under BP, derivatives through the new rules, two extended components with hard
