@@ -35,16 +35,19 @@ _factor_solve(prox::ImplicitProx, f::DiffusionFactor, z₀, ρ, ps, st) =
 
 function _implicit_model(f::DiffusionFactor)
     _warn_uncalibrated(f.prox, f.predictor)
-    return ImplicitDiffusion(f.predictor, f.prox.nodes; λ = f.prox.λ, batched = f.prox.batched)
+    return ImplicitDiffusion(f.predictor, f.prox.nodes; λ = _resolve_lambda(f.prox, f.predictor.schedule),
+                             batched = f.prox.batched)
 end
 
 # A Gaussian or mixture message is a calibrated belief only when the prior term is a negative
-# log-density, i.e. for λ = density_lambda(schedule, nodes) (`answers.jl`). With the default λ = 1
-# its covariance is off by that factor, which a graph receiving the belief cannot see.
+# log-density, i.e. for λ = density_lambda(schedule, nodes) (`answers.jl`), the default (P12). With
+# another λ given explicitly its covariance is off by the ratio, which a graph receiving the belief
+# cannot see.
 function _warn_uncalibrated(prox::ImplicitProx, pred)
     prox.message === :point && return nothing
     λd = density_lambda(pred.schedule, prox.nodes)
-    0.5 <= prox.λ / λd <= 2 || @warn "DiffusionFactor: message = :$(prox.message) with λ = $(prox.λ), but the density \
+    λ = _resolve_lambda(prox, pred.schedule)
+    0.5 <= λ / λd <= 2 || @warn "DiffusionFactor: message = :$(prox.message) with λ = $(λ), but the density \
         scale of these nodes is density_lambda = $(round(λd; sigdigits = 3)); the belief's covariance is off by that \
         ratio. Build the ImplicitProx with λ = density_lambda(schedule, nodes)." maxlog = 1
     return nothing

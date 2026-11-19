@@ -7,7 +7,7 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-19, after P33 (the cluster batch path, accelerated EM and sample reweighting in the element type of their inputs), committed on `dev-danielb`, not pushed. A Lenticulum graph is now Float32 end to end with no known Float64 source left on the message, energy or EM paths (stopping tolerances and comparison scores stay Float64: `~/.cache/lenticulum/p33/remaining-float64.md`).
+**Last updated:** 2026-11-19, after P12 (`density_lambda` as the default λ of non-point `ImplicitProx` messages, chosen by the maintainer), committed on `dev-danielb`, not pushed. Before it, P33 finished the Float32 work: a Lenticulum graph is Float32 end to end (stopping tolerances and comparison scores stay Float64: `~/.cache/lenticulum/p33/remaining-float64.md`).
 
 ## Branches and worktrees
 
@@ -28,6 +28,17 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **P12** (2026-11-19, chosen by the maintainer): `ImplicitProx(nodes)` leaves `λ = nothing`; the
+  `DiffusionFactor` constructor sets `density_lambda(schedule, nodes)` for `:gaussian`/`:mixture`
+  messages and 1 for `:point` (point answers unchanged); a factor built field by field resolves it at
+  use (`_resolve_lambda`). Explicit λ kept, still warned when off by more than 2. Test
+  `lib/VariationalDiffusion.jl/test/p12_default_lambda.jl` (36 checks; closed-form precision on the
+  Gaussian oracle). The Krylov test of `runtests.jl` compared a `:point` with a `:gaussian` factor under
+  soft evidence; both are `:gaussian` now (their default λ differs otherwise). Review
+  [[LP-063 Findings of the review of P12]] (Codex read-only; one type instability, fixed with an
+  `@inferred` test). VariationalDiffusion suite passed on the final code
+  (`~/.cache/lenticulum/p12/vd-suite-final.log`); no other package depends on it. Not run: the docs
+  builds (the `ImplicitProx` docstring changed).
 - **P33** (2026-11-19): the stacked path of cluster plates (`cluster_batch.jl`) serves any plain
   floating type (`FrozenClusterBeliefs{T}`), so Float32 plates are stacked; duals and replicas of
   differing joint types go replica by replica. `_flatten_active` drops empty parts, so a fixed factor's
@@ -153,7 +164,7 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Next
 
-No row is set; pick one with the maintainer. The Float32 work (P8, P30–P33) is finished. Close to P5:
+No row is set; pick one with the maintainer. Section P has P10 (needs F2), P14 (shared solver layer, large: design first), P15 (coverage, examples job), P16. Close to P5:
 a learned noise with hard messages, a residual-space formulation of the positive definite path (LP-047
 finding 4; no row yet). Left open by P27 (no rows yet): the Bethe free energy with a mixture marginal
 under BP, derivatives through the new rules, two extended components with hard directions. Small:

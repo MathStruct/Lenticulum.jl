@@ -701,7 +701,7 @@ end
 # --- As a factor's inversion ----------------------------------------------------
 
 """
-    ImplicitProx(nodes; λ = 1.0, tol = 1e-9, maxiters = 200, step = 0.05, message = :point,
+    ImplicitProx(nodes; λ = nothing, tol = 1e-9, maxiters = 200, step = 0.05, message = :point,
                  batched = false, linsolve = DenseSolve())
 
 The deterministic implicit solver as a [`DiffusionFactor`](@ref)'s inversion, in place of
@@ -722,7 +722,15 @@ dimension.
 - `:gaussian` — a `GaussianBelief` from the Laplace approximation at the answer
   ([`laplace_belief`](@ref)): the posterior marginal from `invert`, and from `factor_message`
   the same with the target's own anchor divided out, so that a variable does not count its
-  incoming belief twice. Use `λ = density_lambda(schedule, nodes)` for calibrated covariances.
+  incoming belief twice;
+- `:mixture` — a `MixtureBelief`, one Laplace component per basin ([`implicit_mixture`](@ref)).
+
+`λ` weights the prior term ([`ImplicitDiffusion`](@ref)). Left at `nothing`, the
+[`DiffusionFactor`](@ref) that receives the inversion chooses it from its predictor's schedule:
+[`density_lambda`](@ref)`(schedule, nodes)` for `:gaussian` and `:mixture` messages, whose
+covariances are then calibrated in data units, and `1` for `:point` messages. A `λ` given
+explicitly is kept; a non-point message whose `λ` is more than a factor 2 from `density_lambda`
+warns once that its covariances are off by that ratio.
 
 `batched` and `linsolve` are passed on to [`ImplicitDiffusion`](@ref) and to the solver: one
 network call per noise level, and the matrix-free [`KrylovSolve`](@ref) for factors with many
@@ -730,24 +738,35 @@ free coordinates.
 """
 struct ImplicitProx{T<:Real,L<:AbstractLinearSolve}
     nodes::FieldNodes{T}
-    λ::T
+    λ::Union{T,Nothing}          # nothing: chosen by the DiffusionFactor (`_resolve_lambda`)
     tol::T
     maxiters::Int
     step::T
     message::Symbol
     batched::Bool
     linsolve::L
-    function ImplicitProx(nodes::FieldNodes{T}, λ::T, tol::T, maxiters::Int, step::T, message::Symbol,
+    function ImplicitProx(nodes::FieldNodes{T}, λ::Union{T,Nothing}, tol::T, maxiters::Int, step::T, message::Symbol,
                           batched::Bool, linsolve::L) where {T<:Real,L<:AbstractLinearSolve}
         message in (:point, :gaussian, :mixture) ||
             throw(ArgumentError("message must be :point, :gaussian, or :mixture, got :$message"))
         return new{T,L}(nodes, λ, tol, maxiters, step, message, batched, linsolve)
     end
 end
-ImplicitProx(nodes::FieldNodes{T}; λ = 1.0, tol = 1e-9, maxiters::Integer = 200, step = 0.05,
+ImplicitProx(nodes::FieldNodes{T}; λ = nothing, tol = 1e-9, maxiters::Integer = 200, step = 0.05,
              message::Symbol = :point, batched::Bool = false,
              linsolve::AbstractLinearSolve = DenseSolve()) where {T} =
-    ImplicitProx(nodes, T(λ), T(tol), Int(maxiters), T(step), message, batched, linsolve)
+    ImplicitProx(nodes, λ === nothing ? nothing : T(λ), T(tol), Int(maxiters), T(step), message, batched, linsolve)
+
+# The default λ, chosen once the schedule is known (P12): density_lambda for Gaussian and mixture
+# messages, so that their covariances are calibrated, and 1 for point messages, whose answers it
+# would otherwise change. An explicit λ is returned as it is.
+function _resolve_lambda(prox::ImplicitProx{T}, schedule) where {T}
+    λ = prox.λ                                   # one read, so that the test narrows it
+    λ === nothing || return λ
+    return prox.message === :point ? one(T) : T(density_lambda(schedule, prox.nodes))
+end
+_with_lambda(prox::ImplicitProx, λ) =
+    ImplicitProx(prox.nodes, λ, prox.tol, prox.maxiters, prox.step, prox.message, prox.batched, prox.linsolve)
 
 # the solver's keyword arguments, as the factor configures them
 _solver_kwargs(p::ImplicitProx) = (tol = p.tol, maxiters = p.maxiters, step = p.step, linsolve = p.linsolve)

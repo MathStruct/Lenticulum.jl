@@ -86,7 +86,17 @@ What cannot be divided out is the diffusion model's own prior: the message is th
 *conditional* belief about the target given the inputs, not a likelihood
 ([[Open Problems in Implicit Diffusion Learning]] T10). Two more conditions:
 
-- covariances are in data units only with `λ = density_lambda(schedule, nodes)`;
+- covariances are in data units only with `λ = density_lambda(schedule, nodes)`. Since P12
+  (2026-11-19) that is the default: `ImplicitProx(nodes)` leaves `λ = nothing`, and the
+  `DiffusionFactor` constructor, which knows the predictor's schedule, sets it to
+  `density_lambda(schedule, nodes)` for `:gaussian` and `:mixture` messages and to 1 for
+  `:point` messages (point answers with soft evidence depend on λ, and those are left as they
+  were). A factor built field by field with `λ = nothing` resolves it at each use
+  (`_resolve_lambda`), with the same result. An explicit λ is kept; if it is more than a factor 2
+  from `density_lambda`, a non-point message warns once (LP-024 finding 14). Test:
+  `test/p12_default_lambda.jl` (the default against an explicit `density_lambda`, bit for bit;
+  on the Gaussian oracle the message's precision is $\lambda\sum_k w_k\sigma_k^2/(\alpha_k^2V_0+\sigma_k^2)$
+  to 1e-8 and $1/V_0$ to 5 %);
 - the answer must be converged and stable; otherwise the call throws rather than sending a
   meaningless curvature.
 

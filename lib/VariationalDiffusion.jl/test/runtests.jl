@@ -824,7 +824,9 @@ end
     @test b2.ps.layer_2.weight ≈ b1.ps.layer_2.weight rtol = 1e-8 atol = 1e-12
 
     # a factor configured with batched nodes and Krylov solves gives the same inversion
-    fd = DiffusionFactor((x = 1, y = 1), RING; prox = ImplicitProx(field_nodes(Xoshiro(1), 2; samples = 8)))
+    # (same message, so the same default λ: P12 gives :gaussian density_lambda, :point 1)
+    fd = DiffusionFactor((x = 1, y = 1), RING; prox = ImplicitProx(field_nodes(Xoshiro(1), 2; samples = 8);
+                                                                    message = :gaussian))
     fk = DiffusionFactor((x = 1, y = 1), RING; prox = ImplicitProx(field_nodes(Xoshiro(1), 2; samples = 8);
                                                                     linsolve = K, message = :gaussian))
     p = Polarity((x = Observed(), y = Unobserved()), (x = Inf, y = 0.3))
@@ -2308,5 +2310,7 @@ include("bound.jl")
 include("lp018.jl")
 
 include("review_singular.jl")
+
+include("p12_default_lambda.jl")
 
 include("aqua.jl")

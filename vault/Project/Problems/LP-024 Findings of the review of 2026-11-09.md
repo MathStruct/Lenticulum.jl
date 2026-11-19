@@ -30,7 +30,7 @@ were not reviewed.
 | 11 | `Polarity` | `==` without `hash` | `hash` added | LenticulumCore `test/runtests.jl` |
 | 12 | docstrings on the wrong object | `⊕`, `MessageStore`, `mean_field_message`, `variable_degree`; `infer!` documented three return values and has four | moved or corrected | Mycelium and LenticulumCore `test/runtests.jl` |
 | 13 | `Unscented` | the default `α = 1e-3` placed the sigma points a thousandth of a standard deviation out | default `α = 1` ([[nonlinear]]) | the existing check on $y = x^2$ |
-| 14 | uncalibrated beliefs | a `DiffusionFactor` with `message = :gaussian` or `:mixture` and the default `λ = 1` sends covariances off by `density_lambda` (about 84 at the default levels) | a warning, once | none |
+| 14 | uncalibrated beliefs | a `DiffusionFactor` with `message = :gaussian` or `:mixture` and the default `λ = 1` sends covariances off by `density_lambda` (about 84 at the default levels) | a warning, once; since P12 (2026-11-19) `density_lambda` is the default λ of non-point messages, and the warning is left for an explicit λ far from it | `VariationalDiffusion/test/p12_default_lambda.jl` |
 | 15 | packaging | `DispatchDoctor` was a dependency of five packages and used by none; no package bounded `LuxCore` | removed; `[compat]` entries added | |
 
 ## Corrected in the notes

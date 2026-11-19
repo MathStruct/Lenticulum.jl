@@ -51,6 +51,9 @@ function DiffusionFactor(blocks::NamedTuple, predictor::NoisePredictor; prox = R
         prox = ProxDM(prox.prox, prox.t, prox.λ, prox.tol, prox.maxiters, prox.linsolve,
                       field_nodes(Random.Xoshiro(0), n; samples = 8))
     end
+    if prox isa ImplicitProx && prox.λ === nothing
+        prox = _with_lambda(prox, _resolve_lambda(prox, predictor.schedule))
+    end
     if prox isa Union{ImplicitProx,ProxDM}
         size(prox.nodes.ε, 1) == n || throw(DimensionMismatch(
             "the $(nameof(typeof(prox))) nodes have dimension $(size(prox.nodes.ε, 1)) but the channels tile ℝ^$n"))
@@ -402,7 +405,7 @@ function _score_term(prox::REDDiff, pred, x, ps, st)
     return (reddiff_weight(prox, pred.schedule, t) * sc, st)
 end
 function _score_term(prox::ImplicitProx, pred, x, ps, st)
-    return _node_score(prox.nodes, prox.λ, pred, x, ps, st)
+    return _node_score(prox.nodes, _resolve_lambda(prox, pred.schedule), pred, x, ps, st)
 end
 # ProxDM: the same quadrature at weight λ = 1 (its λ is the splitting's coupling), on the prior's
 # own parameter tree

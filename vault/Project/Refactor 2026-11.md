@@ -104,7 +104,7 @@ These are true of the code as it stands and are the first candidates for work on
 | the graph free energy accumulates in `Float64` | A | LP-024 |
 | Gaussian message convergence is an absolute bound on natural parameters | A | LP-024 |
 | nodes with noise double the smoothing bias; every query returns a root, on the relation or not | B | [[Implicit Diffusion Learners]] §5, `lib/VariationalDiffusion.jl/examples/calibration.md` |
-| Gaussian and mixture answers are calibrated only for `λ = density_lambda` (a warning otherwise) | B | [[implicit]] §5 |
+| Gaussian and mixture answers are calibrated only for `λ = density_lambda` (the default since P12, 2026-11-19; a warning for an explicit λ far from it) | B | [[implicit]] §5 |
 | a nonlinear factor's free energy is its linear model's | A | [[nonlinear]] |
 | constraint factors with every coefficient learned collapse on data | C | [[LP-022 Constraint factors are normalised in their residual, not their channels]] |
 | BIC is used as the structure score for singular (mixture) models | C | [[Finding a Factor Graph]] |
