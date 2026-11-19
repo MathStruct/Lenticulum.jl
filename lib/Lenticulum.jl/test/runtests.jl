@@ -1357,4 +1357,6 @@ include("hard_free_energy.jl")
 include("hard_gradient.jl")
 include("hard_inputs.jl")
 
+include("p34_output_coeff.jl")
+
 include("aqua.jl")

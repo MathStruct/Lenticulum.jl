@@ -88,9 +88,7 @@ function LinearConstraintFactor(
     Q = Matrix(LenticulumCore._symmetric_part(Q))   # one consistent matrix from here on
     isposdef(Symmetric(Q)) ||
         throw(ArgumentError("noise covariance Q must be positive definite"))
-    C = output === nothing ? nothing : _output_coeff(dims, m, output, output_coeff,
-        output_coeff isa LinearAlgebra.UniformScaling ?
-            float(promote_type(eltype(Q), typeof(output_coeff.λ))) : float(eltype(output_coeff)))
+    C = output === nothing ? nothing : _output_coeff(dims, m, output, output_coeff, _output_eltype(output_coeff, Q))
     return LinearConstraintFactor(dims, m, Q, init_coeff, init_constant, output, C)
 end
 
@@ -108,10 +106,29 @@ function _output_coeff(dims, m, output, C, ::Type{T}) where {T}
     return A
 end
 
+# The number type in which the fixed coefficient is stored. A Boolean one (`I`, the default) stays Boolean
+# and takes the parameters' type at use (`_fixed_at`), so neither the constructor's `noise` nor a Float64
+# default decides it (P34); 0 and 1 are exact in every number type, so two coefficients equal when stored
+# (the M-step signature) stay equal at use. Other integers would round in Float32 (16777217), so they keep
+# the rule before P34 (the noise's type for `2I`, Float64 for an integer matrix); a floating coefficient
+# keeps its own type, and promotion decides.
+_output_eltype(C::LinearAlgebra.UniformScaling{Bool}, Q) = Bool
+_output_eltype(C::LinearAlgebra.UniformScaling{<:Integer}, Q) = float(promote_type(eltype(Q), typeof(C.λ)))
+_output_eltype(C::LinearAlgebra.UniformScaling, Q) = float(typeof(C.λ))
+_output_eltype(C, Q) = eltype(C) === Bool ? Bool : float(eltype(C))
+
+# the fixed coefficient at use: a Boolean one in the floating type of the parameters, any other as stored
+_fixed_at(::Nothing, ps) = nothing
+_fixed_at(C::AbstractArray{Bool}, ps) = convert(Matrix{_param_eltype(ps)}, C)
+_fixed_at(C, ps) = C
+# the floating promotion of the coefficients and offsets (`false` when there are none adds nothing)
+_param_eltype(ps) = float(promote_type(Bool, map(eltype, values(ps.A))..., map(eltype, _offsets(ps))...))
+_offsets(ps) = haskey(ps, :b) ? (ps.b,) : haskey(ps, :c) ? (ps.c,) : ()
+
 # The coefficients of every channel: the parameters `_coeffs(f, ps)` with a declared output channel's fixed
 # coefficient merged in. Every method of the constraint factors reads `A` through this.
-_coeffs(f, ps) = _merge_output(f.output, _fixed_output(f), ps.A)
-_fixed_output(f) = f.output_coeff
+_coeffs(f, ps) = _merge_output(f.output, _fixed_output(f, ps), ps.A)
+_fixed_output(f, ps) = _fixed_at(f.output_coeff, ps)
 _merge_output(::Nothing, _, A) = A
 function _merge_output(out::Symbol, C, A)
     haskey(A, out) && throw(ArgumentError(

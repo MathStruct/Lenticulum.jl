@@ -156,7 +156,7 @@ end
     @test first(LenticulumCore.scalar_free_energy(s, g, ps, st)) isa Float64
     for T in (Float32, Float64), F in (SwitchingConstraintFactor, RegimeFactor)
         f = F((x = 1, y = 1), 2, 1; noise = T(0.4), output = :y)
-        @test eltype(f.output_coeff) === T
+        @test eltype(f.output_coeff) === Bool   # exact; the parameters' type at use (P34)
         @test eltype(f.Q) === T
     end
 end

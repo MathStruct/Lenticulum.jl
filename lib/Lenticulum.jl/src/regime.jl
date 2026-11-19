@@ -80,9 +80,7 @@ function RegimeFactor(dims::NamedTuple, K::Int, m::Int; switch::Symbol = :k, noi
         isposdef(Symmetric(Qk)) || throw(ArgumentError("noise covariance $k must be positive definite"))
         Q[:, :, k] = Qk
     end
-    C = output === nothing ? nothing : _output_coeff(dims, m, output, output_coeff,
-        output_coeff isa LinearAlgebra.UniformScaling ?
-            float(promote_type(eltype(Q), typeof(output_coeff.λ))) : float(eltype(output_coeff)))
+    C = output === nothing ? nothing : _output_coeff(dims, m, output, output_coeff, _output_eltype(output_coeff, Q))
     return RegimeFactor(dims, K, m, switch, Q, learn_noise, init_coeff, init_offsets, output, C)
 end
 
@@ -101,7 +99,7 @@ LuxCore.initialstates(::AbstractRNG, ::RegimeFactor) = NamedTuple()
 LuxCore.parameterlength(f::RegimeFactor) =
     f.K * (f.m * sum(f.dims[n] for n in _learned(f); init = 0) + f.m + 1) + (f.learn_noise ? f.K * f.m * (f.m + 1) ÷ 2 : 0)
 # the output's fixed coefficient, the same in every regime
-_fixed_output(f::RegimeFactor) = f.output_coeff === nothing ? nothing : repeat(f.output_coeff, 1, 1, f.K)
+_fixed_output(f::RegimeFactor, ps) = f.output_coeff === nothing ? nothing : repeat(_fixed_at(f.output_coeff, ps), 1, 1, f.K)
 
 _allnames(f::RegimeFactor{names}) where {names} = (names..., f.switch)
 LenticulumCore.channels(f::RegimeFactor{names}) where {names} =

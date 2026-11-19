@@ -83,9 +83,7 @@ function SwitchingConstraintFactor(
     LenticulumCore._nearly_symmetric(Q) || throw(ArgumentError("noise covariance must be symmetric"))
     Q = Matrix(LenticulumCore._symmetric_part(Q))
     isposdef(Symmetric(Q)) || throw(ArgumentError("noise covariance Q must be positive definite"))
-    C = output === nothing ? nothing : _output_coeff(dims, m, output, output_coeff,
-        output_coeff isa LinearAlgebra.UniformScaling ?
-            float(promote_type(eltype(Q), typeof(output_coeff.λ))) : float(eltype(output_coeff)))
+    C = output === nothing ? nothing : _output_coeff(dims, m, output, output_coeff, _output_eltype(output_coeff, Q))
     return SwitchingConstraintFactor(dims, K, m, switch, Q, init_coeff, init_offsets, output, C)
 end
 

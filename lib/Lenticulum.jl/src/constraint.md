@@ -389,6 +389,29 @@ coefficient is a type parameter of `LinearConstraintFactor` (its default identit
 float type). P31 extends the same selection rule to `SwitchingConstraintFactor` and `RegimeFactor`
 and removes the four-argument helper. Details and the P30 test: `gaussian.md`, "Element type".
 
+**The fixed output coefficient (P34).** Taking the default identity in the noise's float type had a
+cost found by `bench/float32_cluster_plates.jl`: with the default `noise = 0.1` the identity was a
+Float64 matrix, so Float32 parameters and data gave a Float64 graph, also for a `RegimeFactor` with
+`learn_noise = true`, whose noise is the parameter `L`. Now the constructor stores a Boolean
+coefficient as it is (`I` as a `Matrix{Bool}`; `_output_eltype`), and `_coeffs(f, ps)` converts it at
+use to the floating promotion of the parameters' coefficients and offsets (`_fixed_at`,
+`_param_eltype`: `ps.A`, then `ps.b` or `ps.c`; Float64 when there are none). Only Booleans: 0 and 1
+are exact in every number type, so two coefficients that are equal when stored, which is what the
+M-step signature of tied factors compares, are equal at use. A first version kept every integer
+exact, and an integer coefficient of 16777217 became 16777216 in Float32 while a tied factor with
+16777217.0 kept its value (review of P34, [[LP-064 Findings of the review of P34]]). Other integers
+keep the rule from before (`2I` in the noise's float type, an integer matrix in Float64). A floating
+coefficient (`fill(2.0, 1, 1)`, `0.5f0 * I`) keeps its own type, and promotion decides as
+everywhere else: with Float32 parameters a Float64 coefficient still widens the result. The fixed
+coefficient is a constant, so `_fixed_at` is `@non_differentiable`; with ForwardDiff parameters it
+becomes a matrix of duals with zero partials. Float64 results are unchanged bit for bit (the
+converted identity is the matrix the constructor stored before). The three constructors share
+this rule (`regime.jl`, `switching.jl`). What it does not do: a fixed noise `Q` still has the
+constructor's type, so `LinearConstraintFactor` and `SwitchingConstraintFactor` with the default
+noise (and `RegimeFactor` with `learn_noise = false`) still widen Float32 parameters to Float64;
+that is the promotion rule, the noise being a constant the caller chose. Test:
+`lib/Lenticulum.jl/test/p34_output_coeff.jl`.
+
 
 ## Element type
 

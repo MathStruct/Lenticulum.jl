@@ -598,10 +598,18 @@ falls with the width. The final free energies agree: Float32 against Float64 on 
 of reg3 at 3000 varied between runs (12.6 s in `run1`, 10.1 s in `run2`); the stacked times agreed to
 7 %.
 
-The `reg1` plate passes `noise = T(0.1)` to `RegimeFactor`: with the default `noise = 0.1` the
-fixed output coefficient (`output = :y`, `output_coeff = I`) is built as a Float64 array, so the
-whole Float32 plate is computed and returns its free energy in Float64, although with
-`learn_noise = true` the noise is the Float32 parameter `L` (Feature Backlog P34).
+The `reg1` plate passes `noise = T(0.1)` to `RegimeFactor`: before P34, with the default
+`noise = 0.1` the fixed output coefficient (`output = :y`, `output_coeff = I`) was built as a
+Float64 array, so the whole Float32 plate was computed and returned its free energy in Float64,
+although with `learn_noise = true` the noise is the Float32 parameter `L`. P34 stores `I` as Booleans
+and converts it to the parameters' type at use (Lenticulum `constraint.md`, "The fixed output
+coefficient"). Measured after P34 (2026-11-19, stacked path only, same machine and settings, log
+`~/.cache/lenticulum/p34-bench/run1.log`): `reg1d`, the plate with the default noise, is Float32 end
+to end and gives the free energy of `reg1` bit for bit (253.38934f0 at 300, 2603.6838f0 at 3000);
+`reg1w`, which passes the Float64 identity the constructor stored before P34, still returns Float64.
+Widening costs no time here (Float32 against widened: 0.054 s against 0.055 s at 300, 0.498 s
+against 0.488 s at 3000), only memory: 45.4 against 50.8 MiB and 426 against 479 MiB. In Float64 the
+three plates give the same free energy bit for bit.
 
 **Thresholds** (review of P32, [[LP-061 Findings of the review of P32]]). Codex's version kept the
 Float64 values of the flat and range tolerances (`_FLAT_RTOL = 1e-10`, `sqrt(eps())`). In Float32 a

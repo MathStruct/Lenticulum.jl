@@ -173,9 +173,10 @@ end
             @test all(E -> all(scalar, values(E.parts)), Fs)
         end
         default_output = LinearConstraintFactor((x = 2, y = 2), 2; noise = T(0.4), output = :y)
-        @test eltype(default_output.output_coeff) === T
-        # Default Float64 noise gives a Float64 fixed output (P31 makes this field generic).
-        @test eltype(RegimeFactor((x = 2, y = 2), 2, 2; output = :y).output_coeff) === Float64
+        # the default `I` is stored exact and takes the parameters' type at use (P34)
+        @test eltype(default_output.output_coeff) === Bool
+        @test eltype(Lenticulum._coeffs(default_output, (A = (x = a,), c = zeros(T, 2))).y) === T
+        @test eltype(RegimeFactor((x = 2, y = 2), 2, 2; output = :y).output_coeff) === Bool
         f = LinearConstraintFactor((x = 2, y = 2), 2; noise = T(0.4), output = :y, output_coeff = a)
         p = (A = (x = a,), c = zeros(T, 2))
         checkbelief(first(Mycelium.mean_field_message(f, :x, nothing, (y = y,), p, nt)), T)

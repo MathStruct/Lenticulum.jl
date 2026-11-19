@@ -7,7 +7,7 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-19, after the P33 benchmark (`bench/float32_cluster_plates.jl`: Float32 cluster plates measured), committed on `dev-danielb`, not pushed. Before it P12 (`density_lambda` as the default λ of non-point `ImplicitProx` messages) and P33, which finished the Float32 work: a Lenticulum graph is Float32 end to end (stopping tolerances and comparison scores stay Float64: `~/.cache/lenticulum/p33/remaining-float64.md`).
+**Last updated:** 2026-11-19, after P34 (the default output coefficient `I` takes the parameters' number type at use), committed on `dev-danielb`, not pushed. Before it the P33 benchmark, P12 and P33, which finished the Float32 work: a Lenticulum graph is Float32 end to end (stopping tolerances and comparison scores stay Float64: `~/.cache/lenticulum/p33/remaining-float64.md`); since P34 also with the default `noise` of a `RegimeFactor` with `learn_noise = true`.
 
 ## Branches and worktrees
 
@@ -28,6 +28,19 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **P34** (2026-11-19, the next row; benchmarks allowed by the maintainer): the default `output_coeff = I`
+  of the three constraint factors is stored as `Matrix{Bool}` and converted at use (`_coeffs(f, ps)`,
+  `_fixed_at`) to the floating promotion of `ps.A` and the offsets; other integers and floating
+  coefficients keep the rule before. Test `lib/Lenticulum.jl/test/p34_output_coeff.jl` (66 checks: types,
+  Float64 bit for bit against an explicit Float64 identity, Zygote, ForwardDiff, Float32 EM on the
+  benchmark's plate with the default noise). Review [[LP-064 Findings of the review of P34]] (Codex
+  read-only; integers rounded in Float32 under a tie: reproduced, fixed by keeping only Booleans exact).
+  Bench (`bench/float32_cluster_plates.jl`, new plates `reg1d`, `reg1w`; log `~/.cache/lenticulum/p34-bench/`):
+  the default-noise plate is now Float32 with the free energy of the `noise = T(0.1)` plate bit for bit,
+  same time as the widened one, 11 % less allocated. Lenticulum suite passed on the final code
+  (`~/.cache/lenticulum/p34/lenticulum-suite-final.log`); no package depends on Lenticulum. Not run:
+  device tests, the docs builds. Still widening, by design: a fixed noise `Q` (constraint and switching
+  factors, `RegimeFactor` without `learn_noise`) keeps the constructor's type.
 - **P33 benchmark** (2026-11-19, benchmarks allowed by the maintainer): `bench/float32_cluster_plates.jl`,
   `fit_em` (10 iterations) on two regime plates, Float64/Float32, stacked against forced per replica (the
   pre-P33 Float32 path). A Float32 plate is now 14–33 times faster than before P33 and as fast as Float64
@@ -176,8 +189,7 @@ a learned noise with hard messages, a residual-space formulation of the positive
 finding 4; no row yet). Left open by P27 (no rows yet): the Bethe free energy with a mixture marginal
 under BP, derivatives through the new rules, two extended components with hard directions. Small:
 `ImplicitLayers`' `SolveReport` also has `residual::Float64` (not checked whether duals reach it; that
-package is unreviewed); `AndersonSchedule` runs without its memory under duals (LP-053). P34 (small:
-the output coefficient's number type from the parameters). Not benchmarked yet: GH-20's per-replica path for
+package is unreviewed); `AndersonSchedule` runs without its memory under duals (LP-053). Not benchmarked yet: GH-20's per-replica path for
 device and view inputs to the hard-constraint plate kernel.
 
 ## Open

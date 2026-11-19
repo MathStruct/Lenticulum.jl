@@ -5,21 +5,25 @@
 #
 # Plates:
 #   :reg1  the mixture of two regressions of `rxinfer_baseline.jl` (part 2): scalar x, y, two
-#          regimes, one-factor clusters (`_as_clusters`), as in `regime_plate_profile.jl`; `noise = T(0.1)`:
-#          the default `noise = 0.1` would make the output coefficient (`output_coeff = I`) Float64
-#          and widen the whole Float32 plate (the initial noise itself comes from `L`);
+#          regimes, one-factor clusters (`_as_clusters`), as in `regime_plate_profile.jl`; `noise = T(0.1)`
+#          (the initial noise itself comes from `L`);
+#   :reg1d the same with the default `noise = 0.1`: before P34 it made the output coefficient
+#          (`output_coeff = I`) Float64 and widened the whole Float32 plate;
+#   :reg1w the same with `output_coeff = Matrix(1.0I, 1, 1)`, what the constructor stored for `I` before
+#          P34: the widened plate, for comparison;
 #   :reg3  the plate of `lib/Lenticulum.jl/test/p31_element_type.jl` ("P32: Float32 EM"): z ∈ R³,
 #          x ∈ R² with a Gaussian prior, three regimes, one two-factor cluster per point.
 # Every `fit_em` runs a fixed number of iterations (`tol = 0`); a time is the minimum over three runs
 # after a warm-up, the allocation that of one more run. The last free energy of each run is printed,
 # so the paths can be compared (stacked against per replica in one type agree to rounding).
 # Run:  julia -t auto --project=bench bench/float32_cluster_plates.jl
-#       (NS = "300,3000", ITERS = 10; output to stdout)
+#       (NS = "300,3000", ITERS = 10, PLATES = "reg1,reg1d,reg1w,reg3", REPLICA = true (false: the stacked path
+#       only); output to stdout)
 using Lenticulum, LenticulumCore, Mycelium, MyceliumLearning, LinearAlgebra, LuxCore, Random, Printf
 
 const NT = NamedTuple()
 
-function reg1_plate(T, N)
+function reg1_plate(T, N; kw = (noise = T(0.1),))
     rng = Xoshiro(11)                                            # as in rxinfer_baseline.jl
     x = 6 .* rand(rng, N) .- 3
     k = [rand(rng) < 0.5 ? 1 : 2 for _ in 1:N]
@@ -30,7 +34,7 @@ function reg1_plate(T, N)
         variable!(b, r(:x), 1); variable!(b, r(:y), 1); variable!(b, r(:k), 2)
         factor!(b, r(:dx), DataFactor(:x, T[x[i]])); connect!(b, r(:dx), :x, r(:x); direction = Emitting())
         factor!(b, r(:dy), DataFactor(:y, T[y[i]])); connect!(b, r(:dy), :y, r(:y); direction = Emitting())
-        factor!(b, r(:reg), RegimeFactor((y = 1, x = 1), 2, 1; learn_noise = true, output = :y, noise = T(0.1)); params = :reg)
+        factor!(b, r(:reg), RegimeFactor((y = 1, x = 1), 2, 1; learn_noise = true, output = :y, kw...); params = :reg)
         connect!(b, r(:reg), :y, r(:y)); connect!(b, r(:reg), :x, r(:x)); connect!(b, r(:reg), :k, r(:k))
     end
     g = as_plate(build(b), :pts, N)
@@ -64,7 +68,10 @@ end
 
 const NS = parse.(Int, split(get(ENV, "NS", "300,3000"), ","))
 const ITERS = parse(Int, get(ENV, "ITERS", "10"))
-const PLATES = (reg1 = reg1_plate, reg3 = reg3_plate)
+const ALL_PLATES = (reg1 = reg1_plate, reg1d = (T, N) -> reg1_plate(T, N; kw = NamedTuple()),
+                      reg1w = (T, N) -> reg1_plate(T, N; kw = (output_coeff = Matrix(1.0I, 1, 1),)), reg3 = reg3_plate)
+const PLATES = NamedTuple{Tuple(Symbol.(split(get(ENV, "PLATES", "reg1,reg1d,reg1w,reg3"), ",")))}(ALL_PLATES)
+const REPLICA = parse(Bool, get(ENV, "REPLICA", "true"))
 
 function measure(make, T, N)
     g, ps = make(T, N)
@@ -90,6 +97,7 @@ end
 
 println("threads = $(Threads.nthreads()), ITERS = $ITERS, Julia $(VERSION)")
 stacked = run_all("stacked")
+REPLICA || exit()
 # Every cluster plate now goes replica by replica (P33 left this path for duals and mixed types).
 @eval Mycelium begin
     _cluster_batchable(cs, msgs, skip, @nospecialize(ps)) = false
