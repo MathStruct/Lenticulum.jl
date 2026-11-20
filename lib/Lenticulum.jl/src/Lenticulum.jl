@@ -64,6 +64,7 @@ include("regime.jl")
 include("m_steps.jl")
 include("coupling.jl")
 include("split.jl")
+include("scale_shift.jl")
 
 # The factors whose belief-propagation messages are exact for point, categorical and Gaussian
 # inputs (also flat ones), each tested against a closed form (`test/gaussian_oracle.jl`,
@@ -84,6 +85,7 @@ export NonlinearFactor, NonlinearGaussianModel, Linearization, Unscented, linear
 export LinearConstraintFactor, LinearConstraintModel
 export HardConstraintFactor, ExtendedGaussian
 export SplitFactor
+export ScaleShiftFactor, scale_shift_parameters
 export residual, residual_statistics
 export SwitchingConstraintFactor, SwitchingConstraintModel, switch_statistics, switch_overlaps, partial_sums
 export RegimeFactor, regime_covariances

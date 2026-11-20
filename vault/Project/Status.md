@@ -7,15 +7,15 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-20, after U2 (`SplitFactor`: a channel and pieces of it, exactly; review [[LP-069 Findings of the review of U2]]), committed on `dev-danielb`, not pushed. Before it P10 (noise-free nodes on the calibration benchmark), P36, P35, P15, P34, P12 and P33.
+**Last updated:** 2026-11-20, after U3 (`ScaleShiftFactor`: the normalising change of variables, learnable; review [[LP-070 Findings of the review of U3]]), committed on `dev-danielb`, not pushed. Before it U2 (`SplitFactor`, pushed with P10, P36 and P35 on 2026-11-20), P15, P34, P12 and P33.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
 | `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
-| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/u2-review` | at `2860187b` with the U2 diff applied uncommitted (the review's probes in `scratch/u2/`, copied to `../Lenticulum.jl-Review-2026-11-20/u2/codex/`); the branch `codex/u2-tests` holds nothing (its test file was copied into the main checkout). Reset it before the next Codex package |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `9f933eb7` with the P36 diff applied (without the session's last testset); the test environments of LenticulumCore, Mycelium and MyceliumLearning instantiated (`--project=lib/<Pkg>.jl/test` serves probes); probes in `scratch/p36/` (copied to `../Lenticulum.jl-Review-2026-11-19/p36/mistral/`); `scratch/p6env` serves any review, and `~/.cache/lenticulum/env-p29` serves as the old code for a bit-for-bit comparison. Before the next review: reset to the commit under review, then apply its diff |
+| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/u3-review` | at `91b3c859` with the first U3 diff applied uncommitted (the review's probes in `scratch/u3/`); `codex/u3-tests` holds nothing (its test file was copied into the main checkout). The U2 review state is in `git stash` ("U2 review state (before U3 tests)"). Reset it before the next Codex package |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `91b3c859` with the first U3 diff applied (its probes in `scratch/u3/`; the P36 state is in `git stash`, "P36 review state (before U3 review)"); the test environments of LenticulumCore, Mycelium and MyceliumLearning instantiated (`--project=lib/<Pkg>.jl/test` serves probes); probes in `scratch/p36/` (copied to `../Lenticulum.jl-Review-2026-11-19/p36/mistral/`); `scratch/p6env` serves any review, and `~/.cache/lenticulum/env-p29` serves as the old code for a bit-for-bit comparison. Before the next review: reset to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -28,6 +28,23 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **U3** (2026-11-20, asked for by Daniel after U2): `ScaleShiftFactor(x, z, dim; groups)` in
+  `lib/Lenticulum.jl/src/scale_shift.jl` and `scale_shift.md`, the density $\delta(x - s\odot z - b)$
+  of $x$ given $z$, $(b, \text{logs})$ per coordinate or group; `scale_shift_parameters(f, X)`
+  (ActNorm's data-dependent initialisation). Messages are the diagonal map applied directly; the Bethe term is
+  `HardConstraintFactor`'s, which carries the log-Jacobian. **Gradient:** a learnable deterministic
+  factor has no envelope gradient at a fixed belief (the fixed-message fallback gave only the log-Jacobian's
+  derivative; `:unrolled` falls back to it too, and `:implicit` refuses extended-Gaussian messages), so its
+  `factor_belief`/`belief_free_energy` make the envelope gradient $-\partial_\theta\log Z_f$ at fixed
+  messages, the derivative of the message-form Bethe free energy (`scale_shift.md`, "The parameter
+  gradient"); the same construction would serve any learnable deterministic factor. Codex wrote
+  `test/scale_shift.jl` from the specification (`../Lenticulum.jl-Review-2026-11-20/u3/spec.md`); reviews
+  LP-070 (Codex: six findings, four fixed; Mistral: no answer file, its probes run by the session showed no
+  defect). **Found on the way, not fixed:** `HardConstraintFactor`'s free energy with two oblique exact
+  projections of one variable (row I26, high, `@test_broken`). `link_sources.py` puts the Bibliography line
+  inside a multi-line Sources block (it did so in `lib/Lenticulum.jl/src/coupling.md`; reverted, no row). Suite
+  passed: Lenticulum (`~/.cache/lenticulum/u3/lenticulum-final.log`). Not run: the docs builds, device tests;
+  cost not measured.
 - **U2** (2026-11-20, chosen by the session as a row ready to start that needs no benchmark; Section P has
   only design-first rows): `SplitFactor(whole, pieces; dim)` in `lib/Lenticulum.jl/src/split.jl` and
   `split.md`, the exact relation $x_k = z[I_k]$ (overlap and uncovered coordinates allowed), extended-Gaussian
@@ -39,30 +56,17 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
   a Float32 variance below $32\varepsilon_{32}$ of the largest counts as hard, `@test_broken` in `test/split.jl`).
   All eight suites passed (`~/.cache/lenticulum/u2/`). Not run: the docs builds, device tests; cost not measured.
 - **P10** (2026-11-19): `noisefree_nodes(n; levels)` and `examples/nodes_calibration.md`; review LP-068.
-- **P36** (2026-11-19, chosen as the only Section P row ready to start): tests in the owning package for
-  the files only other packages' tests reached: Mycelium `test/p36_exposure.jl`, `test/p36_overlay_ad.jl`
-  (exposure, overlay, the cluster Zygote rule, ForwardDiff through flat precisions), MyceliumLearning
-  `test/sample_gradient.jl`, LenticulumCore `test/statistical_game.jl`, `test/interop.jl` (the
-  ExponentialFamily checks moved there from Lenticulum's `runtests.jl`; new test dependencies). Weekly job
-  `reactant` in `Weekly.yml` (**not yet run on GitHub**; start it by hand after the next push, with
-  `Examples.yml` and `coverage`). Coverage of those files by their own suite now 89–100 %. Codex
-  implemented (one run); review [[LP-067 Findings of the review of P36]] (Mistral, \$0, by mutation: three
-  missing overlay checks, closed by a testset of the session that fails under each mutation). No source
-  defect. **Stale local Manifests**: the main checkout's untracked Manifests predated the newest
-  extensions, so Mycelium's local suite had never loaded its ForwardDiff extensions; `Pkg.resolve()` in
-  every package fixed six of eight (LP-067). Suites passed on the final code after that: LenticulumCore,
-  Mycelium, MyceliumLearning, Lenticulum (`~/.cache/lenticulum/p36/gates2/`; Mycelium's final run
-  `mycelium-final.log`). A first run of Mycelium beside two other suites failed the timing check
-  `state_tree.jl:131` (`s4 < 8s1`, 5.5 ms against 4.2 ms): load-sensitive, passes alone; no row. Not run:
-  device tests, the docs builds, VariationalDiffusion and the weekly packages (no file of theirs changed
-  apart from the CI job; their Manifests were resolved).
+- **P36** (2026-11-19): tests in the owning package for files only other packages' tests reached; review
+  LP-067. Its weekly job `reactant` ran on GitHub for the first time with the push of 2026-11-20 (Weekly,
+  run 44687843325: success; Examples, Docs and CI passed too).
 
 ## Next
 
-No row is set; pick one with the maintainer. Section P has P14 (shared solver layer, large: design first)
-and P16 (owned scalarisations: design first). Close to U2 and needing no benchmark: U3 (a normalising change
-of variables with its log-Jacobian, the same extended-Gaussian machinery), U5 (permutation, sum, clamp
-factors; a permutation is now a `SplitFactor`). Open after U2: whether `SplitFactor` is cheaper than a
+No row is set; pick one with the maintainer. I26 (high: `HardConstraintFactor`'s Bethe term with two
+oblique exact observations of one variable; the `@test_broken` in `test/hard_free_energy.jl` is the
+oracle). Section P has P14 (shared solver layer, large: design first) and P16 (owned scalarisations:
+design first). U5 (permutation, sum, clamp factors; a permutation is now a `SplitFactor`). Open after U3:
+the implicit adjoint for extended-Gaussian messages; a $O(d)$ free energy for `ScaleShiftFactor`. Open after U2: whether `SplitFactor` is cheaper than a
 selection-matrix `HardConstraintFactor` (not measured), a batched plate kernel for it. Open after P10: the
 tutorials and the README still use `field_nodes` for root queries; `ProxDM`'s free-energy nodes with
 noise-free nodes (not measured). Close to P5: a residual-space formulation of the positive definite path
@@ -117,7 +121,10 @@ plate kernel.
   ran and it finished with an answer file (\$0.41). Keep doing that. On P25 the commands ran but it
   spent its 100 turns on 26 debug variants and wrote one entry: run its last probes yourself. On P4
   (AD) no answer file at all; its last probe (needing imports added) found the one defect. Its
-  probes need the package's test environment (`--project=lib/<Pkg>/test`); say so in the brief.
+  probes need the package's test environment (`--project=lib/<Pkg>/test`); say so in the brief. On U3 (2026-11-20, the
+  brief with the exact command line and "never prefix `cd`") 20 of its commands were refused, it hit 100 turns
+  without an answer file, and three of its seven probes had wrong oracles (missing normalisers, a wrong dense
+  marginal, a sign convention): run its probes and check their oracles before believing a failure.
   A watcher `while pgrep -f "vibe -p …"` matches its own command line and never ends: match `vibe-rs` with `pgrep -x` or wait on the PID.
   On P6 (2026-11-17) the brief gave the exact command line, a ready environment (`scratch/p6env`),
   "never prefix `cd`" and the answer-file rule: ten probes, a finished answer file, three right

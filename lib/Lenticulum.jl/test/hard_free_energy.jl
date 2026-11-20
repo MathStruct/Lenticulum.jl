@@ -257,3 +257,35 @@ end
         @test_throws ArgumentError Mycelium.local_free_energy(LinearConstraintFactor((x = 2, y = 1), 1; noise), msgs, ps, NamedTuple())
     end
 end
+
+# Found by the review of U3 (LP-070, finding 1), not fixed: a Gaussian z ∈ ℝ³ observed exactly
+# through two oblique scalar projections, each its own HardConstraintFactor (k·z = y₁, h·z = y₂).
+# The tree's marginals are right, its Bethe free energy is not: each factor's ½ log det(G̃G̃ᵀ) is
+# taken on a cavity support the other observation has already cut, and the two log-sine terms do
+# not cancel. Dense: −log N((y₁, y₂); Lμ, LCLᵀ), L = [k; h].
+@testset "LP-070: two oblique exact projections of one variable" begin
+    μ, C = [0.8, -0.2, 1.1], [1.6 0.4 -0.1; 0.4 0.95 0.25; -0.1 0.25 1.2]
+    k, h, y = [0.8, -0.1, 0.9], [0.9, 0.3, 0.7], [0.25, 1.4]
+    gb = GraphBuilder()
+    variable!(gb, :z, 3)
+    factor!(gb, :prior, GaussianPrior(:out, μ, C)); connect!(gb, :prior, :out, :z)
+    for (i, row) in enumerate((k, h))
+        o, rel, dat = Symbol(:y, i), Symbol(:rel, i), Symbol(:data, i)
+        variable!(gb, o, 1)
+        factor!(gb, rel, HardConstraintFactor((u = 3, y = 1), 1)); connect!(gb, rel, :u, :z); connect!(gb, rel, :y, o)
+        factor!(gb, dat, DataFactor(:out, [y[i]])); connect!(gb, dat, :out, o)
+    end
+    g = validate(build(gb))
+    ps, st = LuxCore.setup(Xoshiro(0), g)
+    ps = merge(ps, (rel1 = (A = (u = reshape(k, 1, 3), y = fill(-1.0, 1, 1)), c = [0.0]),
+                    rel2 = (A = (u = reshape(h, 1, 3), y = fill(-1.0, 1, 1)), c = [0.0])))
+    marg, _, st, s = infer!(g, tree_schedule(g), ps, st)
+    L = [k'; h']
+    V = L * C * L'
+    δ = y - L * μ
+    K = C * L' / V
+    @test extended(marg[:z], 3).μ ≈ μ + K * δ atol = 1e-8
+    @test extended(marg[:z], 3).Σ ≈ C - K * L * C atol = 1e-8
+    nlogZ = (δ' * (V \ δ) + logdet(2π * V)) / 2
+    @test_broken first(LenticulumCore.scalar_free_energy(s, g, ps, st)) ≈ nlogZ atol = 1e-8
+end

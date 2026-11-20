@@ -2694,6 +2694,16 @@ references:
     start: "251"
     end: "257"
     doi: "10.1016/0893-6080(91)90009-T"
+  - type: conference-paper
+    title: "Glow: Generative Flow with Invertible 1x1 Convolutions"
+    authors:
+      - family-names: "Kingma"
+        given-names: "Diederik P."
+      - family-names: "Dhariwal"
+        given-names: "Prafulla"
+    year: 2018
+    collection-title: "Advances in Neural Information Processing Systems (NeurIPS)"
+    url: "https://arxiv.org/abs/1807.03039"
   - type: article
     title: "Constructing Free-Energy Approximations and Generalized Belief Propagation Algorithms"
     authors:

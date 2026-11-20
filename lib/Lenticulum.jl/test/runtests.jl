@@ -1321,6 +1321,7 @@ include("hard_free_energy.jl")
 include("hard_gradient.jl")
 include("hard_inputs.jl")
 include("split.jl")
+include("scale_shift.jl")
 
 include("p34_output_coeff.jl")
 
