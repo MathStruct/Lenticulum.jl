@@ -588,9 +588,8 @@ The gradient columns were not measured "before" at 4 801 factors.
   `_key_node` per key) and the graph adjoint still read by name.
 - The cold paths (`cluster`, `cluster_batch`, `sampling`, `em`, Lenticulum's `switching.jl`)
   still read by name too.
-- Zygote's backward pass through the free energy is expected to stay quadratic, since a read from
-  a `NamedTuple` gives a cotangent with an entry for every key. This is not measured
-  ([[Feature Backlog]], I16).
+- Zygote's backward pass through the free energy stayed quadratic; measured and fixed in I16
+  ("The backward pass by key" below).
 
 **Difficulties.**
 - The timing test is slow to compile: a graph with 4 000 keys gives `NamedTuple` types of 4 000
@@ -602,6 +601,91 @@ The gradient columns were not measured "before" at 4 801 factors.
 checks of the semantics, of plates with state and of AD all passed when run again. It found one
 defect: `parameter_step` refused an optimiser state given as a `Dict`, which the old code accepted.
 That is fixed, with a test. Its suspicion of a per-key scan of the energy rows was not reproduced.
+
+## The backward pass by key (I16, 2026-11-20)
+
+**The cost.** Zygote's pullback of a read from a container builds a cotangent with the container's
+shape: reading one subtree of `ps` (by name or by position) gives a `NamedTuple` with an entry for
+every key, and reading one message of the store gives a vector as long as the store. The free energy
+read `ps` once per factor, and the store once per factor and once per variable, so the cotangents
+were added up as O(factors × keys) and O(nodes × edges). The I5 positions did not help: they make the
+forward read cheap, not its cotangent. A profile at 481 factors put half the backward time in the
+pullback of `messages_into`, not of `ps`; the fix of the `ps` reads alone (the first version)
+was 1.3× faster at 121 factors and still grew 3.4–3.9× per doubling.
+
+**What is done.** Every container is read once, for all nodes, and each node's term is computed in
+a `map` over the per-node pieces, so Zygote's map pullback hands each node's cotangent back without
+widening it:
+
+- `_subtrees(ps, nodes)` (`passing.jl`) gives each node's parameter subtree. Its `rrule`
+  (`MyceliumChainRulesCoreExt`) adds the nodes' cotangents per key (tied nodes share one) and builds
+  the tree's cotangent once, as a `Tangent` of the caller's `NamedTuple` (its key order); a key no
+  node read gets `ZeroTangent`.
+- `_states(st, nodes)` does the same for the state, with the same rule.
+- `_local_stores(s, reads)` (`free_energy.jl`) gives each node a `_LocalStore`: the messages it reads
+  (`_EdgeSlice`, the edges' global numbers and their messages) and the pins of its variables. A
+  belief-propagation node reads its incoming messages, a mean-field node the to-variable messages of
+  its variables, a variable its own (none for a variable of degree 1, whose term is zero). The per-node
+  code is unchanged (`messages_into`, `marginals_into`, `marginal`, `_hard_overlap` read
+  `s.to_variable[ei]` and `_pin` on either store). The `rrule` scatters each node's cotangent of its
+  messages back to their edges and returns one cotangent of the store, so the gradient through the
+  messages of a store built inside AD is kept (scratch check against ForwardDiff, scaled messages of a
+  4-step chain). Only the messages go through the rule (`_local_messages`); the pins are read by plain
+  code (`_local_pins`), since Zygote keeps a `Dict`'s cotangent in its own context, out of an `rrule`'s
+  reach: a pin set inside AD lost its gradient when the rule read them ([[LP-073 Findings of the review of I16]]).
+- `scalar_free_energy` adds the factor terms and the variable terms with `_sum_onto(total, map(...))`,
+  from the left as the loops did (a pairwise `sum` changed Float32 values, LP-073), with a rule that
+  hands every term the sum's cotangent: a loop that indexes the vector of terms gave a cotangent as long
+  as the vector per index.
+
+Moving `_hard_overlap`'s reads of `g` outside AD did not help (more allocation, not less); it was
+reverted.
+
+**Measured.** `bench/zygote_scaling.jl` (Zygote's gradient of the free energy at fixed messages on
+the chain of `state_scaling.jl`; best of 3; the first call is the compilation of the pullback for a
+new type of `ps`, one field per factor). Before and after, the same script on the same machine, the
+final code after the review's fixes (`~/.cache/lenticulum/i16/bench-{old,final}.log`):
+
+| factors | F before (ms) | F (ms) | gradient before (ms) | gradient (ms) | allocated before (MB) | allocated (MB) | first call before (s) | first call (s) |
+|---|---|---|---|---|---|---|---|---|
+| 61 | 0.37 | 0.36 | 34.1 | 17.9 | 15.3 | 8.4 | 36.2 | 25.8 |
+| 121 | 0.63 | 0.63 | 87.2 | 35.1 | 40.8 | 17.2 | 23.0 | 2.5 |
+| 241 | 1.27 | 1.18 | 252.9 | 68.3 | 124.3 | 36.6 | 75.7 | 7.2 |
+| 481 | 2.33 | 2.22 | 851.0 | 135.4 | 417.8 | 82.2 | 388.6 | 25.1 |
+| 961 | 4.63 | 4.26 | 3110.6 | 286.4 | 1561.6 | 202.1 | 2725.0 | 66.2 |
+
+The gradient's time now grows 1.9–2.1× per doubling, against 2.6–3.7× before; at 961 factors it is 10.9
+times faster, and its compilation 41 times. The free energy without AD is not slower: 3.72 against 3.66 ms at 961 factors and 19.1
+against 19.1 ms at 4 801 (a scratch script, best of 20, `../Lenticulum.jl-Review-2026-11-20/i16/ftime.jl`).
+Three things had made it slower on the way: a pin vector built per node (25%; a store without pins now
+gives every node one empty vector), `map` in place of typed comprehensions (1.8×: vectors of varying
+element types; `map` is kept only where no rule applies, since Zygote cannot go through a typed
+comprehension), and `_subtrees` specialised on the type of `ps`, a `NamedTuple` of one field per factor
+(2×; it is `@nospecialize` again). The first row's first
+call includes loading Zygote. A scratch run before the review's fixes, at 1 921 factors, took 651 ms and
+557 MB against 10.1 s and 4.7 GB for the first version, which fixed only `ps`. The allocations still
+grow 2.0–2.5× per doubling (2.7× to 1 921 factors): an allocation profile at 481 and 961 factors put the
+rest in Zygote's conversions of the cotangent of `ps` at each function boundary (`unbuffer`,
+`wrap_chainrules_output`, a `map` over a tuple with one entry per key), once per call, not per node; not
+examined further.
+
+**Tests.** `lib/Lenticulum.jl/test/zygote_keys.jl`, written by Codex from a specification without the
+implementation, and the regression tests of the review (LP-073: a pin set inside AD, summation order in
+Float32 and under ForwardDiff, a state with one field per factor, the cotangent forms the rule takes): Zygote against ForwardDiff and a finite difference on 20 random chains and trees,
+tied keys as the sum of the untied ones, extra, empty and frozen keys, shuffled key order, a missing
+key, one factor, plate block rows, and the allocations of one gradient at 32 and 128 steps of the chain
+(less than 8× at 4× the steps). On the code before, the last failed (9.5×); now 4.6×.
+
+**What it does not do.**
+- At a variable of high degree $d$ a node's reads of its own $d$ messages give cotangents of length $d$
+  each, O(d²) (it was O(d × edges)); mean-field factors at a hub each compute the hub's marginal, O(d²)
+  already in the forward pass (LP-073, finding 4: 11.2 → 40.7 MB backward for a hub of degree 512 → 1 024).
+- The store with plate block rows (`_factor_terms_rows`) still reads `ps` per node for the nodes outside
+  its rows, through a buffer; its rows go through the `rrule` of `_row_scalar_energy`. Not measured.
+- The compilation of the pullback still grows with the number of keys (66 s at 961 factors): every new
+  type of `ps` compiles anew ([[Feature Backlog]], I1).
+- The coupled gradient drivers and the graph adjoint (I17) still read by name. `factor_free_energies`
+  shares `_factor_terms` and so its factor reads; its graded result was not measured under Zygote.
 
 ## Exactness checked at run time (P13, 2026-11-16)
 

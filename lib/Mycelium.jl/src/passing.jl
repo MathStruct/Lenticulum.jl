@@ -429,6 +429,17 @@ _slot(t::_IndexedTree, name::Symbol) = get(t.pos, name, 0)
 _subtree(t::_IndexedTree, name::Symbol) = (i = _slot(t, name); i == 0 ? NamedTuple() : getfield(t.tree, i))
 _stored(t::_IndexedTree, name::Symbol) = (i = _slot(t, name); i == 0 ? nothing : getfield(t.tree, i))
 
+# Each node's parameter subtree, `nodes[j]`'s at `j`, read in one pass (I16). What reverse-mode AD
+# differentiates instead of one `_subtree` per node: Zygote's pullback of a read from a `NamedTuple`
+# builds a cotangent with an entry for every key, and the reads' cotangents are added up, so one read
+# per node made the backward pass O(nodes × keys). The `rrule` (`MyceliumChainRulesCoreExt`) adds the
+# nodes' cotangents per key and builds the tree's cotangent once: O(nodes + keys).
+_subtrees(@nospecialize(ps::NamedTuple), nodes) = (psi = _indexed(ps); Any[_subtree(psi, f.params) for f in nodes])
+_subtrees(@nospecialize(ps), nodes) = map(f -> _subtree(ps, f.params), nodes)   # no rule: `map` (`free_energy.jl`, `_local_messages`)
+# The same for the state: each node's stored state, `nothing` for a missing key (`_stored`).
+_states(@nospecialize(st::NamedTuple), nodes) = (sti = _indexed(st); Any[_stored(sti, f.params) for f in nodes])
+_states(@nospecialize(st), nodes) = map(f -> _stored(st, f.params), nodes)
+
 # The state a sweep threads, written in place. The values are copied out of the tree at the first
 # write only, so a stateless sweep returns the tree it was given (`===`); a missing key is
 # appended, as `merge` appended it. Not for code differentiated by Zygote (it mutates).

@@ -31,6 +31,100 @@ ChainRulesCore.@non_differentiable Mycelium._slot(t, name)
 ChainRulesCore.@non_differentiable Mycelium._state_writes(g, results)
 ChainRulesCore.@non_differentiable Mycelium._key_groups(g)
 
+# Each node's parameter subtree in one pass (I16, `passing.md` "The backward pass by key"): the
+# nodes' cotangents are added per key (tied nodes share one) and the tree's cotangent is built once,
+# O(nodes + keys), where a pullback per read gave a cotangent with every key per node.
+ChainRulesCore.rrule(::typeof(Mycelium._subtrees), ps::NamedTuple, nodes) = _by_key_rrule(ps, nodes, NamedTuple())
+ChainRulesCore.rrule(::typeof(Mycelium._states), st::NamedTuple, nodes) = _by_key_rrule(st, nodes, nothing)
+function _by_key_rrule(ps::NamedTuple, nodes, absent)
+    pos = Mycelium._keypositions(ps)
+    slots = Int[get(pos, f.params, 0) for f in nodes]
+    y = Any[i == 0 ? absent : getfield(ps, i) for i in slots]
+    function subtrees_pullback(Δ)
+        Δ = ChainRulesCore.unthunk(Δ)
+        nt = ChainRulesCore.NoTangent()
+        _iszero(Δ) && return (nt, ChainRulesCore.ZeroTangent(), nt)
+        acc = Vector{Any}(nothing, length(ps))
+        for (j, i) in enumerate(slots)
+            i == 0 && continue
+            acc[i] = _acc(acc[i], ChainRulesCore.unthunk(Δ[j]))
+        end
+        all(isnothing, acc) && return (nt, ChainRulesCore.ZeroTangent(), nt)
+        vals = map(a -> a === nothing ? ChainRulesCore.ZeroTangent() : a, acc)
+        back = NamedTuple{keys(ps)}(Tuple(vals))
+        return (nt, ChainRulesCore.Tangent{typeof(ps),typeof(back)}(back), nt)
+    end
+    return y, subtrees_pullback
+end
+ChainRulesCore.@non_differentiable Mycelium._node_reads(g, nodes)
+ChainRulesCore.@non_differentiable Mycelium._variable_reads_of(g, vs)
+ChainRulesCore.@non_differentiable Mycelium._remaining_variables(g, done)
+ChainRulesCore.@non_differentiable Mycelium._slice_slot(edges, ei)
+ChainRulesCore.@non_differentiable Mycelium._slot_of(v, x)
+ChainRulesCore.@non_differentiable Mycelium._has_pins(s)
+ChainRulesCore.@non_differentiable Mycelium._no_pins(reads)
+
+# A sum from the left (`_sum_onto`): every term and the start get the sum's cotangent.
+function ChainRulesCore.rrule(::typeof(Mycelium._sum_onto), acc, terms)
+    sum_pullback(Δ) = (ChainRulesCore.NoTangent(), ChainRulesCore.unthunk(Δ), _fill_like(terms, ChainRulesCore.unthunk(Δ)))
+    return Mycelium._sum_onto(acc, terms), sum_pullback
+end
+_fill_like(terms, Δ) = _iszero(Δ) ? ChainRulesCore.ZeroTangent() : Any[Δ for _ in terms]
+
+# The store's messages read once, per node a pair of slices (I16, `free_energy.jl`): each node's
+# cotangent of the messages it read is added into the store's cotangent by edge, O(edges + reads),
+# where a pullback per read gave a cotangent as long as the store. The pins are read outside.
+function ChainRulesCore.rrule(::typeof(Mycelium._local_messages), s::Mycelium.MessageStore, reads)
+    y = Mycelium._local_messages(s, reads)
+    nt = ChainRulesCore.NoTangent()
+    function local_messages_pullback(Δ)
+        Δ = ChainRulesCore.unthunk(Δ)
+        _iszero(Δ) && return (nt, ChainRulesCore.ZeroTangent(), nt)
+        dtv = Vector{Any}(nothing, length(s.to_variable)); dtf = Vector{Any}(nothing, length(s.to_factor))
+        for (j, (tf, tv, _)) in enumerate(reads)
+            dj = ChainRulesCore.unthunk(Δ[j])
+            _iszero(dj) && continue
+            _scatter!(dtv, tv, ChainRulesCore.unthunk(dj[1]))
+            _scatter!(dtf, tf, ChainRulesCore.unthunk(dj[2]))
+        end
+        all(isnothing, dtv) && all(isnothing, dtf) && return (nt, ChainRulesCore.ZeroTangent(), nt)
+        fill0(d) = all(isnothing, d) ? ChainRulesCore.ZeroTangent() : d
+        back = (to_variable = fill0(dtv), to_factor = fill0(dtf), iteration = nt, pins = nt)
+        return (nt, ChainRulesCore.Tangent{typeof(s),typeof(back)}(back), nt)
+    end
+    return y, local_messages_pullback
+end
+_field(Δ, name) = _iszero(Δ) ? nothing : Δ isa NamedTuple ? get(Δ, name, nothing) : getproperty(Δ, name)
+# A slice's cotangent: its `msgs`, one entry per edge of `edges`, added into `d` by edge.
+function _scatter!(d, edges, Δslice)
+    _iszero(Δslice) && return d
+    dm = ChainRulesCore.unthunk(_field(ChainRulesCore.unthunk(Δslice), :msgs))
+    _iszero(dm) && return d
+    for (j, e) in enumerate(edges)
+        d[e] = _acc(d[e], ChainRulesCore.unthunk(dm[j]))
+    end
+    return d
+end
+
+# The sum of two cotangents of one subtree or message, in whichever form the AD hands them over: a
+# structural `Tangent` is read as its `NamedTuple`, and `NamedTuple`s that name different fields
+# (Zygote leaves out fields it has no cotangent for) are added field by field over the union.
+_iszero(x) = x === nothing || x isa ChainRulesCore.AbstractZero
+function _acc(a, b)
+    a, b = ChainRulesCore.unthunk(a), ChainRulesCore.unthunk(b)
+    _iszero(b) && return a
+    _iszero(a) && return b
+    a, b = _structural(a), _structural(b)
+    if a isa NamedTuple && b isa NamedTuple
+        ks = (keys(a)..., filter(k -> !haskey(a, k), keys(b))...)
+        return NamedTuple{ks}(map(k -> _acc(get(a, k, nothing), get(b, k, nothing)), ks))
+    end
+    a isa Tuple && b isa Tuple && return map(_acc, a, b)
+    return a + b
+end
+_structural(x::ChainRulesCore.Tangent) = (y = ChainRulesCore.backing(x); y isa NamedTuple || y isa Tuple ? y : x)
+_structural(x) = x
+
 # A store built from message vectors inside AD (`_functional_infer`) wraps them in `EdgeMessages`
 # without block rows; its gradient is that of the wrapped vector (`blocks.md`). Indexing such a
 # store reads `msgs` directly, and `similar` of it is a plain `Vector`, so the tangent of the

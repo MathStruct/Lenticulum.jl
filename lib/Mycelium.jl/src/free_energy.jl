@@ -140,12 +140,16 @@ function _factor_terms(s::AbstractMessageStore, g::FactorGraph, @nospecialize(ps
     # reads the original tree, so for a key that may be shared (`params` other than the factor's
     # name) the last factor writes, changed or not, as before. The trees are read by position
     # (`passing.md`, "The trees by position").
-    psi, sti = _indexed(ps), _indexed(st)
-    results = map(_factor_nodes(g)) do f
-        psf = _factor_parameters(f, _subtree(psi, f.params))
-        stf0 = _stored(sti, f.params); stf = something(stf0, NamedTuple())
-        Ff, stnew = f.rule isa MeanField ? mean_field_energy(f.factor, marginals_into(s, g, f.id), psf, stf) :
-                    local_free_energy(f.factor, messages_into(s, g, f.id), psf, stf)
+    # `ps` is read once for all nodes (`_subtrees`), so that Zygote's backward pass stays linear (I16).
+    nodes = _factor_nodes(g)
+    # So are the state (`_states`; one field per stateful node was quadratic, review of I16, Codex
+    # finding 3) and the store (`_local_stores`).
+    locals = _local_stores(s, _node_reads(g, nodes))
+    results = map(nodes, _subtrees(ps, nodes), _states(st, nodes), locals) do f, pst, stf0, sl
+        psf = _factor_parameters(f, pst)
+        stf = something(stf0, NamedTuple())
+        Ff, stnew = f.rule isa MeanField ? mean_field_energy(f.factor, marginals_into(sl, g, f.id), psf, stf) :
+                    local_free_energy(f.factor, messages_into(sl, g, f.id), psf, stf)
         (Ff, stnew, stf0)
     end
     return map(first, results), _written_states(g, st, results)
@@ -468,6 +472,83 @@ function marginals_into(s::AbstractMessageStore, g::FactorGraph, fid::Int)
     return NamedTuple{chans}(Tuple(marginal(s, g, g.edges[ei].variable) for ei in g.edges_of_factor[fid]))
 end
 
+# --- The store read once per node (I16; `passing.md`, "The backward pass by key") ---------------
+#
+# Under Zygote, a read of one message from the store gives a cotangent as long as the store, and
+# the reads of all nodes are added up: O(nodes × edges). The free energy therefore reads the store
+# once, into a small store per node holding only the messages that node reads (`_local_stores`),
+# and each node's term is computed from its own; the `rrule` (`MyceliumChainRulesCoreExt`) writes
+# the nodes' cotangents back into one cotangent of the store, O(edges). The per-node code
+# (`messages_into`, `marginals_into`, `marginal`, `_hard_overlap`) is the same code on either store.
+
+# Some messages of one direction, `msgs[j]` the message of edge `edges[j]` (or `nothing`).
+struct _EdgeSlice{V<:AbstractVector}
+    edges::Vector{Int}
+    msgs::V
+end
+Base.getindex(sl::_EdgeSlice, ei::Int) = sl.msgs[_slice_slot(sl.edges, ei)]
+function _slice_slot(edges::Vector{Int}, ei::Int)
+    j = findfirst(==(ei), edges)
+    j === nothing && throw(ArgumentError("edge $ei is not in this node's local store"))
+    return j
+end
+
+# The messages one node reads, and the pins of its variables (`pins[k]` that of `vids[k]`, or `nothing`).
+struct _LocalStore{A<:_EdgeSlice,B<:_EdgeSlice,P<:AbstractVector} <: AbstractMessageStore
+    to_variable::A
+    to_factor::B
+    vids::Vector{Int}
+    pins::P
+end
+_pin(s::_LocalStore, vid::Int) = (k = isempty(s.pins) ? 0 : _slot_of(s.vids, vid); k == 0 ? nothing : s.pins[k])
+_slot_of(v::Vector{Int}, x::Int) = something(findfirst(==(x), v), 0)
+
+# What each node reads: (edges read to the factor, edges read to the variable, variables whose pin is
+# read). A belief-propagation node reads its incoming messages; a mean-field node the marginals of
+# its variables; a variable its marginal and its incoming messages.
+function _factor_reads(g, f)
+    f.rule isa MeanField || return (g.edges_of_factor[f.id], Int[], Int[])
+    vids = unique!([g.edges[ei].variable for ei in g.edges_of_factor[f.id]])
+    return (Int[], reduce(vcat, (g.edges_of_variable[v] for v in vids); init = Int[]), vids)
+end
+# A variable of degree 1 counts 0 and reads nothing (`_variable_term`).
+_variable_reads(g, v) = counting_number(g, v.id) == 0 ? (Int[], Int[], Int[]) : (Int[], g.edges_of_variable[v.id], [v.id])
+_node_reads(g, nodes) = [_factor_reads(g, f) for f in nodes]
+_variable_reads_of(g, vs) = [_variable_reads(g, v) for v in vs]
+_remaining_variables(g, done) = [v for v in g.variables if !done[v.id]]
+
+# One local store per read, `reads[j] = (to_factor edges, to_variable edges, vids)`. The messages go
+# through `_local_messages`, whose `rrule` scatters their cotangents back; the pins are read here, by
+# code Zygote differentiates itself: it keeps a `Dict`'s cotangent in its own context, out of reach of
+# an `rrule` (a pin set inside AD lost its gradient otherwise; review of I16, Codex finding 1).
+_local_stores(s::AbstractMessageStore, reads) =
+    map((m, p, r) -> _LocalStore(m[1], m[2], r[3], p), _local_messages(s, reads), _local_pins(s, reads), reads)
+_local_messages(s::MessageStore, reads) =
+    Any[(_EdgeSlice(tv, Any[s.to_variable[e] for e in tv]), _EdgeSlice(tf, Any[s.to_factor[e] for e in tf]))
+        for (tf, tv, _) in reads]
+# Where no rule applies (another store here, a tree other than a `NamedTuple` in `_subtrees` and
+# `_states`), Zygote differentiates the code itself, which it can through `map` but not through a typed
+# comprehension (it writes). The typed forms are kept where a rule applies: `map` gives vectors of
+# varying element types, and the free energy without AD took 1.8 times as long.
+_local_messages(s::AbstractMessageStore, reads) =
+    map(r -> (_EdgeSlice(r[2], map(e -> s.to_variable[e], r[2])), _EdgeSlice(r[1], map(e -> s.to_factor[e], r[1]))), reads)
+# `map`: a typed comprehension writes, which Zygote refuses. A store without pins (the usual case) gives
+# every node the same empty vector, which `_pin` reads as no pin.
+_local_pins(s::AbstractMessageStore, reads) = _has_pins(s) ? map(r -> map(v -> _pin(s, v), r[3]), reads) : _no_pins(reads)
+_has_pins(s::MessageStore) = !isempty(s.pins)
+_has_pins(s::AbstractMessageStore) = true
+_no_pins(reads) = (none = Any[]; Any[none for _ in reads])
+
+# `acc + terms[1] + terms[2] + …` from the left, as the loops it replaces added them (`sum` is
+# pairwise and changed Float32 values; review of I16, Codex finding 2). Its `rrule` hands each term
+# the cotangent of the sum: a loop that indexes `terms` gave a cotangent as long as `terms` per index.
+function _sum_onto(acc, terms)
+    for t in terms
+        acc += t
+    end
+    return acc
+end
+
 """
     variable_free_energy(belief) -> Real
 
@@ -654,9 +735,10 @@ function LenticulumCore.scalar_free_energy(s::MessageStore, g::FactorGraph, @nos
     total = false                                 # the strong zero: the sum keeps the terms' type (P8)
     if isempty(rows)
         F, st = _factor_terms(s, g, ps, st)
-        for (f, Ff) in zip(g.factors, F)
-            total += LenticulumCore.scalarise(LenticulumCore.scalarisation(f.factor), Ff)
-        end
+        # `map` and `_sum_onto`, not a loop indexing `F`: under Zygote each index gave a cotangent as
+        # long as `F` (I16).
+        total = _sum_onto(total, map((f, Ff) -> LenticulumCore.scalarise(LenticulumCore.scalarisation(f.factor), Ff),
+                                     _factor_nodes(g), F))
     else
         _check_energy_edges(g)
         _check_tied_state(g, st)
@@ -664,10 +746,9 @@ function LenticulumCore.scalar_free_energy(s::MessageStore, g::FactorGraph, @nos
     end
     vtotal, done = _variable_terms_rows(s, g)
     total += vtotal
-    for v in g.variables
-        done[v.id] && continue
-        total += _variable_term(s, g, v.id)
-    end
+    # Each variable reads its own local store, and the terms are summed by `map` (I16).
+    vs = _remaining_variables(g, done)
+    total = _sum_onto(total, map((v, sl) -> _variable_term(sl, g, v.id), vs, _local_stores(s, _variable_reads_of(g, vs))))
     return float(total), st                       # a graph of exact zeros only gives 0.0, not `false`
 end
 

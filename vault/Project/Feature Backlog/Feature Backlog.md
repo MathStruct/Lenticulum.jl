@@ -57,7 +57,6 @@ graph LR
   O3 --> O1
   O1 --> O5[O5 parameters on demand]
   I5[I5 integer-slot<br/>store, done] --> O5
-  I5 --> I16[I16 linear Zygote<br/>backward]
   S2[S2 moves and<br/>warm starts] --> S7[S7 structure-search<br/>driver]
   S6[S6 scores<br/>beyond BIC] --> S7
   L7[L7 train!] --> L12[L12 learned optimisers]

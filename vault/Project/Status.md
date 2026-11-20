@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-20, after I4 (the priority queue of `ResidualSchedule`; review [[LP-072 Findings of the review of I4]]), committed on `dev-danielb`, not pushed. Before it I26 (the Bethe free energy where exact messages meet at a variable), U3 (`ScaleShiftFactor`), U2 (`SplitFactor`, pushed with P10, P36 and P35), P15, P34, P12 and P33.
+**Last updated:** 2026-11-20, after I16 (Zygote's gradient of the free energy linear in the keys; review [[LP-073 Findings of the review of I16]]), committed on `dev-danielb`, not pushed. Before it I4 (the priority queue of `ResidualSchedule`), I26, U3, U2 (pushed with P10, P36 and P35), P15, P34, P12 and P33.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
 | `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
-| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/i4-review` | at `9b5e07e8` with the I4 diff applied uncommitted (the review's probes in `scratch/i4r/`, copied to `../Lenticulum.jl-Review-2026-11-20/i4/codex-probes/`; `scratch/i4r/env` develops this worktree's packages, `JULIA_DEPOT_PATH=/tmp/i4-depot:$HOME/.julia:` under the sandbox). The I26 state is in `git stash` ("I26 state (before I4 review)"), U3's and U2's below it. Reset it before the next Codex package |
+| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/i16-review` | at `22525936` with the reviewed I16 diff applied uncommitted (`I16.diff`; probes in `scratch/i16r/`, copied to `../Lenticulum.jl-Review-2026-11-20/i16/codex-probes/`; `scratch/i16r/env` develops this worktree's packages, run with `JULIA_DEPOT_PATH=$PWD/scratch/i16r/depot:$HOME/.julia:`). The I4 review state is in `git stash` ("I4 review state (before I16 review)"), I26's, U3's and U2's below it; I4's untracked files were moved to `scratch/i4-untracked/`. Codex's sandbox cannot stash or check out (read-only git index): the session does that. Reset it before the next Codex package |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `27de58f1` with the first I26 diff applied (its probes in `scratch/i26/`, copied to `../Lenticulum.jl-Review-2026-11-20/i26/mistral-probes/`; the U3 state in `git stash`, "U3 state (before I26)", whose untracked `scratch/` was restored into the worktree); the test environments of LenticulumCore, Mycelium and MyceliumLearning instantiated (`--project=lib/<Pkg>.jl/test` serves probes); `scratch/p6env` serves any review, and `~/.cache/lenticulum/env-p29` serves as the old code for a bit-for-bit comparison. Before the next review: reset to the commit under review, then apply its diff. `git stash -u` takes `scratch/` with it: stash without `-u`, or restore it with `git checkout 'stash@{0}^3' -- scratch` |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
@@ -28,6 +28,15 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **I16** (2026-11-20, chosen by the session: a medium row that asked for a measurement first): the graph
+  free energy reads `ps`, the state and the message store once for all nodes, and ChainRulesCore rules add
+  the nodes' cotangents per key and per edge (`_subtrees`, `_states`, `_local_stores`, `_sum_onto`;
+  `lib/Mycelium.jl/src/passing.md`, "The backward pass by key"). Measured first: the reads of the store,
+  not of `ps`, were half the backward time. `bench/zygote_scaling.jl` at 961 factors: gradient 3.11 s → 286 ms,
+  1.56 GB → 203 MB, Zygote's compilation 45 min → 66 s; linear per doubling; the plain free energy no
+  slower. Tests by Codex from the specification (`lib/Lenticulum.jl/test/zygote_keys.jl`); review LP-073
+  (Codex: four defects fixed with regression tests, one limit). All seven suites that depend on Mycelium
+  passed (`~/.cache/lenticulum/i16/final4/`). Not run: the docs builds, device tests, the full smoke runner.
 - **I4** (2026-11-20, chosen by the session: a medium row that wanted a benchmark): `ResidualSchedule`'s
   sweep keeps the residuals in an indexed heap and, after a commit, probes only the tasks that read the
   committed message (`_dependents!`, `lib/Mycelium.jl/src/passing.jl`; `passing.md`, "The residual
@@ -81,7 +90,7 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Next
 
-No row is set; pick one with the maintainer. Open after I4: keep the residual heap between sweeps (its
+No row is set; pick one with the maintainer. Open after I16: I17 (the coupled gradient drivers and the graph adjoint, expected quadratic for the same reason; `bench/zygote_scaling.jl` is the model for measuring it); Zygote's compilation still grows with the keys (66 s at 961 factors, I1); the block-row path's nodes outside rows still read `ps` per node; O(degree²) at a hub (LP-073). Open after I4: keep the residual heap between sweeps (its
 first probe of every task is a third of a sweep's cost; needs to know when the store changed outside a
 sweep); I24's `_max_pending` still scans every task; the residual schedule's means are further from the
 dense solve than flooding's at the same message tolerance (4e-9 against 1e-10 on the grids; the schedule's,
