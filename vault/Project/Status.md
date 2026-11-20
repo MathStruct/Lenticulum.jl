@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-20, after I26 (the Bethe free energy where exact messages meet at a variable; review [[LP-071 Findings of the review of I26]]), committed on `dev-danielb`, not pushed. Before it U3 (`ScaleShiftFactor`), U2 (`SplitFactor`, pushed with P10, P36 and P35), P15, P34, P12 and P33.
+**Last updated:** 2026-11-20, after I4 (the priority queue of `ResidualSchedule`; review [[LP-072 Findings of the review of I4]]), committed on `dev-danielb`, not pushed. Before it I26 (the Bethe free energy where exact messages meet at a variable), U3 (`ScaleShiftFactor`), U2 (`SplitFactor`, pushed with P10, P36 and P35), P15, P34, P12 and P33.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
 | `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
-| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/i26-tests` | at `27de58f1` with the first I26 diff and its tests applied uncommitted (the review's probes in `scratch/i26r/`, copied to `../Lenticulum.jl-Review-2026-11-20/i26/codex-probes/`; `scratch/i26env` develops this worktree's packages and needs `JULIA_DEPOT_PATH=/tmp/i26-depot:$HOME/.julia:` under the sandbox). The U3 state is in `git stash` ("U3 state (before I26)"), U2's below it. Reset it before the next Codex package |
+| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/i4-review` | at `9b5e07e8` with the I4 diff applied uncommitted (the review's probes in `scratch/i4r/`, copied to `../Lenticulum.jl-Review-2026-11-20/i4/codex-probes/`; `scratch/i4r/env` develops this worktree's packages, `JULIA_DEPOT_PATH=/tmp/i4-depot:$HOME/.julia:` under the sandbox). The I26 state is in `git stash` ("I26 state (before I4 review)"), U3's and U2's below it. Reset it before the next Codex package |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `27de58f1` with the first I26 diff applied (its probes in `scratch/i26/`, copied to `../Lenticulum.jl-Review-2026-11-20/i26/mistral-probes/`; the U3 state in `git stash`, "U3 state (before I26)", whose untracked `scratch/` was restored into the worktree); the test environments of LenticulumCore, Mycelium and MyceliumLearning instantiated (`--project=lib/<Pkg>.jl/test` serves probes); `scratch/p6env` serves any review, and `~/.cache/lenticulum/env-p29` serves as the old code for a bit-for-bit comparison. Before the next review: reset to the commit under review, then apply its diff. `git stash -u` takes `scratch/` with it: stash without `-u`, or restore it with `git checkout 'stash@{0}^3' -- scratch` |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
@@ -28,6 +28,19 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **I4** (2026-11-20, chosen by the session: a medium row that wanted a benchmark): `ResidualSchedule`'s
+  sweep keeps the residuals in an indexed heap and, after a commit, probes only the tasks that read the
+  committed message (`_dependents!`, `lib/Mycelium.jl/src/passing.jl`; `passing.md`, "The residual
+  schedule's queue"). The same commits as the old full scan, bit for bit (kept as `_residual_sweep_scan!`;
+  `lib/Lenticulum.jl/test/residual_queue.jl` compares them on random loopy graphs, and fails when any
+  dependency rule is removed). A factor is taken not to read the target's cavity only if it declares
+  `exact_messages` (`message_uses_cavity` defaults to `false` and `DEQFactor`/`DiffusionFactor` read it
+  undeclared). Measured, `bench/residual_queue.jl`: a sweep 19×–261× faster than the scan (3 × 3 to 10 × 10
+  grids), $3.3\,T$ evaluations instead of $T^2$; to convergence 0.46–0.89 of flooding's evaluations, on the
+  divider 0.23–0.30 against 2.1 (`bench/bp_schedules.jl`, its residual row now counted from the record).
+  Review LP-072 (Codex, nine probes: three defects fixed with regression tests, one accepted, extra probes
+  reduced). All seven suites that depend on Mycelium passed (`~/.cache/lenticulum/i4/final/`). Smoke runs of both
+  benchmarks passed. Not run: the docs builds, device tests, the full smoke runner.
 - **I26** (2026-11-20, the open high row): where $p \ge 2$ exact messages meet at a variable, the variable's
   term adds $-\tfrac12[(p-1)\log\det G - \sum_i\log\det G_{-i}]$, $G$ the Gram matrix of their hard bases
   (`_hard_overlap` in `lib/Mycelium.jl/src/free_energy.jl`; derivation in `free_energy.md`, "Exact messages that
@@ -68,7 +81,11 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Next
 
-No row is set; pick one with the maintainer. Section P has P14 (shared solver layer, large: design first) and P16 (owned scalarisations:
+No row is set; pick one with the maintainer. Open after I4: keep the residual heap between sweeps (its
+first probe of every task is a third of a sweep's cost; needs to know when the store changed outside a
+sweep); I24's `_max_pending` still scans every task; the residual schedule's means are further from the
+dense solve than flooding's at the same message tolerance (4e-9 against 1e-10 on the grids; the schedule's,
+not examined). Section P has P14 (shared solver layer, large: design first) and P16 (owned scalarisations:
 design first). U5 (permutation, sum, clamp factors; a permutation is now a `SplitFactor`). Open after I26: I27 (the
 gradient drivers do not check that the free energy is finite), I28 (`MeanField()` next to hard directions), mixtures
 with hard components (not counted by the overlap term), a redundant clamp whose zero variance rounds to $-3\cdot10^{-17}$

@@ -10,9 +10,12 @@
 #   loop        in place: the messages off the loop, then once round the loop each way
 #   spanning    in place: the messages off a spanning tree, then the tree's inward and outward
 #               sweeps (`_tree_sweeps` from a variable); needs no knowledge of the loop
-#   residual    `ResidualSchedule`: every candidate evaluated before each commit (18² per sweep)
-#   queue       residual BP with a priority queue (Elidan, McGraw & Koller): after a commit only
-#               the messages that read the committed one are re-evaluated
+#   residual    `ResidualSchedule`: since I4 (2026-11-20) a priority queue in the library: every task
+#               evaluated once per sweep, then after each commit the tasks that read it (counted
+#               from the record); before I4 every candidate was evaluated before each commit (18² per
+#               sweep), which is what the first table of §4.2 measured
+#   queue       the prototype: residual BP with a priority queue (Elidan, McGraw & Koller): after a
+#               commit only the messages that read the committed one are re-evaluated, no per-sweep scan
 #
 # The queue's dependencies are those of belief propagation (a message reads the messages into
 # its source node on the other edges); mean-field and EP nodes read more, and are not covered.
@@ -90,19 +93,36 @@ function dependents(g, t)
 end
 
 # a static schedule: evaluations and sweeps to an error of 1e-10, and the rate per sweep
+# the library residual schedule's evaluations in one sweep: every task, then the dependents of each commit
+function residual_evals(g, rec)
+    ts = Mycelium.all_tasks(g); vix, fix = zeros(Int, nedges(g)), zeros(Int, nedges(g))
+    for (i, t) in enumerate(ts); t.kind === :to_factor ? (fix[t.edge] = i) : (vix[t.edge] = i); end
+    d = Int[]
+    s0 = MessageStore(g)       # no pins: only `_dependents!`'s pin check reads it
+    # no probe after a sweep's last commit
+    return length(ts) + sum(((k, t),) -> k == length(ts) ? 0 : (empty!(d); length(unique!(Mycelium._dependents!(d, s0, g, t, vix, fix)))),
+                            enumerate(rec); init = 0)
+end
+
 function run_static(sched, g, ps, st, xstar, err; cap = (SMOKE ? 40 : 400_000))
-    s = MessageStore(g); e = Float64[]
+    s = MessageStore(g); e = Float64[]; cum = Int[]
+    n = length(tasks(sched isa ResidualSchedule ? flooding_schedule(g) : sched))
     for k in 1:cap
-        sweep!(s, g, sched, ps, st)
+        if sched isa ResidualSchedule
+            rec = MessageTask[]
+            sweep!(s, g, sched, ps, st; record = rec)
+            push!(cum, (isempty(cum) ? 0 : cum[end]) + residual_evals(g, rec))
+        else
+            sweep!(s, g, sched, ps, st)
+            push!(cum, k * n)
+        end
         push!(e, err(getstate(s)))
         e[end] < 1e-12 && break
     end
-    n = length(tasks(sched isa ResidualSchedule ? flooding_schedule(g) : sched))
     k10 = findfirst(<(1e-10), e)
     b = findfirst(<(1e-12), e)
     rate = (b === nothing || b <= 7) ? NaN : (e[b] / e[b-6])^(1 / 6)
-    evals = sched isa ResidualSchedule ? n^2 : n
-    return (; sweeps = k10, evals = k10 === nothing ? nothing : k10 * evals, rate)
+    return (; sweeps = k10, evals = k10 === nothing ? nothing : cum[k10], rate)
 end
 
 # residual BP with a priority queue; one "sweep" here is as many commits as there are tasks
@@ -163,4 +183,4 @@ end
 study(2.0, 3.0)                 # the test's divider
 study(1.0, 3.0)
 study(3.0, 2.0)
-study(2.0, 2.0; slow = false)   # equal resistors: ρ⁶ = 0.99905 for flooding
+study(2.0, 2.0)                 # equal resistors: ρ⁶ = 0.99905 for flooding

@@ -526,8 +526,165 @@ function _task_age(s::MessageStore, t::MessageTask)
     return m === nothing ? -1 : m.iteration
 end
 
+# --- The residual schedule's priority queue (I4; `passing.md`, "The residual schedule's queue") ---
+#
+# A sweep probes every task once, then commits the task of largest residual, the oldest message
+# among equal residuals, the first task in `all_tasks` order among equal ages (the order the full
+# scan chose by), and re-probes only the tasks whose message reads the committed one. The residuals
+# are then those a full scan would compute, so the commits are the same, at O(degree) evaluations
+# per commit instead of O(tasks).
+
+# An indexed binary max-heap over task indices; a key of -1 marks a task that cannot be chosen (a
+# skipped update, or a NaN residual, which the full scan never chose either). The keys are `Float64`,
+# or `Real` when a residual of another type appears (a `BigFloat`, say): converting it would merge
+# residuals the scan tells apart, or round one to 0 (LP-072 F2).
+struct _TaskHeap{R<:Real}
+    res::Vector{R}
+    age::Vector{Int}
+    heap::Vector{Int}
+    pos::Vector{Int}
+end
+function _TaskHeap(res::AbstractVector, age::Vector{Int})
+    n = length(res)
+    keys = all(r -> r isa Float64, res) ? Vector{Float64}(res) : Vector{Real}(res)
+    h = _TaskHeap(keys, age, collect(1:n), collect(1:n))
+    for i in n ÷ 2:-1:1; _sift_down!(h, i); end
+    return h
+end
+@inline _before(h::_TaskHeap, i::Int, j::Int) =
+    h.res[i] > h.res[j] || (h.res[i] == h.res[j] && (h.age[i] < h.age[j] || (h.age[i] == h.age[j] && i < j)))
+@inline function _swap!(h::_TaskHeap, a::Int, b::Int)
+    i, j = h.heap[a], h.heap[b]
+    h.heap[a], h.heap[b] = j, i
+    h.pos[i], h.pos[j] = b, a
+    return nothing
+end
+function _sift_up!(h::_TaskHeap, k::Int)
+    while k > 1 && _before(h, h.heap[k], h.heap[k ÷ 2])
+        _swap!(h, k, k ÷ 2); k ÷= 2
+    end
+    return k
+end
+function _sift_down!(h::_TaskHeap, k::Int)
+    n = length(h.heap)
+    while true
+        l = 2k; l > n && return
+        c = (l < n && _before(h, h.heap[l+1], h.heap[l])) ? l + 1 : l
+        _before(h, h.heap[c], h.heap[k]) || return
+        _swap!(h, k, c); k = c
+    end
+end
+# Sets task i's key and age; returns the heap, widened to `Real` keys if the key is no `Float64`.
+function _update!(h::_TaskHeap, i::Int, res::Real, age::Int)
+    h isa _TaskHeap{Float64} && !(res isa Float64) && (h = _TaskHeap{Real}(Vector{Real}(h.res), h.age, h.heap, h.pos))
+    h.res[i] = res; h.age[i] = age
+    _sift_down!(h, _sift_up!(h, h.pos[i]))
+    return h
+end
+
+# The key of a probe: its primal residual (a dual breaks ties by its partials, and the tangents must
+# not choose the order of the updates, LP-053 F1), or -1 for a task that cannot be committed.
+_queue_key(res, skip::Bool) = (skip ? -1.0 : (r = _primal(res); isnan(r) ? -1.0 : r))
+
+# Whether a factor's messages may read the target's cavity (the `prior` of `factor_message`): every
+# rule but belief propagation and mixture reduction does, and under those a factor's messages are
+# taken not to only where it declares `exact_messages` (an exact sum-product message does not depend
+# on the target's cavity) and not `message_uses_cavity`. `message_uses_cavity` alone is no guarantee:
+# it defaults to `false`, and factors that read `prior` without declaring it exist (`DEQFactor`,
+# `DiffusionFactor`, `passing.md`, GH-15). A wrong `true` costs probes; a wrong `false` would change
+# the commits.
+_reads_cavity(fn) = !(fn.rule isa BeliefPropagation || fn.rule isa MixtureReduction) ||
+                    message_uses_cavity(fn.factor) || !exact_messages(fn.factor)
+
+# The tasks whose message reads the message of `t` (indices into `all_tasks(g)`, by `vix`/`fix`, the
+# index of each edge's `:to_variable`/`:to_factor` task or 0), pushed onto `out`:
+# - a message to factor f on edge e is an input of f's messages on its other edges;
+# - a message to variable v on edge e is in v's cavity on its other edges, which the messages to
+#   their factors read, and the messages from those factors that read the target's cavity; and it
+#   is in v's marginal, which a mean-field node next to v reads for its messages on its edges other
+#   than one to v.
+function _dependents!(out::Vector{Int}, s::MessageStore, g::FactorGraph, t::MessageTask, vix::Vector{Int}, fix::Vector{Int})
+    e = g.edges[t.edge]
+    if t.kind === :to_factor
+        g.factors[e.factor].rule isa MeanField && return out     # reads marginals, not these messages
+        for ej in g.edges_of_factor[e.factor]
+            ej == t.edge || vix[ej] == 0 || push!(out, vix[ej])
+        end
+    else
+        v = e.variable
+        _pin(s, v) === nothing || return out       # a pinned variable's cavity and marginal are the pin
+        for ej in g.edges_of_variable[v]
+            ej == t.edge && continue
+            fix[ej] == 0 || push!(out, fix[ej])
+            fn = g.factors[g.edges[ej].factor]
+            vix[ej] != 0 && _reads_cavity(fn) && push!(out, vix[ej])
+        end
+        for ej in g.edges_of_variable[v]
+            fid = g.edges[ej].factor
+            g.factors[fid].rule isa MeanField || continue
+            for ek in g.edges_of_factor[fid]
+                vix[ek] == 0 && continue
+                any(el -> el != ek && g.edges[el].variable == v, g.edges_of_factor[fid]) && push!(out, vix[ek])
+            end
+        end
+    end
+    return out
+end
+
 function sweep!(s::MessageStore, g::FactorGraph, sched::ResidualSchedule, @nospecialize(ps), @nospecialize(st);
                 damping::Real = 0.0, record = nothing)
+    s.iteration += 1
+    ts = all_tasks(g)
+    isempty(ts) && return 0.0, st
+    nsteps = min(sched.maxtasks, length(ts))
+    ps, st = _indexed(ps), _statebuffer(st)
+    vix, fix = zeros(Int, nedges(g)), zeros(Int, nedges(g))
+    for (i, t) in enumerate(ts)
+        t.kind === :to_factor ? (fix[t.edge] = i) : (vix[t.edge] = i)
+    end
+    probe(t) = (r = _step!(s, g, t, ps, _readonly(st); damping, commit = false); _queue_key(r[2], r[4]))
+    h = _TaskHeap([probe(t) for t in ts], [_task_age(s, t) for t in ts])
+    maxres = 0.0
+    deps = Int[]
+    bykey = nothing                       # factors by parameter key, built at the first state change
+    for step in 1:nsteps
+        i = h.heap[1]
+        h.res[i] < 0 && break             # nothing can be committed
+        best_res = h.res[i]
+        t = ts[i]
+        record === nothing || push!(record, t)
+        key = t.kind === :to_variable ? g.factors[g.edges[t.edge].factor].params : nothing
+        before = key === nothing ? nothing : _stored(st, key)
+        b, res, st = step!(s, g, t, ps, st; damping, commit = true)
+        maxres = max(maxres, res)
+        (best_res == 0.0 || step == nsteps) && break      # no probe past the last commit (LP-072 F3)
+        empty!(deps)
+        _dependents!(deps, s, g, t, vix, fix)
+        # A damped message reads its own previous value, so it is probed again after its commit.
+        damping > 0 && t.kind === :to_variable && push!(deps, i)
+        # A changed state can change every message of the factors that share the key.
+        if key !== nothing && _stored(st, key) !== before
+            bykey === nothing && (bykey = Dict{Symbol,Vector{Int}}();
+                for (fid, fn) in enumerate(g.factors); push!(get!(bykey, fn.params, Int[]), fid); end)
+            for fid in bykey[key], ej in g.edges_of_factor[fid]
+                vix[ej] == 0 || push!(deps, vix[ej])
+            end
+        end
+        # Without either, the message is a function of messages it does not read: probed again, it
+        # would equal the committed one `b`, at the distance of `b` to itself (not always 0: `Inf`
+        # for a belief without a distance, NaN for one with a NaN; LP-072 F1).
+        i in deps || (h = _update!(h, i, _queue_key(_residual(b, b), false), _task_age(s, t)))
+        for j in unique!(deps)
+            h = _update!(h, j, probe(ts[j]), _task_age(s, ts[j]))
+        end
+    end
+    return maxres, _tree(st)
+end
+
+# The full scan the queue replaced: every task probed before each commit, O(tasks²) evaluations per
+# sweep. Kept as the reference the queue's order is tested against (`test/residual_queue.jl`).
+function _residual_sweep_scan!(s::MessageStore, g::FactorGraph, sched::ResidualSchedule, @nospecialize(ps), @nospecialize(st);
+                               damping::Real = 0.0, record = nothing)
     s.iteration += 1
     ts = all_tasks(g)
     isempty(ts) && return 0.0, st

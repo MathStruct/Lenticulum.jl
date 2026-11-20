@@ -82,8 +82,9 @@ is in Lenticulum's `test/switching_constraint.jl`.
 - **`FloodingSchedule`**: **double buffered**. Every task is computed with `commit = false`
   against the previous sweep's messages, and all results are written afterwards. Information
   crosses one edge per sweep.
-- **`ResidualSchedule`**: probes every legal task, commits the largest residual,
-  then repeats up to its task budget. Probe state updates are discarded; committed
+- **`ResidualSchedule`**: commits the task of largest residual, then repeats up to its task
+  budget; a priority queue re-probes only the tasks that read the committed message (I4, "The
+  residual schedule's queue" below). Probe state updates are discarded; committed
   updates advance state. Ties prefer the oldest message, then task order.
 
 The trade is not just speed. On a loopy graph the sequential order *is* a modelling choice made
@@ -719,3 +720,84 @@ paths) also read the `prior` in their messages and should declare the trait when
 reviewed. Tests: Lenticulum `test/gh15_nonlinear_tree.jl` — rooted at `:prior` another sweep moves the
 marginal, rooted at `:data` one sweep is the fixed point and the second changes nothing; the report no longer claims a one-sweep fixed point, and a linear-Gaussian tree
 keeps the one-sweep exact report.
+
+## The residual schedule's queue (I4, 2026-11-20)
+
+A `ResidualSchedule` sweep used to probe every legal task (`_step!` with `commit = false`) before each
+of its commits: $T^2$ message evaluations for a sweep of $T$ commits, 2.1 times flooding's on the
+divider to convergence and out of reach on a grid of a few thousand tasks. It now keeps the residuals
+in an indexed binary heap (`_TaskHeap`). A sweep probes every task once, then pops the task of largest
+residual, commits it, and probes again only the tasks whose message can read the committed one
+(`_dependents!`):
+
+- a message to factor $f$ on edge $e$ is an input of $f$'s messages on its other edges (not of a
+  `MeanField` node's, which read marginals);
+- a message to variable $v$ on edge $e$ (unless $v$ is pinned: its cavity and marginal are the pin) is
+  in $v$'s cavity on its other edges: the messages to their
+  factors read it, and so do the messages *from* those factors if they read the target's cavity
+  (`_reads_cavity`);
+- it is also in $v$'s marginal, which a `MeanField` node next to $v$ reads for its messages on edges
+  other than one to $v$;
+- a damped message reads its own previous value, so it is probed again after its commit;
+- a commit that changed a factor's state can change every message of the factors sharing its
+  parameter key, which are all probed again.
+
+A committed message $b$ that is in none of these sets would equal itself if probed again, so its key is
+the distance of $b$ to itself, computed without calling the factor: 0, but `Inf` for a belief without a
+distance and NaN for one with a NaN (LP-072 F1). Nothing is probed after the budget's last commit. The keys
+are the residuals' primal values as `Float64`, or as `Real` once a residual of another type appears
+(`BigFloat` residuals rounded to `Float64` tied or became 0, LP-072 F2). The heap orders by residual, then the older message, then the position in
+`all_tasks(g)`, which is the order the scan chose by; a skipped update or a NaN residual gets the key
+$-1$ and is never popped (the scan never chose them either). So the residuals in the heap are the ones
+the scan would compute, and **the queue makes the same commits in the same order, bit for bit**. The
+scan is kept as `_residual_sweep_scan!`, the reference of `test/residual_queue.jl` (Lenticulum): 40
+random loopy graphs × damping 0 and 0.3 × `maxtasks` all and 3, eight sweeps each, with mean-field,
+expectation-propagation, nonlinear, cavity-reading and stateful tied nodes; record, store and state
+compared with `==`. Each dependency rule was removed in turn and the test failed each time
+(5 to 79 of its comparisons). The review (Codex, [[LP-072 Findings of the review of I4]]) found three
+differences, now fixed with regression tests in the same file, and one accepted: on a graph that throws
+(contradictory hard clamps) both throw, at different commits, since an exact message builds its cavity
+without reading it and the queue does not probe it again.
+
+**Which messages read the cavity.** Every rule but `BeliefPropagation` and `MixtureReduction` reads it.
+Under those two, `message_uses_cavity` is not a guarantee: it defaults to `false`, and `DEQFactor` and
+`DiffusionFactor` read `prior` without declaring it (GH-15 above). So a factor counts as not reading the
+cavity only when it declares `exact_messages` (an exact sum-product message does not depend on the
+target's cavity) and not `message_uses_cavity`. A wrong `true` costs probes; a wrong `false` would change
+the commits silently. The factors that declare `exact_messages` were read for a use of `prior` in their
+messages (none found).
+
+**Measured** (`bench/residual_queue.jl`, Gaussian $n \times n$ grids of `bp_grid.jl`, one machine (8 cores),
+Julia on one thread, 2026-11-20, after the review's fixes). One sweep from an empty store, the scan against the queue, the commits checked
+equal:
+
+| grid | tasks $T$ | scan | queue | faster | evaluations, scan ($T^2$) | queue |
+|---|---|---|---|---|---|---|
+| 3 × 3 | 66 | 0.0081 s | 0.0004 s | 19× | 4 356 | 180 |
+| 6 × 6 | 312 | 0.197 s | 0.0022 s | 89× | 97 344 | 966 |
+| 10 × 10 | 920 | 1.74 s | 0.0067 s | 261× | 846 400 | 2 966 |
+| 32 × 32 | 9 984 | not run | 0.078 s | | | 33 414 |
+
+The queue's evaluations are about $3.3\,T$ per sweep: $T$ for the first probe of every task and about
+2.3 per commit. To a message residual of $10^{-10}$, against flooding:
+
+| grid | prior variance | flooding: sweeps, evaluations, time | residual: sweeps, evaluations, time |
+|---|---|---|---|
+| 4 × 4 | 1 | 87, 11 136, 0.029 s | 30, 8 803, 0.048 s |
+| 4 × 4 | 100 | 4 289, 548 992, 1.50 s | 862, 251 463, 0.95 s |
+| 8 × 8 | 100 | 6 305, 3 631 680, 10.5 s | 1 500, 2 034 646, 8.1 s |
+| 16 × 16 | 1 | 113, 274 816, 0.85 s | 37, 216 156, 0.87 s |
+| 16 × 16 | 100 | 7 063, 17 177 216, 52.2 s | 1 583, 9 165 915, 37.7 s |
+
+The residual schedule now needs 0.46–0.89 of flooding's evaluations and 0.64–1.66 of its time (the heap
+and the probes' bookkeeping; the 1.66 is the 4 × 4 grid's 0.05 s run, 1.07 in the run before the
+review's fixes, so timing noise at that size; the large runs 0.72–0.77); before, the same commits cost $T$ times flooding's evaluations per sweep
+(on the 16 × 16 grid at prior variance 100, about $9\cdot10^{9}$). Its means are further from the dense
+solve at the same message tolerance ($4\cdot10^{-9}$ against $10^{-10}$ at prior variance 100): the stop
+is decided on the sweep's committed residuals, and the schedule leaves smaller residuals pending in
+the slow modes. That is the schedule's, not the queue's (the commits are the scan's); not examined further.
+
+**Not done.** The first probe of every task in each sweep is a third of the cost; keeping the heap
+between sweeps would save it but needs the store to say when it was changed outside a sweep (a `pin!`,
+an edit, a user's write). `_max_pending` (I24's check at the stop of a partial sweep) still scans every
+task once. Plates (`PlateSchedule`) have no residual schedule.

@@ -66,15 +66,17 @@ mean the DAG branch cannot use that field. The separate tree fallback wraps
 backward list. The previous note's claim that it was empty in every reachable case
 was stale; `forward_backward_schedule` explicitly contains this fallback.
 
-### 3. Residual scheduling evaluates all candidates
+### 3. Residual scheduling: a priority queue (I4)
 
-The previous note incorrectly said this type had no executor. `passing.jl`
-already has a priority loop: probe every legal task, commit the largest residual,
-break ties by oldest message (then task order), and stop early at zero residual.
-A sweep commits at most `min(maxtasks, length(all_tasks(g)))` tasks. This costs
-quadratic message evaluations per full sweep. Unsupported distances returning
-`Inf` prevent numerical convergence certification. Probe state updates are
-discarded; factors must use functional state.
+`passing.jl` commits the largest residual, breaks ties by oldest message (then
+task order), and stops early at zero residual. A sweep commits at most
+`min(maxtasks, length(all_tasks(g)))` tasks. Until I4 (2026-11-20) it probed every
+legal task before each commit, quadratic message evaluations per full sweep; it
+now probes every task once per sweep and, after a commit, only the tasks that read
+the committed message, with the same commits ([[passing]], "The residual
+schedule's queue"). Unsupported distances returning `Inf` prevent numerical
+convergence certification. Probe state updates are discarded; factors must use
+functional state.
 
 ### 4. Tree rooting is arbitrary and it matters
 

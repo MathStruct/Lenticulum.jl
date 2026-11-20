@@ -119,9 +119,12 @@ Dynamic: repeatedly send whichever pending message would change the most (Elidan
 Koller's *residual belief propagation*).
 
 Converges on many loopy graphs where flooding oscillates, because it prioritises the parts
-of the graph that have not settled. Note that `sweep!` evaluates every legal task's residual
-with `commit = false` before committing the largest step, costing ``O(|\\text{tasks}|^2)``
-message evaluations per sweep rather than maintaining a local priority queue. Requires a
+of the graph that have not settled. A `sweep!` evaluates every legal task's residual once
+(with `commit = false`), then commits up to `min(maxtasks, number of tasks)` times the task of
+largest residual (the oldest message among equal residuals, then task order) and re-evaluates
+only the tasks whose message reads the committed one (I4: a priority queue, as in Elidan,
+McGraw & Koller). That is ``O(|\\text{tasks}| \\cdot \\text{degree})`` message evaluations per
+sweep, and the same commits a scan of every task before each commit would make. Requires a
 usable [`belief_distance`](@ref); pairs returning `Inf` are tried first.
 """
 struct ResidualSchedule <: AbstractSchedule
