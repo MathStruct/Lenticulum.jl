@@ -18,7 +18,7 @@ form (a nonlinear or non-Gaussian factor; its precision depends on where it is l
 Methods: `GaussianFactor` (``[-A\\; I]^\\top Q^{-1} [-A\\; I]``), `GaussianPrior` (``Σ^{-1}``),
 `LinearConstraintFactor` and `SwitchingConstraintFactor` (``A^\\top Q^{-1} A``; the switch only shifts
 the constant), `RegimeFactor` (``\\sum_k w_k A_k^\\top Q_k^{-1} A_k`` with the regime weights
-``w = \\operatorname{softmax}(\\text{logw})``), `HardConstraintFactor` (`:hard`).
+``w = \\operatorname{softmax}(\\text{logw})``), `HardConstraintFactor` and `SplitFactor` (`:hard`).
 """
 coupling_precision(f, ps) = nothing
 
@@ -71,7 +71,7 @@ is rescaled. With `normalize = false` it is ``\\lVert J_{ab} \\rVert_2``, in the
 measured in `bench/bp_trees.jl`.
 
 A factor with fewer than two connected variables gets weight 0 (its edges belong to every spanning
-forest anyway). A `HardConstraintFactor` gets `hard`, by default 1 (normalised) or the largest
+forest anyway). A `HardConstraintFactor` or `SplitFactor` gets `hard`, by default 1 (normalised) or the largest
 finite weight in the graph plus one (not normalised); it adds nothing to ``D``. A factor without a
 linear-Gaussian form (`coupling_precision` returns `nothing`: `NonlinearFactor`, `LikelihoodFactor`,
 factors of other packages) gets `default` and adds nothing to ``D``.

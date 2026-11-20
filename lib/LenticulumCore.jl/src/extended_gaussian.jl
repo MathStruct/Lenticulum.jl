@@ -334,7 +334,9 @@ The law of `M x + c + ε` for `x ~ b` and independent `ε ~ N(0, Q)`: mean `Mμ 
 function pushforward(b::ExtendedGaussian, M::AbstractMatrix, c = 0, Q = 0)
     size(M, 2) == length(b.μ) || throw(DimensionMismatch("M has $(size(M, 2)) columns, the belief dimension $(length(b.μ))"))
     m = size(M, 1)
-    cv = c isa Number ? fill(float(c), m) : c
+    # an integer offset (the default 0) takes the float type of the arithmetic, the belief's and the
+    # map's (P30; U2, where `float(0)` made a Float32 marginal Float64)
+    cv = c isa Number ? fill(c isa Integer ? convert(float(promote_type(eltype(b.μ), eltype(M))), c) : float(c), m) : c
     S = M * b.Σ * M'
     # a scalar noise as `S + Q*I`, not `+ Q * I(m)`: Zygote's pullback of the `Diagonal` fails (P4)
     Σy = Q isa Number ? (iszero(Q) ? S : S + Q * I) : S + Q
@@ -436,7 +438,7 @@ hard direction of `b`, Gaussian with precision ``M^\\top \\Sigma^+ M`` where `b`
 function preimage(b::ExtendedGaussian, M::AbstractMatrix, c = 0)
     size(M, 1) == length(b.μ) || throw(DimensionMismatch("M has $(size(M, 1)) rows, the belief dimension $(length(b.μ))"))
     # an integer offset (the default 0) takes the belief's float type (P30)
-    cv = c isa Number ? fill(c isa Integer ? convert(float(eltype(b.μ)), c) : float(c), size(M, 1)) : c
+    cv = c isa Number ? fill(c isa Integer ? convert(float(promote_type(eltype(b.μ), eltype(M))), c) : float(c), size(M, 1)) : c
     H = hard_directions(b)
     η, Λ = _canonical_part(b)
     return _from_potential(H' * M, H' * (b.μ .- cv), M' * (η .- Λ * cv), M' * Λ * M;

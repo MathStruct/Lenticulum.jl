@@ -93,6 +93,16 @@ end
     # added noise makes the hard direction Gaussian
     q = LenticulumCore.pushforward(b, [0.0 1 0], 0, fill(0.5, 1, 1))
     @test q.μ ≈ [2.0] && q.Σ ≈ fill(0.5, 1, 1) && size(q.D, 2) == 0
+    # U2: the default integer offset takes the belief's float type; before, `float(0)` made a
+    # Float32 belief's pushforward and marginal Float64 (found by the SplitFactor tests)
+    b32 = ExtendedGaussian(Float32[1, 2, 3], Matrix{Float32}(I, 3, 3))
+    @test LenticulumCore.pushforward(b32, Float32[1 0 1]) isa ExtendedGaussian{Float32}
+    @test marginalise(b32, [3, 1]) isa ExtendedGaussian{Float32}
+    # an explicit integer offset in Float64 arithmetic is not rounded to Float32 first (review of
+    # U2, finding 6: 16_777_217 became 16_777_216)
+    b1 = ExtendedGaussian(Float32[0], fill(1.0f0, 1, 1))
+    @test LenticulumCore.pushforward(b1, fill(1.0, 1, 1), 16_777_217).μ == [16_777_217.0]
+    @test LenticulumCore.preimage(ExtendedGaussian(Float32[1], zeros(Float32, 1, 1)), fill(1.0, 1, 1), 16_777_217).μ == [-16_777_216.0]
 end
 
 @testset "extended Gaussians: conversions and refusals" begin

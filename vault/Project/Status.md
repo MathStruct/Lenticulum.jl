@@ -7,14 +7,14 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-19, after P10 (noise-free nodes against nodes with noise on the calibration benchmark: `noisefree_nodes(n; levels)` and `examples/nodes_calibration.md`; `noisefree_nodes(n)` is now the recommended node set for root queries), committed on `dev-danielb`, not pushed. Before it P36 (each package's own suite reaches its own files), P35 (`MixtureProx` takes a modified Newton step where its curvature is indefinite), P15, P34, P12 and P33 (a Lenticulum graph is Float32 end to end).
+**Last updated:** 2026-11-20, after U2 (`SplitFactor`: a channel and pieces of it, exactly; review [[LP-069 Findings of the review of U2]]), committed on `dev-danielb`, not pushed. Before it P10 (noise-free nodes on the calibration benchmark), P36, P35, P15, P34, P12 and P33.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
 | `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
-| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/p36` | at `9f933eb7` with the P36 diff uncommitted (merged into `dev-danielb` with one more testset; diff in `~/.cache/lenticulum/p36/p36.diff`); reset it before the next Codex package |
+| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/u2-review` | at `2860187b` with the U2 diff applied uncommitted (the review's probes in `scratch/u2/`, copied to `../Lenticulum.jl-Review-2026-11-20/u2/codex/`); the branch `codex/u2-tests` holds nothing (its test file was copied into the main checkout). Reset it before the next Codex package |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `9f933eb7` with the P36 diff applied (without the session's last testset); the test environments of LenticulumCore, Mycelium and MyceliumLearning instantiated (`--project=lib/<Pkg>.jl/test` serves probes); probes in `scratch/p36/` (copied to `../Lenticulum.jl-Review-2026-11-19/p36/mistral/`); `scratch/p6env` serves any review, and `~/.cache/lenticulum/env-p29` serves as the old code for a bit-for-bit comparison. Before the next review: reset to the commit under review, then apply its diff |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
@@ -28,20 +28,17 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
-- **P10** (2026-11-19, chosen by the maintainer from the three Section P rows): `noisefree_nodes(n; levels)`
-  (no noise, one node per level, `field_nodes`' levels by default; argument checks) and
-  `lib/VariationalDiffusion.jl/examples/nodes_calibration.jl` (the models of `calibration.jl`, whose setup
-  is now `calibration_setup.jl`, skipped by `bench/smoke.jl`). Measured in `nodes_calibration.md`:
-  noise-free recall as high or higher in eight of nine settings, less bias on the circle (43–46 % at
-  $t\le0.05$), larger on the two circles at $t\le0.05$, 4–25× faster. Recommended for root queries in the
-  docstrings and `implicit.md`; no constructor default changed (`ProxDM`'s free-energy nodes stay
-  `field_nodes`, not measured). Review [[LP-068 Findings of the review of P10]] (Codex, read-only, ten
-  findings, all right; argument checks, `missing` for skipped verdicts, the test's scope, the notes'
-  overstatements). VariationalDiffusion suite passed on the final code
-  (`~/.cache/lenticulum/p10/vd-suite-final.log`); both calibration scripts pass at smoke size; benchmark log
-  `~/.cache/lenticulum/p10/nodes-full.log`. Not run: the docs builds (docstrings changed), the full
-  `calibration.jl` after the refactor (smoke only; Codex compared the smoke outputs before and after:
-  the same up to timings), one training seed per relation.
+- **U2** (2026-11-20, chosen by the session as a row ready to start that needs no benchmark; Section P has
+  only design-first rows): `SplitFactor(whole, pieces; dim)` in `lib/Lenticulum.jl/src/split.jl` and
+  `split.md`, the exact relation $x_k = z[I_k]$ (overlap and uncovered coordinates allowed), extended-Gaussian
+  messages, free energy $-H(q)$ without hard inputs and `HardConstraintFactor`'s term with them. Codex wrote
+  `test/split.jl` from the specification alone (`../Lenticulum.jl-Review-2026-11-20/u2/spec.md`); Codex reviewed
+  (LP-069, twelve findings, all right). Core change: an integer offset of `pushforward`/`preimage` takes the
+  promoted float type (a Float32 marginal came back Float64). Recorded, not changed: three limits of the
+  extended-Gaussian core (consistency tolerance relative to ‖μ‖; improper sites that are no extended Gaussian;
+  a Float32 variance below $32\varepsilon_{32}$ of the largest counts as hard, `@test_broken` in `test/split.jl`).
+  All eight suites passed (`~/.cache/lenticulum/u2/`). Not run: the docs builds, device tests; cost not measured.
+- **P10** (2026-11-19): `noisefree_nodes(n; levels)` and `examples/nodes_calibration.md`; review LP-068.
 - **P36** (2026-11-19, chosen as the only Section P row ready to start): tests in the owning package for
   the files only other packages' tests reached: Mycelium `test/p36_exposure.jl`, `test/p36_overlay_ad.jl`
   (exposure, overlay, the cluster Zygote rule, ForwardDiff through flat precisions), MyceliumLearning
@@ -63,14 +60,17 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 ## Next
 
 No row is set; pick one with the maintainer. Section P has P14 (shared solver layer, large: design first)
-and P16 (owned scalarisations: design first). Open after P10: the tutorials and the README still use
-`field_nodes` for root queries; whether to move them (their recorded outputs would change), and
-`ProxDM`'s free-energy nodes with noise-free nodes (not measured). Close to P5: a learned noise with hard messages, a residual-space formulation of the
-positive definite path (LP-047 finding 4; no row yet). Left open by P27 (no rows yet): the Bethe free energy
-with a mixture marginal under BP, derivatives through the new rules, two extended components with hard
-directions. Small: `ImplicitLayers`' `SolveReport` also has `residual::Float64` (not checked whether duals
-reach it; that package is unreviewed); `AndersonSchedule` runs without its memory under duals (LP-053). Not
-benchmarked yet: GH-20's per-replica path for device and view inputs to the hard-constraint plate kernel.
+and P16 (owned scalarisations: design first). Close to U2 and needing no benchmark: U3 (a normalising change
+of variables with its log-Jacobian, the same extended-Gaussian machinery), U5 (permutation, sum, clamp
+factors; a permutation is now a `SplitFactor`). Open after U2: whether `SplitFactor` is cheaper than a
+selection-matrix `HardConstraintFactor` (not measured), a batched plate kernel for it. Open after P10: the
+tutorials and the README still use `field_nodes` for root queries; `ProxDM`'s free-energy nodes with
+noise-free nodes (not measured). Close to P5: a residual-space formulation of the positive definite path
+(LP-047 finding 4; no row yet). Left open by P27 (no rows yet): the Bethe free energy with a mixture marginal
+under BP, derivatives through the new rules, two extended components with hard directions. Small:
+`ImplicitLayers`' `SolveReport` also has `residual::Float64`; `AndersonSchedule` runs without its memory under
+duals (LP-053). Not benchmarked yet: GH-20's per-replica path for device and view inputs to the hard-constraint
+plate kernel.
 
 ## Open
 
