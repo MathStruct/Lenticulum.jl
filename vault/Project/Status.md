@@ -7,15 +7,15 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-20, after U3 (`ScaleShiftFactor`: the normalising change of variables, learnable; review [[LP-070 Findings of the review of U3]]), committed on `dev-danielb`, not pushed. Before it U2 (`SplitFactor`, pushed with P10, P36 and P35 on 2026-11-20), P15, P34, P12 and P33.
+**Last updated:** 2026-11-20, after I26 (the Bethe free energy where exact messages meet at a variable; review [[LP-071 Findings of the review of I26]]), committed on `dev-danielb`, not pushed. Before it U3 (`ScaleShiftFactor`), U2 (`SplitFactor`, pushed with P10, P36 and P35), P15, P34, P12 and P33.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
 | `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
-| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/u3-review` | at `91b3c859` with the first U3 diff applied uncommitted (the review's probes in `scratch/u3/`); `codex/u3-tests` holds nothing (its test file was copied into the main checkout). The U2 review state is in `git stash` ("U2 review state (before U3 tests)"). Reset it before the next Codex package |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `91b3c859` with the first U3 diff applied (its probes in `scratch/u3/`; the P36 state is in `git stash`, "P36 review state (before U3 review)"); the test environments of LenticulumCore, Mycelium and MyceliumLearning instantiated (`--project=lib/<Pkg>.jl/test` serves probes); probes in `scratch/p36/` (copied to `../Lenticulum.jl-Review-2026-11-19/p36/mistral/`); `scratch/p6env` serves any review, and `~/.cache/lenticulum/env-p29` serves as the old code for a bit-for-bit comparison. Before the next review: reset to the commit under review, then apply its diff |
+| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/i26-tests` | at `27de58f1` with the first I26 diff and its tests applied uncommitted (the review's probes in `scratch/i26r/`, copied to `../Lenticulum.jl-Review-2026-11-20/i26/codex-probes/`; `scratch/i26env` develops this worktree's packages and needs `JULIA_DEPOT_PATH=/tmp/i26-depot:$HOME/.julia:` under the sandbox). The U3 state is in `git stash` ("U3 state (before I26)"), U2's below it. Reset it before the next Codex package |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `27de58f1` with the first I26 diff applied (its probes in `scratch/i26/`, copied to `../Lenticulum.jl-Review-2026-11-20/i26/mistral-probes/`; the U3 state in `git stash`, "U3 state (before I26)", whose untracked `scratch/` was restored into the worktree); the test environments of LenticulumCore, Mycelium and MyceliumLearning instantiated (`--project=lib/<Pkg>.jl/test` serves probes); `scratch/p6env` serves any review, and `~/.cache/lenticulum/env-p29` serves as the old code for a bit-for-bit comparison. Before the next review: reset to the commit under review, then apply its diff. `git stash -u` takes `scratch/` with it: stash without `-u`, or restore it with `git checkout 'stash@{0}^3' -- scratch` |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -28,6 +28,16 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **I26** (2026-11-20, the open high row): where $p \ge 2$ exact messages meet at a variable, the variable's
+  term adds $-\tfrac12[(p-1)\log\det G - \sum_i\log\det G_{-i}]$, $G$ the Gram matrix of their hard bases
+  (`_hard_overlap` in `lib/Mycelium.jl/src/free_energy.jl`; derivation in `free_energy.md`, "Exact messages that
+  meet at a variable"). Two oblique exact projections of $z$ gave $-\log Z + \log\sin\theta$; the LP-070
+  `@test_broken` passes. Codex wrote `test/hard_overlap.jl` from the specification (dense oracles, 2204
+  tests); reviews LP-071 (Codex: four findings, two fixed with regression tests, two older and now rows I27,
+  I28; Mistral: no defect). **A contract now written down:** a factor that sends exact messages must include
+  the Jacobian of its own exact directions on its cavity's support, as `HardConstraintFactor` does; the test
+  fixture `LinePrior` in `test/split.jl` did not and was corrected. All eight suites passed (`~/.cache/lenticulum/i26/`;
+  Lenticulum rerun after the fixture fix, `Lenticulum-final.log`). Not run: the docs builds, device tests; cost not measured.
 - **U3** (2026-11-20, asked for by Daniel after U2): `ScaleShiftFactor(x, z, dim; groups)` in
   `lib/Lenticulum.jl/src/scale_shift.jl` and `scale_shift.md`, the density $\delta(x - s\odot z - b)$
   of $x$ given $z$, $(b, \text{logs})$ per coordinate or group; `scale_shift_parameters(f, X)`
@@ -40,8 +50,8 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
   gradient"); the same construction would serve any learnable deterministic factor. Codex wrote
   `test/scale_shift.jl` from the specification (`../Lenticulum.jl-Review-2026-11-20/u3/spec.md`); reviews
   LP-070 (Codex: six findings, four fixed; Mistral: no answer file, its probes run by the session showed no
-  defect). **Found on the way, not fixed:** `HardConstraintFactor`'s free energy with two oblique exact
-  projections of one variable (row I26, high, `@test_broken`). `link_sources.py` puts the Bibliography line
+  defect). **Found on the way:** `HardConstraintFactor`'s free energy with two oblique exact
+  projections of one variable (row I26, since fixed). `link_sources.py` puts the Bibliography line
   inside a multi-line Sources block (it did so in `lib/Lenticulum.jl/src/coupling.md`; reverted, no row). Suite
   passed: Lenticulum (`~/.cache/lenticulum/u3/lenticulum-final.log`). Not run: the docs builds, device tests;
   cost not measured.
@@ -55,17 +65,14 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
   extended-Gaussian core (consistency tolerance relative to ‖μ‖; improper sites that are no extended Gaussian;
   a Float32 variance below $32\varepsilon_{32}$ of the largest counts as hard, `@test_broken` in `test/split.jl`).
   All eight suites passed (`~/.cache/lenticulum/u2/`). Not run: the docs builds, device tests; cost not measured.
-- **P10** (2026-11-19): `noisefree_nodes(n; levels)` and `examples/nodes_calibration.md`; review LP-068.
-- **P36** (2026-11-19): tests in the owning package for files only other packages' tests reached; review
-  LP-067. Its weekly job `reactant` ran on GitHub for the first time with the push of 2026-11-20 (Weekly,
-  run 44687843325: success; Examples, Docs and CI passed too).
 
 ## Next
 
-No row is set; pick one with the maintainer. I26 (high: `HardConstraintFactor`'s Bethe term with two
-oblique exact observations of one variable; the `@test_broken` in `test/hard_free_energy.jl` is the
-oracle). Section P has P14 (shared solver layer, large: design first) and P16 (owned scalarisations:
-design first). U5 (permutation, sum, clamp factors; a permutation is now a `SplitFactor`). Open after U3:
+No row is set; pick one with the maintainer. Section P has P14 (shared solver layer, large: design first) and P16 (owned scalarisations:
+design first). U5 (permutation, sum, clamp factors; a permutation is now a `SplitFactor`). Open after I26: I27 (the
+gradient drivers do not check that the free energy is finite), I28 (`MeanField()` next to hard directions), mixtures
+with hard components (not counted by the overlap term), a redundant clamp whose zero variance rounds to $-3\cdot10^{-17}$
+and is refused during inference (`@test_broken` in `test/hard_overlap.jl`, no row). Open after U3:
 the implicit adjoint for extended-Gaussian messages; a $O(d)$ free energy for `ScaleShiftFactor`. Open after U2: whether `SplitFactor` is cheaper than a
 selection-matrix `HardConstraintFactor` (not measured), a batched plate kernel for it. Open after P10: the
 tutorials and the README still use `field_nodes` for root queries; `ProxDM`'s free-energy nodes with
@@ -121,7 +128,8 @@ plate kernel.
   ran and it finished with an answer file (\$0.41). Keep doing that. On P25 the commands ran but it
   spent its 100 turns on 26 debug variants and wrote one entry: run its last probes yourself. On P4
   (AD) no answer file at all; its last probe (needing imports added) found the one defect. Its
-  probes need the package's test environment (`--project=lib/<Pkg>/test`); say so in the brief. On U3 (2026-11-20, the
+  probes need the package's test environment (`--project=lib/<Pkg>/test`); say so in the brief. On I26 (2026-11-20, P6 brief form, `--max-price 3`): five probes recorded with an independent derivation of the
+  formula, a sixth written and not recorded (the session ran it), no defect, \$0, exit 3 at the turn limit. On U3 (2026-11-20, the
   brief with the exact command line and "never prefix `cd`") 20 of its commands were refused, it hit 100 turns
   without an answer file, and three of its seven probes had wrong oracles (missing normalisers, a wrong dense
   marginal, a sign convention): run its probes and check their oracles before believing a failure.

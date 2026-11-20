@@ -108,10 +108,11 @@ normal prior on $z$ these are the maximum-likelihood estimate.
   - **The default gradient.** `ad = nothing` takes central differences with a fixed step. It is
     off by 2–5 % on Float32 data and by $2\cdot10^{-3}$ at a mean of $10^8$, where ForwardDiff and
     Zygote are exact.
-- **Two exact observations of one variable.** Two oblique exact projections of one variable on a
-  tree give the right marginals and a wrong Bethe free energy. The cause is
-  `HardConstraintFactor` itself (LP-070, finding 1, `@test_broken` in `test/hard_free_energy.jl`),
-  and the error is there with or without this factor.
+- **Two exact observations of one variable** (fixed by I26, 2026-11-20). Two oblique exact
+  projections of one variable gave the right marginals and a wrong Bethe free energy, with or
+  without this factor (LP-070, finding 1). The variable's term now adds the overlap of the hard
+  messages (Mycelium `free_energy.md`, "Exact messages that meet at a variable"), and a message of
+  this factor meeting another exact one is tested with its gradient (`test/hard_overlap.jl`).
 - **Plates.** No batched `factor_messages`; a plate calls `factor_message` per replica. Shared
   parameters across replicas work through `params = :key`.
 - **Implicit adjoint.** `adjoint = :implicit` refuses graphs with extended-Gaussian messages

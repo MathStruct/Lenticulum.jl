@@ -386,11 +386,21 @@ LuxCore.initialstates(::AbstractRNG, ::LinePrior) = (;)
 Mycelium.factor_message(::LinePrior, ::Symbol, _, _, _, ps, st) = (line, st)
 Mycelium.exact_messages(::LinePrior) = true
 Mycelium.uses_cavity(::LinePrior) = true
-# −log of the prior's density on the line in arc length s = √2 T (variance 2), minus the entropy
+# −log of the prior's density on the line in arc length s = √2 T (variance 2), minus the entropy,
+# plus the Jacobian of its exact direction u = (1, −1)/√2 on the support its cavity leaves free,
+# ½ log det(G̃G̃ᵀ) with G̃ = uᵀU (U a basis of the cavity's support): the term of a factor that sends
+# exact messages is the finite part of its noisy version, as `HardConstraintFactor`'s is, so that
+# the overlap term of exact messages meeting at a variable (I26, Mycelium `free_energy.md`) holds.
+# Without a hard cavity U = I and the Jacobian is 0.
 function Mycelium.local_free_energy(::LinePrior, msgs, ps, st)
-    q = Mycelium.combine(line, get(msgs, :out, nothing))
+    cav = get(msgs, :out, nothing)
+    q = Mycelium.combine(line, cav)
     U = log(4π) / 2 + (dot(axis, q.μ)^2 + dot(axis, q.Σ * axis)) / 4
-    return U - Mycelium.variable_entropy(q), st
+    J = 0.0
+    if cav isa ExtendedGaussian && size(hard_directions(cav), 2) > 0
+        J = log(norm(nullspace(Matrix(hard_directions(cav)'))' * [1.0, -1.0] / sqrt(2)))
+    end
+    return U + J - Mycelium.variable_entropy(q), st
 end
 
 function free_energy(g)

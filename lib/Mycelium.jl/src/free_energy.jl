@@ -401,11 +401,13 @@ function _variable_row_term(s, g::FactorGraph, idx::EdgeMessages, bp::BitVector,
     end
     c = counting_number(g, first(vids))
     c == 0 && return false
-    acc = TrivialBlock(length(vids))
+    acc, nhard = TrivialBlock(length(vids)), 0
     for r in rows
         b = _row_block(idx, r)
         b === nothing && continue
         b === missing && return nothing
+        # two rows with exact directions need the overlap term (I26): the per-variable path
+        b isa VectorBlock && any(x -> _hard_basis(x) !== nothing, b.beliefs) && (nhard += 1) >= 2 && return nothing
         acc = combine_blocks(acc, b)
     end
     return c * sum(-, _block_entropies(acc))
@@ -501,7 +503,71 @@ function _variable_term(s, g, vid)
     c = counting_number(g, vid)
     c == 0 && return false
     h = variable_free_energy(marginal(s, g, vid))
-    return h === false ? false : c * h   # an Int count times a strong zero is an Int 0 (P30)
+    t = h === false ? false : c * h   # an Int count times a strong zero is an Int 0 (P30)
+    _pin(s, vid) === nothing || return t
+    o = _hard_overlap(s, g, vid)
+    return o === false ? t : t + o
+end
+
+# I26: the finite part of the Bethe free energy where exact messages meet. Every term of the
+# graph measures entropy relative to Lebesgue measure on its own support (`variable_entropy` is
+# `support_entropy`; a factor substitutes its cavity's hard directions out). That is the
+# ε → 0 limit of the graph with noise ε on its exact relations only if the dropped divergent
+# parts cancel, and at a variable where p ≥ 2 messages are hard (orthonormal bases Bᵢ of their
+# hard directions) they leave
+#
+#     −½ [ (p − 1) log det G − Σᵢ log det G₋ᵢ ],     G = BᵀB,  B = [B₁ … B_p],
+#
+# G₋ᵢ the Gram matrix without Bᵢ (for two scalar projections at an angle θ: −log sin θ). Points
+# are clamps, not limits, and carry no divergent part: they are not counted. Only the messages
+# of belief-propagation nodes, the nodes the counting numbers count. `false` when p < 2.
+# Derivation: `free_energy.md`, "Exact messages that meet at a variable".
+function _hard_overlap(s, g, vid)
+    Bs = ()
+    for ei in g.edges_of_variable[vid]
+        _cavity_rule(factornode(g, g.edges[ei].factor).rule) || continue
+        m = s.to_variable[ei]
+        m === nothing && continue
+        B = _hard_basis(m.belief)
+        B === nothing && continue
+        Bs = (Bs..., g.edges[ei].detach ? LenticulumCore.stop_gradient(B) : B)
+    end
+    length(Bs) < 2 && return false
+    return _overlap_of_bases(Bs, g.variables[vid].name)
+end
+
+# A function of its own: `Bs` is rebound in the loop above, and a closure over it there is boxed,
+# which Zygote cannot accumulate a cotangent for (review of I26, Codex finding 3).
+function _overlap_of_bases(Bs::Tuple, name)
+    p = length(Bs)
+    G = _gram_logdet(reduce(hcat, Bs), name)
+    Gi = sum(i -> _gram_logdet(reduce(hcat, Bs[[j for j in 1:p if j != i]]), name), 1:p)
+    return -((p - 1) * G - Gi) / 2
+end
+
+_hard_basis(b) = nothing
+function _hard_basis(b::LenticulumCore.ExtendedGaussian)
+    H = LenticulumCore.hard_directions(b)
+    return size(H, 2) == 0 ? nothing : H
+end
+
+# log det BᵀB = 2 Σ log σᵢ(B) for B with orthonormal blocks, from the singular values of B rather
+# than the eigenvalues of BᵀB, which square them: two independent directions at an angle t have
+# σ_min ≈ t/√2, and BᵀB's eigenvalue t²/2 fell below the rank tolerance at t = 1e-7 (review of I26,
+# Codex finding 1). Singular, two messages exact along a common direction, the free energy is
+# infinite (δ(0)). B may carry derivatives (P4): the SVD is of the values, and full column rank, an
+# open condition, moves Σ log σᵢ by tr(B⁺Δ), Δ the tangent of B (as `HardConstraintFactor`'s
+# ½ log det(G̃G̃ᵀ)).
+function _gram_logdet(B, name)
+    U0, S0, V0, _ = LenticulumCore._value_svd(B)
+    w = size(B, 2)
+    tol = maximum(size(B)) * eps(float(eltype(S0))) * LenticulumCore._scale(S0)
+    (length(S0) == w && minimum(S0) > tol) || throw(ArgumentError(
+        "variable $name: its incoming messages are exact along a common direction (the smallest \
+         singular value of their stacked hard directions is $(length(S0) == w ? minimum(S0) : 0)); \
+         the free energy is infinite"))
+    Bp = V0 * (U0[:, 1:w]' ./ S0)                            # B⁺ at the value
+    return 2 * (LenticulumCore._logsum(S0) + sum(Bp' .* LenticulumCore._tangent(B)))
 end
 
 """

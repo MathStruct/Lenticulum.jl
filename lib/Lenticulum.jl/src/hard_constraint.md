@@ -76,6 +76,12 @@ receives a hard message substitutes its hard directions out, as above
 (`lib/Lenticulum.jl/src/gaussian.md`, "Free energy with hard inputs"). A clamped variable keeps
 $H(\delta) = 0$, the case of every direction hard.
 
+That is not yet enough where two or more hard messages meet at one variable along non-orthogonal
+subspaces: each factor's $\tfrac12\log\det(\tilde G\tilde G^\top)$ is taken on a cavity the other messages
+have already cut, and the sum misses $-\tfrac12[(p-1)\log\det G - \sum_i \log\det G_{-i}]$ ($G$ the Gram matrix
+of the messages' hard bases; $-\log\sin\theta$ for two scalar projections). The variable's term adds
+it (I26; Mycelium `free_energy.md`, "Exact messages that meet at a variable").
+
 The term is infinite, and refused, in two cases:
 
 - $\tilde G$ has rank below $m$: redundant equations, or equations on a direction an input already

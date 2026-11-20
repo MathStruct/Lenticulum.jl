@@ -479,3 +479,77 @@ factors sent Float64 messages for Float32 parameters; P30 fixed that (Lenticulum
 "Element type"). P30 also found that `variable_free_energy` negated a point's entropy `false` to the
 Int `0`, and `c * false` with an Int counting number is the Int `0` too: both now return `false`
 (`_negate`, `_variable_term`).
+
+## Exact messages that meet at a variable (I26, 2026-11-20)
+
+With exact relations (`HardConstraintFactor` without noise, `SplitFactor`, `ScaleShiftFactor`) the
+messages are extended Gaussians with hard directions, and each term of the Bethe free energy is the
+finite part of the term of the graph with noise $\varepsilon$ on its exact relations, as
+$\varepsilon \to 0$: entropy relative to Lebesgue measure on the belief's own support
+(`variable_entropy` is `support_entropy`; a factor substitutes the hard directions of its cavity
+inputs out, `lib/Lenticulum.jl/src/hard_constraint.md`, "Free energy"). That sum of finite parts
+is the limit of the noisy free energy only if the divergent parts it drops cancel. They do when at
+most one message into each variable is hard, and not otherwise: LP-070, finding 1, found
+$z \in \mathbb R^3$ observed exactly through two oblique projections giving 6.005 for $-\log Z = 6.983$.
+
+**The divergent parts.** At $\varepsilon > 0$ a hard message $i$ into variable $v$ has precision
+$B_i P_i B_i^\top/\varepsilon + O(1)$, $B_i$ an orthonormal basis of its hard directions and $P_i \succ 0$.
+A Gaussian whose precision is $M/\varepsilon$ on a $w$-dimensional subspace has entropy
+$H_{\text{supp}} + D$ with $D = \tfrac w2 \log 2\pi e\varepsilon - \tfrac12\log\det M$ (the determinant on that subspace).
+
+- The variable term $(d_v - 1)\,H(b_v)$ drops $(d_v - 1)\,D_v$, with $M = \sum_i B_i P_i B_i^\top$ on
+  $W = \operatorname{span}[B_1 \dots B_p]$. With $B = [B_1 \dots B_p]$ of full column rank and $P = \operatorname{diag}(P_i)$,
+  $\det_W(BPB^\top) = \det P \cdot \det(B^\top B)$.
+- A factor's term drops exactly the divergent entropy of its **cavity** inputs' hard parts,
+  $\sum_{v \in f} D^{\text{cav}}_{f,v}$, whatever the factor: for a `HardConstraintFactor` the
+  noisy term is $\tfrac m2 + \tfrac m2\log 2\pi\varepsilon - H(b_f^\varepsilon)$, and the determinant of
+  $b_f^\varepsilon$'s precision on its degenerate subspace factors (Schur complement) as
+  $\det(\tilde G\tilde G^\top)\prod_v \det P^{\text{cav}}_{v}$, so its own $\tfrac12\log\det\tilde G\tilde G^\top$
+  is what remains; a soft factor's belief is degenerate only along its cavity.
+
+The cavity of the factor that sent message $i$ holds the other hard messages, so
+$D^{\text{cav}}_i$ has $\det P_{-i}\cdot\det G_{-i}$, $G_{-i}$ the Gram matrix of $B$ without $B_i$ (a soft
+neighbour's cavity holds all $p$). Summing over the $d_v$ neighbours, the $\varepsilon$ and $\det P$ parts
+cancel against $(d_v - 1)D_v$, and the Gram parts leave
+
+$$
+F_{\text{true}} - F_{\text{finite parts}} \;=\; -\tfrac12\Bigl[(p - 1)\log\det G \;-\; \sum_{i=1}^{p} \log\det G_{-i}\Bigr],
+\qquad G = B^\top B,
+$$
+
+at every variable with $p \ge 2$ hard messages ($G_{-i} = 1$ for $p = 2$, so two scalar projections at
+an angle $\theta$ give $-\log\sin\theta$; orthogonal hard messages give 0; $p \le 1$ gives 0). The
+correction depends only on the subspaces, not on the $P_i$, so it is computed from the messages
+into $v$ alone: `_hard_overlap`, added to the variable's term in `_variable_term` (so
+`scalar_free_energy`, `variable_corrections` and the gradient couplings all have it). The derivation
+is per variable and uses no tree structure: on a loopy graph it is the limit of the noisy graph's
+Bethe free energy too.
+
+**What is counted.** Only messages from belief-propagation and expectation-propagation nodes (the
+nodes `bp_degree` counts). A point message (`DiracBelief`, a `DataFactor` clamp) is a clamp, not a
+limit: it carries no divergent part (a clamped variable has entropy 0 and its factors substitute the
+point), and is not counted. A pinned variable is skipped. A singular $G$ (two exact messages along a
+common direction) is an infinite free energy, $\delta(0)$, and throws `ArgumentError`; the factor
+terms usually throw first, on their rank check. The singularity is decided on values with
+LenticulumCore's `_eig_tol`, and $\log\det G$ is plain arithmetic on the bases, which carry
+`hard_directions`' constant-rank tangents (P4): a learnable `ScaleShiftFactor` whose message meets
+another exact one moves the angle, and the gradient follows it (checked against the dense evidence
+with `ad = nothing`, ForwardDiff and Zygote; probe of 2026-11-20, then `test/hard_overlap.jl`).
+
+**The contract for a factor that sends exact messages.** The derivation assumes that every factor's
+term is the finite part of its noisy version in the same way: it substitutes the hard directions of its
+cavity out, and a factor that is itself exact along some directions adds their Jacobian on what the
+cavity leaves free, $\tfrac12\log\det(\tilde G\tilde G^\top)$ with $\tilde G$ its exact equations restricted to the
+cavity's support (`HardConstraintFactor`, and through it `SplitFactor` with hard inputs and
+`ScaleShiftFactor`; these are the library's only sources of hard messages). A factor that sends hard
+messages and leaves that Jacobian out is off by it whenever its cavity is hard along an oblique direction.
+The test fixture `LinePrior` (`lib/Lenticulum.jl/test/split.jl`, LP-069 F8), a prior exact along
+$(1, -1)/\sqrt2$, did leave it out; with the overlap term its tree gave $-\log Z + \tfrac12\log 2$, and it now
+adds $\log\lVert U^\top u\rVert$ (2026-11-20).
+
+**Plates.** `_variable_row_term` combines a row's messages as blocks and has no hard bases; a row
+with two or more blocks holding hard extended Gaussians (`VectorBlock`s) returns `nothing`, and the
+per-variable path computes those variables.
+
+**Not done.** Mixtures with hard components are not counted (`_hard_basis` of a mixture is `nothing`);
+the cost (an eigendecomposition per hard message, already paid by the factors) is not measured.

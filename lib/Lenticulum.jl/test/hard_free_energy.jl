@@ -258,11 +258,12 @@ end
     end
 end
 
-# Found by the review of U3 (LP-070, finding 1), not fixed: a Gaussian z ∈ ℝ³ observed exactly
+# Found by the review of U3 (LP-070, finding 1), fixed by I26: a Gaussian z ∈ ℝ³ observed exactly
 # through two oblique scalar projections, each its own HardConstraintFactor (k·z = y₁, h·z = y₂).
-# The tree's marginals are right, its Bethe free energy is not: each factor's ½ log det(G̃G̃ᵀ) is
-# taken on a cavity support the other observation has already cut, and the two log-sine terms do
-# not cancel. Dense: −log N((y₁, y₂); Lμ, LCLᵀ), L = [k; h].
+# The marginals were right, the Bethe free energy off by log sin θ: each factor's ½ log det(G̃G̃ᵀ) is
+# taken on a cavity support the other observation has already cut. The variable's term now adds
+# the overlap of the hard messages (Mycelium `free_energy.md`, "Exact messages that meet at a
+# variable"; more cases in `hard_overlap.jl`). Dense: −log N((y₁, y₂); Lμ, LCLᵀ), L = [k; h].
 @testset "LP-070: two oblique exact projections of one variable" begin
     μ, C = [0.8, -0.2, 1.1], [1.6 0.4 -0.1; 0.4 0.95 0.25; -0.1 0.25 1.2]
     k, h, y = [0.8, -0.1, 0.9], [0.9, 0.3, 0.7], [0.25, 1.4]
@@ -287,5 +288,5 @@ end
     @test extended(marg[:z], 3).μ ≈ μ + K * δ atol = 1e-8
     @test extended(marg[:z], 3).Σ ≈ C - K * L * C atol = 1e-8
     nlogZ = (δ' * (V \ δ) + logdet(2π * V)) / 2
-    @test_broken first(LenticulumCore.scalar_free_energy(s, g, ps, st)) ≈ nlogZ atol = 1e-8
+    @test first(LenticulumCore.scalar_free_energy(s, g, ps, st)) ≈ nlogZ atol = 1e-8
 end
