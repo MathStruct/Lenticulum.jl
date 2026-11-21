@@ -211,3 +211,19 @@ end
     @test_throws ArgumentError LenticulumCore._trainable_indices((x=1.0,),(:missing,))
     @test_throws ArgumentError LenticulumCore._trainable_indices((x=1.0,),:invalid)
 end
+
+@testset "I29 pinned coordinates take the duals' element type" begin
+    # With a frozen `b` the active coordinates of `A` are duals and `b`'s stay Float64; the
+    # rebuilt tree was a view of a `Vector{Real}`, which `svdvals` refused.
+    reference = (A=[1.0 2.0; 3.0 4.0], b=[5.0, 6.0])
+    θ = ForwardDiff.Dual{Nothing}.([10.0, 20.0, 30.0, 40.0], 1.0)
+    p = MyceliumLearning._replace_active(reference, [1, 2, 3, 4], θ)
+    @test eltype(p.A) === eltype(p.b) === eltype(θ)
+    @test ForwardDiff.value.(p.A) == [10.0 30.0; 20.0 40.0]
+    @test ForwardDiff.value.(p.b) == [5.0, 6.0]
+    @test eltype(MyceliumLearning._replace_active(reference, [1], [7.0]).A) === Float64
+    f(x) = sum(MyceliumLearning._replace_active(reference, [1, 2, 3, 4], x).A .^ 2) +
+        sum(MyceliumLearning._replace_active(reference, [1, 2, 3, 4], x).b)
+    x = [10.0, 20.0, 30.0, 40.0]
+    @test ForwardDiff.gradient(f, x) == Zygote.gradient(f, x)[1] == 2 .* x
+end

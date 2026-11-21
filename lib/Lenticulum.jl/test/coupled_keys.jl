@@ -295,18 +295,12 @@ fgrad(f, p) = LC._flatten(LC._parameter_gradient(AutoForwardDiff(), f, p))
             # ForwardDiff on the new code, as Zygote through the old replay compiled for minutes.
             if nsweeps == 3 && damping == 0.3 && seed <= 3 && expected isa Real
                 got = free_energy_gradient(MessageStore(g), g, ps, st; ad, schedule, nsweeps, damping)
-                if seed <= 2
-                    @test LC._flatten(got) ≈ fgrad(new, ps) rtol=1e-10 atol=1e-11
-                else
-                    # ForwardDiff fails on a frozen key, before I17 as well (`Float64(::Dual)` in
-                    # `_rank_deficient`; Feature Backlog I29): reference differences instead.
-                    fd = free_energy_gradient(MessageStore(g), g, ps, st; ad=nothing, schedule, nsweeps, damping)
-                    @test LC._flatten(got) ≈ LC._flatten(fd) rtol=1e-5 atol=1e-7
-                    @test_broken try
-                        fgrad(new, ps); true
-                    catch
-                        false
-                    end
+                # Seed 3 has a frozen key: its pinned coordinates stayed Float64 beside the
+                # duals and failed in `_rank_deficient` (I29, the regression test).
+                @test LC._flatten(got) ≈ fgrad(new, ps) rtol=1e-10 atol=1e-11
+                if seed == 3
+                    fd = free_energy_gradient(MessageStore(g), g, ps, st; ad=AutoForwardDiff(), schedule, nsweeps, damping)
+                    @test LC._flatten(fd) ≈ LC._flatten(got) rtol=1e-10 atol=1e-11
                 end
             end
         end

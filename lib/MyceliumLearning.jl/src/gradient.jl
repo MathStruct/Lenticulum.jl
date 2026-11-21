@@ -220,7 +220,10 @@ end
 
 function _replace_coordinates(θ, indices, active)
     positions = Dict(i => k for (k, i) in enumerate(indices))
-    return [haskey(positions, i) ? active[positions[i]] : θ[i] for i in eachindex(θ)]
+    # One element type for both: frozen coordinates are Float64 while the active ones are
+    # ForwardDiff duals, and the comprehension alone gives a `Vector{Real}` (I29).
+    T = promote_type(eltype(θ), eltype(active))
+    return [convert(T, haskey(positions, i) ? active[positions[i]] : θ[i]) for i in eachindex(θ)]
 end
 
 # The nodes that warrant the warning, by name: unfrozen, learnable `learns_unnormalised` factors

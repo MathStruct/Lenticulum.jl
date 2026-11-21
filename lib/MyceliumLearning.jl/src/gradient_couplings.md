@@ -91,6 +91,14 @@ zero graph parameter gradient and no entries in the optimiser vectors; fully pin
 factors have no optimiser key. Look-ahead and update operate on the remaining coordinates.
 Input cotangents still pass through the factor, including when every parameter is pinned.
 
+A factor with some coordinates frozen is rebuilt by `_replace_active` from its reference values and
+the active coordinates. Under ForwardDiff those are duals and the frozen ones `Float64`, and the
+rebuilt vector takes their promoted type: before I29 (2026-11-21) it was a `Vector{Real}`, and
+`svdvals` in `GaussianFactor`'s rank check refused it, so ForwardDiff through a replay with
+`freeze = (:b,)` threw while Zygote and reference differences worked. Tests:
+`lib/MyceliumLearning.jl/test/gradient_couplings.jl` ("I29") and the frozen-key seed of
+`lib/Lenticulum.jl/test/coupled_keys.jl`, where ForwardDiff and Zygote now agree to 1e-16.
+
 `StraightThroughFactor(forward,surrogate; channels=(:in,:out))` is a parameterless
 directed factor with zero local game cost. Its message is the forward value, with the
 surrogate input Jacobian. The callables are fixed functions of one scalar/array input.
