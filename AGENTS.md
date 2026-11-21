@@ -83,7 +83,7 @@ julia -t auto --project=lib/VariationalDiffusion.jl -e 'using Pkg; Pkg.test()'
 ```
 
 Run times (2026-11-10, one machine, thread count not recorded): LenticulumCore 1 min, Mycelium
-1 min, MyceliumLearning 6 min, VariationalDiffusion 6 min, Lenticulum 14 min. The suites are
+1 min, MyceliumLearning 6 min, VariationalDiffusion 6 min, Lenticulum 14 min (49 min on 2026-11-21, 8 threads). The suites are
 independent; run up to three at once, each with its output sent to a file, and read the tail of
 a file only when its suite failed. While working, run the narrowest gate that covers the change:
 to iterate on one testset, run the file's header (everything before the outer `@testset`) plus

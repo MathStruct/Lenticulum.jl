@@ -7,7 +7,7 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-21, after I17 (reverse mode through the coupled drivers, `infer!` and the graph adjoint linear in the graph; review [[LP-074 Findings of the review of I17]]), committed on `dev-danielb`, not pushed. Before it I16 (Zygote's gradient of the free energy linear in the keys), I4, I26, U3, U2 (pushed with P10, P36 and P35), P15, P34, P12 and P33.
+**Last updated:** 2026-11-21, after trimming the I17 tests (I29 recorded), and before that I17 (reverse mode through the coupled drivers, `infer!` and the graph adjoint linear in the graph; review [[LP-074 Findings of the review of I17]]), committed on `dev-danielb`, not pushed. Before it I16 (Zygote's gradient of the free energy linear in the keys), I4, I26, U3, U2 (pushed with P10, P36 and P35), P15, P34, P12 and P33.
 
 ## Branches and worktrees
 
@@ -76,7 +76,7 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Next
 
-No row is set; pick one with the maintainer. Open after I17: ForwardDiff and reference differences through a replay cost one pass per parameter coordinate (quadratic by nature; 6.7 s for reference differences at 241 factors); the I17 tests add about 10 min to Lenticulum's suite (`coupled_keys.jl` 6 min, `coupled_spec.jl` 4 min: candidates for trimming). Open after I16: Zygote's compilation still grows with the keys (66 s at 961 factors, I1); the block-row path's nodes outside rows still read `ps` per node; O(degree²) at a hub (LP-073). Open after I4: keep the residual heap between sweeps (its
+No row is set; pick one with the maintainer. Open after I17: ForwardDiff and reference differences through a replay cost one pass per parameter coordinate (quadratic by nature; 6.7 s for reference differences at 241 factors); the I17 tests, trimmed (2026-11-21), take 7 min 51 s of Lenticulum's suite instead of 10 min 21 s: Zygote through the old code (the oracle) is replaced by ForwardDiff on the new, whose values the old ones equal; what is left is compilation per graph type, schedule and backend, not the number of cases. The whole suite took 48 min 37 s on that run (`~/.cache/lenticulum/trim/Lenticulum.log`), not the 14 min of AGENTS.md; P23, P24, `ScaleShiftFactor`, LP-005 and P4's coupled replay take 2–3 min each. I29 (found while trimming, older than I17): ForwardDiff through the coupled replay fails on a frozen key. Open after I16: Zygote's compilation still grows with the keys (66 s at 961 factors, I1); the block-row path's nodes outside rows still read `ps` per node; O(degree²) at a hub (LP-073). Open after I4: keep the residual heap between sweeps (its
 first probe of every task is a third of a sweep's cost; needs to know when the store changed outside a
 sweep); I24's `_max_pending` still scans every task; the residual schedule's means are further from the
 dense solve than flooding's at the same message tolerance (4e-9 against 1e-10 on the grids; the schedule's,

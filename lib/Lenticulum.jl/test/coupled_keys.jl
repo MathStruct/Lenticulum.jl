@@ -291,11 +291,22 @@ fgrad(f, p) = LC._flatten(LC._parameter_gradient(AutoForwardDiff(), f, p))
             foreach(check_belief, values(a), values(b))
 
             # Sample each schedule for reverse mode while avoiding repeated compilation on Float32.
+            # The old and new values are equal above; their derivatives are compared through
+            # ForwardDiff on the new code, as Zygote through the old replay compiled for minutes.
             if nsweeps == 3 && damping == 0.3 && seed <= 3 && expected isa Real
                 got = free_energy_gradient(MessageStore(g), g, ps, st; ad, schedule, nsweeps, damping)
-                @test LC._flatten(got) ≈ zgrad(old, ps) rtol=1e-10 atol=1e-11
                 if seed <= 2
                     @test LC._flatten(got) ≈ fgrad(new, ps) rtol=1e-10 atol=1e-11
+                else
+                    # ForwardDiff fails on a frozen key, before I17 as well (`Float64(::Dual)` in
+                    # `_rank_deficient`; Feature Backlog I29): reference differences instead.
+                    fd = free_energy_gradient(MessageStore(g), g, ps, st; ad=nothing, schedule, nsweeps, damping)
+                    @test LC._flatten(got) ≈ LC._flatten(fd) rtol=1e-5 atol=1e-7
+                    @test_broken try
+                        fgrad(new, ps); true
+                    catch
+                        false
+                    end
                 end
             end
         end
@@ -325,7 +336,6 @@ end
             ts = ML._realised_tasks(g, schedule, report.sweeps, ps, st; damping)
             old(p) = marginal_loss(first(_old_functional_infer(g, ts, p, st, report, damping)))
             new(p) = marginal_loss(first(infer!(g, schedule, p, st; maxsweeps=3, tol=0.0, damping)))
-            @test zgrad(new, ps) ≈ zgrad(old, ps) rtol=1e-10 atol=1e-11
             # A residual order is a discrete choice. ForwardDiff on the fixed replay uses the
             # same recorded choices as the pullback of infer!.
             @test zgrad(new, ps) ≈ fgrad(schedule isa ResidualSchedule ? old : new, ps) rtol=1e-10 atol=1e-11
@@ -384,7 +394,7 @@ end
     check_store(s, so)
     new(p) = ML._replay(p, g, ts, tape, st, ad, 0.3)
     old(p) = _old_replay(p, g, ts, tape, st, ad, 0.3)
-    @test zgrad(new, ps) ≈ zgrad(old, ps) rtol=1e-10
+    @test new(ps) == old(ps)
     @test zgrad(new, ps) ≈ fgrad(old, ps) rtol=1e-10
 
     # A repeat within a buffered sweep keeps reading the sweep's initial
@@ -405,7 +415,7 @@ end
     draws = map(1:nsamples) do _
         tape, s, sr = _old_reference_tape(g, ts, ps, st, rng)
         frozen = ML._frozen_beliefs(s, g, ps, sr)
-        zgrad(p -> _old_replay(_old_pinned_parameters(p, ps, g), g, ts, tape, st, ad, 0.0, frozen), ps)
+        fgrad(p -> _old_replay(_old_pinned_parameters(p, ps, g), g, ts, tape, st, ad, 0.0, frozen), ps)
     end
     μ = sum(draws) / nsamples
     se = sqrt.(sum(v -> abs2.(v - μ), draws) / (nsamples * (nsamples - 1)))
@@ -435,10 +445,10 @@ old_loss(x, p, ctx) = _old_graph_scalar(_old_coordinate_store(x, ctx), ctx.g,
 function old_dense(ctx)
     F(x) = old_loss(x, ctx.ps, ctx)
     update(x) = _old_graph_update(x, ctx.ps, ctx)
-    rhs = only(Zygote.gradient(F, ctx.x))
-    J = only(Zygote.jacobian(update, ctx.x))
+    rhs = ForwardDiff.gradient(F, ctx.x)
+    J = ForwardDiff.jacobian(update, ctx.x)
     λ = (I - J') \ rhs
-    return zgrad(p -> old_loss(ctx.x, p, ctx) + dot(λ, _old_graph_update(ctx.x, p, ctx)), ctx.ps)
+    return fgrad(p -> old_loss(ctx.x, p, ctx) + dot(λ, _old_graph_update(ctx.x, p, ctx)), ctx.ps)
 end
 
 @testset "I17 graph-adjoint scalar and Krylov product" begin
@@ -456,9 +466,7 @@ end
             @test f(x, ps) == f0(x, ps)
             dx, _ = Zygote.gradient(f, x, ps)
             dp = zgrad(p -> f(x, p), ps)
-            @test dx ≈ first(Zygote.gradient(f0, x, ps)) rtol=1e-10 atol=1e-11
             @test dx ≈ ForwardDiff.gradient(x -> f(x, ps), x) rtol=1e-10 atol=1e-11
-            @test dp ≈ zgrad(p -> f0(x, p), ps) rtol=1e-10 atol=1e-11
             @test dp ≈ fgrad(p -> f(x, p), ps) rtol=1e-10 atol=1e-11
         end
         if !loopy
