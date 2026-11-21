@@ -585,7 +585,8 @@ The gradient columns were not measured "before" at 4 801 factors.
 
 **What it does not do.**
 - The coupled gradient drivers (`gradient_couplings.jl`: `_setsubtree` per task, `ps[name]` and
-  `_key_node` per key) and the graph adjoint still read by name.
+  `_key_node` per key) and the graph adjoint still read by name. Done in I17 ([[gradient_couplings]],
+  "Reverse mode by message versions").
 - The cold paths (`cluster`, `cluster_batch`, `sampling`, `em`, Lenticulum's `switching.jl`)
   still read by name too.
 - Zygote's backward pass through the free energy stayed quadratic; measured and fixed in I16
@@ -684,8 +685,13 @@ key, one factor, plate block rows, and the allocations of one gradient at 32 and
   its rows, through a buffer; its rows go through the `rrule` of `_row_scalar_energy`. Not measured.
 - The compilation of the pullback still grows with the number of keys (66 s at 961 factors): every new
   type of `ps` compiles anew ([[Feature Backlog]], I1).
-- The coupled gradient drivers and the graph adjoint (I17) still read by name. `factor_free_energies`
+- The coupled gradient drivers and the graph adjoint (I17) still read by name; done in I17
+  ([[gradient_couplings]], "Reverse mode by message versions"). `factor_free_energies`
   shares `_factor_terms` and so its factor reads; its graded result was not measured under Zygote.
+- Found in I17: the `rrule` of `_subtrees` read `getfield(ps, i)` in code specialised on the type of `ps`,
+  O(keys) per read, so its forward pass was O(nodes × keys) (10.7 MB at 241 keys and 722 nodes). It
+  reads through a `@noinline @nospecialize` helper (`_read_slots`) now. The table above was measured
+  before; the free energy's gradient at 961 factors was not measured again.
 
 ## Exactness checked at run time (P13, 2026-11-16)
 

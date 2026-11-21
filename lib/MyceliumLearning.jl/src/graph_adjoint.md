@@ -94,9 +94,13 @@ For $N$ message coordinates, dense assembly stores $O(N^2)$ entries and dense LU
 costs $O(N^3)$. GMRES stores $O(\min(N,30)N)$ Krylov vectors and applies
 $v\mapsto v-(D_mT)^\top v$ with a backend gradient; ForwardDiff obtains that
 gradient with forward seeds, so choosing it does not give reverse-mode cost.
-Reference inference, AD workspace and functional store copies add to these costs.
-Each map evaluation currently copies edge-sized vectors while rebuilding stores,
-so this implementation is a checked baseline rather than an allocation claim.
+Reference inference and AD workspace add to these costs. One evaluation of the map, and one
+reverse pass through it (a GMRES product, the right-hand side), is linear in the graph since I17:
+`_coordinate_store` builds the store in one pass, with an `rrule` that packs each message's cotangent
+into its coordinates (a `Diagonal` precision by its diagonal), and `_graph_update` reads the store once
+per task as a local store (`_task_reads`) and the parameters once (`_subtrees`). Before, it copied
+edge-sized vectors per task, and Zygote's cotangents of the reads were as wide as the store and `ps`:
+O(tasks × edges). Measured in [[gradient_couplings]], "Reverse mode by message versions (I17)".
 Its differentiation memory does not grow with the reference sweep count.
 
 The full-suite ambiguity check caught an overly broad `mul!` method on the new

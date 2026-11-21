@@ -6,6 +6,10 @@
 
 > Sources: original to this repository; the notes, tests and benchmarks named in each entry.
 
+## 2026-11-21
+
+I17, reverse mode through the coupled gradient drivers, `infer!` and the graph adjoint linear in the graph (medium; design by the session, implementation by Codex): the replay is one loop over message versions (`_replay_forward`; task $i$ writes version $i$, buffered tasks read the version at the sweep's start, state has versions per key) with one `rrule` that walks the tasks backwards through per-task pullbacks; each task reads a local store (`_task_reads`) and its own parameter subtree; `_graph_scalar` and `_pinned_parameters` read `ps`, the state and the store once; the implicit adjoint builds its coordinate store in one pass with a packing `rrule` (`lib/MyceliumLearning.jl/src/gradient_couplings.jl`, `graph_adjoint.jl`, `ext/MyceliumLearningChainRulesCoreExt.jl`; note `gradient_couplings.md`, "Reverse mode by message versions"). Measured first and after (`bench/coupled_scaling.jl`): at 121 factors the unrolled Zygote gradient 479 → 115 ms, 419 → 121 MB, its compilation 767 → 21 s, one Krylov product 747 → 76 ms; every column now about 2× per doubling. Measuring after the first version found three superlinear forward costs (a specialised read in the I16 rule of `_subtrees`, a check traced by Zygote, a closure capturing the type of `ps`), fixed by the session. Tests: `lib/Lenticulum.jl/test/coupled_keys.jl` (Codex, old code as oracle, allocation bound 5× at 4× the steps) and `coupled_spec.jl` (Mistral, from the specification, literals recorded on the old code). Review [[LP-074 Findings of the review of I17]] (Mistral: no defect).
+
 ## 2026-11-20
 
 I16, Zygote's backward pass through the free energy linear in the factors and keys (medium; I5 design): the graph free energy reads `ps`, the state and the message store once for all nodes (`_subtrees`, `_states` in `lib/Mycelium.jl/src/passing.jl`; `_local_stores`, per node a small store of the messages and pins it reads, in `free_energy.jl`), and rules in `MyceliumChainRulesCoreExt` add the nodes' cotangents per key and per edge; terms are added from the left by `_sum_onto`. Measured first: before, every node's read gave a cotangent as wide as `ps` or the store; a profile put half the time in the store's reads, not `ps`'s. `bench/zygote_scaling.jl`, 961 factors: gradient 3 110.6 → 286.4 ms, 1 561.6 → 202.1 MB, compilation 2 725 → 66 s; time now 1.9–2.1× per doubling (was up to 3.7×); the free energy without AD unchanged (4.63 → 4.26 ms at 961 factors, 19.1 ms at 4 801 before and after). Gradients through messages of a store built inside AD and pins set inside AD are kept. Codex wrote `lib/Lenticulum.jl/test/zygote_keys.jl` from the specification (its allocation test failed on the code before, 9.5× at 4× the steps; now 4.6×) and reviewed ([[LP-073 Findings of the review of I16]]: four defects fixed with regression tests, one limit recorded, O(degree²) at a hub). Note: `lib/Mycelium.jl/src/passing.md`, "The backward pass by key". All seven suites that depend on Mycelium passed (`~/.cache/lenticulum/i16/final4/`). Not run: the docs builds, device tests, the full smoke runner (only `zygote_scaling`).
@@ -131,7 +135,7 @@ rebuilds the `NamedTuple` once; the free energy, which Zygote differentiates, wr
 and `parameter_step` grow ×1.8–2.2 per doubling now; at 4 801 factors a sweep takes 39.1 ms
 instead of 261.6 and the free energy 19.9 instead of 150.5 (`bench/state_scaling.jl`;
 `lib/Mycelium.jl/src/passing.md`, "The trees by position"; `lib/Mycelium.jl/test/state_tree.jl`).
-Reviewed by Mistral ([[LP-025 Findings of the review of I5]]). Left over: I16, I17.
+Reviewed by Mistral ([[LP-025 Findings of the review of I5]]). Left over: I16, I17 (both done, 2026-11-20 and 2026-11-21).
 
 ## 2026-11-11
 

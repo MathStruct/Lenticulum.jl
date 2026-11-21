@@ -1264,6 +1264,8 @@ include("hierarchical_models.jl")
 include("exposure.jl")
 
 include("gradient_couplings.jl")
+include("coupled_keys.jl")
+include("coupled_spec.jl")
 
 include("switching_constraint.jl")
 

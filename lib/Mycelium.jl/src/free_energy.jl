@@ -487,6 +487,7 @@ struct _EdgeSlice{V<:AbstractVector}
     msgs::V
 end
 Base.getindex(sl::_EdgeSlice, ei::Int) = sl.msgs[_slice_slot(sl.edges, ei)]
+_isset(sl::_EdgeSlice, ei::Int) = sl[ei] !== nothing
 function _slice_slot(edges::Vector{Int}, ei::Int)
     j = findfirst(==(ei), edges)
     j === nothing && throw(ArgumentError("edge $ei is not in this node's local store"))
@@ -523,7 +524,8 @@ _remaining_variables(g, done) = [v for v in g.variables if !done[v.id]]
 # an `rrule` (a pin set inside AD lost its gradient otherwise; review of I16, Codex finding 1).
 _local_stores(s::AbstractMessageStore, reads) =
     map((m, p, r) -> _LocalStore(m[1], m[2], r[3], p), _local_messages(s, reads), _local_pins(s, reads), reads)
-_local_messages(s::MessageStore, reads) =
+_local_messages(s::MessageStore, reads) = _message_slices(s, reads)
+_message_slices(s, reads) =
     Any[(_EdgeSlice(tv, Any[s.to_variable[e] for e in tv]), _EdgeSlice(tf, Any[s.to_factor[e] for e in tf]))
         for (tf, tv, _) in reads]
 # Where no rule applies (another store here, a tree other than a `NamedTuple` in `_subtrees` and

@@ -36,10 +36,20 @@ ChainRulesCore.@non_differentiable Mycelium._key_groups(g)
 # O(nodes + keys), where a pullback per read gave a cotangent with every key per node.
 ChainRulesCore.rrule(::typeof(Mycelium._subtrees), ps::NamedTuple, nodes) = _by_key_rrule(ps, nodes, NamedTuple())
 ChainRulesCore.rrule(::typeof(Mycelium._states), st::NamedTuple, nodes) = _by_key_rrule(st, nodes, nothing)
+function ChainRulesCore.rrule(::typeof(Mycelium._states), st::NamedTuple, nodes, absent)
+    y, back = _by_key_rrule(st, nodes, absent)
+    return y, Δ -> (back(Δ)..., ChainRulesCore.NoTangent())
+end
+# The reads by position, compiled for any `NamedTuple` (I17): specialised on a tree of one field per
+# factor, `getfield(ps, i)` with a run-time `i` cost O(keys) per read, so the rule's forward pass was
+# O(nodes × keys) (10.7 MB at 241 keys and 722 nodes, against 0.1 MB for the primal; `coupled_scaling.jl`).
+# `@noinline` as well: a `@nospecialize` helper alone, or a read through `_IndexedTree`, was inlined
+# into the specialised caller and changed nothing.
+@noinline _read_slots(@nospecialize(ps::NamedTuple), slots, absent) = Any[i == 0 ? absent : getfield(ps, i) for i in slots]
 function _by_key_rrule(ps::NamedTuple, nodes, absent)
     pos = Mycelium._keypositions(ps)
     slots = Int[get(pos, f.params, 0) for f in nodes]
-    y = Any[i == 0 ? absent : getfield(ps, i) for i in slots]
+    y = _read_slots(ps, slots, absent)
     function subtrees_pullback(Δ)
         Δ = ChainRulesCore.unthunk(Δ)
         nt = ChainRulesCore.NoTangent()
@@ -74,7 +84,9 @@ _fill_like(terms, Δ) = _iszero(Δ) ? ChainRulesCore.ZeroTangent() : Any[Δ for 
 # The store's messages read once, per node a pair of slices (I16, `free_energy.jl`): each node's
 # cotangent of the messages it read is added into the store's cotangent by edge, O(edges + reads),
 # where a pullback per read gave a cotangent as long as the store. The pins are read outside.
-function ChainRulesCore.rrule(::typeof(Mycelium._local_messages), s::Mycelium.MessageStore, reads)
+ChainRulesCore.rrule(::typeof(Mycelium._local_messages), s::Mycelium.MessageStore, reads) =
+    _local_messages_rrule(s, reads, (; pins = ChainRulesCore.NoTangent()))
+function _local_messages_rrule(s, reads, extra)
     y = Mycelium._local_messages(s, reads)
     nt = ChainRulesCore.NoTangent()
     function local_messages_pullback(Δ)
@@ -89,7 +101,7 @@ function ChainRulesCore.rrule(::typeof(Mycelium._local_messages), s::Mycelium.Me
         end
         all(isnothing, dtv) && all(isnothing, dtf) && return (nt, ChainRulesCore.ZeroTangent(), nt)
         fill0(d) = all(isnothing, d) ? ChainRulesCore.ZeroTangent() : d
-        back = (to_variable = fill0(dtv), to_factor = fill0(dtf), iteration = nt, pins = nt)
+        back = (; to_variable = fill0(dtv), to_factor = fill0(dtf), iteration = nt, extra...)
         return (nt, ChainRulesCore.Tangent{typeof(s),typeof(back)}(back), nt)
     end
     return y, local_messages_pullback

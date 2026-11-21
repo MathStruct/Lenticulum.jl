@@ -123,9 +123,9 @@ schedule messages use functional matrix inverses, and `belief_cov` has the inver
 matrix pullback, avoiding inverse-of-Cholesky mutation. Ordinary inference arithmetic
 is retained. Gaussian joint precision assembly now preserves promoted element types.
 
-Replay copies an edge-sized vector for each message task. With K tasks and E edges,
-storage/copying can grow as O(K E), in addition to backend tapes. Forward mode also
-scales with parameter dimension. The opt-in implicit graph adjoint is documented in [[graph_adjoint]]. General
+Replay keeps one message per task (a version, I17, below) and copies nothing per task; under
+Zygote its reverse pass is O(tasks × degree + edges + keys). Before I17 it copied an edge-sized
+vector per task, O(K E) for K tasks and E edges. Forward mode also scales with parameter dimension. The opt-in implicit graph adjoint is documented in [[graph_adjoint]]. General
 device support, higher-order score rules and stochastic solver-inversion derivatives
 are not claimed.
 
@@ -286,3 +286,102 @@ replayed sweeps, and warns on a mixed graph: holding a parameter-dependent messa
 differentiated ones gave errors of 0.18–0.73 against the free-energy gradient, at convergence
 (the LP-021 note has the table). Score-function couplings and `StraightThroughFactor` keep the
 replay semantics.
+
+## Reverse mode by message versions (I17, 2026-11-21)
+
+**The cost.** Three paths differentiate through message passing: the unrolled replay (`_replay`,
+`free_energy_gradient` with `schedule`), Zygote through `infer!` (`_functional_infer`, which the `rrule` of
+`infer!` differentiates) and the implicit adjoint ([[graph_adjoint]]). Each was a fold over the tasks that
+read `ps` and the message store as a whole per task and copied the store per task (`_with_message`). Under
+Zygote a read gives a cotangent as wide as the container it reads (I16, `passing.md` "The backward pass by
+key"), so the cotangents added up as O(tasks × keys + tasks × edges). `_functional_infer` also rebuilt the
+pinned parameters of every key inside the fold, O(keys) reads by name per task.
+
+**What is done.**
+- *A task reads a local store.* `_task_reads(g, t)` names what a task reads: a to-factor task the to-variable
+  messages of its variable; a to-variable task the to-factor messages of its factor and the to-variable
+  messages of its variable (the target edge included, which damping reads). `_candidate` runs unchanged on
+  a `_LocalStore` of those messages, whose `_EdgeSlice` throws on an edge outside it: the check that the
+  reads are complete. It takes the factor's parameter and state subtrees, not the trees, and returns the
+  new state as `Some(state)`, or `nothing` for a to-factor task, which writes none.
+- *The replay is one function with one rule.* `_replay_forward` is a plain loop: task $i$ writes message
+  version $i$, a table holds each slot's live version (0 for none), and a buffered (flooding) task reads the
+  version a slot had at the start of its sweep. State has versions per parameter key (negative numbers for
+  the initial state), so tied factors share theirs. `_replay_run` runs it; its `rrule`
+  (`MyceliumLearningChainRulesCoreExt`) takes a pullback per task (`rrule_via_ad` of `_task_step`, whose
+  modes hold what the fold bodies did: `stop_gradient` of detached messages and of the state in `infer!`,
+  the tape's belief on cut edges and the score term in the replay), then walks the tasks backwards: a
+  task's message gets the accumulated cotangent of its version, its pullback's input cotangents are added
+  onto the versions and the subtree it read. O(tasks × degree + edges + keys). Without AD, and under
+  ForwardDiff and reference differences, the loop is the primal. `_reference_tape` uses the same loop.
+- *`_graph_scalar` reads once*, as the free energy does since I16 (`_subtrees`, `_states`, `_local_stores`);
+  its two `sum`s are kept, so its value is unchanged bit for bit (`_sum_onto` would regroup: LP-073).
+- *`_pinned_parameters` by position*, the key → node lookup taken once from `_key_groups`
+  (`_parameter_nodes`); in `_functional_infer` it is computed once, outside the loop.
+
+**Found by measuring after the first version.** The first version (Codex, from the design above) made the
+unrolled gradient linear, but the Krylov product still grew 2.5–3.1× per doubling; the backward pass was
+linear, the forward pass of Zygote's pullback was not. Three causes, each found by an allocation profile
+(`Profile.Allocs`) at 61 and 241 factors:
+- the I16 rule of `_subtrees` read `getfield(ps, i)` in code specialised on `ps`, a `NamedTuple` of one
+  field per factor; with a run-time `i` that read cost O(keys), so the rule's forward pass was
+  O(nodes × keys): 10.7 MB at 241 keys and 722 nodes, against 0.1 MB for the primal. A `@nospecialize`
+  helper alone, or a read through `_IndexedTree`, was inlined back into the specialised caller; a
+  `@noinline @nospecialize` reader (`_read_slots`) gives 0.13 MB. This rule serves I16's free energy too;
+- `_same_message_layout`, a check, was traced by Zygote and generated a pullback per task at run time
+  (45.6 of 139.8 MB at 241 factors); it and `_check_pathwise` are `@non_differentiable` now;
+- the `map` over the tasks in `_graph_update` captured `ctx`, whose type holds the type of `ps`; each task's
+  dynamically dispatched call cost O(keys) with it. The per-task body is now a function of small arguments
+  (`_update_part`), and the closure captures `g`, the damping and the backend. The unrolled replay passes
+  small arguments per task already.
+
+**Measured.** `bench/coupled_scaling.jl` (Zygote on the chain of `state_scaling.jl`, every edge
+`ExactCoupling()`, the tree schedule, one sweep replayed; best of 3; "first" is the call that compiles the
+pullback for a new type of `ps`). Before: the code at `3ff93526`, in its own worktree; after: this change;
+the same script on the same machine, one after the other (logs: `~/.cache/lenticulum/i17/`).
+
+Unrolled replay, `free_energy_gradient(…; ad = AutoZygote(), schedule)` (`clean-{old,new}-unrolled.log`):
+
+| factors | gradient before (ms) | gradient (ms) | allocated before (MB) | allocated (MB) | first call before (s) | first call (s) |
+|---|---|---|---|---|---|---|
+| 31 | 64.9 | 29.8 | 46.8 | 26.6 | 126.8 | 66.9 |
+| 61 | 190.1 | 57.0 | 247.9 | 57.2 | 156.2 | 13.9 |
+| 121 | 478.7 | 114.8 | 418.8 | 120.8 | 766.8 | 20.9 |
+
+Implicit adjoint, one Krylov product (Zygote of `_graph_map_dot` in the messages and `ps`) and Zygote of the
+loss (`clean-{old,new}-implicit.log`):
+
+| factors | product before (ms) | product (ms) | allocated before (MB) | allocated (MB) | loss gradient before (ms) | loss gradient (ms) | first product before (s) | first product (s) |
+|---|---|---|---|---|---|---|---|---|
+| 31 | 53.4 | 19.7 | 42.9 | 22.1 | 37.0 | 15.3 | 79.8 | 31.4 |
+| 61 | 178.7 | 38.9 | 168.1 | 44.5 | 100.8 | 28.7 | 106.3 | 8.0 |
+| 121 | 747.2 | 76.4 | 699.3 | 89.6 | 361.6 | 56.8 | 588.1 | 16.7 |
+
+Every column after the change grows 1.9–2.1× per doubling; before, the gradients grew 2.5–4.2× and the
+first calls up to 5.5×. At 121 factors the unrolled gradient is 4.2 times faster and the Krylov product
+9.8 times. The first row's first call includes loading Zygote. At 241 factors (`bench-final-*.log`, the
+same script while a review ran beside it) the new code took 273 ms and 250 MB for the unrolled gradient and
+169 ms and 181 MB for the product; the code before, measured with other runs beside it
+(`unrolled.log`), took 3.3 s and 1.31 GB for the unrolled gradient. Reference differences, one replay per
+coordinate, stay quadratic: 156 → 671 → 2 965 ms before, 98 → 432 → 1 632 ms after.
+
+**Tests.**
+- `lib/Lenticulum.jl/test/coupled_keys.jl` (Codex, the implementer's checks): the old functions copied as
+  `_old_*`, compared with the new on random trees and loops, flooding, residual and tree schedules,
+  `nsweeps` 1–3, damping, detached and diagonal edges, tied and frozen keys, shuffled, missing and extra
+  keys; values `==`, Zygote against the old Zygote and against ForwardDiff; state versions and a seeded
+  score replay; the coordinate pullback's layouts (dense and diagonal precisions, Dirac, Float32); and the
+  allocations of one unrolled gradient and of one Krylov product at 10 and 40 steps, less than 5× (4.5× and
+  4.1×; 8.9× for the unrolled gradient before, 5.9× for the product in the first version).
+- `lib/Lenticulum.jl/test/coupled_spec.jl` (Mistral, written from the specification against the code before
+  the change, without the implementation): Zygote = ForwardDiff = reference differences on the three paths,
+  tied keys as the sum of untied ones, key order and extra keys, detached and mixed cuts, the implicit adjoint
+  dense = Krylov = the converged replay, gradients of three fixed instances and a score estimate recorded as
+  literals on the old code. Four of its mistakes were fixed by the session (marked in the file).
+
+**What it does not do.**
+- ForwardDiff and reference differences still cost a replay per parameter coordinate (quadratic by nature),
+  and the dense implicit solve one reverse pass per coordinate; the change makes each pass linear.
+- The compilation of the pullback still grows with the number of keys (I1); it is 20–45 s at 241 factors.
+- Plates and block rows are not on these paths; device arrays were tested as before (the device tests of
+  Mycelium and MyceliumLearning, run by Codex).

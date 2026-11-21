@@ -7,15 +7,15 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-20, after I16 (Zygote's gradient of the free energy linear in the keys; review [[LP-073 Findings of the review of I16]]), committed on `dev-danielb`, not pushed. Before it I4 (the priority queue of `ResidualSchedule`), I26, U3, U2 (pushed with P10, P36 and P35), P15, P34, P12 and P33.
+**Last updated:** 2026-11-21, after I17 (reverse mode through the coupled drivers, `infer!` and the graph adjoint linear in the graph; review [[LP-074 Findings of the review of I17]]), committed on `dev-danielb`, not pushed. Before it I16 (Zygote's gradient of the free energy linear in the keys), I4, I26, U3, U2 (pushed with P10, P36 and P35), P15, P34, P12 and P33.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
 | `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
-| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/i16-review` | at `22525936` with the reviewed I16 diff applied uncommitted (`I16.diff`; probes in `scratch/i16r/`, copied to `../Lenticulum.jl-Review-2026-11-20/i16/codex-probes/`; `scratch/i16r/env` develops this worktree's packages, run with `JULIA_DEPOT_PATH=$PWD/scratch/i16r/depot:$HOME/.julia:`). The I4 review state is in `git stash` ("I4 review state (before I16 review)"), I26's, U3's and U2's below it; I4's untracked files were moved to `scratch/i4-untracked/`. Codex's sandbox cannot stash or check out (read-only git index): the session does that. Reset it before the next Codex package |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | at `27de58f1` with the first I26 diff applied (its probes in `scratch/i26/`, copied to `../Lenticulum.jl-Review-2026-11-20/i26/mistral-probes/`; the U3 state in `git stash`, "U3 state (before I26)", whose untracked `scratch/` was restored into the worktree); the test environments of LenticulumCore, Mycelium and MyceliumLearning instantiated (`--project=lib/<Pkg>.jl/test` serves probes); `scratch/p6env` serves any review, and `~/.cache/lenticulum/env-p29` serves as the old code for a bit-for-bit comparison. Before the next review: reset to the commit under review, then apply its diff. `git stash -u` takes `scratch/` with it: stash without `-u`, or restore it with `git checkout 'stash@{0}^3' -- scratch` |
+| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/i17` | at `3ff93526` with Codex's first I17 diff applied uncommitted (`IMPL-I17.md`, logs in `scratch/i17/`; the session's three fixes are not in it); run Julia there with `JULIA_DEPOT_PATH=$PWD/scratch/depot:$HOME/.julia:`. The I16 review state is in `git stash` ("I16 review state (before I17)"; its untracked files in `scratch/i16-untracked/`), I4's, I26's, U3's and U2's below it. Codex's sandbox cannot stash or check out (read-only git index): the session does that. Reset it before the next Codex package |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/i17-tests` | at `3ff93526` with Codex's first I17 diff applied (the review's probes in `scratch/i17r/`, the specification tests and their runs in `scratch/i17/`, all copied to `../Lenticulum.jl-Review-2026-11-21/i17/`); the I26 review state in `git stash` ("I26 review state (before I17 tests)"), older states below it. `scratch/p6env` serves any review and now has Krylov. Before the next review: reset to the commit under review, then apply its diff. `git stash -u` takes `scratch/` with it: stash without `-u` |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -28,6 +28,19 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **I17** (2026-11-21, chosen by Daniel from the list: the one medium row): reverse mode (Zygote) through the
+  coupled drivers (`free_energy_gradient` with `schedule`), through `infer!` and through the implicit graph
+  adjoint is linear in the graph. The replay is one loop over message versions with one `rrule` walking the
+  tasks backwards through per-task pullbacks; each task reads a local store and its own parameter subtree
+  (`lib/MyceliumLearning.jl/src/gradient_couplings.md`, "Reverse mode by message versions"). Measured first:
+  all three paths were quadratic. Design by the session, implementation by Codex, tests by Codex (old code
+  copied as the oracle) and by Mistral (from the specification, `coupled_spec.jl`, literals recorded on the old
+  code; four test mistakes fixed by the session). Measuring Codex's version found three more superlinear
+  forward costs of the Krylov product, fixed by the session; one of them was in I16's rule of `_subtrees` and
+  so in the free energy's gradient too. `bench/coupled_scaling.jl` at 121 factors: the unrolled Zygote gradient 479 → 115 ms, 419 → 121 MB, its compilation 767 → 21 s; one Krylov product 747 → 76 ms; every column now about 2× per doubling. Review LP-074 (Mistral: no
+  defect). All seven suites that depend on Mycelium passed (`~/.cache/lenticulum/i17/final/`). Not run: the
+  docs builds, device tests after the session's fixes (Codex ran them on its version), the full smoke runner
+  (the new benchmark's smoke run passed), I16's `bench/zygote_scaling.jl` after the `_subtrees` fix.
 - **I16** (2026-11-20, chosen by the session: a medium row that asked for a measurement first): the graph
   free energy reads `ps`, the state and the message store once for all nodes, and ChainRulesCore rules add
   the nodes' cotangents per key and per edge (`_subtrees`, `_states`, `_local_stores`, `_sum_onto`;
@@ -60,37 +73,10 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
   the Jacobian of its own exact directions on its cavity's support, as `HardConstraintFactor` does; the test
   fixture `LinePrior` in `test/split.jl` did not and was corrected. All eight suites passed (`~/.cache/lenticulum/i26/`;
   Lenticulum rerun after the fixture fix, `Lenticulum-final.log`). Not run: the docs builds, device tests; cost not measured.
-- **U3** (2026-11-20, asked for by Daniel after U2): `ScaleShiftFactor(x, z, dim; groups)` in
-  `lib/Lenticulum.jl/src/scale_shift.jl` and `scale_shift.md`, the density $\delta(x - s\odot z - b)$
-  of $x$ given $z$, $(b, \text{logs})$ per coordinate or group; `scale_shift_parameters(f, X)`
-  (ActNorm's data-dependent initialisation). Messages are the diagonal map applied directly; the Bethe term is
-  `HardConstraintFactor`'s, which carries the log-Jacobian. **Gradient:** a learnable deterministic
-  factor has no envelope gradient at a fixed belief (the fixed-message fallback gave only the log-Jacobian's
-  derivative; `:unrolled` falls back to it too, and `:implicit` refuses extended-Gaussian messages), so its
-  `factor_belief`/`belief_free_energy` make the envelope gradient $-\partial_\theta\log Z_f$ at fixed
-  messages, the derivative of the message-form Bethe free energy (`scale_shift.md`, "The parameter
-  gradient"); the same construction would serve any learnable deterministic factor. Codex wrote
-  `test/scale_shift.jl` from the specification (`../Lenticulum.jl-Review-2026-11-20/u3/spec.md`); reviews
-  LP-070 (Codex: six findings, four fixed; Mistral: no answer file, its probes run by the session showed no
-  defect). **Found on the way:** `HardConstraintFactor`'s free energy with two oblique exact
-  projections of one variable (row I26, since fixed). `link_sources.py` puts the Bibliography line
-  inside a multi-line Sources block (it did so in `lib/Lenticulum.jl/src/coupling.md`; reverted, no row). Suite
-  passed: Lenticulum (`~/.cache/lenticulum/u3/lenticulum-final.log`). Not run: the docs builds, device tests;
-  cost not measured.
-- **U2** (2026-11-20, chosen by the session as a row ready to start that needs no benchmark; Section P has
-  only design-first rows): `SplitFactor(whole, pieces; dim)` in `lib/Lenticulum.jl/src/split.jl` and
-  `split.md`, the exact relation $x_k = z[I_k]$ (overlap and uncovered coordinates allowed), extended-Gaussian
-  messages, free energy $-H(q)$ without hard inputs and `HardConstraintFactor`'s term with them. Codex wrote
-  `test/split.jl` from the specification alone (`../Lenticulum.jl-Review-2026-11-20/u2/spec.md`); Codex reviewed
-  (LP-069, twelve findings, all right). Core change: an integer offset of `pushforward`/`preimage` takes the
-  promoted float type (a Float32 marginal came back Float64). Recorded, not changed: three limits of the
-  extended-Gaussian core (consistency tolerance relative to ‖μ‖; improper sites that are no extended Gaussian;
-  a Float32 variance below $32\varepsilon_{32}$ of the largest counts as hard, `@test_broken` in `test/split.jl`).
-  All eight suites passed (`~/.cache/lenticulum/u2/`). Not run: the docs builds, device tests; cost not measured.
 
 ## Next
 
-No row is set; pick one with the maintainer. Open after I16: I17 (the coupled gradient drivers and the graph adjoint, expected quadratic for the same reason; `bench/zygote_scaling.jl` is the model for measuring it); Zygote's compilation still grows with the keys (66 s at 961 factors, I1); the block-row path's nodes outside rows still read `ps` per node; O(degree²) at a hub (LP-073). Open after I4: keep the residual heap between sweeps (its
+No row is set; pick one with the maintainer. Open after I17: ForwardDiff and reference differences through a replay cost one pass per parameter coordinate (quadratic by nature; 6.7 s for reference differences at 241 factors); the I17 tests add about 10 min to Lenticulum's suite (`coupled_keys.jl` 6 min, `coupled_spec.jl` 4 min: candidates for trimming). Open after I16: Zygote's compilation still grows with the keys (66 s at 961 factors, I1); the block-row path's nodes outside rows still read `ps` per node; O(degree²) at a hub (LP-073). Open after I4: keep the residual heap between sweeps (its
 first probe of every task is a third of a sweep's cost; needs to know when the store changed outside a
 sweep); I24's `_max_pending` still scans every task; the residual schedule's means are further from the
 dense solve than flooding's at the same message tolerance (4e-9 against 1e-10 on the grids; the schedule's,

@@ -38,29 +38,58 @@ _same_message_layout(a::GaussianBelief, b::GaussianBelief) =
 _same_message_layout(a::LenticulumCore.DiracBelief, b::LenticulumCore.DiracBelief) =
     a.value isa Union{Real,AbstractArray{<:Real}} && size(a.value) == size(b.value)
 
+# Coordinate stores are immutable so independent reads under AD have independent cotangents.
+struct _CoordinateStore <: AbstractMessageStore
+    to_variable::Vector{Any}
+    to_factor::Vector{Any}
+    iteration::Int
+end
+Mycelium._has_pins(::_CoordinateStore) = false
+Mycelium._local_messages(s::_CoordinateStore, reads) = Mycelium._message_slices(s, reads)
+
 function _coordinate_store(x, ctx)
-    return foldl(eachindex(ctx.ts); init=_ReplayStore(ctx.g)) do s, i
-        _with_message(s, ctx.ts[i], _restore_message(x[ctx.ranges[i]], ctx.beliefs[i]))
+    tv = Vector{Any}(nothing, nedges(ctx.g))
+    tf = similar(tv)
+    fill!(tf, nothing)
+    for (i, t) in enumerate(ctx.ts)
+        slots = t.kind === :to_factor ? tf : tv
+        slots[t.edge] = Message(_restore_message(x[ctx.ranges[i]], ctx.beliefs[i]), i)
     end
+    return _CoordinateStore(tv, tf, length(ctx.ts))
+end
+
+_task_reads_of(g, ts) = map(t -> _task_reads(g, t), ts)
+_task_nodes(g, ts) = [g.factors[g.edges[t.edge].factor] for t in ts]
+# A cut row's coordinates, constant (`nothing` for a row that is updated).
+_fixed_parts(ctx) = Any[(e = ctx.g.edges[t.edge]; e.detach || e.coupling isa DiagonalCoupling ? ctx.x[ctx.ranges[i]] : nothing)
+    for (i, t) in enumerate(ctx.ts)]
+
+function _update_part(g, t, ref, sl, p, state, fixed, damping, ad)
+    fixed === nothing || return fixed
+    e = g.edges[t.edge]
+    b, _ = _damped_candidate(sl, g, t, p, state, damping, ad)
+    e.coupling isa LenticulumCore.PathwiseCoupling && _check_pathwise(b)
+    _same_message_layout(b, ref) || throw(ArgumentError(
+        "implicit BP update must preserve message family, shape and precision structure"))
+    return _pack_message(b)
 end
 
 # Synchronous BP defines the fixed-point equation even when another schedule was
 # used to find its root. Damping follows step!: only factor -> variable messages.
 function _graph_update(x, ps, ctx)
     s = _coordinate_store(x, ctx)
-    pinned = _pinned_parameters(ps, ctx.ps, ctx.g)
-    parts = map(eachindex(ctx.ts)) do i
-        t = ctx.ts[i]
-        e = ctx.g.edges[t.edge]
-        if e.detach || e.coupling isa DiagonalCoupling
-            return ctx.x[ctx.ranges[i]]
-        end
-        b, _ = _damped_candidate(s, ctx.g, t, pinned, ctx.st, ctx.damping, ctx.ad)
-        e.coupling isa LenticulumCore.PathwiseCoupling && _check_pathwise(b)
-        _same_message_layout(b, ctx.beliefs[i]) || throw(ArgumentError(
-            "implicit BP update must preserve message family, shape and precision structure"))
-        return _pack_message(b)
-    end
+    g = ctx.g
+    pinned = _pinned_parameters(ps, ctx.ps, g)
+    nodes = _task_nodes(g, ctx.ts)
+    params = Mycelium._subtrees(pinned, nodes)
+    states = Mycelium._states(ctx.st, nodes, NamedTuple())
+    locals = Mycelium._local_stores(s, _task_reads_of(g, ctx.ts))
+    # The closure captures `g`, the damping and the backend only, not `ctx`: its type holds the type of
+    # `ps` (a field per factor), and each task's dynamically dispatched call cost O(keys) with it, so the
+    # Krylov product's forward pass was O(tasks × keys) (I17, `bench/coupled_scaling.jl`).
+    damping, ad = ctx.damping, ctx.ad
+    parts = map((t, ref, sl, p, state, fixed) -> _update_part(g, t, ref, sl, p, state, fixed, damping, ad),
+        ctx.ts, ctx.beliefs, locals, params, states, _fixed_parts(ctx))
     return reduce(vcat, parts)
 end
 _graph_state_map(x, ps, ctx) = _graph_update(x, ps, ctx)
@@ -116,8 +145,9 @@ function _implicit_graph_gradient(g, ps, st; ad, ε, schedule, damping, maxsweep
     maxsweeps isa Int && maxsweeps > 0 && isfinite(tol) && tol > 0 || throw(ArgumentError("maxsweeps and tol must be positive"))
     isfinite(linear_tol) && linear_tol > 0 && linear_maxiter isa Int && linear_maxiter > 0 || throw(ArgumentError("linear_tol and linear_maxiter must be positive"))
     0 <= damping < 1 || throw(ArgumentError("damping must be in [0, 1)"))
+    psi, sti = _indexed(ps), _indexed(st)
     for f in g.factors
-        LenticulumCore._check_factor_ad(ad, f.factor, _subtree(st, f.params))
+        LenticulumCore._check_factor_ad(ad, f.factor, _subtree(sti, f.params))
     end
     ts = all_tasks(g)
     isempty(ts) && throw(ArgumentError("implicit graph adjoints need message tasks"))
@@ -164,7 +194,8 @@ function _implicit_graph_gradient(g, ps, st; ad, ε, schedule, damping, maxsweep
     # Check the full, uncut update too: a detached row must still be at a BP root.
     s = _coordinate_store(x, ctx)
     residual = maximum(ts) do t
-        b, _ = _damped_candidate(s, g, t, ps, st, damping)
+        f = g.factors[g.edges[t.edge].factor]
+        b, _ = _damped_candidate(s, g, t, _subtree(psi, f.params), _subtree(sti, f.params), damping)
         belief_distance(_stored_belief(s,t), b)
     end
     isfinite(residual) && residual <= 10tol || throw(ArgumentError("implicit graph reference fails the full BP fixed-point check (residual=$residual)"))
