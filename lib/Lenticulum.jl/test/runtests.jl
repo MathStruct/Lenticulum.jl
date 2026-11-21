@@ -10,6 +10,20 @@ using Test
 
 include(joinpath(@__DIR__, "../../LenticulumCore.jl/test/support/factor_conformance.jl"))
 
+# Two tiers (2026-11-21). The slow tier differentiates through replays, plates and element types: about
+# 22 of the suite's 48 min, most of it compilation. LENTICULUM_SLOW_TESTS selects them: unset or "false"
+# runs the fast tier (locally and on every push, CI.yml), "true" both, "only" the slow tier (Slow.yml:
+# weekly, on pull requests, and on pushes that touch the AD code).
+const TEST_TIER = get(ENV, "LENTICULUM_SLOW_TESTS", "false")
+TEST_TIER in ("false", "true", "only") ||
+    error("LENTICULUM_SLOW_TESTS must be \"false\", \"true\" or \"only\", not $(repr(TEST_TIER))")
+const FAST_TIER = TEST_TIER != "only"
+const SLOW_TIER = TEST_TIER != "false"
+SLOW_TIER || @info "Skipping the slow test tier; set LENTICULUM_SLOW_TESTS=true (or only) to run it."
+FAST_TIER || @info "Running the slow test tier only (LENTICULUM_SLOW_TESTS=only)."
+fast_include(f) = FAST_TIER && include(joinpath(@__DIR__, f))
+slow_include(f) = SLOW_TIER && include(joinpath(@__DIR__, f))
+
 # ---------------------------------------------------------------------------
 # The reference model:   x ~ N(μ₀, Σ₀),   y | x ~ N(Ax + b, Q),   y clamped to y₀.
 #
@@ -257,7 +271,7 @@ function brute_tilted(ℓ, μ, s²; lo = μ - 12sqrt(s²), hi = μ + 12sqrt(s²)
 end
 
 
-@testset "Lenticulum" begin
+FAST_TIER && @testset "Lenticulum" begin
 
 @testset "GaussianBelief: canonical form makes pooling addition" begin
     a = Gaussian([0.0], fill(1.0, 1, 1))
@@ -826,7 +840,7 @@ end
 
 end
 
-@testset "belief algebra: Gaussian mixtures, moment matching, reduction" begin
+FAST_TIER && @testset "belief algebra: Gaussian mixtures, moment matching, reduction" begin
     dens(b, x) = exp(Mycelium.belief_logdensity(b, [x]))
     xs = range(-6, 8; length = 20001); dx = step(xs)
     m = LenticulumCore.MixtureBelief([Gaussian(-1.0, 0.3), Gaussian(2.0, 0.5)], [0.3, 0.7])
@@ -877,7 +891,7 @@ RxInfer.@model function onestep(y)
     y ~ RxInfer.NormalMeanVariance(2.0 * x + 1.0, 0.5)
 end
 
-@testset "interop: beliefs as RxInfer distributions and back" begin
+FAST_TIER && @testset "interop: beliefs as RxInfer distributions and back" begin
     # the same conjugate model solved by RxInfer and by Lenticulum's Gaussian factors
     rx = RxInfer.infer(model = onestep(), data = (y = 3.0,))
     post_rx = as_belief(rx.posteriors[:x])
@@ -891,7 +905,7 @@ end
 end
 
 
-@testset "NonlinearFactor: EKF and UKF messages, iterated to the MAP" begin
+FAST_TIER && @testset "NonlinearFactor: EKF and UKF messages, iterated to the MAP" begin
     fwd = LenticulumCore.Polarity(; x = Observed(), y = Unobserved())
     bwd = LenticulumCore.Polarity(; x = Unobserved(), y = Observed())
     # an affine f: both methods reproduce GaussianFactor exactly, in both directions
@@ -968,7 +982,7 @@ end
     @test_throws ArgumentError NonlinearFactor(identity, 1 => 1; method = :ukf)
 end
 
-@testset "LikelihoodFactor: Laplace and EP messages, the predictive over outcomes" begin
+FAST_TIER && @testset "LikelihoodFactor: Laplace and EP messages, the predictive over outcomes" begin
     bwd = LenticulumCore.Polarity(; x = Unobserved(), y = Observed())
     fwd = LenticulumCore.Polarity(; x = Observed(), y = Unobserved())
     msg(f, cav, y) = Mycelium.factor_message(f, :x, bwd, (; y = DiracBelief(y)), cav, NamedTuple(), NamedTuple())[1]
@@ -1121,7 +1135,7 @@ end
     @test isfinite(loglikelihood(bp, [2, 1], [0.0, 0.0, -Inf]))
 end
 
-@testset "Factor interface conformance (L-SPEC-001 §1–§5)" begin
+FAST_TIER && @testset "Factor interface conformance (L-SPEC-001 §1–§5)" begin
     nt = NamedTuple()
     px = Gaussian([1.0], fill(1.0, 1, 1))
     y = DiracBelief([4.0])
@@ -1153,7 +1167,7 @@ end
                              game_y = nothing, msgs = (x = px,))
 end
 
-@testset "game entropy occupies its free-energy coordinate" begin
+FAST_TIER && @testset "game entropy occupies its free-energy coordinate" begin
     nt = NamedTuple()
     πx = Gaussian([1.0], fill(1.0, 1, 1))
     cases = (
@@ -1178,7 +1192,7 @@ end
     end
 end
 
-@testset "iterated nonlinear likelihood is the final posterior site" begin
+FAST_TIER && @testset "iterated nonlinear likelihood is the final posterior site" begin
     nt = NamedTuple()
     for method in (Linearization(iterations = 4), Unscented(iterations = 4, α = 1.0))
         f = NonlinearFactor(x -> x .^ 2, 1 => 1; noise = 0.1, method)
@@ -1195,7 +1209,7 @@ end
     end
 end
 
-@testset "predictive free energy retains conditional entropy" begin
+FAST_TIER && @testset "predictive free energy retains conditional entropy" begin
     nt = NamedTuple()
     f = LikelihoodFactor(OrdinalProbitLikelihood([-1.0, 1.0]), 1)
     x = DiracBelief([0.0])
@@ -1239,7 +1253,7 @@ end
     @test_throws ArgumentError Mycelium.local_free_energy(f, (x = nothing, y = nothing), nt, nt)
 end
 
-@testset "LP-002 Gaussian parameter derivatives against closed form" begin
+FAST_TIER && @testset "LP-002 Gaussian parameter derivatives against closed form" begin
     f = GaussianFactor(2 => 2; noise = [0.7 0.1; 0.1 0.5])
     ps, st = (A = [0.2 -0.3; 0.4 0.1], b = [0.1, -0.2]), (;)
     x, y = [0.8, -1.2], [0.5, 0.7]
@@ -1253,81 +1267,81 @@ end
     @test grad.b ≈ -(f.Q\r) atol = 1e-9
 end
 
-include("learnable_noise.jl")
+slow_include("learnable_noise.jl")
 
-include("game_composition.jl")
+fast_include("game_composition.jl")
 
-include("structure_search.jl")
+fast_include("structure_search.jl")
 
-include("hierarchical_models.jl")
+fast_include("hierarchical_models.jl")
 
-include("exposure.jl")
+fast_include("exposure.jl")
 
-include("gradient_couplings.jl")
-include("coupled_keys.jl")
-include("coupled_spec.jl")
+fast_include("gradient_couplings.jl")
+slow_include("coupled_keys.jl")
+slow_include("coupled_spec.jl")
 
-include("switching_constraint.jl")
+fast_include("switching_constraint.jl")
 
-include("mixture_rules.jl")
+fast_include("mixture_rules.jl")
 
-include("cluster.jl")
-include("regime.jl")
+fast_include("cluster.jl")
+fast_include("regime.jl")
 include("regime_plate.jl")
-include("cluster_flat.jl")
-include("exact_report.jl")
-include("gh15_nonlinear_tree.jl")
-include("em.jl")
-include("validate_parameters.jl")
-include("rq008.jl")
-include("overlay.jl")
+fast_include("cluster_flat.jl")
+fast_include("exact_report.jl")
+fast_include("gh15_nonlinear_tree.jl")
+fast_include("em.jl")
+fast_include("validate_parameters.jl")
+fast_include("rq008.jl")
+fast_include("overlay.jl")
 
-include("structure_edits.jl")
+fast_include("structure_edits.jl")
 
-include("mean_field_free_energy.jl")
+fast_include("mean_field_free_energy.jl")
 
-include("plates.jl")
-include("plate_block_duals.jl")
-include("zygote_cavity.jl")
+fast_include("plates.jl")
+fast_include("plate_block_duals.jl")
+slow_include("zygote_cavity.jl")
 
-include("lp020.jl")
+fast_include("lp020.jl")
 
-include("lp021.jl")
+fast_include("lp021.jl")
 
-include("lp022.jl")
+fast_include("lp022.jl")
 
-include("lp018.jl")
+fast_include("lp018.jl")
 
-include("lp018_interop.jl")
-include("lp019_interop.jl")
-include("gaussian_oracle.jl")
-include("p30_element_type.jl")
-include("p31_element_type.jl")
-include("i3_spanning_trees.jl")
-include("i25_coupling_weights.jl")
-include("i18.jl")
+fast_include("lp018_interop.jl")
+fast_include("lp019_interop.jl")
+fast_include("gaussian_oracle.jl")
+slow_include("p30_element_type.jl")
+slow_include("p31_element_type.jl")
+fast_include("i3_spanning_trees.jl")
+fast_include("i25_coupling_weights.jl")
+fast_include("i18.jl")
 
-include("hard_constraint.jl")
-include("hard_plates.jl")
+fast_include("hard_constraint.jl")
+fast_include("hard_plates.jl")
 
-include("extended_inputs.jl")
-include("p3_no_input.jl")
-include("p28_no_input.jl")
-include("p29_rank_tolerance.jl")
-include("p9_relative_tol.jl")
-include("extended_plates.jl")
-include("mixture_extended.jl")
-include("forms_crossing.jl")
+fast_include("extended_inputs.jl")
+fast_include("p3_no_input.jl")
+fast_include("p28_no_input.jl")
+fast_include("p29_rank_tolerance.jl")
+fast_include("p9_relative_tol.jl")
+fast_include("extended_plates.jl")
+fast_include("mixture_extended.jl")
+fast_include("forms_crossing.jl")
 
-include("hard_free_energy.jl")
-include("hard_overlap.jl")
-include("hard_gradient.jl")
-include("hard_inputs.jl")
-include("split.jl")
-include("scale_shift.jl")
-include("residual_queue.jl")
-include("zygote_keys.jl")
+fast_include("hard_free_energy.jl")
+fast_include("hard_overlap.jl")
+slow_include("hard_gradient.jl")
+fast_include("hard_inputs.jl")
+fast_include("split.jl")
+fast_include("scale_shift.jl")
+fast_include("residual_queue.jl")
+slow_include("zygote_keys.jl")
 
-include("p34_output_coeff.jl")
+fast_include("p34_output_coeff.jl")
 
 include("aqua.jl")

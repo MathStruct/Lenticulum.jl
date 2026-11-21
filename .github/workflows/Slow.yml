@@ -1,0 +1,58 @@
+name: Slow tests
+# Lenticulum's slow test tier (lib/Lenticulum.jl/test/runtests.jl, LENTICULUM_SLOW_TESTS=only): the tests that
+# differentiate through replays, plates and element types, about 22 of the suite's 48 min (2026-11-21), most of
+# it compilation. CI.yml runs the fast tier on every push; this workflow runs the slow tier beside it, so the
+# two take the time of the longer rather than their sum. It runs once a week, on demand (Actions → Slow tests →
+# Run workflow), on pull requests to master and dev, and on pushes that touch the code these tests
+# differentiate through. A change elsewhere can break a slow test between two weekly runs; run the workflow
+# before relying on one.
+on:
+  schedule:
+    - cron: '0 3 * * 1'          # Mondays, 03:00 UTC, an hour before Weekly.yml
+  workflow_dispatch:
+  pull_request:
+    branches: [master, dev]
+  push:
+    branches: [master, dev, dev-danielb]
+    paths:
+      - 'lib/*/ext/**'
+      - 'lib/MyceliumLearning.jl/src/**'
+      - 'lib/Mycelium.jl/src/free_energy.jl'
+      - 'lib/Mycelium.jl/src/passing.jl'
+      - 'lib/Mycelium.jl/src/cluster*.jl'
+      - 'lib/Mycelium.jl/src/plates.jl'
+      - 'lib/Mycelium.jl/src/blocks.jl'
+      - 'lib/LenticulumCore.jl/src/parameter_tree.jl'
+      - 'lib/LenticulumCore.jl/src/energy.jl'
+      - 'lib/LenticulumCore.jl/src/gaussian_belief.jl'
+      - 'lib/LenticulumCore.jl/src/extended_gaussian.jl'
+      - 'lib/Lenticulum.jl/src/**'
+      - 'lib/Lenticulum.jl/Project.toml'
+      - 'lib/Lenticulum.jl/test/runtests.jl'
+      - 'lib/Lenticulum.jl/test/learnable_noise.jl'
+      - 'lib/Lenticulum.jl/test/coupled_keys.jl'
+      - 'lib/Lenticulum.jl/test/coupled_spec.jl'
+      - 'lib/Lenticulum.jl/test/regime_plate.jl'
+      - 'lib/Lenticulum.jl/test/zygote_cavity.jl'
+      - 'lib/Lenticulum.jl/test/p30_element_type.jl'
+      - 'lib/Lenticulum.jl/test/p31_element_type.jl'
+      - 'lib/Lenticulum.jl/test/hard_gradient.jl'
+      - 'lib/Lenticulum.jl/test/zygote_keys.jl'
+      - '.github/workflows/Slow.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  slow:
+    name: lib/Lenticulum.jl · slow tier · Julia 1
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      - name: Test lib/Lenticulum.jl, slow tier
+        env:
+          LENTICULUM_SLOW_TESTS: 'only'
+        run: julia --project=lib/Lenticulum.jl -e 'using Pkg; Pkg.instantiate(); Pkg.test()'

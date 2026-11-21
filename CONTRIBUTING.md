@@ -139,6 +139,8 @@ and a later release cites the paper.
    `julia --project=lib/<Package>.jl -e 'using Pkg; Pkg.test()'` (for example `--project=lib/Lenticulum.jl`).
    Julia 1.12 or later is needed (CI tests the current release on every push, and 1.12 weekly); the Mycelium and
    ImplicitLayers device files run with `LENTICULUM_DEVICE_TESTS=true`, as a separate CI job does.
+   Lenticulum's slow tests (derivatives through replays, plates and element types, about 22 min) run
+   with `LENTICULUM_SLOW_TESTS=true`, or alone with `=only`, as the `Slow tests` workflow does.
    Something new comes with a test against a closed form or a reference where one exists, and
    with an implementation note beside the source file: what it does, what it does not do, and
    the difficulties met on the way.

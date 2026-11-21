@@ -15,6 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         # the current release on every push; 1.12, the oldest supported, runs weekly (Weekly.yml, `oldest`)
+        # Lenticulum runs its fast tier here; its slow tier (LENTICULUM_SLOW_TESTS) runs in Slow.yml
         julia: ['1']
         package:
           - lib/LenticulumCore.jl

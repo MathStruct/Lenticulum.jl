@@ -83,7 +83,13 @@ julia -t auto --project=lib/VariationalDiffusion.jl -e 'using Pkg; Pkg.test()'
 ```
 
 Run times (2026-11-10, one machine, thread count not recorded): LenticulumCore 1 min, Mycelium
-1 min, MyceliumLearning 6 min, VariationalDiffusion 6 min, Lenticulum 14 min (49 min on 2026-11-21, 8 threads). The suites are
+1 min, MyceliumLearning 6 min, VariationalDiffusion 6 min. Lenticulum's suite has two tiers
+(2026-11-21, 8 threads): the fast tier, the default, about 26–29 min; the slow tier, the tests that differentiate
+through replays, plates and element types, about 22 min more (28 min alone, with its own compilation). `LENTICULUM_SLOW_TESTS=true` runs both,
+`=only` the slow tier alone (`lib/Lenticulum.jl/test/runtests.jl` says which files and testsets are
+slow; a new test that compiles for minutes goes there). CI runs the fast tier on every push and the slow
+tier beside it in `Slow.yml`: weekly, on pull requests, and on pushes that touch the AD code (the
+workflow's `paths`). Locally, run the slow tier too before a commit that touches those paths. The suites are
 independent; run up to three at once, each with its output sent to a file, and read the tail of
 a file only when its suite failed. While working, run the narrowest gate that covers the change:
 to iterate on one testset, run the file's header (everything before the outer `@testset`) plus

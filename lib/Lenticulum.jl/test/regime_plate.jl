@@ -27,7 +27,7 @@ function rp_factor(rng, dz, dx, K)
 end
 rp_gauss(rng, d, Λ) = GaussianBelief(randn(rng, d), Λ)
 
-@testset "RegimeFactor plate: batched messages and energies equal per replica (random)" begin
+FAST_TIER && @testset "RegimeFactor plate: batched messages and energies equal per replica (random)" begin
     for seed in 1:6
         rng = Xoshiro(seed)
         dz, dx, K, N = rand(rng, 1:3), rand(rng, 1:2), rand(rng, 2:3), 5
@@ -86,7 +86,7 @@ function rp_nlp(z, A, b, logw, Q)          # A.z[:,:,k] z + A.x[:,:,k] x = b_k +
     end for k in 1:K])
 end
 
-@testset "RegimeFactor plate: clustered mixture of factor analysers, batched, against the closed form (random)" begin
+FAST_TIER && @testset "RegimeFactor plate: clustered mixture of factor analysers, batched, against the closed form (random)" begin
     for seed in 1:3
         rng = Xoshiro(100 + seed)
         dz, dx, K, N = 3, 2, 3, 7
@@ -150,7 +150,7 @@ end
 # differ, as the belief's dependence on `ps` counts here.
 rp_cd(F, θ; h = 1e-6) = [(F(θ .+ h .* (eachindex(θ) .== j)) - F(θ .- h .* (eachindex(θ) .== j))) / 2h for j in eachindex(θ)]
 
-@testset "cluster node free energy at fixed messages: ForwardDiff and Zygote in ps (P24, random)" begin
+SLOW_TIER && @testset "cluster node free energy at fixed messages: ForwardDiff and Zygote in ps (P24, random)" begin
     for seed in 1:5
         rng = Xoshiro(200 + seed)
         dz, dx, K = rand(rng, 1:3), rand(rng, 1:2), rand(rng, 2:3)
@@ -201,7 +201,7 @@ end
 # P26: the diffuse limit under ForwardDiff, at constant rank (`MyceliumForwardDiffFlatExt`). The
 # oracle is central differences of the value path, which is smooth where the rank is constant.
 rp_skew(v, n) = (S = zeros(eltype(v), n, n); k = 0; for i in 1:n, j in i+1:n; k += 1; S[i, j] = v[k]; S[j, i] = -v[k]; end; S)
-@testset "flat directions under a derivative: the diffuse limit at constant rank (P26, random)" begin
+SLOW_TIER && @testset "flat directions under a derivative: the diffuse limit at constant rank (P26, random)" begin
     # the factorisation alone: J(θ) of rank r < n, with a range that rotates; on even seeds
     # J = c Q Qᵀ with Q orthonormal (a Cayley rotation), so its eigenvalues on the range repeat
     for seed in 1:20
@@ -284,7 +284,7 @@ rp_mixreg_ps(N, a, c, σ, w) = merge(NamedTuple(s => NamedTuple() for i in 1:N f
     (reg = (A = (x = reshape(-a, 1, 1, 2),), b = reshape(c, 1, 2), logw = log.(w), L = reshape(log.(σ), 1, 1, 2)),))
 rp_mixreg_nlp(x, y, a, c, σ, w) = -sum(i -> rp_lse([log(w[k] / sum(w)) + rp_logN([y[i]], [a[k] * x[i] + c[k]], fill(σ[k]^2, 1, 1)) for k in 1:2]), eachindex(x))
 
-@testset "RegimeFactor plate: a mixture of regressions outside clusters, batched EM and gradient" begin
+FAST_TIER && @testset "RegimeFactor plate: a mixture of regressions outside clusters, batched EM and gradient" begin
     rng = Xoshiro(7)
     N = 40
     x = randn(rng, N)
@@ -326,7 +326,7 @@ end
 # Review of I6 (LP-032, finding 1): a categorical input with reordered labels on a replica other
 # than the first was read positionally by the batched path, which checked only replica 1's
 # inputs; the per-replica path refuses it. The labels are part of the shape now.
-@testset "RegimeFactor plate: a mislabeled categorical input on a later replica is refused" begin
+FAST_TIER && @testset "RegimeFactor plate: a mislabeled categorical input on a later replica is refused" begin
     rng = Xoshiro(31)
     f, p = rp_factor(rng, 2, 1, 2)
     fs = [RegimeFactor((z = 2, x = 1), 2, 2; learn_noise = true) for _ in 1:3]
@@ -346,7 +346,7 @@ end
 # A row whose factors are not all equal gets one cluster per replica and is not batched; the
 # replicas of equal factors share one cluster (`_as_clusters`, I19; from Mistral's probe p2,
 # LP-034).
-@testset "RegimeFactor plate: unequal factors in a row go replica by replica" begin
+FAST_TIER && @testset "RegimeFactor plate: unequal factors in a row go replica by replica" begin
     rng = Xoshiro(21)
     dz, dx, K, N = 2, 1, 2, 3
     f, p = rp_factor(rng, dz, dx, K)
@@ -375,7 +375,7 @@ end
 # comes out: a categorical block, a mixture block (one precision, no equal components), a
 # Gaussian block (one assignment left), or the replicas stacked (several precisions, merged
 # components, an assignment of weight zero, inputs whose shape differs between replicas).
-@testset "RegimeFactor plate: block inputs give the column path's messages exactly (I20)" begin
+FAST_TIER && @testset "RegimeFactor plate: block inputs give the column path's messages exactly (I20)" begin
     # the column path stacks mixtures with a precision per component into a vector block (I21)
     rp_same_kind(a, b) = typeof(a) == typeof(b) || (a isa ComponentMixtureBlock && b isa Mycelium.VectorBlock)
     rp_replicas_equal(a, b) = rp_same_kind(a, b) && nreplicas(a) == nreplicas(b) &&
@@ -432,7 +432,7 @@ end
 # I20: the data factors of a graph made a plate by `as_plate` each have their own (empty)
 # parameter key; their messages and energies are grouped, and a key that is not empty sends the
 # group back edge by edge.
-@testset "RegimeFactor plate: untied data factors grouped, and edge by edge when a key is not empty (I20)" begin
+FAST_TIER && @testset "RegimeFactor plate: untied data factors grouped, and edge by edge when a key is not empty (I20)" begin
     rng = Xoshiro(17)
     N = 25
     x = randn(rng, N)
@@ -467,7 +467,7 @@ end
 
 # I21: a mixture block with a precision per component, what the regime factors of a plate send to a
 # continuous channel once the outcomes' noises differ. Its operations against the per-belief rules.
-@testset "ComponentMixtureBlock: columns, distance and products against the per-belief rules (I21)" begin
+FAST_TIER && @testset "ComponentMixtureBlock: columns, distance and products against the per-belief rules (I21)" begin
     rng = Xoshiro(41)
     for (d, K, n) in ((1, 2, 4), (2, 3, 5))
         spd() = (S = randn(rng, d, d); S * S' + I)
@@ -515,7 +515,7 @@ end
 # I21: the plate's energy rows are found once per graph and store layout. A second store of the
 # same graph reuses them; a store whose block rows are numbered otherwise finds its own, and both
 # give the closed form.
-@testset "RegimeFactor plate: energy rows kept per store layout (I21)" begin
+FAST_TIER && @testset "RegimeFactor plate: energy rows kept per store layout (I21)" begin
     rng = Xoshiro(23)
     N = 12
     x = randn(rng, N)
@@ -543,7 +543,7 @@ end
     end
 end
 
-@testset "PlateSchedule on a store with another block numbering (P22)" begin
+FAST_TIER && @testset "PlateSchedule on a store with another block numbering (P22)" begin
     # The plans of a plate schedule hold the block row numbers of `MessageStore(g)`. A store whose
     # rows are numbered otherwise (both directions, or only one) must still get the edge-by-edge
     # messages: before P22 the sweep wrote to the wrong rows and F was 2.68 against 14.54.
