@@ -1,7 +1,7 @@
 # I1: compilation per structure in the AD paths (`Mycelium/src/passing.md`, "Compilation per
 # structure"). Needs DifferentiationInterface, ForwardDiff and Zygote loaded (`parameter_ad.jl`).
 using LenticulumCore: _flatten, _unflatten, offset_tree, _eltype, _graph_ad, _graph_parameter_gradient,
-    _parameter_gradient
+    _parameter_gradient, _graph_gradient
 const ChainRulesCore = Zygote.ChainRulesCore
 struct _I1Box; x::Any; end
 mutable struct _I1Cycle; next::Any; v::Any; end
@@ -114,11 +114,48 @@ end
     @test ForwardDiff.derivative(gt, 1.5) ≈ (gt(1.5 + 1e-6) - gt(1.5 - 1e-6)) / 2e-6 rtol = 1e-6
 end
 
-# Codex finding 2 (review of I1), not fixed and before I1 as well (LP-076): under a caller's
-# ForwardDiff, a loss that does not depend on the parameters leaves the gradient's coordinates
-# after the first unwritten (ForwardDiff writes as many as the caller's dual has partials), e.g.
-# `ForwardDiff.derivative(y -> _flatten(_parameter_gradient(AutoForwardDiff(), (p, y) -> y,
-# (a = [0.7, -0.2, 0.1],), y)), 0.3)`. Not a test: the memory is often zero by chance.
+# Codex finding 2 (review of I1, LP-076): under a caller's ForwardDiff, a loss that does not depend
+# on the parameters left the gradient's coordinates after the caller's partials unwritten
+# (ForwardDiff's `extract_gradient!` loops over the partials of the dual it is given). The memory is
+# often zero by chance, so the test uses many coordinates and checks that the inner derivative is
+# evaluated with this call's tag (`_LiftToInner`), which makes it zero whatever the buffer held.
+@testset "LP-076 finding 2: a loss free of the parameters under a caller's ForwardDiff" begin
+    X = Base.get_extension(LenticulumCore, :LenticulumCoreForwardDiffDIExt)
+    for pg in (_parameter_gradient, _graph_parameter_gradient), n in (2, 3, 40, 400)
+        ps = (a = collect(range(-1.0, 1.0; length = n)),)
+        free(y) = _flatten(pg(AutoForwardDiff(), (p, y) -> y^2, ps, y))
+        @test ForwardDiff.derivative(free, 0.3) == zeros(n)
+        # through `stop_gradient` the loss holds this call's dual with no effect on the value
+        stopped(y) = _flatten(pg(AutoForwardDiff(), (p, y) -> y * LenticulumCore.stop_gradient(sum(p.a)), ps, y))
+        @test ForwardDiff.derivative(stopped, 0.3) == zeros(n)
+        # the caller's dual with more partials than there are coordinates
+        many(v) = _flatten(pg(AutoForwardDiff(), (p, v) -> sum(abs2, v), ps, v))
+        @test ForwardDiff.jacobian(many, [0.1, 0.2, 0.3, 0.4, 0.5]) == zeros(n, 5)
+        # a loss that does depend on both: the mixed derivative ∂y ∂a (y Σa²) = 2a
+        mixed(y) = _flatten(pg(AutoForwardDiff(), (p, y) -> y * sum(abs2, p.a), ps, y))
+        @test ForwardDiff.derivative(mixed, 0.3) ≈ 2 .* ps.a
+    end
+    lift = X._LiftToInner((u, c) -> c)
+    u = [ForwardDiff.Dual{:inner}(1.0, 1.0, 0.0), ForwardDiff.Dual{:inner}(2.0, 0.0, 1.0)]
+    @test lift(u, 3.0) === 3.0
+    @test lift(u, u[1]) === u[1]
+    # a caller's dual of another tag: the result carries this call's tag, with zero partials
+    _i1_caller_f(x) = x; _i1_inner_f(x) = x
+    Tc = typeof(ForwardDiff.Tag(_i1_caller_f, Float64))   # created first, as a caller's is
+    T = typeof(ForwardDiff.Tag(_i1_inner_f, Float64))
+    caller = ForwardDiff.Dual{Tc}(3.0, 1.0)
+    w = [ForwardDiff.Dual{T}(1.0, 1.0, 0.0), ForwardDiff.Dual{T}(2.0, 0.0, 1.0)]
+    yl = lift(w, caller)
+    @test ForwardDiff.partials(T, yl, 1) == 0 && ForwardDiff.partials(T, yl, 2) == 0
+    @test ForwardDiff.value(T, yl) == caller
+    # Codex's review of the fix: the fixed tag is created before the caller's, and the caller's dual
+    # is captured by `fun` (the guard looked at `args` only), then ForwardDiff could not order them
+    g0(t) = _graph_gradient(AutoForwardDiff(), _ -> t, [1.0, 2.0])
+    gk(t) = _graph_gradient(AutoForwardDiff(), u -> t * sum(abs2, u), [1.0, 2.0])
+    @test g0(0.3) == [0.0, 0.0] && gk(0.3) ≈ [0.6, 1.2]
+    @test ForwardDiff.derivative(g0, 0.3) == [0.0, 0.0]
+    @test ForwardDiff.derivative(gk, 0.3) ≈ [2.0, 4.0]
+end
 
 @testset "I1: one dual type for the graph drivers" begin
     X = Base.get_extension(LenticulumCore, :LenticulumCoreForwardDiffDIExt)

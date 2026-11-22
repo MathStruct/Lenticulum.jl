@@ -393,3 +393,73 @@ coordinate, stay quadratic: 156 → 671 → 2 965 ms before, 98 → 432 → 1 63
 - The compilation of the pullback still grows with the number of keys (I1); it is 20–45 s at 241 factors.
 - Plates and block rows are not on these paths; device arrays were tested as before (the device tests of
   Mycelium and MyceliumLearning, run by Codex).
+
+## The graph-wide trees out of Zygote's signatures (I30): design (2026-11-22)
+
+Not implemented yet; this section is the specification of the work package.
+
+**The cost.** After I1, the first gradient on a new structure still compiles in proportion to the
+structure (`bench/structure_compile.jl`; I1's numbers in `passing.md`, "The AD paths (I1)": Zygote through
+the replay 2.5, 5.3, 13.4 s at 31, 61, 121 factors). Zygote's `Pullback{Tuple{typeof(f), A...}}` holds the
+type of every argument of every function it transforms, and `ps`, `st` (a field per parameter key) and the
+offset tree are arguments all the way down: `_parameter_loss`, `_coupled_loss`, `_pinned_parameters` and
+its closure, `_replay`, `_graph_scalar` and its closures; for the implicit adjoint `_graph_loss`,
+`_graph_update`, `_graph_map_dot`, `_graph_adjoint_loss` through `ctx`, a `NamedTuple` holding `ps` and
+`st`. Inferring the `Pullback` types alone, `indexed_iterate` on `(y, back)`, was 1.5 s of 5.7 s at 61
+factors (SnoopCompile, I1). The graph (`FactorGraph`, `MessageStore`, the task vector) has the same type for
+every structure and is not the problem; neither are the per-factor calls (`_task_step` through
+`rrule_via_ad`, the closures over one factor's subtree), whose types are those of one factor.
+
+**The idea.** Inside the differentiated region, `ps`, `st` and the offset tree travel in a box whose type
+does not depend on the structure, and are read only by functions with a ChainRules rule. Zygote then
+transforms the glue once for all structures; the rules are ordinary Julia functions, compiled per
+structure as the primal is (I1 measured the primal's share as small: `_indexed` 0.06 s, `_keypositions`
+0.04 s at 61 factors).
+
+1. *The box.* `LenticulumCore._Erased`, `struct _Erased; tree::Any; end`, not parametric. Its own
+   `_flatten`, `offset_tree`, `_unflatten`, `keys`, `isempty` are not defined: every use is explicit, so a
+   path that forgets to unbox fails loudly rather than silently differentiating through `getfield`.
+2. *The boundary.* `_graph_parameter_gradient(ad, fun, ps, args...)` differentiates
+   `θ -> fun(_unflatten_erased(θ, _Erased(offs), _Erased(ps)), args...)`: the loss receives a boxed tree.
+   `_unflatten_erased(θ, offs::_Erased, like::_Erased) = _Erased(_unflatten(θ, offs.tree, like.tree))`, with
+   a rule whose pullback unboxes the cotangent (`Tangent{_Erased}`, a `NamedTuple` `(tree = Δ,)`, or a
+   zero) and calls `_unflatten`'s rule (I1, `LenticulumCoreChainRulesCoreExt`). The callers box their own
+   contexts (`_Erased(ps)` for the reference tree, `_Erased(st)`). `_graph_ad`'s guard must see through the
+   box (it walks fields already; a test says so). The non-graph `_parameter_gradient` is unchanged.
+3. *Pinning in flat coordinates.* `_pinned_parameters(ps, reference_ps, g)` keeps `ps` on each key's active
+   coordinates (`_active_indices` of the key's first node) and the reference elsewhere. In the drivers the
+   reference equals `ps` in value, so the pinning only zeroes the gradient of inactive coordinates. Build
+   that once, outside AD, as a mask over θ (`_active_mask(g, ps)::BitVector`, through the offset tree), and
+   differentiate `θ -> L(unflatten(ifelse.(mask, θ, θref)))`; `_pinned_parameters` leaves the differentiated
+   region. Its values must equal the old ones exactly, element types included where the old code kept the
+   reference's (a frozen key stays `Float64` under duals: check `_replace_active`). Kept for
+   `_functional_infer`, which is not a graph driver of this kind, unless the same change is free there.
+4. *Reads by rule.* `Mycelium._subtrees(ps::_Erased, nodes)`, `Mycelium._states(st::_Erased, nodes, absent)`
+   return what the `NamedTuple` methods return (a `Vector{Any}` per node), with rules that call
+   `_by_key_rrule` on the unboxed tree behind a function barrier (the pullback closure must not have a type
+   inferred from the tree's: its captures are `Any`), and return `Tangent{_Erased}(tree = Δ)`. The other
+   reads of `ps` and `st` on these paths (`_indexed`, `_subtree`, `keys(st)`, `_keypositions` in
+   `_replay_forward`) are found and either moved outside the region, or given the same treatment.
+5. *The replay's state.* `_replay_run` takes `st::_Erased` and returns the final state boxed; its rule
+   unboxes the incoming cotangent of the state. `_replay_forward` already takes `@nospecialize(st)`.
+6. *The implicit adjoint.* `ctx.ps`, `ctx.st` are boxes; `_graph_update`, `_graph_loss`, `_graph_map_dot`,
+   `_graph_adjoint_loss` take `ps::_Erased`; the Krylov product and the dense solve's reverse passes
+   differentiate in a boxed `ps`. The cotangent they return in `ps` is unboxed once, where the driver turns
+   it into the gradient tree.
+7. *What is not changed.* Values: every gradient equals today's to rounding (the replay is the same sum in
+   the same order, so equal bitwise is expected for Zygote and ForwardDiff; say where it is not). The
+   envelope driver, EM, `infer!`'s rule, the non-graph gradients. ForwardDiff and reference differences run
+   the same boxed code (the box is a plain struct to them).
+
+**Measurement is the gate.** `bench/structure_compile.jl` before and after, all three modes, `TS="10 20 40"`
+(31, 61, 121 factors), on a quiet machine, one mode per process. If Zygote's first call at 121 factors does
+not fall by at least half, stop after steps 1–5 and report a SnoopCompile profile (`@snoop_inference` on the
+first call at 61 factors, the top methods by exclusive time), instead of going on.
+
+**Tests.** Gradients after the change equal those before on random chains and trees, for Zygote,
+ForwardDiff, reference differences and the implicit adjoint, with frozen keys (`freeze`), tied keys (two
+factors reading one key), a state-carrying factor, score coupling and mixed cuts (old code as the oracle:
+values recorded before the change, or the old functions copied into the test). A structure test: after one
+structure has compiled, the first Zygote gradient on a new one is below a bound (a ratio to the warm time
+is unstable; use the Pullback types instead: `Zygote.pullback` of `_coupled_loss`'s glue on two structures
+gives `Pullback` types that are equal). The guard sees a caller's dual inside a box.

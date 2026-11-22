@@ -562,9 +562,10 @@ end
 # default tag holds the type of the differentiated closure, so every structure gave a new dual type
 # and compiled the factors' code again. `_graph_ad` gives a backend whose dual type does not
 # depend on the structure (the ForwardDiff extension; the identity otherwise).
+# The guard looks at `fun` as well as `args`: a closure may capture a caller's dual (LP-076).
 _graph_ad(ad, u, args) = ad
-_graph_gradient(ad, fun, u, args...; ε = 1e-6) = _gradient(_graph_ad(ad, u, args), fun, u, args...; ε)
-_graph_jacobian(ad, fun, u, args...; ε = 1e-6) = _jacobian(_graph_ad(ad, u, args), fun, u, args...; ε)
+_graph_gradient(ad, fun, u, args...; ε = 1e-6) = _gradient(_graph_ad(ad, u, (fun, args)), fun, u, args...; ε)
+_graph_jacobian(ad, fun, u, args...; ε = 1e-6) = _jacobian(_graph_ad(ad, u, (fun, args)), fun, u, args...; ε)
 function _graph_parameter_gradient(ad, fun, ps, args...; ε = 1e-6)
     θ, offs = _flatten(ps), offset_tree(ps)
     isempty(θ) && return _unflatten(θ, offs, ps)

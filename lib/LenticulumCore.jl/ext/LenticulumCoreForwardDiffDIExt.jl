@@ -29,6 +29,23 @@ function LenticulumCore._graph_ad(ad::ADTypes.AutoForwardDiff{C,Nothing}, u, arg
     return ADTypes.AutoForwardDiff(; chunksize = chunk, tag = ForwardDiff.Tag(_GraphTag(), eltype(u)))
 end
 
+# A loss that carries a caller's dual but none of this call's (it does not depend on the
+# coordinates, or only through `stop_gradient`) reaches ForwardDiff's `extract_gradient!`, which
+# loops over the partials of the dual it is given, the caller's: it writes as many coordinates as
+# the caller's dual has partials and leaves the rest of the `similar` buffer unwritten (LP-076,
+# finding 2). Adding this call's zero gives the value this call's partials, all zero. A loss whose
+# tag is this call's, or a plain number (ForwardDiff fills zeros for it), is returned as it is.
+struct _LiftToInner{F}
+    f::F
+end
+(l::_LiftToInner)(u, args...) = _lift_to_inner(l.f(u, args...), u)
+_lift_to_inner(y, u) = y
+_lift_to_inner(y::ForwardDiff.Dual{T}, ::AbstractArray{<:ForwardDiff.Dual{T}}) where {T} = y
+_lift_to_inner(y::ForwardDiff.Dual, u::AbstractArray{D}) where {D<:ForwardDiff.Dual} = y + zero(D)
+function LenticulumCore._gradient(ad::ADTypes.AutoForwardDiff, fun, u, args...; ε = 1e-6)
+    return DI.gradient(_LiftToInner(fun), ad, u, map(DI.Constant, args)...)
+end
+
 # Whether a dual number is reachable from `x`: by type where the type says it (bits types, arrays
 # of bits types), else through the fields and elements. `@nospecialize`, so that the walk compiles
 # once and not per structure.

@@ -343,7 +343,19 @@ holds the type of the differentiated closure, whose contexts hold the graph-wide
 structure gave a new dual type and recompiled every factor's code (11 s per structure on a 31-factor
 chain, `Mycelium/src/passing.md`, "Compilation per structure"). The fixed tag is created once, and
 ForwardDiff orders nested tags by creation, so it is used only when no dual is reachable from the
-contexts (`_has_dual`, a walk that reads types where they say it, and skips locks, tasks, IO,
-modules and types); otherwise the default tag. Only MyceliumLearning's graph drivers call these;
+differentiated function or the contexts (`_has_dual`, a walk that reads types where they say it, and
+skips locks, tasks, IO, modules and types); otherwise the default tag. The function is walked too
+since LP-076: a closure that captured a caller's dual made ForwardDiff refuse the call. Only MyceliumLearning's graph drivers call these;
 the per-factor gradients keep the default, whose closures are small. Tests: `test/i1.jl`; at the
 graph, `lib/Lenticulum.jl/test/structure_compile.jl`.
+
+**A loss free of the coordinates under a caller's ForwardDiff (LP-076, finding 2).** ForwardDiff's
+`extract_gradient!` loops over the partials of the value it is given. When the loss carries a
+caller's dual but none of this call's (it does not depend on the coordinates), that is the caller's
+dual, and only as many coordinates as it has partials were written; the rest of the buffer stayed
+uninitialised. For `AutoForwardDiff`, `_gradient` wraps the loss (`_LiftToInner`, in
+`ext/LenticulumCoreForwardDiffDIExt.jl`) so that such a value gets this call's zero added: its inner
+partials are then zero, and the gradient is zero, as it should be. A value with this call's tag, or a
+plain number, is returned unchanged. Device coordinates take their own method
+(`LenticulumCoreGPUArraysCoreDIExt`), which this does not change and which is not tested under a
+caller's ForwardDiff. Test: `test/i1.jl`, "LP-076 finding 2".
