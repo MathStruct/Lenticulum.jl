@@ -1,0 +1,162 @@
+#design #implementation
+
+> The design of P14: one package, `lib/ImplicitSolvers.jl`, holding what `ImplicitLayers`,
+> `VariationalDiffusion` and MyceliumLearning's graph adjoint each implement for themselves today: one
+> tolerance rule, one solver report with a primal residual, the linear solves (dense and GMRES), the
+> fixed-point and quasi-Newton root solvers, and the linear solve of the implicit-function adjoint.
+> Element types come from the problem, never from a `Float64` field. Newton and trust-region steps
+> stay in `VariationalDiffusion` for now (phase 2). Status: design, 2026-11-22; nothing implemented.
+
+> Sources: original to this vault (design). Walker & Ni, *Anderson acceleration for fixed-point iterations*, SIAM J. Numer. Anal. 49(4), 2011 (Anderson mixing; `walker2011anderson`); Saad & Schultz, *GMRES*, SIAM J. Sci. Stat. Comput. 7(3), 1986 (restarted GMRES; `saad1986gmres`); Bai, Kolter & Koltun, *Deep Equilibrium Models*, NeurIPS 2019 (the adjoint by the implicit function theorem; `bai2019deq`); code: `lib/ImplicitLayers.jl/src/solve.jl`, `lib/VariationalDiffusion.jl/src/implicit.jl`, `krylov.jl`, `proxdm.jl`, `many.jl`, `lib/MyceliumLearning.jl/src/graph_adjoint.jl`, `lib/Mycelium.jl/src/passing.jl`
+>
+> Bibliography: [[Bibliography#^walker2011anderson|Walker & Ni 2011]] · [[Bibliography#^saad1986gmres|Saad & Schultz 1986]] · [[Bibliography#^bai2019deq|Bai et al. 2019]]
+
+> Theory (CT-ML wiki): —
+
+## The problem
+
+An inventory of the code at `af2e6311` (2026-11-22; file:line as of that commit):
+
+| what | where | convention |
+|---|---|---|
+| Picard, Broyden, limited Broyden | `ImplicitLayers/src/solve.jl` 73, 100, 117 | absolute, $\lVert F\rVert \le$ `tol`, `tol::Float64 = 1e-10`; `1e-14` guards (161, 229) not cast |
+| `SolveReport` | `solve.jl` 36 | `residual::Float64` |
+| dense and Krylov IFT | `solve.jl` 302–375, `ext/ImplicitLayersKrylovExt.jl` 76, 91 | `Matrix{Float64}` (304); Krylov.jl GMRES, `rtol = 1e-10`, `atol = 1e-12` as `Float64` fields |
+| Newton with Armijo, trust region | `VariationalDiffusion/src/implicit.jl` 436, 490 | relative, $\lVert r\rVert \le \tau(1+\lVert z\rVert)$, $\tau = \max(10^{-9}, 30\epsilon)$ (`default_tolerance`, 371) |
+| the same, batched | `many.jl` 126, 184 | a copy of the two loops |
+| damped fixed point on a prox map | `proxdm.jl` 229 | relative, `tol = 1e-9` |
+| `ImplicitSolution`, `QueryReport` | `implicit.jl` 347, `report.jl` 39 | `residual::T` |
+| restarted GMRES, CG, Lanczos | `krylov.jl` 80, 135, 161 | hand-written; `KrylovSolve.rtol::Float64 = 1e-8` |
+| adjoint solves | `implicit.jl` 627 (dense), 643 (GMRES on $J^\top$); `proxdm.jl` 401, 406 | — |
+| graph adjoint $(I - D^\top)\lambda = r$ | `MyceliumLearning/src/graph_adjoint.jl` 124–137, `ext/MyceliumLearningKrylovExt.jl` 7 | `linear_tol = 1e-10`, Krylov.jl GMRES |
+| message passing | `Mycelium/src/passing.jl` 872, `ConvergenceReport` 753 | $\text{change} \le \text{tol} + \text{rtol}\cdot s$ per parameter group (P9); primal residual (I23) |
+| finite-difference Jacobians | `solve.jl` 254 (step $\max(10^{-7}, \sqrt\epsilon)$), `proxdm.jl` 289 ($h = 10^{-6}$) | — |
+
+Four report types, three GMRES (one hand-written, two through Krylov.jl), two fixed-point loops with
+opposite tolerance conventions, two adjoint linear solves of the same form. `ImplicitLayers`' defaults
+are absolute and fixed for `Float64`: under `Float32` the default `1e-10` is below rounding and never met;
+under dual numbers `SolveReport` cannot hold the residual.
+
+## Decisions
+
+**D1. A package of its own.** `lib/ImplicitSolvers.jl`, with no dependency on a project package:
+`LinearAlgebra`, `Random`; `ChainRulesCore` and `ForwardDiff` as weak dependencies (extensions). The
+consumers depend on it: `ImplicitLayers`, `VariationalDiffusion`, `MyceliumLearning`. `LenticulumCore`
+and `Mycelium` do not (message passing keeps its own criterion, D2). Chosen by the maintainer on
+2026-11-22 over placing it in `LenticulumCore` or `Mycelium`.
+
+**D2. One tolerance rule.** A solver has converged when
+$$
+\lVert r\rVert \le \text{atol} + \text{rtol}\cdot s ,
+$$
+with $r$ the solver's residual and $s$ its scale, stated by each solver ($\lVert u\rVert$ for a root
+solver, $\lVert b\rVert$ for a linear solve). This is Mycelium's P9 criterion with one group, and
+`VariationalDiffusion`'s $\tau(1+\lVert z\rVert)$ is the case $\text{atol} = \text{rtol} = \tau$.
+- `Tolerance(; atol = nothing, rtol = nothing)`; the fields hold what was given (any `Real`, or
+  `nothing`), and the comparison is made in the residual's primal type.
+- A `nothing` resolves from the element type $T$ of the problem:
+  $\text{atol} = \text{rtol} = \tau(T) = \max(10^{-9}, 30\,\epsilon(T))$, the rule `VariationalDiffusion`
+  measured (`implicit.md` §11): $10^{-9}$ for `Float64`, $3.6\cdot10^{-6}$ for `Float32`. A
+  `BigFloat` gets $10^{-9}$ too; a caller that wants more passes it.
+- Guards against division by small numbers (the `1e-14` of the Broyden updates) are `sqrt(eps(T))`
+  times the scale of the quantity divided, not literals.
+- Mycelium's `propagate!` keeps its keywords and per-group scales: it is not a root solver of a vector,
+  and its defaults are covered by many tests. It shares the semantics, not the code.
+
+**D3. One report.** `SolverReport{R<:Real}` with `converged::Bool`, `iterations::Int`, `residual::R`,
+`nfe::Int` and `reason::Symbol` (`:converged`, `:maxiters`, `:nonfinite`, `:stalled`). `residual` is
+always the primal value (`ImplicitSolvers.primal`, the identity, with a method for `ForwardDiff.Dual` in
+the extension), and the stopping decision is made on it, so tangents never change the iteration count
+(Mycelium's I23 rule, [[LP-053 Findings of the review of I23]]).
+- `ImplicitLayers.SolveReport` becomes `const SolveReport = ImplicitSolvers.SolverReport` (same field
+  names, plus `reason`); its `show` moves along.
+- `VariationalDiffusion.ImplicitSolution` keeps its fields (`z`, `residual`, `iters`, `converged`,
+  `stable`); `residual` becomes the primal value. `QueryReport` is a report about a query, not a solve,
+  and stays.
+- `Mycelium.ConvergenceReport` stays (it has `exact` and a `reason::String` read by tests).
+
+**D4. Linear solves.** `linsolve(A, b, alg; tol) -> (x, report)`, with `A` a matrix or a function
+$v \mapsto Av$ (with `size`); algorithms `DenseSolve()` (LU, or Cholesky when told the matrix is
+symmetric positive definite) and `GMRES(; restart = 40, maxiters = 200)`, matrix-free and generic in
+the element type: `VariationalDiffusion`'s hand-written restarted GMRES (`krylov.jl` 80) moved and made
+generic. Scale $s = \lVert b\rVert$. CG, Lanczos, the log-determinant stay in `VariationalDiffusion`:
+they have one user.
+- The Krylov.jl extensions of `ImplicitLayers` and `MyceliumLearning` stay until the shared GMRES is
+  shown to agree with Krylov.jl's on generated systems (W5); then they are removed, and with them the
+  dependency on Krylov.jl.
+
+**D5. Root solvers.** `solve_root(F, u0, alg; tol = Tolerance(), maxiters) -> (u, report)` for
+$F(u) = 0$, $u$ an `AbstractVector`. Algorithms: `Picard(; damping = 1)` ($u \leftarrow u - \alpha F(u)$),
+`Broyden(; init_scale = 1)`, `LimitedBroyden(; memory = 20)` (with the history kept for the adjoint
+when asked, as `ImplicitLayers`' `BroydenIFT` needs). These are `ImplicitLayers`' solvers moved, with D2
+and D3. `ImplicitLayers`' constructor names (`PicardSolver`, `BroydenSolver`, `LimitedBroydenSolver`)
+stay as its own names for the moved types. A fixed point $u = T(u)$ is the root of $F(u) = u - T(u)$;
+`VariationalDiffusion`'s `prox_infer` uses `Picard` with its damping.
+- Newton with Armijo backtracking and the trust region are **not** in phase 1: `implicit_infer` checks
+  stability, runs on devices and has a batched copy (`many.jl`); moving them is phase 2 (a row of its
+  own), together with removing that copy.
+
+**D6. The adjoint linear solve.** `adjoint_solve(vjp, g, alg; tol) -> (λ, report)` solves
+$J^\top\lambda = g$ given $v \mapsto J^\top v$ (`vjp`), and `fixed_point_adjoint(vjp, g, alg; tol)` solves
+$(I - J^\top)\lambda = g$, through D4. Each package keeps its own rules (it knows its parameters and its
+cotangents); what moves is the linear solve and its tolerance: `ImplicitLayers`' `DenseIFT` and
+`KrylovIFT`, `VariationalDiffusion`'s `_adjoint_solve` and `_prox_adjoint`, MyceliumLearning's dense and
+Krylov graph adjoint. `JacobiIFT` and `BroydenIFT` stay in `ImplicitLayers`.
+
+**D7. One finite-difference Jacobian.** `fd_jacobian(F, u; step = nothing)`, central differences, the
+step $\sqrt[3]{\epsilon(T)}\max(1, \lvert u_i\rvert)$ per coordinate. It replaces both copies; their
+users are tests and diagnostics.
+
+## What must not change
+
+- Every existing test of the consumers passes with its present tolerances, except where a deliberate
+  change below says otherwise.
+- Exported names of `ImplicitLayers` and `VariationalDiffusion` keep working (aliases where the type
+  moved).
+- Gradients through the rules: the same values (tolerance of the solves) on the existing tests.
+- No consumer's load time grows by more than 10 % (`@time using`, measured before and after).
+
+## Deliberate changes
+
+- `ImplicitLayers`' default tolerance: absolute $10^{-10}$ becomes D2's default, $10^{-9}(1 + \lVert u\rVert)$
+  for `Float64`. A test that needs the old bound passes `tol` explicitly; each such test is listed in the
+  work package's report.
+- Reports hold the primal residual (D3).
+- `prox_infer`'s fixed point and its finite-difference step change their stopping rule and step to D2 and
+  D7; results move within the old tolerance.
+
+## Work packages
+
+Each one is a branch, reviewed by a model that did not write it.
+
+1. **W1, the package.** D2–D7 with their tests, written from this note: the tolerance rule at its edges
+   (zero residual, `atol = 0`, `rtol = 0`, both `nothing` for `Float32`, `Float64`, `BigFloat`, duals);
+   `linsolve` dense against GMRES on random well-conditioned, nonsymmetric and symmetric positive
+   definite systems (sizes 1, 2, 50), as functions and as matrices, `Float32` and `Float64`; GMRES
+   reports `:maxiters` on a system it cannot solve in the budget; root solvers on closed-form problems
+   (a linear $F$, $u - \cos u$ componentwise, a contraction with a known fixed point), the iteration
+   count unchanged under duals with the tangent of the root equal to the implicit-function theorem's;
+   the adjoint solve against `(J')\g` and `(I - J')\g`. Aqua. A CI entry and a docs page.
+2. **W2, `ImplicitLayers` onto it.** Its solvers become the moved ones; its IFT's linear solves go
+   through D6. Its suite passes (device files included), with the list of tests whose `tol` was made
+   explicit.
+3. **W3, `VariationalDiffusion` onto it.** `prox_infer` on `Picard`; `KrylovSolve`'s GMRES and the
+   adjoint solves through D4 and D6; `ImplicitSolution.residual` primal. Its suite passes; results of
+   `implicit.md`'s measured examples (smoke size) unchanged within tolerance.
+4. **W4, MyceliumLearning's graph adjoint onto D6.** Gradients equal to the old ones on the graph-adjoint
+   tests.
+5. **W5, Krylov.jl out.** A test comparing the shared GMRES with Krylov.jl's on generated systems
+   (residuals both below the tolerance; solutions within the conditioning bound); then the two
+   extensions are removed.
+
+W1 first; W2, W3 and W4 are independent after it; W5 last. Phase 2 (Newton, the trust region and
+`many.jl`'s copy) gets its own row when phase 1 is done.
+
+## Open questions
+
+- Whether `Anderson` belongs in the package as a root solver (Mycelium's `AndersonSchedule` mixes
+  messages, not a vector; nothing else uses Anderson today). Not in phase 1.
+- Whether `fd_jacobian`'s cubic-root step changes a diagnostic test's verdict in `VariationalDiffusion`;
+  W3 reports it.
+- A device (GPU) path for GMRES: the moved code must not scalar-index (tested with JLArrays and
+  `allowscalar(false)`), but no device benchmark is planned.

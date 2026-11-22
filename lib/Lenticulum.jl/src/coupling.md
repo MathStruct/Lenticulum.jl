@@ -6,11 +6,9 @@
 > largest off-diagonal block of it, measured in the variables' total precision, so it lies in
 > $[0, 1]$ and does not depend on the variables' units.
 
-> Sources: Wainwright, Jaakkola & Willsky (2003), tree-based reparameterisation (`wainwright2003trp`);
-> Malioutov, Johnson & Willsky (2006), walk-sums (`malioutov2006walksums`), for the normalised
-> coupling $|J_{uv}| / \sqrt{J_{uu} J_{vv}}$; both motivation only, no theorem used. code: `coupling.jl`; Mycelium
-> `lib/Mycelium.jl/src/schedules.jl` (`spanning_tree_schedule`); tests: `test/i25_coupling_weights.jl`;
-> benchmark: `bench/bp_trees.jl`
+> Sources: Wainwright, Jaakkola & Willsky (2003), tree-based reparameterisation (`wainwright2003trp`); Malioutov, Johnson & Willsky (2006), walk-sums (`malioutov2006walksums`), for the normalised coupling $|J_{uv}| / \sqrt{J_{uu} J_{vv}}$; both motivation only, no theorem used. code: `coupling.jl`; Mycelium `lib/Mycelium.jl/src/schedules.jl` (`spanning_tree_schedule`); tests: `test/i25_coupling_weights.jl`; benchmark: `bench/bp_trees.jl`
+>
+> Bibliography: [[Bibliography#^wainwright2003trp|Wainwright et al. 2003]] · [[Bibliography#^malioutov2006walksums|Malioutov et al. 2006]]
 >
 > Theory (CT-ML wiki): [[Composing Optimisers]]
 
