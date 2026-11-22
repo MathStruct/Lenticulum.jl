@@ -31,6 +31,12 @@ shared when every belief holds the same precision object. That sharing is the po
 of tied factors with data as points, every replica's message has the same precision (the prior's,
 or $K A_t$ of a tied linear factor), so the block is one $d \times n$ matrix and one $d \times d$ one.
 
+`GaussianBlock` (shared or per-replica precision), `ComponentMixtureBlock`, and `belief_block`
+can be built inside a Zygote gradient. The vector constructors copy the flags and the fallback
+belief list through the array constructor's differentiation rule.
+The losses on natural parameters agree with ForwardDiff at `rtol = 1e-10`, with proper and
+improper entries (`lib/Mycelium.jl/test/block_ad.jl`, LP-044).
+
 The operations a sweep needs work column for column, just as the per-belief rules do:
 
 - `combine_blocks`: Gaussian blocks add canonical parameters (shared plus shared stays shared),

@@ -143,7 +143,8 @@ end
     s.to_factor[1] = s.to_variable[1] = Message(b, 0)
     an = AndersonSchedule(AndersonAffineSweep(identity); ridge = 0)
     @test sweep!(s, g, an, nt, nt) == (0.0, nt)
-    # An unregularised zero residual history currently throws SingularException.
-    @test_broken sweep!(s, g, an, nt, nt) == (0.0, nt)
+    # An unregularised zero residual history threw SingularException (found by the coverage tests,
+    # 2026-11-22); singular normal equations now fall back to the least-squares solution, γ = 0.
+    @test sweep!(s, g, an, nt, nt) == (0.0, nt)
     @test belief_distance(s.to_variable[1].belief, b) == 0
 end

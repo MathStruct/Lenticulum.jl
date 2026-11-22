@@ -4,11 +4,11 @@
 # the residuals G(x) − x. It keeps G's fixed points. See `anderson.md`.
 # ---------------------------------------------------------------------------
 
-mutable struct _AndersonMemory
+mutable struct _AndersonMemory{T}
     layout::Vector{Tuple{Symbol,Int,Int}}   # (kind, edge, dimension) of each mixed message
     w::Vector{Float64}                      # coordinate scales, fixed when the memory starts
-    X::Vector{Vector{Float64}}              # scaled iterates x_k
-    G::Vector{Vector{Float64}}              # scaled images G(x_k)
+    X::Vector{Vector{Float64}}              # primal scaled iterates x_k
+    G::Vector{Vector{T}}                    # scaled images G(x_k), including tangents
     restarts::Int
 end
 
@@ -27,10 +27,12 @@ where ``f = G(x) - x`` and ``\\Delta F``, ``\\Delta G`` hold the differences of 
 residuals and images. A fixed point of ``G`` has ``f = 0``, so the fixed points are `inner`'s.
 The cost is one sweep of `inner` per sweep, plus a least-squares problem of `m` columns.
 
-Only Gaussian messages in `Float64` arrays are mixed, in natural parameters (``\\eta`` and the
-lower triangle of ``\\Lambda``), with the means and the precisions each scaled by their largest
-entry when the memory starts. Where any stored message is of another kind the sweep is `inner`'s,
-unchanged. A mixed precision that loses positive semidefiniteness, or a non-finite step, is
+Gaussian messages in host arrays of `Float64` or `Float64`-based ForwardDiff duals are mixed in
+natural parameters (``\\eta`` and the lower triangle of ``\\Lambda``), with the means and the
+precisions each scaled by their largest primal entry when the memory starts. Mixing coefficients
+are fitted to primal residuals and applied to the full message vectors. Where any stored message
+is of another kind the sweep is `inner`'s. A mixed primal precision that loses positive
+semidefiniteness, or a non-finite primal step, is
 replaced by `inner`'s result and the memory cleared (a restart). The memory is kept per
 `MessageStore` and cleared when the set of stored messages changes, so one schedule can
 serve several stores.
@@ -60,7 +62,12 @@ end
 
 _default_criterion(a::AndersonSchedule) = _default_criterion(a.inner)
 
-const _HostMatrix = Union{Matrix{Float64},LinearAlgebra.Symmetric{Float64,Matrix{Float64}},LinearAlgebra.Diagonal{Float64,Vector{Float64}}}
+const _HostMatrix{T} = Union{Matrix{T},LinearAlgebra.Symmetric{T,Matrix{T}},LinearAlgebra.Diagonal{T,Vector{T}}}
+
+_anderson_scalar(::Type) = false
+_anderson_scalar(::Type{Float64}) = true
+_anderson_primal(x::Vector{Float64}) = x
+_anderson_primal(x::Vector) = _primal.(x)
 
 # the stored Gaussian messages as one vector, and their layout; `nothing` if a stored message
 # cannot be mixed (another belief type, another element type, a device array)
@@ -72,7 +79,10 @@ function _anderson_state(s::MessageStore)
             m === nothing && continue
             b = m.belief
             b isa LenticulumCore.GaussianBelief || return nothing
-            (b.η isa Vector{Float64} && b.Λ isa _HostMatrix) || return nothing
+            (b.η isa Vector && b.Λ isa _HostMatrix &&
+             _anderson_scalar(eltype(b.η)) && _anderson_scalar(eltype(b.Λ))) || return nothing
+            T = promote_type(eltype(x), eltype(b.η), eltype(b.Λ))
+            x = convert(Vector{T}, x)
             d = length(b.η)
             append!(x, b.η)
             for j in 1:d, i in j:d
@@ -102,13 +112,13 @@ function _anderson_admissible(x::Vector{Float64}, gx::Vector{Float64}, layout)
     return true
 end
 
-function _anderson_write!(s::MessageStore, x::Vector{Float64}, layout)
+function _anderson_write!(s::MessageStore, x::Vector{T}, layout) where {T}
     k = 0
     for (kind, e, d) in layout
         msgs = kind === :to_factor ? s.to_factor : s.to_variable
         old = msgs[e]
         η = x[k+1:k+d]; k += d
-        Λ = zeros(d, d)
+        Λ = zeros(T, d, d)
         for j in 1:d, i in j:d
             k += 1
             Λ[i, j] = Λ[j, i] = x[k]
@@ -129,6 +139,23 @@ function _anderson_scales(x::Vector{Float64}, layout)
     return [isη[i] ? 1 / max(sη, eps()) : 1 / max(sΛ, eps()) for i in eachindex(x)]
 end
 
+function _anderson_mix(mem::_AndersonMemory, ridge)
+    n = length(mem.X)
+    F = [_anderson_primal(mem.G[i]) .- mem.X[i] for i in 1:n]
+    ΔF = reduce(hcat, [F[i+1] .- F[i] for i in 1:n-1])
+    ΔG = reduce(hcat, [mem.G[i+1] .- mem.G[i] for i in 1:n-1])
+    A = ΔF' * ΔF
+    γ = try
+        (A + ridge * max(LinearAlgebra.tr(A), eps()) * LinearAlgebra.I) \ (ΔF' * F[end])
+    catch e
+        # only with `ridge = 0`: singular normal equations (an exact fixed point gives ΔF = 0); the
+        # least-squares solution of ΔF γ ≈ f_k by pivoted QR (γ = 0 when ΔF = 0)
+        e isa LinearAlgebra.SingularException || rethrow()
+        ΔF \ F[end]
+    end
+    return (mem.G[end] .- ΔG * γ) ./ mem.w
+end
+
 function sweep!(s::MessageStore, g::FactorGraph, sched::AndersonSchedule, @nospecialize(ps), @nospecialize(st);
                 damping::Real = 0.0)
     before = _anderson_state(s)
@@ -140,23 +167,25 @@ function sweep!(s::MessageStore, g::FactorGraph, sched::AndersonSchedule, @nospe
         return res, st
     end
     x, layout = before; gx = after[1]
+    gx0 = _anderson_primal(gx)
     if mem === nothing || mem.layout != layout
-        mem = _AndersonMemory(layout, _anderson_scales(gx, layout), Vector{Float64}[], Vector{Float64}[],
+        mem = _AndersonMemory(layout, _anderson_scales(gx0, layout), Vector{Float64}[], typeof(gx)[],
                               mem === nothing ? 0 : mem.restarts)
         sched.memory[s] = mem
+    else
+        T = promote_type(eltype(eltype(mem.G)), eltype(gx))
+        if !(mem isa _AndersonMemory{T})
+            # Lift past images when a new sweep introduces duals into an existing layout.
+            mem = _AndersonMemory(layout, mem.w, mem.X, convert(Vector{Vector{T}}, mem.G), mem.restarts)
+            sched.memory[s] = mem
+        end
     end
     w = mem.w
-    push!(mem.X, w .* x); push!(mem.G, w .* gx)
+    push!(mem.X, w .* _anderson_primal(x)); push!(mem.G, w .* gx)
     length(mem.X) > sched.m + 1 && (popfirst!(mem.X); popfirst!(mem.G))
     length(mem.X) < 2 && return res, st
-    n = length(mem.X)
-    F = [mem.G[i] .- mem.X[i] for i in 1:n]
-    ΔF = reduce(hcat, [F[i+1] .- F[i] for i in 1:n-1])
-    ΔG = reduce(hcat, [mem.G[i+1] .- mem.G[i] for i in 1:n-1])
-    A = ΔF' * ΔF
-    γ = (A + sched.ridge * max(LinearAlgebra.tr(A), eps()) * LinearAlgebra.I) \ (ΔF' * F[end])
-    xn = (mem.G[end] .- ΔG * γ) ./ w
-    if _anderson_admissible(xn, gx, layout)
+    xn = _anderson_mix(mem, sched.ridge)
+    if _anderson_admissible(_anderson_primal(xn), gx0, layout)
         _anderson_write!(s, xn, layout)
     else
         mem.restarts += 1

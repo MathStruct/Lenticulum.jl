@@ -47,7 +47,7 @@ struct GaussianBlock{E<:AbstractMatrix,L} <: BeliefBlock
         length(improper) == size(η, 2) || throw(DimensionMismatch("$(size(η, 2)) replicas but $(length(improper)) flags"))
         Λ isa AbstractMatrix || length(Λ) == size(η, 2) ||
             throw(DimensionMismatch("$(size(η, 2)) replicas but $(length(Λ)) precisions"))
-        return new{E,L}(η, Λ, collect(Bool, improper))
+        return new{E,L}(η, Λ, Vector{Bool}(improper))
     end
 end
 """
@@ -102,7 +102,7 @@ struct ComponentMixtureBlock{E<:AbstractArray,L<:AbstractMatrix,W<:AbstractMatri
         size(logw) == (K, size(η, 3)) || throw(DimensionMismatch("logw must be K × n"))
         length(Λs) == length(improper) == K || throw(DimensionMismatch("need one precision and one flag per component"))
         all(Λ -> size(Λ) == (d, d), Λs) || throw(DimensionMismatch("each precision must be d × d"))
-        return new{E,L,W}(η, collect(Λs), logw, collect(Bool, improper))
+        return new{E,L,W}(η, collect(Λs), logw, Vector{Bool}(improper))
     end
 end
 struct VectorBlock <: BeliefBlock
@@ -181,7 +181,7 @@ function belief_block(bs::AbstractVector)
         all(b -> b isa LenticulumCore.CategoricalBelief && length(b.logp) == K && isequal(b.labels, b1.labels), bs) &&
             return CategoricalBlock(reduce(hcat, [b.logp for b in bs]), b1.labels)
     end
-    return VectorBlock(Any[b for b in bs])
+    return VectorBlock(Vector{Any}(bs))
 end
 
 # --- Block operations, column for column as the per-belief rules ------------------

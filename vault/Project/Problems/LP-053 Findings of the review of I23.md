@@ -31,3 +31,8 @@ derivative of the means matches the dense solve.
 
 Not run by the maintainer: the device tests; Zygote through an iterated `infer!` (not changed: the
 report was built from Float64 residuals there before); the vault build and `docs/make.jl`.
+
+**Finding 2 follow-up (2026-11-22).** Anderson mixes dual messages with coefficients fitted to the
+primal residuals. The I23 test checks the sweep counts and the dense Jacobian. In absolute,
+relative, and marginal mode, the dual run used 37, 13, and 24 extra sweeps before the fix. It now
+takes the same number, one fewer, and the same number, respectively (`scratch/small/anderson-snapshot.jl`).

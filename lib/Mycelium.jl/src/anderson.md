@@ -28,9 +28,9 @@ the linear regime nothing is guaranteed.
 
 ## Implementation
 
-- **What is mixed.** Every stored Gaussian message in host `Float64` arrays, in natural parameters:
-  $\eta$ and the lower triangle of $\Lambda$. If any stored message is of another kind (categorical,
-  particles, a mixture, a device array, dual numbers) the sweep is `inner`'s unchanged. Messages not
+- **What is mixed.** Every stored Gaussian message in host `Float64` arrays or host arrays of
+  `Float64`-based ForwardDiff duals, in natural parameters ($\eta$ and the lower triangle of
+  $\Lambda$). If any stored message is of another kind, the sweep is `inner`'s. Messages not
   yet sent are left out; when the set of stored messages changes (a cold start, a message that
   appears) the memory is cleared.
 - **Scaling.** The least squares are taken in coordinates scaled by the largest $\lvert\eta\rvert$ and the
@@ -38,6 +38,24 @@ the linear regime nothing is guaranteed.
   divider, the means about 1) do not decide the fit alone. Unscaled mixing was not measured.
 - **Ridge.** $\gamma$ solves $(\Delta F^\top \Delta F + r\,\mathrm{tr}(\Delta F^\top \Delta F)\,I)\gamma = \Delta F^\top f_k$ with
   $r = 10^{-14}$ by default: near convergence the columns of $\Delta F$ are nearly dependent.
+- **ForwardDiff.** Scaling, the fit for $\gamma$, and the restart checks use primal values.
+  The stored images retain their tangents and the update applies the same coefficients to the
+  full images. Each sweep uses `inner`'s task order. On the I23 divider the dual and float runs
+  take 51 and 51 sweeps with `tol = 1e-12`, 55 and 56 with `rtol = 1e-12, tol = 0`, and 50
+  and 50 with `criterion = :marginals, tol = 1e-12`, from
+  `julia -t auto --project=scratch/small/env scratch/small/anderson-snapshot.jl`. The Jacobian of the
+  converged means agrees with the dense solve at `rtol = 1e-6`
+  (`lib/Lenticulum.jl/test/p9_relative_tol.jl`, "I23").
+  The agreement of the sweep counts is not general. Under duals the inner sweep takes the generic
+  linear algebra and rounds differently; near the restart check's boundary that flips restarts, and
+  Anderson amplifies it. Around `flooding_schedule` on the same divider the counts were 1193 (float)
+  and 949 (dual) with `tol = 1e-12`, and 849 and 888 at source $10^4$ with `rtol = 1e-12`; the
+  Jacobians still matched the dense solve within $4.4\cdot10^{-13}$ (Mistral's review probes,
+  [[LP-078 Findings of the reviews of the Mycelium coverage tests and the Anderson and block AD fixes|LP-078]]).
+- **One store, dual and float runs.** A store keeps the dual messages of a dual run on every edge a
+  later float run does not rewrite, and the float run's factors read them, so their stale tangents
+  travel on under any schedule (the plain inner one too). Anderson now mixes them along instead of
+  switching itself off. Use a fresh store for a float run after a dual one.
 - **Restarts.** A step that is not finite, or would make a precision lose positive
   semidefiniteness (its smallest eigenvalue below $\min(0, \lambda_{\min}$ of $G$'s$)$ minus a rounding
   margin), is replaced by $G(x_k)$ and the memory cleared. `anderson_restarts(sched, store)` counts
@@ -78,8 +96,8 @@ reference fixed point, gives the same picture in message evaluations (vault: Com
   `bench/bp_grid.jl`, §4.4). Around `spanning_tree_schedule` it helped everywhere measured, with no
   restarts on the grids. Why the divider differs is not known (its flooding spectrum is a ring of
   equal moduli).
-- **Gradients.** Schedule replay and the implicit adjoints do not know about the mixing; parameter
-  gradients through an `AndersonSchedule` are not supported.
+- **Gradients.** The ForwardDiff path differentiates the iterations with the fitted coefficients
+  held fixed. Schedule replay and the implicit adjoints do not support Anderson mixing.
 - **Non-Gaussian messages**, plates batched on a device, and damping of the mixed step (Walker &
   Ni's $\beta$): not implemented. `damping` is passed to `inner`.
 - **Safeguards beyond positivity.** No residual-decrease check (safeguarded Anderson); a step that

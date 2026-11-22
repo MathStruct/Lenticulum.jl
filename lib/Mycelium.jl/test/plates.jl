@@ -334,9 +334,10 @@ end
     batched = only(replicas(ep_block(m, cav)))
     single = ep_message(replica(m, 1), replica(cav, 1))
     @test batched.Λ ≈ single.Λ atol = 1e-12 rtol = 0
-    # The batched site stores η in the cavity's Float32 array, rounding the
-    # Float64 result of projection and division before returning it.
-    @test_broken batched.η ≈ single.η atol = 1e-12 rtol = 0
+    # The batched site stored η in the cavity's Float32 array, rounding the
+    # Float64 result of projection and division (found by the coverage tests, 2026-11-22).
+    @test batched.η ≈ single.η atol = 1e-12 rtol = 0
+    @test eltype(batched.η) === Float64
 end
 
 @testset "EP plate skips only members with indefinite inputs" begin

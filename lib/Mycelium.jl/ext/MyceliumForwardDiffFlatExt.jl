@@ -19,6 +19,7 @@ using Mycelium, ForwardDiff, LinearAlgebra
 
 # The primal value of a residual (`_ratio`, P9).
 Mycelium._primal(x::ForwardDiff.Dual) = Mycelium._primal(ForwardDiff.value(x))
+Mycelium._anderson_scalar(::Type{ForwardDiff.Dual{Tag,V,N}}) where {Tag,V,N} = Mycelium._anderson_scalar(V)
 
 function Mycelium._flat_factor(J::AbstractMatrix{ForwardDiff.Dual{Tg,V,P}}, C) where {Tg,V<:LinearAlgebra.BlasFloat,P}
     J0 = ForwardDiff.value.(J)

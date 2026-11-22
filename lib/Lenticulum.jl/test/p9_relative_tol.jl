@@ -242,7 +242,7 @@ p9_relerr(marg, m) = maximum(abs, p9_means(marg) .- m) / maximum(abs, m)
         dm = (G' * G / q + I / 1e4) \ (G' * [1.0, 0, 0] / q)
         withsource(x) = merge(ps, (ohm1 = merge(ps.ohm1, (; c = [x])),))
         for (name, sched) in ((:flooding, flooding_schedule(g)), (:spanning, spanning_tree_schedule(g)),
-                              (:residual, ResidualSchedule())),
+                              (:residual, ResidualSchedule()), (:anderson, AndersonSchedule(spanning_tree_schedule(g)))),
             kw in ((tol = 1e-12,), (tol = 0.0, rtol = 1e-12), (tol = 1e-12, criterion = :marginals))
             reps = ConvergenceReport[]
             f(x) = begin

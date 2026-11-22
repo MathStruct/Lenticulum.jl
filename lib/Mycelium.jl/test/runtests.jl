@@ -870,6 +870,7 @@ end
 
 include("p36_exposure.jl")
 include("p36_overlay_ad.jl")
+include("block_ad.jl")
 
 include("anderson.jl")
 include("blocks.jl")

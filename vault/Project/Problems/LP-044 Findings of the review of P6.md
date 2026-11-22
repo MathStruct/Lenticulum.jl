@@ -42,3 +42,8 @@ Not probed: `MixtureBlock`, `ComponentMixtureBlock` and `CategoricalBlock` input
 each (they take the per-replica path); device arrays.
 
 **Leaning / resolution.** Fixed (findings 1 to 3).
+
+**Finding 1 follow-up (2026-11-22).** `GaussianBlock`, `ComponentMixtureBlock` and the
+`belief_block` fallback use vector constructor copies. The scalar losses in
+`lib/Mycelium.jl/test/block_ad.jl` reproduce the two mutation errors on the old code and give
+the same gradients under Zygote and ForwardDiff at `rtol = 1e-10` with the fix.

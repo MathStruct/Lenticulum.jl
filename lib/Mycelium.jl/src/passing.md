@@ -836,10 +836,12 @@ and the derivative of the fixed point's means matches the dense solve on floodin
 residual schedules, under both criteria (`test/p9_relative_tol.jl`, "I23"). With duals the sweep
 count can differ by one from the float run, since dual matrices take the generic linear algebra and
 round differently. The residual schedule chooses its next task on the primal residual too, so the
-tangents do not change the order of the updates (LP-053). `AndersonSchedule` runs without its memory
-under duals (`_anderson_state` mixes only `Float64` messages): its derivatives are right, but it takes
-the inner schedule's sweeps. The derivative is that of the iterates at the stopping sweep, not the implicit
-derivative of the fixed point; it is close to it only when the iteration has converged. Not tested: device blocks under the relative path (the block methods use reductions and
+tangents do not change the order of the updates (LP-053). `AndersonSchedule` fits its coefficients
+to the primal residuals and mixes the dual messages. In "I23" its means' Jacobian matches the dense
+solve, and it takes one fewer sweep under the relative criterion and the same number under the
+absolute and marginal criteria. Around flooding the counts can differ by hundreds of sweeps ([[anderson]], "ForwardDiff"). The derivative comes from the iterates at the stopping sweep.
+At convergence it can approximate the implicit derivative of the fixed point. Not tested:
+device blocks under the relative path (the block methods use reductions and
 no scalar indexing, but were not run on JLArrays).
 
 **Found on the way.** Under flooding, `criterion = :marginals` can stop too early: flooding moves
