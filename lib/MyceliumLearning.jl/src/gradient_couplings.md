@@ -429,11 +429,20 @@ structure as the primal is (I1 measured the primal's share as small: `_indexed` 
 3. *Pinning in flat coordinates.* `_pinned_parameters(ps, reference_ps, g)` keeps `ps` on each key's active
    coordinates (`_active_indices` of the key's first node) and the reference elsewhere. In the drivers the
    reference equals `ps` in value, so the pinning only zeroes the gradient of inactive coordinates. Build
-   that once, outside AD, as a mask over θ (`_active_mask(g, ps)::BitVector`, through the offset tree), and
-   differentiate `θ -> L(unflatten(ifelse.(mask, θ, θref)))`; `_pinned_parameters` leaves the differentiated
-   region. Its values must equal the old ones exactly, element types included where the old code kept the
-   reference's (a frozen key stays `Float64` under duals: check `_replace_active`). Kept for
-   `_functional_infer`, which is not a graph driver of this kind, unless the same change is free there.
+   the active positions once, outside AD, over the graph-wide θ (through the offset tree), and differentiate
+   `θ -> L(unflatten(_replace_coordinates(θref, active_positions, θ[active_positions])))`: one element type
+   for the whole vector, `promote_type(eltype(θref), eltype(θ))`, so a frozen coordinate under ForwardDiff is
+   a dual with zero partials, as the old per-key pinning gave, and never a `Vector{Real}` (revised after
+   Codex's probe, below: a plain `ifelse.(mask, θ, θref)` gave `Float64` frozen leaves and a `Vector{Real}`).
+   `_replace_coordinates` builds a `Dict` per call; for the graph-wide vector use a precomputed position map
+   or a mask with `convert`, not a `Dict` per evaluation. `_pinned_parameters` leaves the differentiated region;
+   `_functional_infer` keeps its own pinning.
+   **A deliberate change of value.** The old pinning flattened the reference per key, so a key mixing element
+   types was rounded to that key's promoted type: Codex's probe (`scratch/i30/flat-mask-probe.jl` in the Codex
+   worktree) has a key with an active `Float32` and a frozen integer `16_777_217`, which the old code fed to
+   the factor as `16_777_216`. The graph-wide θ keeps it. The old value is a defect (a frozen value changed
+   by its neighbour's type), so the new one is taken; a test records the case. Everything else must equal the
+   old values exactly.
 4. *Reads by rule.* `Mycelium._subtrees(ps::_Erased, nodes)`, `Mycelium._states(st::_Erased, nodes, absent)`
    return what the `NamedTuple` methods return (a `Vector{Any}` per node), with rules that call
    `_by_key_rrule` on the unboxed tree behind a function barrier (the pullback closure must not have a type
@@ -450,6 +459,11 @@ structure as the primal is (I1 measured the primal's share as small: `_indexed` 
    the same order, so equal bitwise is expected for Zygote and ForwardDiff; say where it is not). The
    envelope driver, EM, `infer!`'s rule, the non-graph gradients. ForwardDiff and reference differences run
    the same boxed code (the box is a plain struct to them).
+
+**Before (Codex, 2026-11-22, `bench/structure_compile.jl`, one mode per process, quiet machine):** first
+call / best warm call, seconds. Zygote 2.72 / 0.032, 5.55 / 0.060, 13.75 / 0.116 at 31, 61, 121 factors;
+ForwardDiff 1.61 / 0.0071, 2.60 / 0.023, 5.81 / 0.087. The implicit mode did not finish within seven
+minutes at these sizes (the dense solve: one reverse pass per coordinate); measure it at `TS="5 10"`.
 
 **Measurement is the gate.** `bench/structure_compile.jl` before and after, all three modes, `TS="10 20 40"`
 (31, 61, 121 factors), on a quiet machine, one mode per process. If Zygote's first call at 121 factors does
