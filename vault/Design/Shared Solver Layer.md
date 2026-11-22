@@ -5,7 +5,7 @@
 > tolerance rule, one solver report with a primal residual, the linear solves (dense and GMRES), the
 > fixed-point and quasi-Newton root solvers, and the linear solve of the implicit-function adjoint.
 > Element types come from the problem, never from a `Float64` field. Newton and trust-region steps
-> stay in `VariationalDiffusion` for now (phase 2). Status: design, 2026-11-22; nothing implemented.
+> stay in `VariationalDiffusion` for now (phase 2). Status: design, 2026-11-22; W1 implemented the same day.
 
 > Sources: original to this vault (design). Walker & Ni, *Anderson acceleration for fixed-point iterations*, SIAM J. Numer. Anal. 49(4), 2011 (Anderson mixing; `walker2011anderson`); Saad & Schultz, *GMRES*, SIAM J. Sci. Stat. Comput. 7(3), 1986 (restarted GMRES; `saad1986gmres`); Bai, Kolter & Koltun, *Deep Equilibrium Models*, NeurIPS 2019 (the adjoint by the implicit function theorem; `bai2019deq`); code: `lib/ImplicitLayers.jl/src/solve.jl`, `lib/VariationalDiffusion.jl/src/implicit.jl`, `krylov.jl`, `proxdm.jl`, `many.jl`, `lib/MyceliumLearning.jl/src/graph_adjoint.jl`, `lib/Mycelium.jl/src/passing.jl`
 >
@@ -129,7 +129,7 @@ users are tests and diagnostics.
 
 Each one is a branch, reviewed by a model that did not write it.
 
-1. **W1, the package.** D2–D7 with their tests, written from this note: the tolerance rule at its edges
+1. **W1, the package.** *Done 2026-11-22* (Codex; GLM's review and its three fixes in [[LP-078 Findings of the reviews of the Mycelium coverage tests and the Anderson and block AD fixes|LP-078]]). Departures: none of D2–D7; a root solve started exactly at the root returns the initial guess's tangent under ForwardDiff, not the implicit derivative (three `@test_broken`; consumers' rules supply the implicit derivative). D2–D7 with their tests, written from this note: the tolerance rule at its edges
    (zero residual, `atol = 0`, `rtol = 0`, both `nothing` for `Float32`, `Float64`, `BigFloat`, duals);
    `linsolve` dense against GMRES on random well-conditioned, nonsymmetric and symmetric positive
    definite systems (sizes 1, 2, 50), as functions and as matrices, `Float32` and `Float64`; GMRES

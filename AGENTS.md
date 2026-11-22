@@ -55,6 +55,7 @@ not yet reviewed.
 
 | where | what |
 |---|---|
+| `lib/ImplicitSolvers.jl/` | shared numerical solvers: tolerance, linear systems, roots, implicit adjoints and reference differences |
 | `lib/LenticulumCore.jl/` | what a factor is: channels, polarities, energies, the belief types |
 | `lib/Mycelium.jl/` | inference: graphs, messages, schedules, plates, cluster nodes, the free energy |
 | `lib/MyceliumLearning.jl/` | learning: free-energy gradients, couplings, the graph adjoint, EM, the optimiser step |
@@ -68,6 +69,7 @@ not yet reviewed.
 | `tools/` | `julia --project=tools tools/coverage.jl --run [lib/<Pkg>.jl …]`: line coverage of each package's own suite (summary per file, uncovered ranges, `lcov.info`, to `~/.cache/lenticulum/coverage/`); weekly in CI (`Weekly.yml`, job `coverage`) |
 
 Each package has its own `Project.toml` and `test/`. Dependencies go one way:
+`ImplicitSolvers` has no project dependencies and is intended for `ImplicitLayers`, `VariationalDiffusion` and `MyceliumLearning`.
 `LenticulumCore` ← `Mycelium` ← `MyceliumLearning` ← `Lenticulum`; `VariationalDiffusion`,
 `AdversarialFactors` and `AlgebraicFactors` depend on the first two, `ImplicitLayers` on the first three. `vault/Start Here.md` gives the conventions; read it before writing a note.
 

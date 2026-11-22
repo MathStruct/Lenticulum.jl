@@ -12,8 +12,8 @@
 > (`vibe --agent review`, \$0; probes in `scratch/small/` of `../Lenticulum.jl-mistral`); GLM-5.3
 > (`vibe --agent review --model glm-5-3`, \$2.30; probes in `scratch/p14w1/` of `../Lenticulum.jl-glm`).
 > Each reviewer had the requirement and the diff, not the reasoning. code: `lib/Mycelium.jl/src/anderson.jl`,
-> `src/plates.jl` (`_ep_sites`), `src/blocks.jl`; `lib/ImplicitSolvers.jl/src/tolerance.jl`, `src/linsolve.jl`.
-> tests: `lib/Mycelium.jl/test/anderson.jl`, `test/plates.jl`, `test/block_ad.jl`;
+> `lib/Mycelium.jl/src/plates.jl` (`_ep_sites`), `lib/Mycelium.jl/src/blocks.jl`; `lib/ImplicitSolvers.jl/src/tolerance.jl`, `lib/ImplicitSolvers.jl/src/linsolve.jl`.
+> tests: `lib/Mycelium.jl/test/anderson.jl`, `lib/Mycelium.jl/test/plates.jl`, `lib/Mycelium.jl/test/block_ad.jl`;
 > `lib/Lenticulum.jl/test/p9_relative_tol.jl` ("I23"); `lib/ImplicitSolvers.jl/test/`.
 
 ## The coverage tests (Codex)
@@ -23,8 +23,8 @@ Tests for `anderson.jl`, `blocks.jl` and `plates.jl` written from their notes, a
 
 | # | finding | right? | done | test |
 |---|---|---|---|---|
-| C1 | `AndersonSchedule(; ridge = 0)` throws `SingularException` at an exact fixed point: the residual history is zero and the normal equations singular | yes: the test threw | singular normal equations fall back to the least-squares solution by pivoted QR (γ = 0 when ΔF = 0); the regularised solve is unchanged, bit for bit | `test/anderson.jl`, "Anderson on an empty store and at an exact fixed point" |
-| C2 | The block EP path (`_ep_sites`) stores a Float64 site's information vector in a Float32 cavity's array, rounding it (4.371972 against 4.371972130535554) | yes: the test failed | the site's array takes the promoted element type | `test/plates.jl`, "EP block with a Float32 cavity and Float64 mixture" |
+| C1 | `AndersonSchedule(; ridge = 0)` throws `SingularException` at an exact fixed point: the residual history is zero and the normal equations singular | yes: the test threw | singular normal equations fall back to the least-squares solution by pivoted QR (γ = 0 when ΔF = 0); the regularised solve is unchanged, bit for bit | `lib/Mycelium.jl/test/anderson.jl`, "Anderson on an empty store and at an exact fixed point" |
+| C2 | The block EP path (`_ep_sites`) stores a Float64 site's information vector in a Float32 cavity's array, rounding it (4.371972 against 4.371972130535554) | yes: the test failed | the site's array takes the promoted element type | `lib/Mycelium.jl/test/plates.jl`, "EP block with a Float32 cavity and Float64 mixture" |
 
 ## Mistral: the Anderson and block AD fixes
 
@@ -48,9 +48,9 @@ as the float run's, nested duals too; host and JLArrays runs agree.
 
 | # | finding | right? | done | test |
 |---|---|---|---|---|
-| G1 | `Tolerance` takes a negative or NaN `atol`/`rtol`; then GMRES runs on past an exact solve, divides 0/0 and reports `:nonfinite` with the exact solution in hand (`probe3b.jl`) | yes | `Tolerance` refuses them; a GMRES cycle from a zero residual returns at once | `test/tolerance_report.jl` (`@test_throws`) |
-| G2 | GMRES on a complex system diverges (residual $2\cdot10^{14}$) with real Givens rotations; `DenseSolve` solves it | yes (`probe8.jl`); the report was honest (`:maxiters`) | GMRES refuses complex systems | `test/linsolve.jl`, "GMRES refuses complex systems" |
-| G3 | No device test of `adjoint_solve` and `fixed_point_adjoint` | yes (they work, `probe7c.jl`) | added | `test/device.jl` |
+| G1 | `Tolerance` takes a negative or NaN `atol`/`rtol`; then GMRES runs on past an exact solve, divides 0/0 and reports `:nonfinite` with the exact solution in hand (`probe3b.jl`) | yes | `Tolerance` refuses them; a GMRES cycle from a zero residual returns at once | `lib/ImplicitSolvers.jl/test/tolerance_report.jl` (`@test_throws`) |
+| G2 | GMRES on a complex system diverges (residual $2\cdot10^{14}$) with real Givens rotations; `DenseSolve` solves it | yes (`probe8.jl`); the report was honest (`:maxiters`) | GMRES refuses complex systems | `lib/ImplicitSolvers.jl/test/linsolve.jl`, "GMRES refuses complex systems" |
+| G3 | No device test of `adjoint_solve` and `fixed_point_adjoint` | yes (they work, `probe7c.jl`) | added | `lib/ImplicitSolvers.jl/test/device.jl` |
 
 Not defects, recorded by GLM: GMRES at a `Float32` rounding floor below the tolerance runs its budget
 and reports `:maxiters` honestly; `LimitedBroyden(memory = 2)` stagnates on a 2 × 2 linear system

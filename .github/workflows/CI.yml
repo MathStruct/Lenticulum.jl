@@ -18,6 +18,7 @@ jobs:
         # Lenticulum runs its fast tier here; its slow tier (LENTICULUM_SLOW_TESTS) runs in Slow.yml
         julia: ['1']
         package:
+          - lib/ImplicitSolvers.jl
           - lib/LenticulumCore.jl
           - lib/Mycelium.jl
           - lib/MyceliumLearning.jl

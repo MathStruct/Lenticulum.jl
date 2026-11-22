@@ -17,7 +17,7 @@ const TUTORIALS = joinpath(@__DIR__, "src", "tutorials")
 const CACHE = joinpath(@__DIR__, "cache", "tutorials")
 const PKGDIRS = Dict(name => joinpath(ROOT, "lib", name * ".jl") for name in
                      ("Lenticulum", "LenticulumCore", "Mycelium", "MyceliumLearning", "VariationalDiffusion",
-                      "ImplicitLayers", "AdversarialFactors", "AlgebraicFactors"))
+                      "ImplicitLayers", "ImplicitSolvers", "AdversarialFactors", "AlgebraicFactors"))
 
 function sources(dir)
     files = String[]
@@ -88,6 +88,7 @@ using Mycelium
 using MyceliumLearning
 using VariationalDiffusion
 using ImplicitLayers
+import ImplicitSolvers
 using AdversarialFactors
 using AlgebraicFactors
 using HomotopyContinuation # activate AlgebraicFactors' optional branch solver
@@ -116,6 +117,7 @@ makedocs(;
         MyceliumLearning,
         VariationalDiffusion,
         ImplicitLayers,
+        ImplicitSolvers,
         AdversarialFactors,
         AlgebraicFactors,
     ],
@@ -153,6 +155,7 @@ makedocs(;
                 "ProxDM" => "packages/variationaldiffusion/proxdm.md",
             ],
             "ImplicitLayers" => "packages/implicitlayers.md",
+            "ImplicitSolvers" => "packages/implicitsolvers.md",
             "AdversarialFactors" => "packages/adversarialfactors.md",
             "AlgebraicFactors" => "packages/algebraicfactors.md",
         ],

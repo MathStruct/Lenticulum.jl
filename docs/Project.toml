@@ -3,6 +3,7 @@ HomotopyContinuation = "f213a82b-91d6-5c5d-acf7-10f1c761b327"
 AlgebraicFactors = "5937a757-1681-44a0-82a2-3722a0d5745f"
 AdversarialFactors = "952efbab-e437-447d-9da7-09f243bc8a38"
 ImplicitLayers = "3c0d5f2a-7b41-4e88-9a6d-1f5c8e2b4471"
+ImplicitSolvers = "248397c0-0a23-4829-91d8-bb8f51737c30"
 SymbolicRegression = "8254be44-1295-4e6a-a16d-46603ac705cb"
 ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
@@ -30,6 +31,7 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 AlgebraicFactors = {path = "../lib/AlgebraicFactors.jl"}
 AdversarialFactors = {path = "../lib/AdversarialFactors.jl"}
 ImplicitLayers = {path = "../lib/ImplicitLayers.jl"}
+ImplicitSolvers = {path = "../lib/ImplicitSolvers.jl"}
 Lenticulum = {path = "../lib/Lenticulum.jl"}
 LenticulumCore = {path = "../lib/LenticulumCore.jl"}
 Mycelium = {path = "../lib/Mycelium.jl"}
