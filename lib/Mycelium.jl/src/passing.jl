@@ -436,11 +436,17 @@ _stored(t::_IndexedTree, name::Symbol) = (i = _slot(t, name); i == 0 ? nothing :
 # nodes' cotangents per key and builds the tree's cotangent once: O(nodes + keys).
 _subtrees(@nospecialize(ps::NamedTuple), nodes) = (psi = _indexed(ps); Any[_subtree(psi, f.params) for f in nodes])
 _subtrees(@nospecialize(ps), nodes) = map(f -> _subtree(ps, f.params), nodes)   # no rule: `map` (`free_energy.jl`, `_local_messages`)
+# I30, step 4: the same reads on a boxed tree (`LenticulumCore._Erased`), whose type does not
+# depend on the structure. The ChainRulesCore extension has the rules; under ForwardDiff and
+# reference differences the box is a plain struct and the body below is the primal.
+_subtrees(ps::LenticulumCore._Erased, nodes) = _subtrees(ps.tree, nodes)
 # The same for the state: each node's stored state, `nothing` for a missing key (`_stored`).
 _states(@nospecialize(st::NamedTuple), nodes, absent = nothing) =
     (sti = _indexed(st); Any[(i = _slot(sti, f.params); i == 0 ? absent : getfield(st, i)) for f in nodes])
 _states(@nospecialize(st), nodes) = map(f -> _stored(st, f.params), nodes)
 _states(::Nothing, nodes, absent) = map(Returns(absent), nodes)
+_states(st::LenticulumCore._Erased, nodes) = _states(st.tree, nodes)
+_states(st::LenticulumCore._Erased, nodes, absent) = _states(st.tree, nodes, absent)
 
 # The state a sweep threads, written in place. The values are copied out of the tree at the first
 # write only, so a stateless sweep returns the tree it was given (`===`); a missing key is

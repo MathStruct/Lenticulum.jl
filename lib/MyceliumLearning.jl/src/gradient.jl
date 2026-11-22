@@ -245,6 +245,17 @@ function _replace_coordinates(θ, indices, active)
     return [convert(T, haskey(positions, i) ? active[positions[i]] : θ[i]) for i in eachindex(θ)]
 end
 
+# I30, step 3: the graph-wide pinning in flat coordinates, `θ -> _pin_coordinates_wide(θref, mask, θ)`
+# applied at the boundary of `_graph_parameter_gradient`. The mask is precomputed outside AD, so no
+# `Dict` per evaluation. One element type for the whole vector, `promote_type(eltype(θref), eltype(θ))`,
+# so a frozen coordinate under ForwardDiff is a dual with zero partials, as the per-key pinning
+# gave, and the vector is never a `Vector{Real}` (a plain `ifelse.(mask, θ, θref)` gave `Float64`
+# frozen leaves and a `Vector{Real}`; `scratch/i30/flat-mask-probe.jl`).
+function _pin_coordinates_wide(θref, mask, θ)
+    T = promote_type(eltype(θref), eltype(θ))
+    return ifelse.(mask, convert.(T, θ), convert.(T, θref))
+end
+
 # The nodes that warrant the warning, by name: unfrozen, learnable `learns_unnormalised` factors
 # with a channel on a variable that a `DataFactor` observes; inside a cluster node, the clustered
 # factors whose channels reach such a boundary variable.

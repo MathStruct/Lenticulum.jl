@@ -1281,6 +1281,7 @@ fast_include("gradient_couplings.jl")
 slow_include("coupled_keys.jl")
 slow_include("coupled_spec.jl")
 slow_include("structure_compile.jl")   # I1
+slow_include("erased_trees.jl")        # I30 (needs `_i1_chain` from the line above)
 
 fast_include("switching_constraint.jl")
 

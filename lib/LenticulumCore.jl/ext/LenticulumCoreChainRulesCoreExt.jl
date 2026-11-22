@@ -72,6 +72,34 @@ function ChainRulesCore.rrule(::typeof(LenticulumCore._unflatten), θ, offs, lik
     end
     return y, unflatten_pullback
 end
+# I30, step 2: the same rebuild, boxed. The pullback unboxes the cotangent of the box (a
+# `Tangent{_Erased}`, a `NamedTuple` `(tree = Δ,)`, or a zero) and calls `_unflatten`'s rule above.
+# The call goes through a barrier so that the pullback closure's captures are inferred as `Any`,
+# not as the tree's type: the rule is compiled once for all structures.
+function ChainRulesCore.rrule(::typeof(LenticulumCore._unflatten_erased), θ, offs::LenticulumCore._Erased, like::LenticulumCore._Erased)
+    y, back = _unflatten_barrier(θ, offs.tree, like.tree)
+    function unflatten_erased_pullback(Δ)
+        Δ = unthunk(Δ)
+        Δ isa AbstractZero && return NoTangent(), ZeroTangent(), NoTangent(), NoTangent()
+        d = _erased_cotangent(Δ)
+        return NoTangent(), back(d)[2], NoTangent(), NoTangent()
+    end
+    return LenticulumCore._Erased(y), LenticulumCore._ErasedPullback(unflatten_erased_pullback)
+end
+@noinline function _unflatten_barrier(θ, @nospecialize(offs), @nospecialize(like))
+    return ChainRulesCore.rrule(LenticulumCore._unflatten, θ, offs, like)
+end
+# The cotangent of a box: `Tangent{_Erased}`, a `NamedTuple` `(tree = Δ,)`, or the tree's own
+# cotangent when the caller handed it over directly.
+function _erased_cotangent(@nospecialize(Δ))
+    Δ = unthunk(Δ)
+    Δ isa AbstractZero && return Δ
+    Δ isa Tangent && (Δ = ChainRulesCore.backing(Δ))
+    if Δ isa NamedTuple && length(Δ) == 1 && haskey(Δ, :tree)
+        return unthunk(Δ.tree)
+    end
+    return Δ
+end
 # `@nospecialize`: the walks are compiled once, not per tree type.
 function _cotangent_type(T, @nospecialize(o), @nospecialize(Δ))
     Δ = unthunk(Δ)

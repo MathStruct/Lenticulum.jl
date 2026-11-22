@@ -420,9 +420,9 @@ Warm times are unchanged (best of five at 61 factors: 23 ms for ForwardDiff with
 fixed chunk alone). **Left:** what remains grows with the structure. For Zygote it is the
 inference of its `Pullback` types, whose parameters hold `ps` and `st` in every argument of every
 function it transforms (`indexed_iterate` on them was 1.5 s of 5.7 s at 61 factors); ForwardDiff's
-remainder was not profiled. Removing it needs the graph-wide trees kept out of every
-differentiated signature, a type-erased tree through the replay and the implicit adjoint (a
-backlog row). The implicit adjoint was not measured after the change; its dense solve dominates its
+remainder was not profiled. Removing it needed the graph-wide trees kept out of every
+differentiated signature: done in I30 (`MyceliumLearning/src/gradient_couplings.md`, "The graph-wide
+trees out of Zygote's signatures (I30)"; at 121 factors Zygote 13.75 → 1.61 s, ForwardDiff 5.81 → 0.98 s). The implicit adjoint was not measured after the change; its dense solve dominates its
 first call. Zygote of `scalar_free_energy` itself (`bench/zygote_scaling.jl`) is unchanged: 2.5,
 7.4, 25.8 s at 121, 241, 481 factors.
 

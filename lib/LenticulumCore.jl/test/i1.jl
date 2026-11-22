@@ -126,13 +126,14 @@ end
         free(y) = _flatten(pg(AutoForwardDiff(), (p, y) -> y^2, ps, y))
         @test ForwardDiff.derivative(free, 0.3) == zeros(n)
         # through `stop_gradient` the loss holds this call's dual with no effect on the value
-        stopped(y) = _flatten(pg(AutoForwardDiff(), (p, y) -> y * LenticulumCore.stop_gradient(sum(p.a)), ps, y))
+        # (I30: `_graph_parameter_gradient` hands the loss a boxed tree, so the loss unboxes)
+        stopped(y) = _flatten(pg(AutoForwardDiff(), (p, y) -> y * LenticulumCore.stop_gradient(sum((p isa LenticulumCore._Erased ? p.tree : p).a)), ps, y))
         @test ForwardDiff.derivative(stopped, 0.3) == zeros(n)
         # the caller's dual with more partials than there are coordinates
         many(v) = _flatten(pg(AutoForwardDiff(), (p, v) -> sum(abs2, v), ps, v))
         @test ForwardDiff.jacobian(many, [0.1, 0.2, 0.3, 0.4, 0.5]) == zeros(n, 5)
         # a loss that does depend on both: the mixed derivative ∂y ∂a (y Σa²) = 2a
-        mixed(y) = _flatten(pg(AutoForwardDiff(), (p, y) -> y * sum(abs2, p.a), ps, y))
+        mixed(y) = _flatten(pg(AutoForwardDiff(), (p, y) -> y * sum(abs2, (p isa LenticulumCore._Erased ? p.tree : p).a), ps, y))
         @test ForwardDiff.derivative(mixed, 0.3) ≈ 2 .* ps.a
     end
     lift = X._LiftToInner((u, c) -> c)
@@ -194,7 +195,10 @@ end
 @testset "I1: graph gradients equal the plain ones, and nest under a caller's ForwardDiff" begin
     rng = Xoshiro(13)
     ps = (f1 = (A = randn(rng, 2, 2), b = randn(rng, 2)), f2 = (;), f3 = (w = randn(rng, 5),), f4 = (s = 0.3,))
-    loss(p, c, M) = c * sum(abs2, M * p.f1.A * p.f1.b) + sum(sin, p.f3.w) * p.f4.s + c^2 * p.f4.s
+    # I30: `_graph_parameter_gradient` hands the loss a boxed tree (`_Erased`), so the loss unboxes;
+    # `_parameter_gradient` still hands it the tree itself.
+    loss(p, c, M) = (q = p isa LenticulumCore._Erased ? p.tree : p;
+        c * sum(abs2, M * q.f1.A * q.f1.b) + sum(sin, q.f3.w) * q.f4.s + c^2 * q.f4.s)
     M = randn(rng, 2, 2)
     for ad in (AutoForwardDiff(), AutoZygote(), nothing)
         g0 = _parameter_gradient(ad, loss, ps, 1.7, M)

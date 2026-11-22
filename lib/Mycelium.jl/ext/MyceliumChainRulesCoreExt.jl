@@ -40,6 +40,31 @@ function ChainRulesCore.rrule(::typeof(Mycelium._states), st::NamedTuple, nodes,
     y, back = _by_key_rrule(st, nodes, absent)
     return y, Δ -> (back(Δ)..., ChainRulesCore.NoTangent())
 end
+# I30, step 4: the same reads on a boxed tree. The rule calls `_by_key_rrule` on the unboxed tree
+# behind a function barrier, so that the pullback closure's captures are inferred as `Any`, not as
+# the tree's type, and the rule compiles once for all structures; the cotangent is reboxed as
+# `Tangent{_Erased}(; tree = Δ)`.
+function ChainRulesCore.rrule(::typeof(Mycelium._subtrees), ps::LenticulumCore._Erased, nodes)
+    y, back = _erased_by_key_barrier(ps.tree, nodes, NamedTuple(), Mycelium._subtrees)
+    return y, LenticulumCore._ErasedPullback(Δ -> (ChainRulesCore.NoTangent(), _erased_tangent(back(unthunk(Δ))[2]), ChainRulesCore.NoTangent()))
+end
+function ChainRulesCore.rrule(::typeof(Mycelium._states), st::LenticulumCore._Erased, nodes)
+    y, back = _erased_by_key_barrier(st.tree, nodes, nothing, (t, n) -> Mycelium._states(t, n))
+    return y, LenticulumCore._ErasedPullback(Δ -> (ChainRulesCore.NoTangent(), _erased_tangent(back(unthunk(Δ))[2]), ChainRulesCore.NoTangent()))
+end
+function ChainRulesCore.rrule(::typeof(Mycelium._states), st::LenticulumCore._Erased, nodes, absent)
+    y, back = _erased_by_key_barrier(st.tree, nodes, absent, (t, n) -> Mycelium._states(t, n, absent))
+    return y, LenticulumCore._ErasedPullback(Δ -> (ChainRulesCore.NoTangent(), _erased_tangent(back(unthunk(Δ))[2]), ChainRulesCore.NoTangent(), ChainRulesCore.NoTangent()))
+end
+# A tree that is not a `NamedTuple` (`nothing` for a stateless graph) has no rule by key: `read` gives the
+# primal's value (`_subtrees` or `_states`, as the caller is), and its cotangent is zero (GLM's review of I30:
+# the fallback read `_subtrees` for `_states` too).
+@noinline function _erased_by_key_barrier(@nospecialize(tree), nodes, absent, read)
+    tree isa NamedTuple || return (read(tree, nodes), _ -> (ChainRulesCore.NoTangent(), ChainRulesCore.ZeroTangent(), ChainRulesCore.NoTangent()))
+    return _by_key_rrule(tree, nodes, absent)
+end
+_erased_tangent(Δ::ChainRulesCore.AbstractZero) = Δ
+_erased_tangent(@nospecialize(Δ)) = ChainRulesCore.Tangent{LenticulumCore._Erased}(; tree = Δ)
 # The reads by position, compiled for any `NamedTuple` (I17): specialised on a tree of one field per
 # factor, `getfield(ps, i)` with a run-time `i` cost O(keys) per read, so the rule's forward pass was
 # O(nodes × keys) (10.7 MB at 241 keys and 722 nodes, against 0.1 MB for the primal; `coupled_scaling.jl`).

@@ -115,10 +115,12 @@ function _functional_infer(g, ts, ps, st, report, damping=0.0)
         pinned = _named_tree(names, map(_factor_parameters, nodes, Mycelium._subtrees(ps, nodes)))
         Mycelium._subtrees(pinned, g.factors)
     end
-    s, final_state, _ = _replay_run(Val(:infer), g, ts, params, st, nothing, damping, Val(:chainrules), report.sweeps)
+    # I30, step 5: the state travels boxed through `_replay_run` (its rule unboxes the cotangent);
+    # the pinning of `ps` stays here, in the per-factor form.
+    s, boxed_state, _ = _replay_run(Val(:infer), g, ts, params, LenticulumCore._Erased(st), nothing, damping, Val(:chainrules), report.sweeps)
     vs = _variable_nodes(g)
     marginals = map((v, sl) -> marginal(sl, g, v.id), vs, Mycelium._local_stores(s, _marginal_reads(g, vs)))
-    return _named_tree(Tuple(v.name for v in vs), marginals), report, final_state, s
+    return _named_tree(Tuple(v.name for v in vs), marginals), report, boxed_state.tree, s
 end
 
 function _task_step(::Val{:infer}, s, g, t, ps, st, ref, damping, ad)
@@ -139,10 +141,19 @@ function _task_step(::Val{:replay}, s, g, t, ps, st, ref, damping, ad)
     return b, state, nothing
 end
 
-function _replay_run(mode, g, ts, params, st, tape, damping, ad, iteration)
+# I30, step 5: the state travels boxed. The primal unboxes for `_replay_forward` (whose reads of
+# `st` are not differentiated: they run inside this function's rule, or under ForwardDiff as the
+# plain primal) and boxes the final state again.
+function _replay_run(mode, g, ts, params, st::LenticulumCore._Erased, tape, damping, ad, iteration)
     evaluate(i, fid, tv, tf, sv, save, args...) = _task_step(mode, args...)
-    result, _ = _replay_forward(evaluate, mode, g, ts, params, st, tape, damping, ad, iteration)
-    return result
+    (s, final_state, score), _ = _replay_forward(evaluate, mode, g, ts, params, st.tree, tape, damping, ad, iteration)
+    return (s, LenticulumCore._Erased(final_state), score)
+end
+# An unboxed state is boxed for the call and the final state unboxed again (callers outside the
+# differentiated region keep receiving the tree).
+function _replay_run(mode, g, ts, params, st, tape, damping, ad, iteration)
+    s, boxed, score = _replay_run(mode, g, ts, params, LenticulumCore._Erased(st), tape, damping, ad, iteration)
+    return (s, boxed.tree, score)
 end
 
 # Message version 0 is absent. Task i writes version i. At a sweep's first
@@ -258,11 +269,15 @@ function _frozen_beliefs(s, g, ps, st)
                nothing for f in g.factors]
 end
 
-function _graph_scalar(s, g, ps, st, frozen = nothing)
+_graph_scalar(s, g, ps, st, frozen = nothing) =
+    _graph_scalar_of(s, g, Mycelium._subtrees(ps, _factor_nodes(g)), st, frozen)
+# The same with the factors' parameter subtrees given (`subs[i]` for `g.factors[i]`): the replay reads
+# `ps` once for both uses, so that Zygote adds the two cotangents per subtree, not over the whole tree (I30).
+function _graph_scalar_of(s, g, subs, st, frozen = nothing)
     fs, vs = _factor_nodes(g), _variable_nodes(g)
     locals = Mycelium._local_stores(s, Mycelium._node_reads(g, fs))
     beliefs = frozen === nothing ? fill(nothing, length(fs)) : frozen
-    terms = map(fs, Mycelium._subtrees(ps, fs), Mycelium._states(st, fs, NamedTuple()), locals, beliefs) do f, p, state, sl, b
+    terms = map(fs, subs, Mycelium._states(st, fs, NamedTuple()), locals, beliefs) do f, p, state, sl, b
         b === nothing ? _local_scalar(p, f.factor, messages_into(sl, g, f.id), state) :
                         _belief_scalar(p, f.factor, b, state)
     end
@@ -340,10 +355,44 @@ end
 
 # The score samples and coefficients are fixed reference contexts. Only their log
 # densities are differentiated. This is the stochastic-computation-graph identity.
-function _replay(ps, g, ts, tape, st, ad, damping, frozen = nothing)
-    final_s, final_state, correction = _replay_run(Val(:replay), g, ts,
-        Mycelium._subtrees(ps, g.factors), st, tape, damping, ad, length(ts))
-    return _graph_scalar(final_s, g, ps, final_state, frozen) + correction
+# I30, steps 2, 4, 5: `ps` and `st` arrive boxed (`_Erased`), so no signature of the glue Zygote
+# transforms depends on the structure; the reads of the trees go through the rules of
+# `Mycelium._subtrees`/`Mycelium._states` on the box.
+function _replay(ps::LenticulumCore._Erased, g, ts, tape, st::LenticulumCore._Erased, ad, damping, frozen = nothing)
+    subs = Mycelium._subtrees(ps, g.factors)
+    final_s, final_state, correction = _replay_run(Val(:replay), g, ts, subs, st, tape, damping, ad, length(ts))
+    return _graph_scalar_of(final_s, g, subs, final_state, frozen) + correction
+end
+# Unboxed trees are boxed for the call (callers outside the differentiated region keep passing and
+# receiving trees).
+_replay(ps, g, ts, tape, st, ad, damping, frozen = nothing) =
+    _replay(LenticulumCore._Erased(ps), g, ts, tape, LenticulumCore._Erased(st), ad, damping, frozen)
+
+# I30, step 3: the active positions of the graph-wide flat vector θ, built once outside AD
+# (through the offset tree: each key's subtree occupies a contiguous range of θ). `posmap[i]` is
+# the position of coordinate `i` among the active ones, 0 when frozen. The per-key `_active_indices`
+# of the key's first node decide, as `_pinned_parameters` did.
+function _graph_posmap(g, ps)
+    posmap = zeros(Int, LenticulumCore._flatlen(ps))
+    start = 1
+    for (name, sub) in pairs(ps)
+        f = _key_node(g, name)
+        for (k, i) in enumerate(_active_indices(f, sub))
+            posmap[start + i - 1] = k
+        end
+        start += LenticulumCore._flatlen(sub)
+    end
+    return posmap
+end
+
+# The pinning as a map of the flat coordinates, applied inside the differentiated boundary:
+# `θ -> unflatten(_replace_coordinates(θref, posmap, θ))`. `identity` when nothing is frozen.
+function _graph_pin(g, ps)
+    posmap = _graph_posmap(g, ps)
+    all(!iszero, posmap) && return identity
+    θref = LenticulumCore._flatten(ps)
+    mask = posmap .!= 0
+    return θ -> _pin_coordinates_wide(θref, mask, θ)
 end
 
 function _pinned_parameters(ps, reference_ps, g)
@@ -357,8 +406,16 @@ function _pinned_parameters(ps, reference_ps, g)
     return _named_tree(names, values)
 end
 
+# I30, step 3: the pinning left the differentiated region — the drivers pin in flat coordinates
+# through `_graph_pin`, at the boundary of `_graph_parameter_gradient`.
+function _coupled_loss(ps::LenticulumCore._Erased, g, ts, tape, st::LenticulumCore._Erased, ad, damping, frozen = nothing)
+    return _replay(ps, g, ts, tape, st, ad, damping, frozen)
+end
+# The per-key pinning of a reference tree, then the boxed call (the form the I17 tests drive
+# directly; the drivers pin in flat coordinates instead).
 function _coupled_loss(ps, reference_ps, g, ts, tape, st, ad, damping, frozen = nothing)
-    return _replay(_pinned_parameters(ps, reference_ps, g), g, ts, tape, st, ad, damping, frozen)
+    return _coupled_loss(LenticulumCore._Erased(_pinned_parameters(ps, reference_ps, g)), g, ts, tape,
+        LenticulumCore._Erased(st), ad, damping, frozen)
 end
 
 function _coupled_gradient(s, g, ps, st; ad=nothing, ε=1e-6, schedule=nothing,
@@ -393,17 +450,22 @@ function _coupled_gradient(s, g, ps, st; ad=nothing, ε=1e-6, schedule=nothing,
         even at convergence (LP-021). Omit `schedule`, or use `adjoint = :implicit`, for the free-energy gradient.", maxlog = 1)
     ts = _realised_tasks(g, schedule, nsweeps, ps, st; damping)
     n = stochastic ? nsamples : 1
-    results = map(1:n) do draw
+    pin = _graph_pin(g, ps)                       # I30, step 3: outside AD, in flat coordinates
+    st_box = LenticulumCore._Erased(st)
+    # A loop into `Vector{Any}`: `map` and `only` over results typed by the gradient tree (whose leaves
+    # are views) were inferred per structure, 0.65 s of 3 s at 61 factors (I30's profile).
+    results = Any[]
+    for draw in 1:n
         tape, reference_store, reference_state = _reference_tape(g, ts, ps, st, rng, damping)
         frozen = _frozen_beliefs(reference_store, g, ps, reference_state)
-        gradient = LenticulumCore._graph_parameter_gradient(ad, _coupled_loss, ps, ps, g, ts, tape, st, ad, damping, frozen; ε)
+        gradient = LenticulumCore._graph_parameter_gradient(ad, _coupled_loss, ps, g, ts, tape, st_box, ad, damping, frozen; ε, pin)
         # I27: the replayed free energy, which this differentiates, must be finite; at each draw
         # for a score edge, whose replay samples its beliefs. One more forward replay.
-        _check_finite(_coupled_loss(ps, ps, g, ts, tape, st, ad, damping, frozen))
+        _check_finite(_coupled_loss(LenticulumCore._Erased(ps), g, ts, tape, st_box, ad, damping, frozen))
         state = return_state && draw == 1 ? last(factor_free_energies(reference_store,g,ps,reference_state)) : nothing
-        return gradient,state
+        push!(results, (gradient, state))
     end
-    draws = map(first,results)
+    draws = Any[first(r) for r in results]
     if !stochastic
         return return_state ? only(results) : only(draws)
     end

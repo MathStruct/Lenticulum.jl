@@ -75,6 +75,30 @@ _rebuild(θ, o::Tuple, x::Tuple) = map((oi, xi) -> _rebuild(θ, oi, xi), o, x)
 _unflatten(θ, offs, like) = _rebuild(θ, offs, like)
 _unflatten(θ, like) = _rebuild(θ, offset_tree(like), like)
 
+# I30: a box for the graph-wide trees inside a differentiated region. Its type does not depend on
+# the structure of the tree it holds, so Zygote's `Pullback` types (which hold the types of every
+# argument of every function it transforms) are the same for every graph structure, and the glue
+# is compiled once. Every use of the tree is explicit: `_flatten`, `offset_tree`, `_unflatten`,
+# `keys` and `isempty` are deliberately not defined for `_Erased`, so a path that forgets to unbox
+# fails loudly instead of silently differentiating through `getfield`.
+struct _Erased
+    tree::Any
+end
+
+# A rule's pullback, boxed the same way. Zygote's `Pullback` types hold the run-time types of the
+# pullbacks they store, and a closure's type holds the types of what it captures: a rule whose
+# pullback captures the unboxed tree made the enclosing `Pullback` type, and so the backward pass,
+# depend on the structure again (a SnoopCompile profile, I30). The rules on boxed trees return
+# their pullback in this box.
+struct _ErasedPullback
+    back::Any
+end
+(p::_ErasedPullback)(Δ) = p.back(Δ)
+
+# θ rebuilt into a boxed tree (I30, step 2): the rule of `_unflatten` (the ChainRulesCore
+# extension) does the work on the unboxed trees; this rule only unboxes the cotangent.
+_unflatten_erased(θ, offs::_Erased, like::_Erased) = _Erased(_unflatten(θ, offs.tree, like.tree))
+
 
 # Materialise views so concatenation does not merge array/view union activities.
 _flatten_active(x::AbstractArray{<:Number}) = vec(copy(x))

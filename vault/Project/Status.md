@@ -7,15 +7,15 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-22, after LP-076 finding 2 (a loss free of the coordinates under a caller's ForwardDiff; the guard walks the function too) and I30's design; I1 pushed.
+**Last updated:** 2026-11-22, after I30 (the graph-wide trees boxed in the graph drivers; review [[LP-077 Findings of the review of I30]]), committed, not pushed. Before it LP-076 finding 2, committed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I1 pushed (`b9bb0344`); LP-076 finding 2 and I30's design committed after it. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is behind and can be fast-forwarded |
-| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/i30` | reset to `dev-danielb` on 2026-11-22 for I30 (brief: `../Lenticulum.jl-Review-2026-11-22/i30/brief.md`, its answer `IMPL-I30.md` in the worktree root); run Julia there with `JULIA_DEPOT_PATH=$PWD/scratch/depot:$HOME/.julia:`. Older states in `git stash` (the stash is shared by all worktrees): "I17 state in codex worktree (before LP-076/I30)" on top (its untracked files in `scratch/i17-untracked/`), I16's, I4's, I26's, U3's and U2's below it. Codex's sandbox cannot stash or check out (read-only git index): the session does that |
-| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/review` | reset to `dev-danielb` on 2026-11-22; the I17 review state in `git stash` ("I17 state in mistral worktree"; its untracked files in `scratch/i17-untracked/`), older states below it. `scratch/p6env` serves any review and has Krylov. Before the next review: reset to the commit under review, then apply its diff. `git stash -u` takes `scratch/` with it: stash without `-u` |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | pushed up to `b9bb0344` (I1); LP-076 finding 2, I30's design and I30 committed after it, not pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is behind and can be fast-forwarded |
+| `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/i30` | at `a681698b` with Codex's I30 notes uncommitted (it stopped at the design's step 3; `IMPL-I30.md`, `scratch/i30/`; copied to `../Lenticulum.jl-Review-2026-11-22/i30/`); reset before the next package. Codex's weekly quota is used up until 2026-11-24 19:48. Run Julia there with `JULIA_DEPOT_PATH=$PWD/scratch/depot:$HOME/.julia:`. Older states in `git stash` (shared by all worktrees): the I17 states on top, I16's, I4's, I26's, U3's and U2's below. Codex's sandbox cannot stash or check out: the session does that |
+| `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/i30` | at `956a5e2f` with I30 applied uncommitted (the same diff is committed on `dev-danielb`); `scratch/i30/` (baseline recorder and the 39 old records, `snoop.jl`, the benchmark logs) and `scratch/i30r/` (GLM's probes). Its Manifests were stale (no `LenticulumCoreForwardDiffDIExt`, LP-067) and are resolved now. Reset before the next review: `git stash` (without `-u`), then check out the commit under review |
 
 Pushing: a plain `git push origin dev-danielb` works from every shell (`~/.ssh/config` maps
 `github.com` to the `mathstruct` key). If GitHub itself rejects the key, push over HTTPS with `gh`'s
@@ -28,6 +28,18 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **I30** (2026-11-22, Daniel: "do all that"). Inside the graph drivers' differentiated region `ps`, `st` and the
+  offset tree travel in a non-parametric box (`LenticulumCore._Erased`), read only through rules whose pullbacks are
+  boxed too (`_ErasedPullback`); pinning is in flat coordinates (`_graph_pin`); the replay reads `ps` once.
+  `bench/structure_compile.jl`, first gradient on a new structure at 121 factors: Zygote 13.75 → 1.61 s, ForwardDiff
+  5.81 → 0.98 s; the implicit adjoint's compilation at 31 factors about 11 → 1.8 s; warm times unchanged. Codex
+  stopped at the design's pinning step with a counterexample (design revised, a deliberate change of one value);
+  Mistral implemented steps 1–6 (one defect: the boxed state's cotangent dropped under Zygote, found by comparing
+  39 gradients recorded on the old code); a SnoopCompile profile led the session to box the pullbacks, which did
+  most of the gain. GLM reviewed (\$2.96): no defect, one suspicion fixed with a test. Values bitwise equal but for
+  a `-0.0` and one last bit (Zygote, a tied key). Tests `lib/Lenticulum.jl/test/erased_trees.jl` (slow tier).
+  All eight suites passed, Lenticulum with both tiers (`~/.cache/lenticulum/i30/gates2/`). Not run: the docs
+  builds, device tests (`_pin_coordinates_wide`'s device form is untested), the smoke runner.
 - **LP-076 finding 2, and I30's design** (2026-11-22, Daniel: "do all that"). Under a caller's ForwardDiff a
   loss free of the coordinates left the gradient partly uninitialised: ForwardDiff's `extract_gradient!`
   loops over the caller's partials. `_gradient` for `AutoForwardDiff` wraps the loss (`_LiftToInner`,
@@ -87,7 +99,7 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Next
 
-I30, by Codex from the design in `gradient_couplings.md` (brief `../Lenticulum.jl-Review-2026-11-22/i30/brief.md`, answer `IMPL-I30.md` in `../Lenticulum.jl-codex`): read the branch, have it reviewed by Mistral, check its benchmark numbers. Open after I1: the rest of I1 is I30 (a type-erased tree for `ps` and `st` through the replay and the implicit adjoint, so that Zygote's `Pullback` types do not hold them: 13.4 s at 121 factors per new structure); ForwardDiff's remainder (3.6 s at 121) not profiled; Open after I17: ForwardDiff and reference differences through a replay cost one pass per parameter coordinate (quadratic by nature; 6.7 s for reference differences at 241 factors); the I17 tests, trimmed (2026-11-21), take 7 min 51 s of Lenticulum's suite instead of 10 min 21 s: Zygote through the old code (the oracle) is replaced by ForwardDiff on the new, whose values the old ones equal; what is left is compilation per graph type, schedule and backend, not the number of cases. The whole suite took 48 min 37 s (`~/.cache/lenticulum/trim/Lenticulum.log`), so it now has two tiers (`LENTICULUM_SLOW_TESTS`, `lib/Lenticulum.jl/test/runtests.jl`): the fast tier (28 min 37 s run beside the slow one) on every push, the slow tier (the tests that differentiate through replays, plates and element types, 28 min 20 s alone) in the new `Slow.yml`, weekly, on pull requests and on pushes to the AD paths. `Slow.yml` ran for the first time on the push of I29 (2026-11-21, run 44962044734): passed in 1 h 1 min, beside CI's 1 h 0 min. `ScaleShiftFactor` (3 min) stayed in the fast tier. I29 (found while trimming) is done: ForwardDiff through the coupled replay on a frozen key, a `Vector{Real}` from `_replace_coordinates`. Open after I16: Zygote's compilation still grows with the keys (66 s at 961 factors, I1); the block-row path's nodes outside rows still read `ps` per node; O(degree²) at a hub (LP-073). Open after I4: keep the residual heap between sweeps (its
+No row is set; pick one with the maintainer. Open after I30: the implicit adjoint reads `ps` twice (its Zygote compile at 61 factors not profiled); Zygote through `infer!` (`_functional_infer`) not measured. Open after I17: ForwardDiff and reference differences through a replay cost one pass per parameter coordinate (quadratic by nature; 6.7 s for reference differences at 241 factors); the I17 tests, trimmed (2026-11-21), take 7 min 51 s of Lenticulum's suite instead of 10 min 21 s: Zygote through the old code (the oracle) is replaced by ForwardDiff on the new, whose values the old ones equal; what is left is compilation per graph type, schedule and backend, not the number of cases. The whole suite took 48 min 37 s (`~/.cache/lenticulum/trim/Lenticulum.log`), so it now has two tiers (`LENTICULUM_SLOW_TESTS`, `lib/Lenticulum.jl/test/runtests.jl`): the fast tier (28 min 37 s run beside the slow one) on every push, the slow tier (the tests that differentiate through replays, plates and element types, 28 min 20 s alone) in the new `Slow.yml`, weekly, on pull requests and on pushes to the AD paths. `Slow.yml` ran for the first time on the push of I29 (2026-11-21, run 44962044734): passed in 1 h 1 min, beside CI's 1 h 0 min. `ScaleShiftFactor` (3 min) stayed in the fast tier. I29 (found while trimming) is done: ForwardDiff through the coupled replay on a frozen key, a `Vector{Real}` from `_replace_coordinates`. Open after I16: Zygote's compilation still grows with the keys (66 s at 961 factors, I1); the block-row path's nodes outside rows still read `ps` per node; O(degree²) at a hub (LP-073). Open after I4: keep the residual heap between sweeps (its
 first probe of every task is a third of a sweep's cost; needs to know when the store changed outside a
 sweep); I24's `_max_pending` still scans every task; the residual schedule's means are further from the
 dense solve than flooding's at the same message tolerance (4e-9 against 1e-10 on the grids; the schedule's,

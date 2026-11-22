@@ -76,12 +76,13 @@ end
 
 # Synchronous BP defines the fixed-point equation even when another schedule was
 # used to find its root. Damping follows step!: only factor -> variable messages.
-function _graph_update(x, ps, ctx)
+# I30, step 6: `ps` arrives boxed (`_Erased`) and already pinned — the pinning is applied in flat
+# coordinates at the boundary of `_graph_parameter_gradient` (`_graph_pin`), not here.
+function _graph_update(x, ps::LenticulumCore._Erased, ctx)
     s = _coordinate_store(x, ctx)
     g = ctx.g
-    pinned = _pinned_parameters(ps, ctx.ps, g)
     nodes = _task_nodes(g, ctx.ts)
-    params = Mycelium._subtrees(pinned, nodes)
+    params = Mycelium._subtrees(ps, nodes)
     states = Mycelium._states(ctx.st, nodes, NamedTuple())
     locals = Mycelium._local_stores(s, _task_reads_of(g, ctx.ts))
     # The closure captures `g`, the damping and the backend only, not `ctx`: its type holds the type of
@@ -93,11 +94,17 @@ function _graph_update(x, ps, ctx)
     return reduce(vcat, parts)
 end
 _graph_state_map(x, ps, ctx) = _graph_update(x, ps, ctx)
-_graph_loss(x, ps, ctx) = _graph_scalar(_coordinate_store(x, ctx), ctx.g,
-    _pinned_parameters(ps, ctx.ps, ctx.g), ctx.st, ctx.frozen)
-_graph_map_dot(x, ps, ctx, v) = LinearAlgebra.dot(v, _graph_update(x, ps, ctx))
-_graph_adjoint_loss(ps, ctx, λ) = _graph_loss(ctx.x, ps, ctx) +
+_graph_loss(x, ps::LenticulumCore._Erased, ctx) = _graph_scalar(_coordinate_store(x, ctx), ctx.g,
+    ps, ctx.st, ctx.frozen)
+_graph_map_dot(x, ps::LenticulumCore._Erased, ctx, v) = LinearAlgebra.dot(v, _graph_update(x, ps, ctx))
+_graph_adjoint_loss(ps::LenticulumCore._Erased, ctx, λ) = _graph_loss(ctx.x, ps, ctx) +
     LinearAlgebra.dot(λ, _graph_update(ctx.x, ps, ctx))
+# Unboxed parameters are boxed for the call (callers outside the differentiated region keep passing
+# trees; the pinning is applied at the boundary of `_graph_parameter_gradient`, not here).
+_graph_update(x, ps, ctx) = _graph_update(x, LenticulumCore._Erased(ps), ctx)
+_graph_loss(x, ps, ctx) = _graph_loss(x, LenticulumCore._Erased(ps), ctx)
+_graph_map_dot(x, ps, ctx, v) = _graph_map_dot(x, LenticulumCore._Erased(ps), ctx, v)
+_graph_adjoint_loss(ps, ctx, λ) = _graph_adjoint_loss(LenticulumCore._Erased(ps), ctx, λ)
 
 struct _GraphAdjointOperator{T,C} <: AbstractMatrix{T}
     ctx::C
@@ -191,7 +198,9 @@ function _implicit_graph_gradient(g, ps, st; ad, ε, schedule, damping, maxsweep
         return return_state ? (gradient, last(factor_free_energies(store, g, ps, st))) : gradient
     end
     frozen = _frozen_beliefs(store, g, ps, st)          # LP-021: fully cut factors at fixed beliefs
-    ctx = (; g, ps, st, ts, beliefs, ranges, x, ad, damping, ε, frozen)
+    # I30, step 6: the trees in the context are boxed, so no type Zygote transforms depends on the
+    # structure; the pinning of `ps` is applied in flat coordinates at the boundary below.
+    ctx = (; g, ps = LenticulumCore._Erased(ps), st = LenticulumCore._Erased(st), ts, beliefs, ranges, x, ad, damping, ε, frozen)
     # Check the full, uncut update too: a detached row must still be at a BP root.
     s = _coordinate_store(x, ctx)
     residual = maximum(ts) do t
@@ -200,7 +209,7 @@ function _implicit_graph_gradient(g, ps, st; ad, ε, schedule, damping, maxsweep
         belief_distance(_stored_belief(s,t), b)
     end
     isfinite(residual) && residual <= 10tol || throw(ArgumentError("implicit graph reference fails the full BP fixed-point check (residual=$residual)"))
-    rhs = LenticulumCore._graph_gradient(ad, _graph_loss, x, ps, ctx; ε)
+    rhs = LenticulumCore._graph_gradient(ad, _graph_loss, x, ctx.ps, ctx; ε)
     rhs = rhs === nothing ? zero(x) : rhs
     # The scalar objective can promote its message cotangent (e.g. CPU Gaussian
     # entropy constants with Float32 messages). GMRES vectors follow that RHS.
@@ -209,7 +218,8 @@ function _implicit_graph_gradient(g, ps, st; ad, ε, schedule, damping, maxsweep
     residual_linear = LinearAlgebra.norm(A * λ - rhs)
     residual_linear <= linear_tol * max(one(residual_linear), LinearAlgebra.norm(rhs)) ||
         throw(ArgumentError("implicit graph adjoint linear solve failed residual check ($residual_linear)"))
-    gradient = LenticulumCore._graph_parameter_gradient(ad, _graph_adjoint_loss, ps, ctx, λ; ε)
+    pin = _graph_pin(g, ps)                             # I30, step 3: outside AD, in flat coordinates
+    gradient = LenticulumCore._graph_parameter_gradient(ad, _graph_adjoint_loss, ps, ctx, λ; ε, pin)
     state = return_state ? last(factor_free_energies(store,g,ps,st)) : nothing
     return return_state ? (gradient, state) : gradient
 end

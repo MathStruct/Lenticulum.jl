@@ -396,7 +396,7 @@ coordinate, stay quadratic: 156 → 671 → 2 965 ms before, 98 → 432 → 1 63
 
 ## The graph-wide trees out of Zygote's signatures (I30): design (2026-11-22)
 
-Not implemented yet; this section is the specification of the work package.
+The specification of the work package, kept as written; what was done is in the next section.
 
 **The cost.** After I1, the first gradient on a new structure still compiles in proportion to the
 structure (`bench/structure_compile.jl`; I1's numbers in `passing.md`, "The AD paths (I1)": Zygote through
@@ -477,3 +477,67 @@ values recorded before the change, or the old functions copied into the test). A
 structure has compiled, the first Zygote gradient on a new one is below a bound (a ratio to the warm time
 is unstable; use the Pullback types instead: `Zygote.pullback` of `_coupled_loss`'s glue on two structures
 gives `Pullback` types that are equal). The guard sees a caller's dual inside a box.
+
+## The graph-wide trees out of Zygote's signatures (I30): what was done (2026-11-22)
+
+Implemented by Mistral (steps 1–6) and the session (three more fixes from a profile, the tests).
+
+**As specified.** `LenticulumCore._Erased` boxes `ps`, `st` and the offset tree; `_graph_parameter_gradient`
+differentiates `θ -> fun(_unflatten_erased(pin(θ), offs_box, like_box), args...)` (keyword `pin`);
+`Mycelium._subtrees` and `_states` have methods and rules on the box; `_replay_run` takes and returns the
+state boxed (a method for an unboxed state boxes and unboxes around it); `_replay`, `_coupled_loss`,
+`_graph_update`, `_graph_loss`, `_graph_map_dot`, `_graph_adjoint_loss` take boxes (and box a tree they are
+given); the implicit adjoint's `ctx` holds boxes. Pinning: `_graph_pin(g, ps)` builds the positions of the
+active coordinates once (`_graph_posmap`, per key through `_active_indices` of its first node) and returns
+`identity` when nothing is frozen, else `θ -> _pin_coordinates_wide(θref, mask, θ)` (one element type).
+`_functional_infer` keeps its per-factor pinning.
+
+**Beyond the specification, from a SnoopCompile profile** after steps 1–6 (`scratch/i30/snoop.jl` of the work
+package: inference was 3.0 s of a 3.4 s first call at 61 factors, 2.56 s of it in instances whose types held
+the tree):
+- *Pullbacks boxed too.* Zygote's `Pullback{T,S}` stores the run-time types of the pullbacks it holds, and a
+  closure's type holds the types of its captures: a rule whose pullback captured the unboxed tree made the
+  enclosing `Pullback` type, and the backward pass, structure-dependent again. The rules on boxes return
+  `LenticulumCore._ErasedPullback(back)`, a non-parametric callable.
+- *One read of `ps` in the replay.* `_replay` reads the subtrees once and hands them to `_graph_scalar_of`;
+  two reads made Zygote add the cotangents of the whole tree (`accum!!` on tree-typed `NamedTuple`s).
+- *No `map` over the draws.* `_coupled_gradient` collected its per-draw results with `map` and `only`, whose
+  inference over the gradient tree (leaves are views) was 0.65 s; a loop into a `Vector{Any}` now.
+- *The state's cotangent in every form.* Zygote hands the replay rule the cotangent of the boxed state as a
+  `Tangent{_Erased}`, a `Tangent{Any}` or a `NamedTuple` `(tree = Δ,)`; Mistral's version read the first
+  form only, so the state's cotangent was dropped: a stateful factor's Zygote gradient 13.80 instead of 66.36,
+  and a seeded score estimate 0.49 instead of 6.33 (the baseline below). `_part_erased` takes all three.
+
+**Values.** The 39 gradients of the baseline (two chains, two random trees, tied and frozen keys, mixed cuts
+with them, a stateful factor, a seeded score estimate; unrolled and dense implicit; Zygote, ForwardDiff,
+reference differences), recorded on the old code by Codex, are bitwise equal except two Zygote records: a
+frozen coordinate's gradient is `-0.0` for `0.0`, and a tied key's gradient differs in the last bit
+(0.17676345868005777 for …5780: the two reads' cotangents are now added per subtree before the sum per key).
+The deliberate change of step 3 (a frozen value the per-key pinning rounded) is a test.
+
+**Measured** (`bench/structure_compile.jl`, one mode per process, the first call on a new structure / the best
+warm call, seconds; before: Codex's run, and the implicit mode by the session):
+
+| factors | Zygote before | Zygote after | ForwardDiff before | ForwardDiff after |
+|---|---|---|---|---|
+| 31 | 2.72 / 0.032 | 1.01 / 0.025 | 1.61 / 0.0071 | 0.94 / 0.0065 |
+| 61 | 5.55 / 0.060 | 1.18 / 0.047 | 2.60 / 0.023 | 0.87 / 0.022 |
+| 121 | 13.75 / 0.116 | 1.61 / 0.090 | 5.81 / 0.087 | 0.98 / 0.086 |
+
+The implicit adjoint (Zygote) at 31 factors: 18.0 / 6.9 s before, 6.6 / 4.8 s after; at 61, 20.9 / 18.7 s after
+(its warm time is the dense solve, one reverse pass per coordinate, and varies between runs by a second or
+more). After steps 1–6 alone, before the profile's fixes, Zygote at 121 factors took 7.03 s: the box of the
+arguments halved the cost, the box of the pullbacks did most of the rest.
+
+**Tests.** `lib/Lenticulum.jl/test/erased_trees.jl` (slow tier): the `Pullback` type of the replay's glue is
+the same for two structures and its gradient is the driver's; the pinning case of step 3 under the three
+backends, with the frozen coordinates' gradients zero; under ForwardDiff a frozen coordinate is a dual with zero
+partials and the vector has one element type; the guard of the fixed tag sees a dual inside a box; the box has
+no generic tree methods; the rule of `_unflatten_erased`; the rules of the reads on a box of `nothing` (GLM's
+review found their fallback read `_subtrees` for `_states` too, [[LP-077 Findings of the review of I30]]). The old functions as oracles stay in `coupled_keys.jl`
+and `coupled_spec.jl`.
+
+**Not done.** The implicit adjoint still reads `ps` twice (`_graph_loss` and `_graph_update` in
+`_graph_adjoint_loss`; one read would need the task nodes' subtrees indexed out of the factors', which Zygote
+differentiates per index). `_functional_infer` (Zygote through `infer!`) was not measured. The device form of
+`_pin_coordinates_wide` is untested. The `Pullback` test was not shown to fail without `_ErasedPullback`.

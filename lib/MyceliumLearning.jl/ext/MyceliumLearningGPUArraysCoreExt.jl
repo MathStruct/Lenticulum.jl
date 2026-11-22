@@ -12,6 +12,14 @@ function ML._replace_coordinates(θ::AbstractGPUArray, indices, active)
     return M._gather_active(vcat(θ, active), ii)
 end
 
+# I30, step 3: the graph-wide pinning in flat coordinates, device form: the mask is uploaded once
+# per call through `_index_metadata` and the selection is a broadcast, no scalar indexing.
+function ML._pin_coordinates_wide(θref::AbstractGPUArray, mask, θ::AbstractGPUArray)
+    T = promote_type(eltype(θref), eltype(θ))
+    m = M._index_metadata(θ, collect(mask))
+    return ifelse.(m .!= 0, convert.(T, θ), convert.(T, θref))
+end
+
 function ML._draw(rng, b::GaussianBelief{<:AbstractGPUArray,<:Diagonal{T,<:AbstractGPUArray}}) where {T}
     isproper(b) || throw(ArgumentError("score sampling requires a proper Gaussian message"))
     μ = belief_mean(b)

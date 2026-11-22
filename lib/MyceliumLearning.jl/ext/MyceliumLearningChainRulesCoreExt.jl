@@ -60,21 +60,35 @@ function _seed_versions!(dest, versions, Δ)
 end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(ML._replay_run),
-        mode, g, ts, params, st, tape, damping, ad, iteration)
+        mode, g, ts, params, st::LenticulumCore._Erased, tape, damping, ad, iteration)
     steps = Vector{Any}(undef, length(ts))
     function evaluate(i, fid, tv, tf, sv, save, args...)
         y, back = rrule_via_ad(config, ML._task_step, mode, args...)
         steps[i] = (; fid, tv, tf, sv, back, state=save ? y[2] : nothing, scored=y[3] !== nothing)
         return y
     end
-    y, (tv, tf, live_state) = ML._replay_forward(evaluate, mode, g, ts, params, st, tape, damping, ad, iteration)
+    # I30, step 5: the state is unboxed for the forward loop (whose reads of `st` are not
+    # differentiated) and the final state is returned boxed, as the primal `_replay_run` does.
+    (s, final_state, score), (tv, tf, live_state) =
+        ML._replay_forward(evaluate, mode, g, ts, params, st.tree, tape, damping, ad, iteration)
+    y = (s, LenticulumCore._Erased(final_state), score)
     # Use the I16 tangent addition. A pullback can omit fields of a message or subtree.
     rules = _mycelium_rules()
-    return y, Δ -> _replay_pullback(rules, steps, params, st, mode, keys_or_empty(y[2]), tv, tf, live_state, unthunk(Δ))
+    return y, LenticulumCore._ErasedPullback(Δ -> _replay_pullback(rules, steps, params, st.tree, mode, keys_or_empty(final_state), tv, tf, live_state, unthunk(Δ)))
 end
 
 keys_or_empty(st) = keys(st)
 keys_or_empty(::Nothing) = ()
+
+# The cotangent of a boxed state, unboxed to the tree's cotangent. Zygote hands it over as a
+# `Tangent{_Erased}`, a `Tangent{Any}` or a `NamedTuple` `(tree = Δ,)`, depending on where it came
+# from: every form with the one field `tree` is a box's.
+function _part_erased(@nospecialize(x))
+    x = unthunk(x)
+    x isa Tangent && (x = backing(x))
+    x isa NamedTuple && keys(x) === (:tree,) && return unthunk(x.tree)
+    return x
+end
 
 function _replay_pullback(rules, steps, params, @nospecialize(st), mode, names, tv, tf, live_state, Δ)
     nt, z = NoTangent(), ZeroTangent()
@@ -86,7 +100,7 @@ function _replay_pullback(rules, steps, params, @nospecialize(st), mode, names, 
     store = _part(Δ, 1)
     _seed_versions!(dm, tv, _store_messages(store, :to_variable))
     _seed_versions!(dm, tf, _store_messages(store, :to_factor))
-    for (v, d) in zip(live_state, _tree_cotangents(_part(Δ, 2), names))
+    for (v, d) in zip(live_state, _tree_cotangents(_part_erased(_part(Δ, 2)), names))
         if v > 0
             ds[v] = d
         elseif !(mode isa Val{:infer}) || isempty(steps)
@@ -115,7 +129,8 @@ function _replay_pullback(rules, steps, params, @nospecialize(st), mode, names, 
         z
     else
         fields = ML._named_tree(keys(st), Any[_iszero(d) ? z : d for d in dinitial])
-        Tangent{typeof(st),typeof(fields)}(fields)
+        # I30, step 5: the `st` argument is a box, so its cotangent is reboxed.
+        Tangent{LenticulumCore._Erased}(; tree = Tangent{typeof(st),typeof(fields)}(fields))
     end
     return (nt, nt, nt, nt, dparams, dst, nt, nt, nt, nt)
 end

@@ -566,10 +566,20 @@ end
 _graph_ad(ad, u, args) = ad
 _graph_gradient(ad, fun, u, args...; ε = 1e-6) = _gradient(_graph_ad(ad, u, (fun, args)), fun, u, args...; ε)
 _graph_jacobian(ad, fun, u, args...; ε = 1e-6) = _jacobian(_graph_ad(ad, u, (fun, args)), fun, u, args...; ε)
-function _graph_parameter_gradient(ad, fun, ps, args...; ε = 1e-6)
+# I30, step 2: the graph drivers' boundary. The loss receives a boxed tree
+# (`_Erased`), and the offset tree and the reference tree travel boxed too, so no argument of the
+# differentiated closure has a type that depends on the structure. The callers box their own
+# contexts (`_Erased(st)`); `pin` (I30, step 3) maps the flat coordinates θ before the rebuild, in
+# flat coordinates, with the active positions built once outside AD.
+function _graph_parameter_gradient(ad, fun, ps, args...; ε = 1e-6, pin = nothing)
     θ, offs = _flatten(ps), offset_tree(ps)
     isempty(θ) && return _unflatten(θ, offs, ps)
-    g = _graph_gradient(ad, _parameter_loss, θ, fun, ps, offs, args...; ε)
+    offs_box, like_box = _Erased(offs), _Erased(ps)
+    g = if pin === nothing
+        _graph_gradient(ad, θ -> fun(_unflatten_erased(θ, offs_box, like_box), args...), θ; ε)
+    else
+        _graph_gradient(ad, θ -> fun(_unflatten_erased(pin(θ), offs_box, like_box), args...), θ; ε)
+    end
     return _unflatten(g === nothing ? zero(θ) : g, offs, ps)
 end
 
