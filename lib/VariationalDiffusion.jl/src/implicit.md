@@ -19,7 +19,7 @@
 | `ImplicitDiffusion` | the relation: a `NoisePredictor` plus a node set plus λ; `batched = true` evaluates one noise level per network call |
 | `prior_field`, `prior_jacobian`, `prior_vjp`, `prior_jvp` | $g_\theta(z)$, the block of $\partial g/\partial z$ on chosen coordinates (`coords`), $(\partial g/\partial z)^\top w$ and $(\partial g/\partial z)\,v$ |
 | `implicit_residual` | $r = g + \rho^2\odot(z - z_0)$ on the free coordinates |
-| `implicit_infer` → `ImplicitSolution` | a root, with `residual`, `iters`, `converged`, `stable`; `linsolve = DenseSolve()` or `KrylovSolve()` ([[krylov]]) |
+| `implicit_infer` → `ImplicitSolution` | a root with a primal residual diagnostic, `iters`, `converged`, `stable`, and a choice of `DenseSolve()` or `KrylovSolve()` ([[krylov]]) |
 | `implicit_pullback` | the adjoint: `(z₀ = …, ρ = …, ps = …)` |
 
 ## 2. Design decisions
@@ -204,6 +204,10 @@ ten coordinates 0.8 s; one Jacobian-vector product costs 3.2 ms and one vector-J
 
 ## 7. Many queries at once (`many.jl`)
 
+Each column's solution stores the residual in the primal type of its coordinates. The state
+vector can still carry AD tangents. The constructor applies the same rule to single solutions
+(`test/runtests.jl`, “ImplicitSolution keeps a primal residual”).
+
 `implicit_infer_many(m, Z₀, ρ, ps, st)` solves the columns of `Z₀` as separate queries with
 one polarity. Each query keeps its own Newton or descent step, backtracking, stability test and
 stopping rule, and leaves the batch when it converges. What is shared is the network: per
@@ -283,6 +287,10 @@ differences in the clamp and in a mixture mean, batched against unbatched, many 
 against single ones, a Lux energy network on JLArrays.
 
 ## 10. Single roots, tolerances, continuation
+
+The scalar and batched score-based solvers choose the default tolerance from the arithmetic
+of the field. They retain their own Newton and trust-region stopping tests. The Krylov Newton
+step uses the shared GMRES linear solve.
 
 Found on MNIST ([[MNIST in Both Directions]] §6; Open Problems I13):
 
@@ -431,7 +439,8 @@ Related: [[analytic]], [[reddiff]], [[factor]], [[energy_network]], [[krylov]], 
   precision ($\mathrm{cond}_1 \cdot \varepsilon \ge 10^{-2}$, on a host copy; skipped for AD number types). At a fold or branch
   point the implicit function theorem does not apply, and the solve returned Inf/NaN. Tikhonov
   damping, which one review proposed, would return a gradient of a different problem silently.
-  The Krylov path warns when GMRES stops short, as before.
+  The solve uses `ImplicitSolvers.adjoint_solve` after the conditioning check. The Krylov path
+  passes the transposed Jacobian action to shared GMRES and warns when it stops short.
 - `implicit_laplace` of a field that is not a gradient (a noise predictor that is not an energy
   network) returns the inverse of $\operatorname{sym} J_{FF}$, which is then a local-curvature measure, not a
   posterior covariance; the docstring says so and a warning fires when

@@ -9,7 +9,7 @@
 #
 # None of them forms J_FF, so the cost of an iteration grows with the number of Krylov steps,
 # not with the number of free coordinates. Every product is one JVP or VJP per noise level.
-# Small enough to keep here rather than depend on a Krylov package. See `krylov.md`.
+# GMRES lives in ImplicitSolvers. See `krylov.md`.
 # ---------------------------------------------------------------------------
 
 """
@@ -35,7 +35,7 @@ struct DenseSolve <: AbstractLinearSolve end
 Matrix-free linear algebra, for queries with many free coordinates (generating an image):
 
 - the Newton step and the adjoint solve ``J_{FF}d = -r_F`` and ``J_{FF}^\\top\\lambda = -\\bar z_F`` by
-  restarted GMRES (relative tolerance `rtol`, at most `maxiters` products, restarts every
+  restarted GMRES (relative tolerance `rtol`, at most `maxiters` Arnoldi steps, restarts every
   `restart`), on Jacobian-vector products ([`prior_jvp`](@ref)) and vector-Jacobian products
   ([`prior_vjp`](@ref));
 - stability (``\\operatorname{sym}J_{FF}\\succ0``) is decided by the smallest Ritz value of
@@ -51,13 +51,29 @@ regardless of the `lanczos` setting). Otherwise both are estimates: the
 smallest Ritz value approaches ``\\lambda_{\\min}`` from above, so a barely unstable point can be
 reported stable (`krylov.md` §3).
 """
-Base.@kwdef struct KrylovSolve <: AbstractLinearSolve
-    rtol::Float64 = 1e-8
+Base.@kwdef struct KrylovSolve{T<:Real} <: AbstractLinearSolve
+    rtol::T = 1e-8
     maxiters::Int = 200
     restart::Int = 40
     lanczos::Int = 30
     probes::Int = 8
     seed::Int = 0
+
+    KrylovSolve(rtol::T, maxiters, restart, lanczos, probes, seed) where {T<:Real} =
+        new{T}(rtol, maxiters, restart, lanczos, probes, seed)
+end
+
+_shared_solver(::DenseSolve) = ImplicitSolvers.DenseSolve()
+_shared_solver(ls::KrylovSolve) = ImplicitSolvers.GMRES(; ls.restart, ls.maxiters)
+_linear_tolerance(ls::KrylovSolve) = ImplicitSolvers.Tolerance(; atol = 0, ls.rtol)
+
+function _dense_adjoint_solve(ls::DenseSolve, At, b)
+    x, report = ImplicitSolvers.adjoint_solve(At, b, _shared_solver(ls))
+    if !isempty(b) && report.iterations == 0
+        report.reason === :nonfinite && throw(ArgumentError("nonfinite dense adjoint system"))
+        throw(LinearAlgebra.SingularException(0))
+    end
+    return x
 end
 
 # --- the operators on the free coordinates --------------------------------------------
@@ -72,62 +88,6 @@ function _free_operators(m, z, ρ, ps, st)
     Jt(v) = prior_vjp(m, z, embed(v), ps, st)[free] .+ ρ²F .* v
     S(v) = _has_energy(m) ? J(v) : (J(v) .+ Jt(v)) ./ 2      # an energy's field is symmetric
     return (J = J, Jt = Jt, S = S, n = count(free))
-end
-
-# --- GMRES ------------------------------------------------------------------------------
-
-# Restarted GMRES with Givens rotations: x with ‖b - A x‖ ≤ rtol ‖b‖, or the best found.
-function _gmres(A, b; rtol = 1e-8, maxiters = 200, restart = 40)
-    T = eltype(float(b))
-    n = length(b)
-    x = zeros(T, n)
-    bn = norm(b)
-    bn == 0 && return (x, true, 0)
-    total = 0
-    while true
-        r = b .- A(x)
-        β = norm(r)
-        β ≤ rtol * bn && return (x, true, total)
-        total ≥ maxiters && return (x, false, total)
-        k = min(restart, n, maxiters - total)
-        V = zeros(T, n, k + 1)
-        H = zeros(T, k + 1, k)
-        c = zeros(T, k); s = zeros(T, k)
-        g = zeros(T, k + 1); g[1] = β
-        V[:, 1] .= r ./ β
-        j = 0
-        for jj in 1:k
-            j = jj
-            total += 1
-            w = A(V[:, j])
-            for _ in 1:2, i in 1:j                     # Gram–Schmidt, twice
-                h = dot(view(V, :, i), w)
-                H[i, j] += h
-                w .-= h .* view(V, :, i)
-            end
-            H[j + 1, j] = norm(w)
-            breakdown = H[j + 1, j] ≤ eps(T) * β
-            breakdown || (V[:, j + 1] .= w ./ H[j + 1, j])
-            for i in 1:(j - 1)                         # the earlier rotations
-                H[i, j], H[i + 1, j] = c[i] * H[i, j] + s[i] * H[i + 1, j], -s[i] * H[i, j] + c[i] * H[i + 1, j]
-            end
-            d = hypot(H[j, j], H[j + 1, j])
-            if d == 0                                  # singular on the Krylov space
-                if j > 1
-                    y = LinearAlgebra.UpperTriangular(view(H, 1:(j - 1), 1:(j - 1))) \ g[1:(j - 1)]
-                    x .+= view(V, :, 1:(j - 1)) * y
-                end
-                return (x, false, total)
-            end
-            c[j], s[j] = H[j, j] / d, H[j + 1, j] / d
-            H[j, j], H[j + 1, j] = d, zero(T)
-            g[j + 1] = -s[j] * g[j]
-            g[j] = c[j] * g[j]
-            (abs(g[j + 1]) ≤ rtol * bn || breakdown) && break
-        end
-        y = LinearAlgebra.UpperTriangular(view(H, 1:j, 1:j)) \ g[1:j]
-        x .+= view(V, :, 1:j) * y
-    end
 end
 
 # --- conjugate gradients ---------------------------------------------------------------------

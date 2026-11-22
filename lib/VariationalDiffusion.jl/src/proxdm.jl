@@ -219,9 +219,10 @@ w_i \\leftarrow z_{0,i}\\quad(\\rho_i=\\infty).
 A fixed point ``(u, w)`` is a stationary point of
 ``-\\log p_t(u) + \\tfrac1{2\\lambda}\\lVert u-w\\rVert^2 + \\tfrac12\\lVert P(w - z_0)\\rVert^2`` — the
 relaxed problem whose ``\\lambda\\to0`` limit is the implicit learner's (`Deterministic
-Relaxation.md`); this is the plug-and-play / DiffPIR splitting. Hard clamps are exact. Returns `w`
-(which satisfies the clamps) as `z`, with `residual` ``= \\lVert u - w\\rVert``; `stable` is not
-assessed by this solver and is reported `true` when converged.
+Relaxation.md`); this is the plug-and-play / DiffPIR splitting. Picard tests the norm of the
+fixed-point residual at the current `w` against `tol * (1 + norm(w))`. Hard clamps are exact.
+Returns `w` as `z` and the primal norm `norm(u - w)` as the splitting gap in `residual`.
+The solver reports `stable` as `true` when converged, without assessing stability.
 
 Its derivative is [`prox_pullback`](@ref), which is also the `ChainRulesCore.rrule` of this
 function; `linsolve` is the linear solver that adjoint uses (the forward pass does not use it).
@@ -229,20 +230,24 @@ function; `linsolve` is the linear solver that adjoint uses (the forward pass do
 function prox_infer(p, z₀, ρ, t, ps, st; λ = 0.01, z_init = z₀, maxiters::Integer = 500, tol = 1e-9,
                     linsolve::AbstractLinearSolve = DenseSolve())
     hard = isinf.(ρ)
-    w = float.(copy(z_init)); w[hard] .= z₀[hard]
-    u = copy(w)
-    for it in 1:maxiters
+    free = .!hard
+    w₀ = float.(copy(z_init)); w₀[hard] .= z₀[hard]
+    u = w₀
+    ρ² = ρ[free] .^ 2
+    targets = ρ² .* z₀[free]
+    weights = 1 / λ .+ ρ²
+    function residual(w)
         u, st = proximal(p, w, t, λ, ps, st)
-        wn = similar(w)
-        wn[hard] .= z₀[hard]
-        wn[.!hard] .= (u[.!hard] ./ λ .+ ρ[.!hard] .^ 2 .* z₀[.!hard]) ./ (1 / λ .+ ρ[.!hard] .^ 2)
-        δ = norm(wn .- w)
-        w = wn
-        if δ ≤ tol * (1 + norm(w))
-            return (ImplicitSolution(w, norm(u .- w), it, true, true), st)
-        end
+        next = similar(w)
+        next[hard] .= z₀[hard]
+        next[free] .= (u[free] ./ λ .+ targets) ./ weights
+        return w .- next
     end
-    return (ImplicitSolution(w, norm(u .- w), maxiters, false, false), st)
+    tolerance = ImplicitSolvers.Tolerance(; atol = tol, rtol = tol)
+    w, report = ImplicitSolvers.solve_root(residual, w₀, ImplicitSolvers.Picard(; damping = 1);
+                                          tol = tolerance, maxiters = Int(maxiters))
+    gap = norm(ImplicitSolvers.primal.(u .- w))
+    return (ImplicitSolution(w, gap, report.iterations, report.converged, report.converged), st)
 end
 
 """
@@ -367,9 +372,9 @@ and read off every gradient:
 | soft and free targets ``z_{0,F}`` | ``(1-a)\\odot\\mu`` |
 | precisions ``\\rho_F`` | ``-2\\lambda\\rho_F\\odot a^2\\odot(u_F - z_{0,F})\\odot\\mu`` |
 
-Only vector-Jacobian products of the prox appear, so `linsolve = KrylovSolve()` runs GMRES on
-them and never forms ``D``; `DenseSolve()` forms it ([`prox_jacobian`](@ref)). Throws if `sol` did
-not converge. See `proxdm.md` §5.
+`KrylovSolve()` runs shared GMRES on prox vector-Jacobian products. `DenseSolve()` forms
+``D`` ([`prox_jacobian`](@ref)) and solves with the shared dense solver. Throws if `sol` did not
+converge. See `proxdm.md` §5.
 """
 function prox_pullback(p, sol::ImplicitSolution, z₀, ρ, t, z̄, ps, st; λ = 0.01,
                        linsolve::AbstractLinearSolve = DenseSolve())
@@ -398,20 +403,20 @@ function prox_pullback(p, sol::ImplicitSolution, z₀, ρ, t, z̄, ps, st; λ = 
     return (z₀ = z̄₀, ρ = ρ̄, ps = ps̄)
 end
 
-function _prox_adjoint(::DenseSolve, p, w, t, λ, ps, st, F, a, b)
+function _prox_adjoint(ls::DenseSolve, p, w, t, λ, ps, st, F, a, b)
     D = prox_jacobian(p, w, t, λ, ps, st)
-    return (I - Diagonal(a) * D[F, F])' \ b
+    return _dense_adjoint_solve(ls, (I - Diagonal(a) * D[F, F])', b)
 end
 
 function _prox_adjoint(ls::KrylovSolve, p, w, t, λ, ps, st, F, a, b)
     y = zeros(eltype(b), length(w))
-    function At(μ)                                   # μ - (Dᵀ y)_F with y = a⊙μ on F
+    function vjp(μ)                                  # (Dᵀ y)_F with y = a⊙μ on F
         fill!(y, 0)
         y[F] .= a .* μ
-        return μ .- prox_vjp_input(p, w, t, λ, ps, st, y)[F]
+        return prox_vjp_input(p, w, t, λ, ps, st, y)[F]
     end
-    μ, ok, k = _gmres(At, b; rtol = ls.rtol, maxiters = ls.maxiters, restart = ls.restart)
-    ok || @warn "prox_pullback: GMRES stopped after $k products without reaching rtol = $(ls.rtol); the gradient is approximate"
+    μ, report = ImplicitSolvers.fixed_point_adjoint(vjp, b, _shared_solver(ls); tol = _linear_tolerance(ls))
+    report.converged || @warn "prox_pullback: GMRES stopped after $(report.iterations) Arnoldi steps without reaching rtol = $(ls.rtol); the gradient is approximate"
     return μ
 end
 

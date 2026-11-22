@@ -29,9 +29,9 @@ nor a root-find but a *proximal solve*.
 
 **No automatic differentiation anywhere.** RED-Diff's stop-gradient means the denoiser's
 Jacobian is never formed, and the clamp's gradient is ``P^2(x-x_0)`` in closed form. So the
-entire inversion is forward passes plus arithmetic, and this package's dependencies are
-`LuxCore`, `Random` and `LinearAlgebra`. **Lux itself is not a dependency** — any Lux model
-is an `AbstractLuxLayer`, which is all the wrapper needs.
+entire RED-Diff inversion is forward passes plus arithmetic. The solver code for implicit
+and proximal inference uses `ImplicitSolvers`. The model wrapper only needs `LuxCore`'s
+`AbstractLuxLayer` interface.
 
 **The inversion returns a `DiracBelief`,** because RED-Diff's variational family is
 ``\\mathcal{N}(\\mu,\\sigma^2 I)`` with ``\\sigma\\to 0``. That is the paper's own choice, not
@@ -42,6 +42,7 @@ each source file, per `vault/Start Here.md`.
 """
 module VariationalDiffusion
 
+import ImplicitSolvers
 using LinearAlgebra: LinearAlgebra, I, norm, dot, Diagonal, Symmetric, isposdef, eigen
 using Random: Random, AbstractRNG, randn, rand
 using LuxCore: LuxCore
