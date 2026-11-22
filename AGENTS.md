@@ -182,3 +182,14 @@ that produced them.
 
 Contributors are credited as described in CONTRIBUTING.md. Do not add anyone to
 `CITATION.cff` or `contributors.toml` without their consent.
+
+<!-- graphicle:start (added by graphicle setup; graphicle disconnect removes it) -->
+## Graphicle
+Graphicle indexes the code, the notes and their history into a graph that answers questions with
+file and line citations. It is optional: `.mcp.json` registers its MCP server, which starts only where
+`graphicle` is installed; `graphicle setup` in a checkout indexes it and connects the agents
+(`graphicle status` shows the index, `graphicle sync` updates it).
+Use the `graphicle` MCP server for where or how something works, for questions across files or history, and before changing unfamiliar code: `recall_project` or `query_graph` with the question, then `get_node` and `get_neighbors` for one symbol; answers cite file and lines. For an exact identifier you already know, grep is enough.
+Without the server, run `graphicle context "<question>"` in a terminal. A helper's brief can start from
+its output instead of hand-listed starting points.
+<!-- graphicle:end -->

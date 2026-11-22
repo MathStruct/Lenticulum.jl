@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "graphicle": {
+      "command": "graphicle",
+      "args": [
+        "mcp",
+        "--project",
+        ".",
+        "--tools",
+        "essentials"
+      ]
+    }
+  }
+}
