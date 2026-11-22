@@ -24,6 +24,7 @@ LenticulumCoreGPUArraysCoreExt = "GPUArraysCore"
 LenticulumCoreGPUArraysCoreDIExt = ["GPUArraysCore", "DifferentiationInterface"]
 LenticulumCoreChainRulesCoreExt = "ChainRulesCore"
 LenticulumCoreForwardDiffExt = "ForwardDiff"
+LenticulumCoreForwardDiffDIExt = ["ForwardDiff", "DifferentiationInterface"]
 LenticulumCoreDifferentiationInterfaceExt = "DifferentiationInterface"
 LenticulumCoreExponentialFamilyExt = ["ExponentialFamily", "BayesBase", "Distributions"]
 

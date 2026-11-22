@@ -373,6 +373,59 @@ script on `examples/structure_edits.jl`'s graphs: the free energy, `em_step` and
 `fit_em` on a new structure took 1.8 s, now 1.14 s (0.31 s warm); the warm per-call times are
 unchanged. The structure search with EM went from 34.9 s to 31.3 s, the same path and scores.
 
+**The AD paths (I1, 2026-11-22).** Measured first, on `bench/kalman_chain.jl`'s chain with every
+edge `ExactCoupling()` and the tree schedule, the first call of `free_energy_gradient` on a new
+structure after one of 16 factors had compiled (a scratch script; `~/.cache/lenticulum/i1/`). The
+envelope driver differentiates per key and compiled 0.1 s, EM 0.01 s; the graph drivers compiled
+per structure:
+
+| factors | replay, ForwardDiff | replay, Zygote | implicit, Zygote (first − warm) | Zygote of `scalar_free_energy` |
+|---|---|---|---|---|
+| 31 | 10.7 s | 7.1 s | 15 s | 0.9 s |
+| 61 | 11.2 s | 13.7 s | 26 s | 1.3 s |
+
+SnoopCompile put ForwardDiff's 11.5 s of inference in the factors' own code (Gaussian messages,
+`LinearAlgebra` on duals), compiled again because the dual type was new: DifferentiationInterface
+tags duals with the type of the differentiated closure, which holds `ps` and `st`. The graph
+drivers now call `_graph_gradient`, `_graph_jacobian` and `_graph_parameter_gradient`
+(`LenticulumCore/src/energy.jl`), whose backend comes from `_graph_ad`: for `AutoForwardDiff()`
+without a tag of the caller's, the tag `Tag{_GraphTag, V}` ($V$ the coordinates' element type)
+and a chunk of 12, or the length when shorter (`LenticulumCoreForwardDiffDIExt`). The number of
+chunks is ForwardDiff's own; only the last one may be padded. ForwardDiff orders nested tags by
+their creation, and a fixed tag is created once, so a caller's tag created later would be taken
+for the inner one: the fixed tag is used only when no dual is reachable from the contexts (a walk
+over the arguments, `FactorGraph` included, 0.7 ms at 61 factors and 3 ms at 241, 1–3 % of a
+gradient), and the default otherwise. Forcing the fixed tag under a caller's dual makes ForwardDiff
+refuse the call ("Cannot determine ordering of Dual tags"), it does not give a wrong value (a
+scratch check); `test/structure_compile.jl` in Lenticulum and `test/i1.jl` in LenticulumCore check
+the guard, the nesting through a factor's constant and the equal backend types.
+
+Zygote's 7.4 s at 31 factors went mostly to its generic adjoints over the trees' tuples (`∇map`,
+`indexed_iterate`, `_pullback`): `_rebuild` (θ back into `ps`) mapped over them. A profile at 61
+factors after the rule below put 2.4 s more in `offset_tree`, which recursed on the tuple's tail,
+inferring one tuple type per step, O(keys²). `_unflatten` has a rule (`LenticulumCoreChainRulesCoreExt`) that adds each leaf's
+cotangent into its slice of one vector, on the top-level call only (a rule on `_rebuild` would apply
+at every level and give a cotangent as long as θ per subtree), and `offset_tree` is a loop compiled
+once for a tree wider than 32 fields (narrower ones keep the recursion, which Enzyme needs:
+`parameter_tree.md`). The rule's buffer takes θ's element type promoted with the cotangents' (LP-076:
+ForwardDiff over a Zygote gradient gives dual cotangents). After both:
+
+| factors | replay, ForwardDiff | replay, Zygote |
+|---|---|---|
+| 31 | 0.81 s | 2.5 s |
+| 61 | 1.5 s | 5.3 s |
+| 121 | 3.6 s | 13.4 s |
+
+Warm times are unchanged (best of five at 61 factors: 23 ms for ForwardDiff with the fixed tag or a
+fixed chunk alone). **Left:** what remains grows with the structure. For Zygote it is the
+inference of its `Pullback` types, whose parameters hold `ps` and `st` in every argument of every
+function it transforms (`indexed_iterate` on them was 1.5 s of 5.7 s at 61 factors); ForwardDiff's
+remainder was not profiled. Removing it needs the graph-wide trees kept out of every
+differentiated signature, a type-erased tree through the replay and the implicit adjoint (a
+backlog row). The implicit adjoint was not measured after the change; its dense solve dominates its
+first call. Zygote of `scalar_free_energy` itself (`bench/zygote_scaling.jl`) is unchanged: 2.5,
+7.4, 25.8 s at 121, 241, 481 factors.
+
 ## The state tree (2026-11-11)
 
 LP-024 measured the free energy of a Kalman chain at 7.7, 25.8, 102 ms for 601, 1 201, 2 401

@@ -7,7 +7,7 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-22, after I27 and I28 (the gradient drivers refuse a free energy that is not finite; `MeanField()` next to hard directions; review [[LP-075 Findings of the review of I27 and I28]]), pushed. Before it I29, the two tiers of Lenticulum's suite, I17 and I16, pushed (2026-11-21).
+**Last updated:** 2026-11-22, after I1's AD step (one ForwardDiff dual type for the graph drivers, a Zygote rule for `_unflatten`, `offset_tree` as a loop for wide trees; review [[LP-076 Findings of the review of I1]]), committed, not pushed. Before it I27 and I28, pushed.
 
 ## Branches and worktrees
 
@@ -28,6 +28,21 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **I1, the AD paths** (2026-11-22, chosen by Daniel from the list: the one medium row with a measured
+  limit). Measured first: on a new structure the replay's first call compiled 10.7 s with ForwardDiff and
+  7.1 s with Zygote at 31 factors (11.2 s and 13.7 s at 61), the implicit adjoint about 15 s; the envelope
+  driver and EM were already cheap. ForwardDiff's time was the factors' own code compiled for a new dual
+  type (DifferentiationInterface's tag holds the closure, which holds `ps` and `st`): the graph drivers now
+  take `_graph_ad`'s fixed tag and chunk (`LenticulumCoreForwardDiffDIExt`), only when no dual is reachable
+  from the contexts (nesting). Zygote's was its tuple adjoints through `_rebuild` and `offset_tree`'s
+  recursion: a rule for `_unflatten`, and a loop for trees wider than 32 fields (narrower ones keep the
+  recursion, which Enzyme needs: the suites found it). Now 0.81 s and 2.5 s at 31 factors, 1.5 s and 5.3 s
+  at 61, 3.6 s and 13.4 s at 121 (`passing.md`, "The AD paths (I1)"); warm times unchanged. Review LP-076
+  (Codex: two defects of the rule fixed with tests; two older nested-ForwardDiff defects open). Tests
+  `lib/LenticulumCore.jl/test/i1.jl`, `lib/Lenticulum.jl/test/structure_compile.jl` (slow tier). All eight
+  suites passed, Lenticulum with both tiers (`~/.cache/lenticulum/i1/gates/`). Not run: the docs builds,
+  device tests (the rule's device form is untested), the smoke runner; the implicit adjoint and
+  ForwardDiff's remainder were not profiled after the change.
 - **I27, I28** (2026-11-22, chosen by Daniel: the two small rows left by LP-071). I27: `free_energy_gradient`
   evaluates `scalar_free_energy` once and refuses a value that is not finite (`_check_finite_free_energy`,
   `lib/MyceliumLearning.jl/src/gradient.jl`), after the gradient: at the store for the envelope driver, the
@@ -60,23 +75,10 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
   slower. Tests by Codex from the specification (`lib/Lenticulum.jl/test/zygote_keys.jl`); review LP-073
   (Codex: four defects fixed with regression tests, one limit). All seven suites that depend on Mycelium
   passed (`~/.cache/lenticulum/i16/final4/`). Not run: the docs builds, device tests, the full smoke runner.
-- **I4** (2026-11-20, chosen by the session: a medium row that wanted a benchmark): `ResidualSchedule`'s
-  sweep keeps the residuals in an indexed heap and, after a commit, probes only the tasks that read the
-  committed message (`_dependents!`, `lib/Mycelium.jl/src/passing.jl`; `passing.md`, "The residual
-  schedule's queue"). The same commits as the old full scan, bit for bit (kept as `_residual_sweep_scan!`;
-  `lib/Lenticulum.jl/test/residual_queue.jl` compares them on random loopy graphs, and fails when any
-  dependency rule is removed). A factor is taken not to read the target's cavity only if it declares
-  `exact_messages` (`message_uses_cavity` defaults to `false` and `DEQFactor`/`DiffusionFactor` read it
-  undeclared). Measured, `bench/residual_queue.jl`: a sweep 19×–261× faster than the scan (3 × 3 to 10 × 10
-  grids), $3.3\,T$ evaluations instead of $T^2$; to convergence 0.46–0.89 of flooding's evaluations, on the
-  divider 0.23–0.30 against 2.1 (`bench/bp_schedules.jl`, its residual row now counted from the record).
-  Review LP-072 (Codex, nine probes: three defects fixed with regression tests, one accepted, extra probes
-  reduced). All seven suites that depend on Mycelium passed (`~/.cache/lenticulum/i4/final/`). Smoke runs of both
-  benchmarks passed. Not run: the docs builds, device tests, the full smoke runner.
 
 ## Next
 
-No row is set; pick one with the maintainer. Open after I17: ForwardDiff and reference differences through a replay cost one pass per parameter coordinate (quadratic by nature; 6.7 s for reference differences at 241 factors); the I17 tests, trimmed (2026-11-21), take 7 min 51 s of Lenticulum's suite instead of 10 min 21 s: Zygote through the old code (the oracle) is replaced by ForwardDiff on the new, whose values the old ones equal; what is left is compilation per graph type, schedule and backend, not the number of cases. The whole suite took 48 min 37 s (`~/.cache/lenticulum/trim/Lenticulum.log`), so it now has two tiers (`LENTICULUM_SLOW_TESTS`, `lib/Lenticulum.jl/test/runtests.jl`): the fast tier (28 min 37 s run beside the slow one) on every push, the slow tier (the tests that differentiate through replays, plates and element types, 28 min 20 s alone) in the new `Slow.yml`, weekly, on pull requests and on pushes to the AD paths. `Slow.yml` ran for the first time on the push of I29 (2026-11-21, run 44962044734): passed in 1 h 1 min, beside CI's 1 h 0 min. `ScaleShiftFactor` (3 min) stayed in the fast tier. I29 (found while trimming) is done: ForwardDiff through the coupled replay on a frozen key, a `Vector{Real}` from `_replace_coordinates`. Open after I16: Zygote's compilation still grows with the keys (66 s at 961 factors, I1); the block-row path's nodes outside rows still read `ps` per node; O(degree²) at a hub (LP-073). Open after I4: keep the residual heap between sweeps (its
+No row is set; pick one with the maintainer. Open after I1: the rest of I1 is I30 (a type-erased tree for `ps` and `st` through the replay and the implicit adjoint, so that Zygote's `Pullback` types do not hold them: 13.4 s at 121 factors per new structure); ForwardDiff's remainder (3.6 s at 121) not profiled; LP-076 finding 2 (under a caller's ForwardDiff, a loss free of the parameters leaves gradient coordinates uninitialised; older than I1, no row). Open after I17: ForwardDiff and reference differences through a replay cost one pass per parameter coordinate (quadratic by nature; 6.7 s for reference differences at 241 factors); the I17 tests, trimmed (2026-11-21), take 7 min 51 s of Lenticulum's suite instead of 10 min 21 s: Zygote through the old code (the oracle) is replaced by ForwardDiff on the new, whose values the old ones equal; what is left is compilation per graph type, schedule and backend, not the number of cases. The whole suite took 48 min 37 s (`~/.cache/lenticulum/trim/Lenticulum.log`), so it now has two tiers (`LENTICULUM_SLOW_TESTS`, `lib/Lenticulum.jl/test/runtests.jl`): the fast tier (28 min 37 s run beside the slow one) on every push, the slow tier (the tests that differentiate through replays, plates and element types, 28 min 20 s alone) in the new `Slow.yml`, weekly, on pull requests and on pushes to the AD paths. `Slow.yml` ran for the first time on the push of I29 (2026-11-21, run 44962044734): passed in 1 h 1 min, beside CI's 1 h 0 min. `ScaleShiftFactor` (3 min) stayed in the fast tier. I29 (found while trimming) is done: ForwardDiff through the coupled replay on a frozen key, a `Vector{Real}` from `_replace_coordinates`. Open after I16: Zygote's compilation still grows with the keys (66 s at 961 factors, I1); the block-row path's nodes outside rows still read `ps` per node; O(degree²) at a hub (LP-073). Open after I4: keep the residual heap between sweeps (its
 first probe of every task is a third of a sweep's cost; needs to know when the store changed outside a
 sweep); I24's `_max_pending` still scans every task; the residual schedule's means are further from the
 dense solve than flooding's at the same message tolerance (4e-9 against 1e-10 on the grids; the schedule's,

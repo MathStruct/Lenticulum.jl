@@ -331,3 +331,19 @@ constitute an AD implementation. An opt-in functional Jacobian/metric path or
 an analytic factor-specific localisation still needs its own checked derivative
 contract, including rank/acceptance boundaries. No metric or SPD default changes
 in this batch.
+
+## One dual type for the graph drivers (I1, 2026-11-22)
+
+`_graph_gradient`, `_graph_jacobian` and `_graph_parameter_gradient` are `_gradient`, `_jacobian` and
+`_parameter_gradient` with the backend passed through `_graph_ad(ad, u, contexts)`, the identity
+except in `ext/LenticulumCoreForwardDiffDIExt.jl`: for `AutoForwardDiff()` without a tag of the
+caller's and coordinates of `Float32` or `Float64`, the tag `Tag{_GraphTag, eltype(u)}` and a chunk of
+12 (the length when shorter; a chunk the caller gave is kept). DifferentiationInterface's default tag
+holds the type of the differentiated closure, whose contexts hold the graph-wide trees, so every
+structure gave a new dual type and recompiled every factor's code (11 s per structure on a 31-factor
+chain, `Mycelium/src/passing.md`, "Compilation per structure"). The fixed tag is created once, and
+ForwardDiff orders nested tags by creation, so it is used only when no dual is reachable from the
+contexts (`_has_dual`, a walk that reads types where they say it, and skips locks, tasks, IO,
+modules and types); otherwise the default tag. Only MyceliumLearning's graph drivers call these;
+the per-factor gradients keep the default, whose closures are small. Tests: `test/i1.jl`; at the
+graph, `lib/Lenticulum.jl/test/structure_compile.jl`.

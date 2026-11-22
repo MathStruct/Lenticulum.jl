@@ -390,6 +390,7 @@ end
 include("parameter_ad.jl")
 include("lp019.jl")
 include("i18.jl")
+include("i1.jl")
 
 # review of 2026-11-09
 @testset "freeze paths against a brute-force mask" begin

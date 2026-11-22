@@ -1280,6 +1280,7 @@ fast_include("exposure.jl")
 fast_include("gradient_couplings.jl")
 slow_include("coupled_keys.jl")
 slow_include("coupled_spec.jl")
+slow_include("structure_compile.jl")   # I1
 
 fast_include("switching_constraint.jl")
 

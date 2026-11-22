@@ -557,6 +557,21 @@ function _parameter_gradient(ad, fun, ps, args...; ε = 1e-6)
     return _unflatten(g === nothing ? zero(θ) : g, offs, ps)
 end
 
+# The graph drivers' AD calls (I1, `Mycelium/src/passing.md`, "Compilation per structure"). Their
+# contexts hold the graph-wide trees, whose types change with every structure, and ForwardDiff's
+# default tag holds the type of the differentiated closure, so every structure gave a new dual type
+# and compiled the factors' code again. `_graph_ad` gives a backend whose dual type does not
+# depend on the structure (the ForwardDiff extension; the identity otherwise).
+_graph_ad(ad, u, args) = ad
+_graph_gradient(ad, fun, u, args...; ε = 1e-6) = _gradient(_graph_ad(ad, u, args), fun, u, args...; ε)
+_graph_jacobian(ad, fun, u, args...; ε = 1e-6) = _jacobian(_graph_ad(ad, u, args), fun, u, args...; ε)
+function _graph_parameter_gradient(ad, fun, ps, args...; ε = 1e-6)
+    θ, offs = _flatten(ps), offset_tree(ps)
+    isempty(θ) && return _unflatten(θ, offs, ps)
+    g = _graph_gradient(ad, _parameter_loss, θ, fun, ps, offs, args...; ε)
+    return _unflatten(g === nothing ? zero(θ) : g, offs, ps)
+end
+
 """
     energy_gradient(f, x, a, y, ps, st; ad = nothing, ε = 1e-6, kwargs...)
 

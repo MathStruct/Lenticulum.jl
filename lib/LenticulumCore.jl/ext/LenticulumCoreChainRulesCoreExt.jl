@@ -53,6 +53,59 @@ function ChainRulesCore.rrule(::typeof(LenticulumCore._normalised_logweights), w
     end
     return y, back
 end
+# θ rebuilt into the parameter tree (I1): the cotangent of each leaf is added into its slice of
+# one vector. Zygote through `_rebuild` mapped over the tree's tuples with its generic adjoints,
+# compiled for every tree type (a graph-wide tree changes type with every structure: 3.7 s of the
+# 7.4 s that a Zygote replay compiled on a new 31-factor chain). On the top-level call only: a rule
+# on `_rebuild` would apply at every level and give a cotangent as long as θ per subtree.
+function ChainRulesCore.rrule(::typeof(LenticulumCore._unflatten), θ, offs, like)
+    y = LenticulumCore._unflatten(θ, offs, like)
+    function unflatten_pullback(Δ)
+        Δ = unthunk(Δ)
+        Δ isa AbstractZero && return NoTangent(), ZeroTangent(), NoTangent(), NoTangent()
+        # The element type the plain pullbacks give: θ's promoted with the cotangents' (review of
+        # I1, Codex finding 3).
+        T = _cotangent_type(eltype(θ), offs, Δ)
+        dθ = fill!(similar(θ, T), 0)
+        _scatter!(dθ, offs, Δ)
+        return NoTangent(), dθ, NoTangent(), NoTangent()
+    end
+    return y, unflatten_pullback
+end
+# `@nospecialize`: the walks are compiled once, not per tree type.
+function _cotangent_type(T, @nospecialize(o), @nospecialize(Δ))
+    Δ = unthunk(Δ)
+    (Δ === nothing || Δ isa AbstractZero) && return T
+    o isa Int && return promote_type(T, eltype(Δ))
+    d = _backing(Δ)
+    for i in 1:length(o)
+        T = _cotangent_type(T, o[i], _component(d, o, i))
+    end
+    return T
+end
+function _scatter!(dθ, @nospecialize(o), @nospecialize(Δ))
+    Δ = unthunk(Δ)
+    (Δ === nothing || Δ isa AbstractZero) && return nothing
+    if o isa Int
+        view(dθ, o:(o + length(Δ) - 1)) .+= (Δ isa Number ? Δ : vec(Δ))
+        return nothing
+    end
+    d = _backing(Δ)
+    for i in 1:length(o)
+        _scatter!(dθ, o[i], _component(d, o, i))
+    end
+    return nothing
+end
+_backing(@nospecialize(Δ)) = Δ isa Tangent ? ChainRulesCore.backing(Δ) : Δ
+# The cotangent of field `i`: by position when the cotangent has the tree's fields in order (the
+# usual case, so that a wide tree is not searched by name per field: review of I1, Codex finding 5),
+# by name when it has some fields only (a `Tangent` built with keywords).
+function _component(@nospecialize(d), @nospecialize(o), i)
+    o isa NamedTuple || return d[i]
+    d isa NamedTuple && length(d) == length(o) && keys(d)[i] === keys(o)[i] && return d[i]
+    k = keys(o)[i]
+    return hasproperty(d, k) ? getproperty(d, k) : nothing
+end
 ChainRulesCore.rrule(::typeof(stop_gradient), x) =
     (x, _ -> (NoTangent(), ZeroTangent()))
 function ChainRulesCore.rrule(::typeof(belief_cov), b::GaussianBelief)

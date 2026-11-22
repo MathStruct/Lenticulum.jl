@@ -13,6 +13,8 @@ function _flatfill!(v, i, x::Union{NamedTuple,Tuple})
 end
 _eltype(x::AbstractArray{<:Number}) = eltype(x)
 _eltype(x::Number) = typeof(x)
+# A splat, not a loop: inferred to a constant, which Enzyme needs where it differentiates `_flatten`
+# (a loop under `@nospecialize` broke ImplicitLayers' Enzyme tests, I1).
 _eltype(x::Union{NamedTuple,Tuple}) = isempty(x) ? Union{} : promote_type(map(_eltype, values(x))...)
 
 # the vector lives where the parameters do (a GPU array for parameters on a GPU)
@@ -39,6 +41,12 @@ end
 # depend on θ); rebuilding then only slices and reshapes θ, which every backend differentiates.
 _offsets(x::AbstractArray{<:Number}, i) = (i, i + length(x))
 _offsets(x::Number, i) = (i, i + 1)
+# Two forms (I1). The recursion on the tuple's tail is inferred to a constant type, which Enzyme
+# needs where it differentiates through `offset_tree` (ImplicitLayers' solves); but it infers one
+# tuple type per step, O(keys²) of compilation for a graph-wide tree on every new structure (2.4 s
+# of a Zygote replay's first call on a 61-factor chain). A tree wider than `_WIDE` fields takes a
+# loop compiled once instead.
+const _WIDE = 32
 _offset_sequence(::Tuple{}, i) = ((), i)
 function _offset_sequence(xs::Tuple, i)
     o, j = _offsets(first(xs), i)
@@ -46,8 +54,17 @@ function _offset_sequence(xs::Tuple, i)
     return (o, rest...), k
 end
 function _offsets(x::Union{NamedTuple,Tuple}, i)
+    length(x) > _WIDE && return _wide_offsets(x, i)
     r, j = _offset_sequence(values(x), i)
     return (x isa NamedTuple ? NamedTuple{keys(x)}(r) : r), j
+end
+function _wide_offsets(@nospecialize(x::Union{NamedTuple,Tuple}), i)
+    r = Vector{Any}(undef, length(x))
+    for (k, y) in enumerate(values(x))
+        r[k], i = _offsets(y, i)
+    end
+    t = Tuple(r)
+    return (x isa NamedTuple ? NamedTuple{keys(x)}(t) : t), i
 end
 offset_tree(ps) = first(_offsets(ps, 1))
 

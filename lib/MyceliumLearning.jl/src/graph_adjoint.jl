@@ -106,7 +106,7 @@ Base.size(A::_GraphAdjointOperator) = (length(A.ctx.x), length(A.ctx.x))
 Base.size(A::_GraphAdjointOperator, d::Int) = d <= 2 ? length(A.ctx.x) : 1
 function Base.:*(A::_GraphAdjointOperator, v::AbstractVector)
     c = A.ctx
-    product = LenticulumCore._gradient(c.ad, _graph_map_dot, c.x, c.ps, c, v; ε=c.ε)
+    product = LenticulumCore._graph_gradient(c.ad, _graph_map_dot, c.x, c.ps, c, v; ε=c.ε)
     return product === nothing ? copy(v) : v - product
 end
 function LinearAlgebra.mul!(y::AbstractVector, A::_GraphAdjointOperator, v::AbstractVector)
@@ -115,7 +115,7 @@ function LinearAlgebra.mul!(y::AbstractVector, A::_GraphAdjointOperator, v::Abst
 end
 
 function _graph_linear_solve(::Val{:dense}, A, rhs, ctx, tol, maxiter)
-    J = LenticulumCore._jacobian(ctx.ad, _graph_state_map, ctx.x, ctx.ps, ctx; ε=ctx.ε)
+    J = LenticulumCore._graph_jacobian(ctx.ad, _graph_state_map, ctx.x, ctx.ps, ctx; ε=ctx.ε)
     J === nothing && return copy(rhs)
     M = Matrix{eltype(J)}(LinearAlgebra.I, size(J)...) - J'
     λ = try
@@ -200,7 +200,7 @@ function _implicit_graph_gradient(g, ps, st; ad, ε, schedule, damping, maxsweep
         belief_distance(_stored_belief(s,t), b)
     end
     isfinite(residual) && residual <= 10tol || throw(ArgumentError("implicit graph reference fails the full BP fixed-point check (residual=$residual)"))
-    rhs = LenticulumCore._gradient(ad, _graph_loss, x, ps, ctx; ε)
+    rhs = LenticulumCore._graph_gradient(ad, _graph_loss, x, ps, ctx; ε)
     rhs = rhs === nothing ? zero(x) : rhs
     # The scalar objective can promote its message cotangent (e.g. CPU Gaussian
     # entropy constants with Float32 messages). GMRES vectors follow that RHS.
@@ -209,7 +209,7 @@ function _implicit_graph_gradient(g, ps, st; ad, ε, schedule, damping, maxsweep
     residual_linear = LinearAlgebra.norm(A * λ - rhs)
     residual_linear <= linear_tol * max(one(residual_linear), LinearAlgebra.norm(rhs)) ||
         throw(ArgumentError("implicit graph adjoint linear solve failed residual check ($residual_linear)"))
-    gradient = LenticulumCore._parameter_gradient(ad, _graph_adjoint_loss, ps, ctx, λ; ε)
+    gradient = LenticulumCore._graph_parameter_gradient(ad, _graph_adjoint_loss, ps, ctx, λ; ε)
     state = return_state ? last(factor_free_energies(store,g,ps,st)) : nothing
     return return_state ? (gradient, state) : gradient
 end

@@ -66,3 +66,22 @@ Float32/Float64 order, type, nested/all-empty trees and ForwardDiff/Zygote deriv
 empty parameter subtree, including a shared mean learned from sixty observations. The
 flatten contract is still restricted to numeric leaves and tuple/NamedTuple containers;
 this change adds no device scalar-leaf support or new AD backend.
+
+## Trees with a field per factor (I1, 2026-11-22)
+
+A graph-wide tree has one field per factor, and its type changes with every structure. Code
+specialised on it compiles again for every structure, so what runs on it is written to compile
+once: `offset_tree` takes a loop under `@nospecialize` for a tree wider than 32 fields (the recursion
+on the tuple's tail infers one tuple type per step, O(keys²) of compilation: 2.4 s of a Zygote
+replay's first call on a 61-factor chain; the first call on a 960-field tree now takes 0.02 s). A
+narrower tree keeps the recursion, whose type is inferred to a constant: ImplicitLayers' solves call
+`offset_tree` inside code Enzyme differentiates, and the loop broke them
+(`EnzymeRuntimeActivityError`); so did a loop in `_eltype`, which stays a splat. And `_unflatten` has a Zygote rule
+(`ext/LenticulumCoreChainRulesCoreExt.jl`) that adds each leaf's cotangent into its slice of one
+vector (of θ's element type promoted with the cotangents', LP-076), where Zygote mapped its
+generic tuple adjoints over the tree. The rule is on the top-level
+call only: on `_rebuild` it would apply at every level and give a cotangent as long as θ per
+subtree. Same values and types as before: `test/i1.jl` compares `offset_tree` with the old
+recursion on random trees and the rule with ForwardDiff, with cotangents that leave fields out,
+zeros and thunks. The graph drivers' ForwardDiff calls take a fixed dual type (`energy.md`, §6).
+The rule is not exercised on device arrays by a test (`view(dθ, r) .+= Δ` is written for them).
