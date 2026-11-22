@@ -7,13 +7,13 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-22, after I30 (the graph-wide trees boxed in the graph drivers; review [[LP-077 Findings of the review of I30]]), committed, not pushed. Before it LP-076 finding 2, committed.
+**Last updated:** 2026-11-22, after I30 (the graph-wide trees boxed in the graph drivers; review [[LP-077 Findings of the review of I30]]), pushed. Before it LP-076 finding 2, pushed.
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | pushed up to `b9bb0344` (I1); LP-076 finding 2, I30's design and I30 committed after it, not pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is behind and can be fast-forwarded |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | LP-076 finding 2, I30's design and I30 pushed after it (`75b92efa`). PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is behind and can be fast-forwarded |
 | `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/i30` | at `a681698b` with Codex's I30 notes uncommitted (it stopped at the design's step 3; `IMPL-I30.md`, `scratch/i30/`; copied to `../Lenticulum.jl-Review-2026-11-22/i30/`); reset before the next package. Codex's weekly quota is used up until 2026-11-24 19:48. Run Julia there with `JULIA_DEPOT_PATH=$PWD/scratch/depot:$HOME/.julia:`. Older states in `git stash` (shared by all worktrees): the I17 states on top, I16's, I4's, I26's, U3's and U2's below. Codex's sandbox cannot stash or check out: the session does that |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/i30` | at `956a5e2f` with I30 applied uncommitted (the same diff is committed on `dev-danielb`); `scratch/i30/` (baseline recorder and the 39 old records, `snoop.jl`, the benchmark logs) and `scratch/i30r/` (GLM's probes). Its Manifests were stale (no `LenticulumCoreForwardDiffDIExt`, LP-067) and are resolved now. Reset before the next review: `git stash` (without `-u`), then check out the commit under review |
 
