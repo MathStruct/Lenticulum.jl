@@ -825,16 +825,21 @@ function _product_belief(names, dims, marginals; K = nothing, q = nothing)
         b = _collapse(_get(marginals, n))
         if b isa LenticulumCore.DiracBelief
             push!(points, n => _vec(b.value))
-        elseif b isa GaussianBelief && isproper(b)
-            length(b.η) == dims[n] || throw(DimensionMismatch(
-                "the marginal on :$n has dimension $(length(b.η)), the channel $(dims[n])"))
+        elseif (b isa GaussianBelief && isproper(b)) ||
+               (b isa LenticulumCore.ExtendedGaussian && isempty(LenticulumCore.flat_directions(b)))
+            # An extended Gaussian flat nowhere (hard directions only, I28) has a mean and a
+            # covariance singular along its hard directions, which is all this quadratic energy
+            # reads: the residual's covariance A Σ Aᵀ, no inverse of Σ.
+            LenticulumCore.dimension(b) == dims[n] || throw(DimensionMismatch(
+                "the marginal on :$n has dimension $(LenticulumCore.dimension(b)), the channel $(dims[n])"))
             push!(free, n)
             push!(means, LenticulumCore.belief_mean(b))
             push!(covs, Matrix(LenticulumCore.belief_cov(b)))
         else
             throw(ArgumentError(
-                "a MeanField() node's energy needs a point or a proper Gaussian marginal on :$n, got \
-                 $(nameof(typeof(b))); run inference until every variable has one"))
+                "a MeanField() node's energy needs a point, a proper Gaussian or an extended Gaussian \
+                 flat nowhere as the marginal on :$n, got $(nameof(typeof(b))); run inference until \
+                 every variable has one"))
         end
     end
     cols = K === nothing ? 1 : K
@@ -855,8 +860,9 @@ The average energy of a `MeanField()` node, ``\\mathbb E_{\\prod_i q_i}[-\\log f
 ``r = \\sum_i A_i x_i - c`` under independent marginals: `fit` is
 ``\\tfrac12(\\bar r^\\top Q^{-1}\\bar r + \\operatorname{tr}(Q^{-1}\\sum_i A_i \\Sigma_i A_i^\\top))``,
 `complexity` the normaliser, and `negentropy` zero, since the variables' entropies are counted
-at the variables. Marginals must be points or proper Gaussians (mixtures by their moments, which
-is exact for this quadratic energy).
+at the variables. Marginals must be points, proper Gaussians or extended Gaussians without flat
+directions (hard directions have variance zero; I28), mixtures by their moments, which is exact
+for this quadratic energy.
 """
 function Mycelium.mean_field_energy(f::LinearConstraintFactor{names}, marginals, ps, st) where {names}
     b = _product_belief(names, f.dims, marginals)

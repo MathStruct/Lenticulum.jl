@@ -7,13 +7,13 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-21, after I29 (ForwardDiff through the coupled replay on a frozen key: the pinned coordinates now take the duals' element type), and before it after splitting Lenticulum's suite into a fast and a slow tier and trimming the I17 tests (I29 recorded), and before that I17 (reverse mode through the coupled drivers, `infer!` and the graph adjoint linear in the graph; review [[LP-074 Findings of the review of I17]]), committed on `dev-danielb`, not pushed. Before it I16 (Zygote's gradient of the free energy linear in the keys), I4, I26, U3, U2 (pushed with P10, P36 and P35), P15, P34, P12 and P33.
+**Last updated:** 2026-11-22, after I27 and I28 (the gradient drivers refuse a free energy that is not finite; `MeanField()` next to hard directions; review [[LP-075 Findings of the review of I27 and I28]]), committed on `dev-danielb`, not pushed. Before it I29, the two tiers of Lenticulum's suite, I17 and I16, pushed (2026-11-21).
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | I23, I24 and the LP-055 amendment on top of the cloud agent's `9d94e548`; pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | pushed up to `c3df1b4c` (I29); I27/I28 committed on top, not pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
 | `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/i17` | at `3ff93526` with Codex's first I17 diff applied uncommitted (`IMPL-I17.md`, logs in `scratch/i17/`; the session's three fixes are not in it); run Julia there with `JULIA_DEPOT_PATH=$PWD/scratch/depot:$HOME/.julia:`. The I16 review state is in `git stash` ("I16 review state (before I17)"; its untracked files in `scratch/i16-untracked/`), I4's, I26's, U3's and U2's below it. Codex's sandbox cannot stash or check out (read-only git index): the session does that. Reset it before the next Codex package |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/i17-tests` | at `3ff93526` with Codex's first I17 diff applied (the review's probes in `scratch/i17r/`, the specification tests and their runs in `scratch/i17/`, all copied to `../Lenticulum.jl-Review-2026-11-21/i17/`); the I26 review state in `git stash` ("I26 review state (before I17 tests)"), older states below it. `scratch/p6env` serves any review and now has Krylov. Before the next review: reset to the commit under review, then apply its diff. `git stash -u` takes `scratch/` with it: stash without `-u` |
 
@@ -28,6 +28,16 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **I27, I28** (2026-11-22, chosen by Daniel: the two small rows left by LP-071). I27: `free_energy_gradient`
+  evaluates `scalar_free_energy` once and refuses a value that is not finite (`_check_finite_free_energy`,
+  `lib/MyceliumLearning.jl/src/gradient.jl`), after the gradient: at the store for the envelope driver, the
+  replay's own loss, the free energy at the implicit adjoint's fixed point; before, two exact observations of one direction got finite
+  gradients, and a constant `Inf` cost finite replay gradients. I28: `_product_belief` takes an extended
+  Gaussian flat nowhere by its mean and singular covariance, so a `MeanField()` linear or switching factor next
+  to hard directions gives the dense value. Tests `lib/Lenticulum.jl/test/hard_overlap.jl`, "I27, I28: review
+  of I26" (57); review LP-075 (Codex: the coupled drivers had skipped the check, fixed; a switching test added).
+  Suites: MyceliumLearning, ImplicitLayers and Lenticulum with both tiers passed (`~/.cache/lenticulum/i27/run3/`). Not run: the docs builds, device tests, the cost of the check (one forward pass of the free
+  energy per gradient).
 - **I17** (2026-11-21, chosen by Daniel from the list: the one medium row): reverse mode (Zygote) through the
   coupled drivers (`free_energy_gradient` with `schedule`), through `infer!` and through the implicit graph
   adjoint is linear in the graph. The replay is one loop over message versions with one `rrule` walking the
@@ -63,26 +73,15 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
   Review LP-072 (Codex, nine probes: three defects fixed with regression tests, one accepted, extra probes
   reduced). All seven suites that depend on Mycelium passed (`~/.cache/lenticulum/i4/final/`). Smoke runs of both
   benchmarks passed. Not run: the docs builds, device tests, the full smoke runner.
-- **I26** (2026-11-20, the open high row): where $p \ge 2$ exact messages meet at a variable, the variable's
-  term adds $-\tfrac12[(p-1)\log\det G - \sum_i\log\det G_{-i}]$, $G$ the Gram matrix of their hard bases
-  (`_hard_overlap` in `lib/Mycelium.jl/src/free_energy.jl`; derivation in `free_energy.md`, "Exact messages that
-  meet at a variable"). Two oblique exact projections of $z$ gave $-\log Z + \log\sin\theta$; the LP-070
-  `@test_broken` passes. Codex wrote `test/hard_overlap.jl` from the specification (dense oracles, 2204
-  tests); reviews LP-071 (Codex: four findings, two fixed with regression tests, two older and now rows I27,
-  I28; Mistral: no defect). **A contract now written down:** a factor that sends exact messages must include
-  the Jacobian of its own exact directions on its cavity's support, as `HardConstraintFactor` does; the test
-  fixture `LinePrior` in `test/split.jl` did not and was corrected. All eight suites passed (`~/.cache/lenticulum/i26/`;
-  Lenticulum rerun after the fixture fix, `Lenticulum-final.log`). Not run: the docs builds, device tests; cost not measured.
 
 ## Next
 
-No row is set; pick one with the maintainer. Open after I17: ForwardDiff and reference differences through a replay cost one pass per parameter coordinate (quadratic by nature; 6.7 s for reference differences at 241 factors); the I17 tests, trimmed (2026-11-21), take 7 min 51 s of Lenticulum's suite instead of 10 min 21 s: Zygote through the old code (the oracle) is replaced by ForwardDiff on the new, whose values the old ones equal; what is left is compilation per graph type, schedule and backend, not the number of cases. The whole suite took 48 min 37 s (`~/.cache/lenticulum/trim/Lenticulum.log`), so it now has two tiers (`LENTICULUM_SLOW_TESTS`, `lib/Lenticulum.jl/test/runtests.jl`): the fast tier (28 min 37 s run beside the slow one) on every push, the slow tier (the tests that differentiate through replays, plates and element types, 28 min 20 s alone) in the new `Slow.yml`, weekly, on pull requests and on pushes to the AD paths. `Slow.yml` has not run on GitHub yet; its first push will show whether the path filter and the CI times are as expected. `ScaleShiftFactor` (3 min) stayed in the fast tier. I29 (found while trimming) is done: ForwardDiff through the coupled replay on a frozen key, a `Vector{Real}` from `_replace_coordinates`. Open after I16: Zygote's compilation still grows with the keys (66 s at 961 factors, I1); the block-row path's nodes outside rows still read `ps` per node; O(degree²) at a hub (LP-073). Open after I4: keep the residual heap between sweeps (its
+No row is set; pick one with the maintainer. Open after I17: ForwardDiff and reference differences through a replay cost one pass per parameter coordinate (quadratic by nature; 6.7 s for reference differences at 241 factors); the I17 tests, trimmed (2026-11-21), take 7 min 51 s of Lenticulum's suite instead of 10 min 21 s: Zygote through the old code (the oracle) is replaced by ForwardDiff on the new, whose values the old ones equal; what is left is compilation per graph type, schedule and backend, not the number of cases. The whole suite took 48 min 37 s (`~/.cache/lenticulum/trim/Lenticulum.log`), so it now has two tiers (`LENTICULUM_SLOW_TESTS`, `lib/Lenticulum.jl/test/runtests.jl`): the fast tier (28 min 37 s run beside the slow one) on every push, the slow tier (the tests that differentiate through replays, plates and element types, 28 min 20 s alone) in the new `Slow.yml`, weekly, on pull requests and on pushes to the AD paths. `Slow.yml` ran for the first time on the push of I29 (2026-11-21, run 44962044734, in progress when this was written): check its result and time. `ScaleShiftFactor` (3 min) stayed in the fast tier. I29 (found while trimming) is done: ForwardDiff through the coupled replay on a frozen key, a `Vector{Real}` from `_replace_coordinates`. Open after I16: Zygote's compilation still grows with the keys (66 s at 961 factors, I1); the block-row path's nodes outside rows still read `ps` per node; O(degree²) at a hub (LP-073). Open after I4: keep the residual heap between sweeps (its
 first probe of every task is a third of a sweep's cost; needs to know when the store changed outside a
 sweep); I24's `_max_pending` still scans every task; the residual schedule's means are further from the
 dense solve than flooding's at the same message tolerance (4e-9 against 1e-10 on the grids; the schedule's,
 not examined). Section P has P14 (shared solver layer, large: design first) and P16 (owned scalarisations:
-design first). U5 (permutation, sum, clamp factors; a permutation is now a `SplitFactor`). Open after I26: I27 (the
-gradient drivers do not check that the free energy is finite), I28 (`MeanField()` next to hard directions), mixtures
+design first). U5 (permutation, sum, clamp factors; a permutation is now a `SplitFactor`). Open after I26: mixtures
 with hard components (not counted by the overlap term), a redundant clamp whose zero variance rounds to $-3\cdot10^{-17}$
 and is refused during inference (`@test_broken` in `test/hard_overlap.jl`, no row). Open after U3:
 the implicit adjoint for extended-Gaussian messages; a $O(d)$ free energy for `ScaleShiftFactor`. Open after U2: whether `SplitFactor` is cheaper than a

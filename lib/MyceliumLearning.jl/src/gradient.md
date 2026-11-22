@@ -34,6 +34,25 @@ envelope gradient is returned. Before 2026-11-10 `parameter_step` made this deci
 test and threw where `free_energy_gradient` answered
 ([[LP-024 Findings of the review of 2026-11-09]]).
 
+## The free energy must be finite (I27)
+
+At fixed beliefs the envelope gradient reads only each factor's `belief_free_energy`: neither the
+variable terms (where the overlap of exact messages is refused, LP-071) nor a factor's own check of
+its energy at its messages (a `HardConstraintFactor`'s rank on its cavity's support). A model whose
+free energy is infinite, two exact observations of one direction ($Y_2 = 2Y_1$), so got finite,
+nonzero gradients from every backend while `scalar_free_energy` threw. `free_energy_gradient` now
+evaluates `scalar_free_energy` once at the store after the envelope driver (`_check_finite_free_energy`)
+and refuses a value that is not finite; the refusals of the free energy itself stand. It runs after the
+driver so that the driver's own refusals come first: an AD backend a factor does not support is refused
+before any evaluation of the factor (ImplicitLayers' `lp002_followups.jl` counts the right-hand-side
+calls). The coupled drivers differentiate their own stores, so they check what they differentiate: the
+replay the value of its loss (each draw for a score edge; `scalar_free_energy` at the replay's store
+would refuse tied factors with state, which the replay supports), the implicit adjoint the free energy
+at its converged fixed point (review LP-075: a constant
+`Inf` cost had given finite derivatives through both). Nesterov's `parameter_step` checks the
+look-ahead parameters, where its gradient is taken. Test: `lib/Lenticulum.jl/test/hard_overlap.jl`,
+"I27, I28: review of I26". The check costs one forward pass of the free energy per call (not measured).
+
 ## What it does not do
 
 - It does not check that the store is at a fixed point. Away from one, the result is the

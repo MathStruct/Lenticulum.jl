@@ -451,4 +451,145 @@ end
     end
 end
 
+# Review of I26 (Codex), findings 2 and 4, done as rows I27 and I28 (LP-071).
+@testset verbose = true "I27, I28: review of I26" begin
+    # I27: (Y₁, Y₂) = (Z₁, 2Z₁) has no density, so the free energy is infinite and refused; the
+    # fixed-belief gradient read neither the variable terms nor the factors' rank checks and
+    # returned finite values with every backend, with or without a (diagonal) schedule.
+    @testset "infinite free energy, no gradient" begin
+        gb = GraphBuilder()
+        variable!(gb, :u, 3)
+        factor!(gb, :prior, GaussianPrior(:out, [0.7, -0.4, 1.2], eye(Float64, 3)))
+        connect!(gb, :prior, :out, :u)
+        variable!(gb, :z, 3)
+        factor!(gb, :scale, ScaleShiftFactor(:z, :u, 3))
+        connect!(gb, :scale, :z, :z); connect!(gb, :scale, :u, :u)
+        one_obs = project!(gb, :one_obs, :z, :y1, [1.0 0 0], [0.5])
+        two_obs = project!(gb, :two_obs, :z, :y2, [2.0 0 0], [1.0])
+        scale = (b = [0.1, 0.2, 0.3], logs = log.([1.2, 1.4, 1.5]))
+        r = run(gb, (; scale, one_obs, two_obs))
+        @test_throws ArgumentError LenticulumCore.scalar_free_energy(r.store, r.g, r.ps, r.st)
+        for ad in (nothing, AutoForwardDiff(), AutoZygote()), schedule in (nothing, tree_schedule(r.g))
+            @test_throws ArgumentError LenticulumCore.free_energy_gradient(r.store, r.g, r.ps, r.st; ad, schedule)
+        end
+        @test_throws ArgumentError parameter_step(r.store, r.g, r.ps, r.st)
+    end
+
+    # I28: a MeanField() node next to a variable with hard directions refused its extended
+    # Gaussian marginal. A unary soft likelihood is exact under the variable's marginal, so the
+    # mean-field total and its gradient are the dense ones, as under belief propagation.
+    @testset "MeanField() next to hard directions, $(nameof(typeof(rule)))" for rule in (BeliefPropagation(), MeanField())
+        μ = [0.2, -0.3, 0.7, -0.4]
+        C = [1.4 0.2 0.0 0.0; 0.2 1.0 0.1 0.0; 0.0 0.1 1.2 0.3; 0.0 0.0 0.3 1.0]
+        k, h = [1.0 0.2 0.0 0.0], [0.4 1.0 0.3 0.0]
+        y, v, Q = [0.4], [-0.5], 0.7
+        Ls, ys = [0.3 0.1 0.9 1.0], [0.6]
+        function dense(θ)
+            L = [k; h; reshape(θ[1:4], 1, 4)]
+            δ = [y; v; θ[5:5]] - L * μ
+            V = cholesky(Symmetric(L * C * L' + Diagonal([0, 0, Q])))
+            return (dot(δ, V \ δ) + logdet(V) + 3 * log(2π)) / 2
+        end
+        gb = GraphBuilder()
+        add_prior!(gb, (; μ, Σ = C))
+        a = project!(gb, :a, :z, :y, k, y)
+        b = project!(gb, :b, :z, :v, h, v)
+        factor!(gb, :s, LinearConstraintFactor((z = 4,), 1; noise = Q); rule)
+        connect!(gb, :s, :z, :z)
+        r = run(gb, (; a, b, s = (A = (z = Ls,), c = ys)))
+        @test size(hard_directions(extended(r.marg.z, 4)), 2) == 2
+        θ = [vec(Ls); ys]
+        check_energy(r, dense(θ))
+        expected = ForwardDiff.gradient(dense, θ)
+        for ad in (nothing, AutoForwardDiff(), AutoZygote())
+            ∇ = LenticulumCore.free_energy_gradient(r.store, r.g, r.ps, r.st; ad).s
+            @test [vec(∇.A.z); ∇.c] ≈ expected atol = 1e-6 rtol = 1e-7
+        end
+    end
+
+    # A marginal flat along a direction has no mean there, so the average energy does not exist.
+    @testset "MeanField() refuses a flat marginal" begin
+        e = ExtendedGaussian(zeros(2), [1.0 0; 0 0], [0.0 1.0]')
+        @test_throws ArgumentError Lenticulum._product_belief((:z,), (z = 2,), (z = e,))
+        hard = ExtendedGaussian([0.3, 0.0], [1.0 0; 0 0])
+        b = Lenticulum._product_belief((:z,), (z = 2,), (z = hard,))
+        @test b.m == [0.3, 0.0] && b.Σ == [1.0 0; 0 0]
+    end
+
+    # Review of I27 (Codex), finding 1: the coupled drivers (the replay, the implicit adjoint)
+    # differentiate their own stores and skipped the check. A constant extra cost of Inf or NaN.
+    @testset "non-finite free energy through the coupled drivers, $bad" for bad in (Inf, NaN)
+        function lossy(coupling, prior_coupling)
+            gb = GraphBuilder()
+            variable!(gb, :x, 1); variable!(gb, :y, 1)
+            factor!(gb, :prior, GaussianPrior(:x, [0.0], [1.0;;]))
+            factor!(gb, :likelihood, GaussianFactor(1 => 1; noise = 0.7, channels = (:x, :y)))
+            factor!(gb, :datum, DataFactor(:y, [1.0]))
+            factor!(gb, :extra, LossFactor((:y,), _ -> bad))
+            connect!(gb, :prior, :x, :x; coupling = prior_coupling)
+            connect!(gb, :likelihood, :x, :x; coupling); connect!(gb, :likelihood, :y, :y; coupling)
+            connect!(gb, :datum, :y, :y; direction = Emitting())
+            connect!(gb, :extra, :y, :y; direction = Absorbing(), coupling)
+            return run(validate(build(gb)), (likelihood = (A = [1.4;;], b = [0.3]),))
+        end
+        for (coupling, prior_coupling, adjoint) in ((ExactCoupling(), ExactCoupling(), :unrolled),
+                                                    (ExactCoupling(), DiagonalCoupling(), :implicit))
+            r = lossy(coupling, prior_coupling)
+            @test !isfinite(first(LenticulumCore.scalar_free_energy(r.store, r.g, r.ps, r.st)))
+            for ad in (nothing, AutoForwardDiff())
+                @test_throws ArgumentError LenticulumCore.free_energy_gradient(r.store, r.g, r.ps, r.st;
+                    ad, schedule = tree_schedule(r.g), adjoint)
+                @test_throws ArgumentError parameter_step(r.store, r.g, r.ps, r.st;
+                    ad, schedule = tree_schedule(r.g), adjoint)
+            end
+        end
+    end
+
+    # Review of I27 (Codex), finding 3: the switching factor shares `_product_belief`. Its average
+    # energy under extended-Gaussian marginals (one of them singular), and a graph with the outcome
+    # observed, where the mean-field switch is unary in z next to an exact observation.
+    @testset "MeanField() switching factor next to hard directions" begin
+        dense_nll(μ, Σ, y) = (C = cholesky(Symmetric(Σ)); δ = y - μ;
+                              (dot(δ, C \ δ) + logdet(C) + length(y) * log(2π)) / 2)
+        f = SwitchingConstraintFactor((x = 2, y = 2), 2, 2; noise = [1.2 0.2; 0.2 0.7])
+        m, C = [0.5, -0.3], [0.7 0.7; 0.7 0.7]
+        n, S = [0.9, 0.1], [0.5 0.0; 0.0 0.0]
+        q = [0.3, 0.7]
+        marginals = (x = ExtendedGaussian(m, C), y = ExtendedGaussian(n, S), k = LenticulumCore.CategoricalBelief(q))
+        Ax, Ay = [0.8 0.1; -0.5 1.2], [0.4 -0.9; 1.1 0.6]
+        b, logw = [0.7 -0.3; -0.4 0.2], log.([0.6, 0.4])
+        sps = (A = (x = Ax, y = Ay), b = b, logw = logw)
+        F, _ = Mycelium.mean_field_energy(f, marginals, sps, (;))
+        R = Ax * C * Ax' + Ay * S * Ay'
+        @test flatten(F) ≈ sum(q[k] * (dense_nll(b[:, k], f.Q, Ax * m + Ay * n) + tr(f.Q \ R) / 2 - logw[k]) for k in 1:2)
+        flat = ExtendedGaussian(n, S, [0.0; 1.0;;])
+        @test_throws ArgumentError Mycelium.mean_field_energy(f, merge(marginals, (; y = flat)), sps, (;))
+
+        p = (μ = [0.2, -0.3], Σ = [1.4 0.2; 0.2 1.0])
+        gb = GraphBuilder()
+        add_prior!(gb, p)
+        hard = project!(gb, :hard, :z, :obs, [1.0 0.3], [0.4])
+        variable!(gb, :k)
+        factor!(gb, :datum, DataFactor(:k, 2))
+        connect!(gb, :datum, :k, :k; direction = Emitting())
+        factor!(gb, :switch, SwitchingConstraintFactor((z = 2,), 2, 1; noise = 0.7); rule = MeanField())
+        connect!(gb, :switch, :z, :z); connect!(gb, :switch, :k, :k)
+        sw = (A = (z = [0.4 0.9],), b = [-0.3 0.6], logw)
+        g = validate(build(gb))
+        r = run(g, (; hard, switch = sw); schedule = forward_backward_schedule(g))
+        function oracle(θ)
+            M = [1.0 0.3; θ[1] θ[2]]
+            w = θ[5:6]
+            return dense_nll(M * p.μ, M * p.Σ * M' + Diagonal([0, 0.7]), [0.4, θ[4]]) + log(sum(exp, w)) - w[2]
+        end
+        θ = [vec(sw.A.z); vec(sw.b); sw.logw]
+        check_energy(r, oracle(θ))
+        expected = ForwardDiff.gradient(oracle, θ)
+        for ad in (nothing, AutoForwardDiff(), AutoZygote())
+            ∇ = LenticulumCore.free_energy_gradient(r.store, r.g, r.ps, r.st; ad).switch
+            @test [vec(∇.A.z); vec(∇.b); ∇.logw] ≈ expected atol = 1e-6 rtol = 1e-7
+        end
+    end
+end
+
 end # module

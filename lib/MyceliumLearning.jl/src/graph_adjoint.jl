@@ -176,6 +176,7 @@ function _implicit_graph_gradient(g, ps, st; ad, ε, schedule, damping, maxsweep
     converged || throw(ArgumentError("implicit graph reference inference did not converge within maxsweeps"))
     all(t -> (t.kind === :to_factor ? store.to_factor[t.edge] : store.to_variable[t.edge]) !== nothing, ts) ||
         throw(ArgumentError("implicit graph reference did not populate every legal message"))
+    _check_finite_free_energy(store, g, ps, st)          # I27, at the converged fixed point
     beliefs = map(t -> _stored_belief(store,t), ts)
     parts = map(_message_coordinates, beliefs)
     lengths = length.(parts)

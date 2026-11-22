@@ -397,6 +397,9 @@ function _coupled_gradient(s, g, ps, st; ad=nothing, ε=1e-6, schedule=nothing,
         tape, reference_store, reference_state = _reference_tape(g, ts, ps, st, rng, damping)
         frozen = _frozen_beliefs(reference_store, g, ps, reference_state)
         gradient = LenticulumCore._parameter_gradient(ad, _coupled_loss, ps, ps, g, ts, tape, st, ad, damping, frozen; ε)
+        # I27: the replayed free energy, which this differentiates, must be finite; at each draw
+        # for a score edge, whose replay samples its beliefs. One more forward replay.
+        _check_finite(_coupled_loss(ps, ps, g, ts, tape, st, ad, damping, frozen))
         state = return_state && draw == 1 ? last(factor_free_energies(reference_store,g,ps,reference_state)) : nothing
         return gradient,state
     end

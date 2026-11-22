@@ -279,8 +279,13 @@ A `MeanField()` node's term in the graph free energy ([[L-SPEC-005 The Hybrid Fr
 entropy left out. `_product_belief` builds that product as a `FrozenGaussianBelief` (points
 substituted, means stacked, covariances block diagonal, entropy zero), so the method is
 `belief_free_energy` again, and the gradient at fixed marginals reuses the LP-020 code. A
-Gaussian-mixture marginal enters by its moments, which is exact for the quadratic energy. Improper
-or trivial marginals are refused. Checked against Monte Carlo and a closed-form naive mean field
+Gaussian-mixture marginal enters by its moments, which is exact for the quadratic energy. An
+extended Gaussian without flat directions, a marginal with hard directions next to exact messages,
+enters by its mean and its covariance, singular along the hard directions (I28): the energy reads
+$A\Sigma A^\top$ and never inverts $\Sigma$, as the frozen factor belief of `_affine_gaussian_belief`
+already holds it. Improper, trivial or flat marginals are refused: along a flat direction there is no
+mean. Test: `test/hard_overlap.jl`, "I27, I28: review of I26" (a unary mean-field likelihood next to
+two exact projections gives the dense $-\log Z$ and its gradient under every backend). Checked against Monte Carlo and a closed-form naive mean field
 in `test/mean_field_free_energy.jl`.
 
 ## Batched messages for plates (2026-11-02)

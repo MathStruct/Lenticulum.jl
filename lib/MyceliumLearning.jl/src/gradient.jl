@@ -77,7 +77,9 @@ point of the hybrid message passing; non-diagonal couplings, `adjoint = :implici
 sampling refuse such nodes. Bethe variable corrections are
 constant with respect to parameters at fixed beliefs. Exact for the default linear
 scalarisations, as the envelope argument is about the summed free energy. Nonlearnable subtrees receive
-zeros. Frozen coordinates receive zeros too. The result has `ps`'s structure.
+zeros. Frozen coordinates receive zeros too. The result has `ps`'s structure. The free energy itself is evaluated
+once at the store's beliefs and must be finite (I27): a model whose free energy is infinite (two
+exact observations of one direction) is refused, as `scalar_free_energy` refuses it.
 **Couplings (LP-021).** At a fixed point the free-energy gradient does not depend on the edges'
 couplings, so without `schedule` a graph whose couplings are diagonal, exact or pathwise gets this
 gradient at the store's beliefs too. A coupling changes the result only in a replay: with
@@ -113,8 +115,25 @@ function LenticulumCore.free_energy_gradient(s::MessageStore, g::FactorGraph, ps
         return _coupled_gradient(s, g, ps, st; ad, ε, schedule, nsweeps, rng, nsamples,
             damping, adjoint, maxsweeps, tol, linear_solver, linear_tol, linear_maxiter)
     end
-    return _envelope_gradient(s, g, ps, st; ad, ε)
+    gradient = _envelope_gradient(s, g, ps, st; ad, ε)
+    _check_finite_free_energy(s, g, ps, st)            # after the driver's own refusals (I27)
+    return gradient
 end
+
+# I27: at fixed beliefs the gradient reads neither the variable terms (the overlap of exact
+# messages, LP-071) nor a factor's own check of its energy (a `HardConstraintFactor`'s rank on
+# its cavity's support), so a free energy that is infinite would still get a finite gradient.
+# The total is evaluated once at the store, after the gradient, so that the driver's own
+# refusals (an AD backend a factor does not support, before any evaluation) come first; the free
+# energy's own refusals stand, and a value that is not finite is refused here. It costs one
+# forward pass of the free energy. The coupled drivers check what they differentiate instead: the
+# replay its loss, the implicit adjoint the free energy at its converged fixed point (neither reads
+# the beliefs of the store passed in).
+function _check_finite_free_energy(s, g, ps, st)
+    _check_finite(first(LenticulumCore.scalar_free_energy(s, g, ps, st)))
+end
+_check_finite(F) = isfinite(F) ? nothing : throw(ArgumentError(
+    "the free energy at the beliefs the gradient is taken at is $F, so it has no parameter gradient"))
 
 # Which driver a gradient request takes; one rule for `free_energy_gradient` and `parameter_step`.
 # LP-021, option 3: without a replay (no `schedule`) the couplings do not change the free-energy

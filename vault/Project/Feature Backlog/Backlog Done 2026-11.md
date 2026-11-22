@@ -6,6 +6,12 @@
 
 > Sources: original to this repository; the notes, tests and benchmarks named in each entry.
 
+## 2026-11-22
+
+I27, the gradient drivers refuse a free energy that is not finite (low; LP-071, Codex finding 2): at fixed beliefs the envelope gradient read neither the variable terms nor a factor's rank check, so two exact observations of one direction ($Y_2 = 2Y_1$) got finite gradients from every backend. `free_energy_gradient` now evaluates `scalar_free_energy` once at the store, after the gradient so that the driver's own refusals come first (`_check_finite_free_energy`, `lib/MyceliumLearning.jl/src/gradient.jl`; note `gradient.md`, "The free energy must be finite (I27)"); the coupled drivers check what they differentiate (the replay's loss, the free energy at the implicit adjoint's fixed point). Cost: one forward pass of the free energy (or of the replay) per gradient (not measured). Tests: `lib/Lenticulum.jl/test/hard_overlap.jl`, "I27, I28: review of I26". Review [[LP-075 Findings of the review of I27 and I28]] (Codex: the coupled drivers skipped the check, fixed).
+
+I28, a `MeanField()` node next to a variable with hard directions (low; LP-071, Codex finding 4): `_product_belief` (`lib/Lenticulum.jl/src/constraint.jl`) takes an extended Gaussian flat nowhere by its mean and its singular covariance; a flat one is still refused (note `constraint.md`, "Mean-field energy"). A unary mean-field likelihood next to two exact projections gives the dense $-\log Z$ = 3.7855635097509 and its gradient under three backends; the switching factor likewise (same test file). Review LP-075.
+
 ## 2026-11-21
 
 I29, ForwardDiff through the coupled replay with a frozen key (low; found while trimming the I17 tests): `_replace_coordinates` (`lib/MyceliumLearning.jl/src/gradient.jl`) rebuilt a partly frozen factor's parameters as a comprehension over `Float64` frozen and dual active coordinates, a `Vector{Real}` that `svdvals` in `_rank_deficient` refused; it now promotes the element type. Tests: a unit test in `lib/MyceliumLearning.jl/test/gradient_couplings.jl` ("I29": element type, values, ForwardDiff = Zygote) and the frozen-key seed of `lib/Lenticulum.jl/test/coupled_keys.jl`, whose `@test_broken` is now ForwardDiff = Zygote at `rtol=1e-10`, through `fgrad` and through `free_energy_gradient(…; ad = AutoForwardDiff())`. Scratch check: seed 3 (Float64), sequential and flooding schedules, ForwardDiff − Zygote 1.1e-16, reference differences − Zygote ≤ 7.7e-10; seed 4 (Float32, loopy) 6.8e-8. Not reviewed by another model (a three-line change).
