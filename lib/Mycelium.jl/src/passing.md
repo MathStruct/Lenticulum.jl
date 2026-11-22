@@ -893,8 +893,9 @@ distance and NaN for one with a NaN (LP-072 F1). Nothing is probed after the bud
 are the residuals' primal values as `Float64`, or as `Real` once a residual of another type appears
 (`BigFloat` residuals rounded to `Float64` tied or became 0, LP-072 F2). The heap orders by residual, then the older message, then the position in
 `all_tasks(g)`, which is the order the scan chose by; a skipped update or a NaN residual gets the key
-$-1$ and is never popped (the scan never chose them either). So the residuals in the heap are the ones
-the scan would compute, and **the queue makes the same commits in the same order, bit for bit**. The
+$-1$ and is never popped (the scan never chose them either). This equivalence assumes that a repeated
+probe on unchanged inputs produces the same residual. Under that assumption the heap and scan
+**make the same commits in the same order, bit for bit**. The
 scan is kept as `_residual_sweep_scan!`, the reference of `test/residual_queue.jl` (Lenticulum): 40
 random loopy graphs × damping 0 and 0.3 × `maxtasks` all and 3, eight sweeps each, with mean-field,
 expectation-propagation, nonlinear, cavity-reading and stateful tied nodes; record, store and state
@@ -942,7 +943,20 @@ solve at the same message tolerance ($4\cdot10^{-9}$ against $10^{-10}$ at prior
 is decided on the sweep's committed residuals, and the schedule leaves smaller residuals pending in
 the slow modes. That is the schedule's, not the queue's (the commits are the scan's); not examined further.
 
-**Not done.** The first probe of every task in each sweep is a third of the cost; keeping the heap
-between sweeps would save it but needs the store to say when it was changed outside a sweep (a `pin!`,
-an edit, a user's write). `_max_pending` (I24's check at the stop of a partial sweep) still scans every
-task once. Plates (`PlateSchedule`) have no residual schedule.
+**Not done.** The first probe of every task in each sweep accounts for about a third of the
+evaluations. `_max_pending` (I24's check at the stop of a partial sweep) still scans every task once.
+Plates (`PlateSchedule`) have no residual schedule.
+
+### Keeping the heap between sweeps (I31, 2026-11-22)
+
+The proposed snapshot compares message identities to detect out-of-sweep writes. Step 3 stopped
+the implementation. `DiffusionFactor` uses RED-Diff by default (`lib/VariationalDiffusion.jl/src/factor.jl:45`),
+and its outgoing messages run the solve that advances the factor's RNG (`factor.jl:347–352,372–386`,
+`lib/VariationalDiffusion.jl/src/reddiff.jl:90–101,123–142`). The factor interface has no trait that
+certifies repeatable probes. `exact_messages` and `message_uses_cavity` describe sum-product
+exactness and cavity dependence, respectively (`passing.jl:774–799`).
+
+`julia --project=lib/VariationalDiffusion.jl scratch/heap/probe-reddiff.jl` gave residuals
+`0.002518506159659007` and `0.0027546060218798796` on consecutive probes of the same task with
+identical snapshot inputs (8 checks passed). The determinism gate, heap reuse, and the heap-based
+pending-residual check remain open. The grid benchmarks above are I4's measurements.
