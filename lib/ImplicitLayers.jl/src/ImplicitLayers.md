@@ -92,6 +92,6 @@ scope and unsupported combinations; `test/lp002_batch_a.jl` supplies the oracles
 
 `test/device_arrays.jl` checks the device subset with scalar indexing disabled:
 both DEQ polarities with three primal solvers and opt-in KrylovIFT, and Euler/RK4
-flows/gradients. CPU defaults are retained. DenseIFT requires backend device LU,
+flows/gradients. Default DEQ guesses follow the observed precision. Device DenseIFT requires backend LU,
 which JLArrays lacks. Hardware GPUs, SciML device sensitivities, device second order
 and Enzyme/Mooncake device rules are untested/unsupported; see [[solve]] and [[flow]].

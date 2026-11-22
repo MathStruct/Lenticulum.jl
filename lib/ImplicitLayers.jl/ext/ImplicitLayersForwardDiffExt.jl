@@ -43,11 +43,11 @@ function IL._deq_hvp(::DI.ADTypes.AutoForwardDiff, loss, f, x, ps, st, direction
     w = vcat(z, u)
     D = FD.jacobian(R, w)
     J, B = D[:,1:n], D[:,(n+1):end]
-    tangent = -(J \ (B*v))
-    λ = J' \ FD.gradient(loss, z)
+    tangent = -IL._ift_solve(J, B*v)
+    λ = IL._ift_solve(J', FD.gradient(loss, z))
     # Contract the residual Hessians with the adjoint before differentiating.
     curvature = FD.hessian(w -> dot(λ, R(w)), w) * vcat(tangent, v)
-    dλ = J' \ (FD.hessian(loss, z)*tangent - curvature[1:n])
+    dλ = IL._ift_solve(J', FD.hessian(loss, z)*tangent - curvature[1:n])
     hv = -B'*dλ - curvature[(n+1):end]
     return hv[inds]
 end

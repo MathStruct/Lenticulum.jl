@@ -224,8 +224,8 @@ reverse-conditioning concerns still apply.
 
 ## Solvers
 
-`PicardSolver` is the naive "keep applying the layer" loop and converges only if the
-iteration is a contraction. `BroydenSolver` is derivative-free quasi-Newton and converges on
+`PicardSolver` repeatedly applies the layer and converges in a contraction region.
+`BroydenSolver` is derivative-free quasi-Newton and converges on
 plenty of problems where Picard diverges — it is the default, and it is what
 `DeepEquilibriumNetworks.jl` reaches for too.
 
@@ -235,8 +235,11 @@ eviction its iterates agree with dense Broyden up to roundoff. The first step is
 Picard for `init_scale=1`, damped Picard otherwise. Dropping old corrections can
 slow convergence; there is no line search.
 
-All root solvers return a `SolveReport` (converged, iterations, residual, function evaluations) rather
-than throwing. A solver that stopped early is an inexact inversion, which is legal.
+The root solvers use `ImplicitSolvers.Tolerance()` by default, with absolute
+and relative components chosen in the primal residual's precision. The relative
+component scales with the current iterate's norm. A real `tol` requests an
+absolute bound. The shared `SolveReport` records convergence, iterations, the
+primal residual, function evaluations and the termination reason.
 
 `ift_sensitivity` implements the implicit function theorem,
 ``\partial z^\ast/\partial x = (I - \partial_z g)^{-1}\partial_x g`` — one linear solve, no
@@ -309,9 +312,9 @@ JLArrays tests run with scalar indexing disabled in Float32 and Float64. Picard,
 Broyden and LimitedBroyden solve both DEQ polarities. First-order ForwardDiff/Zygote
 IFT gradients use `KrylovIFT`, optionally with Jacobi, retained Broyden or supplied
 left/right preconditioners. Choose root/linear tolerances appropriate for Float32.
-Device default guesses and solver storage follow the observed array; CPU defaults
-are unchanged. DenseIFT requires device LU, unavailable on JLArrays, and gives an
-ArgumentError recommending KrylovIFT. No dense CPU fallback is hidden in that rule.
+Default guesses and solver storage follow the observed array's precision.
+On devices, DenseIFT requires backend LU and raises an ArgumentError recommending
+KrylovIFT if the backend lacks it, as JLArrays does.
 
 Euler/RK4 forward/reverse endpoints, input/parameter derivatives and parameter
 energy/free-energy/graph entry points are tested against discrete closed forms

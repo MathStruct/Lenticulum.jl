@@ -67,7 +67,10 @@ through `deq_sensitivity`) is possible but not built yet. See [[The Equilibrium 
 """
 module ImplicitLayers
 
-using LinearAlgebra: LinearAlgebra, I, dot, lu, issuccess, SingularException, tr
+using LinearAlgebra: LinearAlgebra, I, dot, lu, SingularException
+using ImplicitSolvers: ImplicitSolvers, AbstractRootSolver, Picard, Broyden, LimitedBroyden,
+    Tolerance, DenseSolve, adjoint_solve, fd_jacobian
+import ImplicitSolvers: solve_root
 using Random: Random, AbstractRNG
 using LuxCore: LuxCore
 using LenticulumCore: LenticulumCore

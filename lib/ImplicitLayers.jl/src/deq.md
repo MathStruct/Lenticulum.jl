@@ -194,7 +194,7 @@ the limitation and reproducer. Hardware GPU execution remains untested; the JLAr
 
 ## Solver numerics and the other polarity (2026-10-27)
 
-`LimitedBroydenSolver(; memory=20, maxiters=100, tol=1e-10, init_scale=1.0)`
+`LimitedBroydenSolver(; memory=20, maxiters=100, tol=Tolerance(), init_scale=1)`
 is an opt-in primal with $O(mn)$ storage. The default stays dense `BroydenSolver()`.
 No eviction reproduces its iterates up to roundoff; finite memory discards the
 oldest rank-one correction. The first step is Picard at unit `init_scale`, and

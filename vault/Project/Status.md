@@ -7,7 +7,7 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-22 evening, four Codex packages merged, three more queued (see Next). Before it I30 (the graph-wide trees boxed in the graph drivers; review [[LP-077 Findings of the review of I30]]), pushed.
+**Last updated:** 2026-11-22 evening. P14 W2 implementation is in `codex/p14-w2`. The suite gate is blocked by legacy assertions for the shared API. See Next for the maintainer’s queue.
 
 ## Branches and worktrees
 
@@ -29,6 +29,14 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **P14 W2 implementation** (2026-11-22, `codex/p14-w2`). `ImplicitLayers` uses the shared root solvers,
+  report, finite-difference Jacobian, CPU dense vector solves and unpreconditioned real GMRES.
+  The retained-history (62 checks) and JLArrays DEQ (584 checks) oracles passed. Both
+  `Pkg.test()` invocations stopped at the old iteration count for an initially
+  nonfinite residual. W1 stops at iteration zero. Two finite-difference assertions
+  also require alignment with the shared API. Scratch runs with those three
+  assertions updated passed 1,938 default and 5,352 device-enabled checks.
+  No test needed an explicit tolerance edit. See `IMPL-p14-w2.md` in the Codex worktree.
 - **I30** (2026-11-22, Daniel: "do all that"). Inside the graph drivers' differentiated region `ps`, `st` and the
   offset tree travel in a non-parametric box (`LenticulumCore._Erased`), read only through rules whose pullbacks are
   boxed too (`_ErasedPullback`); pinning is in flat coordinates (`_graph_pin`); the replay reads `ps` once.
@@ -113,9 +121,7 @@ selection-matrix `HardConstraintFactor` (not measured), a batched plate kernel f
 tutorials and the README still use `field_nodes` for root queries; `ProxDM`'s free-energy nodes with
 noise-free nodes (not measured). Close to P5: a residual-space formulation of the positive definite path
 (LP-047 finding 4; no row yet). Left open by P27 (no rows yet): the Bethe free energy with a mixture marginal
-under BP, derivatives through the new rules, two extended components with hard directions. Small:
-`ImplicitLayers`' `SolveReport` also has `residual::Float64`; `AndersonSchedule` runs without its memory under
-duals (LP-053). Not benchmarked yet: GH-20's per-replica path for device and view inputs to the hard-constraint
+under BP, derivatives through the new rules, two extended components with hard directions. Small: `AndersonSchedule` runs without its memory under duals (LP-053). Not benchmarked yet: GH-20's per-replica path for device and view inputs to the hard-constraint
 plate kernel.
 
 ## Open

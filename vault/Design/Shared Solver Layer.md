@@ -137,9 +137,10 @@ Each one is a branch, reviewed by a model that did not write it.
    (a linear $F$, $u - \cos u$ componentwise, a contraction with a known fixed point), the iteration
    count unchanged under duals with the tangent of the root equal to the implicit-function theorem's;
    the adjoint solve against `(J')\g` and `(I - J')\g`. Aqua. A CI entry and a docs page.
-2. **W2, `ImplicitLayers` onto it.** Its solvers become the moved ones; its IFT's linear solves go
-   through D6. Its suite passes (device files included), with the list of tests whose `tol` was made
-   explicit.
+2. **W2, `ImplicitLayers` onto it.** Implemented 2026-11-22. Root solvers, the report, finite
+   differences, CPU dense vector solves and real unpreconditioned GMRES use the shared package.
+   Device LU and preconditioned solves keep their backend paths. Verification is tracked in
+   [[Status]].
 3. **W3, `VariationalDiffusion` onto it.** `prox_infer` on `Picard`; `KrylovSolve`'s GMRES and the
    adjoint solves through D4 and D6; `ImplicitSolution.residual` primal. Its suite passes; results of
    `implicit.md`'s measured examples (smoke size) unchanged within tolerance.
