@@ -537,7 +537,49 @@ no generic tree methods; the rule of `_unflatten_erased`; the rules of the reads
 review found their fallback read `_subtrees` for `_states` too, [[LP-077 Findings of the review of I30]]). The old functions as oracles stay in `coupled_keys.jl`
 and `coupled_spec.jl`.
 
-**Not done.** The implicit adjoint still reads `ps` twice (`_graph_loss` and `_graph_update` in
-`_graph_adjoint_loss`; one read would need the task nodes' subtrees indexed out of the factors', which Zygote
-differentiates per index). `_functional_infer` (Zygote through `infer!`) was not measured. The device form of
-`_pin_coordinates_wide` is untested. The `Pullback` test was not shown to fail without `_ErasedPullback`.
+### I30 follow-up (2026-11-22)
+
+**Implicit adjoint.** A trial read factor subtrees once in `_graph_adjoint_loss` and gathered the update's
+task subtrees by factor ID. A rule scattered task cotangents back to the factor slots in one pass.
+`MODE=implicit TS="10 20" julia --project=bench bench/structure_compile.jl`, first / best warm in seconds,
+one process per run.
+
+| factors | two reads, run 1 | two reads, run 2 | one read, run 1 | one read, run 2 |
+|---|---|---|---|---|
+| 31 | 6.38 / 4.7198 | 6.29 / 4.6692 | 6.19 / 4.7532 | 6.18 / 4.6832 |
+| 61 | 20.98 / 18.4023 | 20.57 / 18.0857 | 20.53 / 18.5500 | 20.08 / 18.1731 |
+
+The 61-factor first call fell by 2.1–2.4%, short of the 20% gate. The two reads in `_graph_loss` and
+`_graph_update` stay. The dense Jacobian and solve dominate the warm time. The gradient recorder
+(`scratch/i30open/record-implicit.jl`, run with `julia --project=bench`) found one changed coordinate
+in 20 gradients. For a tied key under Zygote, regrouping the cotangents moved it by
+`2.7755575615628914e-17`. The other 581 coordinates were bitwise equal.
+
+`julia --project=scratch/i30open/snoop-env scratch/i30open/snoop.jl` profiled the restored code at
+61 factors after warming 16 and 31. The first call took 20.24 s. SnoopCompile recorded 2.121 s of
+inference, including 1.703 s in instances matched by the graph-wide tree signature filter. The top
+exclusive totals were `_by_key_rrule` (0.229 s), the `Tangent` constructor (0.162 s) and
+Zygote's `NamedTuple` `accum!!` (0.147 s). The profile is in `scratch/i30open/snoop-61.log`.
+
+**Zygote through `infer!`.** `MODE=infer TS="10 20 40" julia --project=bench bench/structure_compile.jl`
+differentiates the squared norm of the final state marginal mean. First / best warm in seconds
+at 31, 61 and 121 factors were 2.04 / 0.0105, 2.62 / 0.0201 and 4.53 / 0.0385. The first
+call grows 2.2× across these sizes. The pre-I30 Zygote replay rose 5.1× (2.72, 5.55 and 13.75 s)
+on the same chains with the free-energy loss. `_functional_infer` still uses per-factor pinning.
+See `bench/structure_compile.md` and `scratch/i30open/infer.log`.
+
+**Device pinning.** The gated test in `lib/MyceliumLearning.jl/test/graph_adjoint_devices.jl` uses
+JLArrays with scalar indexing disabled. It checks the promoted primal, the Zygote cotangent and
+ForwardDiff's zero partials at frozen coordinates. On JLArrays 0.4.2, the old mixed-precision
+`convert` broadcast threw `ArgumentError: Broadcast operation resulting in Union{} is not GPU compatible`
+under Zygote. The device broadcast now promotes the selected value with a typed zero, so Zygote's
+dual values keep their partials. The focused run passed all seven checks
+(`scratch/i30open/device-pin.log`). JLArrays 0.5.0's POCL backend also failed on a plain increment
+broadcast in this environment (`scratch/i30open/jlarray-probe.log`).
+
+**Pullback test.** The rules for `_unflatten_erased`, the boxed reads and the replay temporarily
+returned bare pullbacks. The existing test in `lib/Lenticulum.jl/test/erased_trees.jl` failed
+`B3 === B4` and passed its gradient assertion. With the wrappers restored the file passed
+all 19 checks. See `scratch/i30open/erased-bare.log` and `scratch/i30open/erased-restored.log`.
+
+The compile-time breakdown inside `_functional_infer` and verification on JLArrays 0.5.0 remain open.

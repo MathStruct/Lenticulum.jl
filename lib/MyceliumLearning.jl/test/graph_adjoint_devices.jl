@@ -1,4 +1,27 @@
-using JLArrays
+using ForwardDiff, JLArrays, Zygote
+
+@testset "I30: pinning flat device coordinates" begin
+    JLArrays.allowscalar(false)
+    reference = JLArray(Float64[11, 12, 13, 14])
+    active = JLArray(Float32[1, 2, 3, 4])
+    mask = BitVector([true, false, false, true])
+    pin(θ) = MyceliumLearning._pin_coordinates_wide(reference, mask, θ)
+
+    pinned = pin(active)
+    @test pinned isa JLArray{Float64}
+    @test Array(pinned) == [1.0, 12.0, 13.0, 4.0]
+
+    dz = only(Zygote.gradient(θ -> sum(abs2, pin(θ)), active))
+    @test dz isa JLArray{Float32}
+    @test Array(dz) == Float32[2, 0, 0, 8]
+
+    dual = JLArray(ForwardDiff.Dual{:i30}.(Array(active), 1f0))
+    pinned_dual = pin(dual)
+    @test pinned_dual isa JLArray{ForwardDiff.Dual{:i30,Float64,1}}
+    host_dual = Array(pinned_dual)
+    @test ForwardDiff.value.(host_dual) == Array(pinned)
+    @test only.(ForwardDiff.partials.(host_dual)) == [1.0, 0.0, 0.0, 1.0]
+end
 
 # Two independent coordinates per variable: every covariance/precision stays
 # diagonal, so this tests replay without relying on device dense factorisation.
