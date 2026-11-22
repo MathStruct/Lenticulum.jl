@@ -335,8 +335,9 @@ end
 """
     ImplicitSolution
 
-What inference returns: the state `z`, the residual norm on the free coordinates, the number
-of iterations, and two flags.
+What inference returns: the state `z`, a primal residual diagnostic, the number of iterations,
+and two flags. The diagnostic is the free-coordinate residual norm for `implicit_infer` and
+the splitting gap for `prox_infer`.
 
 - `converged` — the residual is below tolerance. If not, `z` is still returned (an *anytime*
   answer) but the implicit function theorem does not apply at it.
@@ -350,6 +351,11 @@ struct ImplicitSolution{V<:AbstractVector,T<:Real}
     iters::Int
     converged::Bool
     stable::Bool
+
+    function ImplicitSolution(z::V, residual::Real, iters, converged, stable) where {V<:AbstractVector}
+        r = ImplicitSolvers.primal(residual)
+        return new{V,typeof(r)}(z, r, iters, converged, stable)
+    end
 end
 
 function _stable(Jff)
@@ -619,31 +625,30 @@ end
 
 function _newton_system(ls::KrylovSolve, m, z, ρ, ps, st)
     op = _free_operators(m, z, ρ, ps, st)
-    solve(r) = first(_gmres(op.J, r; rtol = ls.rtol, maxiters = ls.maxiters, restart = ls.restart))
+    solve(r) = first(ImplicitSolvers.linsolve(op.J, r, _shared_solver(ls); tol = _linear_tolerance(ls)))
     return (stable = _lambda_min(op.S, op.n, ls) > 0, solve = solve)
 end
 
 # λ_F from J_FFᵀ λ_F = b
-function _adjoint_solve(::DenseSolve, m, z, ρ, b, ps, st)
+function _adjoint_solve(ls::DenseSolve, m, z, ρ, b, ps, st)
     free = .!isinf.(ρ)
     Jff = prior_jacobian(m, z, ps, st; coords = free) .+ Diagonal(ρ[free] .^ 2)
     # At a fold or a branch point J_FF is singular and the implicit function theorem does not
     # apply: refuse rather than return Inf/NaN gradients (review of 2026-11-04).
-    # The check runs on a host copy (device arrays keep their own solve); for AD number types
-    # (duals) it is skipped.
+    # The check runs on a host copy and is skipped for AD number types (duals).
     if eltype(Jff) <: AbstractFloat
         κ = LinearAlgebra.cond(Matrix(Jff), 1)
         _near_singular(κ, eltype(Jff)) && throw(ArgumentError(
             "implicit_pullback: the free-block Jacobian is singular or nearly so at the solution (cond₁ = $κ; " *
             "a fold or branch point), where the implicit function theorem does not apply"))
     end
-    return Jff' \ b
+    return _dense_adjoint_solve(ls, Jff', b)
 end
 
 function _adjoint_solve(ls::KrylovSolve, m, z, ρ, b, ps, st)
     op = _free_operators(m, z, ρ, ps, st)
-    λ, ok, k = _gmres(op.Jt, b; rtol = ls.rtol, maxiters = ls.maxiters, restart = ls.restart)
-    ok || @warn "implicit_pullback: GMRES stopped after $k products without reaching rtol = $(ls.rtol); the gradient is approximate"
+    λ, report = ImplicitSolvers.adjoint_solve(op.Jt, b, _shared_solver(ls); tol = _linear_tolerance(ls))
+    report.converged || @warn "implicit_pullback: GMRES stopped after $(report.iterations) Arnoldi steps without reaching rtol = $(ls.rtol); the gradient is approximate"
     return λ
 end
 

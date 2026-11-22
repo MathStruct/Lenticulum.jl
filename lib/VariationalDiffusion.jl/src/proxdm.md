@@ -114,10 +114,18 @@ $$
 Hard clamps are exact; the free coordinates ($\rho_i = 0$) take $w_i = u_i$. As $\lambda \to 0$
 the coupling becomes $u = w$ and the problem becomes the implicit learner's
 ([[Deterministic Relaxation]]). It returns an `ImplicitSolution` with `z = w` (which satisfies
-the clamps) and `residual` $= \lVert u - w\rVert$.
+the clamps) and the primal splitting gap $\lVert u - w\rVert$ in `residual`.
+
+Let $T(w)$ be the prior prox followed by the clamp prox. Shared Picard with unit damping
+solves $F(w) = w - T(w) = 0$. Both coefficients of `Tolerance` equal `tol`, so the bound is
+$\text{tol}(1 + \lVert w\rVert)$ applied to $\lVert F(w)\rVert$ at the returned iterate. The
+old loop tested the same change norm against $\text{tol}(1 + \lVert T(w)\rVert)$ and returned
+the successor $T(w)$. Picard can accept the initial iterate and evaluates the residual at the
+iteration limit. The proximal predictor state is threaded through those evaluations and the
+splitting gap uses the last prior-prox evaluation.
 
 On the circle mixture, the query "$x = 0.6$, which $y$?" from $y_0 = \pm 0.5$ returns
-$y = \pm 0.7936$, symmetric to the last digit, in 20 iterations.
+$y = \pm 0.7936$. The ring case in the W3 adjoint comparison takes 19 Picard steps.
 
 ## 4. Training: proximal matching
 
@@ -162,8 +170,8 @@ gives every cotangent:
 `ChainRulesCore.rrule` of `prox_infer`, so Zygote differentiates through proximal inference
 without unrolling it. The matrix is $I - \operatorname{diag}(a)D_{FF}$, not a Jacobian of a
 field: the prox is already a solved problem, and its derivative is what the adjoint needs.
-Only vector-Jacobian products of the prox appear, so `linsolve = KrylovSolve()` runs GMRES on
-them and never forms $D$.
+The dense branch assembles the transposed system for the shared dense solve.
+`KrylovSolve()` supplies the VJP of the split map to `ImplicitSolvers.fixed_point_adjoint`.
 
 The prox's derivatives come from three places:
 
@@ -171,7 +179,10 @@ The prox's derivatives come from three places:
 |---|---|---|
 | `MixtureProx` | exact: $D = (I - \lambda\nabla^2\log p_t(u))^{-1}$, the implicit function theorem on the prox's own optimality condition | exact: $\lambda(\partial_\mu\nabla\log p_t)^\top D^\top y$, valid at $t = 0$ |
 | `ProxNetwork(…; ad)` | $y - \sqrt\lambda(\partial_v\varepsilon_\theta)^\top y$ through DifferentiationInterface | $-\sqrt\lambda(\partial_\theta\varepsilon_\theta)^\top y$ through DifferentiationInterface |
-| anything else, or no `ad` | central differences of `proximal` | `ArgumentError` |
+| anything else, or no `ad` | central differences of `proximal` with a common step $10^{-6}(1+\lVert v\rVert_\infty)$ | `ArgumentError` |
+
+The finite-difference fallback supplies production adjoints for custom predictors and
+for networks without an AD backend. It retains its existing step (P14 W3).
 
 **Validation** (`RING`, $t = 0.005$, $\lambda = 0.01$). Against central differences of the
 whole solve, for a hard clamp, a soft target, a soft clamp with a free coordinate, and all
@@ -187,9 +198,8 @@ along the relation (a soft clamp, or an untrained network: 350 iterations), and 
 stopping rule leaves an error of about $\text{tol}/(1-\kappa)$, with $\kappa$ the contraction factor. A
 difference step of 1e-6 divides that by 1e-6 and disagreed with the adjoint by 1e-3; steps of
 1e-4 to 1e-3 agree. Even then the reference was fragile: the same check passed alone and failed
-inside the full suite at 1.5e-4, so the tests run the reference solves for a fixed 1000 sweeps
-instead of to a tolerance. The adjoint does not have this problem: it solves the linear system
-to its own tolerance.
+inside the full suite at 1.5e-4, so the tests allow up to 1000 sweeps with `tol = 0`, stopping
+early at an exact fixed point. The adjoint has its own linear-solve tolerance.
 
 ## 6. As a factor's inversion
 

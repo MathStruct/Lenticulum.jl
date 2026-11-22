@@ -122,8 +122,9 @@ users are tests and diagnostics.
   for `Float64`. A test that needs the old bound passes `tol` explicitly; each such test is listed in the
   work package's report.
 - Reports hold the primal residual (D3).
-- `prox_infer`'s fixed point and its finite-difference step change their stopping rule and step to D2 and
-  D7; results move within the old tolerance.
+- `prox_infer` uses D2 to test the fixed-point residual at the returned iterate. The W3 baseline
+  comparison measures the change against the old bound. The finite-difference fallback serves
+  production prox adjoints and keeps its previous step.
 
 ## Work packages
 
@@ -140,9 +141,11 @@ Each one is a branch, reviewed by a model that did not write it.
 2. **W2, `ImplicitLayers` onto it.** Its solvers become the moved ones; its IFT's linear solves go
    through D6. Its suite passes (device files included), with the list of tests whose `tol` was made
    explicit.
-3. **W3, `VariationalDiffusion` onto it.** `prox_infer` on `Picard`; `KrylovSolve`'s GMRES and the
-   adjoint solves through D4 and D6; `ImplicitSolution.residual` primal. Its suite passes; results of
-   `implicit.md`'s measured examples (smoke size) unchanged within tolerance.
+3. **W3, `VariationalDiffusion` onto it.** *Done 2026-11-22* on `codex/p14-w3`. Shared Picard,
+   GMRES and adjoints implement D4–D6, and `ImplicitSolution.residual` is primal. The full
+   package suite passed and all eight smoke examples matched the printed numerical baseline.
+   D7's step preserved all three diagnostic verdicts. The production fallback kept its original
+   step. See `IMPL-p14-w3.md` for the comparisons and commands.
 4. **W4, MyceliumLearning's graph adjoint onto D6.** Gradients equal to the old ones on the graph-adjoint
    tests.
 5. **W5, Krylov.jl out.** A test comparing the shared GMRES with Krylov.jl's on generated systems
@@ -156,7 +159,5 @@ W1 first; W2, W3 and W4 are independent after it; W5 last. Phase 2 (Newton, the 
 
 - Whether `Anderson` belongs in the package as a root solver (Mycelium's `AndersonSchedule` mixes
   messages, not a vector; nothing else uses Anderson today). Not in phase 1.
-- Whether `fd_jacobian`'s cubic-root step changes a diagnostic test's verdict in `VariationalDiffusion`;
-  W3 reports it.
 - A device (GPU) path for GMRES: the moved code must not scalar-index (tested with JLArrays and
   `allowscalar(false)`), but no device benchmark is planned.

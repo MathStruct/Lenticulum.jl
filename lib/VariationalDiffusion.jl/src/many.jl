@@ -139,7 +139,9 @@ function implicit_infer_many(m::ImplicitDiffusion, Z₀::AbstractMatrix, ρ, ps,
     Z[.!free, :] .= Z₀[.!free, :]
     B = size(Z, 2)
     resid(Zs, cols) = (G = first(_field_many(m, Zs, ps, st)); G[free, :] .+ ρ[free] .^ 2 .* (Zs[free, :] .- Z₀[free, cols]))
-    sols = Vector{ImplicitSolution{Vector{eltype(Z)},eltype(Z)}}(undef, B)
+    T = eltype(Z)
+    Rtype = typeof(ImplicitSolvers.primal(zero(T)))
+    sols = Vector{ImplicitSolution{Vector{T},Rtype}}(undef, B)
     active = collect(1:B)
     for it in 0:maxiters
         isempty(active) && break
@@ -202,7 +204,8 @@ function _infer_many_trust_region(m::ImplicitDiffusion, Z₀, ρ, ps, st; Z_init
     Δ = fill(T(radius === nothing ? 0.1 * sqrt(max(nF, 1)) : radius), B)
     R = resid(Z, 1:B)
     f = merit(Z, R, 1:B)
-    sols = Vector{ImplicitSolution{Vector{T},T}}(undef, B)
+    Rtype = typeof(ImplicitSolvers.primal(zero(T)))
+    sols = Vector{ImplicitSolution{Vector{T},Rtype}}(undef, B)
     active = collect(1:B)
     for it in 0:maxiters
         isempty(active) && break

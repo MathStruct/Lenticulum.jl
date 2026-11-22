@@ -772,8 +772,10 @@ end
     rng = Xoshiro(3)
     A = randn(rng, 30, 30) + 8I
     b = randn(rng, 30)
-    x, ok, _ = VD._gmres(v -> A * v, b; rtol = 1e-12, restart = 7)          # restarts several times
-    @test ok
+    gmres = KrylovSolve(rtol = 1e-12, restart = 7)                           # restarts several times
+    x, report = VD.ImplicitSolvers.linsolve(v -> A * v, b, VD._shared_solver(gmres);
+                                           tol = VD._linear_tolerance(gmres))
+    @test report.converged
     @test x ≈ A \ b rtol = 1e-9
     Ssym = Symmetric(A + A') / 2
     x, ok = VD._cg(v -> Ssym * v, b; rtol = 1e-12)
@@ -867,6 +869,13 @@ end
     gk = implicit_factor_pullback(fk, p, (x = DiracBelief([0.6]),), DiracBelief([0.5]), (y = [1.0],), RPS, RST)
     @test gk.inputs.x ≈ gd.inputs.x atol = 1e-8
     @test ImplicitProx(nodes; batched = true).batched
+end
+
+@testset "ImplicitSolution keeps a primal residual" begin
+    z = [ForwardDiff.Dual(0.5, 2.0)]
+    sol = ImplicitSolution(z, ForwardDiff.Dual(0.25, 3.0), 1, true, true)
+    @test sol.z === z
+    @test sol.residual === 0.25
 end
 
 @testset "Zygote differentiates through implicit_infer (the rrule)" begin
@@ -2117,6 +2126,9 @@ end
     @test up.z[1] == 0.6
     @test up.z[2] ≈ 0.8 atol = 0.03
     @test dn.z[2] ≈ -up.z[2] atol = 1e-8
+    # The initial state already solves the splitting when every coordinate is hard-clamped.
+    clamped, _ = prox_infer(Pc, [0.6, 0.5], [Inf, Inf], 0.005, RPS, RST; z_init = zeros(2), maxiters = 0)
+    @test clamped.converged && clamped.iters == 0 && clamped.z == [0.6, 0.5]
     # the proximal-matching loss is in [0, 1) and zero exactly when the residual is predicted
     pn = ProxNetwork(MLP, SCHED; input = (v, t, λ) -> vcat(v, _emb(t) .* λ))
     pps, pst = Lux.setup(Xoshiro(0), MLP)
@@ -2136,8 +2148,8 @@ end
         z₀ = [0.6, 0.5]
         sol, _ = prox_infer(P, z₀, ρ, t, RPS, RST; λ, tol = 1e-12, maxiters = 5000)
         @test sol.converged
-        # the reference runs a fixed 1000 sweeps (tol = 0): where the splitting contracts slowly, a
-        # stopping rule leaves an error of tol/(1-κ), which a difference quotient amplifies by 1/h
+        # Allow up to 1000 sweeps and require an exact fixed point to stop early. A nonzero tol
+        # leaves an error of order tol/(1-κ) that the difference quotient amplifies by 1/h.
         L(z0, r, ps) = dot(c, first(prox_infer(P, z0, r, t, ps, RST; λ, z_init = sol.z, tol = 0.0, maxiters = 1000)).z)
         b = prox_pullback(P, sol, z₀, ρ, t, c, RPS, RST; λ)
         h = 1e-4

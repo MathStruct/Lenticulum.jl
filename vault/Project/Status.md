@@ -7,7 +7,7 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-22 evening, four Codex packages merged, three more queued (see Next). Before it I30 (the graph-wide trees boxed in the graph drivers; review [[LP-077 Findings of the review of I30]]), pushed.
+**Last updated:** 2026-11-22 evening. P14 W3 is implemented and verified in `codex/p14-w3`.
 
 ## Branches and worktrees
 
@@ -29,6 +29,14 @@ DifferentiationInterface, then include the first ten lines of `runtests.jl` and 
 
 ## Done last
 
+- **P14 W3** (2026-11-22). VariationalDiffusion routes prox inference through shared Picard,
+  GMRES and adjoints through ImplicitSolvers, and stores a primal residual in
+  `ImplicitSolution` ([[Shared Solver Layer]]). The full suite passed with a writable POCL
+  cache. All eight smoke examples matched the printed numerical baseline and median
+  load time increased by 2.74%. See `IMPL-p14-w3.md` and `scratch/w3/` in the Codex worktree.
+  The work is uncommitted and awaits independent review. API HTML built. Quartz was unavailable
+  because the sandbox could not resolve GitHub. Full-size, CUDA, MNIST, and Reactant runs
+  were outside these checks.
 - **I30** (2026-11-22, Daniel: "do all that"). Inside the graph drivers' differentiated region `ps`, `st` and the
   offset tree travel in a non-parametric box (`LenticulumCore._Erased`), read only through rules whose pullbacks are
   boxed too (`_ErasedPullback`); pinning is in flat coordinates (`_graph_pin`); the replay reads `ps` once.

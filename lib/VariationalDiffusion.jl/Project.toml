@@ -5,6 +5,7 @@ version = "0.0.1-dev"
 
 
 [deps]
+ImplicitSolvers = "248397c0-0a23-4829-91d8-bb8f51737c30"
 LenticulumCore = "1ac3b398-e9e9-400d-83fd-862c57ff485d"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Mycelium = "0a724bc2-760c-4b8c-a26e-202a6d9695cb"
@@ -23,6 +24,7 @@ VariationalDiffusionDifferentiationInterfaceExt = "DifferentiationInterface"
 VariationalDiffusionReactantExt = ["Reactant", "ADTypes"]
 
 [sources]
+ImplicitSolvers = {path = "../ImplicitSolvers.jl"}
 LenticulumCore = {path = "../LenticulumCore.jl"}
 Mycelium = {path = "../Mycelium.jl"}
 
@@ -30,6 +32,7 @@ Mycelium = {path = "../Mycelium.jl"}
 projects = ["test"]
 
 [compat]
+ImplicitSolvers = "0.1"
 Reactant = "0.2.289"
 LinearAlgebra = "1"
 Random = "1"

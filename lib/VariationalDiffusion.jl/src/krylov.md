@@ -17,7 +17,7 @@
 | use | dense (`DenseSolve`) | matrix-free (`KrylovSolve`) |
 |---|---|---|
 | Newton step $J_{FF}d = -r_F$ | LU of the block | restarted GMRES on $v \mapsto J_{FF}v$ (`prior_jvp`) |
-| adjoint $J_{FF}^\top\lambda = -\bar z_F$ | the same LU, transposed | GMRES on $w \mapsto J_{FF}^\top w$ (`prior_vjp`) |
+| adjoint $J_{FF}^\top\lambda = -\bar z_F$ | shared dense solve on the transposed block | GMRES on $w \mapsto J_{FF}^\top w$ (`prior_vjp`) |
 | stability, $\operatorname{sym}J_{FF}\succ0$ | Cholesky test | smallest Ritz value of Lanczos on the symmetric part |
 | Laplace covariance on coordinates $I$ | inverse of the whole block | one conjugate-gradient solve per coordinate in $I$ |
 | $\log\det\Sigma_{FF}$ (mixture weights) | from the inverse | stochastic Lanczos quadrature |
@@ -33,8 +33,11 @@ block times can break this symmetry when the coordinates interact ([[energy_netw
   `implicit_pullback`, `laplace_belief`, `implicit_mixture` (and so `implicit_roots`), and a field
   of `ImplicitProx`. The default stays `DenseSolve()`: exact, and faster while few coordinates
   are free.
-- **No Krylov package.** GMRES with Givens rotations, CG and Lanczos with full
-  reorthogonalisation are about 150 lines; a dependency would have been heavier than the code.
+- **Shared GMRES.** `KrylovSolve` passes `restart` and `maxiters` to `ImplicitSolvers.GMRES`.
+  The shared tolerance has `atol = 0` and the requested `rtol`, so the bound remains
+  $\text{rtol}\,\lVert b\rVert$. The shared solver checks true residuals and counts Arnoldi steps
+  separately from operator applications. VariationalDiffusion owns CG, Lanczos and the
+  log-determinant estimate. See [[Shared Solver Layer]].
 - **Deterministic.** Lanczos starts and Hutchinson probes come from `Xoshiro(seed)`, so the same
   query gives the same answer, which the implicit function theorem relies on.
 - **Exact at small sizes.** With at most `lanczos` free coordinates the Lanczos space is the

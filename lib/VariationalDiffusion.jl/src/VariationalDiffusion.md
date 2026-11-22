@@ -45,11 +45,10 @@ means it is an interface bug rather than a quirk.
 
 ## Two properties worth stating up front
 
-**No automatic-differentiation dependency.** RED-Diff's stop-gradient means the denoiser
-Jacobian is never formed, and the clamp's gradient is $P^2(z-z_0)$ in closed form. So the
-dependency list is `LuxCore`, `Random`, `LinearAlgebra` — and **not `Lux`**, since any Lux
-model is an `AbstractLuxLayer`. Where a learned network *is* differentiated (the implicit
-learner's Newton steps and its backward pass), the user chooses the backend with
+**Optional automatic differentiation.** RED-Diff uses forward passes and the clamp gradient
+$P^2(z-z_0)$. A model implements `LuxCore.AbstractLuxLayer`. Implicit and proximal inference
+use `ImplicitSolvers` for Picard iteration and linear solves ([[Shared Solver Layer]]). For
+the learned network's derivatives, the user chooses the backend with
 `NoisePredictor(…; ad = AutoZygote())` or any other ADTypes object, and a package extension
 supplies it ([[backends]]). Training the denoiser itself is ordinary Lux training.
 
