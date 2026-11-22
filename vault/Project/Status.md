@@ -7,13 +7,13 @@
 
 > Sources: original to this repository; [[Feature Backlog]], [[Refactor 2026-11]], `AGENTS.md`
 
-**Last updated:** 2026-11-22, after I27 and I28 (the gradient drivers refuse a free energy that is not finite; `MeanField()` next to hard directions; review [[LP-075 Findings of the review of I27 and I28]]), committed on `dev-danielb`, not pushed. Before it I29, the two tiers of Lenticulum's suite, I17 and I16, pushed (2026-11-21).
+**Last updated:** 2026-11-22, after I27 and I28 (the gradient drivers refuse a free energy that is not finite; `MeanField()` next to hard directions; review [[LP-075 Findings of the review of I27 and I28]]), pushed. Before it I29, the two tiers of Lenticulum's suite, I17 and I16, pushed (2026-11-21).
 
 ## Branches and worktrees
 
 | checkout | branch | state |
 |---|---|---|
-| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | pushed up to `c3df1b4c` (I29); I27/I28 committed on top, not pushed. PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
+| `~/Code/CategoryTheory/Lenticulum.jl` | `dev-danielb` | pushed up to `e12751f5` (I27, I28). PR #23 (`dev-danielb` → `dev`) closed unmerged on 2026-11-18; `dev` is 22 commits behind and can be fast-forwarded |
 | `~/Code/CategoryTheory/Lenticulum.jl-codex` | `codex/i17` | at `3ff93526` with Codex's first I17 diff applied uncommitted (`IMPL-I17.md`, logs in `scratch/i17/`; the session's three fixes are not in it); run Julia there with `JULIA_DEPOT_PATH=$PWD/scratch/depot:$HOME/.julia:`. The I16 review state is in `git stash` ("I16 review state (before I17)"; its untracked files in `scratch/i16-untracked/`), I4's, I26's, U3's and U2's below it. Codex's sandbox cannot stash or check out (read-only git index): the session does that. Reset it before the next Codex package |
 | `~/Code/CategoryTheory/Lenticulum.jl-mistral` | `mistral/i17-tests` | at `3ff93526` with Codex's first I17 diff applied (the review's probes in `scratch/i17r/`, the specification tests and their runs in `scratch/i17/`, all copied to `../Lenticulum.jl-Review-2026-11-21/i17/`); the I26 review state in `git stash` ("I26 review state (before I17 tests)"), older states below it. `scratch/p6env` serves any review and now has Krylov. Before the next review: reset to the commit under review, then apply its diff. `git stash -u` takes `scratch/` with it: stash without `-u` |
 
