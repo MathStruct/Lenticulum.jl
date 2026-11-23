@@ -8,6 +8,20 @@
 
 ## 2026-11-23
 
+P37: MINRES in ImplicitSolvers (`MINRES(; maxiters)`, `lib/ImplicitSolvers.jl/src/linsolve.jl`): Paige–Saunders,
+unpreconditioned, judged on the true residual with restarts like GMRES, for real and complex Hermitian
+operators, duals and device arrays; `adjoint_solve` and `fixed_point_adjoint` take it. VariationalDiffusion's
+`KrylovSolve(method = :auto | :gmres | :minres)`: `:auto` takes MINRES for an `ImplicitDiffusion` whose
+predictor is an energy (`EnergyNetwork`, `GaussianMixtureEps`), whose free block is symmetric at any block
+levels (the field weights cancel the predictor's row scales; the design had restricted it to a common
+time, Codex's test showed the restriction needless), applying the exact VJP in both solves; ProxDM stays
+GMRES. Measured (`bench/minres_energy.jl`, untrained energy MLP, indefinite free block, `rtol` $10^{-8}$):
+$n = 64$ GMRES(40) 1023 products, MINRES 92; $n = 128$ and 256 GMRES not converged in 2000 steps, MINRES
+323 and 956 products; positive definite: equal. Tests: `lib/ImplicitSolvers.jl/test/linsolve.jl`,
+`lib/ImplicitSolvers.jl/test/krylov_oracle.jl` (Krylov.jl's `minres`, 90 systems), `lib/ImplicitSolvers.jl/test/device.jl`,
+`lib/VariationalDiffusion.jl/test/p37_minres.jl`. Notes `linsolve.md`, `krylov.md` §4. Implemented by Codex, reviewed by Mistral:
+[[LP-083 Findings of the review of P37|LP-083]] (one limit shared with GMRES, P38).
+
 I31: `ResidualSchedule` keeps its priority queue per store between sweeps (`reuse = true`, the default)
 and re-probes only the tasks whose inputs changed: a snapshot of every edge's message references, the
 pins, `ps`, the returned `st`, the damping and the settings; anything else changed means a fresh scan.

@@ -69,7 +69,6 @@ graph LR
   P16 --> G8[G8 entropy-regularised<br/>games]
   G1 --> G10[G10 Markov games]
   G9[G9 open games] --> G10
-  P14[P14 shared<br/>solver layer] --> P37[P37 MINRES for<br/>symmetric fields]
 ```
 
 F2 is *partial*; its present problems (circle, lemniscate, rings) suffice for F3, F4 and L15.

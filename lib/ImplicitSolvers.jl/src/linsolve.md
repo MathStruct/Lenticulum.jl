@@ -82,5 +82,5 @@ system is invariant (an exact breakdown, e.g. $b$ an eigenvector of $A$), the so
 tangent system $A\dot x = \dot b - \dot A x$ needs a direction outside that space: the tangent of
 $x$ is then wrong (zero in the test), the primal value and the report right. A $b$ with zero
 primal and nonzero tangent likewise returns a zero tangent. Generic dual inputs match the dense
-derivative to rounding. `test/linsolve.jl`, "Krylov tangents at an exact breakdown", records the
+derivative to rounding. `lib/ImplicitSolvers.jl/test/linsolve.jl`, "Krylov tangents at an exact breakdown", records the
 case as `@test_broken`.
