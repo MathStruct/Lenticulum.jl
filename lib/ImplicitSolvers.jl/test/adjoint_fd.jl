@@ -45,3 +45,16 @@ end
     @test_throws ArgumentError fd_jacobian(identity, [1.0]; step=0)
     @test fd_jacobian(_ -> Float32[2, 3], Float32[]) == zeros(Float32, 2, 0)
 end
+
+@testset "W5 preconditioners apply to the adjoint system" begin
+    J = ComplexF64[0.4+0.1im 0.15; 0.1im 0.5-0.1im]
+    g = ComplexF64[1-im, -2im]
+    for (solve, A) in ((adjoint_solve, J'), (fixed_point_adjoint, I - J'))
+        N = Diagonal(inv.(diag(A)))
+        x, report = solve(J', g, GMRES(restart=1); left=v -> N*v, right=v -> N*v)
+        @test report.converged
+        @test report.residual ≈ norm(g - A*x) atol=1e-15
+        @test x ≈ A \ g atol=1e-8
+        @test_throws ArgumentError solve(J', g, DenseSolve(); right=identity)
+    end
+end

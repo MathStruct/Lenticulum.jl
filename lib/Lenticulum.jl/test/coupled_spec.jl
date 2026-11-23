@@ -6,7 +6,6 @@
 # Trimmed again after I17 (2026-11-21): I17-1 and I17-2 run fewer (nsweeps, damping) pairs, I17-9 is gone.
 using Lenticulum, LenticulumCore, Mycelium, MyceliumLearning, Test, LinearAlgebra, Random, LuxCore,
       ForwardDiff, Zygote, ADTypes, DifferentiationInterface
-using Krylov
 
 fl(p) = LenticulumCore._flatten(p)
 

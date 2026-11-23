@@ -1,5 +1,5 @@
 using Test, Mycelium, LenticulumCore, LinearAlgebra, ADTypes, Random
-using DifferentiationInterface, ForwardDiff, Zygote, Krylov
+using DifferentiationInterface, ForwardDiff, Zygote
 
 # Unnormalised Gaussian potentials, independent of top-level GaussianFactor.
 # Unary exp(-q*x²/2+h*x), pair exp(-k*(x-y)²/2).
@@ -171,6 +171,10 @@ end
         end
     end
     g,p,st=adjoint_gaussian_graph(;loopy=true)
+    alias_gradient(solver) = free_energy_gradient(MessageStore(g),g,p,st;
+        ad=AutoZygote(),schedule=flooding_schedule(g),adjoint=:implicit,linear_solver=solver)
+    @test reinterpret(UInt64, adjoint_flat(alias_gradient(:krylov))) ==
+          reinterpret(UInt64, adjoint_flat(alias_gradient(:gmres)))
     for kw in ((maxsweeps=1,), (linear_solver=:bad,), (tol=0.0,), (linear_maxiter=0,),
             (schedule=SequentialSchedule(all_tasks(g)[1:1]),), (adjoint=:bad,), (damping=1.0,))
         args=merge((schedule=flooding_schedule(g),adjoint=:implicit),kw)

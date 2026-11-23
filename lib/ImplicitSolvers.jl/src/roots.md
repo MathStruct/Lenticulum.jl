@@ -12,11 +12,11 @@ Jacobian $H$ to the residual and updates $H$ so it maps the observed residual
 change $y$ to the step $s$. The rank-one update is
 
 $$
-H gets H + rac{(s-Hy)s^	op H}{s^	op Hy}.
+H \gets H + \frac{(s-Hy)s^\top H}{s^\top Hy}.
 $$
 
 The implementation divides out the primal norms of $s$ and $Hy$ before testing
-the denominator against $sqrt{epsilon}$. The normalized test avoids an absolute
+the denominator against $\sqrt{\epsilon}$. The normalized test avoids an absolute
 cutoff that would discard valid secants for small residuals. Dense Broyden keeps
 a backend matrix. Limited Broyden keeps the last few pairs of vectors
 representing the additive rank-one terms, which can optionally be retained by the

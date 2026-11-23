@@ -35,7 +35,6 @@ julia = "1.12"
 LuxCore = "1"
 ADTypes = "1"
 DifferentiationInterface = "0.7"
-Krylov = "0.10"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
@@ -49,10 +48,9 @@ ExponentialFamily = "62312e5e-252a-4322-ace9-a5f4bf9b357b"
 RxInfer = "86711068-29c9-4ff7-b620-ae75d7495b3d"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-Krylov = "ba0b0d4f-ebba-5204-a429-3ac8c609bfb7"
 
 [targets]
-test = ["Aqua", "ADTypes", "DifferentiationInterface", "ForwardDiff", "Zygote", "Test", "BayesBase", "Distributions", "ExponentialFamily", "RxInfer", "Printf", "Krylov"]
+test = ["Aqua", "ADTypes", "DifferentiationInterface", "ForwardDiff", "Zygote", "Test", "BayesBase", "Distributions", "ExponentialFamily", "RxInfer", "Printf"]
 
 [weakdeps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"

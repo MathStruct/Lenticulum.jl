@@ -1,4 +1,3 @@
-using Krylov
 
 @testset "LP-002 limited-memory Broyden" begin
     cases = (

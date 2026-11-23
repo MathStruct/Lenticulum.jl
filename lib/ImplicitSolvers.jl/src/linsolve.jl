@@ -36,20 +36,26 @@ struct GMRES <: AbstractLinearSolver
 end
 
 """
-    linsolve(A, b::AbstractVector, alg; tol=Tolerance())
+    linsolve(A, b::AbstractVector, alg; tol=Tolerance(), left=nothing, right=nothing)
 
-Return `(x, report)` for the real square system `A*x = b`. Supply a square matrix
+Return `(x, report)` for the square system `A*x = b`. Supply a square matrix
 or a callable `v -> A*v` mapping vectors of length `length(b)` to vectors of the
-same length. The tolerance scale is the norm of `b`.
+same length. With GMRES, `left` and `right` can apply approximate inverses.
+The report and tolerance use the true residual norm and the norm of `b`.
+DenseSolve requires both preconditioners to be `nothing`.
 """
-function linsolve(A, b::AbstractVector, alg::AbstractLinearSolver; tol::Tolerance=Tolerance())
+function linsolve(A, b::AbstractVector, alg::AbstractLinearSolver; tol::Tolerance=Tolerance(),
+        left=nothing, right=nothing)
+    if alg isa DenseSolve && (left !== nothing || right !== nothing)
+        throw(ArgumentError("DenseSolve does not support preconditioning"))
+    end
     n = length(b)
     apply = _linear_operator(A, n)
     if n == 0
         x = float.(b)
         return x, _report(:converged, 0, _primal_norm(x), 0)
     end
-    return _linsolve(A, apply, b, alg, tol)
+    return _linsolve(A, apply, b, alg, tol, left, right)
 end
 
 function _linear_operator(A::AbstractMatrix, n)
@@ -77,7 +83,7 @@ function _dense_matrix(A, apply, b)
     return M, n
 end
 
-function _linsolve(A, apply, b, alg::DenseSolve, tol)
+function _linsolve(A, apply, b, alg::DenseSolve, tol, ::Nothing, ::Nothing)
     x0 = zero.(float.(b))
     scale = _primal_norm(b)
     isfinite(scale) || return x0, _report(:nonfinite, 0, scale, 0)
@@ -99,11 +105,15 @@ function _linsolve(A, apply, b, alg::DenseSolve, tol)
     return x, _report(status === :continue ? :stalled : status, 1, r, nfe + 1)
 end
 
-function _linsolve(A, apply, b, alg::GMRES, tol)
-    x = zero.(float.(b))
+_precondition(::Nothing, v) = v
+_precondition(precond, v) = precond(v)
+
+function _linsolve(A, apply, b, alg::GMRES, tol, left, right)
+    x0 = zero.(float.(b))
+    x = x0
     r = b .- apply(x)
-    # The Givens rotations below are those of real arithmetic (GLM's review of W1, F2).
-    eltype(r) <: Complex && throw(ArgumentError("GMRES solves real systems; got $(eltype(r))"))
+    operator = left === nothing && right === nothing ? apply :
+        v -> _precondition(left, apply(_precondition(right, v)))
     scale = _primal_norm(b)
     total, nfe = 0, 1
     while true
@@ -112,11 +122,17 @@ function _linsolve(A, apply, b, alg::GMRES, tol)
         status === :continue || return x, _report(status, total, residual, nfe)
         total == alg.maxiters && return x, _report(:maxiters, total, residual, nfe)
         k = min(alg.restart, length(b), alg.maxiters - total)
-        xnew, steps, exit = _gmres_cycle(apply, x, r, k, tol, scale)
+        # With right preconditioning the cycle works in correction coordinates.
+        # Map that correction back once, then keep all iterates in the original system.
+        base = right === nothing ? x : x0
+        target_norm = left === nothing ? nothing : residual
+        candidate, steps, exit =
+            _gmres_cycle(operator, base, _precondition(left, r), k, tol, scale, target_norm)
         total += steps
         nfe += steps
         exit === :nonfinite && return x, _report(exit, total, residual, nfe)
 
+        xnew = right === nothing ? candidate : x .+ right(candidate)
         r = b .- apply(xnew)
         nfe += 1
         if exit === :stalled || _unchanged(xnew, x)
@@ -130,10 +146,16 @@ end
 
 # Only the small least-squares problem is on the host. The basis vectors, products
 # and correction to x follow the array backend of the residual.
-function _gmres_cycle(apply, x, r, k, tol, scale)
+function _gmres_cycle(apply, x, r, k, tol, scale, true_norm)
     beta = norm(r)
     iszero(primal(beta)) && return x, 0, :stalled   # nothing to do; the caller reports the residual
     target = _bound(tol, scale, typeof(primal(beta)))
+    if true_norm !== nothing
+        isfinite(primal(beta)) || return x, 0, :nonfinite
+        # Transfer the requested relative decrease to the preconditioned residual.
+        # The result is only a cycle stopping estimate.
+        target = (target / true_norm) * primal(beta)
+    end
     q = r ./ beta
     V = [q]
     T = eltype(q)
@@ -159,15 +181,15 @@ function _gmres_cycle(apply, x, r, k, tol, scale)
 
         for i in 1:(j - 1)
             a, b = H[i, j], H[i + 1, j]
-            H[i, j], H[i + 1, j] = c[i] * a + s[i] * b, -s[i] * a + c[i] * b
+            H[i, j], H[i + 1, j] = c[i] * a + s[i] * b, -conj(s[i]) * a + conj(c[i]) * b
         end
         a, b = H[j, j], H[j + 1, j]
-        d = hypot(a, b)
+        d = _gmres_hypot(a, b)
         isfinite(primal(d)) || return x, j, :nonfinite
         iszero(primal(d)) && return _gmres_update(x, V, H, g, j - 1), j, :stalled
-        c[j], s[j] = a / d, b / d
+        c[j], s[j] = conj(a) / d, conj(b) / d
         H[j, j], H[j + 1, j] = d, zero(T)
-        g[j + 1] = -s[j] * g[j]
+        g[j + 1] = -conj(s[j]) * g[j]
         g[j] = c[j] * g[j]
 
         if j == k || breakdown || abs(primal(g[j + 1])) <= target
@@ -176,6 +198,9 @@ function _gmres_cycle(apply, x, r, k, tol, scale)
         push!(V, w ./ next_norm)
     end
 end
+
+_gmres_hypot(a, b) = hypot(a, b)
+_gmres_hypot(a::Complex, b::Complex) = hypot(abs(a), abs(b))
 
 function _gmres_update(x, V, H, g, j)
     j == 0 && return x

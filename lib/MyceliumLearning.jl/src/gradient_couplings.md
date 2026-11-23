@@ -254,7 +254,8 @@ inference and fixed-sequence differences, for exact/pathwise couplings, damping
 and raw Zygote inference. `test/graph_adjoint_devices.jl` checks Float32/Float64
 diagonal Gaussian tree/loop replay with JLArrays scalar indexing disabled against
 CPU derivatives of the same recorded operations. This is emulation, not hardware
-GPU validation. The implicit coordinate adapter is CPU-only even with Krylov.
+GPU validation. The implicit coordinate adapter is CPU-only. The coupled drivers
+forward `:krylov` as an alias of `:gmres` for the implicit adjoint (see [[graph_adjoint]]).
 
 Enzyme/Mooncake replay remains explicitly rejected. The standalone reproducer
 `lib/MyceliumLearning.jl/examples/lp002_replay_backends.jl` bypasses that guard to probe

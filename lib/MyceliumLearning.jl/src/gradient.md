@@ -34,6 +34,11 @@ envelope gradient is returned. Before 2026-11-10 `parameter_step` made this deci
 test and threw where `free_energy_gradient` answered
 ([[LP-024 Findings of the review of 2026-11-09]]).
 
+The implicit driver accepts dense LU through `:dense` and matrix-free GMRES
+through `:gmres`. The `:krylov` spelling is an alias of `:gmres` for existing callers.
+Both public drivers forward that choice. See [[graph_adjoint]] and
+`lib/MyceliumLearning.jl/test/graph_adjoint.jl`.
+
 ## The free energy must be finite (I27)
 
 At fixed beliefs the envelope gradient reads only each factor's `belief_free_energy`: neither the

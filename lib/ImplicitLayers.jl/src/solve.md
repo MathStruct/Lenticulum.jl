@@ -247,7 +247,7 @@ with its checkout/clean EXIT hook removed.
 ## Matrix-free first-order IFT (LP-002 follow-up)
 
 ```julia
-using Krylov, DifferentiationInterface
+using DifferentiationInterface
 f = DEQFactor(cell, (x=200, z=200); solver=PicardSolver(tol=1e-12),
               ift=KrylovIFT(rtol=1e-10, atol=1e-12, itmax=400, memory=20))
 z, report, stnew = solve_state(f, x, ps, st; ad)
@@ -263,14 +263,12 @@ cell inputs; users can still select plain `AutoEnzyme()` for the outer DEQ rule.
 JVP backend for the Enzyme forward rule. Dense mode retains its existing
 ForwardDiff linearisation for native Enzyme/Mooncake rules.
 
-Load the Krylov.jl extension to prepare matrix-free DI products. Real
-unpreconditioned solves with `ldiv=false` pass that product to
-`ImplicitSolvers.adjoint_solve` with `GMRES`. Preconditioned solves and the
-remaining Krylov.jl cases keep the typed `size`/`eltype`/`mul!` operator and
-original residual check. Both paths reuse prepared DI products and restart
-after `memory` steps. A zero `itmax` uses twice the state dimension. Both
-paths report the iteration count and true residual to `on_solve` when supplied,
-and throw `ArgumentError` when the solve fails the stopping criterion.
+The DifferentiationInterface extension prepares the matrix-free products and
+passes them to `ImplicitSolvers.adjoint_solve` with `GMRES`. This covers real,
+complex and preconditioned linear systems. `memory` is the restart length and
+a zero `itmax` selects twice the dimension of the linear system.
+`on_solve` receives the iteration count, true residual and convergence flag.
+A failed solve throws `ArgumentError`.
 
 `test/lp002_followups.jl` checks all four existing backends plus explicit Enzyme
 forward/reverse modes on the two-dimensional linear oracle, including forced
@@ -288,12 +286,11 @@ rule has the scope described below.
 
 ### Preconditioning and measurement
 
-`KrylovIFT(precond=...)` accepts a left operator or a factory returning
-`(; left=M, right=N)`; omitted sides are identity. A factory receives the current
+`KrylovIFT(precond=...)` accepts a left operator or a factory returning an
+operator or `(; left=M, right=N)`. Omitted sides act as the identity. A factory receives the current
 `operator`, `transposed`, `factor`, `solved` (channel name), `joint`, `root`, `template`, `offsets`, and
 incoming `state`. The joint vector is observed channel then parameters, in either
-polarity. Operators must implement Krylov's `mul!` protocol, or `ldiv!` when
-`ldiv=true`. With the default `ldiv=false`, supply approximate inverses: GMRES
+polarity. The solver applies operators with buffered `mul!`, or `ldiv!` when `ldiv=true`. With the default `ldiv=false`, supply approximate inverses: GMRES
 operates on $MAN$ and recovers the unknown through $N$. Factories are responsible
 for orientation, including transposing their preconditioners for reverse solves.
 Preconditioner construction is bookkeeping, without parameter derivatives.
@@ -307,10 +304,9 @@ history is reused: doing so would require retaining solver workspace in the
 primitive and defining its orientation for both polarities.
 
 `on_solve = report -> ...` receives iterations, actual residual and solved status
-for each RHS. Convergence still requires the original unpreconditioned residual
-bound, not just Krylov's recursive estimate. A preconditioner can change the
-recursive stopping scale; the explicit final check can therefore reject an
-apparently converged preconditioned solve. There is no automatic refinement.
+for each RHS. GMRES checks the original residual after every cycle and can
+restart if its estimate met the cycle target early. That check uses one original
+operator product and the shared tolerance rule.
 The defaults remain `DenseIFT()` and `BroydenSolver()`.
 
 ### Reverse-input first-order IFT
@@ -387,12 +383,10 @@ Jacobian in the actually solved coordinate, including its sign. It requires
 `LimitedBroydenSolver` and `ldiv=false`; unsupported choices throw. A root warm
 start may yield no secants, leaving just the initial scaled identity. Eviction
 or poor secant information can reduce quality; no speedup is guaranteed. The
-unpreconditioned final residual check remains mandatory. If the retained inverse
-causes recursive residual convergence before the original tolerance is met, up
-to two residual-correction solves refine the result. They share any explicit
-`itmax` budget; `on_solve.iterations` includes every correction iteration. Failure
-after refinement still throws. This refinement is opt-in through BroydenIFT and
-leaves other preconditioners/defaults unchanged.
+original residual decides convergence. If restarted GMRES stalls,
+`BroydenIFT` can make up to two additional correction solves from the true
+residual. They share the linear iteration budget and `on_solve.iterations`
+includes the corrections. Failure after refinement throws.
 
 `test/lp002_batch_a.jl` measures GMRES counts on a rotated, nonsymmetric,
 ill-conditioned linear problem, with no preconditioner, Jacobi and retained

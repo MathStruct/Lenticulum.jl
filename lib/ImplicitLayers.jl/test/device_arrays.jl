@@ -1,6 +1,6 @@
 # LP-002 batch B: no hardware GPU, no scalar indexing allowances.
 using JLArrays
-using ADTypes, DifferentiationInterface, ForwardDiff, Zygote, Krylov
+using ADTypes, DifferentiationInterface, ForwardDiff, Zygote
 const DEVICE_DI = DifferentiationInterface
 
 struct DeviceCell <: LuxCore.AbstractLuxLayer end

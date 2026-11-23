@@ -120,7 +120,8 @@ ForwardDiff, EnzymeCore and Mooncake extensions implementing the IFT through the
 solved state; see [[solve]].
 `DEQFactor(...; ift=DenseIFT())` keeps dense LU as the default.
 `ift=KrylovIFT(; rtol, atol, itmax, memory, precond)` selects matrix-free GMRES in all
-solved-state AD rules (load Krylov and DI); failure to converge throws.
+solved-state AD rules through ImplicitSolvers. Load DifferentiationInterface to
+prepare residual products. Failure to converge throws.
 `deq_sensitivity` remains a dense reference regardless of this option. See [[solve]]
 for the operator products, storage, backend choices and 200-dimensional oracle.
 Its incoming state is fixed throughout iterations and advanced once at the root.
@@ -220,7 +221,8 @@ AD and no-AD solves need not agree. Branch selection remains the solver's job;
 the derivative is local to its converged, nonsingular branch. Nonsquare systems,
 nonconvergence and singular residual Jacobians remain errors in AD.
 
-Krylov accepts a left operator or a problem factory returning `(; left, right)`;
+`KrylovIFT` accepts a left operator or a factory returning an operator or
+`(; left, right)`.
 `ldiv=false` applies inverse preconditioners with `mul!`, and `ldiv=true` uses
 `ldiv!`. Factories receive a `transposed` flag and must honor it. Built-in
 `JacobiIFT()` probes the current operator diagonal in $n$ products and stores

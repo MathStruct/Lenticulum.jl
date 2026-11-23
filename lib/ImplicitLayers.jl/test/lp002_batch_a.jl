@@ -120,7 +120,6 @@ end
     end
     # Distinguishes H from H' directly, rather than relying on GMRES correcting
     # a wrongly oriented preconditioner. Also check reverse polarity's -U sign.
-    ext = Base.get_extension(ImplicitLayers,:ImplicitLayersKrylovExt)
     for reverse in (false,true), transposed in (false,true)
         p, s = LuxCore.setup(Xoshiro(2),CELL)
         f = DEQFactor(CELL,(x=2,z=2);solver=LimitedBroydenSolver(memory=20,tol=1e-13),ift=KrylovIFT(precond=BroydenIFT()))

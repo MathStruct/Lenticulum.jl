@@ -40,3 +40,23 @@
         end
     end
 end
+
+@testset "W5 preconditioned and complex GMRES on JLArrays" begin
+    JLArrays.allowscalar(false)
+    for T in (Float32, Float64, ComplexF64)
+        A = T[3 0.5; -0.75 2]
+        T <: Complex && (A .+= im .* [0.25 0.5; 0.25 -0.5])
+        b = T[1, -2]
+        dA, db = JLArray(A), JLArray(b)
+        diagonal = JLArray(diag(A))
+        jacobi = v -> v ./ diagonal
+        solve = v -> ldiv!(similar(v), Diagonal(diagonal), v)
+        for (left, right) in ((nothing, nothing), (jacobi, nothing), (nothing, jacobi), (solve, jacobi))
+            x, report = linsolve(dA, db, GMRES(restart=1); left, right)
+            @test x isa JLArray{T,1}
+            @test report.converged
+            @test Array(x) ≈ A \ b atol=5max(1e-9, 30eps(real(T)))
+            @test report.residual == norm(db - dA*x)
+        end
+    end
+end

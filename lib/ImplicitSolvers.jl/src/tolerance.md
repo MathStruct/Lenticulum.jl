@@ -7,8 +7,8 @@
 >
 > Theory (CT-ML wiki): —
 
-With residual norm $r$ and scale $s$, the bound is $mathrm{atol}+mathrm{rtol},s$.
-The two defaults are independent and each is the larger of $10^{-9}$ and $30epsilon$.
+With residual norm $r$ and scale $s$, the bound is $\mathrm{atol}+\mathrm{rtol}\,s$.
+The two defaults are independent and each is the larger of $10^{-9}$ and $30\epsilon$.
 The scale is the current iterate norm for a root and the right-hand-side norm for
 a linear system. These are global Euclidean criteria. Message passing has its
 own per-group scales.

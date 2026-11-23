@@ -1,16 +1,29 @@
 #algorithm #implementation
 
-> Dense LU or Cholesky and restarted GMRES solve real square systems. GMRES
+> Restarted GMRES solves real or complex square systems. Dense LU and Cholesky
+> handle direct solves. GMRES
 > uses the supplied operator action and checks the true residual after each cycle.
 >
-> Sources: [[Shared Solver Layer]], D4; code: `lib/ImplicitSolvers.jl/src/linsolve.jl`, `lib/VariationalDiffusion.jl/src/krylov.jl`; tests: `lib/ImplicitSolvers.jl/test/linsolve.jl`, `lib/ImplicitSolvers.jl/test/device.jl`
+> Sources: [[Shared Solver Layer]], D4; code: `lib/ImplicitSolvers.jl/src/linsolve.jl`, `lib/VariationalDiffusion.jl/src/krylov.jl`; tests: `lib/ImplicitSolvers.jl/test/linsolve.jl`, `lib/ImplicitSolvers.jl/test/device.jl`, `lib/ImplicitSolvers.jl/test/krylov_oracle.jl`
 >
 > Theory (CT-ML wiki): —
 
 GMRES minimizes the residual over the current affine Krylov space. It builds
 the Arnoldi basis with two passes of Gram–Schmidt and uses Givens rotations
 to solve the small least-squares problem. The estimated residual can end a
-cycle. The true residual at the updated iterate decides convergence. Arnoldi
+cycle. The true residual at the updated iterate decides convergence.
+
+A left approximate inverse $M$ maps the residual at the start of a cycle to
+$M(b-Ax)$. A right approximate inverse $N$ maps the cycle correction back to
+the original coordinates. The Arnoldi operator is $MAN$ with omitted sides
+acting as the identity. The cycle estimate for a left preconditioner scales the
+D2 bound by $\lVert M(b-Ax)\rVert/\lVert b-Ax\rVert$ at the cycle start.
+After the update, one original operator product recomputes $b-Ax$. Its norm
+goes in the report and is compared to the D2 bound with the scale $\lVert b\rVert$.
+An estimate that meets its target can therefore trigger another restart.
+The original unpreconditioned path uses the same products as before.
+
+Arnoldi
 breakdown is measured relative to the operator product before orthogonalization,
 which preserves the test under rescaling of the system. A singular triangular
 step returns the best iterate from the completed columns of the cycle.
@@ -23,13 +36,16 @@ Dense solves use host factorization. A matrix on a device is copied in bulk.
 For a callable, basis vectors follow the right-hand side's backend and their
 images are copied to the host. The returned solution follows the right-hand
 side's backend. Cholesky takes positive definiteness and symmetry as a caller
-assertion. This layer provides neither preconditioning nor a device-native
-direct factorization.
+assertion. Dense solves reject preconditioners and use host direct factorization.
 A dense report has `iterations = 1` after a successful factorization and `0` when the matrix
 has nonfinite entries or the factorization fails; MyceliumLearning's graph adjoint tells a singular
 $I - D^\top$ from an unmet tolerance by it (LP-081).
 
-GMRES refuses complex systems with an `ArgumentError`: its Givens rotations are those of real
-arithmetic, and on a complex diagonal system it diverged to a residual of $2\cdot10^{14}$ (GLM's review
-of W1, finding 2). `DenseSolve` takes complex matrices, by LU, though the layer is written for real ones.
-A cycle that starts from a zero residual returns at once instead of normalising it.
+Complex GMRES uses the conjugating inner product and unitary Givens rotations.
+For each pair $(a,b)$ the rotation has first row
+$(c,s)=(\overline a,\overline b)/\operatorname{hypot}(|a|,|b|)$ and second row
+$(-\overline s,\overline c)$. It maps the pair to a real nonnegative diagonal
+entry and zero below it. This covers the complex diagonal system from W1
+review finding 2 and the complex matrix and function fixtures in the W5 oracle.
+A zero preconditioned residual ends a cycle without division. The true residual
+determines whether the solver has converged or stalled.

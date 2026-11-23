@@ -22,12 +22,10 @@ projects = ["test"]
 [weakdeps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 GPUArraysCore = "46192b85-c4d5-4398-a991-12ede77f4527"
-Krylov = "ba0b0d4f-ebba-5204-a429-3ac8c609bfb7"
 
 [extensions]
 MyceliumLearningChainRulesCoreExt = "ChainRulesCore"
 MyceliumLearningGPUArraysCoreExt = "GPUArraysCore"
-MyceliumLearningKrylovExt = "Krylov"
 
 [compat]
 ImplicitSolvers = "0.1"
@@ -35,6 +33,5 @@ LinearAlgebra = "1"
 Random = "1"
 ChainRulesCore = "1"
 GPUArraysCore = "0.2"
-Krylov = "0.10"
 LuxCore = "1"
 julia = "1.12"

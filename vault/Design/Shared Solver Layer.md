@@ -39,11 +39,10 @@ under dual numbers `SolveReport` cannot hold the residual.
 
 ## Decisions
 
-**D1. A package of its own.** `lib/ImplicitSolvers.jl`, with no dependency on a project package:
-`LinearAlgebra`, `Random`; `ChainRulesCore` and `ForwardDiff` as weak dependencies (extensions). The
-consumers depend on it: `ImplicitLayers`, `VariationalDiffusion`, `MyceliumLearning`. `LenticulumCore`
-and `Mycelium` do not (message passing keeps its own criterion, D2). Chosen by the maintainer on
-2026-11-22 over placing it in `LenticulumCore` or `Mycelium`.
+**D1. A package of its own.** `lib/ImplicitSolvers.jl` uses `LinearAlgebra` and has a
+`ForwardDiff` weak dependency. `Random` is used by tests. The consumers are
+`ImplicitLayers`, `VariationalDiffusion` and `MyceliumLearning`. Mycelium message passing
+keeps its own criterion (D2). The maintainer chose a standalone package on 2026-11-22.
 
 **D2. One tolerance rule.** A solver has converged when
 $$
@@ -75,15 +74,15 @@ the extension), and the stopping decision is made on it, so tangents never chang
   and stays.
 - `Mycelium.ConvergenceReport` stays (it has `exact` and a `reason::String` read by tests).
 
-**D4. Linear solves.** `linsolve(A, b, alg; tol) -> (x, report)`, with `A` a matrix or a function
-$v \mapsto Av$ (with `size`); algorithms `DenseSolve()` (LU, or Cholesky when told the matrix is
-symmetric positive definite) and `GMRES(; restart = 40, maxiters = 200)`, matrix-free and generic in
-the element type: `VariationalDiffusion`'s hand-written restarted GMRES (`krylov.jl` 80) moved and made
-generic. Scale $s = \lVert b\rVert$. CG, Lanczos, the log-determinant stay in `VariationalDiffusion`:
-they have one user.
-- The Krylov.jl extensions of `ImplicitLayers` and `MyceliumLearning` stay until the shared GMRES is
-  shown to agree with Krylov.jl's on generated systems (W5); then they are removed, and with them the
-  dependency on Krylov.jl.
+**D4. Linear solves.** `linsolve(A, b, alg; tol, left, right) -> (x, report)`, with `A` a
+matrix or an operator action $v \mapsto Av$. `DenseSolve()` uses LU or Cholesky for
+a matrix asserted to be symmetric positive definite. `GMRES(; restart = 40,
+maxiters = 200)` is matrix-free and generic in the element type. It comes from
+`VariationalDiffusion`'s restarted GMRES. The scale is $s = \lVert b\rVert$. CG,
+Lanczos and the log-determinant stay in `VariationalDiffusion`, their only user.
+- W5 removes the Krylov.jl extensions of `ImplicitLayers` and `MyceliumLearning`.
+  `lib/ImplicitSolvers.jl/test/krylov_oracle.jl` retains the direct test dependency and
+  checks agreement on generated systems.
 
 **D5. Root solvers.** `solve_root(F, u0, alg; tol = Tolerance(), maxiters) -> (u, report)` for
 $F(u) = 0$, $u$ an `AbstractVector`. Algorithms: `Picard(; damping = 1)` ($u \leftarrow u - \alpha F(u)$),
@@ -96,12 +95,13 @@ stay as its own names for the moved types. A fixed point $u = T(u)$ is the root 
   stability, runs on devices and has a batched copy (`many.jl`); moving them is phase 2 (a row of its
   own), together with removing that copy.
 
-**D6. The adjoint linear solve.** `adjoint_solve(vjp, g, alg; tol) -> (λ, report)` solves
-$J^\top\lambda = g$ given $v \mapsto J^\top v$ (`vjp`), and `fixed_point_adjoint(vjp, g, alg; tol)` solves
-$(I - J^\top)\lambda = g$, through D4. Each package keeps its own rules (it knows its parameters and its
-cotangents); what moves is the linear solve and its tolerance: `ImplicitLayers`' `DenseIFT` and
-`KrylovIFT`, `VariationalDiffusion`'s `_adjoint_solve` and `_prox_adjoint`, MyceliumLearning's dense and
-Krylov graph adjoint. `JacobiIFT` and `BroydenIFT` stay in `ImplicitLayers`.
+**D6. The adjoint linear solve.** `adjoint_solve(vjp, g, alg; tol, left, right)` solves
+$J^*\lambda = g$ given $v \mapsto J^* v$ (`vjp`). The same keywords on
+`fixed_point_adjoint` solve $(I - J^*)\lambda = g$ through D4. Each package keeps
+the rules that know its parameters and cotangents. The shared solve and tolerance
+serve `ImplicitLayers`' `DenseIFT` and `KrylovIFT`, `VariationalDiffusion`'s
+`_adjoint_solve` and `_prox_adjoint`, and MyceliumLearning's dense and GMRES graph
+adjoints. `JacobiIFT` and `BroydenIFT` stay in `ImplicitLayers`.
 
 **D7. One finite-difference Jacobian.** `fd_jacobian(F, u; step = nothing)`, central differences, the
 step $\sqrt[3]{\epsilon(T)}\max(1, \lvert u_i\rvert)$ per coordinate. It replaces both copies; their
@@ -125,6 +125,11 @@ users are tests and diagnostics.
 - `prox_infer` uses D2 to test the fixed-point residual at the returned iterate. The W3 baseline
   comparison measures the change against the old bound. The finite-difference fallback serves
   production prox adjoints and keeps its previous step.
+- Preconditioned GMRES decides convergence from the true residual against D2
+  with scale $\lVert b\rVert$. It checks that residual after each cycle.
+- GMRES accepts complex systems using conjugating inner products and unitary
+  Givens rotations.
+- MyceliumLearning's `:krylov` is an alias of `:gmres` for existing callers.
 
 ## Work packages
 
@@ -158,9 +163,17 @@ Each one is a branch, reviewed by a model that did not write it.
    all 52 dense and 27 Krylov gradients are bitwise equal to their baselines.
    The new GMRES gradients differ from the old dense gradients by at most
    $2.019\cdot10^{-10}$ absolute and $8.304\cdot10^{-10}$ relative in the infinity norm.
-5. **W5, Krylov.jl out.** A test comparing the shared GMRES with Krylov.jl's on generated systems
-   (residuals both below the tolerance; solutions within the conditioning bound); then the two
-   extensions are removed.
+5. **W5, Krylov.jl out.** *Done 2026-11-23* (Codex). In
+   `lib/ImplicitSolvers.jl/test/krylov_oracle.jl`, both solvers passed the true
+   residual and conditioning bounds on 648 generated real and complex systems.
+   The one-step budget case reports nonconvergence in both. The two extensions
+   are removed. In `scratch/w5/compare.jl`, real unpreconditioned `KrylovIFT`
+   results and all 52 recorded graph `:gmres` gradients are bitwise equal to the
+   baseline. The preconditioned, `ldiv` and complex IFT results meet the fixture
+   tolerances. For the old graph `:krylov` path versus the new alias, the largest
+   differences are $3.028\cdot10^{-10}$ absolute and $1.246\cdot10^{-9}$ relative.
+   The full comparison and load times are in `IMPL-p14-w5.md`. Device checks use
+   JLArrays. The Lenticulum suite and hardware GPU execution are outside this run.
 
 W1 first; W2, W3 and W4 are independent after it; W5 last. Phase 2 (Newton, the trust region and
 `many.jl`'s copy) gets its own row when phase 1 is done.

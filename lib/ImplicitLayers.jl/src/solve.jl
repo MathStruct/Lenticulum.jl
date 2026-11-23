@@ -108,14 +108,14 @@ struct DenseIFT <: AbstractIFT end
     KrylovIFT(; rtol=1e-10, atol=1e-12, itmax=0, memory=20,
                precond=nothing, ldiv=false, on_solve=nothing)
 
-Opt-in matrix-free GMRES IFT solve. Load Krylov and DifferentiationInterface.
-`itmax=0` uses Krylov's default (twice the state dimension). Restart after `memory`
+Opt-in matrix-free GMRES IFT solve. Load DifferentiationInterface.
+`itmax=0` uses twice the dimension of the linear system. Restart after `memory`
 iterations to bound basis storage. Failure to meet the residual tolerance throws.
 
-`precond` accepts a left operator or a factory `ctx -> (; left=M, right=N)`;
+`precond` accepts a left operator or a factory `ctx -> M` or `ctx -> (; left=M, right=N)`;
 omitted sides are identity. `ctx` contains `operator`, `transposed`, `factor`, `solved` (channel name),
 `joint` (observed channel followed by parameters), `root`, `template`, `offsets`
-and `state`. Build preconditioners for the indicated orientation. Krylov applies
+and `state`. Build preconditioners for the indicated orientation. The solver applies
 `mul!` by default (operators approximate the inverse); `ldiv=true` applies `ldiv!`
 instead. `JacobiIFT()` probes the operator diagonal. `on_solve`, when supplied,
 receives `(iterations, residual, solved)` as a named tuple after each linear solve,
@@ -163,8 +163,8 @@ Opt-in `KrylovIFT(precond=BroydenIFT())` left inverse preconditioner using the
 actual forward `LimitedBroydenSolver` history. Uses its transpose for adjoint
 solves. Requires `ldiv=false`. History is owned by one AD solve, never global;
 no extra root solve or dense Jacobian is used. Warm starts may leave no secants.
-Up to two original-residual correction solves handle rescaled recursive residuals;
-iteration diagnostics include corrections, sharing any explicit `itmax` budget.
+If restarted GMRES stalls, up to two correction solves use the true residual.
+Iteration diagnostics include corrections within the same budget.
 """
 struct BroydenIFT end
 # The history's array types depend on the first residual. Keeping them out of
@@ -197,7 +197,7 @@ function _ift_prepare(::DenseIFT, ad, f, u, z, like, offs, st, transposed, histo
     return _dense_ift_system(J, transposed)
 end
 _ift_prepare(::KrylovIFT, args...) = throw(ArgumentError(
-    "KrylovIFT requires loading Krylov and DifferentiationInterface"))
+    "KrylovIFT requires loading DifferentiationInterface"))
 _ift_solve(A, b) = A \ b
 
 _dense_ift_system(J, transposed) = transposed ? J' : J

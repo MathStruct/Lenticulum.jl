@@ -47,10 +47,10 @@ advances once at the final root. Solve reports, initial guesses and state have n
 
 `deq_sensitivity(...; wrt=:ps, ad)` gives the dense parameter sensitivity directly.
 `DEQFactor(...; ift=DenseIFT())` defaults to dense LU. To use matrix-free IFT
-rules, load Krylov and select `ift=KrylovIFT(rtol=1e-10, atol=1e-12, itmax=400,
-memory=20, precond=JacobiIFT())`. Restarted GMRES uses only residual JVPs (forward) or VJPs (reverse).
-It throws on nonconvergence and checks the final residual explicitly. Krylov.jl
-provides the operator-product interface directly, without another operator package.
+rules, load DifferentiationInterface and select `ift=KrylovIFT(rtol=1e-10,
+atol=1e-12, itmax=400, memory=20, precond=JacobiIFT())`. ImplicitSolvers' GMRES
+uses residual JVPs in forward mode and VJPs in reverse mode. It checks the
+original residual after each restart cycle and throws on nonconvergence.
 All four backends are checked against the linear exact solution, including a
 200-dimensional contractive example that forbids the dense state-Jacobian API.
 `deq_sensitivity` stays dense. The native Enzyme/Mooncake rules keep their existing
@@ -80,7 +80,7 @@ endpoint-residual scoring; the default wrapper still delegates energy to downstr
 `precond=ctx -> (; left=M, right=N)` can construct either side from the current
 problem; `ctx.transposed` distinguishes reverse solves. Omitted sides are identity.
 The default `ldiv=false` applies `mul!` with approximate inverses; `ldiv=true`
-applies `ldiv!`. Operators follow Krylov.jl's protocol. `JacobiIFT()` supplies an
+applies `ldiv!`. A factory can also return a single left operator. `JacobiIFT()` supplies an
 inverse diagonal using n operator probes and O(n) storage; small/nonfinite diagonal
 entries throw. `on_solve=r -> ...` receives a named tuple with `iterations`,
 `residual` and `solved` for each RHS. The final original residual is checked even

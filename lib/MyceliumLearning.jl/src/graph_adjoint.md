@@ -1,11 +1,11 @@
 #implementation
 
 > Opt-in first-order parameter adjoints of a converged BP message fixed point.
-> The dense reference solve and both matrix-free GMRES paths share the same
+> The dense reference solve and matrix-free GMRES share the same
 > message equation, cuts and fixed-point checks.
 
 > Sources: original derivation from the message fixed-point equation; code:
-> `graph_adjoint.jl`, `gradient_couplings.jl`, `ext/MyceliumLearningKrylovExt.jl`,
+> `graph_adjoint.jl`, `gradient_couplings.jl`,
 > `lib/ImplicitSolvers.jl/src/adjoint.jl`; tests:
 > `lib/MyceliumLearning.jl/test/graph_adjoint.jl`, `graph_adjoint_devices.jl`.
 >
@@ -93,8 +93,8 @@ TreeSchedule report for damped or manually assembled schedules.
   transposed message Jacobian action. It uses restart length `min(N, 30)` for
   $N$ message coordinates and at most `linear_maxiter` Arnoldi steps. A failed
   solve reports the shared solver's reason in an `ArgumentError`.
-- `:krylov` uses the Krylov.jl extension, activated by loading Krylov.jl, with
-  the same message Jacobian action and its existing stopping rule.
+- `:krylov` is an alias of `:gmres` kept for existing callers.
+  `test/graph_adjoint.jl` checks the two spellings give bitwise equal gradients.
 
 The shared solvers receive `Tolerance(atol=linear_tol/2, rtol=linear_tol/2)`.
 For $s = \lVert\mathrm{rhs}\rVert$ and $\tau = \texttt{linear\_tol}$, the shared bound
@@ -118,11 +118,9 @@ edge-sized vectors per task, and Zygote's cotangents of the reads were as wide a
 O(tasks × edges). Measured in [[gradient_couplings]], "Reverse mode by message versions (I17)".
 Its differentiation memory does not grow with the reference sweep count.
 
-The full-suite ambiguity check caught an overly broad `mul!` method on the new
-operator: it intersected LinearAlgebra's multiplication by an `AbstractQ`.
-The operator now restricts both operands to vectors, which is the GMRES contract.
-Its advertised element type follows the adjoint RHS, including promotion by CPU
-scalar objective constants; message coordinates themselves are unchanged.
+The final graph residual uses the matrix-free operator action on the returned
+adjoint vector. GMRES vectors follow the adjoint RHS's type, including promotion
+by CPU scalar objective constants.
 
 The Gaussian fixtures are independent unnormalised unary/pair potentials,
 including a correlated two-dimensional dense-precision tree oracle. On a

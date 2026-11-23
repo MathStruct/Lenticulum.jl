@@ -118,10 +118,6 @@ function Base.:*(A::_GraphAdjointOperator, v::AbstractVector)
     product = _graph_adjoint_product(A.ctx, v)
     return product === nothing ? copy(v) : v - product
 end
-function LinearAlgebra.mul!(y::AbstractVector, A::_GraphAdjointOperator, v::AbstractVector)
-    copyto!(y, A * v)
-    return y
-end
 
 _graph_solver_tolerance(tol) = ImplicitSolvers.Tolerance(; atol=tol/2, rtol=tol/2)
 
@@ -139,15 +135,13 @@ function _graph_linear_solve(::Val{:dense}, A, rhs, ctx, tol, maxiter)
     return λ
 end
 
-function _graph_linear_solve(::Val{:gmres}, A, rhs, ctx, tol, maxiter)
+function _graph_linear_solve(::Union{Val{:gmres},Val{:krylov}}, A, rhs, ctx, tol, maxiter)
     vjp(v) = @something _graph_adjoint_product(ctx, v) zero(v)
     alg = ImplicitSolvers.GMRES(; restart=min(length(rhs), 30), maxiters=maxiter)
     λ, report = ImplicitSolvers.fixed_point_adjoint(vjp, rhs, alg; tol=_graph_solver_tolerance(tol))
     report.converged || throw(ArgumentError("implicit graph GMRES did not converge: $(report.reason)"))
     return λ
 end
-_graph_linear_solve(::Val{:krylov}, A, rhs, ctx, tol, maxiter) = throw(ArgumentError(
-    "linear_solver=:krylov requires loading Krylov.jl"))
 
 function _implicit_graph_gradient(g, ps, st; ad, ε, schedule, damping, maxsweeps, tol,
         linear_solver, linear_tol, linear_maxiter, rng, nsamples, return_state)

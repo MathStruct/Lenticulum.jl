@@ -97,11 +97,52 @@
     end
 end
 
-@testset "GMRES refuses complex systems" begin
-    # GLM's review of W1, F2: the real Givens rotations diverged on a complex system
-    A = diagm(ComplexF64[2 + 3im, 1 + 0.5im]); b = ComplexF64[1 - im, 2]
-    @test_throws ArgumentError linsolve(A, b, GMRES())
-    @test_throws ArgumentError linsolve(A, real.(b), GMRES())
-    x, report = linsolve(A, b, DenseSolve())
-    @test report.converged && x ≈ A \ b
+@testset "GMRES preconditions the operator and checks the original residual" begin
+    A = [4.0 -1 0.5; 1 3 0; 0.5 -1 2]
+    b = [2.0, -1, 3]
+    tol = Tolerance(atol=1e-13, rtol=1e-12)
+    jacobi = v -> v ./ diag(A)
+    for (left, right) in ((jacobi, nothing), (nothing, jacobi), (jacobi, jacobi))
+        calls = Ref(0)
+        apply = v -> (calls[] += 1; A * v)
+        x, report = linsolve(apply, b, GMRES(restart=2); tol, left, right)
+        @test report.converged
+        @test x ≈ A \ b atol=1e-11
+        @test report.residual == norm(b - A*x)
+        @test report.residual <= tol.atol + tol.rtol*norm(b)
+        @test calls[] == report.nfe > report.iterations + 2
+    end
+
+    # The Arnoldi estimate accepts the first step, but the true residual
+    # requires another cycle even when the full two-vector basis fits.
+    A, b = diagm([1.0, 2.0]), ones(2)
+    left = v -> [1.0, 1e-4] .* v
+    tol = Tolerance(atol=1e-2, rtol=0)
+    x, report = linsolve(A, b, GMRES(restart=2, maxiters=1); tol, left)
+    @test norm(left(b - A*x)) < tol.atol < report.residual
+    @test report.residual == norm(b - A*x)
+    check_report(report, :maxiters, 1, 3)
+    x, report = linsolve(A, b, GMRES(restart=2); tol, left)
+    @test report.converged
+    @test report.iterations > 1
+    @test report.nfe > report.iterations + 2
+    @test x ≈ A \ b atol=tol.atol
+
+    @test_throws ArgumentError linsolve(A, b, DenseSolve(); left)
+    @test_throws ArgumentError linsolve(A, b, DenseSolve(); right=identity)
+    @test_throws ArgumentError linsolve(zeros(0, 0), Float64[], DenseSolve(); left)
+end
+
+@testset "GMRES solves complex systems" begin
+    # W1 review F2 reproduced failure on the diagonal case. The nonsymmetric
+    # case exercises multiple complex rotations and the one-vector restart.
+    for A in (diagm(ComplexF64[2 + 3im, 1 + 0.5im]), ComplexF64[2+im 0.5im; -0.2+im 3-im]),
+            b in (ComplexF64[1-im, 2], [1.0, 2.0]), restart in (1, 2)
+        x, report = linsolve(A, b, GMRES(; restart))
+        @test report.converged
+        @test report.residual == norm(b - A*x)
+        @test report.residual isa Float64
+        @test eltype(x) === ComplexF64
+        @test x ≈ A \ b atol=4e-9
+    end
 end

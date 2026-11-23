@@ -196,7 +196,7 @@ grad = LenticulumCore.free_energy_gradient(store, g, ps, st;
     ad=AutoZygote(), schedule=flooding_schedule(g), adjoint=:implicit,
     maxsweeps=1000, tol=1e-10, damping=0.0,
     linear_solver=:dense, linear_tol=1e-10, linear_maxiter=1000)
-# using Krylov; linear_solver=:krylov selects matrix-free GMRES.
+# linear_solver=:gmres selects matrix-free GMRES. The :krylov alias still works.
 # parameter_step forwards the same keywords.
 ```
 

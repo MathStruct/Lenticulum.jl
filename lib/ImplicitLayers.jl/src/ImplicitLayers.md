@@ -46,7 +46,8 @@ See [[flow]] for loading, reversibility conditions, CNF augmentation and tests.
 
 Optional AD now uses DifferentiationInterface with a user-supplied ADTypes backend.
 Both DEQ solve polarities have first-order IFT rules for ForwardDiff, Zygote,
-Enzyme and Mooncake, using dense LU by default or opt-in preconditioned Krylov.
+Enzyme and Mooncake, using dense LU by default or opt-in matrix-free GMRES with shared preconditioning
+and true-residual checks through `KrylovIFT`.
 `LimitedBroydenSolver` bounds primal storage. `deq_hvp` and `solve_input_hvp` provide dedicated dense
 second-order adjoints using ForwardDiff residual and loss derivatives.
 Euler/RK4 endpoint AD also supports runtime-activity Enzyme; SciMLSensitivity

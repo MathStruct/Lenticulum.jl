@@ -1,4 +1,4 @@
-using SciMLSensitivity, OrdinaryDiffEqTsit5, Krylov
+using SciMLSensitivity, OrdinaryDiffEqTsit5
 
 @testset "SciML stateful primals after loading SciMLSensitivity" begin
     @test Base.get_extension(ImplicitLayers, :ImplicitLayersSciMLSensitivityExt) !== nothing

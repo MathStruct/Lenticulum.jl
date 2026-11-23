@@ -7,12 +7,15 @@
 >
 > Theory (CT-ML wiki): —
 
-For a residual Jacobian $J$, the adjoint solves $J^	oplambda=g$. For a
+For a residual Jacobian $J$, the adjoint solves $J^*\lambda=g$. For a
 fixed-point map of Jacobian $J$, the residual Jacobian is $I-J$ and the
-solve uses $(I-J^	op)lambda=g$. The fixed-point operator applies the identity
-and subtracts the supplied transposed action without forming a matrix for GMRES.
+solve uses $(I-J^*)\lambda=g$. The fixed-point operator applies the identity
+and subtracts the supplied adjoint action without forming a matrix for GMRES.
 DenseSolve can materialize the action with basis probes.
 
-The caller supplies the transpose action and constructs any parameter
-cotangents. A singular adjoint system can stall or exhaust its budget, just like
-any other linear system. This interface requires no AD rules.
+The GMRES preconditioners apply to the system being solved, $J^*$ or $I-J^*$.
+Both use the same true-residual rule. The complex adjoint checks are in
+`lib/ImplicitSolvers.jl/test/adjoint_fd.jl`.
+
+The caller supplies the adjoint action and constructs parameter cotangents.
+A singular adjoint system can stall or exhaust its budget.

@@ -96,8 +96,8 @@ BP fixed point, found from empty messages using `schedule`, `maxsweeps` and `tol
 It requires CPU Gaussian/Dirac messages, empty message state and an invertible
 `I-DT`; diagonal/detach rows are constant cuts, and a factor whose edges are all cut is held at
 its fixed belief, as in the diagonal driver (LP-021). Choose `linear_solver=:dense` (default) for
-the assembled Jacobian, `:gmres` for shared matrix-free GMRES, or `:krylov` for matrix-free GMRES
-through Krylov.jl, which must be loaded explicitly. Every solver checks the original adjoint
+the assembled Jacobian or `:gmres` for matrix-free GMRES. The `:krylov` alias for `:gmres` is
+kept for existing callers. Every solver checks the original adjoint
 residual against `linear_tol * max(1, norm(rhs))`. The iterative solvers use `linear_maxiter`
 as their iteration budget. Reference
 differences, ForwardDiff and Zygote are supported. See `graph_adjoint.md` and
@@ -189,7 +189,7 @@ to zero if omitted. Pass the returned state on the next step (Momentum/Nesterov)
 Lux state advances once, by evaluating local energies at the look-ahead parameters.
 Frozen coordinates are excluded from state vectors; fully frozen factors have no entry.
 Non-diagonal drivers forward `schedule`, `nsweeps`, `rng`, `nsamples` to the gradient API.
-With `adjoint=:implicit`, the step forwards `linear_solver` (`:dense`, `:gmres`, or `:krylov`),
+With `adjoint=:implicit`, the step forwards `linear_solver` (`:dense` or `:gmres`, also accepted as `:krylov`),
 `linear_tol`, and `linear_maxiter` to the same driver as `free_energy_gradient`.
 Score steps return `(ps_new, st_new, optimiser_state_new, estimate)` so uncertainty
 is available to the caller; deterministic steps retain the three-tuple return.
