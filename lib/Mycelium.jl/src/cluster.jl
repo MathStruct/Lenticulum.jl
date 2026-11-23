@@ -1078,3 +1078,5 @@ end
 # input is checked at run time (`exact_messages`, P13).
 exact_messages(::TableFactor) = true
 exact_messages(::ClusterFactor) = true
+repeatable_messages(::TableFactor) = true
+repeatable_messages(c::ClusterFactor) = all(repeatable_messages, c.factors)

@@ -246,11 +246,13 @@ struct FactorGraph
     # with the store layout they were found for: `nothing` or `(rows of the layout, rows)`; guarded
     # by `polarity_lock` (I21).
     energy_rows::Base.RefValue{Any}
+    # Whether residual probes can be reused (`repeatable_messages`), guarded by `polarity_lock`.
+    repeatable::Base.RefValue{Union{Nothing,Bool}}
 end
 FactorGraph(variables, factors, edges, eof, eov, vindex, findex, plates) =
     FactorGraph(variables, factors, edges, eof, eov, vindex, findex, plates,
         [Dict{Tuple{Symbol,Tuple{Vararg{Symbol}}},LenticulumCore.Polarity}() for _ in factors], ReentrantLock(),
-        Dict{Tuple{Int,UInt64},Any}(), Ref{Any}(nothing))
+        Dict{Tuple{Int,UInt64},Any}(), Ref{Any}(nothing), Ref{Union{Nothing,Bool}}(nothing))
 
 # --- Construction ----------------------------------------------------------
 

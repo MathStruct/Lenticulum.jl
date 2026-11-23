@@ -74,7 +74,14 @@ include("scale_shift.jl")
 # (exact only inside a cluster node), and the exposed and overlay wrappers.
 for T in (GaussianFactor, GaussianPrior, LinearConstraintFactor, HardConstraintFactor, SwitchingConstraintFactor)
     @eval Mycelium.exact_messages(::$T) = true
+    @eval Mycelium.repeatable_messages(::$T) = true
 end
+
+for T in (NonlinearFactor, LikelihoodFactor, RegimeFactor, GaussianComposite)
+    @eval Mycelium.repeatable_messages(::$T) = true
+end
+# The exposed Gaussian messages use deterministic parameter substitution and marginalisation.
+Mycelium.repeatable_messages(::Mycelium.ExposedFactor{<:GaussianFactor}) = true
 
 export GaussianBelief, Gaussian, uninformative
 export belief_mean, belief_cov, isproper, logpartition, kl_divergence

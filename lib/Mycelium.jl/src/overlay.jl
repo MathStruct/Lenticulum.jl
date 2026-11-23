@@ -178,6 +178,7 @@ end
 # Outside a cluster: a one-factor cluster over the overlay's channels.
 factor_message(o::OverlayFactor, target::Symbol, polarity, inputs, prior, ps, st) =
     factor_message(as_cluster(o), target, polarity, inputs, prior, (factor = ps,), st)
+repeatable_messages(o::OverlayFactor) = all(repeatable_messages, o.members)
 factor_belief(o::OverlayFactor, msgs, ps, st) = factor_belief(as_cluster(o), msgs, (factor = ps,), st)
 belief_free_energy(o::OverlayFactor, b::FrozenClusterBelief, ps, st) = belief_free_energy(as_cluster(o), b, (factor = ps,), st)
 local_free_energy(o::OverlayFactor, msgs, ps, st) = belief_free_energy(o, factor_belief(o, msgs, ps, st), ps, st)

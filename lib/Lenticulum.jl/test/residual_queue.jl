@@ -8,14 +8,16 @@ using Test, Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random
 using LenticulumCore: GaussianBelief, MixtureBelief
 
 # Structural equality, arrays by value: the beliefs and messages of two stores.
-rq_same(a, b) = a == b
-rq_same(a::Number, b::Number) = isequal(a, b)
-rq_same(a::AbstractArray, b::AbstractArray) = size(a) == size(b) && all(rq_same(x, y) for (x, y) in zip(a, b))
+rq_same(a, b) = typeof(a) === typeof(b) && isequal(a, b)
+rq_same(a::T, b::T) where {T<:Number} = isequal(a, b)
+rq_same(a::T, b::T) where {T<:Union{Float16,Float32,Float64}} = a === b
+rq_same(a::T, b::T) where {T<:AbstractArray} =
+    size(a) == size(b) && all(rq_same(x, y) for (x, y) in zip(a, b))
 function rq_same(a::T, b::T) where {T}
     isstructtype(T) && fieldcount(T) > 0 || return a == b
     return all(rq_same(getfield(a, k), getfield(b, k)) for k in 1:fieldcount(T))
 end
-rq_same_store(s1, s2) = s1.iteration == s2.iteration &&
+rq_same_store(s1, s2) = s1.iteration == s2.iteration && isequal(s1.pins, s2.pins) &&
     all(rq_same(s1.to_variable[e], s2.to_variable[e]) && rq_same(s1.to_factor[e], s2.to_factor[e]) for e in eachindex(s1.to_variable))
 
 # A clutter likelihood as a mixture message: a Gaussian bump and a flat component.
@@ -31,6 +33,7 @@ LenticulumCore.channels(::RQCounter) = (LenticulumCore.Channel(:x, 1),)
 LenticulumCore.supported_polarities(::RQCounter) = (LenticulumCore.Polarity(x = LenticulumCore.Unobserved()),)
 LenticulumCore.supports_polarity(::RQCounter, p::LenticulumCore.Polarity) = p[:x] isa LenticulumCore.Unobserved
 LuxCore.initialstates(::AbstractRNG, ::RQCounter) = (n = 0,)
+Mycelium.repeatable_messages(::RQCounter) = true
 Mycelium.factor_message(::RQCounter, ::Symbol, _, _, _, ps, st) =
     (n = get(st, :n, 0); (Gaussian(1 / (1 + n), 2.0), (n = n + 1,)))
 
@@ -41,6 +44,7 @@ struct RQCavity <: AbstractLenticulumFactor end
 LenticulumCore.channels(::RQCavity) = (LenticulumCore.Channel(:x, 1),)
 LenticulumCore.supported_polarities(::RQCavity) = (LenticulumCore.Polarity(x = LenticulumCore.Unobserved()),)
 LenticulumCore.supports_polarity(::RQCavity, p::LenticulumCore.Polarity) = p[:x] isa LenticulumCore.Unobserved
+Mycelium.repeatable_messages(::RQCavity) = true
 Mycelium.factor_message(::RQCavity, ::Symbol, _, _, prior, ps, st) =
     (Gaussian(prior isa GaussianBelief ? 0.5 * belief_mean(prior)[1] : 0.0, 3.0), st)
 
@@ -97,7 +101,7 @@ end
                             stateful = seed % 5 < 2, cavity = seed % 3 == 1)
         n = length(all_tasks(g))
         for damping in (0.0, 0.3), maxtasks in (n, 3)
-            sched = ResidualSchedule(; maxtasks)
+            sched = ResidualSchedule(; maxtasks, reuse = false)
             s1, s2 = MessageStore(g), MessageStore(g)
             r1, r2 = MessageTask[], MessageTask[]
             st1, st2 = st, st
@@ -122,11 +126,169 @@ end
     end
     @test ngraphs == 160 && nfailed < 20     # most runs go through
 
-    # propagate! through the queue reaches the scan's fixed point with the same report.
+    # The queue reaches a fixed point on this graph.
     rng = Xoshiro(7)
     g, ps, st = rq_graph(rng; ep = false)
     a = propagate!(MessageStore(g), g, ResidualSchedule(), ps, st; maxsweeps = 500, tol = 1e-10)[1]
     @test a.converged
+end
+
+@testset "I31: retained and fresh queues agree" begin
+    failures = zeros(Int, 2)
+    for seed in 1:40
+        g, ps0, st = rq_graph(Xoshiro(seed); meanfield = seed % 4 != 1, ep = seed % 3 != 0,
+                              nonlinear = seed % 2 == 0, stateful = seed % 5 < 2, cavity = seed % 3 == 1)
+        @test all(fn -> repeatable_messages(fn.factor), g.factors)
+        n = length(all_tasks(g))
+        for damping in (0.0, 0.3), maxtasks in (n, 3), mutate in (false, true)
+            ps = ps0
+            s1, s2 = MessageStore(g), MessageStore(g)
+            on = ResidualSchedule(; maxtasks)
+            off = ResidualSchedule(; maxtasks, reuse = false)
+            r1, r2 = MessageTask[], MessageTask[]
+            st1, st2 = st, st
+            ok = true
+            for sweep in 1:8
+                if mutate
+                    if sweep == 2
+                        for s in (s1, s2)
+                            s.to_variable[1] = Mycelium.Message(Gaussian([7.0], ones(1, 1)), s.iteration)
+                        end
+                    elseif sweep == 3
+                        e = first(g.edges_of_factor[g.factor_index[:f1]])
+                        for s in (s1, s2)
+                            s.to_factor[e] = Mycelium.Message(Gaussian([-5.0], ones(1, 1)), s.iteration)
+                        end
+                    elseif sweep == 4
+                        c = copy(ps.f1.c)
+                        c[1] += 2.0
+                        ps = merge(ps, (f1 = merge(ps.f1, (; c)),))
+                    elseif sweep == 5
+                        pin!(s1, g, :x1, [0.25])
+                        pin!(s2, g, :x1, [0.25])
+                    elseif sweep == 6
+                        # Copy an independently advanced store into both existing stores.
+                        source = MessageStore(g)
+                        sweep!(source, g, off, ps, st; damping)
+                        for s in (s1, s2)
+                            copyto!(s.to_factor, source.to_factor)
+                            copyto!(s.to_variable, source.to_variable)
+                            s.iteration = source.iteration
+                        end
+                    elseif sweep == 7 && haskey(st, :tied)
+                        st1 = merge(st1, (tied = (n = 1,),))
+                        st2 = merge(st2, (tied = (n = 1,),))
+                    end
+                end
+                # A one-sweep report also checks the reported residual and convergence flag.
+                a = try propagate!(s1, g, on, ps, st1; damping, maxsweeps = 1, record = r1) catch err; err end
+                b = try propagate!(s2, g, off, ps, st2; damping, maxsweeps = 1, record = r2) catch err; err end
+                ok &= r1 == r2 && rq_same_store(s1, s2)
+                if a isa Exception || b isa Exception
+                    ok &= a isa Exception && b isa Exception && typeof(a) == typeof(b)
+                    failures[1 + mutate] += 1
+                    break
+                end
+                (rep1, st1), (rep2, st2) = a, b
+                ok &= rq_same(rep1, rep2) && rq_same(st1, st2)
+            end
+            @test ok
+            ok || @info "retained and fresh queues differ" seed damping maxtasks mutate
+        end
+    end
+    @test all(<(20), failures)
+end
+
+@testset "I31: cache settings and the partial-sweep report" begin
+    g, ps, st = rq_graph(Xoshiro(7); ep = false, cavity = true, stateful = true)
+    s1, s2 = MessageStore(g), MessageStore(g)
+    on, off = ResidualSchedule(3), ResidualSchedule(3; reuse = false)
+    r1, r2 = MessageTask[], MessageTask[]
+    for (run, (graph, damping, rtol)) in enumerate(((g, 0.0, 0.0), (g, 0.3, 0.0),
+                                                  (g, 0.3, 1e-6), (g, 0.3, 2e-6),
+                                                  (deepcopy(g), 0.3, 2e-6)))
+        kw = (; damping, rtol, tol = 1e-8, maxsweeps = 4)
+        if run == 4
+            # A new store copied from a store already seen by the schedule.
+            s1, s2 = deepcopy(s1), deepcopy(s2)
+        end
+        rep1, _ = propagate!(s1, graph, on, ps, st; kw..., record = r1)
+        rep2, _ = propagate!(s2, graph, off, ps, st; kw..., record = r2)
+        @test r1 == r2 && rq_same_store(s1, s2) && rq_same(rep1, rep2)
+    end
+
+    g, ps, st = rq_graph(Xoshiro(7); ep = false)
+    s1, s2 = MessageStore(g), MessageStore(g)
+    r1, r2 = MessageTask[], MessageTask[]
+    kw = (; criterion = :marginals, tol = 1e-8, maxsweeps = 500)
+    rep1, st1 = propagate!(s1, g, on, ps, st; kw..., record = r1)
+    rep2, st2 = propagate!(s2, g, off, ps, st; kw..., record = r2)
+    @test rep1.converged && rq_same(rep1, rep2)
+    @test r1 == r2 && rq_same_store(s1, s2) && rq_same(st1, st2)
+    @test isequal(Mycelium._max_pending(s1, g, ps, st1, 0.0, on),
+                  Mycelium._max_pending(s2, g, ps, st2, 0.0))
+end
+
+struct RQRandomSource <: AbstractLenticulumFactor
+    rng::Xoshiro
+end
+LenticulumCore.channels(::RQRandomSource) = LenticulumCore.channels(RQCounter())
+LenticulumCore.supported_polarities(::RQRandomSource) = LenticulumCore.supported_polarities(RQCounter())
+LenticulumCore.supports_polarity(::RQRandomSource, p::LenticulumCore.Polarity) = LenticulumCore.supports_polarity(RQCounter(), p)
+Mycelium.factor_message(f::RQRandomSource, ::Symbol, _, _, _, ps, st) = (Gaussian(rand(f.rng), 2.0), st)
+
+@testset "I31: an RNG factor keeps fresh probes" begin
+    function rng_graph()
+        b = GraphBuilder()
+        variable!(b, :x, 1)
+        factor!(b, :random, RQRandomSource(Xoshiro(1)))
+        connect!(b, :random, :x, :x; direction = Emitting())
+        return build(b)
+    end
+    g1, g2 = rng_graph(), rng_graph()
+    s1, s2 = MessageStore(g1), MessageStore(g2)
+    on, off = ResidualSchedule(), ResidualSchedule(; reuse = false)
+    ps, st = LuxCore.setup(Xoshiro(2), g1)
+    r1, r2 = MessageTask[], MessageTask[]
+    @test !repeatable_messages(only(g1.factors).factor)
+    for _ in 1:8
+        a = sweep!(s1, g1, on, ps, st; record = r1)
+        b = sweep!(s2, g2, off, ps, st; record = r2)
+        @test rq_same(a, b) && rq_same_store(s1, s2) && r1 == r2
+        @test isempty(on.memory)
+    end
+    @test only(g1.factors).factor.rng == only(g2.factors).factor.rng
+end
+
+@testset "I31: a fresh scan and a retained queue both reject a contradictory cavity" begin
+    b = GraphBuilder()
+    variable!(b, :x, 1)
+    variable!(b, :y, 1)
+    for (name, f, target) in ((:first, DataFactor(:p, [1.0]), :x),
+                              (:second, DataFactor(:p, [2.0]), :x),
+                              (:independent, GaussianPrior(:p, 0.0, 1.0), :y),
+                              (:third, DataFactor(:p, [3.0]), :x))
+        factor!(b, name, f)
+        connect!(b, name, :p, target; direction = Emitting())
+    end
+    g = build(b)
+    ps, st = LuxCore.setup(Xoshiro(1), g)
+    for external in (false, true)
+        s1, s2 = MessageStore(g), MessageStore(g)
+        r1, r2 = MessageTask[], MessageTask[]
+        for (s, record, reuse) in ((s1, r1, true), (s2, r2, false))
+            sched = ResidualSchedule(; maxtasks = 1, reuse)
+            sweep!(s, g, sched, ps, st; record)
+            if external
+                s.to_variable[2] = Mycelium.Message(LenticulumCore.DiracBelief([2.0]), s.iteration)
+            else
+                sweep!(s, g, sched, ps, st; record)
+            end
+            @test_throws ArgumentError sweep!(s, g, sched, ps, st; record)
+            @test s.to_variable[3] === nothing  # error before the independent commit
+        end
+        @test r1 == r2 && rq_same_store(s1, s2)
+    end
 end
 
 # The findings of the review (LP-072), from Codex's probes: each was a difference between the queue
@@ -135,10 +297,11 @@ function rq_paired(g, ps, st; maxtasks = length(all_tasks(g)), damping = 0.0, sw
     s1, s2 = setup(MessageStore(g)), setup(MessageStore(g))
     r1, r2 = MessageTask[], MessageTask[]
     st1, st2 = st, st
+    sched = ResidualSchedule(; maxtasks)
     ok = true
     for _ in 1:sweeps
-        a = try sweep!(s1, g, ResidualSchedule(; maxtasks), ps, st1; damping, record = r1) catch err; err end
-        b = try Mycelium._residual_sweep_scan!(s2, g, ResidualSchedule(; maxtasks), ps, st2; damping, record = r2) catch err; err end
+        a = try sweep!(s1, g, sched, ps, st1; damping, record = r1) catch err; err end
+        b = try Mycelium._residual_sweep_scan!(s2, g, sched, ps, st2; damping, record = r2) catch err; err end
         (a isa Exception || b isa Exception) && return (; ok = false, a, b, r1, r2, s1, s2)
         ok &= r1 == r2 && isequal(a[1], b[1]) && rq_same_store(s1, s2)
         st1, st2 = a[2], b[2]
@@ -172,6 +335,11 @@ Mycelium.factor_message(::RQBigPrior, ::Symbol, _, _, _, ps, st) = (GaussianBeli
     g = validate(build(b)); ps, st = LuxCore.setup(Xoshiro(1), g)
     r = rq_paired(g, ps, st; setup = s -> (step!(s, g, all_tasks(g)[2], ps, st); s))
     @test r.ok && r.r1 == r.r2
+    s = MessageStore(g)
+    sched = ResidualSchedule(1)
+    sweep!(s, g, sched, ps, st)
+    # The pending check must still report the NaN even with an Inf at the top of the heap.
+    @test isnan(Mycelium._max_pending(s, g, ps, st, 0.0, sched))
 
     # F2: BigFloat residuals that round to one Float64, or to 0.
     b = GraphBuilder()
