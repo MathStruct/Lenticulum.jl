@@ -1,11 +1,12 @@
 #implementation
 
 > Opt-in first-order parameter adjoints of a converged BP message fixed point.
-> A dense reference solve and an optional matrix-free GMRES solve share the same
-> message equation, cuts and fixed-point checks. Ordinary inference is unchanged.
+> The dense reference solve and both matrix-free GMRES paths share the same
+> message equation, cuts and fixed-point checks.
 
 > Sources: original derivation from the message fixed-point equation; code:
-> `graph_adjoint.jl`, `gradient_couplings.jl`, `ext/MyceliumLearningKrylovExt.jl`; tests:
+> `graph_adjoint.jl`, `gradient_couplings.jl`, `ext/MyceliumLearningKrylovExt.jl`,
+> `lib/ImplicitSolvers.jl/src/adjoint.jl`; tests:
 > `lib/MyceliumLearning.jl/test/graph_adjoint.jl`, `graph_adjoint_devices.jl`.
 >
 > Theory (CT-ML wiki): [Statistical Game](https://mathstruct.org/CategoryTheory-ML-Wiki/Statistical-Game)
@@ -77,18 +78,32 @@ factors would require either a larger fixed-point equation including state or a
 specified fixed-state map; silently dropping state is not such a specification.
 Reference differences (`ad=nothing`), DI ForwardDiff and Zygote are the tested
 backend choices. Unsupported backends, messages, states and solver choices throw
-`ArgumentError`. Krylov requires explicitly loading Krylov.jl; Mycelium has no
-dependency on ImplicitLayers.
+`ArgumentError`.
 
 ## Validation, cost and difficulties
 
 The reference loop verifies convergence and then checks every ordinary synchronous
 BP row before applying derivative cuts. This avoids trusting the ordinary one-sweep
-TreeSchedule report for damped or manually assembled schedules. Both linear
-solvers check the original adjoint residual against
-`linear_tol * max(1,norm(rhs))`; singular dense systems, failed GMRES solves and
-nonfinite results fail. These checks are numerical evidence, not a condition-number
-estimate. Tight finite-difference linear tolerances can fail due to cancellation.
+TreeSchedule report for damped or manually assembled schedules.
+
+- `:dense` (default) builds one message Jacobian and passes the matrix
+  $I-(D_mT)^\top$ to ImplicitSolvers' dense LU solver. Graph-level diagnostics
+  report singular systems or nonfinite values as `ArgumentError`.
+- `:gmres` calls ImplicitSolvers' matrix-free `fixed_point_adjoint` with the
+  transposed message Jacobian action. It uses restart length `min(N, 30)` for
+  $N$ message coordinates and at most `linear_maxiter` Arnoldi steps. A failed
+  solve reports the shared solver's reason in an `ArgumentError`.
+- `:krylov` uses the Krylov.jl extension, activated by loading Krylov.jl, with
+  the same message Jacobian action and its existing stopping rule.
+
+The shared solvers receive `Tolerance(atol=linear_tol/2, rtol=linear_tol/2)`.
+For $s = \lVert\mathrm{rhs}\rVert$ and $\tau = \texttt{linear\_tol}$, the shared bound
+$\tau(1+s)/2$ is at most $\tau\max(1,s)$.
+Every returned solution still undergoes the graph's original residual check,
+`norm(A*λ - rhs) <= linear_tol * max(1,norm(rhs))`, using the transposed
+Jacobian action. This check also governs the acceptance of a finite dense
+solution after successful factorization. Tight finite-difference linear
+tolerances can fail due to cancellation.
 
 For $N$ message coordinates, dense assembly stores $O(N^2)$ entries and dense LU
 costs $O(N^3)$. GMRES stores $O(\min(N,30)N)$ Krylov vectors and applies
@@ -116,7 +131,8 @@ and converged exact replay. On the loop, references reconverge BP at each parame
 perturbation; the test measures convergence of the unrolled gradient to this
 adjoint. Tests also cover cuts, freezing, damping, parameter steps, Diracs and
 failure paths. Device replay uses diagonal Gaussian fixtures with scalar indexing
-disabled; device implicit calls explicitly fail for both linear solvers. See
+disabled. The device suite checks the CPU-coordinate requirement for all three
+implicit solvers and exercises their CPU paths alongside device replay. See
 LP-002's dated batch C section for run measurements and verification results.
 
 ## Fully cut factors at fixed beliefs (LP-021, 2026-11-02)

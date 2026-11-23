@@ -151,8 +151,13 @@ Each one is a branch, reviewed by a model that did not write it.
    step left all three diagnostic verdicts unchanged; the production fallback (`prox_jacobian`, used
    by the prox adjoints without an AD backend) kept its `1e-6` step. Newly refused: a negative or
    NaN `tol`, a negative `maxiters`, a nonfinite dense adjoint system (LP-079).
-4. **W4, MyceliumLearning's graph adjoint onto D6.** Gradients equal to the old ones on the graph-adjoint
-   tests.
+4. **W4, MyceliumLearning's graph adjoint onto D6.** *Done 2026-11-23* (Codex).
+   The dense reference solve and the new matrix-free `:gmres` use ImplicitSolvers.
+   The graph retains its original residual check for all three solvers, including
+   the Krylov.jl extension. Across the 18 graph-adjoint cases in `scratch/w4/compare.jl`,
+   all 52 dense and 27 Krylov gradients are bitwise equal to their baselines.
+   The new GMRES gradients differ from the old dense gradients by at most
+   $2.019\cdot10^{-10}$ absolute and $8.304\cdot10^{-10}$ relative in the infinity norm.
 5. **W5, Krylov.jl out.** A test comparing the shared GMRES with Krylov.jl's on generated systems
    (residuals both below the tolerance; solutions within the conditioning bound); then the two
    extensions are removed.

@@ -111,9 +111,11 @@ struct _GraphAdjointOperator{T,C} <: AbstractMatrix{T}
 end
 Base.size(A::_GraphAdjointOperator) = (length(A.ctx.x), length(A.ctx.x))
 Base.size(A::_GraphAdjointOperator, d::Int) = d <= 2 ? length(A.ctx.x) : 1
+_graph_adjoint_product(ctx, v) =
+    LenticulumCore._graph_gradient(ctx.ad, _graph_map_dot, ctx.x, ctx.ps, ctx, v; ε=ctx.ε)
+
 function Base.:*(A::_GraphAdjointOperator, v::AbstractVector)
-    c = A.ctx
-    product = LenticulumCore._graph_gradient(c.ad, _graph_map_dot, c.x, c.ps, c, v; ε=c.ε)
+    product = _graph_adjoint_product(A.ctx, v)
     return product === nothing ? copy(v) : v - product
 end
 function LinearAlgebra.mul!(y::AbstractVector, A::_GraphAdjointOperator, v::AbstractVector)
@@ -121,17 +123,27 @@ function LinearAlgebra.mul!(y::AbstractVector, A::_GraphAdjointOperator, v::Abst
     return y
 end
 
+_graph_solver_tolerance(tol) = ImplicitSolvers.Tolerance(; atol=tol/2, rtol=tol/2)
+
 function _graph_linear_solve(::Val{:dense}, A, rhs, ctx, tol, maxiter)
     J = LenticulumCore._graph_jacobian(ctx.ad, _graph_state_map, ctx.x, ctx.ps, ctx; ε=ctx.ε)
     J === nothing && return copy(rhs)
     M = Matrix{eltype(J)}(LinearAlgebra.I, size(J)...) - J'
-    λ = try
-        M \ rhs
-    catch e
-        e isa LinearAlgebra.SingularException || rethrow()
-        throw(ArgumentError("implicit graph adjoint: I-DT is singular"))
-    end
-    all(isfinite, λ) || throw(ArgumentError("implicit graph adjoint produced nonfinite values"))
+    λ, report = ImplicitSolvers.linsolve(M, rhs, ImplicitSolvers.DenseSolve(); tol=_graph_solver_tolerance(tol))
+    (report.reason === :nonfinite || !all(isfinite, λ)) &&
+        throw(ArgumentError("implicit graph adjoint produced nonfinite values"))
+    # For a nonempty system, a finite dense report with zero iterations means LU failed,
+    # even if the zero vector meets the residual tolerance. The graph checks the residual
+    # separately after a successful factorization.
+    report.iterations > 0 || throw(ArgumentError("implicit graph adjoint: I-DT is singular"))
+    return λ
+end
+
+function _graph_linear_solve(::Val{:gmres}, A, rhs, ctx, tol, maxiter)
+    vjp(v) = @something _graph_adjoint_product(ctx, v) zero(v)
+    alg = ImplicitSolvers.GMRES(; restart=min(length(rhs), 30), maxiters=maxiter)
+    λ, report = ImplicitSolvers.fixed_point_adjoint(vjp, rhs, alg; tol=_graph_solver_tolerance(tol))
+    report.converged || throw(ArgumentError("implicit graph GMRES did not converge: $(report.reason)"))
     return λ
 end
 _graph_linear_solve(::Val{:krylov}, A, rhs, ctx, tol, maxiter) = throw(ArgumentError(
@@ -148,7 +160,8 @@ function _implicit_graph_gradient(g, ps, st; ad, ε, schedule, damping, maxsweep
     all(e -> e.detach || e.coupling isa Union{DiagonalCoupling,LenticulumCore.ExactCoupling,LenticulumCore.PathwiseCoupling}, g.edges) ||
         throw(ArgumentError("implicit graph adjoints support Exact/Pathwise couplings and diagonal/detach cuts; score estimators are unsupported"))
     rng === nothing && nsamples === nothing || throw(ArgumentError("implicit graph adjoints do not sample; omit rng/nsamples"))
-    linear_solver in (:dense, :krylov) || throw(ArgumentError("linear_solver must be :dense or :krylov"))
+    linear_solver in (:dense, :gmres, :krylov) ||
+        throw(ArgumentError("linear_solver must be :dense, :gmres, or :krylov"))
     maxsweeps isa Int && maxsweeps > 0 && isfinite(tol) && tol > 0 || throw(ArgumentError("maxsweeps and tol must be positive"))
     isfinite(linear_tol) && linear_tol > 0 && linear_maxiter isa Int && linear_maxiter > 0 || throw(ArgumentError("linear_tol and linear_maxiter must be positive"))
     0 <= damping < 1 || throw(ArgumentError("damping must be in [0, 1)"))

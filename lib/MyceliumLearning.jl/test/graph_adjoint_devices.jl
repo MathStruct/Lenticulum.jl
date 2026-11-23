@@ -103,7 +103,7 @@ end
         if coupling isa ExactCoupling
             ref=free_energy_gradient(MessageStore(gc),gc,pc,sc;ad=AutoForwardDiff(),
                 schedule=flooding_schedule(gc),nsweeps=100)
-            for (ad,solver) in ((AutoForwardDiff(),:dense),(AutoZygote(),:krylov))
+            for (ad,solver) in ((AutoForwardDiff(),:dense),(AutoZygote(),:gmres),(AutoZygote(),:krylov))
                 d=free_energy_gradient(MessageStore(gc),gc,pc,sc;ad,adjoint=:implicit,
                     schedule=flooding_schedule(gc),linear_solver=solver,
                     tol=T===Float32 ? 1e-6 : 1e-12,linear_tol=T===Float32 ? 2e-6 : 1e-10)
@@ -127,10 +127,8 @@ end
                 errors[T]=max(errors[T],norm(Array(flat)-LenticulumCore._flatten(ref))/max(1,norm(LenticulumCore._flatten(ref))))
             end
         end
-        # Dense graph coordinates intentionally remain a CPU interface. The
-        # message-coordinate representation has no device adapter; do not copy
-        # device data to the host silently, even for a Krylov solve.
-        for solver in (:dense,:krylov)
+        # Graph coordinates are a CPU interface for every implicit linear solver.
+        for solver in (:dense,:gmres,:krylov)
             @test_throws (msg -> occursin("device coordinate packing is unsupported",msg)) free_energy_gradient(
                 MessageStore(g),g,p,st;ad=AutoZygote(),schedule=flooding_schedule(g),
                 adjoint=:implicit,linear_solver=solver,tol=T===Float32 ? 1e-5 : 1e-11)
@@ -156,7 +154,7 @@ end
             @test eltype(d.source.a) === T
             @test Array(d.source.a) ≈ a rtol=1e-6
         end
-        for ad in (AutoForwardDiff(),AutoZygote()), solver in (:dense,:krylov)
+        for ad in (AutoForwardDiff(),AutoZygote()), solver in (:dense,:gmres,:krylov)
             d=free_energy_gradient(MessageStore(g),g,pc,st;ad,schedule=flooding_schedule(g),
                 adjoint=:implicit,linear_solver=solver,linear_tol=1e-6)
             @test d.source.a ≈ a rtol=1e-6

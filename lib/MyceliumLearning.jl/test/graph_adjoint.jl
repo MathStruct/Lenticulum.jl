@@ -115,7 +115,7 @@ end
         if !loopy
             @test first(scalar_free_energy(s,g,p,st)) ≈ closed(p) atol=1e-12
         end
-        for ad in (nothing,AutoForwardDiff(),AutoZygote()), solver in (:dense,:krylov)
+        for ad in (nothing,AutoForwardDiff(),AutoZygote()), solver in (:dense,:gmres,:krylov)
             grad=free_energy_gradient(s,g,p,st;ad,adjoint=:implicit,schedule=sched,
                 linear_solver=solver,tol=1e-12,linear_tol=ad===nothing ? 2e-7 : 1e-10)
             @test adjoint_flat(grad) ≈ adjoint_flat(reference) atol=5e-7 rtol=5e-7
@@ -164,7 +164,7 @@ end
     for ad in (nothing,AutoForwardDiff(),AutoZygote())
         fixed=free_energy_gradient(ds,gd,pd,sd;ad)
         @test any(!iszero,adjoint_flat(fixed))
-        for solver in (:dense,:krylov)
+        for solver in (:dense,:gmres,:krylov)
             d=free_energy_gradient(ds,gd,pd,sd;ad,schedule=dsched,adjoint=:implicit,
                 linear_solver=solver,tol=1e-12,linear_tol=ad===nothing ? 2e-7 : 1e-10)
             @test adjoint_flat(d) ≈ adjoint_flat(fixed) atol=2e-8 rtol=2e-8
@@ -178,6 +178,9 @@ end
     end
     @test_throws ArgumentError free_energy_gradient(MessageStore(g),g,p,merge(st,(u=(counter=1,),));schedule=flooding_schedule(g),adjoint=:implicit)
     @test_throws ArgumentError free_energy_gradient(MessageStore(g),g,p,st;ad=AutoZygote(),schedule=flooding_schedule(g),adjoint=:implicit,linear_solver=:krylov,linear_maxiter=1)
+    @test_throws ArgumentError("implicit graph GMRES did not converge: maxiters") free_energy_gradient(
+        MessageStore(g),g,p,st;ad=AutoZygote(),schedule=flooding_schedule(g),adjoint=:implicit,
+        linear_solver=:gmres,linear_maxiter=1)
     # A zero-budget ResidualSchedule is now refused at construction (LP-019 item 9).
     @test_throws ArgumentError ResidualSchedule(maxtasks=0)
     for sched in (SequentialSchedule([MessageTask(0,:to_factor)]),
@@ -211,13 +214,14 @@ LenticulumCore.supports_polarity(::AdjointIntroducesState,p::Polarity) = p in su
 Mycelium.factor_message(::AdjointIntroducesState,t::Symbol,pol,inputs,prior,p,st) = (DiracBelief(0.7),(counter=1,))
 Mycelium.local_free_energy(::AdjointIntroducesState,bs,p,st) = (0.0,st)
 
-struct SingularGraphContext{A}
+struct AdjointSolveTestContext{A,F}
     x::Vector{Float64}
     ps::NamedTuple{(),Tuple{}}
     ad::A
     ε::Float64
+    map::F
 end
-MyceliumLearning._graph_state_map(x,p,c::SingularGraphContext) = x
+MyceliumLearning._graph_state_map(x,p,c::AdjointSolveTestContext) = c.map(x)
 
 @testset "LP-002 C Dirac fixed point, parameter step and singular system" begin
     b=GraphBuilder(); variable!(b,:x)
@@ -225,7 +229,7 @@ MyceliumLearning._graph_state_map(x,p,c::SingularGraphContext) = x
     connect!(b,:source,:x,:x;direction=Emitting(),coupling=ExactCoupling())
     connect!(b,:loss,:x,:x;direction=Absorbing(),coupling=ExactCoupling())
     g=build(b); p=(source=(a=0.7,),loss=(;)); st=(source=(;),loss=(;))
-    for ad in (nothing,AutoForwardDiff(),AutoZygote()), solver in (:dense,:krylov)
+    for ad in (nothing,AutoForwardDiff(),AutoZygote()), solver in (:dense,:gmres,:krylov)
         kw=(;ad,schedule=flooding_schedule(g),adjoint=:implicit,linear_solver=solver)
         d=free_energy_gradient(MessageStore(g),g,p,st;kw...)
         @test d.source.a ≈ p.source.a atol=1e-8
@@ -239,15 +243,21 @@ MyceliumLearning._graph_state_map(x,p,c::SingularGraphContext) = x
             g.edges[i]=Edge(e.factor,e.channel,e.variable,e.direction,coupling,detach)
         end
         _,_,_,store=infer!(g,flooding_schedule(g),p,st)
-        for ad in (nothing,AutoForwardDiff(),AutoZygote()), solver in (:dense,:krylov)
+        for ad in (nothing,AutoForwardDiff(),AutoZygote()), solver in (:dense,:gmres,:krylov)
             d=free_energy_gradient(store,g,p,st;ad,schedule=flooding_schedule(g),
                 adjoint=:implicit,linear_solver=solver)
             @test d.source.a == 0.0
             @test d == free_energy_gradient(store,g,p,st;ad,schedule=flooding_schedule(g),nsweeps=3)
         end
     end
-    ctx=SingularGraphContext([0.0],(;),AutoForwardDiff(),1e-6)
-    @test_throws ArgumentError MyceliumLearning._graph_linear_solve(Val(:dense),nothing,[1.0],ctx,1e-10,100)
+    ctx=AdjointSolveTestContext([0.0],(;),AutoForwardDiff(),1e-6,identity)
+    for rhs in ([1.0], [0.0])
+        @test_throws ArgumentError("implicit graph adjoint: I-DT is singular") MyceliumLearning._graph_linear_solve(
+            Val(:dense),nothing,rhs,ctx,1e-10,100)
+    end
+    ctx=AdjointSolveTestContext([0.0],(;),AutoForwardDiff(),1e-6,-)
+    @test_throws ArgumentError("implicit graph adjoint produced nonfinite values") MyceliumLearning._graph_linear_solve(
+        Val(:dense),nothing,[NaN],ctx,1e-10,100)
     b2=GraphBuilder(); variable!(b2,:x); factor!(b2,:source,AdjointIntroducesState())
     connect!(b2,:source,:x,:x;direction=Emitting(),coupling=ExactCoupling())
     g2=build(b2)
@@ -292,7 +302,7 @@ end
     _,_,_,store=infer!(g,sched,p,st)
     @test first(scalar_free_energy(store,g,p,st)) ≈ closed(p) atol=1e-12
     reference=parameter_gradient(closed,p;ad=AutoForwardDiff())
-    for ad in (nothing,AutoForwardDiff(),AutoZygote()), solver in (:dense,:krylov)
+    for ad in (nothing,AutoForwardDiff(),AutoZygote()), solver in (:dense,:gmres,:krylov)
         d=free_energy_gradient(store,g,p,st;ad,schedule=sched,adjoint=:implicit,
             linear_solver=solver,linear_tol=ad===nothing ? 2e-7 : 1e-10)
         u=free_energy_gradient(store,g,p,st;ad,schedule=sched,nsweeps=2)

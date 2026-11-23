@@ -314,7 +314,7 @@ See [[gradient_couplings]] for the supported device subset and its limits.
 ## Batch C graph parameter adjoints (2026-10-28)
 
 `free_energy_gradient` and `parameter_step` forward `damping` and support
-`adjoint=:implicit`, `maxsweeps`, `tol`, `linear_solver=:dense/:krylov`,
+`adjoint=:implicit`, `maxsweeps`, `tol`, `linear_solver=:dense/:gmres/:krylov`,
 `linear_tol` and `linear_maxiter`. Defaults retain local all-diagonal
 training (fixed-belief since LP-020) and finite replay for non-diagonal graphs. The implicit opt-in starts
 reference inference from empty messages and includes both local losses and
