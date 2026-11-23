@@ -2,9 +2,12 @@
     primal(x)
 
 Return the value used for solver decisions and diagnostics. This is the identity by
-default. With ForwardDiff loaded, it recursively unwraps dual numbers.
+default. With ForwardDiff loaded, it recursively unwraps dual numbers, also inside a
+complex number.
 """
 primal(x) = x
+# A complex number of duals (complex GMRES under ForwardDiff): unwrap each part (LP-082).
+primal(z::Complex) = complex(primal(real(z)), primal(imag(z)))
 
 """
     Tolerance(; atol=nothing, rtol=nothing)

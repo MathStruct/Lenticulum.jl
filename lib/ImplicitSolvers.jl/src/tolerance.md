@@ -18,6 +18,10 @@ extension recursively strips the partials, and the solvers take the reporting no
 on primal entries. This also covers an exact zero residual with a nonzero or
 nonfinite tangent. The norm uses the array backend's LinearAlgebra implementation.
 
+A complex number is unwrapped part by part (`primal(z::Complex)`). Before it, complex GMRES under
+ForwardDiff (complex systems came with W5) kept a `Dual` scale and threw in `_bound` (Gemini's review of W5,
+[[LP-082 Findings of the reviews of P14 W5|LP-082]]; test "GMRES on complex dual numbers" in `lib/ImplicitSolvers.jl/test/linsolve.jl`).
+
 `Tolerance` refuses a negative or NaN `atol` or `rtol` (on its primal value). Such a bound can never be
 met, not even by a zero residual, and GMRES then ran on past an exact solve and reported `:nonfinite`
 (GLM's review of W1, finding 1, [[LP-078 Findings of the reviews of the Mycelium coverage tests and the Anderson and block AD fixes|LP-078]]).

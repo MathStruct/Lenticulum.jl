@@ -22,7 +22,7 @@ A deep equilibrium model as a **relation**: the fixed-point condition
 `cell` is any `LuxCore.AbstractLuxLayer` computing ``g_\\theta(z,x)`` — including a
 `DeepEquilibriumNetworks.jl` cell, which is exactly such a layer. `dims` gives the two
 channel dimensions. Parameters and state are the cell's, untouched. `ift=KrylovIFT()` opts into
-matrix-free GMRES in solved-state AD rules (load Krylov and DI); dense LU is the default.
+matrix-free GMRES (ImplicitSolvers') in solved-state AD rules (load DI); dense LU is the default.
 
 ```julia
 f = DEQFactor(my_cell, (x = 4, z = 4); solver = BroydenSolver(maxiters = 200))

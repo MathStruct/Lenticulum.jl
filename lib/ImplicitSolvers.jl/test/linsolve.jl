@@ -146,3 +146,55 @@ end
         @test x ≈ A \ b atol=4e-9
     end
 end
+
+@testset "GMRES on complex dual numbers (LP-082, Gemini's finding 2)" begin
+    # `primal` did not unwrap Complex{Dual}: the scale stayed a Dual and `_bound`
+    # threw a MethodError. Tangents must not change the iteration either.
+    rng = Xoshiro(82)
+    n = 6
+    A = Matrix{ComplexF64}(I, n, n) .+ 0.3 .* randn(rng, ComplexF64, n, n)
+    b0 = randn(rng, ComplexF64, n)
+    db = randn(rng, ComplexF64, n)
+    dual(z, t) = Complex(ForwardDiff.Dual{:lp082}(real(z), real(t)), ForwardDiff.Dual{:lp082}(imag(z), imag(t)))
+    val(z) = complex(ForwardDiff.value(real(z)), ForwardDiff.value(imag(z)))
+    tan(z) = complex(ForwardDiff.partials(real(z), 1), ForwardDiff.partials(imag(z), 1))
+    tol = Tolerance(atol=1e-12, rtol=1e-12)
+    xp, rp = linsolve(A, b0, GMRES(restart=3, maxiters=60); tol)
+    @test primal(dual(1.0 + 2.0im, 3.0 - 1.0im)) === 1.0 + 2.0im
+    for scale in (0.0, 1.0, 1e8)
+        b = dual.(b0, scale .* db)
+        x, report = linsolve(A, b, GMRES(restart=3, maxiters=60); tol)
+        @test report.converged
+        @test report.residual isa Float64
+        @test report.iterations == rp.iterations
+        # Complex dual arithmetic rounds differently from ComplexF64 in the last bits.
+        @test val.(x) ≈ xp rtol=1e-13
+        @test tan.(x) ≈ A \ (scale .* db) rtol=1e-8 atol=1e-8 * scale
+    end
+end
+
+@testset "GMRES with degenerate preconditioners (LP-082, Gemini's finding 3)" begin
+    # Behaviour checked by Mistral's probe 1 of the W5 review; kept as tests.
+    rng = Xoshiro(821)
+    n = 5
+    A = Matrix(1.0I, n, n) .+ 0.2 .* randn(rng, n, n)
+    b = randn(rng, n)
+    tol = Tolerance(atol=1e-12, rtol=1e-12)
+    bound = 1e-12 + 1e-12 * norm(b)
+    for (name, kw, reason) in (("left annihilates", (; left = v -> zero(v)), :stalled),
+                               ("right annihilates", (; right = v -> zero(v)), :stalled),
+                               ("left overflows", (; left = v -> floatmax(Float64) .* 4 .* v), :nonfinite),
+                               ("left nonfinite", (; left = v -> fill(NaN, length(v))), :nonfinite))
+        x, report = linsolve(A, b, GMRES(restart=3, maxiters=20); tol, kw...)
+        @test !report.converged
+        @test report.reason === reason
+        @test report.residual == norm(b - A * x)
+        @test report.iterations <= 20
+    end
+    # A left preconditioner that makes the preconditioned residual tiny decides nothing:
+    # the true residual is still above the bound after the one allowed step.
+    x, report = linsolve(A, b, GMRES(restart=1, maxiters=1); tol, left = v -> 1e-20 .* v)
+    @test report.residual == norm(b - A * x)
+    @test report.converged == (report.residual <= bound)
+    @test report.iterations == 1
+end

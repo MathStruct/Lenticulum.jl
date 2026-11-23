@@ -121,7 +121,10 @@ end
             ("none",nothing,false), ("Jacobi",JacobiIFT(),false),
             ("left",Diagonal(1 ./d),false),
             ("right",ctx -> (;right=Diagonal(1 ./d)),false),
-            ("left solve",ctx -> (;left=Diagonal(d)),true))
+            ("left solve",ctx -> (;left=Diagonal(d)),true),
+            # The factory forms Gemini found untested (LP-082): one operator, and both sides.
+            ("factory left",ctx -> Diagonal(1 ./d),false),
+            ("both",ctx -> (;left=Diagonal(1 ./sqrt.(d)),right=Diagonal(1 ./sqrt.(d))),false))
             reports = []
             ift = KrylovIFT(;rtol=1e-12,atol=1e-13,itmax=200,memory=n,precond,ldiv,
                 on_solve=r -> push!(reports,r))

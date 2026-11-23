@@ -58,7 +58,7 @@ Mooncake, plus Enzyme with runtime activity enabled, for example
 Plain `AutoEnzyme()` remains supported for DEQ and scored LuxFactor paths. Loading
 SciMLSensitivity enables SciML endpoint derivatives with ForwardDiff/Zygote/Mooncake
 and recursively empty Lux state. `DEQFactor(...; ift=KrylovIFT())` opts into
-matrix-free first-order solves via the Krylov weak extension. Base derivative tools use
+matrix-free first-order solves by ImplicitSolvers' GMRES (load DifferentiationInterface). Base derivative tools use
 finite differences and remain small-system tools; see `solve.md` §4.
 
 **Every inversion returns a `DiracBelief`.** A root-find and an ODE solve both produce a
