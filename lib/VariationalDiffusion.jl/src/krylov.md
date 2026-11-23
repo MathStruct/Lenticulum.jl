@@ -23,11 +23,13 @@
 | $\log\det\Sigma_{FF}$ (mixture weights) | from the inverse | stochastic Lanczos quadrature |
 
 The precision diagonal $\operatorname{diag}(\rho_F^2)$ is added inside each product. For an energy
-network or a closed-form mixture with a common noise time across free coordinates, the
-symmetric part uses one JVP. Otherwise the solver explicitly averages the JVP and VJP.
-Unequal noise times give the predictor Jacobian unequal row scales ([[energy_network]]).
-For an `EnergyNetwork`, the implicit field's node weights cancel those scales algebraically.
-The solver selection uses the common-time condition for both energy models.
+network or a closed-form mixture the field is a gradient, so $J_{FF}$ is symmetric and the
+symmetric part costs one product, not two; otherwise it averages the JVP and the VJP. This
+holds at any block times: unequal times give the predictor's Jacobian unequal row scales
+$\operatorname{diag}(\sigma)H\operatorname{diag}(\alpha)$ (LP-018), but the field weights
+coordinate $i$ by $c\,\alpha_i/\sigma_i$, so each node adds $c\operatorname{diag}(\alpha)H\operatorname{diag}(\alpha)$
+([[energy_network]] §3; `test/p37_minres.jl` checks it for an energy and for the mixture ring at
+unequal levels).
 
 ## 2. Design decisions
 
@@ -36,10 +38,11 @@ The solver selection uses the common-time condition for both energy models.
   of `ImplicitProx`. The default stays `DenseSolve()`: exact, and faster while few coordinates
   are free.
 - **Shared linear solvers.** `method = :auto` selects MINRES when the model is an
-  `EnergyNetwork` or `GaussianMixtureEps` implicit diffusion and all blocks with free
-  coordinates share their time at each node. This holds without levels, with all such
-  blocks annealed, or with their levels fixed to one value. Fully clamped blocks are ignored.
-  `method = :minres` requires the same condition and `method = :gmres` always selects GMRES.
+  `ImplicitDiffusion` whose predictor is an `EnergyNetwork` or a `GaussianMixtureEps`
+  (`_symmetric_block`), at any block levels, and GMRES otherwise. `method = :minres` requires
+  the same and `method = :gmres` always selects GMRES. P37's design first restricted MINRES to a
+  common noise time on the free coordinates; Codex's test showed the field symmetric at unequal
+  levels, and the restriction was dropped.
   MINRES applies the VJP in both solves. It uses the exact adjoint action and avoids the
   loss of symmetry that a finite-difference JVP can introduce on reverse-only backends.
   Both solvers take `maxiters` and use the true residual bound $\text{rtol}\,\lVert b\rVert$.

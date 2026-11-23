@@ -64,9 +64,9 @@ With explicit block levels, the node input uses per-coordinate $\alpha_i$ and $\
 The field weight is $\lambda(\sigma_t^2/\alpha_t^2)\alpha_i/\sigma_i$ at node time $t$.
 It cancels the predictor's $\sigma_i$ in the derivative, giving the symmetric term
 $\lambda(\sigma_t^2/\alpha_t^2)\operatorname{diag}(\alpha)\nabla_x^2 E\operatorname{diag}(\alpha)$.
-The quadratic fixture in `test/p37_minres.jl` compares the two Jacobians at unequal
-fixed block times. The Krylov solver uses a conservative common-time condition
-for the single-product path ([[krylov]]).
+`test/p37_minres.jl` checks it at unequal block levels, for the quadratic fixture and for the
+mixture ring. So the Krylov solver treats an energy's free block as symmetric at any block times
+(MINRES, the one-product symmetric part; [[krylov]]).
 
 `implicit_energy(m, z, ps, st)` returns ``U``. Consequences:
 

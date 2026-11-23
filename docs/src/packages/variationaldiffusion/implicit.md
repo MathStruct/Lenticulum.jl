@@ -37,8 +37,8 @@ Every solver step, the Laplace covariance and the adjoint need only the Jacobian
 batched = true)` all nodes of one noise level go through the network in one call. When most of
 the state is free (generating an image), pass `linsolve = KrylovSolve()` to `implicit_infer`,
 `implicit_pullback`, `laplace_belief`, `implicit_mixture` or `ImplicitProx`. Newton steps and
-adjoints use MINRES for an energy model with a common noise time on the free coordinates
-and GMRES otherwise (`KrylovSolve(method = :auto)`). MINRES uses `prior_vjp` for both
+adjoints use MINRES for an energy model (an `EnergyNetwork` or a closed-form mixture, whose
+free block is symmetric) and GMRES otherwise (`KrylovSolve(method = :auto)`). MINRES uses `prior_vjp` for both
 solves. GMRES uses `prior_jvp` for Newton and `prior_vjp` for the adjoint. Select
 `method = :gmres` to always use GMRES or `method = :minres` to require an eligible
 symmetric block. `restart` controls GMRES only. Stability uses Lanczos and the Laplace

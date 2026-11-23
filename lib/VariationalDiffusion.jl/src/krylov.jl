@@ -36,8 +36,8 @@ Matrix-free linear algebra, for queries with many free coordinates (generating a
 
 - the Newton step and the adjoint solve ``J_{FF}d = -r_F`` and ``J_{FF}^\\top\\lambda = -\\bar z_F`` by
   GMRES or MINRES (relative tolerance `rtol`, at most `maxiters` Krylov steps). The default
-  `method = :auto` selects MINRES for an energy with a common noise time on the free block,
-  and GMRES otherwise. `method = :minres` requires that symmetry and throws `ArgumentError`
+  `method = :auto` selects MINRES where ``J_{FF}`` is symmetric, for an energy (an
+  [`EnergyNetwork`](@ref) or a closed-form mixture, at any block times), and GMRES otherwise. `method = :minres` requires that symmetry and throws `ArgumentError`
   otherwise. `method = :gmres` always uses GMRES and `restart` applies only to GMRES.
   MINRES uses vector-Jacobian products ([`prior_vjp`](@ref)) for both solves. GMRES uses
   Jacobian-vector products ([`prior_jvp`](@ref)) for Newton and VJPs for the adjoint;
@@ -79,9 +79,9 @@ _linear_tolerance(ls::KrylovSolve) = ImplicitSolvers.Tolerance(; atol = 0, ls.rt
 
 function _krylov_solver(ls::KrylovSolve, m, ρ)
     ls.method === :gmres && return _shared_solver(ls)
-    _symmetric_block(m, ρ) && return ImplicitSolvers.MINRES(; ls.maxiters)
+    _symmetric_block(m) && return ImplicitSolvers.MINRES(; ls.maxiters)
     ls.method === :minres && throw(ArgumentError(
-        "KrylovSolve(method = :minres) requires an energy with a common noise time on the free coordinates"))
+        "KrylovSolve(method = :minres) requires a symmetric free block: an ImplicitDiffusion whose predictor is an energy (EnergyNetwork or GaussianMixtureEps)"))
     return _shared_solver(ls)
 end
 
@@ -96,20 +96,11 @@ end
 
 # --- the operators on the free coordinates --------------------------------------------
 
-function _symmetric_block(m, ρ)::Bool
-    m isa ImplicitDiffusion && _has_energy(m) || return false
-    m.levels === nothing && return true
-    first_free = 0
-    for (k, coords) in enumerate(m.predictor.blocks.blocks)
-        any(!isinf, view(ρ, coords)) || continue
-        if first_free == 0
-            first_free = k
-        elseif m.levels[k] != m.levels[first_free]
-            return false
-        end
-    end
-    return true
-end
+# Is J_FF symmetric? For an energy (an `EnergyNetwork`, or a mixture's exact ε) the node's noise
+# Jacobian is diag(σ) H diag(α) and the field weights coordinate i by c α_i/σ_i (`_node_coefs`),
+# so each node adds c diag(α) H diag(α): symmetric at any block times (P37; checked in
+# test/p37_minres.jl). The predictor's Jacobian alone is not symmetric under unequal times (LP-018).
+_symmetric_block(m) = m isa ImplicitDiffusion && _has_energy(m)
 
 # x ↦ J_FF x, x ↦ J_FFᵀ x and the symmetric part, all with the precision diagonal, at z
 function _free_operators(m, z, ρ, ps, st)
@@ -119,7 +110,7 @@ function _free_operators(m, z, ρ, ps, st)
     embed(v) = (u = zeros(T, length(z)); u[free] .= v; u)
     J(v) = prior_jvp(m, z, embed(v), ps, st)[free] .+ ρ²F .* v
     Jt(v) = prior_vjp(m, z, embed(v), ps, st)[free] .+ ρ²F .* v
-    S = _symmetric_block(m, ρ) ? J : (v -> (J(v) .+ Jt(v)) ./ 2)
+    S(v) = _symmetric_block(m) ? J(v) : (J(v) .+ Jt(v)) ./ 2      # an energy's field is symmetric
     return (J = J, Jt = Jt, S = S, n = count(free))
 end
 
