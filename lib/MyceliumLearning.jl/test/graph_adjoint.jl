@@ -1,4 +1,4 @@
-using Test, Mycelium, LenticulumCore, LinearAlgebra, ADTypes
+using Test, Mycelium, LenticulumCore, LinearAlgebra, ADTypes, Random
 using DifferentiationInterface, ForwardDiff, Zygote, Krylov
 
 # Unnormalised Gaussian potentials, independent of top-level GaussianFactor.
@@ -222,6 +222,7 @@ struct AdjointSolveTestContext{A,F}
     map::F
 end
 MyceliumLearning._graph_state_map(x,p,c::AdjointSolveTestContext) = c.map(x)
+MyceliumLearning._graph_map_dot(x,p,c::AdjointSolveTestContext,v) = dot(v,c.map(x))
 
 @testset "LP-002 C Dirac fixed point, parameter step and singular system" begin
     b=GraphBuilder(); variable!(b,:x)
@@ -263,6 +264,22 @@ MyceliumLearning._graph_state_map(x,p,c::AdjointSolveTestContext) = c.map(x)
     g2=build(b2)
     @test_throws (msg -> occursin("preserve empty factor state",msg)) free_energy_gradient(
         MessageStore(g2),g2,(source=(;),),(source=(;),);schedule=flooding_schedule(g2),adjoint=:implicit)
+end
+
+# LP-081 (review of W4, M1 and M2): the matrix-free :gmres solves (I - Dᵀ)λ = r on a nonsymmetric system that needs
+# more Arnoldi steps than one restart cycle (30), and :dense solves the same system.
+@testset "P14 W4: graph adjoint solvers on a nonsymmetric system across GMRES restarts" begin
+    n=50; rng=Random.Xoshiro(81)
+    D=Matrix(Diagonal(range(0.05,0.95,length=n)))+triu(0.2randn(rng,n,n)/sqrt(n),1)
+    rhs=randn(rng,n); expected=(I-D')\rhs
+    @test norm(expected-(I-D)\rhs) > 0.1norm(expected)    # the transposed system differs
+    ctx=AdjointSolveTestContext(zeros(n),(;),AutoForwardDiff(),1e-6,x->D*x)
+    for solver in (:dense,:gmres)
+        λ=MyceliumLearning._graph_linear_solve(Val(solver),nothing,rhs,ctx,1e-10,200)
+        @test λ ≈ expected rtol=1e-8
+    end
+    @test_throws ArgumentError("implicit graph GMRES did not converge: maxiters") MyceliumLearning._graph_linear_solve(
+        Val(:gmres),nothing,rhs,ctx,1e-10,30)
 end
 
 # Correlated two-dimensional messages exercise full precision coordinates,

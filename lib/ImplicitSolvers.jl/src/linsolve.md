@@ -25,6 +25,9 @@ images are copied to the host. The returned solution follows the right-hand
 side's backend. Cholesky takes positive definiteness and symmetry as a caller
 assertion. This layer provides neither preconditioning nor a device-native
 direct factorization.
+A dense report has `iterations = 1` after a successful factorization and `0` when the matrix
+has nonfinite entries or the factorization fails; MyceliumLearning's graph adjoint tells a singular
+$I - D^\top$ from an unmet tolerance by it (LP-081).
 
 GMRES refuses complex systems with an `ArgumentError`: its Givens rotations are those of real
 arithmetic, and on a complex diagonal system it diverged to a residual of $2\cdot10^{14}$ (GLM's review

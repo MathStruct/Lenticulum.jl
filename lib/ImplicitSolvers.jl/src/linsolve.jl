@@ -6,6 +6,11 @@ abstract type AbstractLinearSolver end
 Solve by LU, or by Cholesky when `spd=true` asserts a symmetric positive definite
 matrix. Factorization uses host arrays. A callable operator is materialized by
 applying it to the coordinate basis.
+
+The report's `iterations` is `1` after a successful factorization and `0` when the
+matrix has nonfinite entries or the factorization fails (the zero vector is then
+returned). Callers tell a singular system from an unmet tolerance by it
+(MyceliumLearning's graph adjoint does).
 """
 struct DenseSolve <: AbstractLinearSolver
     spd::Bool

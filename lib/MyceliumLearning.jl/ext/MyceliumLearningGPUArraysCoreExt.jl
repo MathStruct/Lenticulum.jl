@@ -17,7 +17,8 @@ end
 function ML._pin_coordinates_wide(θref::AbstractGPUArray, mask, θ::AbstractGPUArray)
     T = promote_type(eltype(θref), eltype(θ))
     m = M._index_metadata(θ, collect(mask))
-    return ((keep, active, reference) -> first(promote(ifelse(keep, active, reference), zero(T)))).(m .!= 0, θ, θref)
+    z = zero(T)    # captured as a value: a closure over the type `T` is not isbits, refused as a kernel argument
+    return ((keep, active, reference) -> first(promote(ifelse(keep, active, reference), z))).(m .!= 0, θ, θref)
 end
 
 function ML._draw(rng, b::GaussianBelief{<:AbstractGPUArray,<:Diagonal{T,<:AbstractGPUArray}}) where {T}
