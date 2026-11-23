@@ -7,9 +7,9 @@
 > Element types come from the problem, never from a `Float64` field. Newton and trust-region steps
 > stay in `VariationalDiffusion` for now (phase 2). Status: design, 2026-11-22; W1 implemented the same day.
 
-> Sources: original to this vault (design). Walker & Ni, *Anderson acceleration for fixed-point iterations*, SIAM J. Numer. Anal. 49(4), 2011 (Anderson mixing; `walker2011anderson`); Saad & Schultz, *GMRES*, SIAM J. Sci. Stat. Comput. 7(3), 1986 (restarted GMRES; `saad1986gmres`); Bai, Kolter & Koltun, *Deep Equilibrium Models*, NeurIPS 2019 (the adjoint by the implicit function theorem; `bai2019deq`); code: `lib/ImplicitLayers.jl/src/solve.jl`, `lib/VariationalDiffusion.jl/src/implicit.jl`, `krylov.jl`, `proxdm.jl`, `many.jl`, `lib/MyceliumLearning.jl/src/graph_adjoint.jl`, `lib/Mycelium.jl/src/passing.jl`
+> Sources: original to this vault (design). Walker & Ni, *Anderson acceleration for fixed-point iterations*, SIAM J. Numer. Anal. 49(4), 2011 (Anderson mixing; `walker2011anderson`); Saad & Schultz, *GMRES*, SIAM J. Sci. Stat. Comput. 7(3), 1986 (restarted GMRES; `saad1986gmres`); Bai, Kolter & Koltun, *Deep Equilibrium Models*, NeurIPS 2019 (the adjoint by the implicit function theorem; `bai2019deq`); Montoison & Orban, *Krylov.jl: A Julia basket of hand-picked Krylov methods*, JOSS 8(89), 2023 (the alternative; `montoison2023krylov`); code: `lib/ImplicitLayers.jl/src/solve.jl`, `lib/VariationalDiffusion.jl/src/implicit.jl`, `krylov.jl`, `proxdm.jl`, `many.jl`, `lib/MyceliumLearning.jl/src/graph_adjoint.jl`, `lib/Mycelium.jl/src/passing.jl`, `bench/krylov_allocations.jl`
 >
-> Bibliography: [[Bibliography#^walker2011anderson|Walker & Ni 2011]] · [[Bibliography#^saad1986gmres|Saad & Schultz 1986]] · [[Bibliography#^bai2019deq|Bai et al. 2019]]
+> Bibliography: [[Bibliography#^walker2011anderson|Walker & Ni 2011]] · [[Bibliography#^saad1986gmres|Saad & Schultz 1986]] · [[Bibliography#^bai2019deq|Bai et al. 2019]] · [[Bibliography#^montoison2023krylov|Montoison & Orban 2023]]
 
 > Theory (CT-ML wiki): —
 
@@ -85,6 +85,7 @@ Lanczos and the log-determinant stay in `VariationalDiffusion`, their only user.
 - W5 removes the Krylov.jl extensions of `ImplicitLayers` and `MyceliumLearning`.
   `lib/ImplicitSolvers.jl/test/krylov_oracle.jl` retains the direct test dependency and
   checks agreement on generated systems.
+- Why Krylov.jl was dropped, what the in-house solvers lack, and the open choice: "Why not Krylov.jl" below (P40).
 
 **D5. Root solvers.** `solve_root(F, u0, alg; tol = Tolerance(), maxiters) -> (u, report)` for
 $F(u) = 0$, $u$ an `AbstractVector`. Algorithms: `Picard(; damping = 1)` ($u \leftarrow u - \alpha F(u)$),
@@ -264,6 +265,73 @@ bitwise equal; the tests that compare them stay as they are). Load time of `Vari
 
 W6 and W7 go on one branch (two commits): the interface is only right if it fits its one consumer, and
 the review sees both.
+
+## Why not Krylov.jl (record, 2026-11-24)
+
+Written after the fact, at the maintainer's request: P14 replaced Krylov.jl without anyone recording why
+or weighing the two options, and the result has gaps that Krylov.jl does not have. Open as P40.
+
+**The reason given.** The W5 brief and D4 give only consolidation: "one solver, one tolerance rule, one
+report". At the time Krylov.jl was used only by two optional extensions (`KrylovIFT` with a
+preconditioner, `ldiv` or a complex right-hand side; MyceliumLearning's `:krylov`), and
+`VariationalDiffusion` already had its own restarted GMRES. W5 extended that GMRES and removed the
+extensions. Nobody checked whether Krylov.jl, wrapped, could have met D2 and D3. P37 then wrote MINRES
+in-house after measuring with Krylov.jl's `minres` as a stand-in (LP-083).
+
+**What the in-house solvers have.** The four points below are what they do, not reasons anyone gave
+before W5:
+- convergence on the true residual. In the 2×2 fixtures of `lib/ImplicitSolvers.jl/test/krylov_oracle.jl`
+  with a nonuniform left Jacobi preconditioner, Krylov.jl stopped on its preconditioned estimate above
+  the D2 bound (LP-082);
+- the D2 rule, with defaults from the problem's element type, in place of `Float64` fields;
+- under ForwardDiff, stopping on primal values and correcting tangents afterwards (P38, LP-084),
+  including complex dual numbers (LP-082). The tangent correction runs after a converged solve and
+  calls `linsolve` again. It does not depend on which Krylov code produced the primal solution;
+- a `SolverReport` with `nfe`.
+
+Whether Krylov.jl's callback and its handling of dual element types could give the same was not
+checked.
+
+**What they lack** (the maintainer's review, 2026-11-24, checked against `linsolve.jl` at `ce4b0282`):
+- *Allocation-free use.* `linsolve` has no in-place form and no workspace. On each call, GMRES
+  allocates `x0`, `r` and the product `ax`. On each Arnoldi step it allocates the operator's result,
+  its `copy` and the normalised basis vector, pushed onto a growing `Vector`. On each cycle it
+  allocates `H`, `c`, `s` and `g`, and on each restart `xnew`. The operator contract is
+  $v \mapsto Av$ returning a new vector, not `mul!(y, A, v)`. Measured with `bench/krylov_allocations.jl`
+  (Julia 1.13.1, one thread, dense $A = I + \text{randn}/(4\sqrt n)$, restart 40, tolerance $10^{-10}$,
+  17 iterations): the shared GMRES allocates 112 kB at $n = 200$ and 948 kB at $n = 2000$, about 70 and
+  59 vectors. Krylov.jl's `gmres!` with a `GmresWorkspace` allocates 0 bytes. Its time is 0.057 against
+  0.073 ms at $n = 200$, and 1.81 against 2.14 ms at $n = 2000$. Time is close at these sizes; the
+  allocations matter for repeated solves (every implicit adjoint, every Newton step) and on devices.
+- *Types for dispatch.* `GMRES` and `MINRES` hold only `Int` fields. Nothing is parametrised by the
+  element type or the storage type, unlike a Krylov.jl workspace (`{T, FC, S}`). The operator is
+  told apart only as `AbstractMatrix` versus anything else, and genericity is by duck typing on
+  broadcasts.
+- *Array types and GPUs.* The device tests (`lib/ImplicitSolvers.jl/test/device.jl`) are JLArrays on
+  2×2 systems, which catches scalar indexing and nothing else. No CUDA or other hardware GPU run, no
+  device size, and no other array types (views, `ComponentArray`s, distributed arrays) are tested.
+  GMRES keeps `H` and `g` on the host and calls `dot` twice per basis vector per step, one device
+  synchronisation each; this was not measured. The open question below (no device benchmark planned)
+  is still open.
+- *Preconditioners.* GMRES takes `left` and `right` only as functions $v \mapsto Mv$. There is no
+  `ldiv!` object protocol, and no in-place form. The package provides no preconditioner itself:
+  Jacobi appears only in tests. MINRES takes none. CG and Lanczos are a third copy in
+  `lib/VariationalDiffusion.jl/src/krylov.jl` (`_cg`, `_lanczos`), with their own `rtol`.
+
+Krylov.jl provides the missing pieces according to its documentation (Montoison and Orban 2023):
+in-place methods on preallocated workspaces, `mul!` operators, the preconditioners `M` and `N`
+including `ldiv!` objects, and GPU arrays. None of these was tried here.
+
+**The open choice (P40).**
+(a) Krylov.jl as the backend of `linsolve` for GMRES, MINRES and CG. `Tolerance`,
+`SolverReport`, a final true-residual check and the tangent correction remain a wrapper. The oracle test
+then tests the wrapper against `DenseSolve`.
+(b) Keep the in-house solvers and add what they lack: workspaces, `mul!` operators, `ldiv!`
+preconditioners, and a hardware GPU test and benchmark.
+
+Before (a), check three things: Krylov.jl on `ForwardDiff.Dual` and complex `Dual` element types, on
+JLArrays with `allowscalar(false)`, and whether its callback can stop on the true residual under
+left preconditioning. (b) is the larger amount of code to own.
 
 ## Open questions
 
