@@ -71,7 +71,29 @@ unequal levels).
   The adjoint warns when the solver stops short. MINRES assumes symmetry, so only the
   true residual can catch a wrong iterate produced on a nonsymmetric operator.
 
-## 4. Measured (P37)
+## 4. Measured
+
+### MINRES against GMRES on an energy (P37, 2026-11-23)
+
+`bench/minres_energy.jl`: an untrained `EnergyNetwork` MLP $(n+4)\to w\to w\to1$ (swish, Float64),
+`noisefree_nodes(n)`, batched, Zygote, one BLAS thread; the system $J_{FF}^\top x = b$ applied by
+the VJP, `rtol` $10^{-8}$, `atol` 0, at most 2000 steps. At $\rho = 0$ the block is indefinite
+(at $n = 64$: 29 of 64 eigenvalues negative, condition number 61; at $n = 128$: 59 of 128,
+condition number 621; `~/.cache/lenticulum/p37/measure.jl`).
+
+| $n$ ($w$) | $\rho$ | GMRES(40): reason, products, true rel. residual, time | MINRES: reason, products, true rel. residual, time |
+|---|---|---|---|
+| 64 (256) | 0 | converged, 1023, $9.9\cdot10^{-9}$, 7.8 s | converged, 92, $6.1\cdot10^{-9}$, 0.73 s |
+| 128 (256) | 0 | maxiters, 2051, 0.17, 19.0 s | converged, 323, $6.9\cdot10^{-9}$, 2.9 s |
+| 128 (256) | 1 | converged, 5, $3.9\cdot10^{-11}$ | converged, 5, $3.9\cdot10^{-11}$ |
+| 256 (512) | 0 | maxiters, 2051, 0.099, 78.3 s | converged, 956, $9.6\cdot10^{-9}$, 35.6 s |
+
+Restarted GMRES loses its basis every 40 steps and stalls on these indefinite blocks; MINRES keeps
+three vectors and converges. On a positive definite block the two are the same. End to end
+(`implicit_infer` from a random start, 8 outer steps) the untrained network has no root near the
+start at $\rho = 0$ under either method, and at $\rho = 1$ one Newton or trust-region step
+converges under both, so the end-to-end times do not separate the methods (same table in the
+benchmark's output); a trained model at a saddle was not measured.
 
 ### Earlier measurement
 

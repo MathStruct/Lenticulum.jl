@@ -302,3 +302,18 @@ end
     λ, report = fixed_point_adjoint(v -> J' * v, b, MINRES(); tol)
     @test report.converged && λ ≈ (I - J') \ b
 end
+
+@testset "Krylov tangents at an exact breakdown (LP-083, Mistral's F1; known limit, P38)" begin
+    # b is an eigenvector of A(0): the Krylov space of the primal system is invariant after one
+    # step, and both recurrences stop there, while the tangent system needs a direction outside
+    # it. The dense solve's derivative is [0, -1/4]; MINRES and GMRES return [0, 0].
+    A(θ) = [2.0 θ; θ 2.0]
+    b = [1.0, 0.0]
+    tol = Tolerance(; atol=0, rtol=1e-12)
+    dense = ForwardDiff.derivative(θ -> first(linsolve(A(θ), b, DenseSolve(); tol)), 0.0)
+    @test dense ≈ [0.0, -0.25]
+    for alg in (MINRES(), GMRES())
+        d = ForwardDiff.derivative(θ -> first(linsolve(A(θ), b, alg; tol)), 0.0)
+        @test_broken d ≈ dense
+    end
+end

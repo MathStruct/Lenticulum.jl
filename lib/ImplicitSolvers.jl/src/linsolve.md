@@ -75,3 +75,12 @@ MINRES assumes Hermitian symmetry. The true residual judges the resulting
 iterate if that assumption fails. The current implementation supports only
 unpreconditioned systems. A preconditioned variant requires a symmetric positive
 definite preconditioner.
+
+**Known limit, shared with GMRES (LP-083, P38).** Under ForwardDiff the recurrences carry the
+tangents, but their stopping decisions read primal values. Where the Krylov space of the primal
+system is invariant (an exact breakdown, e.g. $b$ an eigenvector of $A$), the solve stops while the
+tangent system $A\dot x = \dot b - \dot A x$ needs a direction outside that space: the tangent of
+$x$ is then wrong (zero in the test), the primal value and the report right. A $b$ with zero
+primal and nonzero tangent likewise returns a zero tangent. Generic dual inputs match the dense
+derivative to rounding. `test/linsolve.jl`, "Krylov tangents at an exact breakdown", records the
+case as `@test_broken`.
