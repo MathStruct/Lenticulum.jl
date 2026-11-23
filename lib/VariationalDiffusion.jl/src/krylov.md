@@ -46,7 +46,8 @@ unequal levels).
   MINRES applies the VJP in both solves. It uses the exact adjoint action and avoids the
   loss of symmetry that a finite-difference JVP can introduce on reverse-only backends.
   Both solvers take `maxiters` and use the true residual bound $\text{rtol}\,\lVert b\rVert$.
-  Only GMRES uses `restart`. The trust-region step uses Steihaug CG with either setting.
+  Only GMRES uses `restart`. ImplicitSolvers runs the trust-region iteration and its
+  Steihaug CG steps on the Hessian action supplied by VariationalDiffusion.
   VariationalDiffusion owns CG, Lanczos and the log-determinant estimate. See [[Shared Solver Layer]].
 - **Deterministic.** Lanczos starts and Hutchinson probes come from `Xoshiro(seed)`, so the same
   query gives the same answer, which the implicit function theorem relies on.

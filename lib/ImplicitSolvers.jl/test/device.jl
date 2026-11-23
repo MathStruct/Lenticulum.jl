@@ -96,3 +96,33 @@ end
         @test ForwardDiff.derivative(θ -> solve(θ, alg), 0.0) ≈ dense
     end
 end
+
+@testset "P39 column solvers on JLArrays without scalar indexing" begin
+    JLArrays.allowscalar(false)
+    A = JLArray([2.0 0.0; 0.0 3.0])
+    target = JLArray([1.0, -2.0])
+    starts = JLArray([1.0 0.0 -2.0; -2.0 0.0 1.0])
+    apply(v) = A * v
+    function residual(U, cols)
+        @test U isa JLArray
+        return A * (U .- target)
+    end
+    problem = (; residual,
+        scale = (U, cols) -> vec(sqrt.(sum(abs2, U; dims=1))),
+        system = (U, cols) -> (JLArray(fill(true, length(cols))),
+            fill(r -> first(linsolve(A, r, DenseSolve(spd=true))), length(cols))),
+        merit = (U, R, cols) -> vec(sum((U .- target) .* R; dims=1)) ./ 2,
+        stable = (U, cols) -> JLArray(fill(true, length(cols))))
+    for H in (Symmetric(A), apply)
+        device_problem = merge(problem,
+            (model = (U, R, cols) -> [(R[:, b], H) for b in axes(R, 2)],))
+        for alg in (NewtonDescent(), TrustRegion())
+            U, reports, stable = solve_columns(device_problem, starts, alg;
+                                               tol=Tolerance(atol=1e-8), maxiters=40)
+            @test U isa JLArray{Float64,2}
+            @test Array(U) ≈ repeat(Array(target), 1, 3) atol=1e-8
+            @test all(r -> r.converged, reports) && all(stable)
+            @test reports[1].iterations == 0
+        end
+    end
+end

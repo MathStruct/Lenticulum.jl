@@ -210,8 +210,10 @@ vector can still carry AD tangents. The constructor applies the same rule to sin
 
 `implicit_infer_many(m, Z₀, ρ, ps, st)` solves the columns of `Z₀` as separate queries with
 one polarity. Each query keeps its own Newton or descent step, backtracking, stability test and
-stopping rule, and leaves the batch when it converges. What is shared is the network: per
-iteration, one call per noise level evaluates the field of all unfinished queries. The
+stopping rule in ImplicitSolvers' `solve_columns`. Both inference entry points call that
+driver. The batched adapter builds full states from the active free coordinates and supplies
+the field, scale, Jacobian blocks and, for the trust region, the merit. Per iteration, one
+call per noise level evaluates the field of all unfinished queries. The
 free-coordinate blocks of all of them come from one more call per level, which stacks the
 $\lvert F\rvert$ directions as copies of the inputs side by side: JVPs in general, VJPs (rows)
 when the predictor has an AD backend. The blocks are dense, so this suits few free coordinates,
@@ -289,8 +291,9 @@ against single ones, a Lux energy network on JLArrays.
 ## 10. Single roots, tolerances, continuation
 
 The scalar and batched score-based solvers choose the default tolerance from the arithmetic
-of the field. They retain their own Newton and trust-region stopping tests. The Krylov Newton
-step uses shared GMRES or MINRES.
+of the field. They pass `Tolerance(atol = tol, rtol = tol)` to `solve_columns` with the norm
+of the full state as the scale. The driver compares with `tol + tol * norm(z)`. The Krylov
+Newton step uses shared GMRES or MINRES.
 
 Found on MNIST ([[MNIST in Both Directions]] §6; Open Problems I13):
 
@@ -332,19 +335,19 @@ descent steps are too short and the Newton steps are not taken, so the iteration
 `implicit_infer(…; method = :trust_region)` is a trust-region method on a merit function
 (Nocedal & Wright 2006, ch. 4):
 
-- **with an energy**, the query energy $Q(z) = U(z) + \tfrac12\lVert\rho_F(z_F - z_{0,F})\rVert^2$, whose gradient is
-  the residual and whose Hessian is $\operatorname{sym}J_{FF}$. Every accepted step lowers $Q$, so the
-  iteration cannot settle on a saddle or a maximum; negative curvature is a direction to move in,
-  not a reason to fall back;
+- **with an energy**, the query energy $Q(z) = U(z) + \tfrac12\lVert\rho_F(z_F - z_{0,F})\rVert^2$,
+  whose gradient is the residual and whose Hessian is $\operatorname{sym}J_{FF}$. An indefinite
+  model can step along negative curvature. If a start already satisfies the root tolerance,
+  the solver returns that point and reports its stability.
 - **without one**, $\tfrac12\lVert r_F\rVert^2$ with the Gauss–Newton model (Levenberg–Marquardt), which
   can stop at a minimum of the residual that is not a root; `converged` then says so.
 
-Each step minimises the quadratic model in a ball of radius $\Delta$: exactly with `DenseSolve`
-(the eigendecomposition and a one-dimensional search for the shift, with the hard case), by
-Steihaug's truncated conjugate gradients (Steihaug 1983) with `KrylovSolve` (Hessian-vector products only).
-$\Delta$ starts at $0.1\sqrt{|F|}$ and is halved or doubled by the ratio of actual to predicted decrease.
-Near the answer that ratio drowns in the rounding of $Q$, computed in the network's precision;
-there a smaller residual decides instead.
+The iteration and quadratic steps live in ImplicitSolvers ([[descent]]). VariationalDiffusion
+supplies the merit choice, a symmetric free-coordinate model for `DenseSolve` or Hessian-vector
+products for `KrylovSolve`, and the stability check. The driver shrinks the radius to a quarter
+of the step norm or doubles it according to the ratio of actual to predicted decrease. It uses
+the arithmetic epsilon supplied by `_arith_eps` to switch to the residual comparison when
+merit rounding dominates and to stop when the radius drops below the precision floor.
 
 `method = :auto`, the default, uses it for relations with an energy (energy networks, mixtures,
 products of them) and Newton-or-descent otherwise. `implicit_infer_many` has the same method for

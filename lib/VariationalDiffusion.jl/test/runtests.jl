@@ -1905,7 +1905,7 @@ end
 end
 
 @testset "trust region: the exact step, robust convergence, both merits" begin
-    VD = VariationalDiffusion
+    IS = VariationalDiffusion.ImplicitSolvers
     # the dense step minimises the model within the ball: against a brute-force search on a grid
     model(g, H, p) = dot(g, p) + dot(p, H * p) / 2
     function brute(g, H, Δ)
@@ -1921,13 +1921,13 @@ end
                       ([1.0, 0.5], [2.0 0.3; 0.3 1.0], 0.2),          # on the boundary
                       ([0.3, -1.0], [-1.0 0.2; 0.2 0.5], 0.7),        # indefinite
                       ([0.0, 1.0], [-1.0 0.0; 0.0 2.0], 0.9))         # hard case: g ⊥ lowest eigenvector
-        p = VD._tr_step(DenseSolve(), g, Symmetric(H), Δ)
+        p = IS._tr_step(IS.TrustRegion(), g, Symmetric(H), Δ)
         @test norm(p) ≤ Δ * (1 + 1e-8)
         @test model(g, H, p) ≤ brute(g, H, Δ) + 1e-4
-        q = VD._tr_step(KrylovSolve(), g, v -> H * v, Δ)         # Steihaug: within the ball, a decrease
+        q = IS._tr_step(IS.TrustRegion(), g, v -> H * v, Δ)       # Steihaug: within the ball, a decrease
         @test norm(q) ≤ Δ * (1 + 1e-8) && model(g, H, q) < 0
     end
-    @test VD._tr_step(DenseSolve(), [1.0, 0.5], Symmetric([2.0 0.3; 0.3 1.0]), 5.0) ≈ -([2.0 0.3; 0.3 1.0] \ [1.0, 0.5])
+    @test IS._tr_step(IS.TrustRegion(), [1.0, 0.5], Symmetric([2.0 0.3; 0.3 1.0]), 5.0) ≈ -([2.0 0.3; 0.3 1.0] \ [1.0, 0.5])
 
     # on the circle every start reaches a branch, where Newton-or-descent stalls in a quarter
     m = ImplicitDiffusion(RING, field_nodes(Xoshiro(1), 2; samples = 2))
@@ -1951,7 +1951,7 @@ end
     pg = NoisePredictor(AnalyticEps(SCHED, [1.0 0.8; 0.8 1.0]), SCHED)
     gps, gst = LuxCore.setup(Random.default_rng(), pg)
     mg = ImplicitDiffusion(pg, field_nodes(Xoshiro(1), 2; samples = 2))
-    @test !VD._has_energy(mg)
+    @test !VariationalDiffusion._has_energy(mg)
     a, _ = implicit_infer(mg, [0.7, 20.0], HARDX, gps, gst; method = :trust_region)
     b, _ = implicit_infer(mg, [0.7, 0.0], HARDX, gps, gst)
     @test a.converged && a.stable

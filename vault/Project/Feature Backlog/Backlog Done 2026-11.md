@@ -8,6 +8,19 @@
 
 ## 2026-11-23
 
+P39: phase 2 of the shared solver layer. Newton-or-descent and the trust region are one driver in
+ImplicitSolvers over the columns of a batch: `solve_columns(problem, U0, alg; tol, maxiters)` with
+`NewtonDescent` and `TrustRegion` (Moré–Sorensen exact step, Steihaug CG, the ratio rule with its noise
+floor), callbacks for the residual, scale, Newton system, merit, model and stability
+(`lib/ImplicitSolvers.jl/src/descent.jl`, note `descent.md`). VariationalDiffusion's `implicit_infer` and
+`implicit_infer_many` call it; the two copies of both loops in `many.jl` are gone, and the tolerance is
+D2's (`Tolerance(atol = tol, rtol = tol)`). Before against after: bitwise equal on 2,503 calls of the
+suite and the smoke examples (Codex's recording) and on Mistral's 382 targeted lines; load time +0.9 %,
+`bench/minres_energy.jl` warm times unchanged (fresh process +7.6 %, compilation). One deliberate change:
+a non-finite trial residual now shrinks the radius instead of repeating the step. Tests
+`lib/ImplicitSolvers.jl/test/descent.jl`, `test/device.jl`. Implemented by Codex, reviewed by Mistral:
+[[LP-085 Findings of the review of P39|LP-085]] (no defect; the change above documented with a test).
+
 P38: tangents through the shared Krylov solvers at an exact breakdown. After a GMRES or MINRES solve on
 ForwardDiff duals has converged, each partial direction's tangent residual is checked against the same
 `Tolerance` (scale: the larger of the partials of $b$ and $Ax$ and $\lVert Ax\rVert\lVert\dot x_i\rVert/\lVert x\rVert$), and a failing direction is

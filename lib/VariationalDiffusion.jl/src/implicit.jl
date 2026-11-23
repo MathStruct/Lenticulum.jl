@@ -425,8 +425,8 @@ it when the relation has an energy and Newton-or-descent otherwise; `:newton` fo
 
 - with an energy ([`EnergyNetwork`](@ref), [`GaussianMixtureEps`](@ref), products of them) the merit
   is the query's energy ``Q(z) = U(z) + \\tfrac12\\lVert\\rho_F(z_F - z_{0,F})\\rVert^2``, whose gradient is the
-  residual and whose Hessian is ``\\operatorname{sym}J_{FF}``: every accepted step lowers ``Q``, so the
-  iteration is not drawn to saddles or maxima;
+  residual and whose Hessian is ``\\operatorname{sym}J_{FF}``. The model can step along negative
+  curvature. Near the rounding floor of the merit, a decrease in the residual decides acceptance.
 - without one it is ``\\tfrac12\\lVert r_F\\rVert^2`` with the Gauss–Newton model (Levenberg–Marquardt),
   which can stop at a minimum of the residual that is not a root (then `converged` is false).
 
@@ -456,88 +456,53 @@ function implicit_infer(m::AbstractImplicitRelation, z₀, ρ, ps, st;
         sol, st = implicit_infer(m, z₀, ρ, ps, st; z_init = z, tol, maxiters, step, linsolve, method, radius)
         return (ImplicitSolution(sol.z, sol.residual, sol.iters + its, sol.converged, sol.stable), st)
     end
-    method === :trust_region && return _infer_trust_region(m, z₀, ρ, ps, st; z_init, tol, maxiters, linsolve, radius)
     free = .!isinf.(ρ)
     z = float.(copy(z_init))
     z[.!free] .= z₀[.!free]
-    rnorm(zz) = norm(first(implicit_residual(m, zz, z₀, ρ, ps, st))[free])
-    for it in 1:maxiters
-        r, st = implicit_residual(m, z, z₀, ρ, ps, st)
-        rF = r[free]
-        nr = norm(rF)
-        sys = _newton_system(linsolve, m, z, ρ, ps, st)
-        if nr ≤ tol * (1 + norm(z))
-            return (ImplicitSolution(z, nr, it - 1, true, sys.stable), st)
-        end
-        if sys.stable
-            d = -sys.solve(rF)
-            η = 1.0
-            while η > 1e-8
-                zn = copy(z); zn[free] .+= η .* d
-                rnorm(zn) < (1 - 1e-4 * η) * nr && break
-                η /= 2
-            end
-            z[free] .+= η .* d
-        else
-            z[free] .-= step .* rF
-        end
+    function state(U)
+        zz = copy(z)
+        zz[free] .= view(U, :, 1)
+        return zz
     end
-    r, st = implicit_residual(m, z, z₀, ρ, ps, st)
-    nr = norm(r[free])
-    stable = _newton_system(linsolve, m, z, ρ, ps, st).stable
-    return (ImplicitSolution(z, nr, maxiters, nr ≤ tol * (1 + norm(z)), stable), st)
+    U0 = reshape(z[free], :, 1)
+    scale(U, cols) = [norm(state(U))]
+    trial_residual(U, cols) = reshape(first(implicit_residual(m, state(U), z₀, ρ, ps, st))[free], :, 1)
+    if method === :newton
+        function residual(U, cols)
+            r, st = implicit_residual(m, state(U), z₀, ρ, ps, st)
+            return reshape(r[free], :, 1)
+        end
+        function system(U, cols)
+            sys = _newton_system(linsolve, m, state(U), ρ, ps, st)
+            return ([sys.stable], (sys.solve,))
+        end
+        problem = (; residual, scale, system, trial_residual)
+        alg = ImplicitSolvers.NewtonDescent(; step)
+    else
+        energetic = _has_energy(m)
+        merit(U, R, cols) = [energetic ? _query_energy(m, state(U), z₀, ρ, ps, st) : sum(abs2, R[:, 1]) / 2]
+        model(U, R, cols) = (_tr_model(linsolve, m, state(U), ρ, ps, st, R[:, 1], energetic),)
+        stable(U, cols) = [_newton_system(linsolve, m, state(U), ρ, ps, st).stable]
+        problem = (; residual = trial_residual, scale, merit, model, stable)
+        alg = _trust_region(linsolve, radius, _arith_eps(m, z₀, ps))
+    end
+    U, reports, flags = ImplicitSolvers.solve_columns(problem, U0, alg;
+        tol = ImplicitSolvers.Tolerance(atol = tol, rtol = tol), maxiters)
+    report = only(reports)
+    return (ImplicitSolution(state(U), report.residual, report.iterations, report.converged, only(flags)), st)
 end
 
-# --- the trust-region method ---------------------------------------------------------
-# A merit f on the free coordinates with gradient g and model Hessian H at z: the query energy
-# (g = r_F, H = sym J_FF) when the relation has one, else ½‖r_F‖² (g = J_FFᵀ r_F, H = J_FFᵀ J_FF).
-# Each step minimises gᵀp + ½pᵀHp over ‖p‖ ≤ Δ; Δ follows the ratio of actual to predicted
-# decrease (Nocedal & Wright, Algorithm 4.1).
-function _infer_trust_region(m, z₀, ρ, ps, st; z_init, tol, maxiters, linsolve, radius)
-    free = .!isinf.(ρ)
-    nF = count(free)
-    z = float.(copy(z_init))
-    z[.!free] .= z₀[.!free]
-    T = eltype(z)
-    energetic = _has_energy(m)
-    resid(zz) = first(implicit_residual(m, zz, z₀, ρ, ps, st))[free]
-    merit(zz, rF) = energetic ? _query_energy(m, zz, z₀, ρ, ps, st) : sum(abs2, rF) / 2
-    Δ = T(radius === nothing ? 0.1 * sqrt(max(nF, 1)) : radius)
-    εa = _arith_eps(m, z₀, ps)                         # the arithmetic's precision (Float32 on a device)
-    rF = resid(z)
-    f = merit(z, rF)
-    for it in 0:maxiters
-        nr = norm(rF)
-        if nr ≤ tol * (1 + norm(z)) || it == maxiters || Δ < 10εa * (1 + norm(z))
-            stable = _newton_system(linsolve, m, z, ρ, ps, st).stable
-            return (ImplicitSolution(z, nr, it, nr ≤ tol * (1 + norm(z)), stable), st)
-        end
-        g, H = _tr_model(linsolve, m, z, ρ, ps, st, rF, energetic)
-        p = _tr_step(linsolve, g, H, Δ)
-        pred = -(dot(g, p) + dot(p, _apply_H(H, p)) / 2)
-        zn = copy(z); zn[free] .+= p
-        rn = resid(zn)
-        fn = merit(zn, rn)
-        # near a root the decrease drowns in the rounding of the merit (computed in the network's
-        # precision, Float32 on a GPU): then a smaller residual decides
-        noisy = pred ≤ 100 * εa * max(abs(f), one(T))
-        ratio = noisy ? (norm(rn) < nr ? one(T) : zero(T)) : (f - fn) / pred
-        np = norm(p)
-        if ratio < 0.25
-            Δ = np / 4
-        elseif ratio > 0.75 && np ≥ 0.99Δ
-            Δ = 2Δ
-        end
-        if ratio > 1e-4
-            z, rF, f = zn, rn, fn
-        end
-    end
-end
+_trust_region(::DenseSolve, radius, precision) = ImplicitSolvers.TrustRegion(; radius, precision)
+_trust_region(ls::KrylovSolve, radius, precision) =
+    ImplicitSolvers.TrustRegion(; radius, precision, cg_maxiters = ls.maxiters, cg_rtol = ls.rtol)
 
 # the model's gradient and Hessian: a dense matrix, or an operator v ↦ Hv
 function _tr_model(::DenseSolve, m, z, ρ, ps, st, rF, energetic)
     free = .!isinf.(ρ)
     J = prior_jacobian(m, z, ps, st; coords = free) .+ Diagonal(ρ[free] .^ 2)
+    return _tr_model(J, rF, energetic)
+end
+function _tr_model(J::AbstractMatrix, rF, energetic)
     energetic && return (rF, Symmetric((J .+ J') ./ 2))
     return (J' * rF, Symmetric(J' * J))
 end
@@ -545,67 +510,6 @@ function _tr_model(::KrylovSolve, m, z, ρ, ps, st, rF, energetic)
     op = _free_operators(m, z, ρ, ps, st)
     energetic && return (rF, op.S)
     return (op.Jt(rF), v -> op.Jt(op.J(v)))
-end
-_apply_H(H::AbstractMatrix, p) = H * p
-_apply_H(H, p) = H(p)
-
-# the exact step: p(λ) = -(H + λI)⁻¹g with λ ≥ max(0, -λ_min) and ‖p‖ ≤ Δ (Moré–Sorensen, from
-# the eigendecomposition; in the hard case a move along the lowest eigenvector to the boundary)
-function _tr_step(::DenseSolve, g, H::AbstractMatrix, Δ)
-    E = LinearAlgebra.eigen(H)
-    λs, V = E.values, E.vectors
-    gt = V' * g
-    pof(λ) = -(V * (gt ./ (λs .+ λ)))
-    λmin = first(λs)
-    if λmin > 0
-        p = pof(zero(λmin))
-        norm(p) ≤ Δ && return p
-    end
-    lo = max(zero(λmin), -λmin)
-    hi = lo + norm(g) / Δ + abs(lo) + one(λmin)
-    while norm(pof(hi)) > Δ
-        hi *= 2
-    end
-    if !(norm(pof(lo + sqrt(eps(λmin)) * (1 + abs(lo)))) > Δ)    # hard case: g ⊥ lowest eigenvector
-        p = pof(lo + sqrt(eps(λmin)) * (1 + abs(lo)))
-        v = V[:, 1]
-        τ = _to_boundary(p, v, Δ)
-        return p .+ τ .* v
-    end
-    for _ in 1:100                                     # ‖p(λ)‖ decreases in λ: bisection
-        mid = (lo + hi) / 2
-        norm(pof(mid)) > Δ ? (lo = mid) : (hi = mid)
-    end
-    return pof(hi)
-end
-
-# Steihaug's truncated conjugate gradients: CG on Hp = -g until it leaves the ball, meets
-# negative curvature (then to the boundary along that direction) or converges
-function _tr_step(ls::KrylovSolve, g, H, Δ)
-    p = zero(g)
-    r = copy(g)
-    d = -r
-    gn = norm(g)
-    gn == 0 && return p
-    for _ in 1:ls.maxiters
-        Hd = _apply_H(H, d)
-        κ = dot(d, Hd)
-        κ ≤ 0 && return p .+ _to_boundary(p, d, Δ) .* d
-        α = dot(r, r) / κ
-        pn = p .+ α .* d
-        norm(pn) ≥ Δ && return p .+ _to_boundary(p, d, Δ) .* d
-        rn = r .+ α .* Hd
-        norm(rn) ≤ ls.rtol * gn && return pn
-        d = -rn .+ (dot(rn, rn) / dot(r, r)) .* d
-        p, r = pn, rn
-    end
-    return p
-end
-
-# τ ≥ 0 with ‖p + τd‖ = Δ
-function _to_boundary(p, d, Δ)
-    a, b, c = dot(d, d), 2dot(p, d), dot(p, p) - Δ^2
-    return (-b + sqrt(max(b^2 - 4a * c, zero(a)))) / (2a)
 end
 
 # the relation with every node's level multiplied by c (at most 1): a smoother field

@@ -1357,6 +1357,20 @@ references:
     year: 2025
     url: "https://arxiv.org/abs/2503.18608"
   - type: article
+    title: "Computing a Trust Region Step"
+    authors:
+      - family-names: "Moré"
+        given-names: "Jorge J."
+      - family-names: "Sorensen"
+        given-names: "D. C."
+    year: 1983
+    journal: "SIAM Journal on Scientific and Statistical Computing"
+    volume: "4"
+    issue: "3"
+    start: "553"
+    end: "572"
+    doi: "10.1137/0904038"
+  - type: article
     title: "The Conjugate Gradient Method and Trust Regions in Large Scale Optimization"
     authors:
       - family-names: "Steihaug"

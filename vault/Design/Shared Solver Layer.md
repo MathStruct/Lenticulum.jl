@@ -182,7 +182,7 @@ W1 first; W2, W3 and W4 are independent after it; W5 last. Phase 2 (Newton, the 
 
 ## Phase 2: Newton and the trust region (P39)
 
-Design, 2026-11-23, after phase 1 was done; not implemented. The inventory at `077e8f5a`:
+Design, 2026-11-23, after phase 1 was done; implemented the same day (Codex, reviewed by Mistral, [[LP-085 Findings of the review of P39|LP-085]]). Deliberate change found by the review: a trial point with a non-finite residual counts as ratio 0 and shrinks the radius (before, the NaN ratio kept the radius and the same step was retried until `maxiters`); no recorded call reaches it. The `problem` named tuple has three optional members beyond D8 (`trial_residual`, `residual_norms`, `round_steps`), which keep the old evaluation order and rounding bitwise; `many.jl`'s trust-region `scale` callback also evaluates the batch Jacobian that `stable` and `model` read, which relies on the driver calling `scale` on all unfinished columns first in each iteration. The inventory at `077e8f5a`:
 
 | what | where |
 |---|---|

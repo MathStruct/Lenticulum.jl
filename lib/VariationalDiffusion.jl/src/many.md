@@ -10,6 +10,10 @@
 > Theory (CT-ML wiki): —
 
 `implicit_infer_many` assigns each query a column and groups the active columns by noise
-level for network evaluations. It uses local Newton and trust-region implementations.
+level for network evaluations. ImplicitSolvers' `solve_columns` runs the Newton and
+trust-region iterations. The adapter supplies the full-state norms, batched residuals and
+Jacobian blocks to the driver, along with the trust-region merit and model. It shares the
+trust-region Jacobian batch between the current models and the final stability checks.
+The adapter keeps the batched residual reduction and step-buffer precision.
 Each output is an `ImplicitSolution` with a state vector in the working element type and
 a residual in its primal type, following the same reporting convention as single queries.

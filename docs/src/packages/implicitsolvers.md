@@ -1,6 +1,6 @@
 # ImplicitSolvers
 
-ImplicitSolvers provides linear solves, derivative-free root finding and the linear
+ImplicitSolvers provides linear solves, root finding and the linear
 systems used by implicit-function adjoints. Solves return a solution and a
 `SolverReport`. Its residual is the primal Euclidean norm at the returned iterate.
 
@@ -23,6 +23,12 @@ precondition the system those helpers solve. After each cycle GMRES checks
 `MINRES(; maxiters = 200)` uses short recurrences for Hermitian systems, including
 real symmetric indefinite systems. It also checks the true residual. Approximate
 inverse actions are supported by GMRES alone.
+
+[`solve_columns`](@ref) solves independent root equations with
+[`NewtonDescent`](@ref) or [`TrustRegion`](@ref). The caller supplies the residual
+and the scale for each column, along with the Newton system or the trust-region
+merit, model and stability test. It returns one `SolverReport` and one stability
+flag per column.
 
 ForwardDiff can differentiate the steps a solver takes. At a primal root supplied
 as the initial guess, a zero-step solve returns the initial guess's tangent.

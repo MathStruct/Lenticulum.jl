@@ -6,6 +6,7 @@ using ForwardDiff, JLArrays
     include("linsolve.jl")
     include("krylov_oracle.jl")
     include("roots.jl")
+    include("descent.jl")
     include("adjoint_fd.jl")
     include("device.jl")
     include("aqua.jl")

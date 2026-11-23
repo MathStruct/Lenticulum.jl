@@ -130,125 +130,64 @@ function implicit_infer_many(m::ImplicitDiffusion, Z₀::AbstractMatrix, ρ, ps,
         throw(ArgumentError("method must be :auto, :newton or :trust_region, got :$method"))
     method === :auto && (method = _has_energy(m) ? :trust_region : :newton)
     tol === nothing && (tol = default_tolerance(m, Z₀, ps))
-    method === :trust_region && return _infer_many_trust_region(m, Z₀, ρ, ps, st; Z_init, tol, maxiters, radius)
     size(Z_init) == size(Z₀) || throw(DimensionMismatch("Z_init is $(size(Z_init)), Z₀ is $(size(Z₀))"))
     length(ρ) == size(Z₀, 1) || throw(DimensionMismatch("ρ has $(length(ρ)) entries for $(size(Z₀, 1)) coordinates"))
     free = .!isinf.(ρ)
-    P = Diagonal(ρ[free] .^ 2)
+    ρF = ρ[free]
+    P = Diagonal(ρF .^ 2)
     Z = float.(copy(Z_init))
     Z[.!free, :] .= Z₀[.!free, :]
-    B = size(Z, 2)
-    resid(Zs, cols) = (G = first(_field_many(m, Zs, ps, st)); G[free, :] .+ ρ[free] .^ 2 .* (Zs[free, :] .- Z₀[free, cols]))
-    T = eltype(Z)
-    Rtype = typeof(ImplicitSolvers.primal(zero(T)))
-    sols = Vector{ImplicitSolution{Vector{T},Rtype}}(undef, B)
-    active = collect(1:B)
-    for it in 0:maxiters
-        isempty(active) && break
-        Za = Z[:, active]
-        R = resid(Za, active)
-        nr = vec(sqrt.(sum(abs2, R; dims = 1)))
-        J = _jacobian_many(m, Za, free, ps, st)
-        stable = [_stable(J[:, :, b] .+ P) for b in eachindex(active)]
-        done = [nr[b] ≤ tol * (1 + norm(Za[:, b])) for b in eachindex(active)]
-        last = it == maxiters
-        for (b, q) in enumerate(active)
-            (done[b] || last) && (sols[q] = ImplicitSolution(Z[:, q], nr[b], it, done[b], stable[b]))
-        end
-        keep = findall(b -> !done[b], eachindex(active))
-        (last || isempty(keep)) && break
-        active, Za, R, nr, J, stable = active[keep], Za[:, keep], R[:, keep], nr[keep], J[:, :, keep], stable[keep]
-        # Newton where stable, descent elsewhere; backtracking on each query's own residual
-        D = similar(R)
-        for b in eachindex(active)
-            D[:, b] .= stable[b] ? -((J[:, :, b] .+ P) \ R[:, b]) : -step .* R[:, b]
-        end
-        η = ones(length(active))
-        pending = findall(stable)
-        while !isempty(pending) && any(>(1e-8), η[pending])
-            Zt = Za[:, pending]
-            Zt[free, :] .+= η[pending]' .* D[:, pending]
-            nt = vec(sqrt.(sum(abs2, resid(Zt, active[pending]); dims = 1)))
-            ok = nt .< (1 .- 1e-4 .* η[pending]) .* nr[pending]
-            η[pending[.!ok]] ./= 2
-            pending = pending[.!ok .& (η[pending] .> 1e-8)]
-        end
-        for (b, q) in enumerate(active)
-            Z[free, q] .+= η[b] .* D[:, b]
-        end
+    function states(U, cols)
+        Zs = Z[:, cols]
+        Zs[free, :] .= U
+        return Zs
     end
-    return (sols, st)
-end
+    function residual(U, cols)
+        G = first(_field_many(m, states(U, cols), ps, st))
+        return G[free, :] .+ P.diag .* (U .- Z₀[free, cols])
+    end
+    residual_norms(R) = vec(sqrt.(sum(abs2, R; dims = 1)))
+    if method === :newton
+        scale(U, cols) = map(norm, eachcol(states(U, cols)))
+        function system(U, cols)
+            J = _jacobian_many(m, states(U, cols), free, ps, st)
+            blocks = [J[:, :, b] .+ P for b in eachindex(cols)]
+            return (map(_stable, blocks), map(A -> r -> A \ r, blocks))
+        end
+        problem = (; residual, scale, system, residual_norms, round_steps = true)
+        alg = ImplicitSolvers.NewtonDescent(; step)
+    else
+        energetic = _has_energy(m)
 
-# The trust-region method of `_infer_trust_region` (DenseSolve) for every column at once: the
-# same steps, radii and acceptance per query, with the residuals, Jacobian blocks and merits of
-# all unfinished queries (and of their trial points) evaluated together.
-function _infer_many_trust_region(m::ImplicitDiffusion, Z₀, ρ, ps, st; Z_init, tol, maxiters, radius)
-    size(Z_init) == size(Z₀) || throw(DimensionMismatch("Z_init is $(size(Z_init)), Z₀ is $(size(Z₀))"))
-    length(ρ) == size(Z₀, 1) || throw(DimensionMismatch("ρ has $(length(ρ)) entries for $(size(Z₀, 1)) coordinates"))
-    free = .!isinf.(ρ)
-    nF = count(free)
-    P = Diagonal(ρ[free] .^ 2)
-    Z = float.(copy(Z_init))
-    Z[.!free, :] .= Z₀[.!free, :]
+        # The Jacobian at the current points is shared by the final stability checks
+        # and the models for continuing queries. Keep its original evaluation batch.
+        active = Ref{Vector{Int}}()
+        J = Ref{Array{eltype(Z),3}}()
+        function trust_scale(U, cols)
+            Za = states(U, cols)
+            active[] = cols
+            J[] = _jacobian_many(m, Za, free, ps, st)
+            return map(norm, eachcol(Za))
+        end
+        block(q) = J[][:, :, searchsortedfirst(active[], q)] .+ P
+        stable(U, cols) = [_stable(block(q)) for q in cols]
+        model(U, R, cols) = [_tr_model(block(q), R[:, b], energetic) for (b, q) in enumerate(cols)]
+        function merit(U, R, cols)
+            energetic || return vec(sum(abs2, R; dims = 1)) ./ 2
+            E = first(_energy_many(m, states(U, cols), ps, st))
+            return E .+ vec(sum(abs2, ρF .* (U .- Z₀[free, cols]); dims = 1)) ./ 2
+        end
+        problem = (; residual, scale = trust_scale, merit, model, stable, residual_norms, round_steps = true)
+        alg = _trust_region(DenseSolve(), radius, _arith_eps(m, Z₀, ps))
+    end
+    U, reports, flags = ImplicitSolvers.solve_columns(problem, Z[free, :], alg;
+        tol = ImplicitSolvers.Tolerance(atol = tol, rtol = tol), maxiters)
+    Z[free, :] .= U
     T = eltype(Z)
-    B = size(Z, 2)
-    energetic = _has_energy(m)
-    εa = _arith_eps(m, Z₀, ps)
-    resid(Zs, cols) = (G = first(_field_many(m, Zs, ps, st)); G[free, :] .+ ρ[free] .^ 2 .* (Zs[free, :] .- Z₀[free, cols]))
-    function merit(Zs, Rs, cols)
-        energetic || return vec(sum(abs2, Rs; dims = 1)) ./ 2
-        U = first(_energy_many(m, Zs, ps, st))
-        return U .+ vec(sum(abs2, ρ[free] .* (Zs[free, :] .- Z₀[free, cols]); dims = 1)) ./ 2
-    end
-    Δ = fill(T(radius === nothing ? 0.1 * sqrt(max(nF, 1)) : radius), B)
-    R = resid(Z, 1:B)
-    f = merit(Z, R, 1:B)
     Rtype = typeof(ImplicitSolvers.primal(zero(T)))
-    sols = Vector{ImplicitSolution{Vector{T},Rtype}}(undef, B)
-    active = collect(1:B)
-    for it in 0:maxiters
-        isempty(active) && break
-        Za = Z[:, active]
-        Ra = R[:, active]
-        nr = vec(sqrt.(sum(abs2, Ra; dims = 1)))
-        J = _jacobian_many(m, Za, free, ps, st)
-        stable = [_stable(J[:, :, b] .+ P) for b in eachindex(active)]
-        stop = [nr[b] ≤ tol * (1 + norm(Za[:, b])) || it == maxiters || Δ[q] < 10εa * (1 + norm(Za[:, b]))
-                for (b, q) in enumerate(active)]
-        for (b, q) in enumerate(active)
-            stop[b] && (sols[q] = ImplicitSolution(Z[:, q], nr[b], it, nr[b] ≤ tol * (1 + norm(Za[:, b])), stable[b]))
-        end
-        keep = findall(!, stop)
-        isempty(keep) && break
-        active, Za, Ra, nr, J = active[keep], Za[:, keep], Ra[:, keep], nr[keep], J[:, :, keep]
-        # each query's step within its own radius, from its own model
-        Pst = similar(Ra)
-        pred = zeros(T, length(active))
-        for (b, q) in enumerate(active)
-            Jb = J[:, :, b] .+ P
-            g, H = energetic ? (Ra[:, b], Symmetric((Jb .+ Jb') ./ 2)) : (Jb' * Ra[:, b], Symmetric(Jb' * Jb))
-            p = _tr_step(DenseSolve(), g, H, Δ[q])
-            Pst[:, b] .= p
-            pred[b] = -(dot(g, p) + dot(p, H * p) / 2)
-        end
-        Zt = copy(Za); Zt[free, :] .+= Pst
-        Rt = resid(Zt, active)
-        ft = merit(Zt, Rt, active)
-        for (b, q) in enumerate(active)
-            noisy = pred[b] ≤ 100 * εa * max(abs(f[q]), one(T))
-            ratio = noisy ? (norm(view(Rt, :, b)) < nr[b] ? one(T) : zero(T)) : (f[q] - ft[b]) / pred[b]
-            np = norm(view(Pst, :, b))
-            if ratio < 0.25
-                Δ[q] = np / 4
-            elseif ratio > 0.75 && np ≥ 0.99Δ[q]
-                Δ[q] = 2Δ[q]
-            end
-            if ratio > 1e-4
-                Z[:, q] .= view(Zt, :, b); R[:, q] .= view(Rt, :, b); f[q] = ft[b]
-            end
-        end
-    end
+    sols = ImplicitSolution{Vector{T},Rtype}[
+        ImplicitSolution(Z[:, b], r.residual, r.iterations, r.converged, flags[b])
+        for (b, r) in enumerate(reports)]
     return (sols, st)
 end
 
