@@ -60,8 +60,14 @@ end
 Return `(x, report)` for the square system `A*x = b`. Supply a square matrix
 or a callable `v -> A*v` mapping vectors of length `length(b)` to vectors of the
 same length. With GMRES, `left` and `right` can apply approximate inverses.
-The report and tolerance use the true residual norm and the norm of `b`.
+The report's residual and the initial convergence check use the true primal
+residual norm and the primal norm of `b`.
 DenseSolve and MINRES require both preconditioners to be `nothing`.
+
+With ForwardDiff, GMRES and MINRES check the tangent residual after primal
+convergence. Correction solves contribute to the report's `iterations` and
+`nfe`. If any correction fails to converge, the report gives the first failure status
+while `residual` still describes the primal solve.
 """
 function linsolve(A, b::AbstractVector, alg::AbstractLinearSolver; tol::Tolerance=Tolerance(),
         left=nothing, right=nothing)
@@ -129,10 +135,18 @@ end
 _precondition(::Nothing, v) = v
 _precondition(precond, v) = precond(v)
 
+_tangent_refine(apply, b, x, ax, r, report, alg, tol, left, right) = (x, report)
+
+function _krylov_result(apply, b, x, ax, r, report, alg, tol, left, right)
+    report.converged || return x, report
+    return _tangent_refine(apply, b, x, ax, r, report, alg, tol, left, right)
+end
+
 function _linsolve(A, apply, b, alg::GMRES, tol, left, right)
     x0 = zero.(float.(b))
     x = x0
-    r = b .- apply(x)
+    ax = apply(x)
+    r = b .- ax
     operator = left === nothing && right === nothing ? apply :
         v -> _precondition(left, apply(_precondition(right, v)))
     scale = _primal_norm(b)
@@ -140,7 +154,10 @@ function _linsolve(A, apply, b, alg::GMRES, tol, left, right)
     while true
         residual = _primal_norm(r)
         status = _status(residual, scale, tol)
-        status === :continue || return x, _report(status, total, residual, nfe)
+        if status !== :continue
+            return _krylov_result(apply, b, x, ax, r, _report(status, total, residual, nfe),
+                                  alg, tol, left, right)
+        end
         total == alg.maxiters && return x, _report(:maxiters, total, residual, nfe)
         k = min(alg.restart, length(b), alg.maxiters - total)
         # With right preconditioning the cycle works in correction coordinates.
@@ -154,12 +171,14 @@ function _linsolve(A, apply, b, alg::GMRES, tol, left, right)
         exit === :nonfinite && return x, _report(exit, total, residual, nfe)
 
         xnew = right === nothing ? candidate : x .+ right(candidate)
-        r = b .- apply(xnew)
+        ax = apply(xnew)
+        r = b .- ax
         nfe += 1
         if exit === :stalled || _unchanged(xnew, x)
             residual = _primal_norm(r)
             status = _status(residual, scale, tol)
-            return xnew, _report(status === :continue ? :stalled : status, total, residual, nfe)
+            report = _report(status === :continue ? :stalled : status, total, residual, nfe)
+            return _krylov_result(apply, b, xnew, ax, r, report, alg, tol, left, right)
         end
         x = xnew
     end
@@ -237,13 +256,20 @@ end
 function _linsolve(A, apply, b, alg::MINRES, tol, ::Nothing, ::Nothing)
     x = zero.(float.(b))
     scale = _primal_norm(b)
-    iszero(scale) && return x, _report(:converged, 0, scale, 0)
-    r = b .- apply(x)
+    if iszero(scale)
+        return _tangent_refine(apply, b, x, nothing, nothing, _report(:converged, 0, scale, 0),
+                               alg, tol, nothing, nothing)
+    end
+    ax = apply(x)
+    r = b .- ax
     residual = _primal_norm(r)
     total, nfe = 0, 1
     while true
         status = _status(residual, scale, tol)
-        status === :continue || return x, _report(status, total, residual, nfe)
+        if status !== :continue
+            return _krylov_result(apply, b, x, ax, r, _report(status, total, residual, nfe),
+                                  alg, tol, nothing, nothing)
+        end
         total == alg.maxiters && return x, _report(:maxiters, total, residual, nfe)
 
         xnew, steps, exit = _minres_cycle(apply, x, r, alg.maxiters - total, tol, scale)
@@ -251,12 +277,14 @@ function _linsolve(A, apply, b, alg::MINRES, tol, ::Nothing, ::Nothing)
         nfe += steps
         exit === :nonfinite && return x, _report(exit, total, residual, nfe)
 
-        r = b .- apply(xnew)
+        ax = apply(xnew)
+        r = b .- ax
         nfe += 1
         residual = _primal_norm(r)
         if _unchanged(xnew, x)
             status = _status(residual, scale, tol)
-            return xnew, _report(status === :continue ? :stalled : status, total, residual, nfe)
+            report = _report(status === :continue ? :stalled : status, total, residual, nfe)
+            return _krylov_result(apply, b, xnew, ax, r, report, alg, tol, nothing, nothing)
         end
         x = xnew
     end
@@ -278,7 +306,13 @@ function _minres_cycle(apply, x, r, steps, tol, scale)
         α = real(dot(q, Aq))
         w = Aq .- α .* q .- β .* qprev
         βnext = norm(w)
-        isfinite(primal(βnext)) || return x, j, :nonfinite
+        if !isfinite(primal(βnext))
+            # A scaled norm on duals can divide by a zero primal at breakdown.
+            if _primal_type(eltype(w)) === eltype(w) || !iszero(_primal_norm(w))
+                return x, j, :nonfinite
+            end
+            βnext = zero(βnext)
+        end
         breakdown = iszero(primal(βnext))
         breakdown && (βnext = zero(βnext))
 

@@ -65,8 +65,9 @@ solver, $\lVert b\rVert$ for a linear solve). This is Mycelium's P9 criterion wi
 **D3. One report.** `SolverReport{R<:Real}` with `converged::Bool`, `iterations::Int`, `residual::R`,
 `nfe::Int` and `reason::Symbol` (`:converged`, `:maxiters`, `:nonfinite`, `:stalled`). `residual` is
 always the primal value (`ImplicitSolvers.primal`, the identity, with a method for `ForwardDiff.Dual` in
-the extension), and the stopping decision is made on it, so tangents never change the iteration count
-(Mycelium's I23 rule, [[LP-053 Findings of the review of I23]]).
+the extension), and the primal iteration stops on that value (Mycelium's I23 rule,
+[[LP-053 Findings of the review of I23]]). After primal convergence GMRES and MINRES can add
+tangent corrections and count their work in the same report (P38, `lib/ImplicitSolvers.jl/src/linsolve.md`).
 - `ImplicitLayers.SolveReport` becomes `const SolveReport = ImplicitSolvers.SolverReport` (same field
   names, plus `reason`); its `show` moves along.
 - `VariationalDiffusion.ImplicitSolution` keeps its fields (`z`, `residual`, `iters`, `converged`,
@@ -178,6 +179,91 @@ Each one is a branch, reviewed by a model that did not write it.
 
 W1 first; W2, W3 and W4 are independent after it; W5 last. Phase 2 (Newton, the trust region and
 `many.jl`'s copy) gets its own row when phase 1 is done.
+
+## Phase 2: Newton and the trust region (P39)
+
+Design, 2026-11-23, after phase 1 was done; not implemented. The inventory at `077e8f5a`:
+
+| what | where |
+|---|---|
+| Newton with Armijo backtracking where $\operatorname{sym}J_{FF} \succ 0$, a field step otherwise | `VariationalDiffusion/src/implicit.jl` 442 (`implicit_infer`, the loop from 460) |
+| the trust region: Moré–Sorensen step from an eigendecomposition, Steihaug's truncated CG, the ratio rule with a noise floor | `implicit.jl` 496 (`_infer_trust_region`), 538–610 (`_tr_model`, `_tr_step`, `_to_boundary`) |
+| the same two loops over the columns of a matrix | `many.jl` 126 (`implicit_infer_many`), 186 (`_infer_many_trust_region`) |
+| what one iteration needs from the relation | `_newton_system` (620, 626), `_tr_model`, `_stable` (361), `_lambda_min`, `_query_energy` (`answers.jl` 156), `_arith_eps` (380) |
+
+The two loops exist twice because the batched copy evaluates all unfinished queries in one network call
+per noise level; the steps, the radii and the acceptance are per query and are the same code written
+again. Other Newton iterations in the repository (`proxdm.jl`'s modified Newton, `Lenticulum/src/likelihood.jl`
+495, `AlgebraicFactors/src/fit.jl` 36) are not in this phase (open questions).
+
+**D8. One driver, over columns.** ImplicitSolvers gets the two iterations as algorithms over a batch
+of queries, a matrix $U$ whose columns are the free coordinates of the queries; one query is a batch of
+one column. The relation supplies the evaluations through callbacks on the unfinished columns (`cols`):
+
+- `residual(U, cols) -> R` (the residual of each column, the root to find);
+- `scale(U, cols) -> s` (D2's scale per column; `VariationalDiffusion` passes $\lVert z\rVert$ of the whole
+  state, clamps included);
+- for `NewtonDescent`: `system(U, cols) -> (stable, solve)`, a `Bool` and a function $r \mapsto J^{-1}r$ per
+  column;
+- for `TrustRegion`: `merit(U, R, cols) -> f` and `model(U, R, cols) -> (g, H)` per column, `H` a
+  symmetric matrix (the exact step) or a function $v \mapsto Hv$ (Steihaug); `stable(U, cols)` for the
+  report.
+
+`solve_columns(problem, U0, alg; tol::Tolerance, maxiters) -> (U, reports::Vector{SolverReport}, stable::Vector{Bool})`.
+A column leaves the batch when it converges or stops; the callbacks see only the unfinished ones, as
+`many.jl` does today. The driver is generic in the array type (no scalar indexing; a device matrix stays
+on the device, the per-column steps work on what the callbacks return).
+
+**D9. The algorithms.** `NewtonDescent(; step = 0.05, armijo = 1e-4, min_damping = 1e-8)`: today's
+iteration, Newton with backtracking on $\lVert r\rVert$ where `stable`, $-\texttt{step}\cdot r$ otherwise.
+`TrustRegion(; radius = nothing, cg_maxiters = 200, cg_rtol = 1e-8, precision = nothing)`: today's Algorithm
+4.1 with its constants (shrink below ratio $1/4$, grow above $3/4$ at the boundary, accept above
+$10^{-4}$), the noise rule (a predicted decrease below $100\,\epsilon_a\max(\lvert f\rvert,1)$ is decided
+by the residual) and the radius floor $10\,\epsilon_a(1+s)$, with $\epsilon_a$ = `precision` (the
+arithmetic's epsilon, `_arith_eps` in the caller; `eps` of the element type when `nothing`). `radius =
+nothing` is $0.1\sqrt{\max(n_F,1)}$. The step routines `_tr_step` (both) and `_to_boundary` move with them.
+The relation decides which merit it has (its energy, or $\tfrac12\lVert r\rVert^2$ with the Gauss–Newton
+model): that stays in `VariationalDiffusion`'s `model` callback.
+
+**D10. D2 and D3 for these solves.** `VariationalDiffusion`'s `tol::Real` keyword stays and becomes
+`Tolerance(atol = tol, rtol = tol)` with the scale above, so $\lVert r\rVert \le \tau(1+\lVert z\rVert)$ is
+computed as $\tau + \tau\lVert z\rVert$ (a deliberate change at the last bit). `ImplicitSolution` keeps
+its fields, filled from the report (`iters = iterations`) and `stable`; continuation stays in
+`VariationalDiffusion`, around the driver.
+
+**D11. What stays in `VariationalDiffusion`.** The field, its Jacobians and operators, the energies, the
+merit choice, `_stable` and `_lambda_min`, `default_tolerance`, continuation, `implicit_classify`, the
+pullback. `implicit_infer` and `implicit_infer_many` keep their signatures and results; they build the
+callbacks (one column, with `prior_jacobian` or the matrix-free operators; many columns, with
+`_jacobian_many`, `_field_many`, `_energy_many`) and call the driver. The two copies in `many.jl` go.
+
+**Must not change (phase 2).** Each test of `VariationalDiffusion` passes with its tolerances; on every
+call of `implicit_infer` and `implicit_infer_many` in its suite and examples, $z$, `iters`, `converged`
+and `stable` equal the values before the change bitwise, except where the rounding of D10 flips a
+comparison (each such case listed with its margin). The trust-region and Newton steps of one query and
+of the same query in a batch keep the relation of today (they use different Jacobian routes and are not
+bitwise equal; the tests that compare them stay as they are). Load time of `VariationalDiffusion` within
+10 %; `bench/minres_energy.jl` and `examples/gpu_energy.jl` (smoke) not slower beyond noise.
+
+**Work packages.**
+
+6. **W6, the driver in ImplicitSolvers.** D8–D9 with tests written from this note: a strictly convex
+   quadratic (one Newton step; the trust region accepts every step and ends at the minimum); a merit
+   with a saddle and a minimum, started near the saddle (the trust region ends at the minimum;
+   Newton-descent takes field steps while $\operatorname{sym}J$ is indefinite); the hard case of the exact step ($g \perp$ the lowest eigenvector); Steihaug against the exact
+   step inside the ball; Rosenbrock's gradient as a root (convergence from $(-1.2, 1)$); a residual with a
+   minimum that is not a root under the Gauss–Newton merit (stops, not converged); a batch of mixed
+   columns gives, column by column, bitwise what each column gives alone; `maxiters = 0`; an empty batch;
+   a non-finite residual (`:nonfinite`); `Float32` with the noise rule; a JLArrays batch with scalar
+   indexing disallowed. Aqua, the docs page, `roots.md` or a new note beside the source.
+7. **W7, `VariationalDiffusion` onto it.** D10–D11. Before the change, record $z$, `iters`, `converged`,
+   `stable` of every `implicit_infer` and `implicit_infer_many` call in the suite and the examples (a
+   script under the worktree's `scratch/`), compare after; load times; the benchmark and the smoke
+   examples. `implicit.md` §7 and §11 say where the loops live now. VD's tests of `_tr_step` (runtests.jl
+   about 1924) move to ImplicitSolvers or call the moved function.
+
+W6 and W7 go on one branch (two commits): the interface is only right if it fits its one consumer, and
+the review sees both.
 
 ## Open questions
 

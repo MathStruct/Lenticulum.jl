@@ -4,7 +4,7 @@
 > and dense LU and Cholesky handle direct solves. Both Krylov solvers use the
 > supplied operator action and check the true residual after each cycle.
 >
-> Sources: [[Shared Solver Layer]], D4; code: `lib/ImplicitSolvers.jl/src/linsolve.jl`, `lib/VariationalDiffusion.jl/src/krylov.jl`; tests: `lib/ImplicitSolvers.jl/test/linsolve.jl`, `lib/ImplicitSolvers.jl/test/device.jl`, `lib/ImplicitSolvers.jl/test/krylov_oracle.jl`
+> Sources: [[Shared Solver Layer]], D2 and D4; code: `lib/ImplicitSolvers.jl/src/linsolve.jl`, `lib/ImplicitSolvers.jl/ext/ImplicitSolversForwardDiffExt.jl`, `lib/VariationalDiffusion.jl/src/krylov.jl`; tests: `lib/ImplicitSolvers.jl/test/linsolve.jl`, `lib/ImplicitSolvers.jl/test/device.jl`, `lib/ImplicitSolvers.jl/test/krylov_oracle.jl`
 >
 > Theory (CT-ML wiki): —
 
@@ -76,11 +76,52 @@ iterate if that assumption fails. The current implementation supports only
 unpreconditioned systems. A preconditioned variant requires a symmetric positive
 definite preconditioner.
 
-**Known limit, shared with GMRES (LP-083, P38).** Under ForwardDiff the recurrences carry the
-tangents, but their stopping decisions read primal values. Where the Krylov space of the primal
-system is invariant (an exact breakdown, e.g. $b$ an eigenvector of $A$), the solve stops while the
-tangent system $A\dot x = \dot b - \dot A x$ needs a direction outside that space: the tangent of
-$x$ is then wrong (zero in the test), the primal value and the report right. A $b$ with zero
-primal and nonzero tangent likewise returns a zero tangent. Generic dual inputs match the dense
-derivative to rounding. `lib/ImplicitSolvers.jl/test/linsolve.jl`, "Krylov tangents at an exact breakdown", records the
-case as `@test_broken`.
+## Tangents at a breakdown
+
+Under ForwardDiff the GMRES and MINRES arithmetic differentiates the Krylov
+iterate, including the basis vectors. Stopping decisions use the primal values.
+When the differentiated iterate satisfies the tangent system, its partials
+are returned as computed. At an exact breakdown the primal system can converge
+in an invariant Krylov space while a tangent needs a direction outside it.
+Two examples are an eigenvector right-hand side and a right-hand side with
+zero primal and nonzero tangent. The regression tests for LP-083 compare both
+with the derivative of `DenseSolve`.
+
+After primal convergence, the ForwardDiff extension extracts each partial of
+the already available residual. For direction $i$ the tangent residual is
+
+$$
+\dot r_i = \dot b_i - \dot A_i x - A\dot x_i.
+$$
+
+The D2 scale for this check is
+$\max(\lVert\dot b_i\rVert, \lVert\operatorname{partials}_i(Ax)\rVert, \lVert Ax\rVert\,\lVert\dot x_i\rVert/\lVert x\rVert)$.
+The existing product $Ax$ supplies the second and third norms. The third estimates
+$\lVert A\dot x_i\rVert$, the size of the tangent system's right-hand side at the solution: without it a
+tangent only in $A$ (plain $b$) has $\operatorname{partials}_i(Ax) = -\dot r_i$, the scale is the residual
+itself, and with `atol = 0` every solve ran a correction ([[LP-084 Findings of the review of P38|LP-084]]). A passing direction needs
+only the broadcast and reductions for the check. For each failing direction,
+a recursive `linsolve` solves $A\delta_i=\dot r_i$ with the same algorithm,
+tolerance and preconditioners, stripping the current dual tag from their
+outputs. The extension adds $\delta_i$ to the corresponding partial of $x$.
+Both extraction and reconstruction use backend broadcasts. MINRES evaluates
+one product at its zero-primal early exit for dual inputs and counts it in
+`nfe`. At complex Arnoldi breakdown the Givens norm uses the magnitude of the
+remaining entry directly, because differentiating the magnitude of the zero
+entry would introduce NaN partials before the residual check. If a scaled dual
+norm gives MINRES a nonfinite value, it checks the norm of the primal vector
+to distinguish a zero Lanczos direction from a nonfinite product.
+
+A nested dual retains its inner tags. The extension first checks the inner
+value's tangents, then checks the outer partials including their mixed
+coefficients. An inner correction can change the mixed residual through
+$\dot A_i$, so it triggers one fresh product. A recursive correction solve
+handles the inner tags of a failing outer partial, even when that partial's
+primal value is zero.
+
+The primal iterate and reported primal residual are kept. Each correction has
+its own iteration budget and contributes its work to the report. If a
+correction fails, the first failure supplies the report's status. This check
+acts only after a converged Krylov solve with dual-valued output. Dense solves
+and failed primal solves return directly. Accuracy is governed by the residual
+tolerance and the conditioning of the system.

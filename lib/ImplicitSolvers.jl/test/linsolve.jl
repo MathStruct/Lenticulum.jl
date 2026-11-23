@@ -149,7 +149,7 @@ end
 
 @testset "GMRES on complex dual numbers (LP-082, Gemini's finding 2)" begin
     # `primal` did not unwrap Complex{Dual}: the scale stayed a Dual and `_bound`
-    # threw a MethodError. Tangents must not change the iteration either.
+    # threw a MethodError. Only tangent corrections can add to the primal iteration count.
     rng = Xoshiro(82)
     n = 6
     A = Matrix{ComplexF64}(I, n, n) .+ 0.3 .* randn(rng, ComplexF64, n, n)
@@ -166,7 +166,11 @@ end
         x, report = linsolve(A, b, GMRES(restart=3, maxiters=60); tol)
         @test report.converged
         @test report.residual isa Float64
-        @test report.iterations == rp.iterations
+        if iszero(scale)
+            @test report.iterations == rp.iterations
+        else
+            @test report.iterations >= rp.iterations
+        end
         # Complex dual arithmetic rounds differently from ComplexF64 in the last bits.
         @test val.(x) ≈ xp rtol=1e-13
         @test tan.(x) ≈ A \ (scale .* db) rtol=1e-8 atol=1e-8 * scale
@@ -303,10 +307,10 @@ end
     @test report.converged && λ ≈ (I - J') \ b
 end
 
-@testset "Krylov tangents at an exact breakdown (LP-083, Mistral's F1; known limit, P38)" begin
+@testset "Krylov tangents at an exact breakdown (LP-083, Mistral's F1, P38)" begin
     # b is an eigenvector of A(0): the Krylov space of the primal system is invariant after one
     # step, and both recurrences stop there, while the tangent system needs a direction outside
-    # it. The dense solve's derivative is [0, -1/4]; MINRES and GMRES return [0, 0].
+    # it. Before P38 both returned [0, 0]; this regression test checks the corrected derivative.
     A(θ) = [2.0 θ; θ 2.0]
     b = [1.0, 0.0]
     tol = Tolerance(; atol=0, rtol=1e-12)
@@ -314,6 +318,163 @@ end
     @test dense ≈ [0.0, -0.25]
     for alg in (MINRES(), GMRES())
         d = ForwardDiff.derivative(θ -> first(linsolve(A(θ), b, alg; tol)), 0.0)
-        @test_broken d ≈ dense
+        @test d ≈ dense
+    end
+end
+
+@testset "P38 tangent corrections and their reports" begin
+    A0 = diagm([2.0, 4.0, 8.0])
+    b0 = [1.0, 0.0, 0.0]
+    tangent = [0.0, 1.0, 1.0]
+    dA = b0 * tangent' + tangent * b0'
+    tol = Tolerance(; atol=0, rtol=1e-12)
+    dual(x, dx) = ForwardDiff.Dual{:p38}(x, dx)
+    for alg in (GMRES(), MINRES())
+        calls = Ref(0)
+        apply = v -> (calls[] += 1; A0 * v)
+        rhs = dual.(zero(b0), tangent)
+        dense, _ = linsolve(A0, rhs, DenseSolve(); tol)
+        x, report = linsolve(apply, rhs, alg; tol)
+        _, correction = linsolve(A0, tangent, alg; tol)
+        check_report(report, :converged, correction.iterations, 1 + correction.nfe)
+        @test report.nfe == calls[]
+        @test report.residual === 0.0
+        @test primal.(x) == primal.(dense)
+        @test ForwardDiff.partials.(x, 1) ≈ ForwardDiff.partials.(dense, 1)
+
+        # The first and third partials stay in the primal Krylov space.
+        function solve(t, solver)
+            A = [2+t[3] t[2] 0; t[2] 4 0; 0 0 8]
+            b = [1+t[1]+t[3], t[2], 0]
+            y, result = linsolve(A, b, solver; tol)
+            if !(solver isa DenseSolve)
+                check_report(result, :converged, 2, 6)
+            end
+            return y
+        end
+        jac = ForwardDiff.jacobian(t -> solve(t, alg), zeros(3))
+        ref = ForwardDiff.jacobian(t -> solve(t, DenseSolve()), zeros(3))
+        @test jac ≈ ref
+        @test jac[:, [1, 3]] == ref[:, [1, 3]]
+    end
+
+    # One step solves the primal problem. The correction needs two directions.
+    A = dual.(A0, dA)
+    dense, _ = linsolve(A, b0, DenseSolve(); tol)
+    for alg in (GMRES(maxiters=1), MINRES(maxiters=1))
+        calls = Ref(0)
+        apply = v -> (calls[] += 1; A * v)
+        x, report = linsolve(apply, b0, alg; tol)
+        check_report(report, :maxiters, 2, 6)
+        @test report.nfe == calls[]
+        @test report.residual === 0.0
+        @test primal.(x) == primal.(dense)
+        @test ForwardDiff.partials.(x, 1) ≉ ForwardDiff.partials.(dense, 1)
+
+        # If the primal solve exhausts its budget there is no correction.
+        _, report = linsolve(A, dual.(tangent, b0), alg; tol)
+        check_report(report, :maxiters, 1, 3)
+    end
+end
+
+@testset "P38 nested and complex tangents" begin
+    tol = Tolerance(; atol=0, rtol=1e-12)
+    D(f, θ) = ForwardDiff.derivative(f, θ)
+    A(θ) = [2.0 θ; θ 4.0]
+    b = [1.0, 0.0]
+    for alg in (GMRES(), MINRES())
+        # The linear perturbation exercises the inner value repair. With θ²
+        # both first derivatives vanish and only the mixed residual fails.
+        for perturbation in (identity, abs2)
+            solve(θ, solver) = first(linsolve(A(perturbation(θ)), b, solver; tol))
+            dense = D(t -> D(s -> solve(s, DenseSolve()), t), 0.0)
+            @test norm(dense) > 0
+            @test D(t -> D(s -> solve(s, alg), t), 0.0) ≈ dense
+        end
+
+        # The operator carries the enclosing derivative's tag only.
+        solve(t, s, solver) = first(linsolve(A(t), [1.0, s], solver; tol))
+        dense = D(t -> D(s -> solve(t, s, DenseSolve()), 0.0), 0.0)
+        @test norm(dense) > 0
+        @test D(t -> D(s -> solve(t, s, alg), 0.0), 0.0) ≈ dense
+
+        function complex_solve(θ, solver)
+            a = (1 + 2im) * θ
+            H = [2.0 a; conj(a) -4.0]
+            x, report = linsolve(H, ComplexF64[1, 0], solver; tol)
+            @test report.converged
+            return vcat(real.(x), imag.(x))
+        end
+        dense = D(t -> complex_solve(t, DenseSolve()), 0.0)
+        @test !iszero(dense[2]) && !iszero(dense[4])
+        @test D(t -> complex_solve(t, alg), 0.0) ≈ dense
+    end
+end
+
+@testset "P38 preconditioned and adjoint solves" begin
+    b = [1.0, 0.0, 0.0]
+    A(θ) = [2.0 θ θ; θ 4.0 0; θ 0 8.0]
+    tol = Tolerance(; atol=0, rtol=1e-12)
+    D(f) = ForwardDiff.derivative(f, 0.0)
+    dense = D(θ -> first(linsolve(A(θ), b, DenseSolve(); tol)))
+    for side in (:left, :right)
+        function solve(θ)
+            # The correction needs the preconditioner to converge in one step.
+            jacobi = v -> v ./ ([2.0, 4.0, 8.0] .+ θ)
+            kw = NamedTuple{(side,)}((jacobi,))
+            x, report = linsolve(A(θ), b, GMRES(maxiters=1); tol, kw...)
+            check_report(report, :converged, 2, 6)
+            return x
+        end
+        @test D(solve) ≈ dense
+    end
+
+    solve_adjoint(θ, alg) = first(adjoint_solve(v -> A(θ)' * v, b, alg; tol))
+    solve_fixed(θ, alg) = first(fixed_point_adjoint(v -> (I - A(θ))' * v, b, alg; tol))
+    @test D(θ -> solve_adjoint(θ, GMRES())) ≈ D(θ -> solve_adjoint(θ, DenseSolve())) ≈ dense
+    @test D(θ -> solve_fixed(θ, MINRES())) ≈ D(θ -> solve_fixed(θ, DenseSolve())) ≈ dense
+end
+
+@testset "P38 generic tangents need no correction products" begin
+    rng = Xoshiro(3801)
+    R = randn(rng, 6, 6)
+    A = R' * R + I
+    W = randn(rng, 6, 6)
+    dA = (W + W') / 2
+    b, db = randn(rng, 6), randn(rng, 6)
+    dual(x, dx) = ForwardDiff.Dual{:p38}(x, dx)
+    Ad, bd = dual.(A, dA), dual.(b, db)
+    tol = Tolerance(; atol=1e-12, rtol=1e-12)
+    dense, _ = linsolve(Ad, bd, DenseSolve(); tol)
+    for alg in (GMRES(), MINRES())
+        calls = Ref(0)
+        x, report = linsolve(v -> (calls[] += 1; Ad * v), bd, alg; tol)
+        _, primal_report = linsolve(A, b, alg; tol)
+        check_report(report, :converged, primal_report.iterations, primal_report.nfe)
+        @test report.nfe == calls[]
+        @test primal.(x) ≈ primal.(dense)
+        @test ForwardDiff.partials.(x, 1) ≈ ForwardDiff.partials.(dense, 1)
+    end
+end
+
+@testset "P38 tangent only in A, atol = 0: no correction on the generic path (LP-084, Mistral's F1)" begin
+    # With a plain b the partial of A*x is the tangent residual itself; a scale built from b's and
+    # A*x's partials alone collapsed to ‖ṙ‖ and failed every check with atol = 0.
+    rng = Xoshiro(555)
+    R = randn(rng, 6, 6)
+    A = R' * R + 3I
+    W = randn(rng, 6, 6)
+    dA = (W + W') / 2
+    b = randn(rng, 6)
+    Ad = ForwardDiff.Dual{:p38f1}.(A, dA)
+    tol = Tolerance(; atol=0, rtol=1e-12)
+    dx = -(A \ (dA * (A \ b)))
+    for alg in (GMRES(), MINRES())
+        x, report = linsolve(v -> Ad * v, b, alg; tol)
+        _, primal_report = linsolve(A, b, alg; tol)
+        @test report.converged
+        @test report.iterations == primal_report.iterations
+        @test report.nfe == primal_report.nfe
+        @test ForwardDiff.partials.(x, 1) ≈ dx rtol=1e-10
     end
 end

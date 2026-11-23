@@ -80,3 +80,19 @@ end
         end
     end
 end
+
+@testset "P38 tangent correction on JLArrays without scalar indexing" begin
+    JLArrays.allowscalar(false)
+    function solve(θ, alg)
+        A = JLArray([2.0 θ; θ 4.0])
+        b = JLArray([1.0, 0.0])
+        x, report = linsolve(A, b, alg)
+        @test x isa JLArray
+        @test report.converged
+        return Array(x)
+    end
+    dense = ForwardDiff.derivative(θ -> solve(θ, DenseSolve()), 0.0)
+    for alg in (GMRES(), MINRES())
+        @test ForwardDiff.derivative(θ -> solve(θ, alg), 0.0) ≈ dense
+    end
+end

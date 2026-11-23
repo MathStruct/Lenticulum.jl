@@ -8,6 +8,17 @@
 
 ## 2026-11-23
 
+P38: tangents through the shared Krylov solvers at an exact breakdown. After a GMRES or MINRES solve on
+ForwardDiff duals has converged, each partial direction's tangent residual is checked against the same
+`Tolerance` (scale: the larger of the partials of $b$ and $Ax$ and $\lVert Ax\rVert\lVert\dot x_i\rVert/\lVert x\rVert$), and a failing direction is
+corrected by a recursive `linsolve` on the primal operator; nested duals one level at a time
+(`lib/ImplicitSolvers.jl/ext/ImplicitSolversForwardDiffExt.jl`). Two NaN sources at a breakdown fixed on the way
+(complex GMRES's rotation, MINRES's dual norm). Generic dual solves bitwise unchanged (Codex's 36 recorded
+cases); a correction runs where the carried tangents missed the tolerance, also off a breakdown (LP-082's
+restarted complex test). The `@test_broken` of LP-083 passes. Tests: `lib/ImplicitSolvers.jl/test/linsolve.jl`,
+`lib/ImplicitSolvers.jl/test/device.jl`. Note `linsolve.md`, "Tangents at a breakdown". Implemented by Codex,
+reviewed by Mistral: [[LP-084 Findings of the review of P38|LP-084]] (one defect in the check's scale, fixed).
+
 P37: MINRES in ImplicitSolvers (`MINRES(; maxiters)`, `lib/ImplicitSolvers.jl/src/linsolve.jl`): Paige–Saunders,
 unpreconditioned, judged on the true residual with restarts like GMRES, for real and complex Hermitian
 operators, duals and device arrays; `adjoint_solve` and `fixed_point_adjoint` take it. VariationalDiffusion's
