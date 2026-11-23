@@ -13,7 +13,7 @@ specification), *partial*, *done*. Priority: **high** (it limits something measu
 **medium**, **low**.
 
 **Ids and dependencies.** Every open row has an id: P (the three paths), I (inference), O
-(out-of-core), S (structure), L (learning), U (utility factors), G (decisions and games), F (families), T (tooling). The
+(out-of-core), S (structure), L (learning), U (utility factors), G (decisions and games), F (families), T (tooling), Q (quality and engineering). The
 column *needs* names the rows that must be done first, because the row builds on them; a row that
 only goes better after another says so in its text, not there. Ids are stable: a row that is done
 moves to the done note with its id, and a new row takes the next free number of its section. A row with
@@ -32,6 +32,7 @@ moves to the done note with its id, and a new row takes the next free number of 
 | G | [[Backlog G Decisions, Control and Games]] | control as inference, owned scalarisations in games, open games, beliefs over hypotheses (asked for 2026-11-16) |
 | F | [[Backlog F Families]] | implicit diffusion: calibration and posterior samplers; likelihoods, polynomial and algebraic factors |
 | T | [[Backlog T Tooling]] | benchmarks for optimiser design and regression tracking |
+| Q | [[Backlog Q Quality and Engineering]] | the SciML/JuliaHub standard across the repository: types for dispatch, any AD backend, any array type, parallel execution, benchmarks and profiles as gates, and the factor graph compiled ahead of time with Sophia (asked for 2026-11-24) |
 
 Done rows: [[Backlog Done 2026-11]] (newest first, one note per month).
 
@@ -69,6 +70,15 @@ graph LR
   P16 --> G8[G8 entropy-regularised<br/>games]
   G1 --> G10[G10 Markov games]
   G9[G9 open games] --> G10
+  T3[T3 JET on<br/>kernels] --> Q3[Q3 type stability<br/>as a gate]
+  Q5[Q5 AD backend<br/>matrix] --> Q6[Q6 native rules for<br/>implicit adjoints]
+  Q4[Q4 element type<br/>from the input] --> Q7[Q7 device-generic<br/>factors]
+  Q7 --> Q8[Q8 hardware<br/>GPU job]
+  Q9[Q9 thread safety] --> Q10[Q10 parallel<br/>execution]
+  Q1[Q1 the standard] --> Q11[Q11 init/solve!<br/>caches]
+  Q11 --> Q12[Q12 allocation<br/>budgets]
+  I2[I2 typed execution<br/>plans] --> Q16[Q16 graph compiled<br/>with Sophia]
+  Q7 --> Q16
 ```
 
 F2 is *partial*; its present problems (circle, lemniscate, rings) suffice for F3, F4 and L15.
