@@ -1,7 +1,7 @@
 name = "ImplicitLayers"
 uuid = "3c0d5f2a-7b41-4e88-9a6d-1f5c8e2b4471"
 authors = ["Daniel Boigk <dn.boigk@gmail.com>"]
-version = "0.0.1-dev"
+version = "0.0.2-dev"
 
 [deps]
 ImplicitSolvers = "248397c0-0a23-4829-91d8-bb8f51737c30"

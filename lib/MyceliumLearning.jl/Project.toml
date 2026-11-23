@@ -1,7 +1,7 @@
 name = "MyceliumLearning"
 uuid = "7d2f6c1e-4a93-4b0e-9c57-3e8a1f6b2d40"
 authors = ["Daniel Boigk <dn.boigk@gmail.com>"]
-version = "0.0.2-dev"
+version = "0.0.3-dev"
 
 [deps]
 ImplicitSolvers = "248397c0-0a23-4829-91d8-bb8f51737c30"
