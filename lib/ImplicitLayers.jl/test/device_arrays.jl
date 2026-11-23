@@ -289,7 +289,7 @@ end
     for T in (Float32,Float64)
         x=JLArray(T[0.4,-0.2]); ps=(b=copy(x),)
         @test_throws ArgumentError parameter_gradient(p -> sum(abs2,p.b),ps)
-        @test_throws ArgumentError ImplicitLayers.fd_jacobian(identity,x)
+        @test_throws "Scalar indexing is disallowed" ImplicitLayers.fd_jacobian(identity,x)
         @test_throws ArgumentError ImplicitLayers._divergence((x,t)->x,x,0.0)
         for ad in (AutoForwardDiff(),AutoZygote())
             @test_throws ArgumentError parameter_gradient(p -> p.s*sum(p.b),(s=T(1),b=x);ad)

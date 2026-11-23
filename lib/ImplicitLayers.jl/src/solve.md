@@ -4,7 +4,7 @@
 > residual* solved for a different variable. That is the entire reason a DEQ is worth
 > expressing as a factor.
 
-> Sources: Montoison and Orban (2023), *Krylov.jl*, p. 1 (operator products); Saad and Schultz (1986), GMRES;  code: `solve.jl`, `deq.jl`, `../ext/ImplicitLayersEnzymeCoreExt.jl`, `../ext/ImplicitLayersMooncakeExt.jl`, `../test/parameter_ad.jl`, `../test/solver_numerics.jl`
+> Sources: [[Shared Solver Layer]] (D2–D7), Montoison and Orban (2023), *Krylov.jl*, p. 1 (operator products); Saad and Schultz (1986), GMRES; code: `solve.jl`, `deq.jl`, `../ext/ImplicitLayersEnzymeCoreExt.jl`, `../ext/ImplicitLayersMooncakeExt.jl`, `../test/parameter_ad.jl`, `../test/solver_numerics.jl`
 >
 > Bibliography: [[Bibliography#^montoison2023krylov|Montoison & Orban 2023]] · [[Bibliography#^saad1986gmres|Saad & Schultz 1986]]
 >
@@ -36,7 +36,10 @@ All three root algorithms are derivative-free, so inference has no hard AD depen
 Optional AD of a solved state is a separate IFT calculation. These are also what
 `DeepEquilibriumNetworks.jl` does — Broyden and limited-memory Broyden are its workhorses.
 
-## 2. `SolveReport`, and why nothing throws
+## 2. `SolveReport`
+
+`SolveReport` aliases `ImplicitSolvers.SolverReport`. It records the residual
+norm in its primal precision and adds a `reason` for the outcome.
 
 A non-convergent solve returns `converged = false` and the caller decides. That is
 [[Inversions and Bayesian Lenses]]'s position quoted directly: *a solver that stopped early is simply an
@@ -74,7 +77,7 @@ deserves emphasis:
 
 ### 4.1 Optional AD uses the implicit function theorem
 
-`fd_jacobian` remains a forward-difference reference. `deq_sensitivity(...; wrt=:ps,
+`fd_jacobian` is the shared central-difference reference. `deq_sensitivity(...; wrt=:ps,
 ad)` and the differentiable `solve_state(...; ad)` use optional DI derivatives instead.
 For a residual $r(z,u)=0$ they solve
 
@@ -86,9 +89,17 @@ The ChainRulesCore weak extension supplies an `rrule` for the internal solved-st
 primitive. A cotangent $v$ gives $\lambda$ by $(D_z r)^\top\lambda=v$, then
 $\bar u=-(D_u r)^\top\lambda$ via a backend VJP. The ForwardDiff weak extension
 strips duals before the root solve, obtains residual JVPs in their seed directions,
-and solves the same linear system to rebuild the root's duals. Neither differentiates
-Broyden/Picard iterations. Both the input and parameters are active; the initial guess,
-solve report and returned Lux state are nondifferentiated bookkeeping.
+and solves the same linear system to rebuild the root's duals. The rules
+differentiate the residual at the solved point. Both the input and parameters
+are active. The initial guess, solve report and returned Lux state are
+nondifferentiated bookkeeping.
+
+On the CPU, `DenseIFT` passes the residual Jacobian or its transpose and each
+right-hand side to `ImplicitSolvers.adjoint_solve` with `DenseSolve()`. The
+residual already includes the identity term in the state polarity. The
+input polarity uses the input residual Jacobian directly. The dedicated HVP
+uses the same vector solves. The reference APIs `ift_sensitivity` and
+`deq_sensitivity` solve matrix right-hand sides with one factorization.
 
 AD requires a converged root and a nonsingular residual Jacobian. A singular Jacobian
 means the IFT gives no local inverse; it does **not** prove nonuniqueness (for example
@@ -137,9 +148,10 @@ $$
 
 Here $s_k=u_{k+1}-u_k$, $y_k=F(u_{k+1})-F(u_k)$ and $\alpha$ is `init_scale`.
 This is the same good inverse Broyden update as the dense solver. Products with
-$H_k$ and $H_k^\top$ cost $O(mn)$; no dense inverse is allocated. The absolute
-`1e-14` denominator guard matches the default solver. At capacity the oldest
-rank-one correction is removed, without recomputing the retained corrections.
+$H_k$ and $H_k^\top$ cost $O(mn)$. Both solvers use the relative guard
+$\sqrt{\epsilon_T}\lVert s_k\rVert\lVert H_k y_k\rVert$ in the shared
+update. At capacity the oldest rank-one correction is removed, without
+recomputing the retained corrections.
 These are transformed secant pairs, not a multisecant interpolation of the last
 raw $(s,y)$ pairs: eviction need not preserve the latest secant equation and can
 slow convergence. There is no line search or global convergence guarantee.
@@ -147,18 +159,26 @@ slow convergence. There is no line search or global convergence guarantee.
 Without eviction, iterates agree with dense Broyden up to roundoff; arithmetic
 order differs, so bitwise equality is not claimed. The first step is
 $u_1=u_0-\alpha F(u_0)$, exactly damped Picard (ordinary Picard for $\alpha=1$).
-`SolveReport` and nonconvergence behavior match the existing solvers. Tests cover
-full iteration traces, finite memory, degenerate updates and nonfinite residuals.
+The shared report distinguishes nonfinite residuals from an exhausted iteration
+budget and records how many residual evaluations took place. Tests cover full
+iteration traces, finite memory, degenerate updates and nonfinite residuals.
 
 Anderson acceleration is likewise absent, and is the other solver DEQ implementations
 commonly use.
 
-### 4.3 The tolerance is absolute
+### 4.3 Root tolerances
 
-`tol` compares against $\|F(u)\|_2$ with no relative component and no scaling by $\|u\|$. On
-a badly scaled problem that is either unreachable or trivially satisfied. A real solver takes
-`abstol` and `reltol`; `NonlinearSolve.jl` does, and if this package ever grows a dependency
-it should be that one.
+`PicardSolver`, `BroydenSolver` and `LimitedBroydenSolver` keep their
+constructor keywords and delegate `solve_root` to `ImplicitSolvers`. The
+default `Tolerance()` tests
+
+$$
+\lVert F(u)\rVert_2 \le \text{atol} + \text{rtol}\lVert u\rVert_2.
+$$
+
+Each default component is $\max(10^{-9},30\epsilon_T)$ in the residual's
+primal precision. To request the old absolute stopping bound, pass a real
+`tol`. The constructor translates it to `Tolerance(atol=tol, rtol=0)`.
 
 ### 4.4 Root state is fixed during `solve_state`
 
@@ -233,8 +253,7 @@ f = DEQFactor(cell, (x=200, z=200); solver=PicardSolver(tol=1e-12),
 z, report, stnew = solve_state(f, x, ps, st; ad)
 ```
 
-The primal root solver and its convergence policy are unchanged. The IFT option
-selects only the linear solve inside the AD rules. For $r(z,u)=0$, forward rules
+The IFT option selects the linear solve inside the AD rules. For $r(z,u)=0$, forward rules
 solve $D_z r\,\delta z=-D_u r\,\delta u$ using residual JVPs. Reverse rules solve
 $(D_z r)^\top v=\bar z$ with residual VJPs and return $-(D_u r)^\top v$.
 ChainRules uses the supplied reverse backend; the native Enzyme and Mooncake
@@ -244,15 +263,14 @@ cell inputs; users can still select plain `AutoEnzyme()` for the outer DEQ rule.
 JVP backend for the Enzyme forward rule. Dense mode retains its existing
 ForwardDiff linearisation for native Enzyme/Mooncake rules.
 
-Krylov.jl is a weak dependency instead of the broader LinearSolve interface:
-GMRES needs only a typed `size`/`eltype`/`mul!` operator, so no operator package or
-matrix materialisation is needed. The operator has no indexing or conversion to a
-matrix. Prepared DI products are reused across GMRES iterations. Restarted GMRES
-stores `O(memory)` basis vectors (plus its small Hessenberg workspace).
-Preconditioning is opt-in; see below. `itmax=0` means Krylov's default, twice
-the state dimension. Nonconvergence throws `ArgumentError`, including when the
-explicit final residual exceeds `atol + rtol*norm(rhs)` despite an optimistic
-recursive estimate. Zero right-hand sides still undergo the residual check.
+Load the Krylov.jl extension to prepare matrix-free DI products. Real
+unpreconditioned solves with `ldiv=false` pass that product to
+`ImplicitSolvers.adjoint_solve` with `GMRES`. Preconditioned solves and the
+remaining Krylov.jl cases keep the typed `size`/`eltype`/`mul!` operator and
+original residual check. Both paths reuse prepared DI products and restart
+after `memory` steps. A zero `itmax` uses twice the state dimension. Both
+paths report the iteration count and true residual to `on_solve` when supplied,
+and throw `ArgumentError` when the solve fails the stopping criterion.
 
 `test/lp002_followups.jl` checks all four existing backends plus explicit Enzyme
 forward/reverse modes on the two-dimensional linear oracle, including forced
@@ -262,7 +280,8 @@ This guards the state-Jacobian entry point independently of AD chunk size.
 `deq_sensitivity` and `ift_sensitivity` remain dense reference APIs; selecting
 Krylov on the factor changes differentiable `solve_state`, not those APIs.
 Select Picard or LimitedBroydenSolver for a primal without a dense inverse.
-GPU and complex parameters remain untested; second order has the dedicated scope below.
+Hardware GPUs and complex parameters remain untested. The dedicated second-order
+rule has the scope described below.
 
 
 ## Solver numerics follow-up (2026-10-27)
@@ -398,12 +417,11 @@ with the working explicit annotation tested in `test/lp002_batch_a.jl`.
 
 ## Device arrays: LP-002 batch B (2026-10-27)
 
-The optional GPUArraysCore extension keeps primal vectors, dense Broyden's inverse,
-and limited Broyden's secant vectors on the input device. Its scales/damping are
-converted to the vector element type. CPU allocations/scales retain their previous
-behavior, including their Float64 promotion. No root algorithm or denominator guard
-changes. A missing device initial guess is allocated with `similar(observed, n)`;
-CPU defaults remain Float64 zeros. Retained history is owned by the same solve.
+The shared solvers keep primal vectors, dense Broyden's inverse, and limited
+Broyden's secant vectors on the input backend. Their coefficients use the
+problem's precision. The GPUArraysCore extension allocates a missing device
+initial guess with `similar(observed, n)`. A missing CPU guess uses the
+floating-point type of the observed argument.
 
 Jacobi setup forms basis vectors by broadcast and reads diagonal slices without
 host scalar indexing. GMRES tolerances are converted to its RHS real element type:
@@ -429,18 +447,13 @@ Second-order adjoints and finite-difference reference derivatives require CPU
 arrays. No CUDA/ROCm execution or performance result is claimed.
 
 
-### Typed retained history found during batch B verification
+### Retained history in AD rules
 
-A full CPU regression run exposed an abstract inferred return type when retained
-Broyden history crossed the native Enzyme custom rule. Reading the history from
-`Ref{Any}` could leave a UnionAll for the report/preconditioner. Enzyme rejected
-that ABI contract. Explicit rule-return annotations repaired reverse mode but
-batched forward mode triggered an Enzyme LLVM assertion; those annotations were
-removed. The solver now returns the same correction vectors as a typed third
-result on its private retained-history path. Every exit uses the same result
-helper. The public solve still returns `(root, SolveReport)`, including the
-existing optional history-holder keyword; residual evaluations, update arithmetic
-and iteration counts are unchanged. No extra root or residual evaluation occurs.
+`BroydenIFT` retains the correction vectors from the shared
+`solve_root(...; history)`. The internal report keeps history outside its type
+parameters so the native Enzyme rule has a concrete return type even when the
+residual controls the history's array types. The public solve returns the
+shared report. Retaining history adds no root or residual evaluations.
 
 The existing non-diagonal history oracles in `test/lp002_batch_a.jl` check reverse
 and batched forward derivatives, both orientations, eviction and warm starts.
@@ -452,9 +465,11 @@ Enzyme device or nested-AD rule.
 `fd_jacobian` added $h = \varepsilon\max(1, |u_j|)$ to $u_j$ in the element type and divided by
 the unrounded $h$. In Float32 the probe $1 + 10^{-7}$ rounds to $1 + 2^{-23}$, so the identity's
 Jacobian came out as 1.1920929; in Float16 the probe vanished and the Jacobian was 0. Even in
-Float64 the identity gave $1 + 5.8\cdot10^{-10}$. The quotient now uses the increment the rounded
-probe actually makes (`_fd_step`, shared with `flow.jl`'s `_divergence`), and the default
-relative step is $\max(10^{-7}, \sqrt{\varepsilon_T})$, so Float64 keeps $10^{-7}$.
+Float64 the identity gave $1 + 5.8\cdot10^{-10}$. The shared `fd_jacobian`
+uses the actual distance between two rounded probes. Its `step` keyword
+defaults to $\sqrt[3]{\epsilon_T}$ before scaling by the coordinate.
+`flow.jl`'s `_divergence` still uses a forward probe with `_fd_step` and
+relative step $\max(10^{-7}, \sqrt{\varepsilon_T})$.
 
 `_norm` was `sqrt(sum(abs2, v))`, which underflows: a constant residual `[1e-200]` with
 `tol = 1e-210` was reported converged at iteration 0 by Picard, Broyden and limited Broyden,

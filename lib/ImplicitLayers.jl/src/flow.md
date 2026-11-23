@@ -265,5 +265,6 @@ state; the result is an evaluation-history computation, not a fixed vector field
 device and general native-backend divergence sensitivities remain open. No default
 trace, quadrature, sensitivity or state-threading algorithm is changed here.
 
-`_divergence` shares `fd_jacobian`'s step rule (LP-019 item 4, `solve.md`): before it, the
-Float32 RK4 log-determinant of $u' = u$ on $[0, 1]$ with 50 steps was 0.9758 instead of 1.
+`_divergence` keeps its forward probe and uses the actual rounded increment
+(LP-019 item 4, `solve.md`). Before that fix, the Float32 RK4 log-determinant of
+$u' = u$ on $[0, 1]$ with 50 steps was 0.9758 instead of 1.

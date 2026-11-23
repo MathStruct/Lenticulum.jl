@@ -292,7 +292,7 @@ CPU real arrays only; loss may depend on x/parameters only through z★.
 Arbitrary nesting of the first-order solve rules is unsupported: use this API.
 """
 function deq_hvp(loss, f::DEQFactor, x, ps, st, direction;
-                 wrt=:ps, ad=nothing, z₀=zeros(Float64, statedim(f)))
+                 wrt=:ps, ad=nothing, z₀=_initial_guess(x, statedim(f)))
     wrt in (:ps, :x, :joint) || throw(ArgumentError("deq_hvp wrt must be :ps, :x or :joint"))
     f.ift isa DenseIFT || throw(ArgumentError("deq_hvp supports DenseIFT only"))
     return _deq_hvp(ad, loss, f, x, ps, st, direction, wrt, z₀)
@@ -309,7 +309,7 @@ state followed by parameters. Holds incoming Lux state fixed and advances it onc
 at the root, as `solve_input(...; ad)`. The restrictions of `deq_hvp` apply.
 """
 function solve_input_hvp(loss, f::DEQFactor, z, ps, st, direction;
-                         wrt=:ps, ad=nothing, x₀=zeros(Float64, indim(f)))
+                         wrt=:ps, ad=nothing, x₀=_initial_guess(z, indim(f)))
     indim(f) == statedim(f) || throw(ArgumentError("solve_input_hvp requires a square residual"))
     wrt in (:ps, :z, :joint) || throw(ArgumentError("solve_input_hvp wrt must be :ps, :z or :joint"))
     f.ift isa DenseIFT || throw(ArgumentError("solve_input_hvp supports DenseIFT only"))

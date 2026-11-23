@@ -138,9 +138,12 @@ Each one is a branch, reviewed by a model that did not write it.
    (a linear $F$, $u - \cos u$ componentwise, a contraction with a known fixed point), the iteration
    count unchanged under duals with the tangent of the root equal to the implicit-function theorem's;
    the adjoint solve against `(J')\g` and `(I - J')\g`. Aqua. A CI entry and a docs page.
-2. **W2, `ImplicitLayers` onto it.** Its solvers become the moved ones; its IFT's linear solves go
-   through D6. Its suite passes (device files included), with the list of tests whose `tol` was made
-   explicit.
+2. **W2, `ImplicitLayers` onto it.** *Done 2026-11-23* (Codex; reviewed by Mistral,
+   [[LP-079 Findings of the reviews of P14 W2 and W3|LP-079]]). Root solvers, the report, finite
+   differences, CPU dense vector solves and real unpreconditioned GMRES use the shared package; device
+   LU, `JacobiIFT` and preconditioned, complex or `ldiv` Krylov solves keep their own paths. No test
+   needed an explicit `tol` (every one was already explicit); three assertions changed to the shared
+   API's behaviour (LP-079). Its tests need Enzyme ≥ 0.13.221.
 3. **W3, `VariationalDiffusion` onto it.** *Done 2026-11-23* (Codex; reviewed by Mistral,
    [[LP-079 Findings of the reviews of P14 W2 and W3|LP-079]]). Shared Picard, GMRES and adjoints
    implement D4–D6, and `ImplicitSolution.residual` is primal. The package suite passes; the eight

@@ -32,7 +32,7 @@ using ForwardDiff
     d = ImplicitLayers._divergence((u, t) -> u, u, Float16(0))
     @test ForwardDiff.value(d) == 1 && ForwardDiff.partials(d)[1] == 0
     # a step that does not change x is refused, not divided through
-    @test_throws ArgumentError fd_jacobian(identity, Float16[1]; ε = 1e-7)
+    @test_throws ArgumentError fd_jacobian(identity, Float16[1]; step = 1e-7)
     # a BigFloat residual of 1e-400 is not a root
     for solver in (PicardSolver(tol = 0.0), BroydenSolver(tol = 0.0), LimitedBroydenSolver(tol = 0.0))
         _, rep = solve_root(u -> BigFloat[big"1e-400"], BigFloat[0], solver)

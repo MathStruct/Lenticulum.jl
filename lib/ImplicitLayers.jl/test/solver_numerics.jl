@@ -48,7 +48,7 @@ using Krylov
     _, r = solve_root(u -> ones(2),zeros(2),LimitedBroydenSolver(memory=1,maxiters=3))
     @test !r.converged && r.iterations == 3 && r.nfe == 4 # degenerate secant
     _, r = solve_root(u -> fill(Inf,2),zeros(2),LimitedBroydenSolver())
-    @test !r.converged && r.iterations == 1 && r.nfe == 2
+    @test !r.converged && r.reason === :nonfinite && r.iterations == 0 && r.nfe == 1
     _, r = solve_root(identity,ones(2),LimitedBroydenSolver(maxiters=0))
     @test !r.converged && r.nfe == 1
 end

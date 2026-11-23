@@ -1,5 +1,6 @@
 module ImplicitLayersKrylovExt
 using ImplicitLayers: ImplicitLayers as IL
+using ImplicitSolvers: GMRES, Tolerance, adjoint_solve, _broyden_product
 using DifferentiationInterface: DifferentiationInterface as DI
 using Krylov: gmres
 using LinearAlgebra: LinearAlgebra, norm, I, Diagonal
@@ -25,7 +26,7 @@ function _preconditioners(::IL.BroydenIFT, ctx, k)
     h = ctx.history
     h === nothing && throw(ArgumentError("BroydenIFT requires retained forward solve history"))
     a, b = ctx.transposed ? (h.b, h.a) : (h.a, h.b)
-    product = v -> IL._broyden_product(a, b, h.scale, v)
+    product = v -> _broyden_product(a, b, h.scale, v)
     return ResidualOperator{eltype(ctx.root),typeof(product)}(length(ctx.root), product), I
 end
 function _preconditioners(p::IL.JacobiIFT, ctx, k)
@@ -71,6 +72,18 @@ function IL._ift_prepare(k::IL.KrylovIFT, ad, f, u, z, like, offs, st, transpose
 end
 function IL._ift_solve(s::KrylovSystem, b)
     k = s.options
+    if k.precond === nothing && !k.ldiv && eltype(b) <: Real
+        maxiters = iszero(k.itmax) ? 2length(b) : k.itmax
+        alg = GMRES(restart=k.memory; maxiters)
+        x, report = adjoint_solve(s.operator.product, b, alg;
+            tol=Tolerance(atol=k.atol, rtol=k.rtol))
+        solved = report.converged
+        k.on_solve === nothing ||
+            k.on_solve((; report.iterations, report.residual, solved))
+        solved || throw(ArgumentError(
+            "DEQ Krylov IFT did not converge: $(report.reason); residual=$(report.residual)"))
+        return x
+    end
     T = typeof(real(zero(eltype(b))))
     rtol, atol = T(k.rtol), T(k.atol)
     x, stats = gmres(s.operator, b; rtol, atol, k.itmax, k.memory,

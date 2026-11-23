@@ -1,269 +1,66 @@
-# ---------------------------------------------------------------------------
-# Root finding and finite-difference reference derivatives.
-#
-# Every factor in this package is a RELATION defined by a residual F(u) = 0, and inference is
-# solving that residual for whichever channel the polarity left unobserved. So one root-finder
-# serves both directions of a DEQ, which is the entire reason a DEQ is worth expressing as a
-# factor rather than as a Lux layer.
-#
-# Two solvers, and the difference between them is the whole caveat of `Implicit Learners.md`
-# §"Equilibrium":
-#
-#   Picard   u ← u - βF(u)      converges iff the iteration is a contraction
-#   Broyden  quasi-Newton       converges on plenty of problems where Picard diverges
-#
-# Neither needs a derivative of the network. `fd_jacobian` does, and pays O(n) forward passes
-# for it; see `solve.md` §4 for why that is a test-scale tool and not the real answer.
-#
-# See `solve.md`.
-# ---------------------------------------------------------------------------
+const SolveReport = ImplicitSolvers.SolverReport
 
-"""
-    SolveReport(converged, iterations, residual, nfe)
-
-What a root solve is willing to say about itself.
-
-`nfe` (number of function evaluations) is reported because it is the honest cost measure for
-an implicit layer — `DeepEquilibriumNetworks.jl` reports it too, in its
-`DeepEquilibriumSolution`, for the same reason: iteration count means nothing when one
-Broyden step and one Picard step cost differently.
-
-> [!important] `converged == false` is not an error
-> `Bayesian Lens.md`: a solver that stopped early is an inexact inversion, and inexact
-> inversions are legal — the free energy records the cost. So the report is threaded out
-> rather than thrown, and it is the caller's business what to do about it.
-"""
-struct SolveReport
-    converged::Bool
-    iterations::Int
-    residual::Float64
-    nfe::Int
-end
-
-Base.show(io::IO, r::SolveReport) = print(io,
-    "SolveReport(", r.converged ? "converged" : "NOT converged",
-    ", iters=", r.iterations, ", ‖F‖=", round(r.residual; sigdigits = 3), ", nfe=", r.nfe, ")")
-
-"""
-    abstract type AbstractRootSolver
-
-A method for solving ``F(u) = 0`` given only the ability to *evaluate* ``F``.
-
-Derivative-freeness is a requirement, not a convenience: the residual of a DEQ contains a
-neural network, and this package has no automatic-differentiation dependency (see
-`ImplicitLayers.md`). It is also what `DeepEquilibriumNetworks.jl` does in practice —
-Broyden and limited-memory Broyden are its workhorses.
-"""
-abstract type AbstractRootSolver end
-
-"""
-    PicardSolver(; maxiters = 100, tol = 1e-10, damping = 1.0)
-
-Damped fixed-point iteration ``u \\leftarrow u - \\beta F(u)``.
-
-For the DEQ residual ``F(z) = z - g(z,x)`` this is exactly ``z \\leftarrow (1-\\beta)z +
-\\beta g(z,x)``: the naive "just keep applying the layer" loop.
-
-**A contraction is sufficient for convergence**, and nothing checks that in
-advance; it is not a necessary condition for a particular initial guess. That is the caveat `Implicit Learners.md` records — *"this only works if the
-iteration converges, and unconstrained DEQs need not"* — and the test suite exhibits a linear
-cell with spectral radius > 1 on which this solver diverges and [`BroydenSolver`](@ref) does
-not.
-"""
-struct PicardSolver <: AbstractRootSolver
+# The shared algorithms take the tolerance and iteration budget at solve time.
+# These settings keep the ImplicitLayers constructor and call conventions.
+struct _ConfiguredRootSolver{A<:AbstractRootSolver,T<:Tolerance} <: AbstractRootSolver
+    algorithm::A
     maxiters::Int
-    tol::Float64
-    damping::Float64
+    tol::T
 end
-PicardSolver(; maxiters = 100, tol = 1e-10, damping = 1.0) =
-    PicardSolver(maxiters, tol, damping)
+
+const PicardSolver = _ConfiguredRootSolver{A} where {A<:Picard}
+const BroydenSolver = _ConfiguredRootSolver{A} where {A<:Broyden}
+const LimitedBroydenSolver = _ConfiguredRootSolver{A} where {A<:LimitedBroyden}
+
+_root_tolerance(tol::Tolerance) = tol
+_root_tolerance(tol::Real) = Tolerance(atol=tol, rtol=0)
 
 """
-    BroydenSolver(; maxiters = 100, tol = 1e-10, init_scale = 1.0)
+    PicardSolver(; maxiters=100, tol=Tolerance(), damping=1)
 
-"Good" Broyden: a quasi-Newton method maintaining an approximate **inverse** Jacobian updated
-by the Sherman–Morrison formula from secant pairs.
-
-Derivative-free, and it is what `DeepEquilibriumNetworks.jl` reaches for. Note the
-initialisation: with ``H_0 = I`` the first step is
-
-```math
-u_1 = u_0 - H_0F(u_0) = u_0 - (u_0 - g(u_0)) = g(u_0)
-```
-
-— **the first Broyden step is exactly a Picard step**, and everything after it is the
-correction Picard never makes. Asserted in the test suite.
-
-Stores a dense ``n\\times n`` matrix, so it is ``O(n^2)`` in memory. Real DEQs use
-limited-memory Broyden for exactly this reason; see `solve.md` §4.2.
+Damped fixed-point iteration using `ImplicitSolvers.Picard`. A real `tol`
+specifies an absolute residual bound.
 """
-struct BroydenSolver <: AbstractRootSolver
-    maxiters::Int
-    tol::Float64
-    init_scale::Float64
-end
-BroydenSolver(; maxiters = 100, tol = 1e-10, init_scale = 1.0) =
-    BroydenSolver(maxiters, tol, init_scale)
+PicardSolver(; maxiters=100, tol=Tolerance(), damping=1) =
+    _ConfiguredRootSolver(Picard(; damping), Int(maxiters), _root_tolerance(tol))
+PicardSolver(maxiters, tol, damping) = PicardSolver(; maxiters, tol, damping)
 
 """
-    LimitedBroydenSolver(; memory=20, maxiters=100, tol=1e-10, init_scale=1.0)
+    BroydenSolver(; maxiters=100, tol=Tolerance(), init_scale=1)
 
-Good inverse Broyden with at most `memory` rank-one secant corrections to
-`init_scale*I`. Stores two vectors per correction, never a dense inverse: O(memory*n)
-storage and work per step. Evicts the oldest correction without rebuilding the others.
-With no eviction, reproduces dense Broyden up to roundoff. The first step is damped
-Picard with damping `init_scale` (ordinary Picard when it is one).
+Dense inverse Broyden using `ImplicitSolvers.Broyden`. A real `tol` specifies
+an absolute residual bound.
 """
-struct LimitedBroydenSolver <: AbstractRootSolver
-    memory::Int
-    maxiters::Int
-    tol::Float64
-    init_scale::Float64
-    function LimitedBroydenSolver(; memory=20, maxiters=100, tol=1e-10, init_scale=1.0)
-        memory > 0 || throw(ArgumentError("memory must be positive"))
-        maxiters >= 0 || throw(ArgumentError("maxiters must be nonnegative"))
-        isfinite(tol) && tol >= 0 || throw(ArgumentError("tol must be finite and nonnegative"))
-        isfinite(init_scale) && init_scale != 0 || throw(ArgumentError("init_scale must be finite and nonzero"))
-        new(memory, maxiters, tol, init_scale)
-    end
-end
-
-# H = scale*I + sum(a*b'). The stored vectors are transformed secant pairs.
-function _broyden_product(a, b, scale, v)
-    out = scale .* v
-    for (ai, bi) in zip(a, b)
-        out .+= ai .* dot(bi, v)
-    end
-    return out
-end
-
-function solve_root(F, u₀, s::LimitedBroydenSolver; history=nothing)
-    return _solve_limited(F, u₀, s, Val(false), history)
-end
-_limited_result(u, rep, a, b, scale, ::Val{false}) = (u, rep)
-_limited_result(u, rep, a, b, scale, ::Val{true}) = (u, rep, (; a, b, scale))
-function _solve_limited(F, u₀, s::LimitedBroydenSolver, retain, history=nothing)
-    u = copy(u₀)
-    r = F(u)
-    n = _norm(r)
-    a, b, scale = _broyden_storage(u, r, s.init_scale)
-    history === nothing || (history[] = (; a, b, scale))
-    n <= s.tol && return _limited_result(u, SolveReport(true, 0, n, 1), a, b, scale, retain)
-    # The correction vectors belong to this solve; no cache is shared across solves.
-    for k in 1:s.maxiters
-        du = -_broyden_product(a, b, scale, r)
-        unew = u .+ du
-        rnew = F(unew)
-        nn = _norm(rnew)
-        isfinite(nn) || return _limited_result(unew, SolveReport(false, k, nn, k+1), a, b, scale, retain)
-        Hdr = _broyden_product(a, b, scale, rnew .- r)
-        denom = dot(du, Hdr)
-        if abs(denom) > 1e-14
-            right = _broyden_product(b, a, scale, du)
-            left = (du .- Hdr) ./ denom
-            if length(a) == s.memory
-                popfirst!(a)
-                popfirst!(b)
-            end
-            push!(a, left)
-            push!(b, right)
-        end
-        u, r, n = unew, rnew, nn
-        n <= s.tol && return _limited_result(u, SolveReport(true, k, n, k+1), a, b, scale, retain)
-    end
-    return _limited_result(u, SolveReport(false, s.maxiters, n, s.maxiters+1), a, b, scale, retain)
-end
-
-# `LinearAlgebra.norm` rescales, so tiny residuals do not underflow to a false root (LP-019 item 10).
-# Kept in the residual's own precision: converting to Float64 first would underflow a BigFloat
-# residual of 1e-400 to a false root again (LP-019 review).
-_norm(v) = LinearAlgebra.norm(v)
+BroydenSolver(; maxiters=100, tol=Tolerance(), init_scale=1) =
+    _ConfiguredRootSolver(Broyden(; init_scale), Int(maxiters), _root_tolerance(tol))
+BroydenSolver(maxiters, tol, init_scale) = BroydenSolver(; maxiters, tol, init_scale)
 
 """
-    solve_root(F, u₀, solver) -> (u, SolveReport)
+    LimitedBroydenSolver(; memory=20, maxiters=100, tol=Tolerance(), init_scale=1)
 
-Solve ``F(u) = 0`` from the initial guess `u₀`.
-
-`F` is called as `F(u)` and must return something the same shape as `u`. The residual norm
-that decides convergence is the Euclidean norm; `tol` is absolute, which is a simplification
-worth knowing about (`solve.md` §4.3).
+Limited-memory inverse Broyden using `ImplicitSolvers.LimitedBroyden`.
+A real `tol` specifies an absolute residual bound. Pass `history` to
+`solve_root` to retain the inverse approximation for `BroydenIFT`.
 """
-function solve_root(F, u₀, s::PicardSolver)
-    u = copy(u₀)
-    r = F(u)
-    nfe = 1
-    n = _norm(r)
-    n <= s.tol && return (u, SolveReport(true, 0, n, nfe))
-    for k in 1:(s.maxiters)
-        u = u .- _solver_scalar(u, s.damping) .* r
-        r = F(u)
-        nfe += 1
-        n = _norm(r)
-        # A diverging Picard iteration produces Inf/NaN rather than a large number; report
-        # it as non-convergence instead of letting it poison everything downstream.
-        (isfinite(n) && n <= s.tol) && return (u, SolveReport(true, k, n, nfe))
-        isfinite(n) || return (u, SolveReport(false, k, n, nfe))
-    end
-    return (u, SolveReport(false, s.maxiters, n, nfe))
+function LimitedBroydenSolver(; memory=20, maxiters=100, tol=Tolerance(), init_scale=1)
+    maxiters >= 0 || throw(ArgumentError("maxiters must be nonnegative"))
+    tol isa Real && !isfinite(tol) && throw(ArgumentError("tol must be finite"))
+    isfinite(init_scale) && !iszero(init_scale) ||
+        throw(ArgumentError("init_scale must be finite and nonzero"))
+    return _ConfiguredRootSolver(LimitedBroyden(; memory=Int(memory), init_scale),
+        Int(maxiters), _root_tolerance(tol))
 end
 
-function solve_root(F, u₀, s::BroydenSolver)
-    u = copy(u₀)
-    r = F(u)
-    nfe = 1
-    n = _norm(r)
-    n <= s.tol && return (u, SolveReport(true, 0, n, nfe))
-    m = length(u)
-    H = _broyden_inverse(u, s.init_scale, m)   # approximate inverse Jacobian
-    for k in 1:(s.maxiters)
-        du = -(H * r)
-        unew = u .+ du
-        rnew = F(unew)
-        nfe += 1
-        nn = _norm(rnew)
-        isfinite(nn) || return (unew, SolveReport(false, k, nn, nfe))
-        dr = rnew .- r
-        # Sherman–Morrison update of H ≈ J⁻¹; skipped when the denominator is degenerate,
-        # which happens when the step produced no new information.
-        denom = dot(du, H * dr)
-        if abs(denom) > 1e-14
-            H = H .+ ((du .- H * dr) * (du' * H)) ./ denom
-        end
-        u, r, n = unew, rnew, nn
-        n <= s.tol && return (u, SolveReport(true, k, n, nfe))
-    end
-    return (u, SolveReport(false, s.maxiters, n, nfe))
+function solve_root(F, u₀::AbstractVector, solver::_ConfiguredRootSolver;
+                    tol=solver.tol, maxiters=solver.maxiters, history=nothing)
+    return solve_root(F, u₀, solver.algorithm; tol=_root_tolerance(tol),
+        maxiters=Int(maxiters), history)
 end
 
-# --- Derivatives, by finite differences ------------------------------------
+# Compatibility for the scaled norm used by the LP-019 regression tests.
+const _norm = LinearAlgebra.norm
 
-"""
-    fd_jacobian(F, u; ε) -> Matrix
-
-The dense Jacobian ``\\partial F/\\partial u`` by forward differences: ``n+1`` evaluations of
-`F`.
-
-This remains a reference for small systems. Optional DI derivatives and solved-state
-IFT rules use automatic differentiation instead; see `deq_sensitivity` and
-`solve_state(...; ad)`. The root iterations themselves do not need derivatives.
-
-Column ``j`` uses the relative step `ε` (default ``\\max(10^{-7}, \\sqrt{\\varepsilon_T})`` for
-element type ``T``) and divides by the increment the rounded probe actually makes.
-
-"""
-function fd_jacobian(F, u; ε = nothing)
-    f0 = F(u)
-    m, n = length(f0), length(u)
-    J = zeros(Float64, m, n)
-    for j in 1:n
-        up = copy(u)
-        up[j], h = _fd_step(u[j], ε)
-        J[:, j] .= (F(up) .- f0) ./ h
-    end
-    return J
-end
-
-# A forward-difference probe x + h in the precision of x, and the increment it actually makes.
+# A forward-difference probe for the NeuralODE flow divergence, in the precision of x.
 # The requested h is rounded when it is added, so the quotient must use the rounded one; and
 # 1e-7 is below the resolution of Float16 and close to Float32's, so the default relative step
 # is max(1e-7, √eps) for the element type (LP-019 item 4). Float64 keeps 1e-7.
@@ -300,11 +97,7 @@ residual can have a unique root with zero derivative). Dense matrix reference on
 
 """
 function ift_sensitivity(Jz::AbstractMatrix, Jx::AbstractMatrix)
-    n = size(Jz, 1)
-    M = Matrix{Float64}(I, n, n) .- Jz
-    F = lu(M; check = false)
-    issuccess(F) || throw(SingularException(0))
-    return F \ Jx
+    return lu(I - Jz) \ Jx
 end
 
 # The differentiation linear solve is independent of the primal root solver.
@@ -328,9 +121,9 @@ instead. `JacobiIFT()` probes the operator diagonal. `on_solve`, when supplied,
 receives `(iterations, residual, solved)` as a named tuple after each linear solve,
 including failures; residual is measured in the original, unpreconditioned system.
 """
-struct KrylovIFT{P,C} <: AbstractIFT
-    rtol::Float64
-    atol::Float64
+struct KrylovIFT{P,C,R<:Real,A<:Real} <: AbstractIFT
+    rtol::R
+    atol::A
     itmax::Int
     memory::Int
     precond::P
@@ -342,7 +135,8 @@ struct KrylovIFT{P,C} <: AbstractIFT
         isfinite(atol) && atol >= 0 || throw(ArgumentError("atol must be finite and nonnegative"))
         itmax >= 0 || throw(ArgumentError("itmax must be nonnegative"))
         memory > 0 || throw(ArgumentError("memory must be positive"))
-        new{typeof(precond),typeof(on_solve)}(rtol, atol, itmax, memory, precond, ldiv, on_solve)
+        new{typeof(precond),typeof(on_solve),typeof(rtol),typeof(atol)}(
+            rtol, atol, itmax, memory, precond, ldiv, on_solve)
     end
 end
 
@@ -373,9 +167,11 @@ Up to two original-residual correction solves handle rescaled recursive residual
 iteration diagnostics include corrections, sharing any explicit `itmax` budget.
 """
 struct BroydenIFT end
-struct _HistoryReport{R,H}
+# The history's array types depend on the first residual. Keeping them out of
+# the report type makes the AD primitive's return type concrete with Ref{Any}.
+struct _HistoryReport{R}
     report::R
-    history::H
+    history::Any
 end
 Base.getproperty(r::_HistoryReport, s::Symbol) = s in (:report, :history) ?
     getfield(r, s) : getproperty(getfield(r, :report), s)
@@ -385,11 +181,12 @@ _solve_history(r) = nothing
 _solve_history(r::_HistoryReport) = r.history
 function _solve_root_ift(F, z0, f)
     if f.ift isa KrylovIFT && f.ift.precond isa BroydenIFT
-        f.solver isa LimitedBroydenSolver || throw(ArgumentError(
+        f.solver isa Union{LimitedBroydenSolver,LimitedBroyden} || throw(ArgumentError(
             "BroydenIFT requires LimitedBroydenSolver to retain forward history"))
         f.ift.ldiv && throw(ArgumentError("BroydenIFT supplies an inverse; use ldiv=false"))
-        z, rep, history = _solve_limited(F, z0, f.solver, Val(true))
-        return z, _HistoryReport(rep, history)
+        history = Ref{Any}()
+        z, rep = solve_root(F, z0, f.solver; history)
+        return z, _HistoryReport(rep, history[])
     end
     return solve_root(F, z0, f.solver)
 end
@@ -397,22 +194,29 @@ _ift_prepare(ad, f, u, z, like, offs, st, transposed, history=nothing) =
     _ift_prepare(f.ift, ad, f, u, z, like, offs, st, transposed, history)
 function _ift_prepare(::DenseIFT, ad, f, u, z, like, offs, st, transposed, history=nothing)
     J = _root_jacobian(ad, f, u, z, like, offs, st)
-    return _ift_factorize(J, transposed)
+    return _dense_ift_system(J, transposed)
 end
 _ift_prepare(::KrylovIFT, args...) = throw(ArgumentError(
     "KrylovIFT requires loading Krylov and DifferentiationInterface"))
 _ift_solve(A, b) = A \ b
 
-# CPU defaults preserve the original precision and allocation behavior. Device
-# specialisations live in the optional GPUArraysCore extension.
-_solver_scalar(u, x) = x
-function _broyden_storage(u, r, scale)
-    T = promote_type(Float64, eltype(u), eltype(r))
-    return Vector{T}[], Vector{T}[], scale
+_dense_ift_system(J, transposed) = transposed ? J' : J
+
+function _ift_solve(J::AbstractMatrix, b::AbstractVector)
+    x, report = adjoint_solve(J, b, DenseSolve())
+    if report.iterations == 0 && !isempty(b) && report.reason !== :nonfinite
+        throw(SingularException(0))
+    end
+    report.converged || throw(ArgumentError(
+        "DEQ dense IFT did not converge: $(report.reason); residual=$(report.residual)"))
+    return x
 end
-_broyden_inverse(u, scale, n) = Matrix{Float64}(scale * I, n, n)
-_ift_factorize(J, transposed) = lu(transposed ? J' : J)
-_initial_guess(x, n) = zeros(Float64, n)
+
+# Device specialisations live in the optional GPUArraysCore extension.
+function _initial_guess(x, n)
+    T = eltype(x)
+    return zeros(T <: Number && isconcretetype(T) ? float(T) : Float64, n)
+end
 _flow_times(u, t0, t1) = (t0, t1)
 _check_solve_device(ad, u) = nothing
 

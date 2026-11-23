@@ -29,7 +29,7 @@ end
 function CRC.rrule(::typeof(IL._implicit_state), ad, f, u, like, offs, st, z0)
     out = IL._implicit_state(ad, f, u, like, offs, st, z0)
     z = out[1]
-    # No solver iterations on the tape. Keep either a dense LU or a residual
+    # No solver iterations on the tape. Keep either a dense system or a residual
     # product operator; the input/parameter cotangent follows the transposed solve.
     fac = IL._ift_prepare(ad, f, u, z, like, offs, st, true, IL._solve_history(out[2]))
     function back(dout)

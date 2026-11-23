@@ -1,15 +1,15 @@
 #problem
 
-> **Status: open (2026-11-23).** P14's work packages W2 (ImplicitLayers onto `ImplicitSolvers`) and W3
+> **Status: closed (2026-11-23).** P14's work packages W2 (ImplicitLayers onto `ImplicitSolvers`) and W3
 > (VariationalDiffusion onto it), both implemented by Codex, and what their reviews found. W3: Mistral
-> found no wrong result; two newly refused inputs are recorded as accepted behaviour changes. W2: under
-> review. Related: [[Shared Solver Layer]], [[Feature Backlog]] (P14),
+> found no wrong result; two newly refused inputs are recorded as accepted behaviour changes. W2: Mistral found one
+> newly refused input (the same as in W3), accepted; with Enzyme 0.13.205 the suite aborts, 0.13.221 passes. Related: [[Shared Solver Layer]], [[Feature Backlog]] (P14),
 > [[LP-078 Findings of the reviews of the Mycelium coverage tests and the Anderson and block AD fixes|LP-078]] (W1).
 
 > Sources: Codex (GPT-6.2, `codex exec -s workspace-write`, high effort; briefs in
 > `~/.cache/lenticulum/codex-queue/w2-brief.md`, `w3-brief.md`; answers in
 > `../Lenticulum.jl-Review-2026-11-22/p14-w2/`, `p14-w3/`); Mistral Large (`vibe --agent review`, \$0;
-> probes in `scratch/w3r/` of `../Lenticulum.jl-glm`, answer `p14-w3/ANSWER-mistral.md`). The reviewer had
+> probes in `scratch/w3r/` of `../Lenticulum.jl-glm` and `scratch/w2r/` of `../Lenticulum.jl-mistral`, answers `p14-w3/ANSWER-mistral.md`, `p14-w2/ANSWER-mistral.md`). The reviewer had
 > the requirement and the diff, not the reasoning. code: `lib/VariationalDiffusion.jl/src/proxdm.jl`,
 > `lib/VariationalDiffusion.jl/src/krylov.jl`, `lib/VariationalDiffusion.jl/src/implicit.jl`,
 > `lib/ImplicitLayers.jl/src/solve.jl`. tests: `lib/VariationalDiffusion.jl/test/runtests.jl`,
@@ -34,14 +34,36 @@ Gate (2026-11-23, on the branch): `julia -t auto --project=lib/VariationalDiffus
 Pkg.test()'` ended with `Testing VariationalDiffusion tests passed`. Not run by me: the smoke examples
 (Codex's run: eight of eight, the same printed numbers before and after), the Reactant suite, CUDA.
 
-## W2: ImplicitLayers
+## W2: ImplicitLayers (Mistral)
 
-Under review. Known so far:
+| # | finding | right? | done | test |
+|---|---|---|---|---|
+| F1 | The CPU dense IFT (`_ift_solve` in `src/solve.jl`) throws `ArgumentError("DEQ dense IFT did not converge: nonfinite; …")` when the state Jacobian or the cotangent has a nonfinite entry; the old `A \ b` returned NaNs | yes (the reviewer's probe `scratch/w2r/probe1.jl` in `../Lenticulum.jl-mistral`) | accepted, as W3's F2 | not added |
 
-- Three old assertions changed to the shared API's behaviour (accepted): a residual nonfinite at the
-  start stops with `:nonfinite` after zero iterations (`test/solver_numerics.jl`); `fd_jacobian`'s keyword
-  is `step` (`test/lp019.jl`); on a device array the host-only `fd_jacobian` fails with a scalar-indexing
-  error instead of an `ArgumentError` (`test/device_arrays.jl`).
-- With Enzyme 0.13.205 the suite aborts in Enzyme's compiler ("Illegal address space cast from decayed
-  ptr", LLVM's GC invariant verifier) at `test/parameter_ad.jl:22`; the same Manifest passes on
-  `dev-danielb`, and the branch passes with Enzyme 0.13.221. The cause in W2's code is not found.
+Changed by the implementation, accepted (the shared API's behaviour, D2–D7): a residual nonfinite at the
+start stops with `:nonfinite` after zero iterations, where the old limited Broyden took one step
+(`test/solver_numerics.jl`); `fd_jacobian`'s keyword is `step`, not `ε` (`test/lp019.jl`); on a device array
+the host-only `fd_jacobian` fails with a scalar-indexing error, not an `ArgumentError`
+(`test/device_arrays.jl`; a clear error there would need a method on `ImplicitSolvers.fd_jacobian` for
+device arrays in a package that owns neither, so it waits for a device check in ImplicitSolvers itself);
+`solve_root` takes vector states only (D5; no caller passes another); `PicardSolver(maxiters = -1)` is
+refused at the solve; Float32 DEQs now solve in Float32. No test needed an explicit `tol`.
+
+Checked by the reviewer without a finding: both orientations of the dense IFT solve the system the old
+code solved; singular systems still throw `SingularException` (also for `b = 0`); near-singular ones
+(condition up to $4\cdot10^{14}$) return what the old code returned; the constructor checks are those of
+the old code; `BroydenIFT` against `DenseIFT` through ForwardDiff, Zygote, Enzyme and Mooncake within
+1.3e-15; the shared GMRES against Krylov.jl within 2.7e-15 on a nonsymmetric 30×30 system; JLArrays with
+`allowscalar(false)`; `deq_hvp` against the closed-form Hessian within 6.7e-16.
+
+**Enzyme.** With Enzyme 0.13.205 the suite aborts in Enzyme's compiler ("Illegal address space cast from
+decayed ptr", LLVM's GC invariant verifier) at `test/parameter_ad.jl:22`; the same Manifest passes on
+`dev-danielb`, and the branch passes with Enzyme 0.13.221. The test project now has
+`[compat] Enzyme = "0.13.221"`. Which construct of W2 triggers it (the untyped history of
+`_HistoryReport` is a guess) is not found, so a user of the Enzyme extension with an older Enzyme may meet
+the same abort.
+
+Gate (2026-11-23): on the branch with the three assertions, `julia -t auto --project=lib/ImplicitLayers.jl
+-e 'using Pkg; Pkg.test()'`, without and with `LENTICULUM_DEVICE_TESTS=true`, each ended with `Testing
+ImplicitLayers tests passed`; and again on the merged tree (default). Load time: Codex's paired measurement,
+38.3 ms before and 37.9 ms after (medians); not repeated.
