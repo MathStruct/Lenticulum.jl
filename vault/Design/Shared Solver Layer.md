@@ -333,6 +333,10 @@ Before (a), check three things: Krylov.jl on `ForwardDiff.Dual` and complex `Dua
 JLArrays with `allowscalar(false)`, and whether its callback can stop on the true residual under
 left preconditioning. (b) is the larger amount of code to own.
 
+The maintainer's decision (2026-11-24): Krylov.jl comes back as an optional package extension of
+ImplicitSolvers (P41), beside the in-house solvers, which stay the default. P40 now decides only
+whether the default changes, on what running both backends on the same cases shows.
+
 ## Open questions
 
 - Whether `Anderson` belongs in the package as a root solver (Mycelium's `AndersonSchedule` mixes
