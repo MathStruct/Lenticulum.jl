@@ -85,7 +85,7 @@ is in Lenticulum's `test/switching_constraint.jl`.
 - **`ResidualSchedule`**: commits the task of largest residual, then repeats up to its task
   budget; a priority queue re-probes only the tasks that read the committed message (I4, "The
   residual schedule's queue" below). Probe state updates are discarded; committed
-  updates advance state. Ties prefer the oldest message, then task order.
+  updates advance state. Ties prefer the oldest message, then task order. Repeatable graphs can carry the queue into the next sweep (I31 below).
 
 The trade is not just speed. On a loopy graph the sequential order *is* a modelling choice made
 without noticing. Flooding removes message-order dependence for stateless factors;
@@ -233,8 +233,9 @@ too, in the units of the criterion (absolute or relative). The sweep's residual 
 is at least the sweep's first update, which is the largest pending residual at the start of the
 sweep. It is not enough on its own: the sweep's later updates can raise other residuals, and the
 review measured up to 2.7 times the bound at the report when only that was checked (LP-054 F1). So
-when the marginals have been quiet twice and the filter passes, one scan of every task (evaluated,
-not committed) decides; if a residual is above the bound the run goes on. The report gives the
+when the marginals have been quiet twice and the filter passes, the largest pending residual
+decides. I31 reads it from the refreshed heap when available and scans all tasks otherwise.
+If a residual is above the bound the run goes on. The report gives the
 largest of the residuals and says "every pending message residual" in its `reason`. A sweep that
 covers every task is unchanged, and so is `:messages`. A partial run whose messages have no
 `belief_distance` (residual `Inf`) now never reports convergence under `:marginals` (by the code;
@@ -871,7 +872,7 @@ keeps the one-sweep exact report.
 A `ResidualSchedule` sweep used to probe every legal task (`_step!` with `commit = false`) before each
 of its commits: $T^2$ message evaluations for a sweep of $T$ commits, 2.1 times flooding's on the
 divider to convergence and out of reach on a grid of a few thousand tasks. It now keeps the residuals
-in an indexed binary heap (`_TaskHeap`). A sweep probes every task once, then pops the task of largest
+in an indexed binary heap (`_TaskHeap`). A fresh heap probes every task once. The sweep then selects the task of largest
 residual, commits it, and probes again only the tasks whose message can read the committed one
 (`_dependents!`):
 
@@ -892,9 +893,10 @@ the distance of $b$ to itself, computed without calling the factor: 0, but `Inf`
 distance and NaN for one with a NaN (LP-072 F1). Nothing is probed after the budget's last commit. The keys
 are the residuals' primal values as `Float64`, or as `Real` once a residual of another type appears
 (`BigFloat` residuals rounded to `Float64` tied or became 0, LP-072 F2). The heap orders by residual, then the older message, then the position in
-`all_tasks(g)`, which is the order the scan chose by; a skipped update or a NaN residual gets the key
-$-1$ and is never popped (the scan never chose them either). So the residuals in the heap are the ones
-the scan would compute, and **the queue makes the same commits in the same order, bit for bit**. The
+`all_tasks(g)`, which is the order the scan chose by; a skipped update or a NaN residual sorts at
+$-1$ and is never selected (the scan never chose them either). This equivalence assumes that a repeated
+probe on unchanged inputs produces the same residual. Under that assumption the heap and scan
+**make the same commits in the same order, bit for bit**. The
 scan is kept as `_residual_sweep_scan!`, the reference of `test/residual_queue.jl` (Lenticulum): 40
 random loopy graphs × damping 0 and 0.3 × `maxtasks` all and 3, eight sweeps each, with mean-field,
 expectation-propagation, nonlinear, cavity-reading and stateful tied nodes; record, store and state
@@ -912,7 +914,7 @@ target's cavity) and not `message_uses_cavity`. A wrong `true` costs probes; a w
 the commits silently. The factors that declare `exact_messages` were read for a use of `prior` in their
 messages (none found).
 
-**Measured** (`bench/residual_queue.jl`, Gaussian $n \times n$ grids of `bp_grid.jl`, one machine (8 cores),
+**I4 baseline** (`bench/residual_queue.jl`, Gaussian $n \times n$ grids of `bp_grid.jl`, one machine (8 cores),
 Julia on one thread, 2026-11-20, after the review's fixes). One sweep from an empty store, the scan against the queue, the commits checked
 equal:
 
@@ -923,7 +925,7 @@ equal:
 | 10 × 10 | 920 | 1.74 s | 0.0067 s | 261× | 846 400 | 2 966 |
 | 32 × 32 | 9 984 | not run | 0.078 s | | | 33 414 |
 
-The queue's evaluations are about $3.3\,T$ per sweep: $T$ for the first probe of every task and about
+The I4 tables count the queue's probes, with about $3.3\,T$ per sweep: $T$ for the initial scan and about
 2.3 per commit. To a message residual of $10^{-10}$, against flooding:
 
 | grid | prior variance | flooding: sweeps, evaluations, time | residual: sweeps, evaluations, time |
@@ -942,7 +944,76 @@ solve at the same message tolerance ($4\cdot10^{-9}$ against $10^{-10}$ at prior
 is decided on the sweep's committed residuals, and the schedule leaves smaller residuals pending in
 the slow modes. That is the schedule's, not the queue's (the commits are the scan's); not examined further.
 
-**Not done.** The first probe of every task in each sweep is a third of the cost; keeping the heap
-between sweeps would save it but needs the store to say when it was changed outside a sweep (a `pin!`,
-an edit, a user's write). `_max_pending` (I24's check at the stop of a partial sweep) still scans every
-task once. Plates (`PlateSchedule`) have no residual schedule.
+### Keeping the heap between sweeps (I31, 2026-11-23)
+
+`ResidualSchedule` now retains a heap per store in a `WeakKeyDict`. Mycelium decides
+eligibility once per graph with `repeatable_messages(f)`. The trait defaults to `false` and
+requires bitwise-repeatable variable-bound messages for the same inputs, parameter and state
+trees. A probe may return updated state. It must leave every input and cache read by later
+probes untouched, and any user functions it calls must be pure. Cluster and overlay factors
+check their members. `reuse = false` runs the fresh queue on every sweep.
+
+`DiffusionFactor` uses RED-Diff by default (`lib/VariationalDiffusion.jl/src/factor.jl:45`).
+Its message solve (`factor.jl:347–352,372–386`) reaches `regulariser_gradient`, which draws
+from the RNG in the prox configuration (`lib/VariationalDiffusion.jl/src/reddiff.jl:44–53,90–101,123–142`).
+A probe script (Codex's, not in the repository; LP-080) reported residuals
+`0.002518506159659007` and `0.0027546060218798796` on consecutive unchanged probes. The test
+`lib/Lenticulum.jl/test/residual_queue.jl` ("I31: an RNG factor keeps fresh probes") keeps the refusal.
+The default trait keeps diffusion graphs on fresh queues.
+
+After a sweep, the schedule saves the graph, returned state, parameters, damping, relative
+tolerance, task budget, pin values and a reference to each stored message in both directions.
+A block-backed edge uses its stored row reference. A changed graph, tree identity, settings or
+pins triggers a full probe. Otherwise each replaced message marks its own task and the tasks
+returned by `_dependents!` for a new probe. The final commit also marks those tasks, plus any
+tasks affected by a change to shared state. Probing waits until the next sweep or
+`_max_pending`, since probing after the budget can throw (LP-072 F3). If the refreshed heap
+contains a NaN, `_max_pending` uses the scan to preserve the previous NaN behaviour.
+
+An exact output can build a cavity that its value does not use. If a changed variable has a
+potentially incompatible product, the next initial probe also refreshes its exact outputs.
+For example, two contradictory clamps can make another output's cavity throw before any
+commit in the next sweep. The refresh preserves that ordering (LP-072 F4). Ordinary Gaussian
+products with compatible sizes require no extra probes.
+
+The oracle in `lib/Lenticulum.jl/test/residual_queue.jl` compares commits, stores, state and
+reports with reuse on and off for the eight-sweep I4 cases. Its second pass writes messages in
+both directions, changes a parameter coordinate and a tied state, pins a variable and copies
+an independently swept store over the cached store. Separate cases exercise relative tolerance,
+damping, a different graph, a newly copied store, the partial-sweep stopping criterion and a
+factor with an RNG.
+
+**Measured** with Julia 1.13.1 and one BLAS thread while package suites ran.
+
+```bash
+OPENBLAS_NUM_THREADS=1 julia -t auto --project=bench bench/residual_queue.jl
+```
+
+One sweep from an empty store, best of three. The probes and total evaluations per grid
+are identical with reuse on and off. `julia --project=bench bench/residual_queue.jl` prints all grid sizes and the second sweep on the same store.
+
+| Grid | Reuse off | Reuse on | Probes / total evaluations |
+| --- | ---: | ---: | ---: |
+| 3 × 3 | 0.000464 s | 0.000465 s | 180 / 246 |
+| 6 × 6 | 0.004945 s | 0.002382 s | 966 / 1,278 |
+| 10 × 10 | 0.012801 s | 0.014005 s | 2,966 / 3,886 |
+| 32 × 32 | 0.084616 s | 0.086149 s | 33,414 / 43,398 |
+
+To a message residual of $10^{-10}$. Total evaluations include the commits.
+
+| Grid | Prior variance | Sweeps | Reuse off, probes / total, seconds | Reuse on, probes / total, seconds |
+| --- | ---: | ---: | ---: | ---: |
+| 4 × 4 | 1 | 30 | 8,803 / 12,643, 0.036 s | 5,155 / 8,995, 0.028 s |
+| 4 × 4 | 100 | 862 | 251,463 / 361,799, 1.114 s | 143,261 / 253,597, 0.971 s |
+| 8 × 8 | 1 | 40 | 54,611 / 77,651, 0.232 s | 32,244 / 55,284, 0.225 s |
+| 8 × 8 | 100 | 1,500 | 2,034,646 / 2,898,646, 9.642 s | 1,174,811 / 2,038,811, 6.353 s |
+| 16 × 16 | 1 | 37 | 216,156 / 306,140, 1.262 s | 128,695 / 218,679, 0.848 s |
+| 16 × 16 | 100 | 1,583 | 9,165,915 / 13,015,771, 49.315 s | 5,322,298 / 9,172,154, 38.273 s |
+
+Reuse saves 40.5%–43.0% of probes and 28.6%–29.9%
+of total evaluations to convergence. The benchmark checks the same commit sequence and
+sweep count in both modes.
+
+**Open.** `PlateSchedule` has no residual schedule for block updates. Reuse assumes message,
+parameter and state contents stay fixed while their references are unchanged. Callers that edit
+those contents in place can use `reuse = false`. The dedicated Mycelium device suites were unchecked.

@@ -24,6 +24,10 @@ positional because a factor has no distinguished input — which is decided per 
 Built through a mutable `GraphBuilder` (`variable!`, `factor!`, `connect!`, `build`) so the
 adjacency indices cannot drift out of sync with the edge list.
 
+The first residual sweep with reuse enabled checks `repeatable_messages` on each factor.
+The graph caches that decision under `polarity_lock`, which also guards its polarity and
+message-plan caches. A graph built after an edit starts with an empty decision (I31, [[passing]]).
+
 An `Emitting()` edge carries no variable-to-factor message. A factor whose
 `local_free_energy` reads those messages declares `uses_cavity == true`; graph free energy
 then requires `Absorbing()` or `Bidirectional()` on every attached edge. In particular a prior

@@ -67,6 +67,7 @@ LenticulumCore.supports_polarity(f::ScaleShiftFactor, p::LenticulumCore.Polarity
     LenticulumCore.supports_polarity(f.hard, p)
 LenticulumCore.islearnable(::ScaleShiftFactor) = true
 Mycelium.exact_messages(::ScaleShiftFactor) = true
+Mycelium.repeatable_messages(::ScaleShiftFactor) = true
 Mycelium.uses_cavity(::ScaleShiftFactor) = true
 coupling_precision(::ScaleShiftFactor, ps) = :hard
 LenticulumCore.energyspace(f::ScaleShiftFactor) = LenticulumCore.energyspace(f.hard)

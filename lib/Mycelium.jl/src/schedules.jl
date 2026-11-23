@@ -112,31 +112,62 @@ tasks(s::ForwardBackwardSchedule) = vcat(s.forward, s.backward)
 tasks(s::SequentialSchedule) = s.tasks
 tasks(s::FloodingSchedule) = s.tasks
 
+# The indexed max-heap and the inputs it describes (`passing.jl`). A sweep can leave a
+# few keys dirty at its last commit. Its snapshot contains message references, never the store.
+mutable struct _TaskHeap{R<:Real}
+    res::Vector{R}
+    age::Vector{Int}
+    heap::Vector{Int}
+    pos::Vector{Int}
+    nans::Int
+end
+
+struct _ResidualMemory
+    graph::FactorGraph
+    ps::Any
+    st::Any
+    damping::Real
+    relative_tol::Union{Nothing,NTuple{2,Float64}}
+    maxtasks::Int
+    pins::Dict{Int,Any}
+    to_variable::Vector{Any}
+    to_factor::Vector{Any}
+    heap::_TaskHeap
+    dirty::Vector{Int}
+end
+
 """
-    ResidualSchedule(; maxtasks)
+    ResidualSchedule(; maxtasks = 10_000, reuse = true)
 
 Dynamic: repeatedly send whichever pending message would change the most (Elidan, McGraw &
 Koller's *residual belief propagation*).
 
 Converges on many loopy graphs where flooding oscillates, because it prioritises the parts
-of the graph that have not settled. A `sweep!` evaluates every legal task's residual once
-(with `commit = false`), then commits up to `min(maxtasks, number of tasks)` times the task of
-largest residual (the oldest message among equal residuals, then task order) and re-evaluates
-only the tasks whose message reads the committed one (I4: a priority queue, as in Elidan,
+of the graph that have not settled. A `sweep!` commits up to `min(maxtasks, number of tasks)`
+times the task of largest residual (the oldest message among equal residuals, then task order)
+and re-evaluates only the tasks whose message reads the committed one (I4: a priority queue, as in Elidan,
 McGraw & Koller). That is ``O(|\\text{tasks}| \\cdot \\text{degree})`` message evaluations per
 sweep, and the same commits a scan of every task before each commit would make. Requires a
 usable [`belief_distance`](@ref); pairs returning `Inf` are tried first.
+
+With `reuse = true`, graphs whose factors all declare [`repeatable_messages`](@ref) keep the
+queue per store across sweeps. The snapshot detects replacement of a message, the parameter or
+state tree, and changes to pins, damping and relative tolerance. Use `reuse = false` if changing
+factor data, parameters, state or stored beliefs in place between sweeps. Each sweep then starts
+by evaluating every task's residual.
 """
 struct ResidualSchedule <: AbstractSchedule
     maxtasks::Int
-    function ResidualSchedule(maxtasks::Int)
+    reuse::Bool
+    memory::WeakKeyDict{MessageStore,Union{Nothing,_ResidualMemory}}
+    function ResidualSchedule(maxtasks::Int; reuse::Bool = true)
         # A sweep of zero tasks computes nothing and has residual 0, which would read as
         # convergence (LP-019 item 9).
         maxtasks >= 1 || throw(ArgumentError("ResidualSchedule needs maxtasks ≥ 1; got $maxtasks"))
-        return new(maxtasks)
+        return new(maxtasks, reuse, WeakKeyDict{MessageStore,Union{Nothing,_ResidualMemory}}())
     end
 end
-ResidualSchedule(; maxtasks::Int = 10_000) = ResidualSchedule(maxtasks)
+ResidualSchedule(; maxtasks::Int = 10_000, reuse::Bool = true) = ResidualSchedule(maxtasks; reuse)
 
 # --- Generators ------------------------------------------------------------
 

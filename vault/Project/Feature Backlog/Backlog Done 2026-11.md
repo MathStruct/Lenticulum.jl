@@ -6,6 +6,23 @@
 
 > Sources: original to this repository; the notes, tests and benchmarks named in each entry.
 
+## 2026-11-23
+
+I31: `ResidualSchedule` keeps its priority queue per store between sweeps (`reuse = true`, the default)
+and re-probes only the tasks whose inputs changed: a snapshot of every edge's message references, the
+pins, `ps`, the returned `st`, the damping and the settings; anything else changed means a fresh scan.
+Reuse only on graphs whose factors all declare the new trait `repeatable_messages` (`false` by default;
+RED-Diff's `DiffusionFactor` draws from an RNG and does not). `_max_pending` reads the queue's top.
+Contents changed in place are not detected: `reuse = false` then. Measured (`bench/residual_queue.jl`,
+Codex): to a message residual of 1e-10 on the grids, 40.5–43.0 % fewer probes, 28.6–29.9 % fewer message
+evaluations in all. Code `lib/Mycelium.jl/src/passing.jl`, `schedules.jl`; note `passing.md` ("Keeping
+the heap between sweeps"); test `lib/Lenticulum.jl/test/residual_queue.jl`; review
+[[LP-080 Findings of the review of I31|LP-080]].
+
+P14 W2 and W3: ImplicitLayers and VariationalDiffusion run on `ImplicitSolvers` (root solvers, report,
+finite differences, dense and GMRES adjoint solves; the prox's Picard). Review
+[[LP-079 Findings of the reviews of P14 W2 and W3|LP-079]]; the P14 row stays open for W4 and W5.
+
 ## 2026-11-22
 
 I23 and P6 follow-ups (LP-053 finding 2 and LP-044 finding 1). Anderson uses primal residuals for its mixing coefficients and applies them to the dual images. The dual and float sweep counts differ by at most one on the I23 divider, and the Jacobian matches the dense solve (`lib/Lenticulum.jl/test/p9_relative_tol.jl`). `GaussianBlock`, `ComponentMixtureBlock` and `belief_block` use vector constructor copies, so Zygote can differentiate natural-parameter losses through their construction (`lib/Mycelium.jl/test/block_ad.jl`). `IMPL-small.md` records the checks.

@@ -84,6 +84,7 @@ function LenticulumCore.supports_polarity(f::SplitFactor, p::LenticulumCore.Pola
 end
 LenticulumCore.islearnable(::SplitFactor) = false
 Mycelium.exact_messages(::SplitFactor) = true
+Mycelium.repeatable_messages(::SplitFactor) = true
 coupling_precision(::SplitFactor, ps) = :hard
 # the grading of `HardConstraintFactor`, whose free energy it has (`local_free_energy` below)
 LenticulumCore.energyspace(::SplitFactor) = LenticulumCore.energyspace(HardConstraintFactor((x = 1,), 1))

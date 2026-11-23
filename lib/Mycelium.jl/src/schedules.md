@@ -71,10 +71,10 @@ was stale; `forward_backward_schedule` explicitly contains this fallback.
 `passing.jl` commits the largest residual, breaks ties by oldest message (then
 task order), and stops early at zero residual. A sweep commits at most
 `min(maxtasks, length(all_tasks(g)))` tasks. Until I4 (2026-11-20) it probed every
-legal task before each commit, quadratic message evaluations per full sweep; it
-now probes every task once per sweep and, after a commit, only the tasks that read
-the committed message, with the same commits ([[passing]], "The residual
-schedule's queue"). Unsupported distances returning `Inf` prevent numerical
+legal task before each commit, quadratic message evaluations per full sweep. A fresh
+queue probes every task once. After each commit it probes only the affected tasks.
+I31 can carry those keys into the next sweep with the same commits ([[passing]], "The
+residual schedule's queue"). Unsupported distances returning `Inf` prevent numerical
 convergence certification. Probe state updates are discarded; factors must use
 functional state.
 
@@ -128,6 +128,12 @@ either function body.
 `ResidualSchedule` rejects `maxtasks < 1` (LP-019 item 9): a sweep of no tasks computes no
 message and has residual 0, which `propagate!` read as convergence, so a unary `DataFactor`
 graph returned `TrivialBelief()` with a converged report.
+
+`ResidualSchedule(; reuse = true)` carries residual keys between sweeps on repeatable
+graphs (I31). Like `AndersonSchedule`, it keeps per-store memory in a `WeakKeyDict`.
+Its snapshot holds the graph, message references, pin values, parameter and state trees,
+and residual settings. See [[passing#Keeping the heap between sweeps (I31, 2026-11-23)]]
+for invalidation and the comparison with `reuse = false`.
 
 ## Component sweeps (2026-11-02)
 

@@ -487,3 +487,4 @@ end
 exact_messages(::DataFactor) = true
 exact_messages(::PriorFactor) = true
 exact_messages(::RelayFactor) = true
+repeatable_messages(::Union{DataFactor,PriorFactor,RelayFactor}) = true
