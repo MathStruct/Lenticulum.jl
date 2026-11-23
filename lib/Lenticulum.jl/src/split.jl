@@ -25,7 +25,7 @@ is collapsed to its moments first. The message to a piece is the marginal on ``I
 
 Its Bethe term is that of the relation ``S z - x = 0`` as `HardConstraintFactor` computes it (the
 limit of the noisy relation). When no input has hard directions it is ``-H(q)``, ``q`` the
-normalised product of all inputs on ``z``: [`RelayFactor`](@ref)'s term, which
+normalised product of all inputs on ``z``: `Mycelium.RelayFactor`'s term, which
 `SplitFactor(:z, (x = 1:d,))` reproduces for proper Gaussian inputs. Unlike `RelayFactor`, it
 collapses a mixture input to its moments.
 
