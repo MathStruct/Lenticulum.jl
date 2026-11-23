@@ -1,6 +1,6 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml"><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Bibliography</loc>
-    <lastmod>2026-11-23T16:59:19.000Z</lastmod>
+    <lastmod>2026-11-23T23:39:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Design/Backward-Signatures</loc>
     <lastmod>2026-10-29T20:31:05.000Z</lastmod>
@@ -24,7 +24,7 @@
     <lastmod>2026-11-11T17:22:56.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Design/Shared-Solver-Layer</loc>
-    <lastmod>2026-11-23T21:31:15.000Z</lastmod>
+    <lastmod>2026-11-23T23:39:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Design/Sharing-Types-with-RxInfer</loc>
     <lastmod>2026-10-08T13:55:14.000Z</lastmod>
@@ -210,7 +210,7 @@
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Parked/Families/Algebraic/Grassmann-Mixing-and-Pl%C3%BCcker-Coordinates</loc>
-    <lastmod>2026-11-23T22:04:42.298Z</lastmod>
+    <lastmod>2026-11-23T23:40:22.239Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Parked/Families/Algebraic/Inference-as-Root-Finding</loc>
     <lastmod>2026-11-10T21:35:21.000Z</lastmod>
@@ -282,7 +282,7 @@
     <lastmod>2026-11-10T18:39:10.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Feature-Backlog/Backlog-Done-2026-11</loc>
-    <lastmod>2026-11-23T21:31:15.000Z</lastmod>
+    <lastmod>2026-11-23T23:39:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Feature-Backlog/Backlog-F-Families</loc>
     <lastmod>2026-11-16T21:10:39.000Z</lastmod>
@@ -300,19 +300,22 @@
     <lastmod>2026-11-16T21:10:39.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Feature-Backlog/Backlog-P-The-Three-Paths</loc>
-    <lastmod>2026-11-23T21:31:15.000Z</lastmod>
+    <lastmod>2026-11-23T23:39:57.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/Project/Feature-Backlog/Backlog-Q-Quality-and-Engineering</loc>
+    <lastmod>2026-11-23T23:39:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Feature-Backlog/Backlog-S-Structure-Search-and-Editing</loc>
     <lastmod>2026-11-16T21:10:39.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Feature-Backlog/Backlog-T-Tooling</loc>
-    <lastmod>2026-11-19T14:25:52.000Z</lastmod>
+    <lastmod>2026-11-23T23:39:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Feature-Backlog/Backlog-U-Utility-Factors-and-Data</loc>
     <lastmod>2026-11-20T08:25:21.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Feature-Backlog/Feature-Backlog</loc>
-    <lastmod>2026-11-23T18:16:08.000Z</lastmod>
+    <lastmod>2026-11-23T23:39:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Problems/LP-001-The-vault-build-uses-GNU-only-sed</loc>
     <lastmod>2026-10-24T23:08:41.000Z</lastmod>
@@ -549,10 +552,10 @@
     <lastmod>2026-11-22T20:53:25.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Problems/LP-079-Findings-of-the-reviews-of-P14-W2-and-W3</loc>
-    <lastmod>2026-11-23T22:04:42.308Z</lastmod>
+    <lastmod>2026-11-23T23:40:22.249Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Problems/LP-080-Findings-of-the-review-of-I31</loc>
-    <lastmod>2026-11-23T22:04:42.308Z</lastmod>
+    <lastmod>2026-11-23T23:40:22.249Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Problems/LP-081-Findings-of-the-review-of-P14-W4</loc>
     <lastmod>2026-11-23T11:07:27.000Z</lastmod>
@@ -566,8 +569,11 @@
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Problems/LP-084-Findings-of-the-review-of-P38</loc>
     <lastmod>2026-11-23T21:31:15.000Z</lastmod>
   </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/Project/Problems/LP-085-Findings-of-the-review-of-P39</loc>
+    <lastmod>2026-11-23T23:39:57.000Z</lastmod>
+  </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Problems/Problem-Log</loc>
-    <lastmod>2026-11-23T21:31:15.000Z</lastmod>
+    <lastmod>2026-11-23T23:39:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Refactor-2026-11</loc>
     <lastmod>2026-11-19T09:01:16.000Z</lastmod>
@@ -609,7 +615,7 @@
     <lastmod>2026-11-04T23:01:31.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/Project/Status</loc>
-    <lastmod>2026-11-23T21:31:15.000Z</lastmod>
+    <lastmod>2026-11-23T23:39:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/README</loc>
     <lastmod>2026-11-16T20:50:41.000Z</lastmod>
@@ -789,10 +795,13 @@
     <lastmod>2026-11-23T12:24:04.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/ImplicitSolvers.jl/ImplicitSolvers</loc>
-    <lastmod>2026-11-23T17:19:50.000Z</lastmod>
+    <lastmod>2026-11-23T23:39:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/ImplicitSolvers.jl/adjoint</loc>
     <lastmod>2026-11-23T17:19:50.000Z</lastmod>
+  </url><url>
+    <loc>https://mathstruct.org/Lenticulum.jl/lib/ImplicitSolvers.jl/descent</loc>
+    <lastmod>2026-11-23T23:39:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/ImplicitSolvers.jl/fd</loc>
     <lastmod>2026-11-22T20:53:25.000Z</lastmod>
@@ -981,7 +990,7 @@
     <lastmod>2026-10-29T14:49:16.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/VariationalDiffusion.jl/implicit</loc>
-    <lastmod>2026-11-23T17:19:50.000Z</lastmod>
+    <lastmod>2026-11-23T23:39:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/VariationalDiffusion.jl/implicit_factor</loc>
     <lastmod>2026-11-19T09:01:16.000Z</lastmod>
@@ -990,10 +999,10 @@
     <lastmod>2026-10-06T17:29:50.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/VariationalDiffusion.jl/krylov</loc>
-    <lastmod>2026-11-23T18:14:36.000Z</lastmod>
+    <lastmod>2026-11-23T23:39:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/VariationalDiffusion.jl/many</loc>
-    <lastmod>2026-11-22T22:53:04.000Z</lastmod>
+    <lastmod>2026-11-23T23:39:57.000Z</lastmod>
   </url><url>
     <loc>https://mathstruct.org/Lenticulum.jl/lib/VariationalDiffusion.jl/predictor</loc>
     <lastmod>2026-10-14T12:32:53.000Z</lastmod>
