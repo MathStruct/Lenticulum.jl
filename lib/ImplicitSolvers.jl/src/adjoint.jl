@@ -3,6 +3,7 @@
 
 Solve `J' * λ = g` with [`linsolve`](@ref). Pass the action `v -> J' * v`
 or the adjoint matrix itself. The optional GMRES preconditioners apply to `J'`.
+MINRES requires `J'` to be Hermitian.
 Return `(λ, report)`.
 """
 function adjoint_solve(vjp, g::AbstractVector, alg; tol::Tolerance=Tolerance(),
@@ -15,6 +16,7 @@ end
 
 Solve `(I - J') * λ = g` with [`linsolve`](@ref). Pass the action `v -> J' * v`
 or the adjoint matrix itself. The optional GMRES preconditioners apply to `I - J'`.
+MINRES requires `I - J'` to be Hermitian.
 Return `(λ, report)`.
 """
 function fixed_point_adjoint(vjp, g::AbstractVector, alg; tol::Tolerance=Tolerance(),

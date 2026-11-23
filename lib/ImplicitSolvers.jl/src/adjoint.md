@@ -10,8 +10,9 @@
 For a residual Jacobian $J$, the adjoint solves $J^*\lambda=g$. For a
 fixed-point map of Jacobian $J$, the residual Jacobian is $I-J$ and the
 solve uses $(I-J^*)\lambda=g$. The fixed-point operator applies the identity
-and subtracts the supplied adjoint action without forming a matrix for GMRES.
+and subtracts the supplied adjoint action without forming a matrix for GMRES or MINRES.
 DenseSolve can materialize the action with basis probes.
+MINRES requires the operator being solved, $J^*$ or $I-J^*$, to be Hermitian.
 
 The GMRES preconditioners apply to the system being solved, $J^*$ or $I-J^*$.
 Both use the same true-residual rule. The complex adjoint checks are in

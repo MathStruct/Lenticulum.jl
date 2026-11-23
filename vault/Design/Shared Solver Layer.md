@@ -78,7 +78,8 @@ the extension), and the stopping decision is made on it, so tangents never chang
 matrix or an operator action $v \mapsto Av$. `DenseSolve()` uses LU or Cholesky for
 a matrix asserted to be symmetric positive definite. `GMRES(; restart = 40,
 maxiters = 200)` is matrix-free and generic in the element type. It comes from
-`VariationalDiffusion`'s restarted GMRES. The scale is $s = \lVert b\rVert$. CG,
+`VariationalDiffusion`'s restarted GMRES. `MINRES(; maxiters = 200)` uses short Lanczos
+recurrences for Hermitian systems, including indefinite ones, and checks the true residual. The scale is $s = \lVert b\rVert$. CG,
 Lanczos and the log-determinant stay in `VariationalDiffusion`, their only user.
 - W5 removes the Krylov.jl extensions of `ImplicitLayers` and `MyceliumLearning`.
   `lib/ImplicitSolvers.jl/test/krylov_oracle.jl` retains the direct test dependency and

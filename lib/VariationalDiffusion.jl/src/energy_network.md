@@ -42,10 +42,9 @@ s_\theta(x, t) = -\nabla_x E_\theta(x, t),\qquad
 \partial_x\varepsilon_\theta = \sigma_t\,\nabla_x^2 E_\theta \ \text{(symmetric)}.
 $$
 
-The symmetry and scalar-field conclusions in §§1–5 assume a common noise time across
-coordinates of each point. With different block times, the noise Jacobian is
-$\operatorname{diag}(\sigma)\nabla_x^2 E$ and need not be symmetric; neither does the
-implicit field automatically have a scalar potential when its blocks interact.
+At different block times, the predictor's noise Jacobian is
+$\operatorname{diag}(\sigma)\nabla_x^2 E$, which can be asymmetric. The implicit
+field has its own node weights, which cancel these row scales (§3).
 
 `EnergyNetwork` is a marker wrapped *inside* `NoisePredictor`, the same pattern as
 `NoisePredictor{<:GaussianMixtureEps}`: `epsilon`, `epsilon_jacobian` and `epsilon_vjp_params`
@@ -60,6 +59,14 @@ $$
 g(z) = \sum_k w_k\lambda_k\bigl(\varepsilon_\theta(x_k, t_k) - \varepsilon_k\bigr) = \nabla_z U(z),\qquad
 U(z) = \sum_k w_k\lambda_k\Bigl[\tfrac{\sigma_k}{\alpha_k}E_\theta(x_k, t_k) - \varepsilon_k^\top z\Bigr].
 $$
+
+With explicit block levels, the node input uses per-coordinate $\alpha_i$ and $\sigma_i$.
+The field weight is $\lambda(\sigma_t^2/\alpha_t^2)\alpha_i/\sigma_i$ at node time $t$.
+It cancels the predictor's $\sigma_i$ in the derivative, giving the symmetric term
+$\lambda(\sigma_t^2/\alpha_t^2)\operatorname{diag}(\alpha)\nabla_x^2 E\operatorname{diag}(\alpha)$.
+The quadratic fixture in `test/p37_minres.jl` compares the two Jacobians at unequal
+fixed block times. The Krylov solver uses a conservative common-time condition
+for the single-product path ([[krylov]]).
 
 `implicit_energy(m, z, ps, st)` returns ``U``. Consequences:
 

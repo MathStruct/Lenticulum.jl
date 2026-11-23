@@ -409,6 +409,8 @@ function _prox_adjoint(ls::DenseSolve, p, w, t, λ, ps, st, F, a, b)
 end
 
 function _prox_adjoint(ls::KrylovSolve, p, w, t, λ, ps, st, F, a, b)
+    ls.method === :minres && throw(ArgumentError(
+        "KrylovSolve(method = :minres) requires a symmetric system; ProxDM uses GMRES"))
     y = zeros(eltype(b), length(w))
     function vjp(μ)                                  # (Dᵀ y)_F with y = a⊙μ on F
         fill!(y, 0)

@@ -171,7 +171,8 @@ gives every cotangent:
 without unrolling it. The matrix is $I - \operatorname{diag}(a)D_{FF}$, not a Jacobian of a
 field: the prox is already a solved problem, and its derivative is what the adjoint needs.
 The dense branch assembles the transposed system for the shared dense solve.
-`KrylovSolve()` supplies the VJP of the split map to `ImplicitSolvers.fixed_point_adjoint`.
+`KrylovSolve()` supplies the VJP of the split map to `ImplicitSolvers.fixed_point_adjoint` with GMRES.
+The split-map residual Jacobian is generally nonsymmetric, so `method = :minres` raises an error.
 
 The prox's derivatives come from three places:
 

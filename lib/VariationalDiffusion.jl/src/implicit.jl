@@ -408,8 +408,8 @@ is only trusted in locally convex regions so that it is not drawn to saddles and
 precision vector, `Inf` for a hard clamp (cf. [`precision_vector`](@ref)).
 
 `linsolve` chooses the linear algebra: [`DenseSolve`](@ref) forms ``J_{FF}``;
-[`KrylovSolve`](@ref) takes the Newton step by GMRES on Jacobian-vector products and tests
-stability by Lanczos, without forming it (for many free coordinates).
+[`KrylovSolve`](@ref) takes the Newton step by GMRES or MINRES and tests stability
+by Lanczos using matrix-free products.
 
 `continuation = (c₁, c₂, …)` solves first with every node's noise level multiplied by `c₁`
 (capped at 1), then by `c₂`, …, each solve started from the previous answer, and last with
@@ -624,8 +624,10 @@ function _newton_system(::DenseSolve, m, z, ρ, ps, st)
 end
 
 function _newton_system(ls::KrylovSolve, m, z, ρ, ps, st)
+    alg = _krylov_solver(ls, m, ρ)
     op = _free_operators(m, z, ρ, ps, st)
-    solve(r) = first(ImplicitSolvers.linsolve(op.J, r, _shared_solver(ls); tol = _linear_tolerance(ls)))
+    apply = alg isa ImplicitSolvers.MINRES ? op.Jt : op.J
+    solve(r) = first(ImplicitSolvers.linsolve(apply, r, alg; tol = _linear_tolerance(ls)))
     return (stable = _lambda_min(op.S, op.n, ls) > 0, solve = solve)
 end
 
@@ -646,9 +648,13 @@ function _adjoint_solve(ls::DenseSolve, m, z, ρ, b, ps, st)
 end
 
 function _adjoint_solve(ls::KrylovSolve, m, z, ρ, b, ps, st)
+    alg = _krylov_solver(ls, m, ρ)
     op = _free_operators(m, z, ρ, ps, st)
-    λ, report = ImplicitSolvers.adjoint_solve(op.Jt, b, _shared_solver(ls); tol = _linear_tolerance(ls))
-    report.converged || @warn "implicit_pullback: GMRES stopped after $(report.iterations) Arnoldi steps without reaching rtol = $(ls.rtol); the gradient is approximate"
+    λ, report = ImplicitSolvers.adjoint_solve(op.Jt, b, alg; tol = _linear_tolerance(ls))
+    if !report.converged
+        method, steps = alg isa ImplicitSolvers.MINRES ? ("MINRES", "Lanczos") : ("GMRES", "Arnoldi")
+        @warn "implicit_pullback: $method stopped after $(report.iterations) $steps steps without reaching rtol = $(ls.rtol); the gradient is approximate"
+    end
     return λ
 end
 
@@ -685,8 +691,8 @@ the Jacobians are evaluated at ``z^\\star`` afresh. Throws if `sol` did not conv
 implicit function theorem says nothing about a point that is not a root
 (`Backpropagation through Implicit Inference.md` §6).
 
-With `linsolve = KrylovSolve()` the adjoint system is solved by GMRES on vector-Jacobian
-products, so ``J_{FF}`` is never formed; it then warns if GMRES stops short of its tolerance.
+With `linsolve = KrylovSolve()` the adjoint uses GMRES or MINRES on
+vector-Jacobian products and warns if the solver stops short of its tolerance.
 """
 function implicit_pullback(m::AbstractImplicitRelation, sol::ImplicitSolution, z₀, ρ, z̄, ps, st;
                            linsolve::AbstractLinearSolve = DenseSolve())

@@ -20,7 +20,9 @@ complex systems. Pass approximate inverse actions as `left=v -> M*v` and
 `right=v -> N*v`. The same keywords on `adjoint_solve` and `fixed_point_adjoint`
 precondition the system those helpers solve. After each cycle GMRES checks
 `norm(b - A*x)` using the original operator and reports that residual.
-`DenseSolve` rejects preconditioners.
+`MINRES(; maxiters = 200)` uses short recurrences for Hermitian systems, including
+real symmetric indefinite systems. It also checks the true residual. Approximate
+inverse actions are supported by GMRES alone.
 
 ForwardDiff can differentiate the steps a solver takes. At a primal root supplied
 as the initial guess, a zero-step solve returns the initial guess's tangent.

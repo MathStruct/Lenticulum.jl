@@ -1,6 +1,6 @@
 #implementation
 
-> Matrix-free linear algebra for the implicit solver: GMRES for the Newton step and the adjoint,
+> Matrix-free linear algebra for the implicit solver: GMRES or MINRES for the Newton step and the adjoint,
 > Lanczos for the stability test, conjugate gradients and stochastic Lanczos quadrature for the
 > Laplace approximation. With it a query's cost grows with the number of Krylov steps, not with
 > the number of free coordinates, which is what generating an image (hundreds of free
@@ -16,16 +16,18 @@
 
 | use | dense (`DenseSolve`) | matrix-free (`KrylovSolve`) |
 |---|---|---|
-| Newton step $J_{FF}d = -r_F$ | LU of the block | restarted GMRES on $v \mapsto J_{FF}v$ (`prior_jvp`) |
-| adjoint $J_{FF}^\top\lambda = -\bar z_F$ | shared dense solve on the transposed block | GMRES on $w \mapsto J_{FF}^\top w$ (`prior_vjp`) |
+| Newton step $J_{FF}d = -r_F$ | LU of the block | GMRES on $J_{FF}v$ (`prior_jvp`) or MINRES on $J_{FF}^\top v$ (`prior_vjp`) |
+| adjoint $J_{FF}^\top\lambda = -\bar z_F$ | shared dense solve on the transposed block | GMRES or MINRES on $J_{FF}^\top w$ (`prior_vjp`) |
 | stability, $\operatorname{sym}J_{FF}\succ0$ | Cholesky test | smallest Ritz value of Lanczos on the symmetric part |
 | Laplace covariance on coordinates $I$ | inverse of the whole block | one conjugate-gradient solve per coordinate in $I$ |
 | $\log\det\Sigma_{FF}$ (mixture weights) | from the inverse | stochastic Lanczos quadrature |
 
 The precision diagonal $\operatorname{diag}(\rho_F^2)$ is added inside each product. For an energy
-network or a closed-form mixture with a common noise time across coordinates, the field is a
-gradient, so $J$ is symmetric and the symmetric part costs one product, not two. Different
-block times can break this symmetry when the coordinates interact ([[energy_network]]).
+network or a closed-form mixture with a common noise time across free coordinates, the
+symmetric part uses one JVP. Otherwise the solver explicitly averages the JVP and VJP.
+Unequal noise times give the predictor Jacobian unequal row scales ([[energy_network]]).
+For an `EnergyNetwork`, the implicit field's node weights cancel those scales algebraically.
+The solver selection uses the common-time condition for both energy models.
 
 ## 2. Design decisions
 
@@ -33,11 +35,16 @@ block times can break this symmetry when the coordinates interact ([[energy_netw
   `implicit_pullback`, `laplace_belief`, `implicit_mixture` (and so `implicit_roots`), and a field
   of `ImplicitProx`. The default stays `DenseSolve()`: exact, and faster while few coordinates
   are free.
-- **Shared GMRES.** `KrylovSolve` passes `restart` and `maxiters` to `ImplicitSolvers.GMRES`.
-  The shared tolerance has `atol = 0` and the requested `rtol`, so the bound remains
-  $\text{rtol}\,\lVert b\rVert$. The shared solver checks true residuals and counts Arnoldi steps
-  separately from operator applications. VariationalDiffusion owns CG, Lanczos and the
-  log-determinant estimate. See [[Shared Solver Layer]].
+- **Shared linear solvers.** `method = :auto` selects MINRES when the model is an
+  `EnergyNetwork` or `GaussianMixtureEps` implicit diffusion and all blocks with free
+  coordinates share their time at each node. This holds without levels, with all such
+  blocks annealed, or with their levels fixed to one value. Fully clamped blocks are ignored.
+  `method = :minres` requires the same condition and `method = :gmres` always selects GMRES.
+  MINRES applies the VJP in both solves. It uses the exact adjoint action and avoids the
+  loss of symmetry that a finite-difference JVP can introduce on reverse-only backends.
+  Both solvers take `maxiters` and use the true residual bound $\text{rtol}\,\lVert b\rVert$.
+  Only GMRES uses `restart`. The trust-region step uses Steihaug CG with either setting.
+  VariationalDiffusion owns CG, Lanczos and the log-determinant estimate. See [[Shared Solver Layer]].
 - **Deterministic.** Lanczos starts and Hutchinson probes come from `Xoshiro(seed)`, so the same
   query gives the same answer, which the implicit function theorem relies on.
 - **Exact at small sizes.** With at most `lanczos` free coordinates the Lanczos space is the
@@ -57,9 +64,13 @@ block times can break this symmetry when the coordinates interact ([[energy_netw
   descended; the residual line search keeps that safe, but the `stable` flag is an estimate.
 - The log-determinant with Rademacher probes has a standard error of roughly
   $\sqrt{2/\text{probes}}\,\lVert\log S\rVert_F$; the mixture weights inherit it.
-- GMRES stops at `rtol` (default $10^{-8}$) or `maxiters`; the adjoint warns when it stops short.
+- The linear solvers use `rtol` (default $10^{-8}$) and a budget of `maxiters` steps.
+  The adjoint warns when the solver stops short. MINRES assumes symmetry, so only the
+  true residual can catch a wrong iterate produced on a nonsymmetric operator.
 
-## 4. Measured
+## 4. Measured (P37)
+
+### Earlier measurement
 
 The MNIST shape of [[MNIST in Both Directions]]: an MLP $802\to256\to256\to794$, 64 nodes batched
 by noise level, Zygote, CPU, the 10 label coordinates clamped and the 784 image coordinates free

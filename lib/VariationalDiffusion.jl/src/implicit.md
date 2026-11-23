@@ -36,7 +36,7 @@
 1. **The tolerance floor.** The field of a narrow mixture at small $t$ has a floating-point noise floor around $10^{-11}$ (it scales like $1/\sigma_t$). An absolute tolerance of $10^{-11}$ made a third of the solves "fail"; the tolerance is relative, `tol * (1 + ‖z‖)`.
 2. **The prototype's solver.** A version with a fixed descent step in non-convex regions and an energy line search dropped about 60% of solves during training, and its training stalled at RMSE 0.15. The package's solver (Newton where convex, residual backtracking) dropped none and reached 0.012.
 3. **Smoothing levels.** With RED-Diff's training range of noise levels, the deterministic field of a circle has its only root at the centre. The default `levels` stop at $t = 0.05$; the trade-off is measured in [[Implicit Diffusion Learners]] §5.
-4. **Dense Jacobians.** The block $J_{FF}$ is formed densely by default, which is fine while few coordinates are free (§6) but not when a whole image is free. `linsolve = KrylovSolve()` replaces it by GMRES on Jacobian-vector products in the Newton step and on vector-Jacobian products in the adjoint, and by a Lanczos test of stability ([[krylov]]).
+4. **Dense Jacobians.** The block $J_{FF}$ is formed densely by default, which is fine while few coordinates are free (§6) but not when a whole image is free. `linsolve = KrylovSolve()` uses shared GMRES or MINRES for the Newton step and adjoint, and Lanczos for stability ([[krylov]]).
 
 ## 4. How it is tested
 
@@ -290,7 +290,7 @@ against single ones, a Lux energy network on JLArrays.
 
 The scalar and batched score-based solvers choose the default tolerance from the arithmetic
 of the field. They retain their own Newton and trust-region stopping tests. The Krylov Newton
-step uses the shared GMRES linear solve.
+step uses shared GMRES or MINRES.
 
 Found on MNIST ([[MNIST in Both Directions]] §6; Open Problems I13):
 
@@ -440,7 +440,7 @@ Related: [[analytic]], [[reddiff]], [[factor]], [[energy_network]], [[krylov]], 
   point the implicit function theorem does not apply, and the solve returned Inf/NaN. Tikhonov
   damping, which one review proposed, would return a gradient of a different problem silently.
   The solve uses `ImplicitSolvers.adjoint_solve` after the conditioning check. The Krylov path
-  passes the transposed Jacobian action to shared GMRES and warns when it stops short.
+  passes the transposed Jacobian action to shared GMRES or MINRES and warns when it stops short.
 - `implicit_laplace` of a field that is not a gradient (a noise predictor that is not an energy
   network) returns the inverse of $\operatorname{sym} J_{FF}$, which is then a local-curvature measure, not a
   posterior covariance; the docstring says so and a warning fires when

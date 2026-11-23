@@ -36,9 +36,12 @@ Every solver step, the Laplace covariance and the adjoint need only the Jacobian
 **free** coordinates, and that is all they compute. With `ImplicitDiffusion(pred, nodes;
 batched = true)` all nodes of one noise level go through the network in one call. When most of
 the state is free (generating an image), pass `linsolve = KrylovSolve()` to `implicit_infer`,
-`implicit_pullback`, `laplace_belief`, `implicit_mixture` or `ImplicitProx`: Newton steps and
-the adjoint are then solved by GMRES on Jacobian-vector products (`prior_jvp`) and
-vector-Jacobian products (`prior_vjp`), stability is tested by Lanczos, and the Laplace
+`implicit_pullback`, `laplace_belief`, `implicit_mixture` or `ImplicitProx`. Newton steps and
+adjoints use MINRES for an energy model with a common noise time on the free coordinates
+and GMRES otherwise (`KrylovSolve(method = :auto)`). MINRES uses `prior_vjp` for both
+solves. GMRES uses `prior_jvp` for Newton and `prior_vjp` for the adjoint. Select
+`method = :gmres` to always use GMRES or `method = :minres` to require an eligible
+symmetric block. `restart` controls GMRES only. Stability uses Lanczos and the Laplace
 covariance is computed only on the coordinates asked for. On a 794-dimensional MLP with 784
 free coordinates, `implicit_infer` takes about 1 s; one dense 784 × 784 block takes 33 s.
 

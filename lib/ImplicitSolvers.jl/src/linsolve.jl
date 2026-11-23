@@ -36,18 +36,39 @@ struct GMRES <: AbstractLinearSolver
 end
 
 """
+    MINRES(; maxiters=200)
+
+Paige–Saunders minimum residual iteration for a Hermitian operator (real symmetric
+or complex Hermitian), including indefinite systems. `maxiters` bounds the number
+of Lanczos steps. The solver assumes Hermitian symmetry without checking it.
+For a non-Hermitian operator the recurrence can yield a wrong iterate. If its true
+residual misses the tolerance, the solve reports `:stalled` or `:maxiters` for
+finite arithmetic. Preconditioning is unsupported.
+"""
+struct MINRES <: AbstractLinearSolver
+    maxiters::Int
+
+    function MINRES(; maxiters::Int=200)
+        maxiters >= 0 || throw(ArgumentError("maxiters must be nonnegative"))
+        return new(maxiters)
+    end
+end
+
+"""
     linsolve(A, b::AbstractVector, alg; tol=Tolerance(), left=nothing, right=nothing)
 
 Return `(x, report)` for the square system `A*x = b`. Supply a square matrix
 or a callable `v -> A*v` mapping vectors of length `length(b)` to vectors of the
 same length. With GMRES, `left` and `right` can apply approximate inverses.
 The report and tolerance use the true residual norm and the norm of `b`.
-DenseSolve requires both preconditioners to be `nothing`.
+DenseSolve and MINRES require both preconditioners to be `nothing`.
 """
 function linsolve(A, b::AbstractVector, alg::AbstractLinearSolver; tol::Tolerance=Tolerance(),
         left=nothing, right=nothing)
-    if alg isa DenseSolve && (left !== nothing || right !== nothing)
-        throw(ArgumentError("DenseSolve does not support preconditioning"))
+    if left !== nothing || right !== nothing
+        alg isa DenseSolve && throw(ArgumentError("DenseSolve does not support preconditioning"))
+        alg isa MINRES && throw(ArgumentError(
+            "preconditioned MINRES needs a symmetric positive definite preconditioner and is not implemented"))
     end
     n = length(b)
     apply = _linear_operator(A, n)
@@ -211,4 +232,75 @@ function _gmres_update(x, V, H, g, j)
         xnew .+= y[i] .* V[i]
     end
     return xnew
+end
+
+function _linsolve(A, apply, b, alg::MINRES, tol, ::Nothing, ::Nothing)
+    x = zero.(float.(b))
+    scale = _primal_norm(b)
+    iszero(scale) && return x, _report(:converged, 0, scale, 0)
+    r = b .- apply(x)
+    residual = _primal_norm(r)
+    total, nfe = 0, 1
+    while true
+        status = _status(residual, scale, tol)
+        status === :continue || return x, _report(status, total, residual, nfe)
+        total == alg.maxiters && return x, _report(:maxiters, total, residual, nfe)
+
+        xnew, steps, exit = _minres_cycle(apply, x, r, alg.maxiters - total, tol, scale)
+        total += steps
+        nfe += steps
+        exit === :nonfinite && return x, _report(exit, total, residual, nfe)
+
+        r = b .- apply(xnew)
+        nfe += 1
+        residual = _primal_norm(r)
+        if _unchanged(xnew, x)
+            status = _status(residual, scale, tol)
+            return xnew, _report(status === :continue ? :stalled : status, total, residual, nfe)
+        end
+        x = xnew
+    end
+end
+
+function _minres_cycle(apply, x, r, steps, tol, scale)
+    ϕ = norm(r)
+    target = _bound(tol, scale, typeof(primal(ϕ)))
+    q = r ./ ϕ
+    qprev = zero.(q)
+    pprev = pprev2 = qprev
+    β = zero(ϕ)
+    c = cprev = one(ϕ)
+    s = sprev = zero(ϕ)
+
+    for j in 1:steps
+        Aq = apply(q)
+        isfinite(_primal_norm(Aq)) || return x, j, :nonfinite
+        α = real(dot(q, Aq))
+        w = Aq .- α .* q .- β .* qprev
+        βnext = norm(w)
+        isfinite(primal(βnext)) || return x, j, :nonfinite
+        breakdown = iszero(primal(βnext))
+        breakdown && (βnext = zero(βnext))
+
+        # Apply the two previous rotations to the new Lanczos column.
+        # ε and δ are the two superdiagonals of the triangular factor.
+        ε = sprev * β
+        δ = c * cprev * β + s * α
+        γbar = c * α - s * cprev * β
+        γ = hypot(γbar, βnext)
+        isfinite(primal(γ)) || return x, j, :nonfinite
+        iszero(primal(γ)) && return x, j, :continue
+        cprev, sprev = c, s
+        c, s = γbar / γ, βnext / γ
+
+        p = (q .- δ .* pprev .- ε .* pprev2) ./ γ
+        x = x .+ (c * ϕ) .* p
+        ϕ = -s * ϕ
+        if j == steps || breakdown || abs(primal(ϕ)) <= target
+            return x, j, :continue
+        end
+        qprev, q = q, w ./ βnext
+        pprev2, pprev = pprev, p
+        β = βnext
+    end
 end

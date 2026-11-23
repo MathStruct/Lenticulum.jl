@@ -1,15 +1,15 @@
 # ---------------------------------------------------------------------------
 # Matrix-free linear algebra for the implicit solver: the four places it meets J_FF.
 #
-#     Newton step       J_FF d = -r_F              GMRES on Jacobian-vector products
-#     adjoint           J_FFᵀ λ = -z̄_F             GMRES on vector-Jacobian products
+#     Newton step       J_FF d = -r_F              GMRES on JVPs or MINRES on VJPs
+#     adjoint           J_FFᵀ λ = -z̄_F             GMRES or MINRES on VJPs
 #     stability         λ_min(sym J_FF) > 0        Lanczos on sym J_FF
 #     Laplace           (sym J_FF)⁻¹ on a few coordinates, log det sym J_FF
 #                                                  conjugate gradients, stochastic Lanczos quadrature
 #
 # None of them forms J_FF, so the cost of an iteration grows with the number of Krylov steps,
 # not with the number of free coordinates. Every product is one JVP or VJP per noise level.
-# GMRES lives in ImplicitSolvers. See `krylov.md`.
+# GMRES and MINRES live in ImplicitSolvers. See `krylov.md`.
 # ---------------------------------------------------------------------------
 
 """
@@ -30,14 +30,17 @@ pass per free coordinate and noise level). The default.
 struct DenseSolve <: AbstractLinearSolve end
 
 """
-    KrylovSolve(; rtol = 1e-8, maxiters = 200, restart = 40, lanczos = 30, probes = 8, seed = 0)
+    KrylovSolve(; rtol = 1e-8, maxiters = 200, restart = 40, lanczos = 30, probes = 8, seed = 0, method = :auto)
 
 Matrix-free linear algebra, for queries with many free coordinates (generating an image):
 
 - the Newton step and the adjoint solve ``J_{FF}d = -r_F`` and ``J_{FF}^\\top\\lambda = -\\bar z_F`` by
-  restarted GMRES (relative tolerance `rtol`, at most `maxiters` Arnoldi steps, restarts every
-  `restart`), on Jacobian-vector products ([`prior_jvp`](@ref)) and vector-Jacobian products
-  ([`prior_vjp`](@ref));
+  GMRES or MINRES (relative tolerance `rtol`, at most `maxiters` Krylov steps). The default
+  `method = :auto` selects MINRES for an energy with a common noise time on the free block,
+  and GMRES otherwise. `method = :minres` requires that symmetry and throws `ArgumentError`
+  otherwise. `method = :gmres` always uses GMRES and `restart` applies only to GMRES.
+  MINRES uses vector-Jacobian products ([`prior_vjp`](@ref)) for both solves. GMRES uses
+  Jacobian-vector products ([`prior_jvp`](@ref)) for Newton and VJPs for the adjoint;
 - stability (``\\operatorname{sym}J_{FF}\\succ0``) is decided by the smallest Ritz value of
   `lanczos` Lanczos steps on the symmetric part;
 - the Laplace approximation solves for the covariance on the requested coordinates only, by
@@ -58,14 +61,29 @@ Base.@kwdef struct KrylovSolve{T<:Real} <: AbstractLinearSolve
     lanczos::Int = 30
     probes::Int = 8
     seed::Int = 0
+    method::Symbol = :auto
 
-    KrylovSolve(rtol::T, maxiters, restart, lanczos, probes, seed) where {T<:Real} =
-        new{T}(rtol, maxiters, restart, lanczos, probes, seed)
+    function KrylovSolve(rtol::T, maxiters, restart, lanczos, probes, seed, method) where {T<:Real}
+        method in (:auto, :gmres, :minres) ||
+            throw(ArgumentError("KrylovSolve method must be :auto, :gmres or :minres, got $method"))
+        return new{T}(rtol, maxiters, restart, lanczos, probes, seed, method)
+    end
 end
+
+KrylovSolve(rtol::Real, maxiters, restart, lanczos, probes, seed) =
+    KrylovSolve(rtol, maxiters, restart, lanczos, probes, seed, :auto)
 
 _shared_solver(::DenseSolve) = ImplicitSolvers.DenseSolve()
 _shared_solver(ls::KrylovSolve) = ImplicitSolvers.GMRES(; ls.restart, ls.maxiters)
 _linear_tolerance(ls::KrylovSolve) = ImplicitSolvers.Tolerance(; atol = 0, ls.rtol)
+
+function _krylov_solver(ls::KrylovSolve, m, ρ)
+    ls.method === :gmres && return _shared_solver(ls)
+    _symmetric_block(m, ρ) && return ImplicitSolvers.MINRES(; ls.maxiters)
+    ls.method === :minres && throw(ArgumentError(
+        "KrylovSolve(method = :minres) requires an energy with a common noise time on the free coordinates"))
+    return _shared_solver(ls)
+end
 
 function _dense_adjoint_solve(ls::DenseSolve, At, b)
     x, report = ImplicitSolvers.adjoint_solve(At, b, _shared_solver(ls))
@@ -78,6 +96,21 @@ end
 
 # --- the operators on the free coordinates --------------------------------------------
 
+function _symmetric_block(m, ρ)::Bool
+    m isa ImplicitDiffusion && _has_energy(m) || return false
+    m.levels === nothing && return true
+    first_free = 0
+    for (k, coords) in enumerate(m.predictor.blocks.blocks)
+        any(!isinf, view(ρ, coords)) || continue
+        if first_free == 0
+            first_free = k
+        elseif m.levels[k] != m.levels[first_free]
+            return false
+        end
+    end
+    return true
+end
+
 # x ↦ J_FF x, x ↦ J_FFᵀ x and the symmetric part, all with the precision diagonal, at z
 function _free_operators(m, z, ρ, ps, st)
     free = .!isinf.(ρ)
@@ -86,7 +119,7 @@ function _free_operators(m, z, ρ, ps, st)
     embed(v) = (u = zeros(T, length(z)); u[free] .= v; u)
     J(v) = prior_jvp(m, z, embed(v), ps, st)[free] .+ ρ²F .* v
     Jt(v) = prior_vjp(m, z, embed(v), ps, st)[free] .+ ρ²F .* v
-    S(v) = _has_energy(m) ? J(v) : (J(v) .+ Jt(v)) ./ 2      # an energy's field is symmetric
+    S = _symmetric_block(m, ρ) ? J : (v -> (J(v) .+ Jt(v)) ./ 2)
     return (J = J, Jt = Jt, S = S, n = count(free))
 end
 

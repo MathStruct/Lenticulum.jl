@@ -1,8 +1,8 @@
 #algorithm #implementation
 
-> Restarted GMRES solves real or complex square systems. Dense LU and Cholesky
-> handle direct solves. GMRES
-> uses the supplied operator action and checks the true residual after each cycle.
+> Restarted GMRES solves general square systems, MINRES solves Hermitian systems,
+> and dense LU and Cholesky handle direct solves. Both Krylov solvers use the
+> supplied operator action and check the true residual after each cycle.
 >
 > Sources: [[Shared Solver Layer]], D4; code: `lib/ImplicitSolvers.jl/src/linsolve.jl`, `lib/VariationalDiffusion.jl/src/krylov.jl`; tests: `lib/ImplicitSolvers.jl/test/linsolve.jl`, `lib/ImplicitSolvers.jl/test/device.jl`, `lib/ImplicitSolvers.jl/test/krylov_oracle.jl`
 >
@@ -49,3 +49,29 @@ entry and zero below it. This covers the complex diagonal system from W1
 review finding 2 and the complex matrix and function fixtures in the W5 oracle.
 A zero preconditioned residual ends a cycle without division. The true residual
 determines whether the solver has converged or stalled.
+
+## MINRES
+
+Paige–Saunders MINRES minimizes the residual over a Krylov space for a real
+symmetric or complex Hermitian operator, including indefinite systems. The
+three-term Lanczos recurrence uses the real part of the conjugating inner product
+for the tridiagonal diagonal. Each new column is reduced by the previous two
+Givens rotations and one new rotation. The resulting two superdiagonal entries
+and diagonal give the next search direction from the two previous directions.
+The current Givens rotation both weights the step in that direction and updates
+the residual estimate. Only the running Lanczos vectors, search directions and
+iterate use vector storage on the backend of the right-hand side.
+
+An operator product at the starting iterate initializes the residual for a
+nonzero right-hand side. The solver
+uses one further product to check the true residual at the end of each cycle,
+when the estimate meets the D2 bound, Lanczos breaks down or the step budget is
+spent. If the true residual misses the bound, a changed iterate starts a new
+cycle on that residual while the budget lasts. An unchanged iterate stalls.
+The report counts Lanczos steps and all products separately. The scalar
+decisions use primal values.
+
+MINRES assumes Hermitian symmetry. The true residual judges the resulting
+iterate if that assumption fails. The current implementation supports only
+unpreconditioned systems. A preconditioned variant requires a symmetric positive
+definite preconditioner.

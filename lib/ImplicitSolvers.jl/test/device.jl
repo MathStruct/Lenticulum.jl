@@ -60,3 +60,23 @@ end
         end
     end
 end
+
+@testset "P37 MINRES on JLArrays without scalar indexing" begin
+    JLArrays.allowscalar(false)
+    for T in (Float32, Float64, ComplexF64)
+        A = T[2.0 0.5; 0.5 -1.0]
+        if T <: Complex
+            A[1, 2] += 0.75im
+            A[2, 1] = conj(A[1, 2])
+        end
+        b = T[1, -2]
+        dA, db = JLArray(A), JLArray(b)
+        for op in (dA, v -> dA * v)
+            x, report = linsolve(op, db, MINRES())
+            @test x isa JLArray{T,1}
+            @test report.converged
+            @test Array(x) ≈ A \ b atol=5max(1e-9, 30eps(real(T)))
+            @test report.residual == norm(db - dA*x)
+        end
+    end
+end

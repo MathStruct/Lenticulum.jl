@@ -106,3 +106,60 @@ end
     @test !stats.solved
     @info "GMRES oracle iterations (exhausted budget)" shared=report.iterations krylov=stats.niter
 end
+
+@testset "P37 Krylov.jl MINRES oracle" begin
+    rng = Xoshiro(3702)
+    for T in (Float32, Float64, ComplexF64), family in (:spd, :indefinite, :ill_conditioned),
+            n in (1, 2, 10, 50, 200)
+        R = real(T)
+        Q = Matrix(qr(randn(rng, T, n, n)).Q)
+        spectrum = collect(range(R(0.8), R(1); length=max(n, 2)))[1:n]
+        family !== :spd && (spectrum[1:2:end] .*= -one(R))
+        family === :ill_conditioned && n > 1 && (spectrum[1] = -R(1e-6))
+        A = Matrix(Hermitian(Q * Diagonal(spectrum) * Q'))
+        # Keep the ill-conditioned solution at moderate scale, as in the W5 oracle.
+        b = family === :ill_conditioned ? A * randn(rng, T, n) : randn(rng, T, n)
+        atol, rtol = zero(R), T === Float32 ? R(2e-5) : R(2e-9)
+        tol = Tolerance(; atol, rtol)
+        linop = v -> A * v
+        action = OracleAction{T,typeof(linop)}(n, linop)
+        Awide, bwide = widen.(A), widen.(b)
+        singular_values = svdvals(Matrix{T <: Real ? Float64 : ComplexF64}(A))
+        inverse_norm = inv(last(singular_values))
+        if family === :ill_conditioned && n > 1
+            @test first(singular_values) * inverse_norm ≈ 1e6 rtol=0.08
+        end
+        bound = atol + rtol * norm(bwide)
+        itmax = 4n + 20
+        for use_function in (false, true)
+            x, report = linsolve(use_function ? linop : A, b, MINRES(maxiters=itmax); tol)
+            # Compare residual solves. Krylov.jl's optional error and condition
+            # estimates can otherwise stop before the requested residual tolerance.
+            y, stats = Krylov.minres(use_function ? action : A, b;
+                atol, rtol, itmax, etol=zero(R), conlim=zero(R))
+            @testset "$T $family n=$n function=$use_function" begin
+                xwide, ywide = widen.(x), widen.(y)
+                rx = norm(bwide - Awide * xwide)
+                ry = norm(bwide - Awide * ywide)
+                @test report.converged
+                @test rx <= bound
+                @test report.residual == norm(b - A*x)
+                @test norm(xwide - ywide) <= inverse_norm * (rx + ry) * (1 + 1e-6)
+                if stats.solved
+                    @test ry <= bound
+                else
+                    @info "Krylov.jl MINRES did not report convergence" T family n use_function stats.status
+                end
+            end
+            @info "P37 MINRES oracle iterations" T family n use_function shared=report.iterations krylov=stats.niter krylov_solved=stats.solved
+        end
+    end
+
+    A, b = diagm([1.0, 2.0]), ones(2)
+    tol = Tolerance(; atol=0, rtol=1e-12)
+    _, report = linsolve(A, b, MINRES(maxiters=1); tol)
+    _, stats = Krylov.minres(A, b; atol=0.0, rtol=1e-12, itmax=1)
+    @test report.reason === :maxiters
+    @test !report.converged && !stats.solved
+    @info "P37 MINRES oracle iterations (exhausted budget)" shared=report.iterations krylov=stats.niter
+end

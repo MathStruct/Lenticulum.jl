@@ -198,3 +198,107 @@ end
     @test report.converged == (report.residual <= bound)
     @test report.iterations == 1
 end
+
+@testset "P37 MINRES against backslash" begin
+    rng = Xoshiro(3701)
+    for T in (Float32, Float64, ComplexF64), n in (1, 2, 10, 50), indefinite in (false, true)
+        R = real(T)
+        Q = Matrix(qr(randn(rng, T, n, n)).Q)
+        spectrum = collect(range(R(1), R(3); length=max(n, 2)))[1:n]
+        indefinite && (spectrum[1:2:end] .*= -one(R))
+        A = Matrix(Hermitian(Q * Diagonal(spectrum) * Q'))
+        b = randn(rng, T, n)
+        rtol = T === Float32 ? 1f-5 : 1e-12
+        tol = Tolerance(; atol=0, rtol)
+        for op in (A, v -> A * v)
+            x, report = linsolve(op, b, MINRES(); tol)
+            @test report.converged
+            @test eltype(x) === T
+            @test report.residual == norm(b - A*x) <= rtol * norm(b)
+            @test x ≈ A \ b rtol=4rtol
+        end
+    end
+
+    A, b = diagm([1.0, 2.0]), ones(2)
+    tol = Tolerance(; atol=0, rtol=1e-12)
+    @test_throws ArgumentError MINRES(maxiters=-1)
+    @test_throws ArgumentError linsolve(A, b, MINRES(); left=identity)
+    @test_throws ArgumentError linsolve(A, b, MINRES(); right=identity)
+    @test_throws ArgumentError linsolve(zeros(0, 0), Float64[], MINRES(); right=identity)
+    x, report = linsolve(zeros(Float32, 0, 0), Float32[], MINRES())
+    @test isempty(x)
+    check_report(report, :converged, 0, 0)
+    x, report = linsolve(A, zeros(2), MINRES(); tol)
+    @test x == zeros(2)
+    check_report(report, :converged, 0, 0)
+    x, report = linsolve(A, b, MINRES(maxiters=0); tol)
+    @test x == zeros(2)
+    check_report(report, :maxiters, 0, 1)
+    @test report.residual == norm(b)
+
+    calls = Ref(0)
+    apply = v -> (calls[] += 1; A * v)
+    x, report = linsolve(apply, b, MINRES(maxiters=1); tol)
+    check_report(report, :maxiters, 1, 3)
+    @test x ≈ [3/5, 3/5]
+    @test report.nfe == calls[]
+    @test report.residual == norm(b - A*x)
+    calls[] = 0
+    x, report = linsolve(apply, b, MINRES(); tol)
+    check_report(report, :converged, 2, 4)
+    @test report.nfe == calls[]
+    @test report.residual == norm(b - A*x)
+
+    # One Lanczos step gives a zero estimate, but rounding leaves a true
+    # residual. With a second step available, MINRES restarts on it.
+    scalar, rhs = fill(3.0, 1, 1), [7.0]
+    exact_tol = Tolerance(; atol=0, rtol=0)
+    x, report = linsolve(scalar, rhs, MINRES(maxiters=1); tol=exact_tol)
+    check_report(report, :maxiters, 1, 3)
+    @test report.residual == norm(rhs - scalar*x) > 0
+    x, report = linsolve(scalar, rhs, MINRES(maxiters=2); tol=exact_tol)
+    check_report(report, :converged, 2, 5)
+    @test report.residual == norm(rhs - scalar*x) == 0
+
+    A = diagm([2.0, 0.0])
+    x, report = linsolve(A, [1.0, 0.0], MINRES(); tol)
+    @test report.converged
+    @test x ≈ [0.5, 0.0]
+    for A in (A, [1.0 4.0; 0.0 2.0])
+        x, report = linsolve(A, b, MINRES(maxiters=4); tol)
+        @test report.reason in (:stalled, :maxiters)
+        @test !report.converged
+        @test report.residual == norm(b - A*x) > tol.rtol * norm(b)
+    end
+    x, report = linsolve(zeros(2, 2), b, MINRES(); tol)
+    check_report(report, :stalled, 1, 3)
+    @test report.residual == norm(b)
+    _, report = linsolve(fill(NaN, 2, 2), b, MINRES(); tol)
+    @test report.reason === :nonfinite && isnan(report.residual)
+    x, report = linsolve(v -> iszero(norm(v)) ? zero(v) : fill(Inf, 2), b, MINRES(); tol)
+    check_report(report, :nonfinite, 1, 2)
+    @test x == zeros(2) && report.residual == norm(b)
+
+    # Differentiate both the matrix and the right-hand side through each recurrence.
+    for T in (Float64, ComplexF64)
+        Q = Matrix(qr(randn(rng, T, 6, 6)).Q)
+        A = Matrix(Hermitian(Q * Diagonal([-4.0, -2.0, -1.0, 1.5, 3.0, 5.0]) * Q'))
+        W = randn(rng, T, 6, 6)
+        dA = (W + W') / 2
+        b0, db = randn(rng, T, 6), randn(rng, T, 6)
+        function solve(θ, alg)
+            x, report = linsolve(A .+ θ .* dA, b0 .+ θ .* db, alg; tol)
+            @test report.converged
+            @test report.residual isa Float64
+            return vcat(real.(x), imag.(x))
+        end
+        @test ForwardDiff.derivative(θ -> solve(θ, MINRES()), 0.0) ≈
+              ForwardDiff.derivative(θ -> solve(θ, DenseSolve()), 0.0) rtol=1e-9
+    end
+
+    J = [0.25 0.5; 0.5 -0.5]
+    λ, report = adjoint_solve(J', b, MINRES(); tol)
+    @test report.converged && λ ≈ J' \ b
+    λ, report = fixed_point_adjoint(v -> J' * v, b, MINRES(); tol)
+    @test report.converged && λ ≈ (I - J') \ b
+end

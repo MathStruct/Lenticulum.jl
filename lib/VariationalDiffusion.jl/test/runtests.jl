@@ -2350,6 +2350,7 @@ include("conformance.jl")
 include("bound.jl")
 
 include("lp018.jl")
+include("p37_minres.jl")
 
 include("review_singular.jl")
 
