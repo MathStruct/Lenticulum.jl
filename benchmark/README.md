@@ -67,7 +67,9 @@ revision twice and write the per-key warm noise, `abs(log(t₂ / t₁))`,
 to the chosen `--noise` file. The Markdown report includes the median,
 maximum and keys above 0.05. To calibrate CI, use **Actions → Benchmarks →
 Run workflow** and enable `aa`. The workflow ref supplies the suite definitions.
-Set `head` to a different library revision if needed, such as `origin/dev`.
+Set `head` to a different library revision if needed, such as `origin/dev`. Until `Benchmarks.yml` is on `master`, GitHub refuses the manual run (404); push the
+commit to the branch `benchmarks-aa` instead (`git push origin HEAD:benchmarks-aa`), which runs the A/A
+measurement on it.
 Download the `benchmark-results` artifact, review the full A/A report, and
 copy its `noise.toml` to `benchmark/noise.toml`. Commit the reviewed file with
 the CI run link in the commit message. Use full-sized CI results for this file.

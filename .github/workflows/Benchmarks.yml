@@ -1,9 +1,13 @@
 name: Benchmarks
 # Reports go to the step summary and artifacts. Fork pull requests have a
-# read-only token, so this workflow leaves no PR comment.
+# read-only token, so this workflow leaves no PR comment. A push to the branch
+# `benchmarks-aa` runs the A/A noise measurement on the pushed commit: GitHub
+# dispatches a workflow by hand only once it is on the default branch (Q18).
 on:
   pull_request:
     branches: [dev, master]
+  push:
+    branches: [benchmarks-aa]
   workflow_dispatch:
     inputs:
       base:
@@ -44,7 +48,7 @@ jobs:
           version: '1'
       - uses: julia-actions/cache@v2
       - name: Compare revisions
-        if: ${{ !inputs.aa }}
+        if: ${{ !inputs.aa && github.event_name != 'push' }}
         env:
           BENCHMARK_BASE: ${{ github.base_ref && format('origin/{0}', github.base_ref) || inputs.base || 'origin/dev' }}
         run: |
@@ -54,7 +58,7 @@ jobs:
           fi
           julia --project=benchmark benchmark/compare.jl --base "$BENCHMARK_BASE" --head "$BENCHMARK_HEAD" "${extra[@]}" --report "$BENCHMARK_OUTPUT/report.md"
       - name: Measure CI runner noise
-        if: ${{ inputs.aa }}
+        if: ${{ inputs.aa || github.event_name == 'push' }}
         run: julia --project=benchmark benchmark/compare.jl --aa "$BENCHMARK_HEAD" --report "$BENCHMARK_OUTPUT/report.md" --noise "$BENCHMARK_OUTPUT/noise.toml"
       - uses: actions/upload-artifact@v4
         if: always()
