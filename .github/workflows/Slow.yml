@@ -5,7 +5,9 @@ name: Slow tests
 # two take the time of the longer rather than their sum. It runs once a week, on demand (Actions → Slow tests →
 # Run workflow), on pull requests to master and dev, and on pushes that touch the code these tests
 # differentiate through. A change elsewhere can break a slow test between two weekly runs; run the workflow
-# before relying on one.
+# before relying on one. The job `ad-matrix` runs the slow rows of the AD backend matrix (Q5,
+# test/ad_matrix.jl) of the other packages, whose suites have no other slow tier: with
+# LENTICULUM_SLOW_TESTS=only they run their whole suite plus those rows.
 on:
   schedule:
     - cron: '0 3 * * 1'          # Mondays, 03:00 UTC, an hour before Weekly.yml
@@ -38,6 +40,8 @@ on:
       - 'lib/Lenticulum.jl/test/p31_element_type.jl'
       - 'lib/Lenticulum.jl/test/hard_gradient.jl'
       - 'lib/Lenticulum.jl/test/zygote_keys.jl'
+      - 'lib/*/test/ad_matrix.jl'
+      - 'lib/LenticulumCore.jl/test/support/ad_matrix.jl'
       - '.github/workflows/Slow.yml'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -56,3 +60,20 @@ jobs:
         env:
           LENTICULUM_SLOW_TESTS: 'only'
         run: julia --project=lib/Lenticulum.jl -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
+  ad-matrix:
+    name: ${{ matrix.package }} · AD matrix slow rows · Julia 1
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [ImplicitSolvers, Mycelium, MyceliumLearning]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      - name: Test lib/${{ matrix.package }}.jl with the slow AD-matrix rows
+        env:
+          LENTICULUM_SLOW_TESTS: 'only'
+        run: julia --project=lib/${{ matrix.package }}.jl -e 'using Pkg; Pkg.instantiate(); Pkg.test()'

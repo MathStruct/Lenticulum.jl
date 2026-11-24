@@ -161,3 +161,18 @@ replayed sweeps, and warns on a mixed graph: holding a parameter-dependent messa
 differentiated ones gave errors of 0.18–0.73 against the free-energy gradient, at convergence
 (the LP-021 note has the table). Score-function couplings and `StraightThroughFactor` keep the
 replay semantics.
+
+## AD backend matrix (Q5)
+
+Measured 2026-11-24 with `lib/MyceliumLearning.jl/test/ad_matrix.jl`.
+
+| Entry point | Zygote | ForwardDiff | Enzyme | Mooncake |
+|---|---|---|---|---|
+| `free_energy_gradient/unrolled` | pass | pass | broken: refused by us | broken: refused by us |
+| `free_energy_gradient/implicit` | pass | pass | broken: refused by us | broken: refused by us |
+| `free_energy after infer!` | pass | pass | broken: mutation/unsupported construct | broken: mutation/unsupported construct |
+| `moment_statistics` | broken: mutation/unsupported construct | pass | broken: mutation/unsupported construct | broken: mutation/unsupported construct |
+
+Both graph adjoints use `ad=nothing` as the reference. The direct differentiation of inference followed by free energy uses the scheduled reference gradient. The EM row varies a latent normal’s mean at a fixed store.
+
+The standalone matrix took 6m50s before the split. The EM statistics row runs with `LENTICULUM_SLOW_TESTS=true` or `only`.

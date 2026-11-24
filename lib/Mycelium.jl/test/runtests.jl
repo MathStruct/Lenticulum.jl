@@ -876,4 +876,5 @@ include("anderson.jl")
 include("blocks.jl")
 include("plates.jl")
 
+include("ad_matrix.jl")
 include("aqua.jl")

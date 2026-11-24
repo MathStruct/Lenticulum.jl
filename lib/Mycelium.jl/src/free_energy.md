@@ -553,3 +553,41 @@ per-variable path computes those variables.
 
 **Not done.** Mixtures with hard components are not counted (`_hard_basis` of a mixture is `nothing`);
 the cost (an eigendecomposition per hard message, already paid by the factors) is not measured.
+
+## AD backend matrix (Q5)
+
+Measured 2026-11-24 with `lib/Mycelium.jl/test/ad_matrix.jl`.
+
+| Entry point | Zygote | ForwardDiff | Enzyme | Mooncake |
+|---|---|---|---|---|
+| `factor_message/P36Affine` | pass | pass | broken: mutation/unsupported construct | broken: mutation/unsupported construct |
+| `local_free_energy/P36Affine` | pass | pass | pass | pass |
+| `factor_message/ExposedFactor` | pass | pass | broken: mutation/unsupported construct | broken: mutation/unsupported construct |
+| `local_free_energy/ExposedFactor` | pass | pass | unstable: Enzyme-internal `UndefVarError` alone, correct after the suite | pass |
+| `factor_message/RelayFactor` | pass | pass | pass | pass |
+| `local_free_energy/RelayFactor` | broken: other | pass | broken: mutation/unsupported construct | broken: mutation/unsupported construct |
+| `local_free_energy/LossFactor` | pass | pass | unstable: Enzyme-internal `UndefVarError` alone, correct after the suite | pass |
+| `local_free_energy/PriorFactor` | pass | pass | pass | pass |
+| `factor_message/PriorFactor` | pass | pass | broken: mutation/unsupported construct | broken: mutation/unsupported construct |
+| `factor_message/DataFactor` | pass | pass | pass | pass |
+| `factor_message/OptimiserFactor` | pass | pass | pass | pass |
+| `factor_message/TableFactor` | pass | pass | pass | pass |
+| `factor_message/ClusterFactor` | broken: mutation/unsupported construct | pass | broken: mutation/unsupported construct | pass |
+| `local_free_energy/ClusterFactor` | pass | pass | broken: mutation/unsupported construct | pass |
+| `factor_message/OverlayFactor` | broken: other | pass | broken: mutation/unsupported construct | pass |
+| `local_free_energy/OverlayFactor` | broken: other | pass | broken: mutation/unsupported construct | pass |
+| `free_energy` | pass | pass | broken: mutation/unsupported construct | pass |
+| `infer!` | broken: mutation/unsupported construct | pass | broken: mutation/unsupported construct | broken: mutation/unsupported construct |
+| `factor_message/LossFactor` | skip | skip | skip | skip |
+| `local_free_energy/DataFactor` | skip | skip | skip | skip |
+| `local_free_energy/OptimiserFactor` | skip | skip | skip | skip |
+| `local_free_energy/TableFactor` | skip | skip | skip | skip |
+
+The relay, prior, data, optimiser and table rows use continuous belief, observation, or state inputs where applicable. LossFactor only absorbs. DataFactor and OptimiserFactor contribute constant local energies, and TableFactor has no standalone local energy.
+
+In the exposed-factor row, Enzyme threw `UndefVarError: vaEltypes` after changing captured
+data. The primal loss at the same argument changed from 0.9808867755210209 to
+4.893179545200324. The test helper isolates the fixture for each backend.
+The isolated slow-tier rerun passed the Mooncake check against the original finite-difference reference.
+
+The default matrix took 3m46s after the split. The slow matrix took 10m09s.

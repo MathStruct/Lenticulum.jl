@@ -1,4 +1,7 @@
 [deps]
+DifferentiationInterfaceTest = "a82114a7-5aa3-49a8-9643-716bb13727a3"
+Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
+FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
@@ -15,6 +18,13 @@ BayesBase = "b4ee3484-f114-42fe-b91c-797d54a0c67e"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 
 [compat]
+ADTypes = "1"
+DifferentiationInterface = "0.7"
+DifferentiationInterfaceTest = "0.11"
+Enzyme = "0.13.221"
+Mooncake = "0.5"
+FiniteDifferences = "0.12"
+Zygote = "0.7"
 ExponentialFamily = "2"
 BayesBase = "1"
 Distributions = "0.25"

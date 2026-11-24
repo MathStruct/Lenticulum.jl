@@ -19,4 +19,5 @@ end
 
 include("sample_gradient.jl")
 
+include("ad_matrix.jl")
 include("aqua.jl")

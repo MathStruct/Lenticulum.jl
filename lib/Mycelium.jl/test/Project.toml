@@ -1,4 +1,7 @@
 [deps]
+Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
+FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 JLArrays = "27aeb0d3-9eb9-45fb-866b-73c2ecf80fcb"
 ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
@@ -11,3 +14,11 @@ Mycelium = "0a724bc2-760c-4b8c-a26e-202a6d9695cb"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 LuxCore = "bb33d45b-7691-41d6-9220-0943567d0623"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+
+[compat]
+ADTypes = "1"
+DifferentiationInterface = "0.7"
+Enzyme = "0.13.221"
+Mooncake = "0.5"
+FiniteDifferences = "0.12"
+Zygote = "0.7"

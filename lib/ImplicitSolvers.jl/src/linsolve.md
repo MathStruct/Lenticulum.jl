@@ -189,3 +189,23 @@ discovers the working element type and also counts in `nfe`. Preconditioner
 applications are outside this count. The reported residual comes from the
 value solve. The P42 tests in `krylovjl.jl` check the count against a callable's
 counter and compare real and complex tangents with dense LU.
+
+## AD backend matrix (Q5)
+
+Measured 2026-11-24 with `lib/ImplicitSolvers.jl/test/ad_matrix.jl`.
+
+| Entry point | Zygote | ForwardDiff | Enzyme | Mooncake |
+|---|---|---|---|---|
+| `linsolve/DenseSolve` | broken: mutation/unsupported construct | pass | broken: mutation/unsupported construct | pass |
+| `linsolve/GMRES` | broken: mutation/unsupported construct | pass | broken: mutation/unsupported construct | pass |
+| `linsolve/MINRES` | pass | pass | broken: mutation/unsupported construct | pass |
+| `linsolve/KrylovJL` | broken: mutation/unsupported construct | pass | broken: mutation/unsupported construct | broken: mutation/unsupported construct |
+| `solve_root/Picard` | pass | pass | broken: mutation/unsupported construct | pass |
+| `solve_root/Broyden` | broken: differentiates through a solver loop | pass | broken: mutation/unsupported construct | pass |
+| `solve_columns/NewtonDescent` | broken: differentiates through a solver loop | pass | broken: mutation/unsupported construct | pass |
+
+Enzyme forward mode is also broken on DenseSolve with a runtime activity error. Numerical agreement leaves the choice of differentiation rule to the Q6 checks.
+
+These rows use direct DI gradient checks. DifferentiationInterfaceTest 0.11 requires JLArrays at or below 0.3 when present, and the device tests require JLArrays 0.4 or 0.5.
+
+The standalone matrix took 5m13s before the split. KrylovJL and the column driver run with `LENTICULUM_SLOW_TESTS=true` or `only`.

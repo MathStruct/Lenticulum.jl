@@ -1346,4 +1346,5 @@ slow_include("zygote_keys.jl")
 
 fast_include("p34_output_coeff.jl")
 
+include("ad_matrix.jl")
 include("aqua.jl")

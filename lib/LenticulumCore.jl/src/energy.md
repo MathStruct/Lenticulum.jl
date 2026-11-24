@@ -359,3 +359,20 @@ partials are then zero, and the gradient is zero, as it should be. A value with 
 plain number, is returned unchanged. Device coordinates take their own method
 (`LenticulumCoreGPUArraysCoreDIExt`), which this does not change and which is not tested under a
 caller's ForwardDiff. Test: `test/i1.jl`, "LP-076 finding 2".
+
+## AD backend matrix (Q5)
+
+Measured 2026-11-24 with `lib/LenticulumCore.jl/test/ad_matrix.jl`.
+
+| Entry point | Zygote | ForwardDiff | Enzyme | Mooncake |
+|---|---|---|---|---|
+| `energy/ParameterResidual` | pass | pass | pass | pass |
+| `energy_gradient` | pass | pass | pass | pass |
+| `energy_jacobian` | pass | pass | pass | pass |
+| `parameter_gradient` | pass | pass | pass | pass |
+| `energy/ComposedFactor` | skip | skip | skip | skip |
+| `energy/TensorFactor` | skip | skip | skip | skip |
+
+The pointwise loss uses the parameter residual from the test fixtures. The Core containers have no pointwise `energy` method. The three public derivative methods use their `ad=nothing` references.
+
+Enzyme forward mode also agreed on the pointwise parameter residual loss.

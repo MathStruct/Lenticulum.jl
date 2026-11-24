@@ -440,4 +440,5 @@ include("sample_moments.jl")
 include("statistical_game.jl")
 include("interop.jl")
 
+include("ad_matrix.jl")
 include("aqua.jl")
