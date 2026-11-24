@@ -22,7 +22,7 @@ include("support/normal_m_step.jl")
         # Q5 baseline: Enzyme and Mooncake ArgumentError, "schedule differentiation
         # supports reference differences, AutoForwardDiff and AutoZygote".
         matrix_row("free_energy_gradient/$adjoint", gradient, () -> gradient(nothing);
-                   broken=("Enzyme", "Mooncake"))
+                   broken=("Enzyme", "Mooncake"), check_fixture=false)
     end
 
     function loss(v)
@@ -35,7 +35,7 @@ include("support/normal_m_step.jl")
     # for runtime activity." Mooncake MooncakeRuleCompilationError, "Mooncake
     # failed to differentiate the following method:" (try/catch in _emit_plan).
     gradient_row("free_energy after infer!", loss, p; reference=[reference.u.q, reference.u.h],
-                 broken=("Enzyme", "Mooncake"))
+                 broken=("Enzyme", "Mooncake"), check_fixture=false)
 end
 
 # The EM statistics dominated the 6m50s standalone matrix.
@@ -61,7 +61,7 @@ slow_tier() && @testset verbose=true "MyceliumLearning EM AD backend matrix" beg
     # potential need for runtime activity." Mooncake MissingForeigncallRuleError,
     # "No rrule!! available for foreigncall with primal argument types".
     gradient_row("moment_statistics", moment, p; broken=("Zygote", "Enzyme", "Mooncake"),
-                 slow=("Zygote", "ForwardDiff", "Enzyme", "Mooncake"))
+                 slow=("Zygote", "ForwardDiff", "Enzyme", "Mooncake"), check_fixture=false)
 end
 
 end

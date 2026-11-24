@@ -563,10 +563,10 @@ Measured 2026-11-24 with `lib/Mycelium.jl/test/ad_matrix.jl`.
 | `factor_message/P36Affine` | pass | pass | broken: mutation/unsupported construct | broken: mutation/unsupported construct |
 | `local_free_energy/P36Affine` | pass | pass | pass | pass |
 | `factor_message/ExposedFactor` | pass | pass | broken: mutation/unsupported construct | broken: mutation/unsupported construct |
-| `local_free_energy/ExposedFactor` | pass | pass | unstable: Enzyme-internal `UndefVarError` alone, correct after the suite | pass |
+| `local_free_energy/ExposedFactor` | pass | pass | right value, but writes into its fixture (broken, LP-090) | pass |
 | `factor_message/RelayFactor` | pass | pass | pass | pass |
 | `local_free_energy/RelayFactor` | broken: other | pass | broken: mutation/unsupported construct | broken: mutation/unsupported construct |
-| `local_free_energy/LossFactor` | pass | pass | unstable: Enzyme-internal `UndefVarError` alone, correct after the suite | pass |
+| `local_free_energy/LossFactor` | pass | pass | pass | pass |
 | `local_free_energy/PriorFactor` | pass | pass | pass | pass |
 | `factor_message/PriorFactor` | pass | pass | broken: mutation/unsupported construct | broken: mutation/unsupported construct |
 | `factor_message/DataFactor` | pass | pass | pass | pass |

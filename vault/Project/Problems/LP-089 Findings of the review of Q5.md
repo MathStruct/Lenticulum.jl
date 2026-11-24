@@ -31,7 +31,7 @@ data before throwing cannot change another backend's input or the reference. The
 
 The matrix over 71 rows (counted from the five note tables; about ten rows per backend are skips, an entry point
 the factor does not have): ForwardDiff passes all 61 it runs; Zygote 43 pass, 18 broken; Mooncake 31 pass, 30
-broken; Enzyme 14 pass, 44 broken, 2 unstable. The causes, from the comments: Mooncake fails mostly with
+broken; Enzyme 15 pass, 44 broken, 1 with the right value that writes into its fixture ([[LP-090 Two Enzyme defects met by the AD matrix|LP-090]]). The causes, from the comments: Mooncake fails mostly with
 `MooncakeRuleCompilationError` on a `try`/`catch`, 17 times in LenticulumCore's `_chol` (`gaussian_belief.jl` 122),
 otherwise in `_emit_plan` and `_improper_check`, or with a missing foreign-call rule. Enzyme fails mostly on runtime
 activity, illegal type analysis, and no derivative for LAPACK's `dpotri`. Zygote fails on mutation and on missing
@@ -53,10 +53,14 @@ column; this is input to Q6.
 
 ## Found by the session
 
-- **An Enzyme row whose outcome depends on order.** `local_free_energy/LossFactor` (and `ExposedFactor`, slow) throws
-  an Enzyme-internal `UndefVarError: vaEltypes` when the matrix runs alone and returns the correct value after the
-  rest of Mycelium's suite. As `@test_broken` it failed the suite as an unexpected pass. The helper has a third class,
-  `unstable`: a throw is broken, a returned value must be right. Not reported upstream yet.
+- **An Enzyme row that looked order-dependent.** `local_free_energy/LossFactor` (and `ExposedFactor`, slow) threw an
+  Enzyme-internal `UndefVarError: vaEltypes` in Codex's runs and passed under `Pkg.test`; the session first gave the
+  helper an `unstable` class for it. Examined afterwards ([[LP-090 Two Enzyme defects met by the AD matrix|LP-090]]):
+  it is not about order but about loading. Enzyme without a package image throws (Codex ran with
+  `--compiled-modules=existing --check-bounds=yes`), and `Pkg.test` always builds the image. The `unstable` class is
+  removed; both rows pass. The same examination found that Enzyme, on `ExposedFactor`, returns the right gradient
+  and writes adjoints into the captured messages. The helper now checks every factor-level fixture after each
+  backend (LP-090).
 - **Slow rows that no CI job ran.** The slow rows of ImplicitSolvers (`KrylovJL`, `solve_columns`), Mycelium
   (`infer!`, `free_energy`, the cluster, overlay and exposed factors) and MyceliumLearning (`moment_statistics`) sit
   behind `LENTICULUM_SLOW_TESTS`, which only Lenticulum's job in `Slow.yml` set. `Slow.yml` has a job `ad-matrix`

@@ -225,7 +225,7 @@ slow_tier() && @testset "Lenticulum path A AD matrix" begin
         _, _, st, store = infer!(g, schedule, ps, EMPTY)
         return first(scalar_free_energy(store, g, ps, st))
     end
-    check_gradient("free_energy after infer!/Kalman", kalman_loss, [0.1, 0.2])
+    check_gradient("free_energy after infer!/Kalman", kalman_loss, [0.1, 0.2]; check_fixture=false)
 end
 
 slow_tier() && @testset "Lenticulum path C AD matrix" begin
@@ -247,7 +247,7 @@ slow_tier() && @testset "Lenticulum path C AD matrix" begin
         stats = moment_statistics(store, g, graph_ps(v), st)
         return stats[(:regime, nothing)][2].n[1]
     end
-    check_gradient("moment_statistics/regime", responsibility, p)
+    check_gradient("moment_statistics/regime", responsibility, p; check_fixture=false)
 end
 
 end

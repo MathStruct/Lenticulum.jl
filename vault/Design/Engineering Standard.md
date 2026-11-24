@@ -128,11 +128,17 @@ them; until then the criterion is the standard but not a gate.
 | C5 | first-call latency (`bench/structure_compile.jl`, `jit_latency.jl`) | Q13's job | to add (Q13, Q15) |
 | C5 | every `bench/` script runs small | `Examples.yml`, weekly | exists |
 
-**Regression thresholds** (*to calibrate*: Q13 measures run-to-run noise on the CI runners first and
-replaces these): a pull request is flagged when a benchmark's median time rises by more than 10 %
-and by more than three times its measured noise, when allocations of a kernel with a budget rise at
-all, or when first-call latency rises by more than 20 %. A flag asks for a reason in the pull
-request; it does not block the merge until the thresholds are calibrated.
+**Regression thresholds** (calibrated 2026-11-24 from one A/A run on the GitHub runner, Q18:
+[run 45453115987](https://github.com/MathStruct/Lenticulum.jl/actions/runs/45453115987), the per-key noise in
+`benchmark/noise.toml`). The run compared one commit with itself on one runner (Julia 1.13.4, one thread):
+warm-time noise $|\log(t_2/t_1)|$ median 0.024, maximum 0.071 over 31 keys; allocations identical; first-call
+latency within 4 % on all 10 keys. So the thresholds stay as written: a pull request is flagged when a
+benchmark's median time rises by more than 10 % and by more than three times its measured noise (3 × noise is
+at most 10 % for 24 keys and at most 0.21 for the other 7), when allocations of a kernel with a budget rise at all (other kernels:
+by more than 10 %), or when first-call latency rises by more than 20 % (five times the largest A/A difference). A
+flag asks for a reason in the pull request. Flags do not block the merge: whether they should (`--strict`) is the
+maintainer's decision, and one A/A run on one runner is a thin basis for it (a second run on another day would
+show the spread between runners).
 
 ## Exceptions
 
@@ -152,7 +158,7 @@ note (`AGENTS.md`).
 - **Which Krylov backend is the default** (P40). This note only says how the decision is made
   (Dependencies, item 2).
 - **How the graph is compiled ahead of time** (Q16, Sophia). C1–C3 make it possible; Q15 measures first.
-- **The thresholds** above, until Q13 has measured the noise.
+- **Whether a flag blocks a merge** (Q18 calibrated the thresholds; blocking is the maintainer's decision).
 - **The minimum Julia version** stays 1.12 (`Weekly.yml`, `oldest`).
 
 ## Open questions

@@ -19,8 +19,26 @@ const ENZYME_FORWARD = "Enzyme.Forward" => AutoEnzyme(; mode=Enzyme.Forward)
 fast_tier() = get(ENV, "LENTICULUM_SLOW_TESTS", "false") != "only"
 slow_tier() = get(ENV, "LENTICULUM_SLOW_TESTS", "false") in ("true", "only")
 
-function matrix_row(name, differentiate, expected; broken=(), unstable=(), skipped=(), slow=(), forward=false,
-                    forwarddiff_scenario=nothing)
+# Structural equality, for checking that a backend left its fixture unchanged:
+# arrays and numbers by value, everything else field by field (closures too).
+same(a::Number, b::Number) = isequal(a, b)
+same(a::AbstractArray, b::AbstractArray) =
+    typeof(a) == typeof(b) && size(a) == size(b) && all(i -> same(a[i], b[i]), eachindex(a, b))
+same(a::AbstractDict, b::AbstractDict) =
+    length(a) == length(b) && all(k -> haskey(b, k) && same(a[k], b[k]), keys(a))
+same(a::Union{Symbol,AbstractString,Nothing,Missing,Module,Type}, b) = isequal(a, b)
+function same(a, b)
+    typeof(a) == typeof(b) || return false
+    isbits(a) && return isequal(a, b)
+    for i in 1:nfields(a)
+        isdefined(a, i) == isdefined(b, i) || return false
+        isdefined(a, i) && !same(getfield(a, i), getfield(b, i)) && return false
+    end
+    return true
+end
+
+function matrix_row(name, differentiate, expected; broken=(), mutates=(), skipped=(), slow=(), forward=false,
+                    forwarddiff_scenario=nothing, check_fixture=true)
     backends = forward ? (BACKENDS..., ENZYME_FORWARD) : BACKENDS
     selected = filter(backends) do (name, _)
         return name in slow ? slow_tier() : fast_tier()
@@ -34,36 +52,24 @@ function matrix_row(name, differentiate, expected; broken=(), unstable=(), skipp
                     @test_skip differentiate(ad)
                     continue
                 end
-                # A backend can change captured data before throwing.
-                # Copy the whole fixture before invoking each backend.
+                # A backend can change captured data, before throwing or while
+                # returning a correct value (Enzyme writes adjoints into Const
+                # memory reached through a dynamic call, LP-090). Each backend gets
+                # its own copy of the fixture, and the copy is checked afterwards.
                 run_backend = deepcopy(differentiate)
-                if name in unstable
-                    # The outcome depends on what was compiled before (an
-                    # Enzyme-internal error in one order, a correct value in
-                    # another). A throw is recorded as broken, a returned value
-                    # must be right.
-                    value = try
-                        run_backend(ad)
-                    catch err
-                        err isa InterruptException && rethrow()
-                        nothing
-                    end
-                    if value === nothing
-                        @test_broken false
-                    else
-                        @test isapprox(value, reference; rtol=1e-6)
-                    end
-                elseif name in broken
+                snapshot = deepcopy(run_backend)
+                value = try
+                    run_backend(ad)
+                catch err
+                    err isa InterruptException && rethrow()
+                    name in broken || rethrow()
+                    nothing
+                end
+                if name in broken
                     # A broken backend is expected to throw. If it returns, a
                     # correct value is an unexpected pass and a wrong value a
                     # failure: both are loud, so a broken row never hides a
                     # wrong derivative (LP-089).
-                    value = try
-                        run_backend(ad)
-                    catch err
-                        err isa InterruptException && rethrow()
-                        nothing
-                    end
                     if value === nothing
                         @test_broken false
                     elseif isapprox(value, reference; rtol=1e-6)
@@ -72,10 +78,19 @@ function matrix_row(name, differentiate, expected; broken=(), unstable=(), skipp
                         @test isapprox(value, reference; rtol=1e-6)
                     end
                 else
-                    @test isapprox(run_backend(ad), reference; rtol=1e-6)
+                    @test isapprox(value, reference; rtol=1e-6)
                     if name == "ForwardDiff" && forwarddiff_scenario !== nothing
                         forwarddiff_scenario(ad, copy(reference))
                     end
+                end
+                # The fixture must be unchanged after the call (also after a throw).
+                # Graph rows pass check_fixture=false: inference fills the graph's
+                # caches and the message store, so their fixtures change legitimately.
+                if !check_fixture
+                elseif name in mutates
+                    @test_broken same(run_backend, snapshot)
+                else
+                    @test same(run_backend, snapshot)
                 end
             end
         end

@@ -47,13 +47,12 @@ const BROKEN = Dict{String,Tuple}(
     # try/catch in _emit_plan
     "infer!" => ("Zygote", "Enzyme", "Mooncake"),
 )
-# Q5 baseline: Enzyme UndefVarError, `vaEltypes` not defined in `Enzyme`, when the row
-# runs alone; a correct value after the rest of the suite has run (LP-089). Enzyme
-# also changed captured point data before throwing; the helper gives each backend its
-# own fixture.
-const UNSTABLE = Dict{String,Tuple}(
+# Rows where a backend returns the right value but changes its fixture (checked by
+# the helper). Enzyme adds the adjoints of the messages x and y into the captured
+# messages (0.8 -> 1.71, 1.8 -> 0.97): Const memory reached through a call
+# dispatched at run time (_restrict, exposure.jl 141), LP-090.
+const MUTATES = Dict{String,Tuple}(
     "local_free_energy/ExposedFactor" => ("Enzyme",),
-    "local_free_energy/LossFactor" => ("Enzyme",),
 )
 
 # These rows each compile an inference, cluster or higher-level factor path.
@@ -61,7 +60,7 @@ is_slow_row(row) = row in ("infer!", "free_energy") ||
     any(suffix -> endswith(row, suffix), ("/ClusterFactor", "/OverlayFactor", "/ExposedFactor"))
 function check_gradient(row, f, p; kwargs...)
     slow = is_slow_row(row) ? ("Zygote", "ForwardDiff", "Enzyme", "Mooncake") : ()
-    return gradient_row(row, f, p; broken=get(BROKEN, row, ()), unstable=get(UNSTABLE, row, ()), slow, kwargs...)
+    return gradient_row(row, f, p; broken=get(BROKEN, row, ()), mutates=get(MUTATES, row, ()), slow, kwargs...)
 end
 
 @testset verbose=true "Mycelium AD backend matrix" begin
@@ -159,7 +158,7 @@ end
     g = graph(true)
     _, _, st, store = infer!(g, tree_schedule(g), graph_params(p), nt)
     graph_loss(v) = first(scalar_free_energy(store, g, graph_params(v), st))
-    check_gradient("free_energy", graph_loss, p)
+    check_gradient("free_energy", graph_loss, p; check_fixture=false)
 
     infer_graph = graph(false)
     schedule = tree_schedule(infer_graph)
@@ -167,7 +166,7 @@ end
         beliefs, _, _, _ = infer!(infer_graph, schedule, graph_params(v), nt)
         return sum(belief_mean(beliefs.y))
     end
-    check_gradient("infer!", belief_loss, p)
+    check_gradient("infer!", belief_loss, p; check_fixture=false)
 end
 
 end
