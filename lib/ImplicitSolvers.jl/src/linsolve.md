@@ -151,21 +151,41 @@ directly so internal restarts, warm starts, and true-residual checks all
 contribute to `nfe`. The workspace follows the right-hand side's storage and
 is allocated per attempt. Cross-call workspace reuse is deferred to Q11.
 
-A converged dual-valued solve enters P38's tangent correction, which calls
-back into the same algorithm. Krylov.jl 0.10.12 constrains its working real
-scalar type to `AbstractFloat`. Its three solvers raise `MethodError` on dual
-right-hand sides, matrices that promote the working type to dual, nested
-duals, and `Complex{Dual}`. These four cases per solver are `@test_broken` in
-`krylovjl.jl`. When the initial primal residual already meets the bound, the
-wrapper can reach the P38 correction without a Krylov iteration on dual
-elements. The zero-primal dual test checks this path and counts its products.
-Dual inputs with `ldiv=true` raise `ArgumentError` because P38 strips tags
-from preconditioner actions.
-
 Two difficulties found by the review ([[LP-086 Findings of the review of P41|LP-086]]). Krylov.jl's
 `cg` calls `error` when $r^\top M r$ is negative or NaN, so a nonfinite operator product threw where
 GMRES and MINRES report `:nonfinite`. The wrapper runs CG on a `CgWorkspace` and reads the residual it
 holds after the error: nonfinite gives a `:nonfinite` report at the last iterate, finite (a preconditioner
 that is not positive definite) an `ArgumentError`. A `UniformScaling` preconditioner (`I`, `2.0I`) is
 passed to Krylov.jl as is; it is neither a matrix nor callable, and was first taken for a function.
-P42 proposes the way to ForwardDiff: solve on primal values and get the partials by P38's correction.
+
+### ForwardDiff with Krylov.jl (P42)
+
+Krylov.jl 0.10.12 requires its working real scalar to be an `AbstractFloat`.
+When the working type carries a dual tag, the wrapper asks the ForwardDiff
+extension to strip that tag from the operator, right-hand side and
+preconditioners. The Krylov extension has no ForwardDiff dependency. A plain
+matrix keeps its storage and native matrix product. A dual matrix is stripped
+by broadcast, and a callable strips the tag from its output. The stripped
+system uses the same `KrylovJL` method and D2 true-residual checks.
+
+The wrapper lifts the resulting value to the working type with zero partials.
+After convergence it computes the dual residual and uses P38 to correct each
+partial that misses tolerance. Stripping removes one tag at a time from real
+duals and from both components of `Complex{Dual}`. A nested value re-enters the
+same solver with its inner tags intact. If the value solve fails, its reason
+propagates with the lifted iterate and the wrapper skips tangent correction.
+Dual inputs with `ldiv=true` still raise `ArgumentError` because the tag stripping
+works on preconditioner actions and their values.
+A preconditioner that carries a dual which `A` and `b` do not (the review's F1,
+[[LP-087 Findings of the review of P42|LP-087]]) is reduced to its primal values
+inside the Krylov.jl call: the solution does not depend on it, so its derivative
+is zero. Such a factorisation with `ldiv=true` raises the same `ArgumentError`.
+
+The report's `iterations` adds the value solve and each correction solve.
+`nfe` adds all their operator products, one product for the dual residual
+after value convergence, and one more if P38 refreshes that residual after an
+inner correction at this level. For a callable the initial application at zero
+discovers the working element type and also counts in `nfe`. Preconditioner
+applications are outside this count. The reported residual comes from the
+value solve. The P42 tests in `krylovjl.jl` check the count against a callable's
+counter and compare real and complex tangents with dense LU.

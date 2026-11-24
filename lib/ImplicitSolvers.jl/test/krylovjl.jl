@@ -225,14 +225,10 @@ end
             matrix_reference = gradient_matrix(dense)
             nested_reference = nested(dense)
             complex_reference = complex_tangent(complex_operator, dense)
-            # Krylov 0.10 raises MethodError for a Dual right-hand side (AbstractFloat bound).
-            @test_broken gradient_rhs(alg) ≈ rhs_reference
-            # Krylov 0.10 raises MethodError when a dual matrix promotes the RHS to Dual.
-            @test_broken gradient_matrix(alg) ≈ matrix_reference
-            # Krylov 0.10 raises MethodError for nested Dual workspace elements.
-            @test_broken nested(alg) ≈ nested_reference
-            # Krylov 0.10 raises MethodError for workspace elements Complex{Dual}.
-            @test_broken complex_tangent(complex_operator, alg) ≈ complex_reference
+            @test gradient_rhs(alg) ≈ rhs_reference
+            @test gradient_matrix(alg) ≈ matrix_reference
+            @test nested(alg) ≈ nested_reference
+            @test complex_tangent(complex_operator, alg) ≈ complex_reference
 
             # When the initial primal residual is zero, P38 corrects the tangent on a plain RHS.
             bd = ForwardDiff.Dual{:p41}.(zero(b), b)
@@ -246,6 +242,104 @@ end
             @test primal.(x) == zero(b)
             @test ForwardDiff.partials.(x, 1) ≈ A \ b
         end
+    end
+end
+
+krylov_dual(x::Real, parts) = ForwardDiff.Dual{:p42}(x, parts)
+krylov_dual(z::Complex, parts) =
+    complex(krylov_dual(real(z), map(real, parts)), krylov_dual(imag(z), map(imag, parts)))
+krylov_partial(x::ForwardDiff.Dual, i) = ForwardDiff.partials(x, i)
+krylov_partial(z::Complex, i) = complex(krylov_partial(real(z), i), krylov_partial(imag(z), i))
+
+@testset "P42 random dual systems against DenseSolve" begin
+    tol = Tolerance(atol=1e-12, rtol=2e-9)
+    for method in (:gmres, :minres, :cg), T in (Float64, ComplexF64)
+        @testset "$method $T" begin
+            rng = Xoshiro(4242)
+            for sample in 1:50
+                n, N = mod1(sample, 30), rand(rng, 1:4)
+                A, b = krylov_oracle_system(rng, T, n, method === :gmres ? :nonsymmetric : :spd)
+                dA = ntuple(N) do _
+                    W = randn(rng, T, n, n) / sqrt(n)
+                    return method === :gmres ? W : (W + W') / 2
+                end
+                db = ntuple(_ -> randn(rng, T, n), N)
+                x, report = linsolve(krylov_dual.(A, tuple.(dA...)),
+                    krylov_dual.(b, tuple.(db...)), KrylovJL(method); tol)
+                @test report.converged
+
+                Aw, bw = widen.(A), widen.(b)
+                dAw, dbw = map(M -> widen.(M), dA), map(v -> widen.(v), db)
+                ref, dense = linsolve(krylov_dual.(Aw, tuple.(dAw...)),
+                    krylov_dual.(bw, tuple.(dbw...)), DenseSolve(); tol)
+                @test dense.converged
+                inverse_norm = inv(last(svdvals(A)))
+                value, value_ref = widen.(primal.(x)), primal.(ref)
+                @test norm(bw - Aw * value) <= tol.atol + tol.rtol * norm(bw)
+                for i in 1:N
+                    tangent, tangent_ref = widen.(krylov_partial.(x, i)), krylov_partial.(ref, i)
+                    rhs = dbw[i] - dAw[i] * value
+                    r = norm(rhs - Aw * tangent)
+                    rr = norm(dbw[i] - dAw[i] * value_ref - Aw * tangent_ref)
+                    # The two tangent solves linearize at different primal iterates.
+                    shift = norm(dAw[i] * (value - value_ref))
+                    @test r <= tol.atol + tol.rtol * norm(rhs)
+                    @test norm(tangent - tangent_ref) <= inverse_norm * (r + rr + shift) * (1 + 1e-6)
+                end
+            end
+        end
+    end
+end
+
+@testset "P42 callable dual operators, preconditioners and reports" begin
+    A, b = [4.0 1.0; 1.0 3.0], [1.0, 2.0]
+    db = [2.0, -1.0]
+    dA = [1.0 0.5; 0.5 0.0]
+    tol = Tolerance(atol=1e-12, rtol=1e-12)
+    for method in (:gmres, :minres, :cg)
+        alg = KrylovJL(method)
+        calls = Ref(0)
+        t = krylov_dual(0.0, (1.0,))
+        op(v) = (calls[] += 1; A * v .+ t .* (dA * v))
+        x, report = linsolve(op, b, alg; tol)
+        reference, _ = linsolve(A .+ t .* dA, b, DenseSolve(); tol)
+        xp, primal_report = linsolve(A, b, alg; tol)
+        _, correction = linsolve(A, -dA * xp, alg; tol)
+        check_report(report, :converged, primal_report.iterations + correction.iterations,
+            primal_report.nfe + correction.nfe + 2) # discovery probe and dual residual
+        @test report.nfe == calls[]
+        @test primal.(x) ≈ primal.(reference)
+        @test krylov_partial.(x, 1) ≈ krylov_partial.(reference, 1)
+        @test_throws ArgumentError("KrylovJL with ldiv=true does not support dual numbers") linsolve(
+            op, b, KrylovJL(method; ldiv=true); tol)
+
+        # The captured value also appears in the preconditioners' output.
+        left(v) = v ./ (diag(A) .+ t)
+        right = method === :gmres ? v -> v .* (0.5 + t) : nothing
+        bd = krylov_dual.(b, tuple.(db))
+        x, report = linsolve(A, bd, alg; tol, left, right)
+        @test report.converged
+        @test primal.(x) ≈ A \ b
+        @test krylov_partial.(x, 1) ≈ A \ db
+
+        short = KrylovJL(method; maxiters=1)
+        xp, primal_report = linsolve(A, b, short; tol)
+        x, report = linsolve(A, bd, short; tol)
+        check_report(report, :maxiters, primal_report.iterations, primal_report.nfe)
+        @test report.residual === primal_report.residual
+        @test primal.(x) == xp
+        @test iszero(krylov_partial.(x, 1))
+
+        # The operator captures only the inner value's tag. Its contribution to the
+        # mixed derivative survives stripping the outer tag from the right-hand side.
+        mixed(solver) = ForwardDiff.derivative(0.0) do a
+            ForwardDiff.derivative(0.0) do s
+                first(linsolve(v -> A * v .+ a .* (dA * v), b .+ s .* db, solver; tol))
+            end
+        end
+        expected = mixed(DenseSolve())
+        @test norm(expected) > 0
+        @test mixed(alg) ≈ expected
     end
 end
 
@@ -265,5 +359,59 @@ end
             @test Array(x) ≈ xref atol=2tol.atol rtol=0
             @test report.residual == norm(db - dA*x) <= tol.atol
         end
+    end
+end
+
+@testset "P42 KrylovJL dual solve on JLArrays" begin
+    JLArrays.allowscalar(false)
+    A, b, db = [4.0 1.0; 1.0 3.0], [1.0, 2.0], [-1.0, 3.0]
+    x, report = linsolve(JLArray(A), JLArray(krylov_dual.(b, tuple.(db))), KrylovJL())
+    @test x isa JLArray
+    @test report.converged
+    @test primal.(Array(x)) ≈ A \ b
+    @test krylov_partial.(Array(x), 1) ≈ A \ db
+end
+
+@testset "LP-087: review of P42" begin
+    # F1 (Mistral): a dual carried only by a preconditioner, with A and b plain. The solution does
+    # not depend on the preconditioner, so its derivative is zero; it used to raise a MethodError.
+    A = [4.0 1.0; 1.0 3.0]
+    b = [1.0, 2.0]
+    tol = Tolerance(atol=1e-12, rtol=1e-12)
+    for method in (:gmres, :minres, :cg), kind in (:matrix, :function)
+        alg = KrylovJL(method)
+        value = nothing
+        derivative = ForwardDiff.derivative(0.0) do t
+            P = Diagonal([1 / 4 + t, 1 / 3])
+            left = kind === :matrix ? Matrix(P) : (v -> P * v)
+            x, report = linsolve(A, b, alg; tol, left)
+            value = (x, report)
+            return sum(x)
+        end
+        x, report = value
+        @test report.converged
+        @test primal.(x) ≈ A \ b
+        @test derivative == 0
+    end
+    # GMRES also with a dual right preconditioner.
+    derivative = ForwardDiff.derivative(0.0) do t
+        sum(first(linsolve(A, b, KrylovJL(:gmres); tol, right=Diagonal([1 + t, 1.0]))))
+    end
+    @test derivative == 0
+    # Found beside F1, older than P42: the in-house GMRES with a dual matrix preconditioner and plain
+    # A and b raises a MethodError (a function preconditioner works). No row; LP-087.
+    @test_broken try
+        ForwardDiff.derivative(0.0) do t
+            sum(first(linsolve(A, b, GMRES(); tol, left=Matrix(Diagonal([1 / 4 + t, 1 / 3])))))
+        end
+        true
+    catch err
+        err isa MethodError || rethrow()
+        false
+    end
+    # With ldiv = true a dual factorisation cannot be stripped: the documented ArgumentError.
+    @test_throws ArgumentError ForwardDiff.derivative(0.0) do t
+        sum(first(linsolve(A, b, KrylovJL(:cg; ldiv=true); tol,
+                           left=cholesky(Symmetric(A + t * I)))))
     end
 end

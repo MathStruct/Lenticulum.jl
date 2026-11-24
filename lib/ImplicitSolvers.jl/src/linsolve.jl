@@ -64,6 +64,8 @@ restart length for GMRES. `maxiters` is the total primal iteration budget.
 Pass approximate inverse actions or matrices as `left` and `right` to
 [`linsolve`](@ref). With `ldiv=true`, pass objects supporting `ldiv!` instead.
 MINRES and CG accept only a Hermitian positive definite left preconditioner.
+ForwardDiff inputs use primal Krylov.jl solves and implicit tangent corrections.
+Dual numbers require `ldiv=false`.
 """
 struct KrylovJL <: AbstractLinearSolver
     method::Symbol
@@ -91,10 +93,9 @@ residual norm and the primal norm of `b`.
 DenseSolve and MINRES require both preconditioners to be `nothing`.
 
 With ForwardDiff, Krylov solvers check the tangent residual after primal
-convergence when the backend returns a dual-valued solution. Correction solves
-contribute to the report's `iterations` and
-`nfe`. If any correction fails to converge, the report gives the first failure status
-while `residual` still describes the primal solve.
+convergence. Correction solves contribute to the report's `iterations` and
+`nfe`. If any correction fails to converge, the report gives the first failure
+status while `residual` still describes the primal solve.
 """
 function linsolve(A, b::AbstractVector, alg::AbstractLinearSolver; tol::Tolerance=Tolerance(),
         left=nothing, right=nothing)
@@ -119,6 +120,9 @@ _linsolve(A, apply, b, alg::KrylovJL, tol, left, right) =
 
 _krylovjl_solve(A, apply, b, alg::KrylovJL, tol, left, right) =
     error("KrylovJL needs Krylov.jl: run `using Krylov`")
+
+# Implemented by the AD extension for its dual working types.
+function _strip_dual_level end
 
 function _linear_operator(A::AbstractMatrix, n)
     size(A) == (n, n) || throw(DimensionMismatch("expected a matrix of size ($n, $n)"))

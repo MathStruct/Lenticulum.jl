@@ -8,6 +8,8 @@
 
 ## 2026-11-24
 
+P42: `KrylovJL` under ForwardDiff. When the working type of a `KrylovJL` solve is a dual, the wrapper strips one dual level from the operator, the right-hand side and the preconditioners (`_strip_dual_level`, in `ImplicitSolversForwardDiffExt`, so the Krylov extension stays free of ForwardDiff), solves the primal system with the same `KrylovJL`, lifts the solution with zero partials and hands it to P38's tangent correction; nested duals recurse one level at a time, `Complex{Dual}` works, a failed primal solve reports its reason without correction. The twelve `@test_broken` of P41 pass; tests `lib/ImplicitSolvers.jl/test/krylovjl.jl` (300 seeded real and complex systems against `DenseSolve`, captured duals, nested derivatives, preconditioners, reports, JLArrays). Non-dual solves bitwise unchanged (2,451 records). `bench/krylov_dual.jl`: at $n = 1000$ with 8 partials 11.9 ms against 100.8 ms for the in-house GMRES on duals (P40). Review [[LP-087 Findings of the review of P42|LP-087]] (one defect fixed with a test). Codex implemented it.
+
 P41: Krylov.jl as an optional backend of `linsolve`. `KrylovJL(method = :gmres | :minres | :cg; memory,
 maxiters, ldiv)` is defined in ImplicitSolvers; `ImplicitSolversKrylovExt` (Krylov.jl a weak dependency,
 compat 0.10) runs Krylov.jl's solver with D2's bound as `atol`, checks the true residual and warm-starts with a

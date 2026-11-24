@@ -1,7 +1,7 @@
 module ImplicitSolversForwardDiffExt
 
 using ImplicitSolvers: ImplicitSolvers
-using ForwardDiff: Dual, partials, value
+using ForwardDiff: Dual, partials, tagtype, value
 
 ImplicitSolvers.primal(x::Dual) = ImplicitSolvers.primal(value(x))
 
@@ -46,6 +46,16 @@ end
 
 _strip_operator(f, strip) = v -> strip.(f(v))
 _strip_operator(::Nothing, strip) = nothing
+
+function ImplicitSolvers._strip_dual_level(A, b, left, right, ::Type{D}) where {D<:DualScalar}
+    strip = _Value{tagtype(_dual_type(D))}()
+    op = if A isa AbstractMatrix
+        eltype(A) <: DualScalar ? strip.(A) : A
+    else
+        _strip_operator(A, strip)
+    end
+    return op, strip.(b), _strip_operator(left, strip), _strip_operator(right, strip)
+end
 
 # The tangent system A ẋ = ḃ - Ȧx has residual ṙ = ḃ - partials(Ax), and its scale is that of its
 # right-hand side, ‖A ẋ‖ at the solution. partials(Ax) = Ȧx + Aẋ alone is not a scale: with a plain b it

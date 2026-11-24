@@ -2,7 +2,7 @@ module ImplicitSolversKrylovExt
 
 using LinearAlgebra
 using ImplicitSolvers: ImplicitSolvers, KrylovJL, Tolerance, _bound, _krylov_result,
-    _primal_norm, _primal_type, _report, _status, _unchanged
+    _primal_norm, _primal_type, _report, _status, _strip_dual_level, _unchanged, linsolve
 import Krylov
 
 struct MulAction{T,F}
@@ -20,13 +20,26 @@ _product(A, apply, x) = apply(x)
 _mul!(y, A::AbstractMatrix, apply, x) = mul!(y, A, x)
 _mul!(y, A, apply, x) = copyto!(y, apply(x))
 
+# Krylov.jl is only called on a plain working type (dual systems are stripped first, P42), so a
+# preconditioner that still carries a dual, one that A and b do not carry, is reduced to its primal
+# values: the solution does not depend on it (LP-087 F1).
+_primal_values(P::AbstractMatrix) = _primal_type(eltype(P)) === eltype(P) ? P : ImplicitSolvers.primal.(P)
+_primal_values(P::UniformScaling) = UniformScaling(ImplicitSolvers.primal(P.λ))
+
 _preconditioner(::Nothing, alg, b) = I
-_preconditioner(P::AbstractMatrix, alg, b) = P
+function _preconditioner(P::AbstractMatrix, alg, b)
+    alg.ldiv && _check_ldiv(alg, eltype(P))
+    return _primal_values(P)
+end
 # `I` and `c*I` are neither matrices nor callable; Krylov.jl takes them with `mul!` or `ldiv!` (LP-086 F2).
-_preconditioner(P::UniformScaling, alg, b) = P
+_preconditioner(P::UniformScaling, alg, b) = _primal_values(P)
 function _preconditioner(P, alg, b)
-    alg.ldiv && return P
-    return MulAction(eltype(b), length(b), (y, x) -> copyto!(y, P(x)))
+    if alg.ldiv
+        T = eltype(P)
+        T <: Number && _check_ldiv(alg, T)
+        return P
+    end
+    return MulAction(eltype(b), length(b), (y, x) -> y .= ImplicitSolvers.primal.(P(x)))
 end
 
 # P38 strips callable preconditioners when solving a tangent system.
@@ -66,10 +79,29 @@ end
 _working_type(A::AbstractMatrix, b) = promote_type(eltype(A), float(eltype(b)))
 _working_type(A, b) = float(eltype(b))
 
+function _krylovjl_dual(A, apply, b, alg, tol, left, right, ::Type{T}, probes) where {T}
+    left_action, right_action = _tangent_action(left), _tangent_action(right)
+    op = A isa AbstractMatrix ? A : apply
+    Avalue, bvalue, lvalue, rvalue = _strip_dual_level(op, b, left_action, right_action, T)
+    xvalue, report = linsolve(Avalue, bvalue, alg; tol, left=lvalue, right=rvalue)
+    x = T.(xvalue)
+    nfe = report.nfe + probes
+    if !report.converged
+        return x, _report(report.reason, report.iterations, report.residual, nfe)
+    end
+    ax = _product(A, apply, x)
+    r = b .- ax
+    report = _report(report.reason, report.iterations, report.residual, nfe + 1)
+    return _krylov_result(apply, b, x, ax, r, report, alg, tol, left_action, right_action)
+end
+
 function ImplicitSolvers._krylovjl_solve(A, apply, b::AbstractVector, alg::KrylovJL,
         tol::Tolerance, left, right)
     T = _working_type(A, b)
     _check_ldiv(alg, T)
+    if A isa AbstractMatrix && _primal_type(T) !== T
+        return _krylovjl_dual(A, apply, b, alg, tol, left, right, T, 0)
+    end
     scale = _primal_norm(b)
     x = fill!(similar(b, T), zero(T))
     isfinite(scale) || return x, _report(:nonfinite, 0, scale, 0)
@@ -79,6 +111,9 @@ function ImplicitSolvers._krylovjl_solve(A, apply, b::AbstractVector, alg::Krylo
     # A callable may expose its element type only when applied.
     S = promote_type(T, eltype(r))
     _check_ldiv(alg, S)
+    if _primal_type(S) !== S
+        return _krylovjl_dual(A, apply, b, alg, tol, left, right, S, 1)
+    end
     if S !== T
         x = fill!(similar(b, S), zero(S))
     end
