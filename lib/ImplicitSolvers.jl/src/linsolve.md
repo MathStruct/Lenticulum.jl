@@ -4,7 +4,7 @@
 > and dense LU and Cholesky handle direct solves. Both Krylov solvers use the
 > supplied operator action and check the true residual after each cycle.
 >
-> Sources: [[Shared Solver Layer]], D2 and D4; code: `lib/ImplicitSolvers.jl/src/linsolve.jl`, `lib/ImplicitSolvers.jl/ext/ImplicitSolversForwardDiffExt.jl`, `lib/VariationalDiffusion.jl/src/krylov.jl`; tests: `lib/ImplicitSolvers.jl/test/linsolve.jl`, `lib/ImplicitSolvers.jl/test/device.jl`, `lib/ImplicitSolvers.jl/test/krylov_oracle.jl`
+> Sources: [[Shared Solver Layer]], D2 and D4; code: `lib/ImplicitSolvers.jl/src/linsolve.jl`, `lib/ImplicitSolvers.jl/ext/ImplicitSolversForwardDiffExt.jl`, `lib/ImplicitSolvers.jl/ext/ImplicitSolversKrylovExt.jl`, `lib/VariationalDiffusion.jl/src/krylov.jl`; tests: `lib/ImplicitSolvers.jl/test/linsolve.jl`, `lib/ImplicitSolvers.jl/test/device.jl`, `lib/ImplicitSolvers.jl/test/krylov_oracle.jl`, `lib/ImplicitSolvers.jl/test/krylovjl.jl`
 >
 > Theory (CT-ML wiki): —
 
@@ -125,3 +125,47 @@ correction fails, the first failure supplies the report's status. This check
 acts only after a converged Krylov solve with dual-valued output. Dense solves
 and failed primal solves return directly. Accuracy is governed by the residual
 tolerance and the conditioning of the system.
+
+## Krylov.jl backend (P41)
+
+`KrylovJL(:gmres; memory=40, maxiters=200)` selects Krylov.jl's restarted GMRES
+after `using Krylov`. The same algorithm type selects `:minres` for Hermitian
+systems or `:cg` for Hermitian positive definite systems. Krylov.jl takes the
+left and right approximate inverse actions as its `M` and `N`. Matrices use
+`mul!`, and callable actions copy their output into Krylov.jl's buffer. With
+`ldiv=true`, the preconditioners go directly to Krylov.jl for `ldiv!`. MINRES
+and CG accept only a Hermitian positive definite left preconditioner.
+
+The first Krylov attempt uses `atol` equal to D2's bound at scale $\lVert b\rVert$
+and `rtol=0`, in the primal real type. The wrapper evaluates $b-Ax$ after each
+attempt and uses its primal norm to decide convergence. If the residual misses
+D2 and decreases, the wrapper warm-starts another attempt with the remaining
+iteration budget. It multiplies the D2 bound by the ratio of Krylov.jl's final
+residual estimate to the true norm, capping the next target at the previous
+one. An unchanged iterate or a residual that fails to decrease stalls when
+budget remains. The two-dimensional Jacobi test in `krylovjl.jl` exercises
+an early stop by bare GMRES and convergence after a warm start.
+
+Iteration counts come from Krylov.jl. The wrapper counts operator products
+directly so internal restarts, warm starts, and true-residual checks all
+contribute to `nfe`. The workspace follows the right-hand side's storage and
+is allocated per attempt. Cross-call workspace reuse is deferred to Q11.
+
+A converged dual-valued solve enters P38's tangent correction, which calls
+back into the same algorithm. Krylov.jl 0.10.12 constrains its working real
+scalar type to `AbstractFloat`. Its three solvers raise `MethodError` on dual
+right-hand sides, matrices that promote the working type to dual, nested
+duals, and `Complex{Dual}`. These four cases per solver are `@test_broken` in
+`krylovjl.jl`. When the initial primal residual already meets the bound, the
+wrapper can reach the P38 correction without a Krylov iteration on dual
+elements. The zero-primal dual test checks this path and counts its products.
+Dual inputs with `ldiv=true` raise `ArgumentError` because P38 strips tags
+from preconditioner actions.
+
+Two difficulties found by the review ([[LP-086 Findings of the review of P41|LP-086]]). Krylov.jl's
+`cg` calls `error` when $r^\top M r$ is negative or NaN, so a nonfinite operator product threw where
+GMRES and MINRES report `:nonfinite`. The wrapper runs CG on a `CgWorkspace` and reads the residual it
+holds after the error: nonfinite gives a `:nonfinite` report at the last iterate, finite (a preconditioner
+that is not positive definite) an `ArgumentError`. A `UniformScaling` preconditioner (`I`, `2.0I`) is
+passed to Krylov.jl as is; it is neither a matrix nor callable, and was first taken for a function.
+P42 proposes the way to ForwardDiff: solve on primal values and get the partials by P38's correction.

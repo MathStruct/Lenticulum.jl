@@ -6,6 +6,21 @@
 
 > Sources: original to this repository; the notes, tests and benchmarks named in each entry.
 
+## 2026-11-24
+
+P41: Krylov.jl as an optional backend of `linsolve`. `KrylovJL(method = :gmres | :minres | :cg; memory,
+maxiters, ldiv)` is defined in ImplicitSolvers; `ImplicitSolversKrylovExt` (Krylov.jl a weak dependency,
+compat 0.10) runs Krylov.jl's solver with D2's bound as `atol`, checks the true residual and warm-starts with a
+tightened target when Krylov.jl stopped early (LP-082's left-Jacobi case converges where bare `gmres` stops
+at 0.49 against 0.01), counts every product in `nfe`, and hands a converged dual solve to P38's tangent
+correction. Without Krylov.jl a call says to load it. The in-house solvers stay the default (P40). Tests
+`lib/ImplicitSolvers.jl/test/krylovjl.jl`: both backends on the oracle families against `DenseSolve`, the
+reports, the preconditioner protocols, integers and `BigFloat`, JLArrays; ForwardDiff duals are refused by
+Krylov.jl 0.10.12 (twelve `@test_broken`, P42). `bench/krylov_allocations.jl`: 781 kB per solve at
+$n = 2000$ against 948 kB in-house and 0 for `gmres!` on a reused workspace (Q11). Code
+`lib/ImplicitSolvers.jl/ext/ImplicitSolversKrylovExt.jl`, note `linsolve.md` ("Krylov.jl backend (P41)"),
+review [[LP-086 Findings of the review of P41|LP-086]] (two defects fixed with tests). Codex implemented it.
+
 ## 2026-11-23
 
 P39: phase 2 of the shared solver layer. Newton-or-descent and the trust region are one driver in

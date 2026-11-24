@@ -337,6 +337,13 @@ The maintainer's decision (2026-11-24): Krylov.jl comes back as an optional pack
 ImplicitSolvers (P41), beside the in-house solvers, which stay the default. P40 now decides only
 whether the default changes, on what running both backends on the same cases shows.
 
+P41 is done (2026-11-24, `KrylovJL`, [[LP-086 Findings of the review of P41|LP-086]]). What it showed for
+P40: both backends meet D2 on the oracle families; Krylov.jl's GMRES with a left preconditioner does stop on
+its estimate above the bound (LP-082's case), which the wrapper's true-residual check catches; Krylov.jl
+0.10.12 refuses ForwardDiff dual element types, so the backend is not differentiable by ForwardDiff until
+P42; and a workspace built per call allocates 781 kB per solve at $n = 2000$ against 948 kB in-house
+(`bench/krylov_allocations.md`), so the allocation-free use waits for Q11's `init`/`solve!`.
+
 ## Open questions
 
 - Whether `Anderson` belongs in the package as a root solver (Mycelium's `AndersonSchedule` mixes

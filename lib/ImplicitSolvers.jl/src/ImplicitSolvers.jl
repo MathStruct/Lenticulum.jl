@@ -3,7 +3,7 @@ module ImplicitSolvers
 using LinearAlgebra
 
 export Tolerance, primal, SolverReport
-export linsolve, DenseSolve, GMRES, MINRES
+export linsolve, DenseSolve, GMRES, MINRES, KrylovJL
 export solve_root, Picard, Broyden, LimitedBroyden
 export solve_columns, NewtonDescent, TrustRegion
 export adjoint_solve, fixed_point_adjoint, fd_jacobian

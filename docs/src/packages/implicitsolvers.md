@@ -21,8 +21,14 @@ complex systems. Pass approximate inverse actions as `left=v -> M*v` and
 precondition the system those helpers solve. After each cycle GMRES checks
 `norm(b - A*x)` using the original operator and reports that residual.
 `MINRES(; maxiters = 200)` uses short recurrences for Hermitian systems, including
-real symmetric indefinite systems. It also checks the true residual. Approximate
-inverse actions are supported by GMRES alone.
+real symmetric indefinite systems. It also checks the true residual.
+
+Load `Krylov` to use [`KrylovJL`](@ref) with `:gmres`, `:minres`, or `:cg`.
+The backend accepts preconditioners as approximate inverse actions or matrices.
+With `ldiv=true`, it accepts objects that apply a preconditioner through `ldiv!`.
+MINRES and CG take a Hermitian positive definite left preconditioner.
+The report uses the true primal residual for all three methods. Krylov.jl 0.10
+requires floating-point Krylov workspaces and rejects ForwardDiff dual elements.
 
 [`solve_columns`](@ref) solves independent root equations with
 [`NewtonDescent`](@ref) or [`TrustRegion`](@ref). The caller supplies the residual

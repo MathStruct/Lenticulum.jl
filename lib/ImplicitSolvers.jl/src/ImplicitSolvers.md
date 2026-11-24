@@ -9,7 +9,8 @@
 
 The module loads LinearAlgebra and exports the solver settings, solve entry points,
 reports, and finite differences. The linear solvers are DenseSolve, GMRES and
-MINRES for Hermitian systems. ForwardDiff is optional. Its extension unwraps
+MINRES for Hermitian systems. `KrylovJL` adds GMRES, MINRES and CG through the
+optional Krylov.jl extension. ForwardDiff is optional. Its extension unwraps
 dual numbers for decisions while the solver steps work with the original values.
 [`solve_columns`](descent.md) runs Newton descent or a trust-region method with
 `NewtonDescent` and `TrustRegion` on independent columns.

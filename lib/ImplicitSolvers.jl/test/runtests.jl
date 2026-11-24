@@ -9,5 +9,6 @@ using ForwardDiff, JLArrays
     include("descent.jl")
     include("adjoint_fd.jl")
     include("device.jl")
+    include("krylovjl.jl")
     include("aqua.jl")
 end

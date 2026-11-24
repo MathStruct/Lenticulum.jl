@@ -1,9 +1,8 @@
 # julia --project=bench bench/krylov_allocations.jl
 #
-# Allocations and time of one GMRES solve: ImplicitSolvers' shared GMRES (`linsolve`) against
-# Krylov.jl's `gmres!` with a preallocated workspace, on the same well-conditioned dense system.
-# The record is in vault/Design/Shared Solver Layer.md ("Why not Krylov.jl"). The shared GMRES gets
-# the matrix and an operator closure; Krylov.jl gets the matrix (it multiplies in place with `mul!`).
+# Allocations and time of one GMRES solve on the same well-conditioned dense system.
+# Compare the in-house GMRES, the optional KrylovJL backend, and Krylov.jl's gmres!
+# with a preallocated workspace. See krylov_allocations.md for the measurements.
 using ImplicitSolvers, Krylov, LinearAlgebra, Random, Printf
 
 const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
@@ -18,6 +17,8 @@ end
 
 shared(op, b) = linsolve(op, b, GMRES(restart = RESTART, maxiters = MAXITERS);
                          tol = Tolerance(atol = TOL, rtol = TOL))
+backend(A, b) = linsolve(A, b, KrylovJL(:gmres; memory = RESTART, maxiters = MAXITERS);
+                        tol = Tolerance(atol = TOL, rtol = TOL))
 krylov!(ws, A, b) = gmres!(ws, A, b; atol = TOL, rtol = TOL, restart = true, itmax = MAXITERS)
 
 function measure(f)
@@ -27,7 +28,8 @@ function measure(f)
     return bytes, time
 end
 
-println("Julia ", VERSION, ", ", Threads.nthreads(), " thread(s); restart $RESTART, atol = rtol = $TOL")
+println("Julia ", VERSION, ", ", Threads.nthreads(), " Julia thread(s), ", BLAS.get_num_threads(),
+        " BLAS thread(s); Krylov ", pkgversion(Krylov), "; restart $RESTART, atol = rtol = $TOL")
 @printf("%6s  %-28s %6s %12s %10s\n", "n", "solver", "iters", "bytes", "time/ms")
 for n in SIZES
     A, b = system(n)
@@ -38,6 +40,10 @@ for n in SIZES
         bytes, time = measure(() -> shared(op, b))
         @printf("%6d  %-28s %6d %12d %10.3f\n", n, name, report.iterations, bytes, 1e3time)
     end
+    x, report = backend(A, b)
+    @assert report.converged && norm(x - xref) <= 1e-8 * norm(xref)
+    bytes, time = measure(() -> backend(A, b))
+    @printf("%6d  %-28s %6d %12d %10.3f\n", n, "KrylovJL, matrix", report.iterations, bytes, 1e3time)
     ws = GmresWorkspace(A, b; memory = RESTART)
     krylov!(ws, A, b)
     @assert ws.stats.solved && norm(ws.x - xref) <= 1e-8 * norm(xref)

@@ -55,17 +55,44 @@ struct MINRES <: AbstractLinearSolver
 end
 
 """
+    KrylovJL(method::Symbol = :gmres; memory=40, maxiters=200, ldiv=false)
+
+Use the Krylov.jl backend, which requires `using Krylov`. Choose `:gmres`,
+`:minres` (Hermitian), or `:cg` (Hermitian positive definite). `memory` is the
+restart length for GMRES. `maxiters` is the total primal iteration budget.
+
+Pass approximate inverse actions or matrices as `left` and `right` to
+[`linsolve`](@ref). With `ldiv=true`, pass objects supporting `ldiv!` instead.
+MINRES and CG accept only a Hermitian positive definite left preconditioner.
+"""
+struct KrylovJL <: AbstractLinearSolver
+    method::Symbol
+    memory::Int
+    maxiters::Int
+    ldiv::Bool
+
+    function KrylovJL(method::Symbol=:gmres; memory::Int=40, maxiters::Int=200, ldiv::Bool=false)
+        method in (:gmres, :minres, :cg) || throw(ArgumentError("unknown KrylovJL method: $method"))
+        memory > 0 || throw(ArgumentError("memory must be positive"))
+        maxiters >= 0 || throw(ArgumentError("maxiters must be nonnegative"))
+        return new(method, memory, maxiters, ldiv)
+    end
+end
+
+"""
     linsolve(A, b::AbstractVector, alg; tol=Tolerance(), left=nothing, right=nothing)
 
 Return `(x, report)` for the square system `A*x = b`. Supply a square matrix
 or a callable `v -> A*v` mapping vectors of length `length(b)` to vectors of the
 same length. With GMRES, `left` and `right` can apply approximate inverses.
+[`KrylovJL`](@ref) also accepts matrix or `ldiv!` preconditioners.
 The report's residual and the initial convergence check use the true primal
 residual norm and the primal norm of `b`.
 DenseSolve and MINRES require both preconditioners to be `nothing`.
 
-With ForwardDiff, GMRES and MINRES check the tangent residual after primal
-convergence. Correction solves contribute to the report's `iterations` and
+With ForwardDiff, Krylov solvers check the tangent residual after primal
+convergence when the backend returns a dual-valued solution. Correction solves
+contribute to the report's `iterations` and
 `nfe`. If any correction fails to converge, the report gives the first failure status
 while `residual` still describes the primal solve.
 """
@@ -75,6 +102,8 @@ function linsolve(A, b::AbstractVector, alg::AbstractLinearSolver; tol::Toleranc
         alg isa DenseSolve && throw(ArgumentError("DenseSolve does not support preconditioning"))
         alg isa MINRES && throw(ArgumentError(
             "preconditioned MINRES needs a symmetric positive definite preconditioner and is not implemented"))
+        alg isa KrylovJL && alg.method !== :gmres && right !== nothing &&
+            throw(ArgumentError("KrylovJL(:$(alg.method)) supports only a left preconditioner"))
     end
     n = length(b)
     apply = _linear_operator(A, n)
@@ -84,6 +113,12 @@ function linsolve(A, b::AbstractVector, alg::AbstractLinearSolver; tol::Toleranc
     end
     return _linsolve(A, apply, b, alg, tol, left, right)
 end
+
+_linsolve(A, apply, b, alg::KrylovJL, tol, left, right) =
+    _krylovjl_solve(A, apply, b, alg, tol, left, right)
+
+_krylovjl_solve(A, apply, b, alg::KrylovJL, tol, left, right) =
+    error("KrylovJL needs Krylov.jl: run `using Krylov`")
 
 function _linear_operator(A::AbstractMatrix, n)
     size(A) == (n, n) || throw(DimensionMismatch("expected a matrix of size ($n, $n)"))
