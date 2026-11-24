@@ -10,6 +10,9 @@
 # :interactive can land on the main thread and starve it.
 # Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 2 functions per compiler variant and 0.1 seconds idle.
 
+@isdefined(provenance) || include(joinpath(@__DIR__, "provenance.jl"))
+abspath(PROGRAM_FILE) == (@__FILE__) && provenance()
+
 @isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Printf
 

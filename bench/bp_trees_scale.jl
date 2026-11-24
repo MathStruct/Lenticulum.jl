@@ -8,6 +8,9 @@
 # Run: julia --project=bench bench/bp_trees_scale.jl
 # Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 2 by 2 grids and 20 sweeps, all noise and unit variants.
 
+@isdefined(provenance) || include(joinpath(@__DIR__, "provenance.jl"))
+abspath(PROGRAM_FILE) == (@__FILE__) && provenance()
+
 @isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 include("bp_trees.jl")
 

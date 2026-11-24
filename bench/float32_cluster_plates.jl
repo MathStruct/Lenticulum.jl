@@ -21,6 +21,9 @@
 #       only); output to stdout)
 # Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 3 and 4 replicas, 2 EM iterations and 1 timed run per plate/type/path.
 
+@isdefined(provenance) || include(joinpath(@__DIR__, "provenance.jl"))
+abspath(PROGRAM_FILE) == (@__FILE__) && provenance()
+
 @isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, MyceliumLearning, LinearAlgebra, LuxCore, Random, Printf
 

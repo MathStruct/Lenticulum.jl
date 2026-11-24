@@ -9,6 +9,9 @@
 # Zygote compiles its pullback once per type of `ps`, a `NamedTuple` with one field per factor, so
 # every size compiles anew; the "first call" column is that compilation and grows with the keys.
 
+@isdefined(provenance) || include(joinpath(@__DIR__, "provenance.jl"))
+abspath(PROGRAM_FILE) == (@__FILE__) && provenance()
+
 @isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, MyceliumLearning, LinearAlgebra, Random, LuxCore, Printf, Zygote
 

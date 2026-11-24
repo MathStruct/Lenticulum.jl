@@ -12,6 +12,9 @@
 #   MODE=infer    julia --project=bench bench/structure_compile.jl      (Zygote through infer!)
 # Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs every mode at 2 and 3 steps, after 1.
 
+@isdefined(provenance) || include(joinpath(@__DIR__, "provenance.jl"))
+abspath(PROGRAM_FILE) == (@__FILE__) && provenance()
+
 @isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, MyceliumLearning, LinearAlgebra, Random, LuxCore, Printf,
     Zygote, ForwardDiff, ADTypes, DifferentiationInterface

@@ -13,6 +13,7 @@ __pycache__/
 /lib/*/examples/*/Manifest.toml
 /docs/vault-build/
 /bench/Manifest.toml
+/benchmark/Manifest.toml
 /tools/Manifest.toml
 *.cov
 *.mem

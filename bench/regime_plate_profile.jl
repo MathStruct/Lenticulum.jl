@@ -6,6 +6,9 @@
 # Run:  N=3000 julia -t auto --project=bench bench/regime_plate_profile.jl
 # Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 4 replicas, 2 EM iterations, 1 timed run and a 10000-entry profile buffer.
 
+@isdefined(provenance) || include(joinpath(@__DIR__, "provenance.jl"))
+abspath(PROGRAM_FILE) == (@__FILE__) && provenance()
+
 @isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, MyceliumLearning, LinearAlgebra, LuxCore, Random, Profile
 

@@ -16,6 +16,9 @@
 
 # Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 2–5 Kalman steps, 8 and 10 mixture points, 3 fit iterations and 1 timed run.
 
+@isdefined(provenance) || include(joinpath(@__DIR__, "provenance.jl"))
+abspath(PROGRAM_FILE) == (@__FILE__) && provenance()
+
 @isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, MyceliumLearning, LinearAlgebra, LuxCore, Random, Printf
 import RxInfer

@@ -4,6 +4,9 @@
 # Run:  julia --project=bench bench/gaussian_message_cost.jl
 # Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 1 call and 1 timed run per method/dimension.
 
+@isdefined(provenance) || include(joinpath(@__DIR__, "provenance.jl"))
+abspath(PROGRAM_FILE) == (@__FILE__) && provenance()
+
 @isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, Random
 const L = Lenticulum

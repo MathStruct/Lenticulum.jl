@@ -13,6 +13,9 @@
 # Run:  julia --project=bench bench/cluster_overlap.jl
 # Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 1 point and 2 sweeps, all four groupings.
 
+@isdefined(provenance) || include(joinpath(@__DIR__, "provenance.jl"))
+abspath(PROGRAM_FILE) == (@__FILE__) && provenance()
+
 @isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, Printf, Statistics
 using MyceliumLearning

@@ -5,6 +5,9 @@
 # Run:  T=800 julia --project=bench bench/sweep_profile.jl
 # Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 2 chain steps, 1 timed run, 1 profiled sweep and a 10000-entry profile buffer.
 
+@isdefined(provenance) || include(joinpath(@__DIR__, "provenance.jl"))
+abspath(PROGRAM_FILE) == (@__FILE__) && provenance()
+
 @isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 include(joinpath(@__DIR__, "kalman_chain.jl"))
 using Profile

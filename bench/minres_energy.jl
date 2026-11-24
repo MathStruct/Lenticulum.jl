@@ -1,4 +1,7 @@
 # julia --project=bench bench/minres_energy.jl
+@isdefined(provenance) || include(joinpath(@__DIR__, "provenance.jl"))
+abspath(PROGRAM_FILE) == (@__FILE__) && provenance()
+
 using VariationalDiffusion, Lux, Random, LinearAlgebra, Printf
 using ADTypes: AutoZygote
 using DifferentiationInterface, Zygote

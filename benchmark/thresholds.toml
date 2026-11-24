@@ -1,0 +1,12 @@
+[time]
+relative = 0.10
+noise_multiplier = 3.0
+default_noise = 0.05
+
+[allocations]
+relative = 0.10
+# Regular expressions on the full Package/group/case key. Q12 will set these.
+budgeted = []
+
+[latency]
+relative = 0.20

@@ -1,6 +1,9 @@
 # julia --project=bench bench/krylov_dual.jl
 #
 # Compare KrylovJL's separate tangent solves with the in-house dual arithmetic.
+@isdefined(provenance) || include(joinpath(@__DIR__, "provenance.jl"))
+abspath(PROGRAM_FILE) == (@__FILE__) && provenance()
+
 using ForwardDiff, ImplicitSolvers, Krylov, LinearAlgebra, Printf, Random
 
 const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"

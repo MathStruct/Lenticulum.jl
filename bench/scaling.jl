@@ -2,6 +2,9 @@
 # Run:  julia --project=bench bench/scaling.jl
 # Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with chains of 2–7 variables, 10 stored messages and 1 timed access pass.
 
+@isdefined(provenance) || include(joinpath(@__DIR__, "provenance.jl"))
+abspath(PROGRAM_FILE) == (@__FILE__) && provenance()
+
 @isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 using Lenticulum, LenticulumCore, Mycelium, LinearAlgebra, Printf
 using MyceliumLearning

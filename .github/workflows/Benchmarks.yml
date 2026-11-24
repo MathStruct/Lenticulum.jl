@@ -1,0 +1,63 @@
+name: Benchmarks
+# Reports go to the step summary and artifacts. Fork pull requests have a
+# read-only token, so this workflow leaves no PR comment.
+on:
+  pull_request:
+    branches: [dev, master]
+  workflow_dispatch:
+    inputs:
+      base:
+        description: 'Base revision (defaults to origin/dev)'
+        type: string
+        default: origin/dev
+      head:
+        description: 'Head Git revision (for example origin/dev; defaults to HEAD)'
+        type: string
+      aa:
+        description: 'Measure A/A noise at the head revision'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmarks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    env:
+      # Use one Julia worker thread for more stable timings.
+      JULIA_NUM_THREADS: '1'
+      BENCHMARK_OUTPUT: outputs/benchmarks
+      BENCHMARK_HEAD: ${{ inputs.head || 'HEAD' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      - name: Compare revisions
+        if: ${{ !inputs.aa }}
+        env:
+          BENCHMARK_BASE: ${{ github.base_ref && format('origin/{0}', github.base_ref) || inputs.base || 'origin/dev' }}
+        run: |
+          extra=()
+          if [[ "$(git rev-parse --verify "${BENCHMARK_BASE}^{commit}")" != "$(git rev-parse --verify origin/master)" ]]; then
+            extra=(--also-base origin/master)
+          fi
+          julia --project=benchmark benchmark/compare.jl --base "$BENCHMARK_BASE" --head "$BENCHMARK_HEAD" "${extra[@]}" --report "$BENCHMARK_OUTPUT/report.md"
+      - name: Measure CI runner noise
+        if: ${{ inputs.aa }}
+        run: julia --project=benchmark benchmark/compare.jl --aa "$BENCHMARK_HEAD" --report "$BENCHMARK_OUTPUT/report.md" --noise "$BENCHMARK_OUTPUT/noise.toml"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results
+          path: ${{ env.BENCHMARK_OUTPUT }}/

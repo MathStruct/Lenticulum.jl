@@ -24,6 +24,9 @@
 # Run:  julia --project=bench bench/bp_schedules.jl
 # Smoke: LENTICULUM_SMOKE=true (bench/smoke.jl) runs it with 40 sweeps and 200 queue evaluations per method.
 
+@isdefined(provenance) || include(joinpath(@__DIR__, "provenance.jl"))
+abspath(PROGRAM_FILE) == (@__FILE__) && provenance()
+
 @isdefined(SMOKE) || const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
 include("divider.jl")
 

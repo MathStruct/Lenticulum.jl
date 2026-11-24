@@ -3,6 +3,9 @@
 # Allocations and time of one GMRES solve on the same well-conditioned dense system.
 # Compare the in-house GMRES, the optional KrylovJL backend, and Krylov.jl's gmres!
 # with a preallocated workspace. See krylov_allocations.md for the measurements.
+@isdefined(provenance) || include(joinpath(@__DIR__, "provenance.jl"))
+abspath(PROGRAM_FILE) == (@__FILE__) && provenance()
+
 using ImplicitSolvers, Krylov, LinearAlgebra, Random, Printf
 
 const SMOKE = get(ENV, "LENTICULUM_SMOKE", "false") == "true"
