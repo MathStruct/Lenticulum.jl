@@ -1,6 +1,6 @@
 #problem
 
-> **Status: open (2026-11-24), upstream; not yet reported.** Two defects of Enzyme 0.13.221 (Julia 1.13.1),
+> **Status: open (2026-11-24), upstream; reported as EnzymeAD/Enzyme.jl#4130 (defect 1) and #4131 (defect 2).** Two defects of Enzyme 0.13.221 (Julia 1.13.1),
 > found through Q5's AD matrix, each with a minimal example that needs Enzyme alone. (1) Enzyme writes the
 > adjoints of constant data into that data when the data reaches the differentiated code through a call
 > dispatched at run time: the gradient is right, the caller's arrays are changed. It hits Mycelium's
@@ -107,11 +107,13 @@ its matrix file changed. Logs: `~/.cache/lenticulum/q5/main2/`, `mut2/`, `mut3/`
 
 ## Upstream
 
-Neither defect is reported. #2868 (a `Const` argument changed by a gradient, with runtime activity and a copy into
-a `Duplicated` buffer) and #3136 (reverse mode leaving an internal ODE buffer dirty) are the same family as defect
-1 and were closed before 0.13.221; defect 1 reproduces on 0.13.221 without runtime activity. Defect 2 has no issue.
-Reporting needs the maintainer's approval (an outward-facing action); the two examples above are the reports'
-cores.
+Reported 2026-11-24 with the maintainer's approval: defect 1 as EnzymeAD/Enzyme.jl#4130, defect 2 as #4131
+(both rerun that day on 0.13.221, the latest release; `src/Enzyme.jl` on Enzyme's `main` at e91ff369f6 still
+defines `vaEltypes` after including `compiler.jl`). No earlier issue matched either. #2868 (a `Const` argument
+changed by a gradient, with runtime activity and a copy into a `Duplicated` buffer) and #3136 (reverse mode
+leaving an internal ODE buffer dirty) are the same family as defect 1 and were closed before 0.13.221; defect 1
+reproduces without runtime activity. When #4130 is fixed, Mycelium's `MUTATES` row turns into an unexpected
+pass and must be removed.
 
 ## Not checked
 

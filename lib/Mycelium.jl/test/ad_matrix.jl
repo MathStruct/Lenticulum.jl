@@ -50,7 +50,7 @@ const BROKEN = Dict{String,Tuple}(
 # Rows where a backend returns the right value but changes its fixture (checked by
 # the helper). Enzyme adds the adjoints of the messages x and y into the captured
 # messages (0.8 -> 1.71, 1.8 -> 0.97): Const memory reached through a call
-# dispatched at run time (_restrict, exposure.jl 141), LP-090.
+# dispatched at run time (_restrict, exposure.jl 141), LP-090, EnzymeAD/Enzyme.jl#4130.
 const MUTATES = Dict{String,Tuple}(
     "local_free_energy/ExposedFactor" => ("Enzyme",),
 )
