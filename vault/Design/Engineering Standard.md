@@ -7,7 +7,7 @@
 > when our own code, which check enforces each criterion and in which CI job, and how an exception is
 > recorded. The reference is the SciML and JuliaHub packages (LinearSolve.jl, NonlinearSolve.jl,
 > Krylov.jl, DifferentiationInterface.jl). Status: written 2026-11-24 from the request of that day.
-> **Proposed until the maintainer accepts it**; the thresholds marked *to calibrate* are guesses until
+> **Accepted by the maintainer on 2026-11-24**; the thresholds marked *to calibrate* are guesses until
 > Q13 has measured the noise.
 
 > Sources: original to this vault (design); [[Backlog Q Quality and Engineering]] (the baseline of
