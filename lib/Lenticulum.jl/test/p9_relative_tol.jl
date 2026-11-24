@@ -256,9 +256,13 @@ p9_relerr(marg, m) = maximum(abs, p9_means(marg) .- m) / maximum(abs, m)
             @test J[:, 1] ≈ dm rtol = 1e-6
             # about the same sweeps as without duals: dual matrices take the generic linear algebra,
             # whose rounding differs, so the residuals near the bound differ in the last digits
-            # (measured: at most one sweep more or fewer)
+            # (measured: at most one sweep more or fewer). Anderson's extrapolation magnifies those
+            # digits, and the plain run's BLAS rounding depends on the CPU: with `rtol` the plain run
+            # took 56, 57, 57, 56, 56, 52 sweeps under OPENBLAS_CORETYPE default, Haswell, Zen,
+            # SkylakeX, Sandybridge, Prescott, the dual run 55 under all six (2026-11-24); CI failed
+            # here with 2 on some runners and passed on others with the same code
             _, rep0, _, _ = infer!(g, sched, ps, st; maxsweeps = 5000, kw...)
-            @test abs(rep.sweeps - rep0.sweeps) <= 1
+            @test abs(rep.sweeps - rep0.sweeps) <= (name === :anderson ? 5 : 1)
         end
         # The tangents do not steer the iteration: the same tasks in the same order whatever the
         # partials (LP-053 F1: the residual schedule chose its task by comparing dual residuals,
