@@ -88,3 +88,8 @@ true`: `BayesianLens{<:Any,TrivialInversion}` here, the DEQ and neural-ODE lense
 (which use `π` only as a warm start). Any other lens without `likelihood_message` throws, with a
 message naming both ways out. Every lens that relied on the default was one of these, so no result
 changed. Test: LenticulumCore `test/runtests.jl`.
+
+## Device arrays (Q7)
+
+Adapt traverses the open model, inversion and components of composed and tensor lenses. A custom
+inversion is responsible for adapting any storage it owns.

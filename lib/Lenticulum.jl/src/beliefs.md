@@ -86,3 +86,8 @@ component over the budget is refused with that reason; under the budget it passe
 Moment matching takes the working type from the samples and weights. Matrix-form samples
 keep their array family, and uniform weights are allocated from that matrix. The default for a
 sample with only integer coordinates and no numeric weights is Float64.
+
+## Device arrays (Q7)
+
+Moment matching uses the weight storage of the samples or components. A scalar reduction
+supplies a component weight when that component is evaluated by a host loop.

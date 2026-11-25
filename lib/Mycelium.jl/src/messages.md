@@ -296,3 +296,9 @@ and matching ForwardDiff/Zygote reweighting gradients. Sample moments remain cov
 `../../LenticulumCore.jl/test/sample_moments.jl` (GH-21). Arbitrary densities choose their own
 return type; this change does not force them into the samples' type. Other belief distances,
 residual tolerances and importance-weight warning thresholds are outside P33.
+
+## Device arrays (Q7)
+
+Adapt traverses both message directions and pinned values. The edge and replica indices stay on
+the host. Mixture products read scalar weights for their host-side component loop and place the
+normalised output weights on the same backend as the component arrays.

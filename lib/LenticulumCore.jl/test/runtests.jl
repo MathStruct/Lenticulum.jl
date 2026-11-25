@@ -442,5 +442,6 @@ include("interop.jl")
 
 include("ad_matrix.jl")
 include("eltypes.jl")
+include("device_arrays.jl")
 
 include("aqua.jl")

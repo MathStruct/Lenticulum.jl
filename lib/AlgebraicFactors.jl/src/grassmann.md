@@ -124,3 +124,8 @@ Principal angles are computed in the tests by singular values of the overlap;
 there is no public distance routine. §2.3's Sampson scalarisation, exposed
 manifold channel spaces, polynomial factors, variable-rank models and beliefs
 on the Grassmannian remain outside this implementation.
+
+## Device arrays (Q7)
+
+Adapt traverses the wrapped update rule in a retraction. The manifold dimensions remain host
+metadata.

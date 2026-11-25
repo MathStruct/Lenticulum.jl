@@ -43,3 +43,7 @@ gradient) and `MyceliumLearning.m_step` (for EM).
 - The tests are not fully sorted: the tests of the graph gradient on Gaussian factors are in
   `lib/Lenticulum.jl/test/`, because the factors are there.
 - The device (JLArrays) replay tests run only with `LENTICULUM_DEVICE_TESTS=true`.
+
+## Device arrays (Q7)
+
+Adapt is a direct dependency for carrying moment statistics between backends.

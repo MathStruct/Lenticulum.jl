@@ -134,7 +134,10 @@ LuxCore.initialparameters(::AbstractRNG, ::TableFactor) = NamedTuple()
 LuxCore.initialstates(::AbstractRNG, ::TableFactor) = NamedTuple()
 cluster_switch(::TableFactor{names}) where {names} = names
 cluster_form(f::TableFactor{names}, ps) where {names} =
-    ClusterForm(NamedTuple(), zeros(eltype(f.logtable), 0, length(f.logtable)), zeros(eltype(f.logtable), 0, 0), vec(collect(f.logtable)), names)
+    ClusterForm(NamedTuple(), _zeros_like(f.logtable, eltype(f.logtable), 0, length(f.logtable)),
+        _zeros_like(f.logtable, eltype(f.logtable), 0, 0), vec(_table_storage(f.logtable)), names)
+
+_table_storage(x) = _device_leaf(x) === nothing ? collect(x) : copy(x)
 
 # A categorical message read by position: its labels, if any, must be the states 1:K in order
 # (a factor indexes its outcomes 1:K; labels in another order would be read as the wrong states).
@@ -148,9 +151,9 @@ end
 function _table_input(b, K::Int, name, ::Type{T} = Float64) where {T}
     b === nothing && return zeros(T, K)
     b isa LenticulumCore.TrivialBelief && return zeros(T, K)
-    b isa LenticulumCore.CategoricalBelief && length(b.logp) == K && return collect(_check_positional(b, K, "TableFactor").logp)
+    b isa LenticulumCore.CategoricalBelief && length(b.logp) == K && return _table_storage(_check_positional(b, K, "TableFactor").logp)
     if b isa LenticulumCore.DiracBelief
-        v = b.value isa AbstractArray ? only(b.value) : b.value
+        v = b.value isa AbstractArray ? _only_entry(b.value) : b.value
         v isa Integer && 1 <= v <= K || throw(ArgumentError("TableFactor: an observed :$name must be a state in 1:$K; got $v"))
         l = fill(T(-Inf), K); l[v] = zero(T)
         return l
@@ -160,7 +163,8 @@ end
 function factor_message(f::TableFactor{names}, target::Symbol, _, inputs, _, ps, st) where {names}
     t = findfirst(==(target), names)
     t === nothing && throw(ArgumentError("TableFactor: no channel :$target"))
-    T = collect(f.logtable)
+    device = _first_device((f.logtable, inputs))
+    T = _on_device(device, _table_storage(f.logtable))
     # Choose constants from all inputs before adding a neutral message: a missing channel
     # must not widen an integer table before a later Float32 categorical input is read.
     NT = promote_type(eltype(T), map(n -> _numtype(_incoming(inputs, n, target)), names)...)
@@ -168,11 +172,11 @@ function factor_message(f::TableFactor{names}, target::Symbol, _, inputs, _, ps,
     for (j, n) in enumerate(names)
         j == t && continue
         l = _table_input(haskey(inputs, n) ? getfield(inputs, n) : nothing, Int(f.dims[n]), n, NT)
-        T = T .+ reshape(l, ntuple(i -> i == j ? length(l) : 1, length(names)))
+        T = T .+ reshape(_on_device(device, l), ntuple(i -> i == j ? length(l) : 1, length(names)))
     end
     lk = [_lse(vec(selectdim(T, t, k))) for k in 1:Int(f.dims[target])]
     all(==(-Inf), lk) && throw(ArgumentError("TableFactor: every state of :$target has zero probability"))
-    return LenticulumCore.CategoricalBelief(Val(:log), lk .- _lse(lk), nothing), st
+    return LenticulumCore.CategoricalBelief(Val(:log), _on_device(device, lk .- _lse(lk)), nothing), st
 end
 
 """
@@ -524,15 +528,15 @@ end
 # factor's A or Q depends on its outcome).
 # The numbers have the floating promoted type `T`, including duals when built inside
 # ForwardDiff (P24).
-struct _ClusterJoint{T<:Real}
+struct _ClusterJoint{P,J,M<:AbstractMatrix,V<:AbstractVector}
     free::Vector{Symbol}
     offset::Dict{Symbol,UnitRange{Int}}
-    points::Dict{Symbol,Vector{T}}
+    points::P
     assignments::Vector{Vector{Int}}           # per assignment: the state of each discrete variable
-    J::Vector{Matrix{T}}                       # per precision class
+    J::J                       # per precision class
     class::Vector{Int}                         # per assignment: its precision class
-    H::Matrix{T}                               # n × nA
-    c::Vector{T}                               # nA
+    H::M                               # n × nA
+    c::V                               # nA
 end
 _members(jt, κ) = findall(==(κ), jt.class)
 
@@ -552,7 +556,7 @@ function _enumerate_assignments(c::ClusterFactor, forms, wirings, states, lps, :
     pos = [[findfirst(==(w[ch]), c.discrete) for ch in chans(F)] for (F, w) in zip(forms, wirings)]
     done = [isempty(p) ? 0 : maximum(p) for p in pos]
     partial = [Int[]]
-    cst = T[sum((F.logw[1] for (F, d) in zip(forms, done) if d == 0); init = zero(T))]
+    cst = T[sum((_entry(F.logw, 1) for (F, d) in zip(forms, done) if d == 0); init = zero(T))]
     for j in 1:nd
         np, nc = Vector{Vector{Int}}(), T[]
         for (a, ca) in zip(partial, cst), (t, k) in enumerate(states[j])
@@ -561,7 +565,13 @@ function _enumerate_assignments(c::ClusterFactor, forms, wirings, states, lps, :
         for (F, p, d) in zip(forms, pos, done)
             d == j || continue
             L = LinearIndices(Tuple(c.dims[c.discrete[q]] for q in p))
-            nc .+= F.logw[[L[(a[q] for q in p)...] for a in np]]
+            idx = [L[(a[q] for q in p)...] for a in np]
+            if _device_leaf(F.logw) === nothing
+                nc .+= F.logw[idx]
+            else
+                # The finite weights determine which structural assignments survive.
+                nc .+= [_entry(F.logw, i) for i in idx]
+            end
         end
         keep = findall(>(-Inf), nc)
         isempty(keep) && throw(ArgumentError("cluster: every joint discrete state has zero probability"))
@@ -594,10 +604,12 @@ end
 function _cluster_joint(c::ClusterFactor, msgs, @nospecialize(ps), skip)
     forms = [cluster_form(f, _subtree(ps, c.keys[i])) for (i, f) in enumerate(c.factors)]
     T = _joint_numtype(c, forms, msgs, skip)
-    points = Dict{Symbol,Vector{T}}()
+    device = _first_device((map(F -> (F.A, F.C, F.Q, F.logw), forms), msgs))
+    alloc(dims...) = _on_device(device, zeros(T, dims))
+    points = device === nothing ? Dict{Symbol,Vector{T}}() : Dict{Symbol,AbstractVector{T}}()
     for v in c.continuous
         b = _incoming(msgs, v, skip)
-        b isa LenticulumCore.DiracBelief && (points[v] = collect(T, b.value isa Real ? [b.value] : b.value))
+        b isa LenticulumCore.DiracBelief && (points[v] = _vector(T, _on_device(device, b.value isa Real ? [b.value] : b.value)))
     end
     free = [v for v in c.continuous if !haskey(points, v)]
     offset = Dict{Symbol,UnitRange{Int}}()
@@ -611,32 +623,33 @@ function _cluster_joint(c::ClusterFactor, msgs, @nospecialize(ps), skip)
         K = c.dims[v]
         b = _incoming(msgs, v, skip)
         if b isa LenticulumCore.DiracBelief
-            k = Int(only(b.value isa Real ? [b.value] : b.value))
+            k = Int(b.value isa Real ? b.value : _only_entry(b.value))
             push!(states, [k]); push!(lps, [zero(T)])
         elseif b isa LenticulumCore.CategoricalBelief
             length(b.logp) == K || throw(DimensionMismatch("message to :$v has $(length(b.logp)) states, the variable $K"))
             _check_positional(b, K, "cluster")
-            ks = [k for k in 1:K if b.logp[k] > -Inf]
+            ks = [k for k in 1:K if _entry(b.logp, k) > -Inf]
             isempty(ks) && throw(ArgumentError("cluster: the message to :$v gives every state zero probability"))
-            push!(states, ks); push!(lps, b.logp[ks])
+            push!(states, ks); push!(lps, [_entry(b.logp, k) for k in ks])
         else
             push!(states, collect(1:K)); push!(lps, zeros(T, K))
         end
     end
     wirings = [Dict(w) for w in c.wiring]
     assignments, cst = _enumerate_assignments(c, forms, wirings, states, lps, T)
+    cst = _on_device(device, cst)
     nA = length(assignments)
     kcols = [_switch_columns(c, F, w, assignments) for (F, w) in zip(forms, wirings)]
     class, keys_ = _precision_classes(forms, kcols, nA)
-    J = zeros(T, n, n); H = zeros(T, n, nA)
-    Js = [zeros(T, n, n) for _ in keys_]
+    J = alloc(n, n); H = alloc(n, nA)
+    Js = [alloc(n, n) for _ in keys_]
     # incoming Gaussian messages on free boundary variables
     for v in free
         b = _cluster_input(_incoming(msgs, v, skip))
         b isa GaussianBelief || continue
         o = offset[v]
-        J[o, o] .+= b.Λ
-        H[o, :] .+= b.η
+        J[o, o] .+= _on_device(device, b.Λ)
+        H[o, :] .+= _on_device(device, b.η)
     end
     vf = 0
     for (F, w, kcol) in zip(forms, wirings, kcols)
@@ -646,15 +659,15 @@ function _cluster_joint(c::ClusterFactor, msgs, @nospecialize(ps), skip)
         varies && (vf += 1)
         for k in (varies ? unique(kcol) : [0])
             idx = varies ? findall(==(k), kcol) : collect(1:nA)
-            G = zeros(T, m, n)
-            shift = zeros(T, m)
+            G = alloc(m, n)
+            shift = alloc(m)
             for (ch, Ach) in pairs(F.A)
                 v = w[ch]
-                Ak = _at(Ach, k)
+                Ak = _on_device(device, _at(Ach, k))
                 haskey(points, v) ? (shift .+= Ak * points[v]) : (G[:, offset[v]] .+= Ak)
             end
-            CQ = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Matrix(_at(F.Q, k))))
-            Cc = F.C[:, kcol[idx]] .- shift                 # r = G x − c_a
+            CQ = _symmetric_cholesky(_on_device(device, _matrix(_at(F.Q, k))))
+            Cc = _on_device(device, F.C[:, kcol[idx]]) .- shift                 # r = G x − c_a
             QiC = CQ \ Cc
             GQG = G' * (CQ \ G)
             if varies                                       # into the classes with this outcome
@@ -704,10 +717,10 @@ _cached(chol::AbstractDict, k, f) = get!(f, chol, k)
 # to all assignments only if they leave equally many directions flat, which is checked
 # (`_same_flatness`); a linear term reaching a flat direction makes the integral diverge and is
 # refused (`_check_range`).
-struct _Flat{T,KT}
-    U::Matrix{T}                # an orthonormal basis of the range
+struct _Flat{M,KT,NM}
+    U::M                # an orthonormal basis of the range
     K::KT                       # UᵀJU, factorised: J's eigenvalues as a `Diagonal`, or a Cholesky (P26)
-    N::Matrix{T}                # an orthonormal basis of the null space
+    N::NM                       # an orthonormal basis of the null space
 end
 const _FLAT_RTOL = 1e-10
 # Flat means an eigenvalue at most `_flat_rtol(T)` times the largest. A Cholesky factorisation can
@@ -723,21 +736,25 @@ function _flat_rtol(::Type{T}) where {T}
     return r == 1 ? _FLAT_RTOL : _FLAT_RTOL * r^(5 / 8)
 end
 function _psd_factor(J::AbstractMatrix)
-    scale = maximum(abs, LinearAlgebra.diag(J); init = zero(eltype(J)))
-    C = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(J); check = false)
-    LinearAlgebra.issuccess(C) && minimum(abs2, LinearAlgebra.diag(C.U); init = Inf) > oftype(scale, _flat_rtol(eltype(J))) * scale && return C
+    scale = maximum(abs, _device_diag(J); init = zero(eltype(J)))
+    C = _symmetric_cholesky(J; check = false)
+    LinearAlgebra.issuccess(C) && minimum(abs2, _cholesky_pivots(C); init = Inf) > oftype(scale, _flat_rtol(eltype(J))) * scale && return C
     return _flat_factor(J, C)
 end
 # The eigendecomposition's side of `_psd_factor`, given J's (possibly failed) Cholesky `C`. Other
 # number types: a dual J has a method in `MyceliumForwardDiffFlatExt` (the derivative at constant
 # rank, P26); the rest have none.
 function _flat_factor(J::AbstractMatrix{<:LinearAlgebra.BlasFloat}, C)
-    E = LinearAlgebra.eigen(LinearAlgebra.Symmetric(Matrix(J)))
-    λmax = maximum(abs, E.values; init = zero(eltype(E.values)))
-    any(E.values .< -oftype(λmax, sqrt(_primal_eps(eltype(J)))) * max(λmax, one(λmax))) && throw(ArgumentError("cluster: an indefinite joint precision"))
-    keep = E.values .> oftype(λmax, _flat_rtol(eltype(J))) * λmax
-    all(keep) && LinearAlgebra.issuccess(C) && return C
-    return _Flat(E.vectors[:, keep], LinearAlgebra.Diagonal(E.values[keep]), E.vectors[:, .!keep])
+    U, λ, N, full = _host_spectral(J) do A
+        E = LinearAlgebra.eigen(LinearAlgebra.Symmetric(Matrix(A)))
+        λmax = maximum(abs, E.values; init = zero(eltype(E.values)))
+        any(E.values .< -oftype(λmax, sqrt(_primal_eps(eltype(A)))) * max(λmax, one(λmax))) &&
+            throw(ArgumentError("cluster: an indefinite joint precision"))
+        keep = E.values .> oftype(λmax, _flat_rtol(eltype(A))) * λmax
+        (E.vectors[:, keep], E.values[keep], E.vectors[:, .!keep], all(keep))
+    end
+    full && LinearAlgebra.issuccess(C) && return C
+    return _Flat(U, LinearAlgebra.Diagonal(λ), N)
 end
 _flat_factor(J::AbstractMatrix, _) = throw(ArgumentError(
     "cluster: a joint precision with flat directions (or near-singular) of number type $(eltype(J)): the diffuse " *
@@ -745,19 +762,19 @@ _flat_factor(J::AbstractMatrix, _) = throw(ArgumentError(
 # Whether a precision Λ (of a message or marginal, eliminated from a joint of diagonal scale
 # `scale`) is definite: its Cholesky pivots above the flat threshold.
 function _definite(Λ, scale)
-    C = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Λ); check = false)
-    ok = LinearAlgebra.issuccess(C) && minimum(abs2, LinearAlgebra.diag(C.U); init = Inf) > oftype(scale, _flat_rtol(promote_type(eltype(Λ), typeof(scale)))) * scale
+    C = _symmetric_cholesky(Λ; check = false)
+    ok = LinearAlgebra.issuccess(C) && minimum(abs2, _cholesky_pivots(C); init = Inf) > oftype(scale, _flat_rtol(promote_type(eltype(Λ), typeof(scale)))) * scale
     return ok, C
 end
-_psd_solve(C::LinearAlgebra.Cholesky, B) = C \ B
-_psd_solve(F::_Flat, B) = F.U * (F.K \ (F.U' * B))
-_psd_logdet(C::LinearAlgebra.Cholesky) = logdet(C)
-_psd_logdet(F::_Flat) = _psd_rank(F) == 0 ? zero(eltype(F.U)) : logdet(F.K)
-_psd_rank(C::LinearAlgebra.Cholesky) = size(C, 1)
+_psd_solve(C, B) = C \ B
+_psd_solve(F::_Flat, B) = F.U * (LenticulumCore._precision_solve(F.K, F.U' * B))
+_psd_logdet(C) = logdet(C)
+_psd_logdet(F::_Flat) = _psd_rank(F) == 0 ? zero(eltype(F.U)) : LenticulumCore._precision_logdet(F.K)
+_psd_rank(C) = size(C, 1)
 _psd_rank(F::_Flat) = size(F.U, 2)
-_psd_inv(C::LinearAlgebra.Cholesky) = Matrix(inv(C))
-_psd_inv(F::_Flat) = F.U * (F.K \ Matrix(F.U'))
-_check_range(::LinearAlgebra.Cholesky, _, _) = nothing
+_psd_inv(C) = _matrix(inv(C))
+_psd_inv(F::_Flat) = F.U * (LenticulumCore._precision_solve(F.K, _matrix(F.U')))
+_check_range(C, _, _) = nothing
 function _check_range(F::_Flat, H, what)
     isempty(H) && return nothing
     tol = eltype(H)(sqrt(_primal_eps(promote_type(eltype(H), eltype(F.N))))) * max(maximum(abs, H), one(eltype(H))) * size(F.N, 1)
@@ -774,8 +791,8 @@ _same_flatness(fs, what) = length(unique(_psd_rank.(fs))) <= 1 || throw(Argument
 # the diffuse limit if J_κ is singular. Factorisations are cached per class.
 function _log_integrals(jt::_ClusterJoint, what, chol = nothing)
     n = size(jt.H, 1)
-    n == 0 && return zeros(eltype(jt.H), size(jt.H, 2))
-    out = zeros(eltype(jt.H), size(jt.H, 2))
+    n == 0 && return _zeros_like(jt.H, eltype(jt.H), size(jt.H, 2))
+    out = _zeros_like(jt.H, eltype(jt.H), size(jt.H, 2))
     fs = [_cached(chol, (:CJ, κ), () -> _psd_factor(jt.J[κ])) for κ in eachindex(jt.J)]
     _same_flatness(fs, what)
     for κ in eachindex(jt.J)
@@ -788,7 +805,11 @@ function _log_integrals(jt::_ClusterJoint, what, chol = nothing)
     return out
 end
 
-_lse(v) = (m = maximum(v); m == -Inf ? m : m + log(sum(exp.(v .- m))))
+function _lse(v)
+    isempty(v) && return convert(eltype(v), -Inf)
+    m = maximum(v)
+    return m == -Inf ? m : m + log(sum(exp.(v .- m)))
+end
 
 """
     Mycelium.factor_message(c::ClusterFactor, target, polarity, inputs, prior, ps, st)
@@ -828,7 +849,7 @@ function _discrete_parts(c::ClusterFactor, jt::_ClusterJoint, target::Symbol, ch
 end
 # The message to a discrete channel from the columns `cols` (one replica's assignments).
 function _discrete_message(c::ClusterFactor, target::Symbol, l, sel, cols)
-    lk = [_lse(l[cols[s]]) for s in sel]
+    lk = _on_device(_device_leaf(l), [_lse(l[cols[s]]) for s in sel])
     all(==(-Inf), lk) && throw(ArgumentError("cluster: every state of :$target has zero probability"))
     return LenticulumCore.CategoricalBelief(Val(:log), lk .- _lse(lk), nothing)
 end
@@ -840,8 +861,8 @@ function _continuous_parts(jt::_ClusterJoint, target::Symbol, chol)
     rs = setdiff(1:size(jt.H, 1), ot)
     d = length(ot)
     nA = size(jt.H, 2)
-    E = zeros(eltype(jt.H), d, nA); l = copy(jt.c)
-    Λs = Matrix{eltype(jt.H)}[]; proper = Bool[]
+    E = _zeros_like(jt.H, eltype(jt.H), d, nA); l = copy(jt.c)
+    Λs = typeof(jt.H)[]; proper = Bool[]
     isempty(rs) || _same_flatness([_cached(chol, (:Cr, κ), () -> _psd_factor(jt.J[κ][rs, rs])) for κ in eachindex(jt.J)],
                                   "the continuous variables other than :$target")
     for κ in eachindex(jt.J)
@@ -862,7 +883,7 @@ function _continuous_parts(jt::_ClusterJoint, target::Symbol, chol)
             l[idx] .+= vec(sum(Hr .* X; dims = 1)) ./ 2 .- _psd_logdet(Cr) / 2 .+ _psd_rank(Cr) * LenticulumCore._log2π(eltype(jt.H)) / 2
         end
         Λ = (Λ + Λ') / 2
-        ok, CΛ = _cached(chol, (:CΛ, κ), () -> _definite(Λ, maximum(abs, LinearAlgebra.diag(Jκ); init = zero(eltype(Jκ)))))
+        ok, CΛ = _cached(chol, (:CΛ, κ), () -> _definite(Λ, maximum(abs, _device_diag(Jκ); init = zero(eltype(Jκ)))))
         if ok                                   # normalised components: their mass into the weight
             Eκ = E[:, idx]
             l[idx] .+= vec(sum(Eκ .* (CΛ \ Eκ); dims = 1)) ./ 2 .- logdet(CΛ) / 2 .+ d * LenticulumCore._log2π(eltype(jt.H)) / 2
@@ -874,9 +895,10 @@ end
 
 # The message to a continuous channel from the columns `cols` (one replica's assignments).
 # `ids[κ]` is the first class with class κ's precision (`_precision_ids`; computed once for a batch).
-_precision_ids(Λs) = [findfirst(==(Λ), Λs) for Λ in Λs]
+_same_array(a, b, cmp) = _device_leaf(a) === nothing ? cmp(a, b) : all(cmp.(a, b))
+_precision_ids(Λs) = [findfirst(B -> _same_array(Λ, B, ==), Λs) for Λ in Λs]
 function _continuous_message(E, l, Λs, proper, class, cols, ids = _precision_ids(Λs))
-    keep = [a for a in cols if l[a] > -Inf]
+    keep = [a for a in cols if _entry(l, a) > -Inf]
     isempty(keep) && throw(ArgumentError("cluster: every assignment has zero probability"))
     length(Λs) == 1 && all(iszero, Λs[1]) && all(iszero, view(E, :, cols)) && return LenticulumCore.TrivialBelief()
     # assignments the target does not see (internal discrete variables that do not move it) give
@@ -886,7 +908,7 @@ function _continuous_message(E, l, Λs, proper, class, cols, ids = _precision_id
     groups = Vector{Int}[]
     for a in keep
         κ = ids[class[a]]
-        j = findfirst(b -> ids[class[b]] == κ && isequal(view(E, :, b), view(E, :, a)), first_of)
+        j = findfirst(b -> ids[class[b]] == κ && _same_array(view(E, :, b), view(E, :, a), isequal), first_of)
         if j === nothing
             push!(first_of, a); push!(groups, [a])
         else
@@ -895,7 +917,7 @@ function _continuous_message(E, l, Λs, proper, class, cols, ids = _precision_id
     end
     comp(a) = (κ = ids[class[a]]; GaussianBelief(E[:, a], Λs[κ], !proper[κ]))
     length(first_of) == 1 && return comp(only(first_of))
-    lk = [_lse(l[grp]) for grp in groups]
+    lk = _on_device(_device_leaf(l), [_lse(l[grp]) for grp in groups])
     return LenticulumCore.MixtureBelief(Val(:log), [comp(a) for a in first_of], lk .- _lse(lk))
 end
 
@@ -941,11 +963,11 @@ function _belief_parts(jt::_ClusterJoint, chol, nA::Int)
         q[:, r] .= exp.(lr .- _lse(lr))
     end
     T = eltype(jt.H)
-    M = zeros(T, n, size(jt.H, 2))
-    Σs = Matrix{T}[]; Hs = T[]
+    M = _zeros_like(jt.H, T, n, size(jt.H, 2))
+    Σs = typeof(M)[]; Hs = T[]
     for κ in eachindex(jt.J)
         if n == 0
-            push!(Σs, zeros(T, 0, 0)); push!(Hs, zero(T))
+            push!(Σs, _zeros_like(M, T, 0, 0)); push!(Hs, zero(T))
             continue
         end
         C = _cached(chol, (:CJ, κ), () -> _psd_factor(jt.J[κ]))
@@ -955,7 +977,7 @@ function _belief_parts(jt::_ClusterJoint, chol, nA::Int)
         Σ, H = _cached(chol, (:ΣH, κ), () -> (_psd_inv(C), _psd_rank(C) * (1 + LenticulumCore._log2π(T)) / 2 - _psd_logdet(C) / 2))
         push!(Σs, Σ); push!(Hs, H)
     end
-    return q, M, Σs, Hs
+    return q, M, Σs, _on_device(_device_leaf(q), Hs)
 end
 
 """
@@ -985,7 +1007,7 @@ function _cluster_layout(c::ClusterFactor, i::Int, F::ClusterForm, b::FrozenClus
     kcol = _switch_columns(c, F, w, b.assignments)
     groups = map(_varies(F) ? unique(kcol) : [0]) do k
         idx = _varies(F) ? findall(==(k), kcol) : collect(eachindex(kcol))
-        (k, idx, [sum(b.q[a] for a in idx if b.class[a] == κ; init = zero(eltype(b.q))) for κ in eachindex(b.Σ)])
+        (k, idx, [sum(_entry(b.q, a) for a in idx if b.class[a] == κ; init = zero(eltype(b.q))) for κ in eachindex(b.Σ)])
     end
     feeds = [[ch for ch in keys(F.A) if w[ch] === v] for v in b.free]
     pts = [(ch, b.points[w[ch]]) for ch in keys(F.A) if haskey(b.points, w[ch])]
@@ -996,23 +1018,24 @@ _finite_logw(lw) = map(x -> x == -Inf ? zero(x) : x, lw)
 
 function belief_free_energy(c::ClusterFactor, b::FrozenClusterBelief, ps, st)
     n = size(b.M, 1)
+    device = _device_leaf(b.M)
     terms = map(eachindex(c.factors)) do i
         F = cluster_form(c.factors[i], _subtree(ps, c.keys[i]))
         kcol, groups, feeds, pts = _cluster_layout(c, i, F, b)
         # an impossible outcome (log-weight -Inf) has q = 0 exactly, and its 0·log 0 term is 0; the
         # entry is replaced before the product so that no AD backend meets 0 · (-Inf)
-        cx = -sum(b.q .* _finite_logw(F.logw[kcol]))
+        cx = -sum(b.q .* _on_device(device, _finite_logw(F.logw[kcol])))
         m = size(F.C, 1)
         m == 0 && return (false, cx)
         parts = map(groups) do (k, idx, wκ)
-            R = -F.C[:, kcol[idx]]
+            R = -_on_device(device, F.C[:, kcol[idx]])
             for (ch, x) in pts
                 R = R .+ _at(getfield(F.A, ch), k) * x
             end
-            CQ = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Matrix(_at(F.Q, k))))
+            CQ = _symmetric_cholesky(_on_device(device, _matrix(_at(F.Q, k))))
             tr = false
             if n > 0
-                G = reduce(hcat, [isempty(chs) ? zeros(eltype(b.M), m, length(b.offset[v])) : reduce(+, [_at(getfield(F.A, ch), k) for ch in chs])
+                G = reduce(hcat, [isempty(chs) ? _zeros_like(b.M, eltype(b.M), m, length(b.offset[v])) : reduce(+, [_at(getfield(F.A, ch), k) for ch in chs])
                                   for (v, chs) in zip(b.free, feeds)])
                 R = R .+ G * b.M[:, idx]
                 tr = sum(map(κ -> wκ[κ] * LinearAlgebra.tr(CQ \ (G * b.Σ[κ] * G')), eachindex(wκ)))
@@ -1065,7 +1088,7 @@ function cluster_marginal(s::AbstractMessageStore, gc::FactorGraph, name::Symbol
         Cr = isempty(rs) ? nothing : _psd_factor(J[rs, rs])
         Λ = isempty(rs) ? J[o, o] : J[o, o] - J[o, rs] * _psd_solve(Cr, J[rs, o])
         Λ = (Λ + Λ') / 2
-        proper = first(_definite(Λ, maximum(abs, LinearAlgebra.diag(J); init = zero(eltype(J)))))
+        proper = first(_definite(Λ, maximum(abs, _device_diag(J); init = zero(eltype(J)))))
         a -> GaussianBelief(isempty(rs) ? jt.H[o, a] : jt.H[o, a] - J[o, rs] * _psd_solve(Cr, jt.H[rs, a]), Λ, !proper)
     end
     comps = [comp[b.class[a]](a) for a in eachindex(b.q) if b.q[a] > 0]
@@ -1080,3 +1103,14 @@ exact_messages(::TableFactor) = true
 exact_messages(::ClusterFactor) = true
 repeatable_messages(::TableFactor) = true
 repeatable_messages(c::ClusterFactor) = all(repeatable_messages, c.factors)
+
+Adapt.@adapt_structure ClusterForm
+Adapt.@adapt_structure TableFactor
+Adapt.adapt_structure(to, f::ClusterFactor) = ClusterFactor(f.names, f.keys,
+    map(x -> Adapt.adapt(to, x), f.factors), f.wiring, f.variables, f.dims, f.discrete,
+    f.continuous, f.boundary)
+
+Adapt.adapt_structure(to, b::FrozenClusterBelief) = FrozenClusterBelief(
+    Adapt.adapt(to, b.q), Adapt.adapt(to, b.M), map(x -> Adapt.adapt(to, x), b.Σ),
+    Adapt.adapt(to, b.H), b.class, b.free, b.offset,
+    Dict(k => Adapt.adapt(to, v) for (k, v) in pairs(b.points)), b.assignments)

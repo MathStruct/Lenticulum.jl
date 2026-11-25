@@ -159,3 +159,9 @@ vector therefore widens to Float64, and so can its extrapolated parameters and h
 `test/element_type.jl` reproduces this with an observed normal and a fixed prior; the parameter
 and history checks are `@test_broken`. Plain EM does not flatten parameters.
 Core is outside P32's allowed edit scope and is unchanged.
+
+## Device arrays (Q7)
+
+MomentStats holds abstract arrays for outcome masses, mean sums and second-moment sums. Adapt
+moves all three and retains the channel order and dimensions. Device M-step fixtures construct
+these statistics directly and check the parameter updates in Lenticulum.

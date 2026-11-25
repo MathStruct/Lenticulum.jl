@@ -316,3 +316,9 @@ without a spectral solve. The free energy uses the promoted reduced system and c
 ranks at the primal precision. The hard-direction decompositions still require LAPACK for
 BigFloat. Boolean plate buffers describe entirely untyped trivial inputs. The default
 offset initializer runs before data supply a type and retains its Float64 default.
+
+## Device arrays (Q7)
+
+Adapt keeps the relation coefficients and any covariance with the factor. Messages use the core
+extended-Gaussian algebra. Free energy uses the host spectral helper for the solution space and
+precision rank tests, followed by device algebra on those subspaces.

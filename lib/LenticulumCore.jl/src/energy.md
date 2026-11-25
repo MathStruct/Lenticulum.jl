@@ -376,3 +376,9 @@ Measured 2026-11-24 with `lib/LenticulumCore.jl/test/ad_matrix.jl`.
 The pointwise loss uses the parameter residual from the test fixtures. The Core containers have no pointwise `energy` method. The three public derivative methods use their `ad=nothing` references.
 
 Enzyme forward mode also agreed on the pointwise parameter residual loss.
+
+## Device arrays (Q7)
+
+Adapting scalarisations moves their metrics, weights and component scalarisations. Validated
+metrics keep their validation state. Weighted sums and quadratic metrics place their operands on
+one backend before reducing them to a scalar.

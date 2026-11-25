@@ -19,6 +19,8 @@ and `MyceliumLearning.m_step` (for EM).
 """
 module MyceliumLearning
 
+import Adapt
+
 import ImplicitSolvers
 using Random: Random, AbstractRNG
 using LuxCore: LuxCore

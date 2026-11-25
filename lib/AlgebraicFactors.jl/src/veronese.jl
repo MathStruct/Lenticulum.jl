@@ -63,12 +63,48 @@ function _basis_values(tab::ExponentTable, x::AbstractVector)
     return P, Q
 end
 
+# Each degree is one vector over the coordinates. The exponent table stays
+# on the host and supplies the gathers used to assemble the basis.
+function _device_basis_values(tab, x)
+    length(x) == size(tab.exponents, 1) || throw(DimensionMismatch("coordinate count does not match exponent table"))
+    T = eltype(x)
+    p = fill!(similar(x), one(T))
+    q = fill!(similar(x), zero(T))
+    rows, derivs = [p], [q]
+    prev = p
+    for n in 1:tab.degree
+        if tab.basis === :monomial
+            q = n .* p
+            p = p .* x
+        elseif n == 1
+            p = copy(x)
+            q = fill!(similar(x), one(T))
+        else
+            p, prev, q = 2 .* x .* p .- prev, p, 2 .* p .+ 2 .* x .* q .- derivs[end-1]
+        end
+        push!(rows, p)
+        push!(derivs, q)
+    end
+    return reduce(vcat, transpose.(rows)), reduce(vcat, transpose.(derivs))
+end
+
+function _device_veronese(tab, x, differentiate)
+    P, Q = _device_basis_values(tab, x)
+    E = tab.exponents
+    stride = size(P, 1)
+    indices(j) = E[j, :] .+ 1 .+ (j - 1) * stride
+    column(j, k) = vec(j == k ? Q : P)[indices(j)]
+    term(k) = reduce((a, b) -> a .* b, (column(j, k) for j in axes(E, 1)))
+    return differentiate ? reduce(hcat, (term(k) for k in axes(E, 1))) : term(0)
+end
+
 """    veronese(tab, x)
 
 Evaluate the ordered polynomial basis. Monomial arithmetic preserves the input
 element type (including integers and rationals); there is no scaling.
 """
 function veronese(tab::ExponentTable, x::AbstractVector)
+    _device_leaf(x) === nothing || return _device_veronese(tab, x, false)
     P, _ = _basis_values(tab, x)
     E = tab.exponents
     return [prod(P[E[j,a]+1,j] for j in axes(E,1)) for a in axes(E,2)]
@@ -80,6 +116,7 @@ Exact polynomial Jacobian, m × N. Products avoid division by coordinates, so
 zero coordinates and Chebyshev endpoints are supported.
 """
 function veronese_jacobian(tab::ExponentTable, x::AbstractVector)
+    _device_leaf(x) === nothing || return _device_veronese(tab, x, true)
     P, Q = _basis_values(tab, x)
     E = tab.exponents
     return [Q[E[j,a]+1,j]*prod((P[E[l,a]+1,l] for l in axes(E,1) if l != j); init=one(eltype(P)))

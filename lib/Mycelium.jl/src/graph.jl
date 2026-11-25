@@ -702,3 +702,12 @@ end
 # Whether a state tree holds nothing: tied factors and the implicit graph adjoint require it.
 _empty_graph_state(x::Union{Tuple,NamedTuple}) = all(_empty_graph_state, x)
 _empty_graph_state(x) = false
+
+Adapt.@adapt_structure VariableNode
+Adapt.@adapt_structure FactorNode
+Adapt.@adapt_structure Edge
+# Compiled plans close over the original factors and must be rebuilt.
+Adapt.adapt_structure(to, g::FactorGraph) = FactorGraph(
+    map(x -> Adapt.adapt(to, x), g.variables), map(x -> Adapt.adapt(to, x), g.factors),
+    map(x -> Adapt.adapt(to, x), g.edges), g.edges_of_factor, g.edges_of_variable,
+    g.variable_index, g.factor_index, map(x -> Adapt.adapt(to, x), g.plates))

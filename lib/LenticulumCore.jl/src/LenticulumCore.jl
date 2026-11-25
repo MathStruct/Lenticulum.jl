@@ -25,6 +25,8 @@ file.
 """
 module LenticulumCore
 
+import Adapt
+
 using Random: Random, AbstractRNG
 using LuxCore: LuxCore
 using LinearAlgebra: LinearAlgebra, Diagonal, Hermitian, Symmetric, cholesky, dot, eigen, eigvals, I, isposdef, issymmetric, issuccess, logdet, norm, svd
@@ -34,6 +36,7 @@ include("channels.jl")
 include("parameter_tree.jl")
 include("energy.jl")
 include("open_model.jl")
+include("device_arrays.jl")
 include("gaussian_belief.jl")
 include("extended_gaussian.jl")
 include("interop.jl")

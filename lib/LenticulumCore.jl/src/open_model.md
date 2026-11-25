@@ -163,3 +163,9 @@ Not done: Lenticulum's `moment_match(::SampleBelief)` computes the same moments 
 A mixture with omitted weights uses uniform weights in the components' promoted
 numerical type. A component with only discrete labels or a trivial belief contributes no
 numeric type. An entirely untyped mixture retains the Float64 default for its weights.
+
+## Device arrays (Q7)
+
+Categorical log probabilities and mixture log weights accept abstract vector storage. Adapt
+traverses component beliefs and leaves labels on the host. Sample arrays and optional weights
+move with their belief, including the individual vectors in a host collection of sample points.

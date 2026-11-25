@@ -239,8 +239,9 @@ end
     end
     for T in (Float32,Float64)
         b=GaussianBelief(JLArray(T[1,2]),JLArray(Matrix{T}(I,2,2)))
-        @test_throws ArgumentError belief_mean(b)
-        @test_throws ArgumentError belief_cov(b)
+        # Q7 supports dense precisions under the same scalar-indexing check.
+        device_check(belief_mean(b), T[1, 2], T)
+        device_check(belief_cov(b), Matrix{T}(I, 2, 2), T)
         bad=GaussianBelief(JLArray(T[1,2]),Diagonal(JLArray(T[1,0])))
         @test !isproper(bad)
         @test_throws ArgumentError belief_mean(bad)

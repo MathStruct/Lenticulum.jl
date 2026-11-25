@@ -133,3 +133,5 @@ function Mycelium.rule_put(r::Retracted, state, Θ, G)
     end
     return state′, Θ′
 end
+
+Adapt.@adapt_structure Retracted

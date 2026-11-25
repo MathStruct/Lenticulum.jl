@@ -119,7 +119,7 @@ _output_eltype(C, Q) = eltype(C) === Bool ? Bool : float(eltype(C))
 
 # the fixed coefficient at use: a Boolean one in the floating type of the parameters, any other as stored
 _fixed_at(::Nothing, ps) = nothing
-_fixed_at(C::AbstractArray{Bool}, ps) = convert(Matrix{_param_eltype(ps)}, C)
+_fixed_at(C::AbstractArray{Bool}, ps) = _matrix(_param_eltype(ps), C)
 _fixed_at(C, ps) = C
 # the floating promotion of the coefficients and offsets (`false` when there are none adds nothing)
 _param_eltype(ps) = float(promote_type(Bool, map(eltype, values(ps.A))..., map(eltype, _offsets(ps))...))
@@ -248,7 +248,7 @@ LenticulumCore.energy(f::LinearConstraintFactor, x, a, y, ps, st) =
 LenticulumCore.pointwise_energyspace(f::LinearConstraintFactor) =
     LenticulumCore.EuclideanEnergySpace(size(f.Q, 1))
 LenticulumCore.pointwise_scalarisation(f::LinearConstraintFactor) =
-    LenticulumCore.SquaredNorm(inv(Symmetric(f.Q)); check = false)
+    LenticulumCore.SquaredNorm(_symmetric_inv(f.Q); check = false)
 
 _channel_values(x::NamedTuple, y::NamedTuple) = merge(x, y)
 _channel_values(x::NamedTuple, ::Nothing) = x
@@ -553,7 +553,7 @@ end
 # precision is improper but not zero.
 # An offset in the working type of a call whose covariance is `Q`: `float.` widened an integer
 # offset to Float64 in a Float32 call (LP-091 finding 3). A copy, as `float.` made one.
-_offset_at(c, Q) = convert.(float(promote_type(eltype(c), eltype(Q))), c)
+_offset_at(c, Q) = _on_device(_device_leaf(Q), convert.(float(promote_type(eltype(c), eltype(Q))), c))
 
 # Numeric storage of a plate input, for the same promotion as a single message.
 _block_numbers(b) = b
@@ -585,13 +585,15 @@ _block_parts(b, d, n, T = Float64) = nothing
 # (`nothing`: a point), flat along the columns of N (`nothing`: nowhere). Returns Σ Aₙmₙ,
 # R = Q + Σ AₙSₙAₙᵀ, and the coefficients AₙNₙ of the flat directions.
 function _accumulate(A, Q, parts)
+    device = _device_leaf(Q)
     s = _zeros_like(Q, float(eltype(Q)), size(Q, 1))
     R = float.(Q)
     G = ()                      # a tuple, rebound rather than pushed to: Zygote (P4, as P23)
     for (n, (m, S, N)) in parts
-        s = s .+ A[n] * m
-        S === nothing || (R = R .+ A[n] * S * A[n]')
-        N === nothing || (G = (G..., A[n] * N))
+        An = _on_device(device, A[n])
+        s = s .+ An * _on_device(device, m)
+        S === nothing || (R = R .+ An * _on_device(device, S) * An')
+        N === nothing || (G = (G..., An * _on_device(device, N)))
     end
     return s, R, G
 end
@@ -604,7 +606,7 @@ end
 # diverges with τ is the same for every value of the target, and for every outcome of a
 # switching factor. Also returns L⁻¹, the scale for `_projected_rank`.
 function _residual_metric(R, G, what)
-    Li = inv(_chol(R, what).L)
+    Li = _triangular_inverse(_chol(R, what))
     isempty(G) && return Li, Li
     W, _ = _range_complement(Li * reduce(hcat, G))
     return W' * Li, Li
@@ -629,7 +631,11 @@ _range_complement(B) = throw(ArgumentError(
     "the flat path's residual metric needs floats, or first-order ForwardDiff duals of floats \
      (P25); it has $(eltype(B))"))
 function _range_svd(B)
-    F = LinearAlgebra.svd(B; full = true)
+    F = _host_spectral(B) do X
+        G = LinearAlgebra.svd(X; full = true)   # not `F`: that would box the outer `F` (LP-092)
+        (G.U, G.S, G.V)
+    end
+    F = (U = F[1], S = F[2], V = F[3])
     tol = maximum(size(B)) * _eps_eltype(eltype(F.S)) * maximum(F.S; init = zero(eltype(F.S)))
     return F, count(>(tol), F.S)
 end
@@ -707,11 +713,12 @@ end
 # A mixture is collapsed to its moments (gaussian.md, "Mixture inputs").
 function _reduced_relation(A, c, msgs, dims, names)
     T = _compute_eltype(float(eltype(c)), A, c, msgs)
-    c_eff = _at_eltype(T, c)
+    device = _first_device((A, c, msgs))
+    c_eff = _on_device(device, _at_eltype(T, c))
     Gs, canon = (), ()                  # tuples, rebound rather than pushed to: Zygote (P23)
     for n in names
         b = _collapse(_get(msgs, n))
-        An = _at_eltype(T, getfield(A, n))
+        An = _on_device(device, _at_eltype(T, getfield(A, n)))
         if b isa LenticulumCore.DiracBelief
             c_eff = c_eff .- An * _vec(b.value)
         elseif _is_hard(b)
@@ -721,7 +728,7 @@ function _reduced_relation(A, c, msgs, dims, names)
             size(U, 2) == 0 && continue
             Gs, canon = (Gs..., An * U), (canon..., (ηs, Λs))
         else
-            Gs, canon = (Gs..., An), (canon..., _canon(b, dims[n], float(promote_type(eltype(An), eltype(c_eff)))))
+            Gs, canon = (Gs..., An), (canon..., _on_device(device, _canon(b, dims[n], float(promote_type(eltype(An), eltype(c_eff))))))
         end
     end
     G = isempty(Gs) ? _zeros_like(c_eff, eltype(c_eff), length(c_eff), 0) : reduce(hcat, Gs)
@@ -744,7 +751,7 @@ function _reduced_residual_statistics(G, c_eff, canon, Q)
     # tolerance `_eig_tol`, as the hard relation decides it: a rank-deficient Λ often comes out with
     # an eigenvalue of 1e-16 rather than 0, which `GaussianBelief` took for proper, and its
     # entropy was then a finite number made of rounding (review of P5, F1).
-    λ = LinearAlgebra.eigvals(Symmetric(LenticulumCore.stop_gradient((Λ + Λ') / 2)))
+    λ = _eigvals(Symmetric(LenticulumCore.stop_gradient((Λ + Λ') / 2)))
     minimum(λ) > LenticulumCore._eig_tol(λ) || throw(ArgumentError(
         "the factor belief is flat in some direction (its precision has the eigenvalue \
          $(minimum(λ)) of $(maximum(λ))): an improper posterior has no free energy"))
@@ -758,7 +765,7 @@ end
 # and the element type follows the blocks (a dual block under ForwardDiff).
 function _blockdiag(blocks::AbstractVector{<:AbstractMatrix})
     isempty(blocks) && return zeros(Bool, 0, 0)
-    return Matrix(cat(blocks...; dims = (1, 2)))
+    return _matrix(cat(blocks...; dims = (1, 2)))
 end
 
 Mycelium.uses_cavity(::LinearConstraintFactor) = true
@@ -803,7 +810,7 @@ Mycelium.factor_belief(f::LinearConstraintFactor, msgs, ps, st) =
 function Mycelium.belief_free_energy(f::LinearConstraintFactor, b::FrozenGaussianBelief, ps, st)
     r̄, Cr = _frozen_residual(_coeffs(f, ps), -ps.c, b)
     Q = _covariance_at(f.Q, ps, r̄, Cr, b.H)
-    Qi = inv(Symmetric(Q))                                   # not inv(::Cholesky): Zygote has no rule
+    Qi = _symmetric_inv(Q)                                   # not inv(::Cholesky): Zygote has no rule
     fit = (r̄' * (Qi * r̄) + tr(Qi * Cr)) / 2
     complexity = logdet(_chol((2 * eltype(Q)(π)) .* Q, "2πQ")) / 2
     return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = _negentropy(b.H))), st
@@ -820,7 +827,7 @@ function Mycelium.belief_free_energies(fs::AbstractVector{<:LinearConstraintFact
     f = first(fs)
     R, Cr = _frozen_residuals(_coeffs(fs[1], ps), -ps.c, b)
     Q = _covariance_at(f.Q, ps, R, Cr, b.H)
-    Qi = inv(Symmetric(Q))                                   # not inv(::Cholesky): Zygote has no rule
+    Qi = _symmetric_inv(Q)                                   # not inv(::Cholesky): Zygote has no rule
     complexity = logdet(_chol((2 * eltype(Q)(π)) .* Q, "2πQ")) / 2
     fit = _column_fits(R, Qi, Cr)
     return [LenticulumCore.GradedEnergy((fit = fi, complexity = complexity, negentropy = _negentropy(b.H))) for fi in fit], st
@@ -904,3 +911,6 @@ function LenticulumCore.entropy(f::LinearConstraintFactor, π, y::NamedTuple, ps
     F, st = LenticulumCore.free_energy(f, π, y, ps, st)
     return LenticulumCore.GradedEnergy((fit = false, complexity = false, negentropy = _negentropy(F[:negentropy]))), st
 end
+
+Adapt.@adapt_structure LinearConstraintFactor
+Adapt.@adapt_structure LinearConstraintModel

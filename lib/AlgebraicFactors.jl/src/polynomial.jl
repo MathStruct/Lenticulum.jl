@@ -199,13 +199,13 @@ end
 
 function _polynomial_site(f, target, inputs, x0, ps)
     r, Ju, A = _polynomial_linearisation(f,target,inputs,x0,ps)
-    ev = LinearAlgebra.eigvals(LinearAlgebra.Symmetric(LenticulumCore.stop_gradient(A)))
+    ev = _eigvals(LinearAlgebra.Symmetric(LenticulumCore.stop_gradient(A)))
     threshold = f.k*eps(eltype(ev))*maximum(ev)
     minimum(ev)>threshold || throw(ArgumentError(
         "residual covariance A is numerically singular: cannot form a Gaussian residual likelihood; use positive λ with full-row-rank Θ (no pseudoinverse)"))
-    chol = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(A))
-    numerical_rank = LinearAlgebra.rank(LenticulumCore.stop_gradient(Ju))
-    Λ = Matrix(LinearAlgebra.Symmetric(Ju'*(chol\Ju)))
+    chol = _symmetric_cholesky(A)
+    numerical_rank = _host_spectral(LinearAlgebra.rank, LenticulumCore.stop_gradient(Ju))
+    Λ = _matrix(LinearAlgebra.Symmetric(Ju'*(chol\Ju)))
     h = Λ*x0-Ju'*(chol\r)
     return LenticulumCore.GaussianBelief(h,Λ), numerical_rank
 end
@@ -302,16 +302,21 @@ function _polynomial_affine(f, ps; basis = _polynomial_basis(f, ps.Θ), check::B
     # Select the last declared channel as the normalised conditional output.
     q = last(values(f.dims))
     q == f.k || throw(ArgumentError("normalised degree-one game needs a square last-channel coefficient block"))
-    ld, sign = LinearAlgebra.logabsdet(J[:,N-q+1:N])
+    Jout = J[:, N-q+1:N]
+    ld, sign = if _device_leaf(Jout) === nothing
+        LinearAlgebra.logabsdet(Jout)
+    else
+        (sum(log, _host_spectral(LinearAlgebra.svdvals, Jout)), true)
+    end
     sign != 0 && isfinite(ld) || throw(ArgumentError("normalised degree-one game needs a nonsingular last-channel coefficient block"))
     Q = f.Σ === nothing ? J*J' : J*LenticulumCore._at_eltype(eltype(J), f.Σ)*J'
     Q += eltype(Q)(f.λ)*(ps.Θ*ps.Θ')
     if check
-        ev = LinearAlgebra.eigvals(LinearAlgebra.Symmetric(LenticulumCore.stop_gradient(Q)))
+        ev = _eigvals(LinearAlgebra.Symmetric(LenticulumCore.stop_gradient(Q)))
         minimum(ev) > f.k*eps(eltype(ev))*maximum(ev) || throw(ArgumentError(
             "degree-one residual covariance must be positive definite; no pseudoinverse entropy"))
     end
-    return c, J, LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Q)), ld
+    return c, J, _symmetric_cholesky(Q), ld
 end
 
 """
@@ -345,16 +350,16 @@ function _polynomial_belief(f, msgs, c, J, C, basis)
         idx = offset+1:offset+n
         b = get(msgs,name,nothing)
         if b isa LenticulumCore.DiracBelief
-            z0[idx] = _polynomial_vector(b.value,n)
+            z0[idx] .= _polynomial_vector(b.value,n)
         elseif b isa LenticulumCore.GaussianBelief
             length(b.η) == n || throw(DimensionMismatch("degree-one Gaussian channel dimension"))
             # Improper PSD likelihoods are allowed; the joint posterior is checked below.
             all(isfinite,b.η) && all(isfinite,b.Λ) && LinearAlgebra.issymmetric(b.Λ) &&
-                minimum(LinearAlgebra.eigvals(LinearAlgebra.Symmetric(LenticulumCore.stop_gradient(b.Λ)))) >= 0 ||
+                minimum(_eigvals(LinearAlgebra.Symmetric(LenticulumCore.stop_gradient(b.Λ)))) >= 0 ||
                 throw(ArgumentError("Gaussian likelihood must have finite information and symmetric PSD precision"))
             append!(free,idx)
-            η[idx] = b.η
-            Λ[idx,idx] = b.Λ
+            η[idx] .= b.η
+            Λ[idx,idx] .= b.Λ
         elseif b === nothing || b isa LenticulumCore.TrivialBelief
             append!(free,idx)
         else
@@ -366,13 +371,13 @@ function _polynomial_belief(f, msgs, c, J, C, basis)
     r = J*z0+c
     B = J[:,free]
     precision = B'*(C\B)+Λ[free,free]
-    pev = LinearAlgebra.eigvals(LinearAlgebra.Symmetric(LenticulumCore.stop_gradient(precision)))
+    pev = _eigvals(LinearAlgebra.Symmetric(LenticulumCore.stop_gradient(precision)))
     minimum(pev) > length(free)*eps(eltype(pev))*maximum(pev) ||
         throw(ArgumentError("degree-one polynomial game has an improper joint posterior; supply anchoring messages"))
-    P = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(precision))
+    P = _symmetric_cholesky(precision)
     m = P\(η[free]-B'*(C\r))
     H = (length(free)*(1+LenticulumCore._log2π(T))-LinearAlgebra.logdet(P))/2
-    return PolynomialBelief(z0, free, m, Matrix(inv(P)), H, basis)
+    return PolynomialBelief(z0, free, m, _matrix(inv(P)), H, basis)
 end
 
 # E_b[r'Q⁻¹r]/2 and the normaliser, at the current parameters (c, J, C, ld) for a given belief.
@@ -440,3 +445,8 @@ function LenticulumCore.entropy(f::PolynomialFactor,π,y,ps,st)
     _,_,H = _polynomial_exact_statistics(f,_polynomial_game_messages(f,π,y),ps)
     return LenticulumCore.GradedEnergy((fit=zero(H),complexity=zero(H),negentropy=H)),st
 end
+
+Adapt.@adapt_structure PolynomialFactor
+Adapt.@adapt_structure PolynomialModel
+Adapt.adapt_structure(to, b::PolynomialBelief) = PolynomialBelief(
+    Adapt.adapt(to, b.z0), b.free, Adapt.adapt(to, b.m), Adapt.adapt(to, b.S), b.H, Adapt.adapt(to, b.basis))

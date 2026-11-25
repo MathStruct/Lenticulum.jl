@@ -167,3 +167,8 @@ They now build a mask (`_active_mask`, outside AD), and `_active_indices` caches
 freeze and the shape of the parameter tree. In `examples/structure_edits.jl` (a few dozen
 parameters per node) neither is measurable: 192.5 s with the frozen sum, 195.0 s without.
 
+## Device arrays (Q7)
+
+Adapt moves variables, factors and couplings and rebuilds the graph’s inference caches, since
+cached emit plans can close over the original factors. The wiring, identifiers and plate index
+matrices stay on the host. Pass an adapted parameter and state tree alongside the graph.

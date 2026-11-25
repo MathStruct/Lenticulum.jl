@@ -167,3 +167,10 @@ compose(c::AbstractBayesianLens, d::AbstractBayesianLens) = ComposedLens(c, d)
 struct TensorLens{T<:Tuple} <: AbstractBayesianLens
     parts::T
 end
+
+Adapt.@adapt_structure BayesianLens
+Adapt.@adapt_structure AmortisedInversion
+Adapt.@adapt_structure SolverInversion
+Adapt.@adapt_structure ProximalInversion
+Adapt.@adapt_structure ComposedLens
+Adapt.@adapt_structure TensorLens

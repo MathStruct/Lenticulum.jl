@@ -142,7 +142,7 @@ LenticulumCore.energy(f::NonlinearFactor, x, a, y, ps, st) = (residual(f, x, y),
 # are those of the free energy
 LenticulumCore.pointwise_energyspace(f::NonlinearFactor) = LenticulumCore.EuclideanEnergySpace(f.nout)
 LenticulumCore.pointwise_scalarisation(f::NonlinearFactor) =
-    LenticulumCore.SquaredNorm(inv(Symmetric(f.Q)); check = false)
+    LenticulumCore.SquaredNorm(_symmetric_inv(f.Q); check = false)
 
 # --- The local linear model --------------------------------------------------------
 
@@ -166,10 +166,15 @@ function _difference_jacobian(f::NonlinearFactor, x, scale)
     V = eltype(LenticulumCore.stop_gradient(x))
     J = _zeros_like(x, T, f.nout, f.nin)
     R = _zeros_like(x, V, f.nout, f.nin)
+    # On a device the steps are chosen on the host (one copy of x) and each step vector is moved
+    # to the device; the CPU path is unchanged (LP-092).
+    dev = _device_leaf(x)
+    xh = dev === nothing ? nothing : Array(LenticulumCore.stop_gradient(x))
     for i in 1:f.nin
-        xi = abs(LenticulumCore.stop_gradient(x[i]))
+        xi = dev === nothing ? abs(LenticulumCore.stop_gradient(x[i])) : abs(xh[i])
         h = scale * (V === Float64 ? V(1e-6) : cbrt(eps(V))) * (1 + xi)
-        e = _zeros_like(x, V, f.nin); e[i] = h
+        e = dev === nothing ? (e = _zeros_like(x, V, f.nin); e[i] = h; e) :
+            _on_device(dev, setindex!(zeros(V, f.nin), h, i))
         fp, fm = _vec(f.f(x .+ e)), _vec(f.f(x .- e))
         if i == 1
             # Learn the function's output type from the first difference pair: no extra f call.
@@ -229,7 +234,7 @@ function _rank_clean(f::NonlinearFactor, x, J, R)
     B = R .+ abs.(Jv .- Matrix(LenticulumCore.stop_gradient(J2))) ./ 3
     all(isfinite, B) || return J
     rs, cs = _error_scales(B)
-    F = LinearAlgebra.svd(Jv ./ (rs * cs'))
+    F = _host_spectral(A -> (G = LinearAlgebra.svd(A); (U = G.U, S = G.S, V = G.V)), Jv ./ (rs * cs'))
     k = count(>(eltype(Jv)(_FD_RANK_KAPPA) * lim), F.S)
     k == length(F.S) && return J
     V = F.V[:, 1:k]
@@ -260,29 +265,36 @@ function _linearize(u::Unscented, f, m, S)
     T = promote_type(eltype(m), eltype(S))
     α, β, κ = T(u.α), T(u.β), T(u.κ)
     λ = α^2 * (n + κ) - n
-    E = _scalar_or_eigen(Symmetric(Matrix(S)))
+    E = _scalar_or_eigen(Symmetric(_matrix(S)))
     vals = max.(E.values, false)
     L = E.vectors * Diagonal(sqrt.(vals))                          # S = L Lᵀ, also when singular
     c = sqrt(n + λ)
     X = hcat(m, m .+ c .* L, m .- c .* L)                          # 2n + 1 sigma points
-    wm = vcat(λ / (n + λ), fill!(similar(m, T, 2n), one(T) / (2(n + λ))))
-    wc = copy(wm); wc[1] += 1 - α^2 + β
+    if _device_leaf(m) === nothing
+        wm = vcat(λ / (n + λ), fill!(similar(m, T, 2n), one(T) / (2(n + λ))))
+        wc = copy(wm); wc[1] += 1 - α^2 + β
+    else
+        tail = fill!(similar(m, T, 2n), one(T) / (2(n + λ)))
+        wm = vcat(fill!(similar(m, T, 1), λ / (n + λ)), tail)
+        wc = vcat(fill!(similar(m, T, 1), λ / (n + λ) + (1 - α^2 + β)), tail)
+    end
     Y = reduce(hcat, (_vec(f.f(x)) for x in eachcol(X)))
     ȳ = Y * wm
     Dx, Dy = X .- m, Y .- ȳ
     Cxy = (Dx .* wc') * Dy'                                        # n × nout
     Syy = (Dy .* wc') * Dy'
-    tol = n * eps(eltype(LenticulumCore.stop_gradient(E.values))) * maximum(vals; init = false)
-    inv_vals = [v > tol ? one(v) / v : false for v in vals]
+    tol = n * eps(eltype(LenticulumCore.stop_gradient(E.values))) * maximum(vals; init = zero(eltype(vals)))
+    inv_vals = _device_leaf(vals) === nothing ? [v > tol ? one(v) / v : false for v in vals] :
+               map(v -> v > tol ? inv(v) : zero(v), vals)
     Sinv_Cxy = E.vectors * (inv_vals .* (E.vectors' * Cxy))        # reuse E instead of rank + pinv
-    A = Matrix(Sinv_Cxy')
+    A = _matrix(Sinv_Cxy')
     Ω = Syy .- A * S * A'
     EΩ = _scalar_or_eigen(Symmetric((Ω .+ Ω') ./ 2))
-    if minimum(EΩ.values; init = false) < -eltype(EΩ.values)(1e-10) * (1 + maximum(abs, EΩ.values; init = false))
+    if minimum(EΩ.values; init = zero(eltype(EΩ.values))) < -eltype(EΩ.values)(1e-10) * (1 + maximum(abs, EΩ.values; init = zero(eltype(EΩ.values))))
         @warn "Unscented linearize: residual covariance Ω = Syy - ASAᵀ has negative eigenvalue $(minimum(EΩ.values)) (due to negative centre weight wc[1] at α = $(u.α)); clamping to positive semidefinite. Consider α = 1.0 (cubature weights) if exact PSD residuals are required." maxlog = 1
     end
     Ω_psd = EΩ.vectors * Diagonal(max.(EΩ.values, false)) * EΩ.vectors'
-    return (A, ȳ .- A * m, Matrix(Symmetric(Ω_psd)))
+    return (A, ȳ .- A * m, _matrix(Symmetric(Ω_psd)))
 end
 
 # the expansion belief on x: an incoming belief's moments, or the factor's x0, or nothing
@@ -330,7 +342,7 @@ function _nl_message(f::NonlinearFactor, target::Symbol, inputs, prior)
         x̄ === nothing && return LenticulumCore.TrivialBelief()
         if _partly_flat(src)                      # the linear model's relation, flat directions integrated out
             A, b, Ω = linearize(f, x̄, P)
-            blocks = NamedTuple{(f.in_channel, f.out_channel)}((-A, Matrix{eltype(A)}(I, f.nout, f.nout)))
+            blocks = NamedTuple{(f.in_channel, f.out_channel)}((-A, _eye(A, eltype(A), f.nout)))
             return first(_linear_message(blocks, b, _covariance_at(f.Q, A, b, src) .+ Ω, target, [(f.out_channel, _split_moments(src, f.nout))], nothing))
         end
         my, Sy = _moments(src, f.nout)
@@ -450,3 +462,6 @@ function LenticulumCore.entropy(f::NonlinearFactor, π, y, ps, st)
     F, st = LenticulumCore.free_energy(f, π, y, ps, st)
     return LenticulumCore.GradedEnergy((fit = false, complexity = false, negentropy = _negentropy(F[:negentropy]))), st
 end
+
+Adapt.@adapt_structure NonlinearFactor
+Adapt.@adapt_structure NonlinearGaussianModel

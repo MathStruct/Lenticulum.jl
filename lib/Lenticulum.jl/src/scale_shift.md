@@ -128,3 +128,8 @@ floating-point type. Energy under the factor belief starts from zero in the prom
 of the parameters and incoming beliefs. The parameter initializer without data keeps its
 Float64 default. The exact relation's general spectral path has the same BigFloat limit
 as the hard constraint.
+
+## Device arrays (Q7)
+
+Adapt moves the stored hard relation and keeps the group indices on the host. The identity and
+diagonal coefficients are built alongside the shift and scale parameters.

@@ -36,32 +36,33 @@ added noise), [`preimage`](@ref)`(b, M, c)` (the likelihood of `x` when `b` is a
 flat directions has no density and no entropy; one with hard directions has them only relative
 to the measure on its support (`support_entropy`).
 """
-struct ExtendedGaussian{T<:Real} <: AbstractBelief
-    μ::Vector{T}
-    Σ::Matrix{T}
-    D::Matrix{T}
+struct ExtendedGaussian{T<:Real,V<:AbstractVector{T},M<:AbstractMatrix{T},B<:AbstractMatrix{T}} <: AbstractBelief
+    μ::V
+    Σ::M
+    D::B
     function ExtendedGaussian(μ::AbstractVector, Σ::AbstractMatrix, D::AbstractMatrix)
         n = length(μ)
         size(Σ) == (n, n) || throw(DimensionMismatch("μ has length $n but Σ is $(size(Σ))"))
         size(D, 1) == n || throw(DimensionMismatch("μ has length $n but D has $(size(D, 1)) rows"))
         T = float(promote_type(eltype(μ), eltype(Σ), eltype(D)))
         _nearly_symmetric(stop_gradient(Σ)) || throw(ArgumentError("Σ must be symmetric"))
-        B = _orth(Matrix{T}(D))
+        device = _first_device((μ, Σ, D))
+        B = _orth(_matrix(T, _on_device(device, D)))
         # Project onto the complement of span(D) through an orthonormal basis U of it, not with
         # I − BBᵀ: when D spans everything U is empty and Σ is exactly zero, where I − BBᵀ would
         # leave a residue of 1e-30 that the relative tolerances below take for a variance.
         U = _complement(B)
-        Σu = Matrix(_symmetric_part(U' * Matrix{T}(Σ) * U))
+        Σu = _matrix(_symmetric_part(U' * _matrix(T, _on_device(device, Σ)) * U))
         _check_psd(Σu, "Σ must be positive semidefinite")
         S = U * Σu * U'
-        return new{T}(U * (U' * Vector{T}(μ)), (S + S') / 2, B)
+        return ExtendedGaussian(Val(:normalised), U * (U' * _vector(T, _on_device(device, μ))), (S + S') / 2, B)
     end
     # Internal, trusted: parts that are already a normalised representative (`D` orthonormal, `μ`
     # and `Σ` on its complement, `Σ` symmetric positive semidefinite), stored without a check. For
     # the replicas of a plate that share `Σ` and `D` (Lenticulum's `HardConstraintFactor` block
     # method, P6); the caller guarantees the normalisation.
-    ExtendedGaussian(::Val{:normalised}, μ::Vector{T}, Σ::Matrix{T}, D::Matrix{T}) where {T<:Real} =
-        new{T}(μ, Σ, D)
+    ExtendedGaussian(::Val{:normalised}, μ::V, Σ::M, D::B) where
+        {T<:Real,V<:AbstractVector{T},M<:AbstractMatrix{T},B<:AbstractMatrix{T}} = new{T,V,M,B}(μ, Σ, D)
 end
 ExtendedGaussian(μ::AbstractVector, Σ::AbstractMatrix) =
     ExtendedGaussian(μ, Σ, _zeros_like(μ, eltype(μ), length(μ), 0))
@@ -96,19 +97,21 @@ function _values(X)
     X0 = stop_gradient(X)
     eltype(X0) <: AbstractFloat || throw(ArgumentError(
         "extended Gaussians take floats and first-order ForwardDiff duals of floats; got $(eltype(X))"))
-    return X0 isa AbstractMatrix ? Matrix(X0) : X0
+    return X0 isa AbstractMatrix ? _matrix(X0) : X0
 end
 
 # The decompositions, of values only (not differentiated: LenticulumCoreChainRulesCoreExt). The
 # eigendecomposition of a symmetric matrix split at `_eig_tol` (range V with eigenvalues λ, null
 # space N, all eigenvalues), and the full SVD with its rank.
-function _value_eigen(S)
-    E = eigen(_symmetric_part(_values(S)))
+_value_eigen(S) = _host_spectral(_host_value_eigen, _values(S))
+function _host_value_eigen(S)
+    E = eigen(_symmetric_part(S))
     keep = E.values .> _eig_tol(E.values)
     return E.vectors[:, keep], E.values[keep], E.vectors[:, .!keep], E.values
 end
-function _value_svd(M)
-    F = svd(_values(M); full = true)
+_value_svd(M) = _host_spectral(_host_value_svd, _values(M))
+function _host_value_svd(M)
+    F = svd(M; full = true)
     return F.U, F.S, F.V, count(F.S .> _eig_tol(F.S))
 end
 
@@ -139,7 +142,7 @@ function _psd_split(S, what)
     _check_constant_rank(N0' * Δ * N0, Δ, _scale(λ0), what)
     # S = 0 (no nonzero eigenvalue): at constant rank it stays 0, N₀ spans everything and does
     # not move. Returned before the broadcasts by λ₀, whose Zygote pullback fails on an empty λ₀.
-    isempty(λ0) && return V0, zeros(eltype(S), 0, 0), N0
+    isempty(λ0) && return V0, _zeros_like(S, eltype(S), 0, 0), N0
     V = V0 .+ N0 * ((N0' * Δ * V0) ./ transpose(λ0))
     N = N0 .- V0 * ((V0' * Δ * N0) ./ λ0)
     K = V0' * S * V0
@@ -150,7 +153,7 @@ end
 # −S⁺ΔS⁺ + NNᵀΔS⁺² + S⁺²ΔNNᵀ.
 function _split_pinv(V, K)
     n = size(V, 1)
-    size(K, 1) == 0 && return zeros(eltype(V), n, n)
+    size(K, 1) == 0 && return _zeros_like(V, eltype(V), n, n)
     S = V * _spd_inv(K, "the range part of a covariance") * V'
     return (S + S') / 2
 end
@@ -159,7 +162,7 @@ end
 # M = U S Vᵀ at the value and B₀ the first r columns of U: B = B₀ + (I − B₀B₀ᵀ) Δ Vᵣ S⁻¹.
 function _orth(M::AbstractMatrix)
     T = float(eltype(M))
-    size(M, 2) == 0 && return zeros(T, size(M, 1), 0)
+    size(M, 2) == 0 && return _zeros_like(M, T, size(M, 1), 0)
     U0, S0, V0, r = _value_svd(M)
     Δ = _tangent(M)
     _check_constant_rank(U0[:, (r + 1):end]' * Δ * V0[:, (r + 1):end], Δ, _scale(S0),
@@ -175,7 +178,7 @@ end
 function _complement(B::AbstractMatrix)
     n = size(B, 1)
     T = float(eltype(B))
-    size(B, 2) == 0 && return Matrix{T}(I, n, n)
+    size(B, 2) == 0 && return _eye(B, T, n)
     U0, S0, V0, r = _value_svd(B)
     Δ = _tangent(B)
     W0 = U0[:, (r + 1):n]
@@ -201,7 +204,7 @@ constraints `Hᵀx = Hᵀμ` it imposes exactly.
 function hard_directions(b::ExtendedGaussian{T}) where {T}
     n = length(b.μ)
     U = _complement(b.D)                       # D⊥
-    size(U, 2) == 0 && return zeros(T, n, 0)
+    size(U, 2) == 0 && return _zeros_like(U, T, n, 0)
     S = U' * b.Σ * U
     _, _, N = _psd_split((S + S') / 2, "the hard directions of an extended Gaussian")
     return U * N
@@ -280,7 +283,7 @@ function extended(b::GaussianBelief)
     if all(iszero, _values(b.Λ))
         Δ = _tangent(b.Λ)
         _check_constant_rank(Δ, Δ, 0.0, "a zero precision")
-        return ExtendedGaussian(zeros(T, n), zeros(T, n, n), Matrix{T}(I, n, n))
+        return ExtendedGaussian(_zeros_like(b.η, T, n), _zeros_like(b.η, T, n, n), _eye(b.η, T, n))
     end
     return ExtendedGaussian(_flat_split(b.η, b.Λ)...)
 end
@@ -303,7 +306,7 @@ function _flat_split(η::AbstractVector, Λ::AbstractMatrix)
 end
 function extended(b::DiracBelief)
     v = b.value isa AbstractVector ? float.(b.value) : [float(b.value)]
-    return ExtendedGaussian(v, zeros(eltype(v), length(v), length(v)))
+    return ExtendedGaussian(v, _zeros_like(v, eltype(v), length(v), length(v)))
 end
 extended(b::ExtendedGaussian) = b
 extended(b, n::Integer) = extended(b)
@@ -340,6 +343,11 @@ function pushforward(b::ExtendedGaussian, M::AbstractMatrix, c = 0, Q = 0)
     # an integer offset (the default 0) takes the float type of the arithmetic, the belief's and the
     # map's (P30; U2, where `float(0)` made a Float32 marginal Float64)
     cv = c isa Number ? fill(c isa Integer ? convert(float(promote_type(eltype(b.μ), eltype(M))), c) : float(c), m) : c
+    device = _first_device((b, M, c, Q))
+    b = _extended_on(device, b)
+    M = _on_device(device, M)
+    cv = _on_device(device, cv)
+    Q = _on_device(device, Q)
     S = M * b.Σ * M'
     # a scalar noise as `S + Q*I`, not `+ Q * I(m)`: Zygote's pullback of the `Diagonal` fails (P4)
     Σy = Q isa Number ? (iszero(Q) ? S : S + Q * I) : S + Q
@@ -358,7 +366,7 @@ function marginalise(b::ExtendedGaussian, idx)
     for (r, j) in enumerate(idx)
         S[r, j] = 1
     end
-    return pushforward(b, S)
+    return pushforward(b, _on_device(_device_leaf(b), S))
 end
 
 # The product of two extended Gaussians as potentials on ℝⁿ: the intersection of their supports
@@ -401,7 +409,7 @@ function _from_potential(C::AbstractMatrix, c::AbstractVector, η::AbstractVecto
     n = length(η)
     T = float(promote_type(eltype(C), eltype(c), eltype(η), eltype(Λ)))
     if size(C, 1) == 0
-        x0, N = zeros(T, n), Matrix{T}(I, n, n)
+        x0, N = _zeros_like(η, T, n), _eye(η, T, n)
     else
         U0, S0, V0, r = _value_svd(C)
         Δ = _tangent(C)
@@ -420,7 +428,7 @@ function _from_potential(C::AbstractMatrix, c::AbstractVector, η::AbstractVecto
              (residual $res)"))
         N = N0 .- P * (Δ * N0)
     end
-    size(N, 2) == 0 && return ExtendedGaussian(x0, zeros(T, n, n))
+    size(N, 2) == 0 && return ExtendedGaussian(x0, _zeros_like(x0, T, n, n))
     Λz = N' * Λ * N
     ηz = N' * (η - Λ * x0)
     V, K, W = _psd_split((Λz + Λz') / 2, "the precision of a product")
@@ -442,6 +450,10 @@ function preimage(b::ExtendedGaussian, M::AbstractMatrix, c = 0)
     size(M, 1) == length(b.μ) || throw(DimensionMismatch("M has $(size(M, 1)) rows, the belief dimension $(length(b.μ))"))
     # an integer offset (the default 0) takes the belief's float type (P30)
     cv = c isa Number ? fill(c isa Integer ? convert(float(promote_type(eltype(b.μ), eltype(M))), c) : float(c), size(M, 1)) : c
+    device = _first_device((b, M, c))
+    b = _extended_on(device, b)
+    M = _on_device(device, M)
+    cv = _on_device(device, cv)
     H = hard_directions(b)
     η, Λ = _canonical_part(b)
     return _from_potential(H' * M, H' * (b.μ .- cv), M' * (η .- Λ * cv), M' * Λ * M;
@@ -452,12 +464,14 @@ end
 # and flat directions block-diagonal. Built by `vcat` and `cat`, not by writes into zero arrays:
 # Zygote cannot differentiate those (P4).
 function _independent_join(bs::Union{Tuple,AbstractVector})
+    device = _first_device(bs)
+    bs = map(b -> _extended_on(device, b), bs)
     μ = reduce(vcat, map(b -> b.μ, bs))
     Σ = _block_diagonal(map(b -> b.Σ, bs))
     D = _block_diagonal(map(b -> b.D, bs))
     return ExtendedGaussian(μ, Σ, D)
 end
-_block_diagonal(blocks) = length(blocks) == 1 ? Matrix(first(blocks)) : Matrix(cat(blocks...; dims = (1, 2)))
+_block_diagonal(blocks) = length(blocks) == 1 ? _matrix(first(blocks)) : _matrix(cat(blocks...; dims = (1, 2)))
 
 # Damping (Mycelium's `damp`): the geometric mixture new^α · old^(1-α), the rule canonical damping
 # of a GaussianBelief follows. Precisions are mixed; a direction flat in one side carries the
@@ -482,3 +496,12 @@ function belief_cov(b::ExtendedGaussian)
     size(b.D, 2) == 0 || throw(ArgumentError("belief_cov: the extended Gaussian is flat along $(size(b.D, 2)) direction(s)"))
     return b.Σ
 end
+
+
+Adapt.adapt_structure(to, b::ExtendedGaussian) = ExtendedGaussian(Val(:normalised),
+    Adapt.adapt(to, b.μ), Adapt.adapt(to, b.Σ), Adapt.adapt(to, b.D))
+_device_leaf(b::ExtendedGaussian) = _device_leaf(b.μ)
+
+_extended_on(::Nothing, b::ExtendedGaussian) = b
+_extended_on(prototype, b::ExtendedGaussian) = ExtendedGaussian(Val(:normalised),
+    _on_device(prototype, b.μ), _on_device(prototype, b.Σ), _on_device(prototype, b.D))

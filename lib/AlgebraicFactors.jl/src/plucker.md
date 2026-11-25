@@ -183,3 +183,8 @@ type. Exact point energies and uniform particle weights are typed from the point
 validation uses primal values. A one-coordinate wedge covariance can be checked directly,
 while general covariance rank checks use LAPACK. The no-input point-energy interface
 retains the Float64 zero when no number supplies a type.
+
+## Device arrays (Q7)
+
+The bivector, Jacobian and moment covariance use vector and matrix gathers on numeric inputs.
+Pair indices remain host metadata. The message checks rank through the core spectral helper.

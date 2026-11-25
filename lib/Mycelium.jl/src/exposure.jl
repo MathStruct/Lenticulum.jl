@@ -205,3 +205,5 @@ function local_free_energy(e::ExposedFactor, beliefs, ps, st)
          must be observed as points for the free energy; rename the channel"))
     return parameter_free_energy(e.factor, _param_view(e, beliefs), ps, st)
 end
+
+Adapt.@adapt_structure ExposedFactor

@@ -162,11 +162,11 @@ normalised. Pooling two categorical beliefs is elementwise multiplication and re
 exact, associative, commutative, and always defined unless the two have disjoint support
 (`Belief Algebra.md`, `Categorical Belief.md`). [`bernoulli`](@ref) is the two-state case.
 """
-struct CategoricalBelief{T<:Real,L} <: AbstractBelief
-    logp::Vector{T}
+struct CategoricalBelief{T<:Real,L,V<:AbstractVector{T}} <: AbstractBelief
+    logp::V
     labels::L
     # internal: already-normalised log-probabilities (used by the pooling rules)
-    CategoricalBelief(::Val{:log}, logp::Vector{T}, labels::L) where {T<:Real,L} = new{T,L}(logp, labels)
+    CategoricalBelief(::Val{:log}, logp::V, labels::L) where {T<:Real,L,V<:AbstractVector{T}} = new{T,L,V}(logp, labels)
 end
 function CategoricalBelief(p::AbstractVector{<:Real}; labels = nothing)
     any(<(0), p) && throw(ArgumentError("probabilities must be non-negative"))
@@ -209,16 +209,16 @@ Its density is the weighted sum of the components' densities; its product with a
 is again a mixture, with weights scaled by each component's overlap with that belief
 (`Mixture Belief.md`).
 """
-struct MixtureBelief{B<:AbstractBelief,T<:Real} <: AbstractBelief
+struct MixtureBelief{B<:AbstractBelief,T<:Real,V<:AbstractVector{T}} <: AbstractBelief
     components::Vector{B}
-    logw::Vector{T}
+    logw::V
     # internal: already-normalised log-weights (used by the product and reduction rules)
-    MixtureBelief(::Val{:log}, components::Vector{B}, logw::Vector{T}) where {B<:AbstractBelief,T<:Real} =
-        new{B,T}(components, logw)
+    MixtureBelief(::Val{:log}, components::Vector{B}, logw::V) where {B<:AbstractBelief,T<:Real,V<:AbstractVector{T}} =
+        new{B,T,V}(components, logw)
 end
 function MixtureBelief(components::AbstractVector{<:AbstractBelief})
     T = _compute_eltype(Float64, components)
-    return MixtureBelief(components, fill(one(T), length(components)))
+    return MixtureBelief(components, _on_device(_device_leaf(components), fill(one(T), length(components))))
 end
 function MixtureBelief(components::AbstractVector{<:AbstractBelief}, weights::AbstractVector{<:Real})
     isempty(components) && throw(ArgumentError("a mixture needs at least one component"))
@@ -233,3 +233,21 @@ end
 The mixture weights, ``\\exp`` of the stored log-weights.
 """
 mixture_weights(m::MixtureBelief) = exp.(m.logw)
+
+Adapt.@adapt_structure OpenModelResult
+Adapt.@adapt_structure LogPotentialBelief
+Adapt.@adapt_structure DiracBelief
+function Adapt.adapt_structure(to, b::SampleBelief)
+    samples = b.samples isa AbstractVector{<:AbstractArray} ? map(x -> Adapt.adapt(to, x), b.samples) :
+              Adapt.adapt(to, b.samples)
+    return SampleBelief(samples, Adapt.adapt(to, b.weights))
+end
+Adapt.adapt_structure(to, b::CategoricalBelief) =
+    CategoricalBelief(Val(:log), Adapt.adapt(to, b.logp), b.labels)
+Adapt.adapt_structure(to, b::MixtureBelief) =
+    MixtureBelief(Val(:log), map(x -> Adapt.adapt(to, x), b.components), Adapt.adapt(to, b.logw))
+
+_device_leaf(b::DiracBelief) = _device_leaf(b.value)
+_device_leaf(b::SampleBelief) = _first_device((b.samples, b.weights))
+_device_leaf(b::CategoricalBelief) = _device_leaf(b.logp)
+_device_leaf(b::MixtureBelief) = _first_device((b.logw, b.components))

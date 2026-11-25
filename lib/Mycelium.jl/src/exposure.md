@@ -68,3 +68,7 @@ those itself (`GaussianFactor` refuses channels named `:A` or `:b` there; `:nois
   a clamped block like data, `Absorbing()`.
 - Leaf predictions add a factor whose output has no incoming message; the factor belief
   still integrates to one, so the tree's Bethe free energy stays $-\log p(y)$ (tested).
+
+## Device arrays (Q7)
+
+Adapt moves the wrapped factor. Exposed parameter names, channels and shapes are host metadata.

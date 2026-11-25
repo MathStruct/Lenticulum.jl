@@ -58,8 +58,9 @@ A Gaussian from its **moments**. Converts to canonical form immediately; `Σ` mu
 definite.
 """
 function Gaussian(μ::AbstractVector, Σ::AbstractMatrix)
-    Λ = _spd_inv(Σ, "Σ")
-    return GaussianBelief(Λ * μ, Λ)
+    prototype = _first_device((μ, Σ))
+    Λ = _spd_inv(_on_device(prototype, Σ), "Σ")
+    return GaussianBelief(Λ * _on_device(prototype, μ), Λ)
 end
 Gaussian(μ::Real, σ²::Real) = Gaussian([float(μ)], fill(float(σ²), 1, 1))
 
@@ -204,6 +205,16 @@ _sample_points(b::SampleBelief) = b.samples isa AbstractMatrix ? eachcol(b.sampl
 # Float32 samples give Float32 moments, integer samples are floated (GH-21).
 function _moment_weights(b::SampleBelief)
     pts = _sample_points(b)
+    device = _device_leaf(b)
+    if device !== nothing
+        S = _samples_matrix(b)
+        T = float(eltype(S))
+        n = size(S, 2)
+        b.weights === nothing && return fill!(similar(S, T, n), one(T) / n)
+        w = _on_device(device, b.weights isa AbstractVector ? float.(b.weights) : collect(float.(b.weights)))
+        w = w ./ maximum(w)
+        return w ./ sum(w)
+    end
     n = length(pts)
     p0 = first(pts)
     T = p0 isa AbstractArray ? eltype(p0) : typeof(p0)
@@ -294,7 +305,7 @@ _numeric_eltype(b::CategoricalBelief) = eltype(b.logp)
 _numeric_eltype(b::MixtureBelief) = promote_type(eltype(b.logw), _numeric_eltype(b.components))
 _numeric_eltype(b::SampleBelief) = promote_type(_numeric_eltype(b.samples), _numeric_eltype(b.weights))
 
-function _compute_eltype(default::Type, inputs...)
+function _compute_eltype(default::Type{D}, inputs::Vararg{Any,N}) where {D,N}   # specialised (LP-092)
     T = _numeric_eltype(inputs)
     return T === Union{} ? default : float(T)
 end
@@ -303,3 +314,6 @@ _at_eltype(::Type{T}, x::AbstractArray{T}) where {T} = x
 _at_eltype(::Type{T}, x::AbstractArray) where {T} = T.(x)
 _zeros_like(x::Array, ::Type{T}, dims::Int...) where {T} = zeros(T, dims)
 _zeros_like(x, ::Type{T}, dims::Int...) where {T} = fill!(similar(x, T, dims), zero(T))
+
+Adapt.@adapt_structure GaussianBelief
+_device_leaf(b::GaussianBelief) = _first_device((b.η, b.Λ))

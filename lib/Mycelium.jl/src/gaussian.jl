@@ -391,11 +391,11 @@ function ep_project(m::LenticulumCore.MixtureBelief{<:GaussianBelief})
     w = LenticulumCore.mixture_weights(m)
     w = w ./ sum(w)
     μs = [LenticulumCore.belief_mean(c) for c in m.components]
-    μ = sum(w[k] .* μs[k] for k in eachindex(w))
-    Σ = sum(w[k] .* (LenticulumCore.belief_cov(m.components[k]) .+ (μs[k] .- μ) * (μs[k] .- μ)') for k in eachindex(w))
-    C = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(Σ); check = false)
+    μ = sum(_entry(w, k) .* μs[k] for k in eachindex(w))
+    Σ = sum(_entry(w, k) .* (LenticulumCore.belief_cov(m.components[k]) .+ (μs[k] .- μ) * (μs[k] .- μ)') for k in eachindex(w))
+    C = _symmetric_cholesky(Σ; check = false)
     LinearAlgebra.issuccess(C) || return nothing
-    Λ = Matrix(LinearAlgebra.Symmetric(inv(C)))          # from the factor the test just computed
+    Λ = _matrix(LinearAlgebra.Symmetric(inv(C)))          # from the factor the test just computed
     return GaussianBelief(C \ μ, Λ)
 end
 
@@ -424,8 +424,8 @@ function ep_project(m::LenticulumCore.MixtureBelief{<:_EG})
     all(c -> size(c.D, 2) == 0, m.components) || return nothing
     w = LenticulumCore.mixture_weights(m)
     w = w ./ sum(w)
-    μ = sum(w[k] .* m.components[k].μ for k in eachindex(w))
-    Σ = sum(w[k] .* (m.components[k].Σ .+ (m.components[k].μ .- μ) * (m.components[k].μ .- μ)') for k in eachindex(w))
+    μ = sum(_entry(w, k) .* m.components[k].μ for k in eachindex(w))
+    Σ = sum(_entry(w, k) .* (m.components[k].Σ .+ (m.components[k].μ .- μ) * (m.components[k].μ .- μ)') for k in eachindex(w))
     return _EG(μ, Matrix(LinearAlgebra.Symmetric(Σ)))
 end
 

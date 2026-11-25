@@ -148,17 +148,28 @@ function PoissonLikelihood(k::Integer = 1; maxcount::Integer = 20)
 end
 npredictors(L::PoissonLikelihood) = L.k
 obsdim(L::PoissonLikelihood) = L.k
-loglikelihood(L::PoissonLikelihood, y, z) =
-    sum(_mul_count(_count(y[j]), z[j]) - exp(z[j]) - _logfact(_count(y[j]), z[j]) for j in 1:L.k)
+function loglikelihood(L::PoissonLikelihood, y, z)
+    return sum(1:L.k) do j
+        n, x = _count(_entry(y, j)), _entry(z, j)
+        _mul_count(n, x) - exp(x) - _logfact(n, x)
+    end
+end
+# The counts are observed data: they are validated and their log-factorials taken on the
+# host (one transfer of y for a device array), then moved to z's array type. `_count`'s
+# error message cannot compile into a device kernel (LP-092). `_logfact(n, z)` depends on
+# z only through its type, so the CPU values are those of the former `_logfact.(n, z)`.
 function loglikelihood_derivatives(L::PoissonLikelihood, y, z)
     λ = exp.(z)
-    n = _count.(y)
-    return sum(_mul_count.(n, z) .- λ .- _logfact.(n, z)), n .- λ, Matrix(Diagonal(-λ))
+    nh = _count.(_device_leaf(y) === nothing ? y : Array(y))
+    lf = _logfact.(nh, zero(eltype(z)))
+    dev = _device_leaf(z)
+    n = _on_device(dev, nh)
+    return sum(_mul_count.(n, z) .- λ .- _on_device(dev, lf)), n .- λ, _matrix(Diagonal(-λ))
 end
 outcomes(L::PoissonLikelihood) =
     vec([collect(float.(Tuple(c)) .- 1) for c in CartesianIndices(ntuple(_ -> L.maxcount + 1, L.k))])
 function outcome_logprobs(L::PoissonLikelihood, z)
-    per = [_poisson_lumped(z[j], L.maxcount) for j in 1:L.k]
+    per = [_poisson_lumped(_entry(z, j), L.maxcount) for j in 1:L.k]
     return vec([sum(per[j][c[j]] for j in 1:L.k) for c in CartesianIndices(ntuple(_ -> L.maxcount + 1, L.k))])
 end
 
@@ -183,8 +194,11 @@ npredictors(::BivariatePoissonLikelihood) = 3
 obsdim(::BivariatePoissonLikelihood) = 2
 
 # log-weights of w₃ = j given y, without the common factor e^{-(λ₁+λ₂+λ₃)}
-_bp_terms(n1, n2, z) = [_mul_count(n1 - j, z[1]) + _mul_count(n2 - j, z[2]) + _mul_count(j, z[3]) -
-                        _logfact(n1 - j, z[1]) - _logfact(n2 - j, z[2]) - _logfact(j, z[3]) for j in 0:min(n1, n2)]
+function _bp_terms(n1, n2, z)
+    z1, z2, z3 = _entry(z, 1), _entry(z, 2), _entry(z, 3)
+    return [_mul_count(n1 - j, z1) + _mul_count(n2 - j, z2) + _mul_count(j, z3) -
+            _logfact(n1 - j, z1) - _logfact(n2 - j, z2) - _logfact(j, z3) for j in 0:min(n1, n2)]
+end
 
 function _logsumexp(v)
     m = maximum(v)
@@ -192,9 +206,9 @@ function _logsumexp(v)
 end
 
 loglikelihood(::BivariatePoissonLikelihood, y, z) =
-    _logsumexp(_bp_terms(_count(y[1]), _count(y[2]), z)) - sum(exp, z)
+    _logsumexp(_bp_terms(_count(_entry(y, 1)), _count(_entry(y, 2)), z)) - sum(exp, z)
 function loglikelihood_derivatives(::BivariatePoissonLikelihood, y, z)
-    n1, n2 = _count(y[1]), _count(y[2])
+    n1, n2 = _count(_entry(y, 1)), _count(_entry(y, 2))
     t = _bp_terms(n1, n2, z)
     lse = _logsumexp(t)
     p = exp.(t .- lse)                          # posterior of w₃ = 0 … min(y)
@@ -204,15 +218,16 @@ function loglikelihood_derivatives(::BivariatePoissonLikelihood, y, z)
     λ = exp.(z)
     Ew = [n1 - e3, n2 - e3, e3]                 # E[w | y]; ∂ℓ/∂zᵢ = E[wᵢ | y] - λᵢ
     s = [-1, -1, 1]                       # w = (n1, n2, 0) + s·w₃, so Cov(w | y) = v s sᵀ
-    return lse - sum(λ), Ew .- λ, v .* (s * s') .- Diagonal(λ)
+    return lse - sum(λ), _on_device(_device_leaf(z), Ew) .- λ, _on_device(_device_leaf(z), v .* (s * s')) .- Diagonal(λ)
 end
 outcomes(L::BivariatePoissonLikelihood) =
     vec([[float(c[1] - 1), float(c[2] - 1)] for c in CartesianIndices((L.maxcount + 1, L.maxcount + 1))])
 function outcome_logprobs(L::BivariatePoissonLikelihood, z)
     N = L.maxcount
     P = [exp(loglikelihood(L, (i, j), z)) for i in 0:(N - 1), j in 0:(N - 1)]
-    m1 = exp.(_poisson_lumped(log(exp(z[1]) + exp(z[3])), N))   # y₁ ~ Poisson(λ₁ + λ₃)
-    m2 = exp.(_poisson_lumped(log(exp(z[2]) + exp(z[3])), N))
+    λ3 = exp(_entry(z, 3))
+    m1 = exp.(_poisson_lumped(log(exp(_entry(z, 1)) + λ3), N))   # y₁ ~ Poisson(λ₁ + λ₃)
+    m2 = exp.(_poisson_lumped(log(exp(_entry(z, 2)) + λ3), N))
     Q = _zeros_like(P, eltype(P), N + 1, N + 1)
     Q[1:N, 1:N] .= P
     Q[1:N, N + 1] .= max.(m1[1:N] .- vec(sum(P; dims = 2)), false)   # y₁ = i, y₂ ≥ N
@@ -250,15 +265,15 @@ obsdim(::OrdinalProbitLikelihood) = 1
 outcomes(L::OrdinalProbitLikelihood) = [[float(k)] for k in 1:(length(L.cutpoints) + 1)]
 
 function _category(L::OrdinalProbitLikelihood, y)
-    k = y[1]
+    k = _entry(y, 1)
     K = length(L.cutpoints) + 1
     (isinteger(k) && 1 ≤ k ≤ K) || throw(ArgumentError("an ordinal observation must be one of 1, …, $K, got $k"))
     return Int(k)
 end
 _upper(L::OrdinalProbitLikelihood, k, z) =
-    k > length(L.cutpoints) ? oftype(z, Inf) : oftype(z, L.cutpoints[k])
+    k > length(L.cutpoints) ? oftype(z, Inf) : oftype(z, _entry(L.cutpoints, k))
 _lower(L::OrdinalProbitLikelihood, k, z) =
-    k == 1 ? oftype(z, -Inf) : oftype(z, L.cutpoints[k - 1])
+    k == 1 ? oftype(z, -Inf) : oftype(z, _entry(L.cutpoints, k - 1))
 
 # Infinite category endpoints are fixed, so their standardised value has no tangent.
 _standardise(c, μ, σ) = isfinite(c) ? (c - μ) / σ : oftype(μ, c)
@@ -312,14 +327,15 @@ end
 
 function loglikelihood(L::OrdinalProbitLikelihood, y, z)
     k = _category(L, y)
-    σ = oftype(z[1], L.scale)
-    return _ordinal_logprob(L, k, z[1], σ)
+    x = _entry(z, 1)
+    return _ordinal_logprob(L, k, x, oftype(x, L.scale))
 end
 function loglikelihood_derivatives(L::OrdinalProbitLikelihood, y, z)
     k = _category(L, y)
-    σ = oftype(z[1], L.scale)
-    a, b = _standardise(_upper(L, k, z[1]), z[1], σ), _standardise(_lower(L, k, z[1]), z[1], σ)
-    narrow = _ordinal_narrow(L, k, z[1], σ)
+    x = _entry(z, 1)
+    σ = oftype(x, L.scale)
+    a, b = _standardise(_upper(L, k, x), x, σ), _standardise(_lower(L, k, x), x, σ)
+    narrow = _ordinal_narrow(L, k, x, σ)
     if narrow !== nothing
         lZ, g, h = narrow
         return lZ, [g / σ], fill(h / σ^2, 1, 1)
@@ -330,7 +346,7 @@ function loglikelihood_derivatives(L::OrdinalProbitLikelihood, y, z)
     h = -(_uϕ(a, lZ) - _uϕ(b, lZ)) / σ^2 - g^2
     return lZ, [g], fill(h, 1, 1)
 end
-outcome_logprobs(L::OrdinalProbitLikelihood, z) = _ordinal_logprobs(L, z[1], oftype(z[1], L.scale))
+outcome_logprobs(L::OrdinalProbitLikelihood, z) = (x = _entry(z, 1); _ordinal_logprobs(L, x, oftype(x, L.scale)))
 _ordinal_logprobs(L, μ, t) =
     [_ordinal_logprob(L, k, μ, t) for k in 1:(length(L.cutpoints) + 1)]
 
@@ -473,7 +489,9 @@ _predictor_parameter(T, value) = _at_eltype(T, value)
 
 function _predictor(f::LikelihoodFactor, x)
     v = _vec(x)
-    return _predictor_parameter(eltype(v), f.A) * v .+ _predictor_parameter(eltype(v), f.b)
+    device = _first_device((v, f.A, f.b))
+    return _on_device(device, _predictor_parameter(eltype(v), f.A)) * _on_device(device, v) .+
+           _on_device(device, _predictor_parameter(eltype(v), f.b))
 end
 
 """
@@ -481,12 +499,19 @@ end
 
 The negative log-likelihood ``-\\log L(y \\mid Ax + b)``, as a one-element vector.
 """
-LenticulumCore.energy(f::LikelihoodFactor, x, a, y, ps, st) =
-    ([-loglikelihood(f.lik, _vec(y), _predictor(f, x))], st)
+function LenticulumCore.energy(f::LikelihoodFactor, x, a, y, ps, st)
+    z = _predictor(f, x)
+    return _on_device(_device_leaf(z), [-loglikelihood(f.lik, _vec(y), z)]), st
+end
 # pointwise: that one-element vector, summed as it is (the likelihood is normalised in y, so there
 # is no separate complexity); its expectation is the `fit` summand of the free energy
 LenticulumCore.pointwise_energyspace(::LikelihoodFactor) = LenticulumCore.EuclideanEnergySpace(1)
 LenticulumCore.pointwise_scalarisation(::LikelihoodFactor) = LenticulumCore.WeightedSum([true])
+
+# The quadrature rule is data independent. Build it on the host, and place
+# the nodes and weights on the predictor backend before use.
+_quadrature(order, rank, prototype) =
+    _on_device(_device_leaf(prototype), _gh_grid(order, rank, eltype(prototype)))
 
 # --- The tilted distribution in the predictor's coordinates -------------------------------
 #
@@ -506,22 +531,31 @@ function _tilted(f::LikelihoodFactor, m, S)
     μz = _predictor(f, m)
     # The predictor mean can be active while its covariance is fixed. In
     # particular a repeated, constant spectrum has no eigenvector tangent.
-    A = _predictor_parameter(eltype(S), f.A)
-    Σz = Symmetric(A * S * A')
+    device = _device_leaf(μz)
+    A = _on_device(device, _predictor_parameter(eltype(S), f.A))
+    Σz = Symmetric(A * _on_device(device, S) * A')
     E = _scalar_or_eigen(Σz)
     values = LenticulumCore.stop_gradient(E.values)
     V = eltype(values)
     rank_tol = V === Float64 ? 1e-12 : max(V(1e-12), length(values)*eps(V))
-    keep = values .> rank_tol * max(maximum(values; init = false), floatmin(V))
+    threshold = rank_tol * max(maximum(values; init = zero(V)), floatmin(V))
+    # Eigenvalues are sorted. The rank reduction gives a host range for the
+    # gather, including backends without device boolean-indexing support.
+    r = count(>(threshold), values)
+    keep = (length(values) - r + 1):length(values)
     return _Tilted(μz, E.vectors[:, keep], E.values[keep])
 end
 
 # log N(ζ; 0, D) + ℓ(y, z(ζ)), with its gradient and Hessian in ζ
 function _tilted_derivatives(f, t::_Tilted, y, ζ)
     ℓ, g, H = loglikelihood_derivatives(f.lik, y, t.μz .+ t.U * ζ)
+    device = _device_leaf(ζ)
+    g, H = _on_device(device, g), _on_device(device, H)
     lp = -sum(ζ .^ 2 ./ t.D) / 2 - sum(log, (2 * eltype(t.D)(π)) .* t.D) / 2
     return lp + ℓ, t.U' * g .- ζ ./ t.D, t.U' * H * t.U .- Diagonal(1 ./ t.D)
 end
+
+_lik_posdef(C) = _device_leaf(C) === nothing ? isposdef(C) : LenticulumCore._precision_isproper(_matrix(C))
 
 # Newton's method with backtracking for the mode of the tilted density in ζ
 function _tilted_mode(f, t::_Tilted, y, iterations, tol)
@@ -531,13 +565,13 @@ function _tilted_mode(f, t::_Tilted, y, iterations, tol)
         C = -Symmetric(H)
         all(isfinite, C) || break
         δ = zero(eltype(ζ))
-        cmax = maximum(abs, C; init = false)
-        while !isposdef(C + δ * I)                 # Levenberg damping where the density is not log-concave
+        cmax = maximum(abs, C; init = zero(eltype(C)))
+        while !_lik_posdef(C + δ * I)                 # Levenberg damping where the density is not log-concave
             δ = max(2δ, oftype(δ, 1e-8) * (1 + cmax))
             isfinite(δ) || break
         end
         isfinite(δ) || break
-        Δ = (C + δ * I) \ g
+        Δ = _symmetric_solve(C + δ * I, g)
         s = one(eltype(ζ))
         φn, gn, Hn = _tilted_derivatives(f, t, y, ζ .+ Δ)
         while !(isfinite(φn) && all(isfinite, gn) && all(isfinite, Hn) && φn ≥ φ - oftype(φ, 1e-12) * abs(φ)) && s > oftype(s, 1e-10)
@@ -547,11 +581,11 @@ function _tilted_mode(f, t::_Tilted, y, iterations, tol)
         (isfinite(φn) && all(isfinite, gn) && all(isfinite, Hn)) || break
         ζ = ζ .+ s .* Δ
         φ, g, H = φn, gn, Hn
-        maximum(abs, s .* Δ; init = false) < oftype(s, tol) && break
+        maximum(abs, s .* Δ; init = zero(eltype(Δ))) < oftype(s, tol) && break
     end
-    isposdef(-Symmetric(H)) || throw(ArgumentError(
+    _lik_posdef(-Symmetric(H)) || throw(ArgumentError(
         "Laplace: the cavity × likelihood has no strict local maximum (its Hessian is not negative definite)"))
-    return ζ, φ, Matrix(-Symmetric(H))
+    return ζ, φ, _matrix(-Symmetric(H))
 end
 
 # the Gaussian approximation of the tilted ζ-distribution: (mean, covariance, log normaliser)
@@ -565,57 +599,61 @@ function _approximate(ep::ExpectationPropagation, f, t, y)
     f.lik isa OrdinalProbitLikelihood && length(t.D) == 1 && return _ordinal_moments(f.lik, t, y)
     ζ̂, _, C = _tilted_mode(f, t, y, ep.iterations, ep.tol)
     r = length(ζ̂)
-    Lc = cholesky(Symmetric(_spd_inv(C, "the Laplace curvature"))).L
-    X, W = _gh_grid(ep.order, r, eltype(t.D))
+    F = _symmetric_cholesky(_spd_inv(C, "the Laplace curvature"))
+    Lc = F.L
+    X, W = _quadrature(ep.order, r, t.D)
     Z = ζ̂ .+ Lc * X
-    logv = [_tilted_derivatives(f, t, y, Z[:, i])[1] + sum(abs2, X[:, i]) / 2 + log(W[i]) for i in axes(Z, 2)]
+    logv = _on_device(_device_leaf(Z), [_tilted_derivatives(f, t, y, Z[:, i])[1] + sum(abs2, X[:, i]) / 2 + log(_entry(W, i)) for i in axes(Z, 2)])
     lse = _logsumexp(logv)
     w = exp.(logv .- lse)
     μ = Z * w
     D = Z .- μ
     Σ = (D .* w') * D'
-    logZ = lse + logdet(Lc) + r * LenticulumCore._log2π(eltype(t.D)) / 2
-    return μ, Matrix(Symmetric(Σ)), logZ
+    logZ = lse + (_device_leaf(Z) === nothing ? logdet(Lc) : logdet(F) / 2) + r * LenticulumCore._log2π(eltype(t.D)) / 2
+    return μ, _matrix(Symmetric(Σ)), logZ
 end
 
 # closed-form tilted moments of N(z; μ, s²) × [Φ((c_k - z)/σ) - Φ((c_{k-1} - z)/σ)]
 function _ordinal_moments(L::OrdinalProbitLikelihood, t::_Tilted, y)
     k = _category(L, y)
-    μ, s², u = t.μz[1], t.D[1], t.U[1, 1]          # z = μ + u ζ, u = ±1
+    device = _device_leaf(t.D)
+    μ, s², u = _entry(t.μz, 1), _entry(t.D, 1), _entry(t.U, 1)          # z = μ + u ζ, u = ±1
     τ = sqrt(oftype(s², L.scale)^2 + s²)
     narrow = _ordinal_narrow(L, k, μ, τ)
     if narrow !== nothing
         lZ, g, h = narrow
         mz, vz = μ+s²/τ*g, s²+s²^2/τ^2*h
-        return [(mz-μ)/u], fill(vz, 1, 1), lZ
+        return _on_device(device, [(mz-μ)/u]), _on_device(device, fill(vz, 1, 1)), lZ
     end
     a, b = _standardise(_upper(L, k, μ), μ, τ), _standardise(_lower(L, k, μ), μ, τ)
     lZ = _logΦdiff(a, b)
     ra, rb = exp(_logϕ(a) - lZ), exp(_logϕ(b) - lZ)
     mz = μ - s² / τ * (ra - rb)
     vz = s² - s²^2 / τ^2 * ((_uϕ(a, lZ) - _uϕ(b, lZ)) + (ra - rb)^2)
-    return [(mz - μ) / u], fill(vz, 1, 1), lZ
+    return _on_device(device, [(mz - μ) / u]), _on_device(device, fill(vz, 1, 1)), lZ
 end
 
 # the site s(ζ) = q(ζ) / N(ζ; 0, D), mapped to x through ζ = Uᵀ(Ax + b - μz)
 function _site_message(f, t::_Tilted, μζ, Σζ)
-    Λq = _spd_inv(Matrix(Symmetric(Σζ)), "the approximate posterior covariance")
+    Λq = _spd_inv(_matrix(Symmetric(Σζ)), "the approximate posterior covariance")
     Λs = Λq .- Diagonal(1 ./ t.D)
     ηs = Λq * μζ
-    B = t.U' * _predictor_parameter(eltype(t.μz), f.A)
-    c = t.U' * (_predictor_parameter(eltype(t.μz), f.b) .- t.μz)
+    device = _device_leaf(t.μz)
+    B = t.U' * _on_device(device, _predictor_parameter(eltype(t.μz), f.A))
+    c = t.U' * (_on_device(device, _predictor_parameter(eltype(t.μz), f.b)) .- t.μz)
     Λ = B' * Λs * B
-    return GaussianBelief(B' * (ηs .- Λs * c), Matrix(Symmetric(Λ)))
+    return GaussianBelief(B' * (ηs .- Λs * c), _matrix(Symmetric(Λ)))
 end
 
 # with no cavity: the second-order expansion of ℓ at z₀ = A x₀ + b
 function _expansion_message(f, y, x0)
     z0 = _predictor(f, x0)
     _, g, H = loglikelihood_derivatives(f.lik, y, z0)
-    Λz = -H
-    ηz = g .+ Λz * z0
-    A, b = _predictor_parameter(eltype(z0), f.A), _predictor_parameter(eltype(z0), f.b)
-    return GaussianBelief(A' * (ηz .- Λz * b), Matrix(Symmetric(A' * Λz * A)))
+    device = _device_leaf(z0)
+    Λz = -_on_device(device, H)
+    ηz = _on_device(device, g) .+ Λz * z0
+    A, b = map(x -> _on_device(device, _predictor_parameter(eltype(z0), x)), (f.A, f.b))
+    return GaussianBelief(A' * (ηz .- Λz * b), _matrix(Symmetric(A' * Λz * A)))
 end
 
 _observation(::Nothing, f) = nothing
@@ -646,7 +684,7 @@ function _lik_message(f::LikelihoodFactor, target::Symbol, inputs, prior)
             return _expansion_message(f, y, f.x0)
         end
         t = _tilted(f, m, S)
-        isempty(t.D) && return uninformative(eltype(t.μz), f.nin)   # the cavity fixes z: y says nothing more about x
+        isempty(t.D) && return _uninformative_like(t.μz, f.nin)     # the cavity fixes z: y says nothing more about x
         μζ, Σζ, _ = _approximate(f.method, f, t, y)
         return _site_message(f, t, μζ, Σζ)
     elseif target === f.out_channel
@@ -680,15 +718,15 @@ function predictive(f::LikelihoodFactor, belief)
     if isempty(t.D)
         lp = outcome_logprobs(f.lik, t.μz)
     elseif f.lik isa OrdinalProbitLikelihood
-        lp = _ordinal_logprobs(f.lik, t.μz[1], sqrt(oftype(t.D[1], f.lik.scale)^2 + t.D[1]))
+        lp = _ordinal_logprobs(f.lik, _entry(t.μz, 1), sqrt(oftype(_entry(t.D, 1), f.lik.scale)^2 + _entry(t.D, 1)))
     else
         order = f.method isa ExpectationPropagation ? f.method.order : 20
-        X, W = _gh_grid(order, length(t.D), eltype(t.D))
+        X, W = _quadrature(order, length(t.D), t.D)
         Zs = t.μz .+ t.U * (sqrt.(t.D) .* X)
-        LP = reduce(hcat, (outcome_logprobs(f.lik, Zs[:, i]) for i in axes(Zs, 2)))
+        LP = reduce(hcat, (_on_device(_device_leaf(Zs), outcome_logprobs(f.lik, Zs[:, i])) for i in axes(Zs, 2)))
         lp = [_logsumexp(LP[j, :] .+ log.(W)) for j in axes(LP, 1)]
     end
-    return LenticulumCore.CategoricalBelief(Val(:log), lp .- _logsumexp(lp), labels)
+    return LenticulumCore.CategoricalBelief(Val(:log), _on_device(_device_leaf(t.μz), lp .- _logsumexp(lp)), labels)
 end
 
 """
@@ -791,7 +829,7 @@ function _poisson_entropy(z; maxterms::Int = 1_000_000)
     end
     error("Poisson entropy exceeded maxterms=$maxterms")
 end
-_conditional_entropy(L::PoissonLikelihood, z) = sum(_poisson_entropy(z[j]) for j in 1:L.k)
+_conditional_entropy(L::PoissonLikelihood, z) = sum(_poisson_entropy(_entry(z, j)) for j in 1:L.k)
 
 # Choose each marginal support by a geometric tail bound, never 1 - rounded mass.
 # Also bound the joint grid's size before allocating or evaluating it.
@@ -805,9 +843,16 @@ function _poisson_support(λ; maxterms::Int)
     end
     error("Poisson support exceeded maxterms=$maxterms")
 end
+# An uninformative Gaussian on the array type of `x` (LP-092: `uninformative` allocates on the host).
+function _uninformative_like(x, n)
+    b = uninformative(eltype(x), n)
+    dev = _device_leaf(x)
+    return dev === nothing ? b : GaussianBelief(_on_device(dev, b.η), _on_device(dev, b.Λ), b.improper)
+end
+
 function _conditional_entropy(L::BivariatePoissonLikelihood, z;
                               maxterms::Int = 1_000_000, maxcells::Int = 4_000_000)
-    λ = exp.(z)
+    λ = exp.(_device_leaf(z) === nothing ? z : Array(z))   # the support sizes are control: read on the host (LP-092)
     N1 = _poisson_support(λ[1] + λ[3]; maxterms)
     N2 = _poisson_support(λ[2] + λ[3]; maxterms)
     N1 ≤ maxcells ÷ N2 || error("Bivariate Poisson entropy exceeded maxcells=$maxcells")
@@ -851,8 +896,8 @@ function Mycelium.local_free_energy(f::LikelihoodFactor, msgs, ps, st)
             fit = _conditional_entropy(f.lik, t.μz)
         else
             order = f.method isa ExpectationPropagation ? f.method.order : 20
-            X, W = _gh_grid(order, length(t.D), eltype(t.D))
-            fit = sum(W[i] * _conditional_entropy(f.lik,
+            X, W = _quadrature(order, length(t.D), t.D)
+            fit = sum(_entry(W, i) * _conditional_entropy(f.lik,
                       t.μz .+ t.U * (sqrt.(t.D) .* X[:, i])) for i in eachindex(W))
         end
         Hx = Mycelium.variable_entropy(mx)
@@ -868,8 +913,8 @@ function Mycelium.local_free_energy(f::LikelihoodFactor, msgs, ps, st)
     m, S = belief_mean(q), belief_cov(q)
     t = _tilted(f, m, S)
     order = f.method isa ExpectationPropagation ? f.method.order : 20
-    X, W = _gh_grid(order, length(t.D), eltype(t.D))
-    fit = -sum(W[i] * loglikelihood(f.lik, y, t.μz .+ t.U * (sqrt.(t.D) .* X[:, i])) for i in eachindex(W))
+    X, W = _quadrature(order, length(t.D), t.D)
+    fit = -sum(_entry(W, i) * loglikelihood(f.lik, y, t.μz .+ t.U * (sqrt.(t.D) .* X[:, i])) for i in eachindex(W))
     H = Mycelium.variable_entropy(q)
     return LenticulumCore.GradedEnergy((fit = fit, complexity = false, negentropy = -H)), st
 end
@@ -882,3 +927,8 @@ function LenticulumCore.entropy(f::LikelihoodFactor, π, y, ps, st)
     F, st = LenticulumCore.free_energy(f, π, y, ps, st)
     return LenticulumCore.GradedEnergy((fit = false, complexity = false, negentropy = _negentropy(F[:negentropy]))), st
 end
+
+Adapt.@adapt_structure OrdinalProbitLikelihood
+Adapt.@adapt_structure LikelihoodFactor
+Adapt.@adapt_structure _Tilted
+Adapt.@adapt_structure LikelihoodModel

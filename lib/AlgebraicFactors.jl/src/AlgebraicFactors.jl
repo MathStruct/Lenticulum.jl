@@ -13,6 +13,8 @@ inference through [`HomotopyBranches`](@ref);
 """
 module AlgebraicFactors
 
+import Adapt
+
 using LinearAlgebra: LinearAlgebra
 using Random: Random, AbstractRNG
 using LuxCore: LuxCore
@@ -30,6 +32,9 @@ export HomotopyBranches, polynomial_branches, branch_entropy_bounds
 export AbstractSampsonMethod, RiemannianGradient, FNS, RiemannianTrustRegion
 export SampsonProblem, sampson_solve
 export PolynomialFactor, PolynomialBelief, PolynomialModel, fit_nullspace, fit_sampson
+
+using LenticulumCore: _first_device, _device_leaf, _entry, _on_device, _matrix,
+    _eigvals, _symmetric_cholesky, _host_spectral
 
 include("plucker.jl")
 include("toric.jl")

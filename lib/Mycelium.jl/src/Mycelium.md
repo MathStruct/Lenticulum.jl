@@ -150,3 +150,8 @@ The former option-2 limitations above are historical.
 Evidence: `lib/MyceliumLearning.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
 are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].
+
+## Device arrays (Q7)
+
+Adapt is a direct dependency. Mycelium reuses the core storage and factorisation hooks for its
+graph data and Gaussian algebra.

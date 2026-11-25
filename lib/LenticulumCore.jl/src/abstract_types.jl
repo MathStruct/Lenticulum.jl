@@ -189,3 +189,5 @@ function _check_gradient_coupling(coupling)
     ))
     return nothing
 end
+
+Adapt.@adapt_structure ScoreFunctionCoupling

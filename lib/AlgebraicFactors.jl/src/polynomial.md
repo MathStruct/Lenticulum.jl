@@ -286,3 +286,10 @@ Point covariance, expansion, basis and joint-belief buffers use the incoming poi
 coefficients and beliefs to determine their types. The spectral validity tests inspect
 primal values so the site and free-energy arithmetic can carry a dual. BigFloat messages
 and degree-one free energy still require the LAPACK rank checks marked in `test/eltypes.jl`.
+
+## Device arrays (Q7)
+
+The polynomial basis and Gauss–Newton site keep device parameters and messages on their backend.
+Rank and residual covariance checks use the shared host spectral helper. The degree-one log
+absolute determinant uses singular values on this path. Homotopy branch enumeration remains a
+host solver.

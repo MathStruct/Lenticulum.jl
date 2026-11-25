@@ -38,11 +38,16 @@ source file.
 """
 module Mycelium
 
+import Adapt
+
 using Random: Random, AbstractRNG
 using LuxCore: LuxCore
 using LenticulumCore: LenticulumCore, AbstractGradientCoupling, DiagonalCoupling,
     GaussianBelief, dimension, isproper, logpartition
 using LinearAlgebra: LinearAlgebra, logdet, tr
+
+using LenticulumCore: _first_device, _device_leaf, _on_device, _matrix, _vector, _eye, _entry, _only_entry,
+    _host_spectral, _symmetric_cholesky, _cholesky_pivots, _device_diag, _zeros_like
 
 include("graph.jl")
 include("polarity_resolution.jl")

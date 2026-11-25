@@ -86,3 +86,9 @@ The collapsed covariance takes the type of the endpoint inputs and both paramete
 subtrees. Fixed component covariances are converted before propagation, and the score
 evaluation uses a normaliser in the arithmetic's element type. An independent tensor game
 delegates to each component with its own parameter subtree and beliefs.
+
+## Device arrays (Q7)
+
+Collapsed Gaussian factors carry their component noise and affine parameters to the chosen
+backend. The composed covariance is validated and used there. The device matrix reuses the
+element-type composition fixture.

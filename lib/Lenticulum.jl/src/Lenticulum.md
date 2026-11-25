@@ -68,3 +68,8 @@ The first default matrix took 4m52s. The default tier now covers pointwise energ
 The Gaussian, relation and likelihood implementations use LenticulumCore's numeric-type
 and zero-buffer helpers. These helpers inspect numeric input storage and leave discrete labels,
 polarity and structural flags separate from the computation.
+
+## Device arrays (Q7)
+
+Adapt is a direct dependency for factors, noise configurations and their open models. Gaussian
+operations reuse the storage and factorisation entry points in LenticulumCore.

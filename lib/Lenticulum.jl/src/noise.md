@@ -124,3 +124,9 @@ The full and diagonal noise calculations take their type from the covariance in 
 the parameter leaves. The clipping threshold is a fixed value in the primal scalar type.
 Wishart and log-normal hyperparameters are converted when evaluating their penalties, so
 stored defaults do not widen the loss.
+
+## Device arrays (Q7)
+
+Adapt traverses learned-noise priors and their array fields. Full precision assembly and
+diagonal extraction follow the parameter backend. Spectral clipping uses the core host
+eigendecomposition boundary, then reconstructs the precision on the device.

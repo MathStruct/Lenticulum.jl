@@ -345,3 +345,7 @@ As `LuxCore.setup`. Provided so that factors and Lux layers are set up identical
 """
 setup(rng::AbstractRNG, f::AbstractLenticulumFactor) =
     (LuxCore.initialparameters(rng, f), LuxCore.initialstates(rng, f))
+
+Adapt.@adapt_structure ComposedFactor
+
+Adapt.adapt_structure(to, f::TensorFactor) = TensorFactor(Adapt.adapt(to, f.parts))

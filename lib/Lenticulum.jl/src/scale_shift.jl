@@ -40,6 +40,8 @@ struct ScaleShiftFactor{H<:HardConstraintFactor} <: LenticulumCore.AbstractLenti
     groups::Vector{Int}
     ngroups::Int
     hard::H
+    ScaleShiftFactor(x, z, dim, groups, ngroups, hard::H) where {H<:HardConstraintFactor} =
+        new{H}(x, z, dim, groups, ngroups, hard)
     # every argument is checked here, the dimension before its default groups (review of U3)
     function ScaleShiftFactor(x::Symbol, z::Symbol, dim; groups = dim isa Integer ? (1:dim) : nothing)
         x === z && throw(ArgumentError("ScaleShiftFactor needs two different channels; got :$x twice"))
@@ -77,7 +79,7 @@ LenticulumCore.scalarisation(f::ScaleShiftFactor) = LenticulumCore.scalarisation
 # in the promoted float type of (b, logs). Written without mutation, so that AD goes through.
 function _scale_shift_relation(f::ScaleShiftFactor, ps)
     s, b = _scale_shift_map(f, ps)
-    A = NamedTuple{(f.x, f.z)}((Matrix{eltype(b)}(LinearAlgebra.I, f.dim, f.dim), -LinearAlgebra.diagm(s)))
+    A = NamedTuple{(f.x, f.z)}((_eye(b, eltype(b), f.dim), -_matrix(Diagonal(s))))
     return (A = A, c = b)
 end
 
@@ -226,3 +228,7 @@ function scale_shift_parameters(f::ScaleShiftFactor, X::AbstractMatrix{<:Real})
     end
     return (b = b, logs = logs)
 end
+
+Adapt.@adapt_structure ScaleShiftBelief
+Adapt.adapt_structure(to, f::ScaleShiftFactor) =
+    ScaleShiftFactor(f.x, f.z, f.dim, f.groups, f.ngroups, Adapt.adapt(to, f.hard))

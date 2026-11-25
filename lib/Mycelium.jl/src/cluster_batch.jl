@@ -110,8 +110,14 @@ _point_vector(b) = collect(float.(b.value isa Real ? [b.value] : b.value))
 # column per assignment. Returns the stacked joint, replica 1's precision classes (nA), the points
 # of each substituted variable as columns, and nA.
 function _batch_joint(cs, msgs, @nospecialize(ps), skip)
+    jt1 = _cluster_joint(cs[1], _batch_first(msgs), ps, skip)
+    return _batch_joint(cs, msgs, ps, skip, jt1)
+end
+# A function barrier: `ps` is not specialised on, so `jt1`'s type is not inferred above, and since
+# `_ClusterJoint` holds its arrays by type parameter (Q7) every field read below would dispatch at
+# run time (`regime/mstep` 1.15× slower, LP-092).
+function _batch_joint(cs, msgs, @nospecialize(ps), skip, jt1::_ClusterJoint)
     c, N = cs[1], length(cs)
-    jt1 = _cluster_joint(c, _batch_first(msgs), ps, skip)
     plan = _joint_plan(c, jt1, ps)
     n, nA = size(jt1.H)
     T = eltype(jt1.H)

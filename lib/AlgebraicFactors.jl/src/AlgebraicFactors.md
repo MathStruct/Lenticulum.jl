@@ -112,3 +112,8 @@ records the method comparison and its limits. Singular covariance throws
 with point index; explicit λ adds λΘΘ′. No global optimality is claimed.
 The implementation note `polyfit.md` derives the gradient and records the
 seeded Klein/conic/two-equation checks and their numerical results.
+
+## Device arrays (Q7)
+
+Adapt is a direct dependency for the toric and polynomial models. The shared device matrix
+exercises the same factor fixtures as the element-type suite.

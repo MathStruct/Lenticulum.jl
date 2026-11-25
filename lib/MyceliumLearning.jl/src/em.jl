@@ -24,15 +24,17 @@ the sum of the second moments ``\\mathbb E[x x^\\top]``, with `x` the channels `
 nodes and the replicas of a plate. The three-argument constructor defaults to Float64;
 `MomentStats{T}(channels, dims, K)` allocates in `T`. Read by [`m_step`](@ref).
 """
-struct MomentStats{T}
+struct MomentStats{T,N<:AbstractVector{T},M<:AbstractMatrix{T},S3<:AbstractArray{T,3}}
     channels::Vector{Symbol}
     dims::Vector{Int}
-    n::Vector{T}
-    m::Matrix{T}
-    S::Array{T,3}
+    n::N
+    m::M
+    S::S3
 end
 MomentStats(chs, dims, K) = MomentStats{Float64}(chs, dims, K)
-MomentStats{T}(chs, dims, K) where {T} = (d = sum(dims; init = 0); MomentStats{T}(chs, dims, zeros(T, K), zeros(T, d, K), zeros(T, d, d, K)))
+MomentStats{T}(chs, dims, n, m, S) where {T} =
+    MomentStats(convert(Vector{Symbol}, chs), convert(Vector{Int}, dims), T.(n), T.(m), T.(S))
+MomentStats{T}(chs, dims, K) where {T} = (d = sum(dims; init = 0); MomentStats(chs, dims, zeros(T, K), zeros(T, d, K), zeros(T, d, d, K)))
 
 function _add!(a::MomentStats, b::MomentStats)
     (a.channels == b.channels && a.dims == b.dims && length(a.n) == length(b.n)) || throw(ArgumentError(
@@ -342,3 +344,6 @@ function fit_em(g::FactorGraph, ps, st; schedule, sweeps::Int = 2, iters::Int = 
     converged || (Fs = _push_energy!(Fs, estep(ps)))             # the returned store and `Fs[end]` belong to `ps`
     return ps, Fs, s
 end
+
+Adapt.adapt_structure(to, s::MomentStats) = MomentStats(s.channels, s.dims,
+    Adapt.adapt(to, s.n), Adapt.adapt(to, s.m), Adapt.adapt(to, s.S))

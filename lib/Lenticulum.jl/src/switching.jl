@@ -141,7 +141,7 @@ LenticulumCore.scalarisation(::SwitchingConstraintFactor) = LenticulumCore.Grade
 _logweights(ps) = (l = float.(ps.logw); l .- _logsumexp(l))
 
 function _outcome(f::SwitchingConstraintFactor, v)
-    k = only(_vec(v))
+    k = _only_entry(_vec(v))
     isinteger(k) && 1 <= k <= f.K || throw(ArgumentError("an observed outcome must be an index in 1:$(f.K); got $v"))
     return Int(k)
 end
@@ -182,7 +182,7 @@ function LenticulumCore.energy(f::SwitchingConstraintFactor, x, a, y, ps, st)
     k = _outcome(f, vals[f.switch])
     Q = _covariance_at(f.Q, ps, r)
     C = _chol(Q, "Q")
-    e = LinearAlgebra.dot(r, C \ r) / 2 + logdet(C) / 2 + f.m * LenticulumCore._log2π(eltype(Q)) / 2 - _logweights(ps)[k]
+    e = LinearAlgebra.dot(r, C \ r) / 2 + logdet(C) / 2 + f.m * LenticulumCore._log2π(eltype(Q)) / 2 - _entry(_logweights(ps), k)
     return e, st
 end
 LenticulumCore.pointwise_energyspace(::SwitchingConstraintFactor) = LenticulumCore.ScalarEnergySpace()
@@ -254,21 +254,22 @@ function _switch_message(f::SwitchingConstraintFactor{names}, target::Symbol, in
     target in _allnames(f) || throw(ArgumentError(
         "channel :$target is not a channel of this SwitchingConstraintFactor (has $(_allnames(f)))"))
     Q = _covariance_at(f.Q, ps, inputs)
-    lw = _logweights(ps)
+    device = _device_leaf(Q)
+    lw = _on_device(device, _logweights(ps))
     lpk = target === f.switch ? nothing : _switch_logp(_get(inputs, f.switch), f.K, eltype(Q))
     parts = [(n, _split_moments(_get(inputs, n), f.dims[n], eltype(Q))) for n in names if n !== target]
     s, R, G = _accumulate(_coeffs(f, ps), Q, parts)
     T, Li = _residual_metric(R, G, "Q + Σ AᵢSᵢAᵢᵀ")
-    Z = T * (ps.b .- s)                                        # column k is T d_k
+    Z = T * (_on_device(device, ps.b) .- s)                                        # column k is T d_k
     quad = vec(sum(abs2, Z; dims = 1))
     if target === f.switch
         l = lw .- quad ./ 2
         return (LenticulumCore.CategoricalBelief(Val(:log), l .- _logsumexp(l), nothing), st)
     end
-    l = lpk .+ lw .- quad ./ 2
-    ks = [k for k in 1:f.K if l[k] > -Inf]
+    l = _on_device(device, lpk) .+ lw .- quad ./ 2
+    ks = [k for k in 1:f.K if _entry(l, k) > -Inf]
     isempty(ks) && throw(ArgumentError("the incoming outcome belief gives every outcome zero probability"))
-    At = _coeffs(f, ps)[target]
+    At = _on_device(device, _coeffs(f, ps)[target])
     Ta = T * At
     rt = _projected_rank(Ta, Li * At)
     rt == 0 && return (LenticulumCore.TrivialBelief(), st)
@@ -281,7 +282,7 @@ function _switch_message(f::SwitchingConstraintFactor{names}, target::Symbol, in
     lk = l[ks]
     if proper                                                  # normalised components: move ½ηᵀΛ⁻¹η into the weight
         CΛ = _chol(Λ, "AₜᵀR⁻¹Aₜ")
-        lk = lk .+ [LinearAlgebra.dot(c.η, CΛ \ c.η) / 2 for c in comps]
+        lk = lk .+ _on_device(device, [LinearAlgebra.dot(c.η, CΛ \ c.η) / 2 for c in comps])
     end
     return (LenticulumCore.MixtureBelief(Val(:log), comps, lk .- _logsumexp(lk)), st)
 end
@@ -345,7 +346,8 @@ function switch_statistics(f::SwitchingConstraintFactor{names}, msgs, ps) where 
     Q = _covariance_at(f.Q, ps, msgs)
     CQ = _chol(Q, "Q")
     QiC = CQ \ Ceff
-    logZ = [-LinearAlgebra.dot(Ceff[:, k], QiC[:, k]) / 2 for k in 1:f.K]
+    device = _device_leaf(Q)
+    logZ = _on_device(device, [-LinearAlgebra.dot(Ceff[:, k], QiC[:, k]) / 2 for k in 1:f.K])
     if size(G, 2) == 0
         rbar, Cr, Hx = -Ceff, _zeros_like(Ceff, eltype(Ceff), f.m, f.m), false
     else
@@ -353,14 +355,14 @@ function switch_statistics(f::SwitchingConstraintFactor{names}, msgs, ps) where 
         CΛ = _chol(Λ, "factor belief precision")
         etas = G' * QiC .+ reduce(vcat, map(first, canon))    # column k: η_k
         M = CΛ \ etas
-        logZ = logZ .+ [LinearAlgebra.dot(etas[:, k], M[:, k]) / 2 for k in 1:f.K]
+        logZ = logZ .+ _on_device(device, [LinearAlgebra.dot(etas[:, k], M[:, k]) / 2 for k in 1:f.K])
         rbar = G * M .- Ceff
         Cr = G * (CΛ \ G')
         Hx = Mycelium.variable_entropy(GaussianBelief(_zeros_like(Λ, eltype(Λ), size(Λ, 1)), Λ))
     end
     lp = _switch_logp(_get(msgs, f.switch), f.K, eltype(Q))
     all(==(-Inf), lp) && throw(ArgumentError("the incoming outcome belief gives every outcome zero probability"))
-    l = lp .+ _logweights(ps) .+ logZ
+    l = _on_device(device, lp) .+ _on_device(device, _logweights(ps)) .+ logZ
     q = exp.(l .- _logsumexp(l))
     return q, rbar, Cr, Hx
 end
@@ -407,10 +409,10 @@ function _switch_free_energy(f::SwitchingConstraintFactor, q, rbar, Cr, Hx, ps)
     CQ = _chol(Q, "Q")
     lw = _logweights(ps)
     Qr = CQ \ rbar
-    ks = [k for k in 1:f.K if q[k] > 0]
-    fit = (tr(CQ \ Cr) + sum(q[k] * LinearAlgebra.dot(rbar[:, k], Qr[:, k]) for k in ks)) / 2
-    complexity = (f.m * LenticulumCore._log2π(eltype(Q)) + logdet(CQ)) / 2 - sum(q[k] * lw[k] for k in ks)
-    Hq = -sum(q[k] * log(q[k]) for k in ks)
+    ks = [k for k in 1:f.K if _entry(q, k) > 0]
+    fit = (tr(CQ \ Cr) + sum(_entry(q, k) * LinearAlgebra.dot(rbar[:, k], Qr[:, k]) for k in ks)) / 2
+    complexity = (f.m * LenticulumCore._log2π(eltype(Q)) + logdet(CQ)) / 2 - sum(_entry(q, k) * _entry(lw, k) for k in ks)
+    Hq = -sum(_entry(q, k) * log(_entry(q, k)) for k in ks)
     return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = -Hq - Hx))
 end
 
@@ -936,3 +938,8 @@ function partial_sums(g::Mycelium.FactorGraph, ps, sum::Symbol, switches, groups
     ps′ = merge(ps, NamedTuple{(snode.params,)}((merge(psum, (A = A,)),)), NamedTuple(added))
     return Mycelium.build(b), ps′, clusters
 end
+
+Adapt.@adapt_structure SwitchingConstraintFactor
+Adapt.@adapt_structure SwitchingConstraintModel
+Adapt.adapt_structure(to, b::FrozenSwitchingBeliefs) = FrozenSwitchingBeliefs(
+    Adapt.adapt(to, b.points), b.free, Adapt.adapt(to, b.M), Adapt.adapt(to, b.Σ), b.H, Adapt.adapt(to, b.q))

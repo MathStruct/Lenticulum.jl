@@ -22,11 +22,14 @@ end
 function _collapsed_gaussian(f::GaussianComposite, ps, inputs...)
     _check_gaussian_composite(f)
     a, b = f.first, f.second
-    A, B = ps.first.A, ps.second.A
+    device = _first_device((ps, inputs, a.Q, b.Q))
+    A, B = _on_device(device, (ps.first.A, ps.second.A))
     T = _compute_eltype(promote_type(eltype(a.Q), eltype(b.Q)), ps, inputs...)
-    Q = B * _at_eltype(T, noise_covariance(a, ps.first)) * B' + _at_eltype(T, noise_covariance(b, ps.second))
+    Qa, Qb = _on_device(device, (_at_eltype(T, noise_covariance(a, ps.first)), _at_eltype(T, noise_covariance(b, ps.second))))
+    Q = B * Qa * B' + Qb
     g = GaussianFactor(a.nin => b.nout; noise=Q, channels=(a.in_channel,b.out_channel))
-    return g, (A=B*A, b=B*ps.first.b+ps.second.b)
+    c, d = _on_device(device, (ps.first.b, ps.second.b))
+    return g, (A=B*A, b=B*c+d)
 end
 
 LenticulumCore.channels(f::GaussianComposite) = (_check_gaussian_composite(f);
@@ -180,3 +183,5 @@ function Mycelium.belief_free_energy(f::GaussianComposite, b::FrozenGaussianBeli
     result, _ = Mycelium.belief_free_energy(g, b, gp, (;))
     return result, st
 end
+
+Adapt.@adapt_structure ComposedGaussianModel

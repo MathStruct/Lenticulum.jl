@@ -56,7 +56,7 @@ function HardConstraintFactor(dims::NamedTuple, m::Int; noise = 0,
     LenticulumCore._nearly_symmetric(Q) || throw(ArgumentError("noise covariance must be symmetric"))
     Q = Matrix(LenticulumCore._symmetric_part(Q))
     if !iszero(Q)
-        spectrum = LinearAlgebra.eigvals(Symmetric(LenticulumCore.stop_gradient(Q)))
+        spectrum = _eigvals(Symmetric(LenticulumCore.stop_gradient(Q)))
         minimum(spectrum) >= -LenticulumCore._eig_tol(spectrum) ||
             throw(ArgumentError("noise covariance must be positive semidefinite"))
     end
@@ -118,16 +118,16 @@ function Mycelium.factor_message(f::HardConstraintFactor{names}, target::Symbol,
     target in names || throw(ArgumentError("channel :$target is not a channel of this factor ($(names))"))
     others = Tuple(n for n in names if n !== target)
     A = ps.A
-    Q = _covariance_at(f.Q, ps, inputs)
+    Q = _covariance_at(f.Q, ps, inputs, prior)
     if isempty(others)
         r = LenticulumCore.ExtendedGaussian(_at_eltype(eltype(Q), ps.c), Q)
     else
         input(n) = haskey(inputs, n) ? getfield(inputs, n) : nothing
         joint = LenticulumCore._independent_join([_as_extended(input(n), f.dims[n], eltype(Q)) for n in others])
-        M = reduce(hcat, [-Matrix(getfield(A, n)) for n in others])
+        M = reduce(hcat, [-_matrix(getfield(A, n)) for n in others])
         r = LenticulumCore.pushforward(joint, M, _at_eltype(eltype(Q), ps.c), Q)
     end
-    return LenticulumCore.preimage(r, Matrix(getfield(A, target))), st
+    return LenticulumCore.preimage(r, _matrix(getfield(A, target))), st
 end
 
 Mycelium.uses_cavity(::HardConstraintFactor) = true
@@ -203,7 +203,7 @@ function Mycelium.local_free_energy(f::HardConstraintFactor{names}, msgs, ps, st
         soft === nothing || (Λs = Λs .+ soft.G' * (soft.G ./ soft.d))
         Λz = N' * Λs * N
         Λz = (Λz + Λz') / 2
-        λz = LinearAlgebra.eigvals(Symmetric(LenticulumCore.stop_gradient(Λz)))
+        λz = _eigvals(Symmetric(LenticulumCore.stop_gradient(Λz)))
         minimum(λz) > LenticulumCore._eig_tol(λz) || throw(ArgumentError(
             "HardConstraintFactor: the factor belief is flat along the relation's \
              solution set (an improper posterior); it has no free energy"))
@@ -215,12 +215,12 @@ function Mycelium.local_free_energy(f::HardConstraintFactor{names}, msgs, ps, st
     # of G s0 = c (in plain arithmetic, so that it carries the tangent of G and c) and
     # z ~ N(Λz⁻¹ Nᵀ(η' − Λ' s0), Λz⁻¹), η' and Λ' the inputs' information and precision with the
     # soft part added. The mean does not depend on which solution s0 is taken.
-    s0 = G' * ((G * G') \ c)
+    s0 = G' * (_symmetric_solve(G * G', c))
     if Λz === nothing
         s̄, Cs = s0, nothing
     else
         ηs = reduce(vcat, map(first, canon)) .+ soft.G' * (soft.c ./ soft.d)   # Λs has the soft part (above)
-        Sz = inv(Symmetric(Λz))
+        Sz = _symmetric_inv(Λz)
         s̄ = s0 .+ N * (Sz * (N' * (ηs .- Λs * s0)))
         Cs = N * Sz * N'
     end
@@ -386,7 +386,7 @@ function _hard_shared_kernel(Q, At, c, others, A, chans, k)
         return Any[msg for _ in 1:k]
     end
     joint1 = LC._independent_join([LC.ExtendedGaussian(M[:, 1], Σ, D) for (M, Σ, D) in chans])
-    Mo = reduce(hcat, [-Matrix(getfield(A, n)) for n in others])
+    Mo = reduce(hcat, [-_matrix(getfield(A, n)) for n in others])
     r1 = LC.pushforward(joint1, Mo, c, Q)
     msg1 = LC.preimage(r1, At)
     # the pushforward's mean, every replica: Πr (Mo J + c), Πr onto the complement of its flat directions
@@ -469,3 +469,5 @@ const _HARD_MEAN_FIELD = "HardConstraintFactor without a positive definite noise
     fix it, ignoring its prior along the directions the relation fixes, so the iteration stays where \
     it starts there, and its average energy is infinite. Keep the node on BeliefPropagation(), or \
     give the relation a positive definite noise"
+
+Adapt.@adapt_structure HardConstraintFactor

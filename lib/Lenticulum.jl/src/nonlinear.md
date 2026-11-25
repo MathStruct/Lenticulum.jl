@@ -263,3 +263,10 @@ unscented weights take the type of the expansion moments. In one dimension the s
 step can use the scalar variance directly. The residual covariance warning retains its
 relative `1e-10` threshold, evaluated in the covariance type. The stored tuning fields
 remain Float64 configuration values and are converted at application.
+
+## Device arrays (Q7)
+
+Adapt moves the covariance and stored expansion point. The unscented transform builds its
+weights on the backend of its expansion point and obtains its spectral data through the core
+host helper. A user-supplied map or Jacobian provides device-compatible operations for its own
+computations.

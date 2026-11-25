@@ -85,8 +85,9 @@ observed nodes). Anything else throws rather than guess.
 # that is identically zero does not widen a Float32 or dual total (P8).
 variable_entropy(::LenticulumCore.DiracBelief) = false
 variable_entropy(::LenticulumCore.TrivialBelief) = false
-variable_entropy(b::LenticulumCore.CategoricalBelief) =
-    -sum(l == -Inf ? zero(l) : exp(l) * l for l in b.logp)   # Shannon entropy, 0 log 0 = 0
+variable_entropy(b::LenticulumCore.CategoricalBelief) =                  # Shannon entropy, 0 log 0 = 0
+    _device_leaf(b.logp) === nothing ? -sum(l == -Inf ? zero(l) : exp(l) * l for l in b.logp) :
+    -sum(l -> l == -Inf ? zero(l) : exp(l) * l, b.logp)   # a reduction on the device (LP-092)
 function variable_entropy(m::LenticulumCore.MixtureBelief{<:LenticulumCore.CategoricalBelief})
     # Exact Shannon entropy of the marginalized categorical distribution
     isempty(m.components) && return false

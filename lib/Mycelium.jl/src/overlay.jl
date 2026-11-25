@@ -189,3 +189,5 @@ function learns_unnormalised(o::OverlayFactor, observed)
     o.normalise === nothing && return any(f -> learns_unnormalised(f, observed), o.members)
     return false
 end
+
+Adapt.@adapt_structure OverlayFactor

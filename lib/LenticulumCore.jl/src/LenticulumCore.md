@@ -146,3 +146,8 @@ Precision-dependent tolerances use the epsilon of the primal floating-point type
 and structural flags keep their own types. If the call has no numerical input, use the stored
 configuration's type or a documented default. The three `test/eltypes.jl` files use a shared
 matrix of Float32, Float64, BigFloat, first-order ForwardDiff and mixed-input cases.
+
+## Device arrays (Q7)
+
+Adapt is a direct dependency. The core storage hooks dispatch device numerical operations
+through the GPUArraysCore extension.

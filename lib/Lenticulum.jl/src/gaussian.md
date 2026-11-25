@@ -728,3 +728,10 @@ subspaces on the existing value path and preserves the circuit Hessian in
 For first-order duals a precision with zero partials still has the promoted type.
 `test/forms_crossing.jl` checks those zero partials and exercises both primal and dual
 storage for a constant incoming precision.
+
+## Device arrays (Q7)
+
+The fixed and learned covariances follow the numeric inputs, including in the prior and
+collapsed affine games. Dense Cholesky solves, inverses and normalisers use the core kernels.
+Rank tests of the affine coefficient use the host spectral helper for their singular values. The
+chain test compares inference and scalar free energy with the CPU graph.

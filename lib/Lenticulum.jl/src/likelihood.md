@@ -237,3 +237,11 @@ A derivative of the predictor mean alone leaves the covariance eigensystem in th
 type. This preserves the fixed repeated spectrum in the two-dimensional Poisson Laplace
 case in `test/ad_matrix.jl`. The exact default identity and zero offset keep their Boolean
 storage.
+
+## Device arrays (Q7)
+
+The predictor and tilt use adapted buffers. The predictor covariance’s eigendecomposition goes
+through the host spectral helper. The data-independent Gauss–Hermite grid is generated on the
+host and placed on the predictor backend. Counts, category decisions and scalar special-function
+evaluations use scalar reductions. Predictor, site, predictive weights and residual energy
+retain the array backend.

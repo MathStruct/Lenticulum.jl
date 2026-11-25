@@ -23,6 +23,14 @@ function _solve_blocks!(W::AbstractMatrix, S::AbstractMatrix, learned::AbstractV
     any(fixed) || throw(ArgumentError(
         "m_step: every coefficient of $name is learned, and the M-step of a relation normalised in its residual is A = 0 " *
         "(LP-022); declare an `output` channel or freeze a coefficient"))
+    if _device_leaf(W) !== nothing
+        # The partitions are host indices. Decompose only the small learned normal block.
+        li, fi = findall(learned), findall(fixed)
+        SLL = S[li, li]
+        P = _host_spectral(LinearAlgebra.pinv, SLL)
+        W[:, li] .= -W[:, fi] * S[fi, li] * P + W[:, li] * (_eye(W, eltype(W), length(li)) - SLL * P)
+        return W
+    end
     SLL = Symmetric(Matrix(S[learned, learned]))
     P = LinearAlgebra.pinv(Matrix(SLL))
     W[:, learned] = -W[:, fixed] * S[fixed, learned] * P + W[:, learned] * (I - SLL * P)
@@ -52,20 +60,27 @@ end
 function MyceliumLearning.m_step(f::Union{LinearConstraintFactor,SwitchingConstraintFactor}, st::MyceliumLearning.MomentStats, ps, frozen)
     A = _coeffs(f, ps)
     sw = f isa SwitchingConstraintFactor
-    C = sw ? Matrix(ps.b) : reshape(Vector(ps.c), :, 1)
+    device = _first_device((st.S, ps))
+    C = sw ? _matrix(_on_device(device, ps.b)) : reshape(_on_device(device, ps.c), :, 1)
     name = sw ? :b : :c
     K = size(C, 2)
     length(st.n) == K || throw(DimensionMismatch("m_step: $(length(st.n)) outcomes in the statistics, $K in the factor"))
     Sxx = dropdims(sum(st.S; dims = 3); dims = 3)
-    Sφ = [Sxx st.m; st.m' Diagonal(st.n)]
-    W = hcat((Matrix(A[c]) for c in st.channels)..., -C) .* one(eltype(Sφ))
+    Sφ = if device === nothing
+        [Sxx st.m; st.m' Diagonal(st.n)]
+    else
+        m = _on_device(device, st.m)
+        n = _on_device(device, st.n)
+        vcat(hcat(_on_device(device, Sxx), m), hcat(_matrix(m'), _matrix(Diagonal(n))))
+    end
+    W = hcat((_matrix(_on_device(device, A[c])) for c in st.channels)..., -C) .* one(eltype(Sφ))
     _solve_blocks!(W, Sφ, _learned_columns(f, st, frozen, K, name), nameof(typeof(f)))
     cols = _channel_cols(st.dims)
     d = sum(st.dims; init = 0)
     newA = NamedTuple{keys(ps.A)}(map(c -> W[:, cols[findfirst(==(c), st.channels)]], keys(ps.A)))
     Cn = -W[:, (d + 1):end]
     out = merge(ps, (A = newA,), sw ? (b = Cn,) : (c = vec(Cn),))
-    sw && !_frozen_path(frozen, :logw) && (out = merge(out, (logw = _normalised_logw(st.n),)))
+    sw && !_frozen_path(frozen, :logw) && (out = merge(out, (logw = _normalised_logw(_on_device(device, st.n)),)))
     return out
 end
 
@@ -77,29 +92,32 @@ function MyceliumLearning.m_step(f::RegimeFactor, st::MyceliumLearning.MomentSta
     cols = _channel_cols(st.dims)
     d = sum(st.dims; init = 0)
     T = promote_type(eltype(ps.b), eltype(st.S), eltype(st.m), eltype(st.n), f.learn_noise ? eltype(ps.L) : Bool, map(eltype, values(A))...)
-    newA = map(c -> Array{T}(copy(A[c])), NamedTuple{keys(ps.A)}(keys(ps.A)))
-    b = Matrix{T}(copy(ps.b))
-    L = f.learn_noise ? Array{T}(copy(ps.L)) : nothing
+    device = _first_device((st.S, ps))
+    cast(x) = device === nothing ? Array{T}(x) : _on_device(device, T.(x))
+    newA = map(c -> cast(A[c]), NamedTuple{keys(ps.A)}(keys(ps.A)))
+    b = cast(ps.b)
+    L = f.learn_noise ? cast(ps.L) : nothing
     learn_noise = f.learn_noise && !_frozen_path(frozen, :L)
     for k in 1:K
-        st.n[k] > 0 || continue
-        Sφ = [st.S[:, :, k] st.m[:, k]; st.m[:, k]' st.n[k]]
-        W = hcat((Matrix(A[c][:, :, k]) for c in st.channels)..., -b[:, k])
+        n = _entry(st.n, k)
+        n > 0 || continue
+        Sφ = _on_device(device, _moment_gram(st, k, n))
+        W = hcat((_matrix(_on_device(device, A[c][:, :, k])) for c in st.channels)..., -b[:, k])
         _solve_blocks!(W, Sφ, learned, :RegimeFactor)
         for c in keys(ps.A)
-            newA[c][:, :, k] = W[:, cols[findfirst(==(c), st.channels)]]
+            newA[c][:, :, k] .= W[:, cols[findfirst(==(c), st.channels)]]
         end
-        b[:, k] = -W[:, d + 1]
+        b[:, k] .= -W[:, d + 1]
         if learn_noise
-            Q = Symmetric(W * Sφ * W' ./ st.n[k])
-            Cq = LinearAlgebra.cholesky(Q; check = false)
+            Q = W * Sφ * W' ./ n
+            Cq = _symmetric_cholesky(Q; check = false)
             LinearAlgebra.issuccess(Cq) || continue          # a degenerate outcome keeps its noise
-            Lk = Matrix(Cq.L)
-            L[:, :, k] = LinearAlgebra.tril(Lk, -1) + Diagonal(log.(diag(Lk)))
+            Lk = LenticulumCore._lower_matrix(Cq)
+            L[:, :, k] .= LinearAlgebra.tril(Lk, -1) + _matrix(Diagonal(log.(_device_diag(Lk))))
         end
     end
     out = merge(ps, (A = newA, b = b))
-    _frozen_path(frozen, :logw) || (out = merge(out, (logw = _normalised_logw(st.n),)))
+    _frozen_path(frozen, :logw) || (out = merge(out, (logw = _normalised_logw(_on_device(device, st.n)),)))
     learn_noise && (out = merge(out, (L = L,)))
     return out
 end
@@ -120,10 +138,10 @@ MyceliumLearning.m_step_signature(f::GaussianFactor) = f.noise_learning === noth
 # Learned noise from a covariance estimate: the eigenvalue floor applied as `_noise_metrics` does
 # (covariance eigenvalues at least `floor`), then the factor's own coordinates.
 function _noise_from_cov(c, Q)
-    Q = Symmetric(Matrix(Q))
-    c.diagonal && return (noise = (log_precision = -log.(max.(diag(Q), c.floor)),),)
-    E = LinearAlgebra.eigen(Q)
-    return _noise_parameters(c, Matrix(Symmetric(E.vectors * Diagonal(max.(E.values, c.floor)) * E.vectors')))
+    Q = _matrix(Q)
+    c.diagonal && return (noise = (log_precision = -log.(max.(_device_diag(Q), c.floor)),),)
+    E = _eigen(Symmetric(Q))
+    return _noise_parameters(c, _matrix(Symmetric(E.vectors * Diagonal(max.(E.values, c.floor)) * E.vectors')))
 end
 _learns_noise(f, frozen) = f.noise_learning !== nothing && f.noise_learning.prior === nothing && !_frozen_path(frozen, :noise)
 
@@ -134,10 +152,15 @@ function MyceliumLearning.m_step(f::GaussianFactor, st::MyceliumLearning.MomentS
     cols = _channel_cols(st.dims)
     ix = findfirst(==(f.in_channel), st.channels); iy = findfirst(==(f.out_channel), st.channels)
     d = sum(st.dims)
-    n = only(st.n)
-    Sφ = [st.S[:, :, 1] st.m[:, 1]; st.m[:, 1]' n]
-    W = zeros(promote_type(eltype(ps.A), eltype(ps.b), eltype(Sφ)), f.nout, d + 1)
-    W[:, cols[ix]] = -ps.A; W[:, cols[iy]] = Matrix{eltype(W)}(I, f.nout, f.nout); W[:, d + 1] = -ps.b
+    n = _only_entry(st.n)
+    Sφ = _moment_gram(st, 1, n)
+    device = _first_device((Sφ, ps))
+    Sφ = _on_device(device, Sφ)
+    T = promote_type(eltype(ps.A), eltype(ps.b), eltype(Sφ))
+    W = _zeros_like(Sφ, T, f.nout, d + 1)
+    W[:, cols[ix]] .= -_on_device(device, ps.A)
+    W[:, cols[iy]] .= _eye(W, T, f.nout)
+    W[:, d + 1] .= -_on_device(device, ps.b)
     learned = falses(d + 1)
     _frozen_path(frozen, :A) || (learned[cols[ix]] .= true)
     _frozen_path(frozen, :b) || (learned[d + 1] = true)
@@ -150,10 +173,18 @@ end
 # A Gaussian prior's mean is fixed; with learned noise (no prior) its covariance is E[(x − μ)(x − μ)ᵀ].
 function MyceliumLearning.m_step(f::GaussianPrior, st::MyceliumLearning.MomentStats, ps, frozen)
     _learns_noise(f, frozen) || return nothing
-    n = only(st.n)
+    n = _only_entry(st.n)
     n > 0 || return nothing
-    μ = float.(f.μ); m = st.m[:, 1]
-    Q = (st.S[:, :, 1] .- m * μ' .- μ * m' .+ n .* (μ * μ')) ./ n
+    device = _first_device((st.S, ps, f.μ))
+    μ = _on_device(device, float.(f.μ)); m = _on_device(device, st.m[:, 1])
+    Q = (_on_device(device, st.S[:, :, 1]) .- m * μ' .- μ * m' .+ n .* (μ * μ')) ./ n
     return merge(ps, _noise_from_cov(f.noise_learning, Q))
 end
 
+
+function _moment_gram(st, k, n)
+    m = st.m[:, k]
+    v = _on_device(_device_leaf(m), fill(n, 1, 1))
+    return _device_leaf(m) === nothing ? [st.S[:, :, k] m; m' n] :
+           vcat(hcat(st.S[:, :, k], m), hcat(_matrix(m'), v))
+end

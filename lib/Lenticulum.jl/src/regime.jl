@@ -120,8 +120,9 @@ LenticulumCore.scalarisation(::RegimeFactor) = LenticulumCore.GradedScalarisatio
 # L_k with the exponential of its diagonal; the strictly lower part masked (no mutation, for AD)
 function _regime_cholesky(R::AbstractMatrix)
     m = size(R, 1)
-    mask = [i > j for i in 1:m, j in 1:m]
-    return R .* mask .+ Diagonal(exp.(diag(R)))
+    device = _device_leaf(R)
+    mask = _on_device(device, [i > j for i in 1:m, j in 1:m])
+    return R .* mask .+ Diagonal(exp.(_device_diag(R)))
 end
 
 """
@@ -168,3 +169,5 @@ Mycelium.local_free_energies(fs::AbstractVector{<:RegimeFactor}, msgs::NamedTupl
 # `free_energy_gradient` warns when one learns its coefficients on data.
 Mycelium.learns_unnormalised(f::Union{LinearConstraintFactor,SwitchingConstraintFactor,RegimeFactor}) = f.output === nothing
 
+
+Adapt.@adapt_structure RegimeFactor

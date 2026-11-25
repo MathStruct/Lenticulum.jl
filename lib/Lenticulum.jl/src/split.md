@@ -122,3 +122,9 @@ The factor has no parameters, is not learnable, declares `exact_messages` (P13) 
     `test/split.jl`).
 - **Non-Gaussian inputs.** Categorical and other non-Gaussian beliefs are refused by the
   conversion to an extended Gaussian.
+
+## Device arrays (Q7)
+
+Selection indices stay on the host. The selection operators and flat messages follow the inputs
+or target cavity. The rank cut for the covariance of a marginal uses the core host spectral
+helper.

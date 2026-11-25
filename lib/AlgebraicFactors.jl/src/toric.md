@@ -150,3 +150,9 @@ Logits, numeric evidence buffers and messages use the promoted type of `ps.η` a
 incoming categorical log weights. Pointwise energy only has `ps.η` as a numeric input.
 The design table is exact integer data, and the initial parameters default to Float64
 when no numeric parameter or evidence has been supplied.
+
+## Device arrays (Q7)
+
+Adapt moves the sufficient-statistic table and keeps label metadata on the host. Joint logits
+and marginal weights use device gathers and reductions, with the outcome grid supplying
+structural indices.

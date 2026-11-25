@@ -123,3 +123,8 @@ Fixed regime covariances are converted to the type of the parameter tree before
 building the cluster form. The cluster uses the incoming beliefs when promoting that form.
 The BigFloat case with every continuous channel latent still needs Mycelium's diffuse
 cluster eigendecomposition, as recorded in `test/eltypes.jl`.
+
+## Device arrays (Q7)
+
+Adapt moves per-outcome covariances and any fixed coefficient. Regime messages and local free
+energy use Mycelium’s continuous device buffers and diffuse host spectral helper.

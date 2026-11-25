@@ -32,8 +32,7 @@ next to the other five belief types, in October 2026. The split is now:
 | `Mycelium` (`gaussian.jl`) | the message rules: `combine`, densities, entropy, distance, damping, `combine_with_overlap`; mixture reduction (`reduce_mixture`, since P17) |
 | `Lenticulum` (`beliefs.jl`) | projections: `moment_match`, and `kl_divergence` |
 
-`Lenticulum` re-exports every name, so user code did not change. The cost is one dependency,
-the `LinearAlgebra` standard library.
+`Lenticulum` re-exports every name, so user code did not change. The move added the `LinearAlgebra` standard library to the core dependencies.
 
 ## 3. A fix that came with the move
 
@@ -46,26 +45,32 @@ documented. This is tested in VariationalDiffusion's "answers as beliefs" test s
 Related: [[open_model]], [[lib/Mycelium.jl/src/gaussian|gaussian]], [[messages]]
 
 
-## Device diagonal beliefs (2026-10-27)
+## Device arrays (Q7)
 
-For device `Diagonal` precision/covariance, properness is an all-positive finite
-check, mean is elementwise division, covariance is reciprocal diagonal and logdet
-is the sum of logarithms. The diagonal log-partition uses typed constants and an
-elementwise quadratic form, preserving Float32 in values and both tested derivatives.
-No dense factorisation or host array copy is needed.
-Dense device Gaussian precision/covariance gives an ArgumentError rather than
-silently entering the legacy CPU `Matrix` path. CPU factorisation behavior is
-unchanged. Hardware dense Gaussian algebra is not claimed.
+Device diagonal precisions and covariances (since 2026-10-27) use finite positive checks,
+elementwise division and reciprocals, and sums of logarithms; the diagonal log-partition uses typed
+constants and an elementwise quadratic form, preserving Float32 in values and derivatives. The
+covariance reverse rule returns a structural `diag` cotangent: a dense precision cotangent conflicted
+with direct diagonal reads in Zygote when the same belief contributed moments and variance terms. The
+analytic rules are $\bar\eta=\bar\mu/\lambda$, $\bar\lambda=-\bar\eta\,\mu$ and
+$\bar\lambda=-\operatorname{diag}(\bar\Sigma)/\lambda^2$, elementwise. Tests in
+`lib/ImplicitLayers.jl/test/device_arrays.jl` compare Gaussian graph expectation derivatives with closed
+forms and CPU references. Singular diagonal beliefs still act as likelihoods, and moment and density
+requests reject them.
 
-Device mean/solve paths use elementwise operations; the covariance reverse rule
-returns structural `diag` cotangents. A dense precision cotangent conflicted with direct diagonal reads in
-Zygote when the same belief contributed moments and variance terms. The analytic
-rules are $\bar\eta=\bar\mu/\lambda$, $\bar\lambda=-\bar\eta\,\mu$ and
-$\bar\lambda=-\operatorname{diag}(\bar\Sigma)/\lambda^2$, elementwise.
-Tests in `lib/ImplicitLayers.jl/test/device_arrays.jl` compare Gaussian graph
-expectation derivatives with closed forms and CPU references. Singular diagonal
-beliefs are still valid likelihood messages, but moment/density requests reject them.
+Dense device beliefs use a right-looking Cholesky with broadcasts over slices.
+A pivot reduction reads the value needed to report the first nonpositive pivot.
+Forward and backward substitution update row slices and trailing blocks. The
+inverse solves against an identity on the same backend, and log determinant
+reduces the logarithms of the Cholesky pivots. Backend-specific implementations
+can specialise the internal Cholesky entry point. Dense Gaussian factorisation
+uses no host matrix transfer.
 
+The default tests in `test/device_arrays.jl` compare small random Gaussian
+systems and indefinite error paths on JLArrays with scalar indexing disabled.
+See `extended_gaussian.md` for the host spectral boundary for rank decisions.
+Hardware factorisation and dense-device AD coverage are separate from these
+value tests.
 
 ## Batch C graph polarity check (2026-10-28)
 

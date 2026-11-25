@@ -1042,5 +1042,6 @@ include("lp020.jl")
 include("lp022.jl")
 
 include("eltypes.jl")
+include("device_arrays.jl")
 
 include("aqua.jl")

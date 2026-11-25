@@ -45,8 +45,9 @@ Julia's generic diagonal logabsdet reduction has no GPU neutral element for dual
 pairs, which broke ForwardDiff replay even when the counting coefficient was zero.
 Elementwise positive-diagonal algebra avoids this reduction. Exact/pathwise and
 terminal score tests with JLArrays compare against CPU and closed-form derivatives
-in `lib/ImplicitLayers.jl/test/device_arrays.jl`. Dense device precision remains
-unsupported. See [[gaussian_belief]] and [[gradient_couplings]].
+in `lib/ImplicitLayers.jl/test/device_arrays.jl`. Q7 adds the dense precision
+path described in [[gaussian_belief]]. See [[gradient_couplings]] for the
+diagonal replay rules.
 
 Device density/entropy specialisations use only diagonal fields and typed scalar
 constants. Mixing a native diagonal matrix-product pullback with direct `diag`
@@ -310,3 +311,9 @@ their closed form and exercises log densities, improper products and a hard poin
 Comparison tolerances, rank decisions and mixture reduction policy are unchanged; these are
 not energy or message storage types. Extended/extended algebra belongs to LenticulumCore and
 is not changed here.
+
+## Device arrays (Q7)
+
+Mixture projection reads one weight per host-side component and constructs the total covariance
+on the component backend. Gaussian projection factors that covariance with the shared SPD
+routine.

@@ -1,7 +1,7 @@
 using Test, Lenticulum, LenticulumCore
 
-include("../../LenticulumCore.jl/test/support/eltype_matrix.jl")
-include("support/eltype_fixtures.jl")
+isdefined(@__MODULE__, :EltypeMatrix) || include("../../LenticulumCore.jl/test/support/eltype_matrix.jl")
+isdefined(@__MODULE__, :LenticulumEltypeFixtures) || include("support/eltype_fixtures.jl")
 
 @testset "Lenticulum element-type fixtures" begin
     fixtures = LenticulumEltypeFixtures.fixtures()

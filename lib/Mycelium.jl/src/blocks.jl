@@ -495,3 +495,15 @@ end
 
 # The block rows of a graph: one per template edge of each plate, the edges in replica order.
 _block_rows(g) = Vector{Int}[collect(pl.edges[k, :]) for pl in g.plates for k in axes(pl.edges, 1)]
+
+Adapt.@adapt_structure PointBlock
+Adapt.@adapt_structure MixtureBlock
+Adapt.adapt_structure(to, b::CategoricalBlock) = CategoricalBlock(Adapt.adapt(to, b.logp), b.labels)
+Adapt.adapt_structure(to, b::VectorBlock) = VectorBlock(map(x -> Adapt.adapt(to, x), b.beliefs))
+Adapt.adapt_structure(to, m::EdgeMessages) = EdgeMessages(
+    map(x -> Adapt.adapt(to, x), m.msgs), m.row, m.col, m.rows, map(x -> Adapt.adapt(to, x), m.blocks))
+
+Adapt.adapt_structure(to, b::GaussianBlock) = GaussianBlock(Adapt.adapt(to, b.η),
+    b.Λ isa AbstractMatrix ? Adapt.adapt(to, b.Λ) : map(x -> Adapt.adapt(to, x), b.Λ), b.improper)
+Adapt.adapt_structure(to, b::ComponentMixtureBlock) = ComponentMixtureBlock(
+    Adapt.adapt(to, b.η), map(x -> Adapt.adapt(to, x), b.Λs), Adapt.adapt(to, b.logw), b.improper)

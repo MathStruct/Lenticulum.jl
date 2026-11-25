@@ -627,3 +627,12 @@ where before P32 the joint was computed in Float64 and ran
 model needs Float64. Tests: `lib/Lenticulum.jl/test/cluster_flat.jl`, "Flat directions in Float32".
 Differentiation through mutated cluster messages remains outside the
 existing Zygote rule's coverage. Device coverage is limited to the existing device suite.
+
+## Device arrays (Q7)
+
+The one-factor and general cluster joint use device buffers for their continuous precision
+classes and information vectors when their inputs carry device arrays. The diffuse integral
+calls the core host spectral helper to choose range and null bases, then solves on the original
+backend. Assignment enumeration and class indices are host metadata, with reductions to read
+discrete weights and decide which states survive. The RegimeFactor fixtures exercise both the
+definite and diffuse branches.

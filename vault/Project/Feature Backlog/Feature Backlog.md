@@ -72,7 +72,10 @@ graph LR
   G9[G9 open games] --> G10
   T3[T3 JET on<br/>kernels] --> Q3[Q3 type stability<br/>as a gate]
   Q5[Q5 AD backend<br/>matrix, done] --> Q6[Q6 native rules for<br/>implicit adjoints]
-  Q4[Q4 element type<br/>from the input] --> Q7[Q7 device-generic<br/>factors]
+  Q4[Q4 element type<br/>from the input, done] --> Q7[Q7 device-generic<br/>factors, done]
+  Q4 --> Q19[Q19 element types on<br/>every message path]
+  Q7 --> Q20[Q20 devices on<br/>every message path]
+  Q19 --> Q20
   Q7 --> Q8[Q8 hardware<br/>GPU job]
   Q9[Q9 thread safety] --> Q10[Q10 parallel<br/>execution]
   Q1[Q1 the standard] --> Q11[Q11 init/solve!<br/>caches]

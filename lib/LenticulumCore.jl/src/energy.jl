@@ -231,6 +231,7 @@ struct SampsonNorm{C,L<:Real} <: AbstractPointScalarisation
     wrt::Symbol
     Σ::C
     λ::L
+    SampsonNorm(::Val{:checked}, wrt, Σ::C, λ::L) where {C,L<:Real} = new{C,L}(wrt, Σ, λ)
     function SampsonNorm(; wrt::Symbol = :y, Σ = nothing, λ::Real = 0)
         wrt in (:x, :y) || throw(ArgumentError("wrt must be :x or :y; got :$wrt"))
         isfinite(λ) && λ >= 0 || throw(ArgumentError("SampsonNorm λ must be finite and nonnegative"))
@@ -321,9 +322,15 @@ function scalarise(::IdentityScalarisation, e::AbstractVector{<:Real})
         "IdentityScalarisation requires a scalar or 1-element vector; got length $(length(e))"))
     return only(e)
 end
-scalarise(σ::WeightedSum, e) = sum(σ.λ .* e)
+function scalarise(σ::WeightedSum, e)
+    d = _first_device((σ.λ, e))
+    return sum(_on_device(d, σ.λ) .* _on_device(d, e))
+end
 scalarise(σ::SquaredNorm{Nothing}, e) = sum(abs2, e) / 2
-scalarise(σ::SquaredNorm, e) = dot_quadratic(σ.M, e) / 2
+function scalarise(σ::SquaredNorm, e)
+    d = _first_device((σ.M, e))
+    return dot_quadratic(_on_device(d, σ.M), _on_device(d, e)) / 2
+end
 function scalarise(σ::GradedScalarisation{names}, e::GradedEnergy{names}) where {names}
     # Avoid sum(::Tuple; init), which has no working Zygote rule in the tested stack.
     parts = map(scalarise, values(σ.parts), values(e.parts))
@@ -640,3 +647,9 @@ function gauss_newton_metric(
                          energy_jacobian(f, x, a, y, ps, st; wrt, ε, ad)
     return gauss_newton_metric(σ, J)
 end
+
+Adapt.@adapt_structure GradedEnergy
+Adapt.@adapt_structure WeightedSum
+Adapt.adapt_structure(to, x::SquaredNorm) = SquaredNorm(Adapt.adapt(to, x.M); check = false)
+Adapt.adapt_structure(to, x::SampsonNorm) = SampsonNorm(Val(:checked), x.wrt, Adapt.adapt(to, x.Σ), x.λ)
+Adapt.@adapt_structure GradedScalarisation

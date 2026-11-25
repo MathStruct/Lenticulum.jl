@@ -279,7 +279,7 @@ function _mixture_product(a, b)
         cd, logZ = _improper_first(c, d) ? _pair_overlap(d, c, rb) : _pair_overlap(c, d, ra)
         logZ == -Inf && continue                              # disjoint: this pair contributes nothing
         push!(comps, cd)
-        w = la[i] + lb[j] + logZ
+        w = _entry(la, i) + _entry(lb, j) + logZ
         T = promote_type(eltype(logw), typeof(w))
         T === eltype(logw) || (logw = T[logw...])
         push!(logw, w)
@@ -289,7 +289,7 @@ function _mixture_product(a, b)
     # back to m and the weights would not sum to one.
     shifted = logw .- maximum(logw)
     logw = shifted .- log(sum(exp.(shifted)))
-    return LenticulumCore.MixtureBelief(Val(:log), [c for c in comps], logw)
+    return LenticulumCore.MixtureBelief(Val(:log), [c for c in comps], _on_device(_first_device((a, b)), logw))
 end
 
 """
@@ -308,10 +308,10 @@ belief_logdensity(b::LenticulumCore.LogPotentialBelief, x) = b.logφ(x)
 function belief_logdensity(b::LenticulumCore.CategoricalBelief, x)
     if b.labels === nothing
         x isa Integer || throw(ArgumentError("a categorical belief without labels takes a state index"))
-        return 1 ≤ x ≤ length(b.logp) ? b.logp[x] : -Inf
+        return 1 ≤ x ≤ length(b.logp) ? _entry(b.logp, x) : -Inf
     end
     k = findfirst(==(x), b.labels)
-    return k === nothing ? -Inf : b.logp[k]
+    return k === nothing ? -Inf : _entry(b.logp, k)
 end
 
 function belief_logdensity(m::LenticulumCore.MixtureBelief, x)
@@ -561,3 +561,8 @@ function _moment_residual(a::LenticulumCore.MixtureBelief, b::LenticulumCore.Mix
     return max(w, maximum(k -> _moment_residual(a.components[k], b.components[k], atol, rtol),
                           eachindex(a.components); init = 0.0))
 end
+
+Adapt.@adapt_structure Message
+Adapt.adapt_structure(to, s::MessageStore) = MessageStore(
+    Adapt.adapt(to, s.to_variable), Adapt.adapt(to, s.to_factor), s.iteration,
+    Dict{Int,Any}(i => Adapt.adapt(to, x) for (i, x) in s.pins))

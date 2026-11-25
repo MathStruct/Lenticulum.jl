@@ -407,3 +407,10 @@ The single and plate paths convert fixed noise using the continuous and categori
 numerical inputs and the parameter tree. The empty-data and no-switch arrays with Bool
 elements are exact structural zero weights. Continuous flat directions still use the
 LAPACK residual metric and the BigFloat limit is recorded in `test/eltypes.jl`.
+
+## Device arrays (Q7)
+
+Adapt moves the stored noise and coefficients, while channel and outcome indices remain on the
+host. The affine computations run with the input backend and the diffuse residual metric uses
+the shared spectral helper. Outcome support and component weights are read through reductions in
+the host-side structural loop.

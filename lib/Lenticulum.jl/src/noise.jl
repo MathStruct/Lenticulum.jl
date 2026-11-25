@@ -11,6 +11,7 @@ to density in precision coordinates. Requires `df > dimension - 1`.
 struct WishartPrecisionPrior{T,M}
     df::T
     scale::M
+    WishartPrecisionPrior(::Val{:checked}, df::T, scale::M) where {T,M} = new{T,M}(df, scale)
     function WishartPrecisionPrior(df::Real, scale::AbstractMatrix)
         V = Matrix(float.(scale))
         d = size(V, 1)
@@ -77,12 +78,17 @@ end
 _noise_parameters(::Nothing, Q) = (;)
 function _noise_parameters(c::NoiseLearning, Q)
     if c.diagonal
-        return (noise = (log_precision = -log.(diag(Q)),),)
+        return (noise = (log_precision = -log.(_device_diag(Q)),),)
     end
-    L = cholesky(Symmetric(inv(Symmetric(Q)))).L
+    C = _symmetric_cholesky(_symmetric_inv(Q))
+    L = C.L
     d = size(Q, 1)
-    return (noise = (log_diagonal = log.(diag(L)),
-                     lower = [L[i, j] for j in 1:d for i in (j + 1):d]),)
+    if _device_leaf(Q) === nothing
+        return (noise = (log_diagonal = log.(diag(L)),
+                         lower = [L[i, j] for j in 1:d for i in (j + 1):d]),)
+    end
+    indices = [(j-1)*d+i for j in 1:d for i in (j+1):d]
+    return (noise = (log_diagonal = log.(_device_diag(L)), lower = vec(L)[indices]),)
 end
 _noise_parameterlength(::Nothing, d) = 0
 _noise_parameterlength(c::NoiseLearning, d) = c.diagonal ? d : d * (d + 1) ÷ 2
@@ -90,7 +96,7 @@ _noise_parameterlength(c::NoiseLearning, d) = c.diagonal ? d : d * (d + 1) ÷ 2
 # Spectral clipping acts on precision: covariance eigenvalues are at least floor.
 # The optional AD extensions apply its divided-difference Frechet derivative.
 function _clip_precision(P, cap)
-    E = eigen(Symmetric(P))
+    E = _eigen(Symmetric(P))
     maximum(E.values) < cap && return P
     return E.vectors * Diagonal(min.(E.values, cap)) * E.vectors'
 end
@@ -103,7 +109,7 @@ end
 
 # Fixed-noise callers keep their original normaliser calculation; the second
 # component is an unused placeholder on this branch.
-_noise_metrics(::Nothing, Q, ps) = (inv(Symmetric(Q)), zero(eltype(Q)))
+_noise_metrics(::Nothing, Q, ps) = (_symmetric_inv(Q), zero(eltype(Q)))
 function _noise_metrics(c::NoiseLearning, Q, ps)
     p = ps.noise
     T = _compute_eltype(eltype(Q), Q, p)
@@ -118,13 +124,19 @@ function _noise_metrics(c::NoiseLearning, Q, ps)
     lower = _at_eltype(T, p.lower)
     d = length(log_diagonal)
     # Packed strict lower triangle, column-major. No mutation: both AD paths see it.
-    L = [i == j ? exp(log_diagonal[i]) : i > j ?
-         lower[(j - 1) * d - j * (j - 1) ÷ 2 + i - j] : zero(T)
-         for i in 1:d, j in 1:d]
+    if _device_leaf(log_diagonal) === nothing
+        L = [i == j ? exp(log_diagonal[i]) : i > j ?
+             lower[(j - 1) * d - j * (j - 1) ÷ 2 + i - j] : zero(T)
+             for i in 1:d, j in 1:d]
+    else
+        L = _matrix(Diagonal(exp.(log_diagonal)))
+        indices = [(j-1)*d+i for j in 1:d for i in (j+1):d]
+        vec(L)[indices] .= lower
+    end
     raw = L * L'
     if c.prior === nothing
         P = _clip_precision(raw, inv(floor))
-        return P, P === raw ? -2sum(log_diagonal) : -logdet(Matrix(P))
+        return P, P === raw ? -2sum(log_diagonal) : -_symmetric_logdet(_matrix(P))
     end
     return raw, -2sum(log_diagonal)
 end
@@ -133,11 +145,11 @@ _noise_penalty(::Nothing, P, logdetQ) = zero(logdetQ)
 function _noise_penalty(p::WishartPrecisionPrior, P, logdetQ)
     T = typeof(logdetQ)
     d, ν = size(P, 1), T(p.df)
-    scale = _at_eltype(T, p.scale)
+    scale = _on_device(_device_leaf(P), _at_eltype(T, p.scale))
     loggamma_d = d * (d - 1) * log(oftype(ν, π)) / 4 +
                  sum(SpecialFunctions.loggamma((ν + 1 - j) / 2) for j in 1:d)
-    return (tr(scale \ P) + (ν - d - 1) * logdetQ + ν * d * log(oftype(ν, 2)) +
-            ν * logdet(scale)) / 2 + loggamma_d
+    return (tr(_symmetric_solve(scale, P)) + (ν - d - 1) * logdetQ + ν * d * log(oftype(ν, 2)) +
+            ν * _symmetric_logdet(scale)) / 2 + loggamma_d
 end
 function _noise_penalty(p::LogNormalVariancePrior, P, logdetQ)
     T = typeof(logdetQ)
@@ -153,3 +165,8 @@ function LenticulumCore.localise(::LearnedPrecisionNorm, f, x, a, y, ps, st)
     P, _ = _noise_metrics(f.noise_learning, _covariance_at(f.Q, ps, x, y), ps)
     return LenticulumCore.SquaredNorm(P; check = false)
 end
+
+Adapt.@adapt_structure LogNormalVariancePrior
+Adapt.@adapt_structure NoiseLearning
+
+Adapt.adapt_structure(to, p::WishartPrecisionPrior) = WishartPrecisionPrior(Val(:checked), p.df, Adapt.adapt(to, p.scale))

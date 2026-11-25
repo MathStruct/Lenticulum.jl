@@ -27,6 +27,8 @@ struct ToricFactor{N,S,M,L} <: LenticulumCore.AbstractLenticulumFactor
     labels::L
     customlabels::Bool
     normalised::Bool
+    ToricFactor(::Val{:checked}, names::N, alphabets::S, A::M, labels::L, custom, normalised) where {N,S,M,L} =
+        new{N,S,M,L}(names, alphabets, A, labels, custom, normalised)
     function ToricFactor(names::Tuple, alphabets::Tuple, A::AbstractMatrix{<:Integer};
                          normalised::Bool = false, labels = nothing)
         sizes, nstates = _sizes(names, alphabets)
@@ -134,11 +136,13 @@ function LenticulumCore.supports_polarity(f::ToricFactor, p::LenticulumCore.Pola
                                LenticulumCore.Latent}, f.names)
 end
 
-function _logits(f, ps, T = float(eltype(ps.η)))
+function _logits(f, ps, T = float(eltype(ps.η)), inputs = ())
     ps.η isa AbstractVector{<:Real} && length(ps.η) == size(f.A, 1) ||
         throw(ArgumentError("ps.η must be a real vector with one entry per row of A"))
     all(isfinite, ps.η) || throw(ArgumentError("ps.η must be finite"))
-    l = float.(transpose(f.A) * LenticulumCore._at_eltype(T, ps.η))
+    device = _first_device((ps, f.A, inputs))
+    A = device === nothing ? f.A : _on_device(device, T.(f.A))
+    l = float.(transpose(A) * _on_device(device, LenticulumCore._at_eltype(T, ps.η)))
     all(isfinite, l) || throw(ArgumentError("logits must be finite"))
     return l
 end
@@ -168,7 +172,7 @@ function LenticulumCore.energy(f::ToricFactor, x::Tuple, a, y, ps, st)
     inds = map(i -> _labelindex(f, i, x[i]), eachindex(f.names))
     col = LinearIndices(f.alphabets)[inds...]
     l = _logits(f, ps)
-    return (f.normalised ? -_lognormalise(l)[col] : -l[col], st)
+    return (f.normalised ? -_entry(_lognormalise(l), col) : -_entry(l, col), st)
 end
 LenticulumCore.energy(f::ToricFactor, x::Tuple, ps, st) =
     LenticulumCore.energy(f, x, nothing, nothing, ps, st)
@@ -200,6 +204,16 @@ function _joint_logweights(f, msgs, l; skip = 0)
     # Remove a common logit before adding evidence: even a huge constant potential
     # must not round away finite log-probabilities supplied by incoming messages.
     m = maximum(l)
+    device = _device_leaf(l)
+    if device !== nothing
+        joint = l .- m
+        grid = CartesianIndices(f.alphabets)
+        for i in eachindex(weights)
+            inds = [x[i] for x in grid]
+            joint .+= _on_device(device, weights[i])[vec(inds)]
+        end
+        return joint
+    end
     return [(l[k] - m) + sum(i -> weights[i][x[i]], eachindex(f.names))
             for (k, x) in enumerate(CartesianIndices(f.alphabets))]
 end
@@ -216,10 +230,16 @@ function Mycelium.factor_message(f::ToricFactor, target::Symbol, polarity, input
         LenticulumCore.unobserved_channels(polarity) == (target,) ||
         throw(ArgumentError("unsupported target/polarity"))
     t = findfirst(isequal(target), f.names)
-    l = _logits(f, ps, LenticulumCore._compute_eltype(Float64, ps, inputs))
+    l = _logits(f, ps, LenticulumCore._compute_eltype(Float64, ps, inputs), inputs)
     joint = _joint_logweights(f, inputs, l; skip = t)
     # Shift once before marginalising so a large common logit never overflows.
     joint = _lognormalise(joint)
+    device = _device_leaf(joint)
+    if device !== nothing
+        grid = vec(collect(CartesianIndices(f.alphabets)))
+        out = _on_device(device, [Mycelium._lse(joint[findall(x -> x[t] == k, grid)]) for k in 1:f.alphabets[t]])
+        return LenticulumCore.CategoricalBelief(Val(:log), _lognormalise(out), _outlabels(f, t)), st
+    end
     out = fill!(similar(joint, f.alphabets[t]), eltype(joint)(-Inf))
     for (k, x) in enumerate(CartesianIndices(f.alphabets))
         a, b = out[x[t]], joint[k]
@@ -231,11 +251,14 @@ end
 
 _energies(f, l) = f.normalised ? -_lognormalise(l) : -l
 _expected_energy(logq, energies) =
+    _device_leaf(logq) !== nothing ? sum(ifelse.(logq .== -Inf, zero(eltype(energies)), exp.(logq) .* energies)) :
     sum(logq[k] == -Inf ? zero(eltype(energies)) : exp(logq[k]) * energies[k] for k in eachindex(energies))
-_shannon(logq) = -sum(v == -Inf ? zero(v) : exp(v) * v for v in logq)
+_shannon(logq) = _device_leaf(logq) === nothing ?
+    -sum(v == -Inf ? zero(v) : exp(v) * v for v in logq) :
+    -sum(v -> v == -Inf ? zero(v) : exp(v) * v, logq)
 
 function _factor_statistics(f, msgs, ps)
-    l = _logits(f, ps, LenticulumCore._compute_eltype(Float64, ps, msgs))
+    l = _logits(f, ps, LenticulumCore._compute_eltype(Float64, ps, msgs), msgs)
     logq = _lognormalise(_joint_logweights(f, msgs, l))
     return _expected_energy(logq, _energies(f, l)), _shannon(logq)
 end
@@ -323,3 +346,8 @@ function LenticulumCore.entropy(f::ToricFactor, π, y, ps, st)
     _, H = _factor_statistics(f, _game_messages(f, π, y), ps)
     return (H, st)
 end
+
+Adapt.@adapt_structure ToricBelief
+
+Adapt.adapt_structure(to, f::ToricFactor) = ToricFactor(Val(:checked),
+    f.names, f.alphabets, Adapt.adapt(to, f.A), f.labels, f.customlabels, f.normalised)

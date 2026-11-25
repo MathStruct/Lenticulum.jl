@@ -39,7 +39,7 @@ function moment_match(s::LenticulumCore.SampleBelief)
     T = _compute_eltype(Float64, s)
     X = s.samples isa AbstractMatrix ? _at_eltype(T, s.samples) : reduce(hcat, [T.(x) for x in s.samples])
     n = size(X, 2)
-    w = s.weights === nothing ? fill!(similar(X, T, n), one(T) / n) : collect(T, s.weights)
+    w = s.weights === nothing ? fill!(similar(X, T, n), one(T) / n) : _on_device(_device_leaf(X), s.weights isa AbstractVector ? _at_eltype(T, s.weights) : collect(T, s.weights))
     maximum(w) > 0 || throw(ArgumentError("all sample weights are zero"))
     w ./= maximum(w)
     w ./= sum(w)
@@ -54,8 +54,8 @@ end
 function moment_match(m::LenticulumCore.MixtureBelief{<:GaussianBelief})
     w = LenticulumCore.mixture_weights(m)
     μs = [belief_mean(c) for c in m.components]
-    μ = sum(w[k] .* μs[k] for k in eachindex(w))
-    Σ = sum(w[k] .* (belief_cov(m.components[k]) .+ (μs[k] .- μ) * (μs[k] .- μ)') for k in eachindex(w))
+    μ = sum(_entry(w, k) .* μs[k] for k in eachindex(w))
+    Σ = sum(_entry(w, k) .* (belief_cov(m.components[k]) .+ (μs[k] .- μ) * (μs[k] .- μ)') for k in eachindex(w))
     return Gaussian(μ, Matrix(Symmetric(Σ)))
 end
 
@@ -66,7 +66,7 @@ end
 function moment_match(m::LenticulumCore.MixtureBelief{<:LenticulumCore.ExtendedGaussian})
     w = LenticulumCore.mixture_weights(m)
     μs = [belief_mean(c) for c in m.components]
-    μ = sum(w[k] .* μs[k] for k in eachindex(w))
-    Σ = sum(w[k] .* (belief_cov(m.components[k]) .+ (μs[k] .- μ) * (μs[k] .- μ)') for k in eachindex(w))
+    μ = sum(_entry(w, k) .* μs[k] for k in eachindex(w))
+    Σ = sum(_entry(w, k) .* (belief_cov(m.components[k]) .+ (μs[k] .- μ) * (μs[k] .- μ)') for k in eachindex(w))
     return LenticulumCore.ExtendedGaussian(μ, Matrix(Symmetric(Σ)))
 end

@@ -267,3 +267,11 @@ CPU vectors and matrices and uses LAPACK for its general spectral factorizations
 BigFloat limits are exercised by the hard, split and scale-shift cases in Lenticulum's
 `test/eltypes.jl`. The convenience conversion of an untyped trivial belief uses Float64
 unless the caller supplies a type.
+
+## Device arrays (Q7)
+
+Adapt copies the stored normalised representative without reprojecting it. Covariance and
+flat-direction algebra use the representative’s backend and materialise any constant bases
+there. The host spectral helper decomposes the small value matrix and returns the selected bases
+and eigenvalues or singular values. Products, projections and inverses then use those arrays on
+the device.

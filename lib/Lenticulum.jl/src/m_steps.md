@@ -108,3 +108,11 @@ independent regression oracle in `p31_element_type.jl`. End-to-end EM was Float6
 
 Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
 for every mixed precision, derivative, or device configuration.
+
+## Device arrays (Q7)
+
+The regressions assemble moment Gram matrices and solve the learned blocks on the statistics and
+parameter backend. Rank-deficient least squares uses the core spectral helper for the small
+pseudoinverse. Learned full covariance flooring also uses the host spectral helper.
+Positive-mass regime decisions read a scalar reduction for each outcome. The Q7 fixtures include
+the fixed-output regressions and learned noise updates.

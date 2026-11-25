@@ -177,3 +177,10 @@ Tested in `test/lp019.jl`.
 `factor_messages` on blocks returns the replicas' data as one `PointBlock` when it is real vectors
 of one length, and `local_free_energies` returns zeros, as `local_free_energy` does
 (`blocks.md`).
+
+## Device arrays (Q7)
+
+Adapt traverses point observations, prior beliefs, loss scalarisations and optimiser rules.
+Prior energy reads a scalar probability by reduction when deciding whether a discrete state
+contributes. A user-supplied loss or prior density supplies its own device-compatible
+arithmetic.

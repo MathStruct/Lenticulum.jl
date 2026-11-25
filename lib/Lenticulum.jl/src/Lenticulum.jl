@@ -40,6 +40,8 @@ turned out to be wrong; see `The Gaussian Factor.md` §"What this caught".
 """
 module Lenticulum
 
+import Adapt
+
 using LinearAlgebra: LinearAlgebra, Diagonal, I, Symmetric, cholesky, isposdef, logdet, tr, diag, isdiag, issymmetric, eigen, eigmin
 using Random: Random, AbstractRNG
 using LuxCore: LuxCore
@@ -49,6 +51,10 @@ using MyceliumLearning: MyceliumLearning
 using SpecialFunctions: SpecialFunctions
 using LenticulumCore: GaussianBelief, Gaussian, uninformative, belief_mean, belief_cov, isproper,
     logpartition, dimension, _chol, _spd_inv, _improper_check, ExtendedGaussian
+
+using LenticulumCore: _first_device, _device_leaf, _on_device, _eye, _matrix, _vector,
+    _host_spectral, _eigen, _eigvals, _entry, _only_entry, _triangular_inverse, _symmetric_cholesky,
+    _symmetric_solve, _symmetric_inv, _symmetric_logdet, _dense_inv, _device_diag
 
 include("beliefs.jl")
 include("noise.jl")

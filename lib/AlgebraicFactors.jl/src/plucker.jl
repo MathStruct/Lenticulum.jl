@@ -25,6 +25,12 @@ order. Inputs must be vectors of equal length ≥ 2. Preserves generic arithmeti
 """
 function plucker(z::AbstractVector, w::AbstractVector)
     r = _plucker_vectors(z, w)
+    device = _first_device((z, w))
+    if device !== nothing
+        z, w = _on_device(device, z), _on_device(device, w)
+        i, j = _plucker_indices(r)
+        return z[i] .* w[j] .- z[j] .* w[i]
+    end
     return [z[i]*w[j] - z[j]*w[i] for (i, j) in plucker_pairs(r)]
 end
 
@@ -36,6 +42,14 @@ Closed-form `binomial(r,2) × 2r` Jacobian. Columns differentiate with respect t
 """
 function plucker_jacobian(z::AbstractVector, w::AbstractVector)
     r = _plucker_vectors(z, w)
+    device = _first_device((z, w))
+    if device !== nothing
+        z, w = _on_device(device, z), _on_device(device, w)
+        i, j = _plucker_indices(r)
+        ei = _on_device(device, i .== reshape(1:r, 1, r))
+        ej = _on_device(device, j .== reshape(1:r, 1, r))
+        return hcat(w[j] .* ei .- w[i] .* ej, z[i] .* ej .- z[j] .* ei)
+    end
     J = LenticulumCore._zeros_like(z, promote_type(eltype(z), eltype(w)), binomial(r, 2), 2r)
     for (a, (i, j)) in enumerate(plucker_pairs(r))
         J[a,i] = w[j]; J[a,j] = -w[i]
@@ -91,8 +105,15 @@ function plucker_moments(μ::AbstractVector{<:Real}, S::AbstractMatrix{<:Real},
     r = _plucker_vectors(μ, ν)
     size(S) == size(T) == (r,r) || throw(DimensionMismatch("covariances must be r × r"))
     Base.require_one_based_indexing(S, T)
+    device = _first_device((μ, ν, S, T))
+    μ, ν, S, T = _on_device(device, (μ, ν, S, T))
     J = plucker_jacobian(μ, ν)
     C = J[:,1:r] * S * transpose(J[:,1:r]) + J[:,r+1:2r] * T * transpose(J[:,r+1:2r])
+    if device !== nothing
+        i, j = _plucker_indices(r)
+        C .+= S[i,i] .* T[j,j] .- S[i,j] .* T[j,i] .- S[j,i] .* T[i,j] .+ S[j,j] .* T[i,i]
+        return (mean = plucker(μ, ν), cov = C)
+    end
     pairs = plucker_pairs(r)
     for (a, (i,j)) in enumerate(pairs), (b, (k,l)) in enumerate(pairs)
         C[a,b] += S[i,k]*T[j,l] - S[i,l]*T[j,k] - S[j,k]*T[i,l] + S[j,l]*T[i,k]
@@ -225,7 +246,7 @@ function LenticulumCore.pushforward(f::PluckerFactor, beliefs::Tuple{Any,Any}, p
         end
         C0 = LenticulumCore.stop_gradient(C)
         λ = length(C0) == 1 && !(eltype(C0) <: LinearAlgebra.BlasFloat) ? [only(C0)] :
-            LinearAlgebra.eigvals(LinearAlgebra.Symmetric(C0))
+            _eigvals(LinearAlgebra.Symmetric(C0))
         minimum(λ) > length(λ)*eps(eltype(λ))*maximum(λ) || throw(ArgumentError(
             "Plücker covariance is singular or numerically rank deficient; GaussianBelief cannot " *
             "represent singular covariance. Use plucker_moments for exact moments, or explicitly " *
@@ -261,11 +282,13 @@ function LenticulumCore.entropy(f::PluckerFactor, π, y::NamedTuple, ps, st)
     μ,S = _plucker_input_moments(f,z)
     ν,T = _plucker_input_moments(f,w)
     _,C = plucker_moments(μ,S,ν,T)
-    C[1,1] > 0 || throw(ArgumentError("zero fixed vector gives a singular output with no Lebesgue entropy"))
-    v = C[1,1]
+    v = _entry(C, 1)
+    v > 0 || throw(ArgumentError("zero fixed vector gives a singular output with no Lebesgue entropy"))
     return log(2 * oftype(v, Base.MathConstants.pi) * oftype(v, exp(1)) * v) / 2, st
 end
 function LenticulumCore.free_energy(f::PluckerFactor, π, y::NamedTuple, ps, st)
     H,st = LenticulumCore.entropy(f,π,y,ps,st)
     return -H,st
 end
+
+_plucker_indices(r) = (p = plucker_pairs(r); (first.(p), last.(p)))

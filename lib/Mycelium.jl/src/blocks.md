@@ -268,3 +268,9 @@ which now also returns this block (improper components included).
    sweep at $N = 1000$, most of it in the per-replica moment loop; rewriting the loop without
    temporaries made it 4.4 ms. The block returned by `combine_blocks` is not concretely inferred, so
    every access in the loop was dynamic. A function barrier (`_ep_sites`) brought it to 0.85 ms.
+
+## Device arrays (Q7)
+
+Adapt moves points, natural parameters, weights and recursively stored beliefs. Replica indices
+and the improper flags remain host data. Block columns and per-edge messages keep the adapted
+payload backend.

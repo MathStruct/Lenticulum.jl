@@ -79,3 +79,7 @@ because of the division by a sum. Without switches the two agree.
   learn them.
 - **Only per-outcome normalisation** with switches (§3).
 - **No batching over plates** beyond what its cluster form gets as a cluster node.
+
+## Device arrays (Q7)
+
+Adapt traverses member factors. Overlay structure stays on the host.

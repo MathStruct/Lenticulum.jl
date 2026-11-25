@@ -194,7 +194,7 @@ function local_free_energy(f::PriorFactor, beliefs, ps, st)
     elseif bel isa LenticulumCore.CategoricalBelief
         p = LenticulumCore.probabilities(bel)
         states = bel.labels === nothing ? (1:length(p)) : bel.labels
-        U = sum(p[i] == 0 ? zero(p[i]) : p[i] * f.nlogp(s) for (i, s) in enumerate(states))
+        U = sum((q = _entry(p, i); q == 0 ? zero(q) : q * f.nlogp(s)) for (i, s) in enumerate(states))
         return (U - variable_entropy(bel), st)
     elseif bel isa LenticulumCore.GaussianBelief && f.belief isa LenticulumCore.GaussianBelief
         U = f.nlogp(LenticulumCore.belief_mean(bel)) +
@@ -223,7 +223,7 @@ function LenticulumCore.free_energy(f::PriorFactor, π, y, ps, st)
     end
     p = LenticulumCore.probabilities(bel)
     states = bel.labels === nothing ? (1:length(p)) : bel.labels
-    U = sum(p[i] == 0 ? zero(p[i]) : p[i] * f.nlogp(s) for (i, s) in enumerate(states))
+    U = sum((q = _entry(p, i); q == 0 ? zero(q) : q * f.nlogp(s)) for (i, s) in enumerate(states))
     return (U - variable_entropy(bel), st)
 end
 
@@ -488,3 +488,8 @@ exact_messages(::DataFactor) = true
 exact_messages(::PriorFactor) = true
 exact_messages(::RelayFactor) = true
 repeatable_messages(::Union{DataFactor,PriorFactor,RelayFactor}) = true
+
+Adapt.@adapt_structure DataFactor
+Adapt.@adapt_structure PriorFactor
+Adapt.@adapt_structure LossFactor
+Adapt.@adapt_structure OptimiserFactor

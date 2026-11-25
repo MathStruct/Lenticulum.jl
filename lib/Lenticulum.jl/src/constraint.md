@@ -439,3 +439,10 @@ covariance or residual as their array anchor. Boolean zero arrays represent empt
 or absent blocks. The default constant initializer constructs Float64 parameters before any
 numeric inputs exist. BigFloat works on the scalar rank path, while the full flat-metric SVD
 and joint precision rank test still require LAPACK in the matrix fixture.
+
+## Device arrays (Q7)
+
+The residual covariance and accumulated contributions use the input backend. The flat residual
+metric computes its full SVD through the core host spectral helper and uses the resulting basis
+and singular values on the device. The joint precision check uses the same transfer boundary for
+its eigenvalues.

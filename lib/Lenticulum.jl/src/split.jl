@@ -152,15 +152,17 @@ end
 function _split_marginal(q::LenticulumCore.ExtendedGaussian, idx)
     m = LenticulumCore.marginalise(q, idx)
     isempty(m.Σ) && return m
-    λq = LinearAlgebra.eigvals(Symmetric(LenticulumCore.stop_gradient(q.Σ)))
+    λq = _eigvals(Symmetric(LenticulumCore.stop_gradient(q.Σ)))
     scale = LenticulumCore._scale(λq)
     iszero(scale) && return m
     tol = LenticulumCore._eig_tol(λq)^2 / scale
-    E = LinearAlgebra.eigen(Symmetric(LenticulumCore.stop_gradient(m.Σ)))
-    small = E.values .<= tol
-    count(small) > size(LenticulumCore.hard_directions(m), 2) || return m
-    V = E.vectors[:, .!small]
-    Σ = V * Diagonal(E.values[.!small]) * V'
+    E = _eigen(Symmetric(LenticulumCore.stop_gradient(m.Σ)))
+    # The spectrum is sorted, so one rank reduction picks the retained range.
+    nsmall = count(<=(tol), E.values)
+    nsmall > size(LenticulumCore.hard_directions(m), 2) || return m
+    keep = (nsmall + 1):length(E.values)
+    V = E.vectors[:, keep]
+    Σ = V * Diagonal(E.values[keep]) * V'
     return LenticulumCore.ExtendedGaussian(m.μ, (Σ + Σ') / 2, m.D)
 end
 
@@ -175,6 +177,7 @@ function Mycelium.factor_message(f::SplitFactor{names}, target::Symbol, polarity
     target === f.whole || target in names ||
         throw(ArgumentError("channel :$target is not a channel of this factor ($(_split_names(f)))"))
     q = _split_on_whole(f, _split_input(inputs), target)
+    q = LenticulumCore._extended_on(_first_device((inputs, prior)), q)
     target === f.whole && return q, st
     return _split_marginal(q, f.pieces[target]), st
 end

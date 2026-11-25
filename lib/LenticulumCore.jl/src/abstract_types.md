@@ -105,3 +105,8 @@ non-diagonal edges. The old option-2 guards described above are historical.
 Evidence: `lib/MyceliumLearning.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
 are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].
+
+## Device arrays (Q7)
+
+Adapting a score-function coupling adapts its baseline through Adapt. Custom callables can
+implement their own adaptation when they own numeric storage.

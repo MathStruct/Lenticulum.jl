@@ -61,3 +61,8 @@ high-degree stability, sparse storage or higher derivatives.
 Polynomial value and derivative buffers take their type and array family from the
 argument of the basis. Exponent indices are integers and the exact basis conversion
 tables use BigInt to preserve integer coefficients.
+
+## Device arrays (Q7)
+
+Polynomial values and derivatives use one vector per recurrence degree, then gather and multiply
+coefficients using the host exponent table.

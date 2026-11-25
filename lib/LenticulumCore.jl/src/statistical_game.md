@@ -163,3 +163,9 @@ ForwardDiff and ChainRules extensions. The old option-2 section above is histori
 Evidence: `lib/MyceliumLearning.jl/test/gradient_couplings.jl` and
 `test/gradient_couplings.jl`. API, mixed Jacobians, costs and unsupported combinations
 are specified in [[gradient_couplings]] and [[L-SPEC-002 Stop Gradient]].
+
+## Device arrays (Q7)
+
+Adapt traverses both composed factors and each component of a tensor factor. The
+independent-product games use the component backend through the component methods. The
+linear-Gaussian product fixture is exercised by the Lenticulum device matrix.
