@@ -1,4 +1,5 @@
 using Adapt, JLArrays, LinearAlgebra, Test, Lenticulum, LenticulumCore, Mycelium
+const DeviceArray = isdefined(Main, :LENTICULUM_DEVICE_ARRAY) ? Main.LENTICULUM_DEVICE_ARRAY : JLArray  # CuArray under gpu/runtests.jl (Q8)
 
 function q7_chain()
     b = GraphBuilder()
@@ -38,7 +39,7 @@ end
     JLArrays.allowscalar(false)
     for (g, ps) in (q7_chain(), q7_switch())
         cpu, report, _, s = infer!(g, tree_schedule(g), ps, (;))
-        dg, dp = adapt(JLArray, (g, ps))
+        dg, dp = adapt(DeviceArray, (g, ps))
         gpu, dev_report, _, ds = infer!(dg, tree_schedule(dg), dp, (;))
         @test report.converged && dev_report.converged
         @test keys(gpu) == keys(cpu)
@@ -48,7 +49,7 @@ end
         end
         @test first(LenticulumCore.scalar_free_energy(ds, dg, dp, (;))) ≈
               first(LenticulumCore.scalar_free_energy(s, g, ps, (;))) rtol=1e-10
-        copied = adapt(JLArray, s)
+        copied = adapt(DeviceArray, s)
         @test DeviceMatrix.on_device(DeviceMatrix.device_payload(marginal(copied, dg, 1)))
     end
 end

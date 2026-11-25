@@ -112,7 +112,7 @@ end
 function _scale_shift_message(f::ScaleShiftFactor, target::Symbol, inputs, ps)
     s, b = _scale_shift_map(f, ps)
     m = _split_input(inputs)(target === f.x ? f.z : f.x)
-    e = _no_information(m) ? LenticulumCore.extended(nothing, f.dim, eltype(s)) : _as_extended(m, f.dim, eltype(s))
+    e = _no_information(m) ? _no_information_like(s, f.dim) : _as_extended(m, f.dim, eltype(s))
     length(e.μ) == f.dim || throw(DimensionMismatch("ScaleShiftFactor has dimension $(f.dim), its input $(length(e.μ))"))
     if target === f.z
         μ, Σ, D = (e.μ .- b) ./ s, e.Σ ./ (s .* s'), e.D ./ s
@@ -120,6 +120,14 @@ function _scale_shift_message(f::ScaleShiftFactor, target::Symbol, inputs, ps)
         μ, Σ, D = s .* e.μ .+ b, (s .* s') .* e.Σ, s .* e.D
     end
     return LenticulumCore.ExtendedGaussian(μ, (Σ + Σ') / 2, D)
+end
+
+# No information as an extended Gaussian stored like `s`: `extended(nothing, …)` allocates host
+# arrays, and a CUDA broadcast of those against a device `s` fails (JLArrays accepts it; Q8).
+function _no_information_like(s, d)
+    T = eltype(s)
+    return LenticulumCore.ExtendedGaussian(LenticulumCore._zeros_like(s, T, d),
+        LenticulumCore._zeros_like(s, T, d, d), LenticulumCore._eye(s, T, d))
 end
 
 # The relation in the parameters' float type: HardConstraintFactor takes its element type from its

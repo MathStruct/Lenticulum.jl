@@ -1,5 +1,6 @@
 # LP-002 batch B: no hardware GPU, no scalar indexing allowances.
 using JLArrays
+const DeviceArray = isdefined(Main, :LENTICULUM_DEVICE_ARRAY) ? Main.LENTICULUM_DEVICE_ARRAY : JLArray  # CuArray under gpu/runtests.jl (Q8)
 using ADTypes, DifferentiationInterface, ForwardDiff, Zygote
 const DEVICE_DI = DifferentiationInterface
 
@@ -7,7 +8,7 @@ struct DeviceCell <: LuxCore.AbstractLuxLayer end
 (::DeviceCell)(inp, ps, st) = (ps.W * inp[1] .+ ps.U * inp[2] .+ ps.b, st)
 struct DeviceDynamics <: LuxCore.AbstractLuxLayer end
 (::DeviceDynamics)(inp, ps, st) = (ps.A * inp[1], st)
-device_tree(x::AbstractArray) = JLArray(x)
+device_tree(x::AbstractArray) = DeviceArray(x)
 device_tree(x::NamedTuple) = map(device_tree, x)
 device_tree(x) = x
 host_tree(x::AbstractArray) = Array(x)
@@ -20,11 +21,18 @@ device_tol(::Type{Float32}) = 2f-5
 device_tol(::Type{Float64}) = 1e-9
 const DEVICE_ERRORS = Dict(Float32=>0.0,Float64=>0.0)
 function device_check(got, want, T; tol=device_tol(T))
-    @test got isa JLArray || got isa SubArray{<:Any,<:Any,<:JLArray}
+    @test got isa DeviceArray || got isa SubArray{<:Any,<:Any,<:DeviceArray}
     @test eltype(got) === T
     host = Array(got)
     @test host ≈ want rtol=tol atol=tol
     DEVICE_ERRORS[T] = max(DEVICE_ERRORS[T], norm(host-want)/max(1,norm(want)))
+end
+
+# JLArrays has no LU without scalar indexing; CUDA has (gpu/runtests.jl).
+device_has_lu(T) = try
+    lu(DeviceArray(Matrix{T}(I, 2, 2))); true
+catch
+    false
 end
 
 @testset "LP-002 device DEQ solves and IFT" begin
@@ -33,7 +41,7 @@ end
         ps = (W=T[0.2 0.1; -0.05 0.3], U=T[-0.8 0.1; 0.05 -0.9], b=T[0.2,-0.1])
         x = T[0.7,-0.3]
         z = (I-ps.W) \ (ps.U*x+ps.b)
-        dx, dp = JLArray(x), device_tree(ps)
+        dx, dp = DeviceArray(x), device_tree(ps)
         tol = T === Float32 ? 2e-6 : 1e-11
         linear_tol = T === Float32 ? 3e-6 : 1e-10
         solvers = (PicardSolver(;tol,maxiters=100), BroydenSolver(;tol), LimitedBroydenSolver(;tol,memory=5))
@@ -61,16 +69,22 @@ end
             for ad in (AutoForwardDiff(), AutoZygote())
                 grad=parameter_gradient(p -> sum(abs2,first(solve_state(forward,dx,p,(;);ad)))/2,dp;ad)
                 device_check(LenticulumCore._flatten(grad),exact'z,T)
+                if device_has_lu(T)
+                    # CUDA has one (cuSOLVER's getrf): DenseIFT then gives the same gradient (Q8).
+                    dense=parameter_gradient(p -> sum(abs2,first(solve_state(f,dx,p,(;);ad)))/2,dp;ad)
+                    device_check(LenticulumCore._flatten(dense),exact'z,T)
+                else
                 @test_throws (msg -> startswith(msg,"ArgumentError:") && occursin("device LU",msg)) parameter_gradient(
                     p -> sum(abs2,first(solve_state(f,dx,p,(;);ad)))/2, dp;ad)
                 @test_throws (msg -> startswith(msg,"ArgumentError:") && occursin("device LU",msg)) parameter_gradient(
-                    p -> sum(abs2,first(solve_input(f,JLArray(y),p,(;);ad)))/2, dp;ad)
+                    p -> sum(abs2,first(solve_input(f,DeviceArray(y),p,(;);ad)))/2, dp;ad)
+                end
             end
         end
         for (precond,ldiv) in ((nothing,false), (JacobiIFT(),false), (BroydenIFT(),false),
-                        (ctx -> (;left=Diagonal(JLArray(inv.(diag(ctx.transposed ? (I-ps.W)' : I-ps.W))))),false),
-                        (ctx -> (;right=Diagonal(JLArray(inv.(diag(ctx.transposed ? (I-ps.W)' : I-ps.W))))),false),
-                        (ctx -> (;left=Diagonal(JLArray(diag(ctx.transposed ? (I-ps.W)' : I-ps.W)))),true))
+                        (ctx -> (;left=Diagonal(DeviceArray(inv.(diag(ctx.transposed ? (I-ps.W)' : I-ps.W))))),false),
+                        (ctx -> (;right=Diagonal(DeviceArray(inv.(diag(ctx.transposed ? (I-ps.W)' : I-ps.W))))),false),
+                        (ctx -> (;left=Diagonal(DeviceArray(diag(ctx.transposed ? (I-ps.W)' : I-ps.W)))),true))
             f = DEQFactor(DeviceCell(), (x=2,z=2); solver=solvers[3],
                 ift=KrylovIFT(;precond,ldiv,rtol=linear_tol,atol=linear_tol/10,memory=2,itmax=40))
             for ad in (AutoForwardDiff(), AutoZygote())
@@ -91,13 +105,13 @@ end
                 precond isa BroydenIFT && !(solver isa LimitedBroydenSolver) && continue
                 f = DEQFactor(DeviceCell(), (x=2,z=2);solver,
                     ift=KrylovIFT(;precond,rtol=linear_tol,atol=linear_tol/10,memory=2,itmax=40))
-                out, rep, _ = solve_input(f,JLArray(y),dp,(;))
+                out, rep, _ = solve_input(f,DeviceArray(y),dp,(;))
                 @test rep.converged
                 device_check(out,xrev,T)
                 for ad in (AutoForwardDiff(), AutoZygote())
-                    g=parameter_gradient(p -> sum(abs2,first(solve_input(f,JLArray(y),p,(;);ad)))/2,dp;ad)
+                    g=parameter_gradient(p -> sum(abs2,first(solve_input(f,DeviceArray(y),p,(;);ad)))/2,dp;ad)
                     device_check(LenticulumCore._flatten(g),reverse_exact'xrev,T)
-                    gy=LenticulumCore._gradient(ad,v -> sum(abs2,first(solve_input(f,v,dp,(;);ad)))/2,JLArray(y))
+                    gy=LenticulumCore._gradient(ad,v -> sum(abs2,first(solve_input(f,v,dp,(;);ad)))/2,DeviceArray(y))
                     device_check(gy,(ps.U\(I-ps.W))'xrev,T)
                 end
             end
@@ -105,15 +119,15 @@ end
         # Pointwise parameter entry points, independent of root rules.
         f=DEQFactor(DeviceCell(),(x=2,z=2);solver=solvers[3])
         for ad in (AutoForwardDiff(),AutoZygote())
-            eg=energy_gradient(f,dx,nothing,JLArray(y),dp,(;);ad)
-            fg=free_energy_gradient(f,DiracBelief(dx),DiracBelief(JLArray(y)),dp,(;);ad)
+            eg=energy_gradient(f,dx,nothing,DeviceArray(y),dp,(;);ad)
+            fg=free_energy_gradient(f,DiracBelief(dx),DiracBelief(DeviceArray(y)),dp,(;);ad)
             device_check(LenticulumCore._flatten(eg),-Ry'r,T)
             device_check(LenticulumCore._flatten(fg),-Ry'r,T)
         end
         for ad in (AutoEnzyme(),AutoMooncake())
-            @test_throws ArgumentError energy_gradient(f,dx,nothing,JLArray(y),dp,(;);ad)
+            @test_throws ArgumentError energy_gradient(f,dx,nothing,DeviceArray(y),dp,(;);ad)
             @test_throws ArgumentError solve_state(f,dx,dp,(;);ad)
-            @test_throws ArgumentError solve_input(f,JLArray(y),dp,(;);ad)
+            @test_throws ArgumentError solve_input(f,DeviceArray(y),dp,(;);ad)
         end
     end
 end
@@ -122,7 +136,7 @@ end
     JLArrays.allowscalar(false)
     for T in (Float32,Float64), itg in (EulerIntegrator(4),RK4Integrator(4)), policy in (:threaded,:fixed)
         ps=(A=T[-0.2 0.1;-0.05 -0.3],)
-        x=T[0.7,-0.3]; dp=device_tree(ps); dx=JLArray(x)
+        x=T[0.7,-0.3]; dp=device_tree(ps); dx=DeviceArray(x)
         f=NeuralODEFactor(DeviceDynamics(),2;integrator=itg,state_policy=policy,tspan=(0.0,0.8))
         for reverse in (false,true)
             flow=reverse ? flow_reverse : flow_forward
@@ -157,10 +171,10 @@ end
         end
         y=T[0.4,-0.1]
         for ad in (AutoForwardDiff(),AutoZygote())
-            eg=energy_gradient(f,dx,nothing,JLArray(y),dp,(;);ad)
+            eg=energy_gradient(f,dx,nothing,DeviceArray(y),dp,(;);ad)
             cpu=energy_gradient(f,x,nothing,y,ps,(;);ad=AutoForwardDiff())
             device_check(vec(eg.A),vec(cpu.A),T)
-            fg=free_energy_gradient(f,DiracBelief(dx),DiracBelief(JLArray(y)),dp,(;);ad)
+            fg=free_energy_gradient(f,DiracBelief(dx),DiracBelief(DeviceArray(y)),dp,(;);ad)
             device_check(vec(fg.A),vec(cpu.A),T)
         end
     end
@@ -191,7 +205,7 @@ device_quadratic(b::DiracBelief,y) = sum(abs2,b.value-y)/2
 device_quadratic(b::GaussianBelief,y) = sum(abs2,belief_mean(b)-y)/2 + sum(inv.(b.Λ.diag))/2
 
 function device_graph(T,G,coupling;device=true,detach=false,freeze=())
-    cv(x)=device ? JLArray(x) : x
+    cv(x)=device ? DeviceArray(x) : x
     b=GraphBuilder(); variable!(b,:x)
     factor!(b,:source,DeviceSource{G}();freeze)
     factor!(b,:loss,DeviceQuadratic(cv(T[0.2,-0.1])))
@@ -238,11 +252,11 @@ end
         end
     end
     for T in (Float32,Float64)
-        b=GaussianBelief(JLArray(T[1,2]),JLArray(Matrix{T}(I,2,2)))
+        b=GaussianBelief(DeviceArray(T[1,2]),DeviceArray(Matrix{T}(I,2,2)))
         # Q7 supports dense precisions under the same scalar-indexing check.
         device_check(belief_mean(b), T[1, 2], T)
         device_check(belief_cov(b), Matrix{T}(I, 2, 2), T)
-        bad=GaussianBelief(JLArray(T[1,2]),Diagonal(JLArray(T[1,0])))
+        bad=GaussianBelief(DeviceArray(T[1,2]),Diagonal(DeviceArray(T[1,0])))
         @test !isproper(bad)
         @test_throws ArgumentError belief_mean(bad)
     end
@@ -276,7 +290,7 @@ end
         @test length(step)==4
         device_check(step[1].source.μ,pc.source.μ-T(0.01)*cpu.value.source.μ,T)
         # Diagonal Gaussian accessors use only elementwise operations/reductions.
-        b=Gaussian(JLArray(pc.source.μ),Diagonal(JLArray(inv.(pc.source.λ))))
+        b=Gaussian(DeviceArray(pc.source.μ),Diagonal(DeviceArray(inv.(pc.source.λ))))
         device_check(belief_mean(b),pc.source.μ,T)
         device_check(belief_cov(b).diag,inv.(pc.source.λ),T)
         for adbad in (AutoEnzyme(),AutoMooncake())
@@ -288,7 +302,7 @@ end
 @testset "LP-002 device unsupported references and optimiser coefficients" begin
     JLArrays.allowscalar(false)
     for T in (Float32,Float64)
-        x=JLArray(T[0.4,-0.2]); ps=(b=copy(x),)
+        x=DeviceArray(T[0.4,-0.2]); ps=(b=copy(x),)
         @test_throws ArgumentError parameter_gradient(p -> sum(abs2,p.b),ps)
         @test_throws "Scalar indexing is disallowed" ImplicitLayers.fd_jacobian(identity,x)
         @test_throws ArgumentError ImplicitLayers._divergence((x,t)->x,x,0.0)
@@ -296,7 +310,7 @@ end
             @test_throws ArgumentError parameter_gradient(p -> p.s*sum(p.b),(s=T(1),b=x);ad)
         end
         for rule in (GradientDescent(0.03),Momentum(0.03,0.8),Nesterov(0.03,0.8))
-            state=JLArray(T[0.1,0.2]); grad=JLArray(T[0.3,-0.4])
+            state=DeviceArray(T[0.1,0.2]); grad=DeviceArray(T[0.3,-0.4])
             look=rule_get(rule,state,x)
             cpu=rule_get(rule,Array(state),Array(x))
             device_check(look,cpu,T)
@@ -318,7 +332,7 @@ end
         p=ode ? (A=T[-0.2 0.1;-0.05 -0.3],) : (W=T[0.2 0.1;-0.05 0.3],U=T[-0.8 0.1;0.05 -0.9],b=T[0.2,-0.1])
         dp=device_tree(p)
         b=GraphBuilder();variable!(b,:x);variable!(b,:y)
-        factor!(b,:data,DataFactor(:x,JLArray(x)));factor!(b,:target,DataFactor(:y,JLArray(y)))
+        factor!(b,:data,DataFactor(:x,DeviceArray(x)));factor!(b,:target,DataFactor(:y,DeviceArray(y)))
         factor!(b,:model,model)
         connect!(b,:data,:x,:x;direction=Emitting());connect!(b,:target,:y,:y;direction=Emitting())
         connect!(b,:model,:x,:x;direction=Absorbing());connect!(b,:model,:y,:y;direction=Absorbing())
@@ -340,7 +354,7 @@ struct DeviceNonlinear <: LuxCore.AbstractLuxLayer end
     JLArrays.allowscalar(false)
     for T in (Float32,Float64)
         x=T[0.3,-0.4];p=(a=T[0.2,0.3],b=T[-0.8,-0.9],c=T[0.1,-0.1])
-        dp=device_tree(p);dx=JLArray(x)
+        dp=device_tree(p);dx=DeviceArray(x)
         tol=T===Float32 ? 2e-6 : 1e-11
         f=DEQFactor(DeviceNonlinear(),(x=2,z=2);solver=LimitedBroydenSolver(;tol),
             ift=KrylovIFT(rtol=tol,atol=tol/10,memory=2,itmax=40,precond=JacobiIFT()))
@@ -355,7 +369,7 @@ struct DeviceNonlinear <: LuxCore.AbstractLuxLayer end
             device_check(out,z,T)
             y=T[0.2,-0.1]
             rev=(y-p.a.*tanh.(y)-p.c)./p.b
-            gr=parameter_gradient(q -> sum(abs2,first(solve_input(f,JLArray(y),q,(;);ad)))/2,dp;ad)
+            gr=parameter_gradient(q -> sum(abs2,first(solve_input(f,DeviceArray(y),q,(;);ad)))/2,dp;ad)
             exactr=vcat(-tanh.(y).*rev./p.b,-rev.^2 ./p.b,-rev./p.b)
             device_check(LenticulumCore._flatten(gr),exactr,T)
         end
@@ -372,10 +386,10 @@ struct DeviceStateDynamics <: LuxCore.AbstractLuxLayer end
         st=(k=1,);dp=device_tree(p)
         ref=energy_gradient(f,x,nothing,y,p,st;ad=AutoForwardDiff())
         for ad in (AutoForwardDiff(),AutoZygote())
-            g=energy_gradient(f,JLArray(x),nothing,JLArray(y),dp,st;ad)
+            g=energy_gradient(f,DeviceArray(x),nothing,DeviceArray(y),dp,st;ad)
             device_check(LenticulumCore._flatten(g),LenticulumCore._flatten(ref),T)
         end
-        out,sn=flow_forward(f,JLArray(x),dp,st)
+        out,sn=flow_forward(f,DeviceArray(x),dp,st)
         cpu,sc=flow_forward(f,x,p,st)
         device_check(out,cpu,T)
         @test sn==sc
@@ -387,7 +401,7 @@ end
 @testset "LP-002 device Gaussian moment and density derivatives" begin
     JLArrays.allowscalar(false)
     for T in (Float32,Float64), ad in (AutoForwardDiff(),AutoZygote())
-        p=(μ=JLArray(T[0.7,-0.3]),λ=JLArray(T[1.4,0.8]))
+        p=(μ=DeviceArray(T[0.7,-0.3]),λ=DeviceArray(T[1.4,0.8]))
         moment=parameter_gradient(p;ad) do q
             b=GaussianBelief(q.λ .* q.μ,Diagonal(q.λ))
             sum(abs2,belief_mean(b))/2+sum(belief_cov(b).diag)/2
@@ -404,7 +418,7 @@ end
         end
         device_check(partition_grad.μ,Array(p.λ).*Array(p.μ),T)
         device_check(partition_grad.λ,(Array(p.μ).^2-inv.(Array(p.λ)))/2,T)
-        y=JLArray(T[0.2,-0.1])
+        y=DeviceArray(T[0.2,-0.1])
         density=parameter_gradient(p;ad) do q
             belief_logdensity(GaussianBelief(q.λ .* q.μ,Diagonal(q.λ)),y)
         end
@@ -420,7 +434,7 @@ end
         p=(a=(μ=T[0.7,-0.3],λ=T[1.4,0.8]),b=(μ=T[-0.1,0.4],λ=T[0.6,1.2]),loss=(;))
         b=GraphBuilder();variable!(b,:x)
         factor!(b,:a,DeviceSource{true}());factor!(b,:b,DeviceSource{true}())
-        y=T[0.2,-0.1];factor!(b,:loss,DeviceQuadratic(JLArray(y)))
+        y=T[0.2,-0.1];factor!(b,:loss,DeviceQuadratic(DeviceArray(y)))
         connect!(b,:a,:x,:x;direction=Emitting(),coupling=PathwiseCoupling())
         connect!(b,:b,:x,:x;direction=Emitting(),coupling=PathwiseCoupling())
         connect!(b,:loss,:x,:x;direction=Absorbing(),coupling=ExactCoupling())
@@ -447,8 +461,8 @@ end
                 ift=KrylovIFT(rtol=tol,atol=tol/10,memory=2,itmax=40,precond=JacobiIFT()))
         observed,solved=rev ? (:y,:x) : (:x,:y)
         b=GraphBuilder();variable!(b,:x);variable!(b,:y)
-        factor!(b,:data,DataFactor(observed,JLArray(x)));factor!(b,:model,model)
-        dtarget=JLArray(target)
+        factor!(b,:data,DataFactor(observed,DeviceArray(x)));factor!(b,:model,model)
+        dtarget=DeviceArray(target)
         factor!(b,:loss,LossFactor((solved,),y -> sum(abs2,y-dtarget)/2))
         connect!(b,:data,observed,observed;direction=Emitting(),coupling=ExactCoupling())
         connect!(b,:model,:x,:x;direction=Bidirectional(),coupling=ExactCoupling())
@@ -505,12 +519,12 @@ end
             P=itg isa EulerIntegrator ? Id+B : Id+B+B^2/2+B^3/6+B^4/24
             return (P^2*vcat(x,T[0.1,1]))[1:2]
         end
-        out,sn=flow_forward(f,JLArray(x),dp,(k=1,))
+        out,sn=flow_forward(f,DeviceArray(x),dp,(k=1,))
         device_check(out,reference(p),T)
         @test sn.k==(policy===:fixed ? 2 : itg isa EulerIntegrator ? 3 : 9)
         want=parameter_gradient(q -> sum(abs2,reference(q))/2,p;ad=AutoForwardDiff())
         for ad in (AutoForwardDiff(),AutoZygote())
-            g=parameter_gradient(q -> sum(abs2,first(flow_forward(f,JLArray(x),q,(k=1,))))/2,dp;ad)
+            g=parameter_gradient(q -> sum(abs2,first(flow_forward(f,DeviceArray(x),q,(k=1,))))/2,dp;ad)
             device_check(LenticulumCore._flatten(g),LenticulumCore._flatten(want),T)
         end
     end
@@ -522,7 +536,7 @@ end
         dp=device_tree(p); x=T[0.7,-0.3]; z=(I-p.W)\(p.U*x+p.b)
         flat=LenticulumCore._flatten_active(dp)
         device_check(flat,LenticulumCore._flatten(p),T)
-        empty=LenticulumCore._flatten_active((outer=(zero=JLArray(T[]),empty=(;)),))
+        empty=LenticulumCore._flatten_active((outer=(zero=DeviceArray(T[]),empty=(;)),))
         device_check(empty,T[],T)
         tol=T===Float32 ? 2e-6 : 1e-11
         f=DEQFactor(DeviceCell(),(x=2,z=2);solver=LimitedBroydenSolver(;tol),
@@ -530,7 +544,7 @@ end
         Id=Matrix{T}(I,2,2)
         exact=((I-p.W)\hcat(kron(z',Id),kron(x',Id),Id))'z
         for ad in (AutoForwardDiff(),AutoZygote())
-            g=parameter_gradient(q -> sum(abs2,first(solve_state(f,JLArray(x),q,(;);ad)))/2,dp;ad)
+            g=parameter_gradient(q -> sum(abs2,first(solve_state(f,DeviceArray(x),q,(;);ad)))/2,dp;ad)
             device_check(LenticulumCore._flatten(g),exact,T)
             @test g.empty==g.tail==(;)
         end

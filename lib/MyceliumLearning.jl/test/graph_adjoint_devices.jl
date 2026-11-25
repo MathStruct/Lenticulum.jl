@@ -1,23 +1,24 @@
 using ForwardDiff, JLArrays, Zygote
+const DeviceArray = isdefined(Main, :LENTICULUM_DEVICE_ARRAY) ? Main.LENTICULUM_DEVICE_ARRAY : JLArray  # CuArray under gpu/runtests.jl (Q8)
 
 @testset "I30: pinning flat device coordinates" begin
     JLArrays.allowscalar(false)
-    reference = JLArray(Float64[11, 12, 13, 14])
-    active = JLArray(Float32[1, 2, 3, 4])
+    reference = DeviceArray(Float64[11, 12, 13, 14])
+    active = DeviceArray(Float32[1, 2, 3, 4])
     mask = BitVector([true, false, false, true])
     pin(θ) = MyceliumLearning._pin_coordinates_wide(reference, mask, θ)
 
     pinned = pin(active)
-    @test pinned isa JLArray{Float64}
+    @test pinned isa DeviceArray{Float64}
     @test Array(pinned) == [1.0, 12.0, 13.0, 4.0]
 
     dz = only(Zygote.gradient(θ -> sum(abs2, pin(θ)), active))
-    @test dz isa JLArray{Float32}
+    @test dz isa DeviceArray{Float32}
     @test Array(dz) == Float32[2, 0, 0, 8]
 
-    dual = JLArray(ForwardDiff.Dual{:i30}.(Array(active), 1f0))
+    dual = DeviceArray(ForwardDiff.Dual{:i30}.(Array(active), 1f0))
     pinned_dual = pin(dual)
-    @test pinned_dual isa JLArray{ForwardDiff.Dual{:i30,Float64,1}}
+    @test pinned_dual isa DeviceArray{ForwardDiff.Dual{:i30,Float64,1}}
     host_dual = Array(pinned_dual)
     @test ForwardDiff.value.(host_dual) == Array(pinned)
     @test only.(ForwardDiff.partials.(host_dual)) == [1.0, 0.0, 0.0, 1.0]
@@ -60,7 +61,7 @@ function Mycelium.local_free_energy(::ScheduleDevicePair,bs,p,st)
 end
 
 function schedule_device_graph(T, coupling; device=true, loopy=true)
-    cv(x) = device ? JLArray(T.(x)) : T.(x)
+    cv(x) = device ? DeviceArray(T.(x)) : T.(x)
     b = GraphBuilder()
     for v in (:x,:y,:z); variable!(b,v); end
     for (f,v) in ((:u,:x),(:v,:y),(:w,:z))
@@ -83,9 +84,9 @@ end
     JLArrays.allowscalar(false)
     errors=Dict(Float32=>0.0,Float64=>0.0)
     for T in (Float32,Float64)
-        @test LenticulumCore.isuninformative(GaussianBelief(JLArray(zeros(T,2)),Diagonal(JLArray(zeros(T,2)))))
-        @test !LenticulumCore.isuninformative(GaussianBelief(JLArray(ones(T,2)),Diagonal(JLArray(zeros(T,2)))))
-        @test !LenticulumCore.isuninformative(GaussianBelief(JLArray(zeros(T,2)),Diagonal(JLArray(ones(T,2)))))
+        @test LenticulumCore.isuninformative(GaussianBelief(DeviceArray(zeros(T,2)),Diagonal(DeviceArray(zeros(T,2)))))
+        @test !LenticulumCore.isuninformative(GaussianBelief(DeviceArray(ones(T,2)),Diagonal(DeviceArray(zeros(T,2)))))
+        @test !LenticulumCore.isuninformative(GaussianBelief(DeviceArray(zeros(T,2)),Diagonal(DeviceArray(ones(T,2)))))
     end
     # Cover both precisions, topologies, couplings, schedules and damping with
     # representative combinations rather than a redundant Cartesian product.
@@ -121,7 +122,7 @@ end
             for ad in (AutoForwardDiff(),AutoZygote())
                 grad=free_energy_gradient(MessageStore(g),g,p,st;ad,schedule=sched,nsweeps=n,damping)
                 flat=LenticulumCore._flatten(grad)
-                @test flat isa JLArray
+                @test flat isa DeviceArray
                 @test eltype(flat) === T
                 @test Array(flat) ≈ LenticulumCore._flatten(ref) atol=T===Float32 ? 3e-5 : 1e-9 rtol=T===Float32 ? 3e-5 : 1e-9
                 errors[T]=max(errors[T],norm(Array(flat)-LenticulumCore._flatten(ref))/max(1,norm(LenticulumCore._flatten(ref))))
@@ -145,12 +146,12 @@ end
         connect!(b,:source,:x,:x;direction=Emitting(),coupling)
         connect!(b,:loss,:x,:x;direction=Absorbing(),coupling)
         g=build(b); a=T[0.7,-0.2]
-        p=(source=(a=JLArray(a),),loss=(;)); pc=(source=(a=a,),loss=(;))
+        p=(source=(a=DeviceArray(a),),loss=(;)); pc=(source=(a=a,),loss=(;))
         st=(source=(;),loss=(;))
         for sched in (flooding_schedule(g),ResidualSchedule(maxtasks=2)), damping in (0.0,0.35),
                 ad in (AutoForwardDiff(),AutoZygote())
             d=free_energy_gradient(MessageStore(g),g,p,st;ad,schedule=sched,nsweeps=3,damping)
-            @test d.source.a isa JLArray
+            @test d.source.a isa DeviceArray
             @test eltype(d.source.a) === T
             @test Array(d.source.a) ≈ a rtol=1e-6
         end

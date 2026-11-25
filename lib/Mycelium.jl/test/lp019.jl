@@ -128,11 +128,12 @@ end
 
 if get(ENV, "LENTICULUM_DEVICE_TESTS", "false") == "true"
     using JLArrays
+    DeviceArray = isdefined(Main, :LENTICULUM_DEVICE_ARRAY) ? Main.LENTICULUM_DEVICE_ARRAY : JLArray  # CuArray under gpu/runtests.jl (Q8)
     @testset "LP-019 review: proper overlaps on diagonal device Gaussians" begin
         JLArrays.allowscalar(false)
         for T in (Float32, Float64)
-            c = GaussianBelief(JLArray(T[1, 1]), Diagonal(JLArray(T[1, 1 / 2])))      # N([1,2], diag(1,2)), η = Λμ
-            d = GaussianBelief(JLArray(T[1, 1]), Diagonal(JLArray(T[1 / 2, 1 / 3])))  # N([2,3], diag(2,3))
+            c = GaussianBelief(DeviceArray(T[1, 1]), Diagonal(DeviceArray(T[1, 1 / 2])))      # N([1,2], diag(1,2)), η = Λμ
+            d = GaussianBelief(DeviceArray(T[1, 1]), Diagonal(DeviceArray(T[1 / 2, 1 / 3])))  # N([2,3], diag(2,3))
             _, logZ = combine_with_overlap(c, d)
             # N([1,2] − [2,3]; 0, diag(3,5))
             @test logZ ≈ -(log(2π * 3) + log(2π * 5) + 1 / 3 + 1 / 5) / 2 rtol = sqrt(eps(T))
@@ -155,9 +156,9 @@ end
 if get(ENV, "LENTICULUM_DEVICE_TESTS", "false") == "true"
     @testset "LP-019 second review: Zygote through a diagonal device overlap" begin
         JLArrays.allowscalar(false)
-        d = GaussianBelief(JLArray([1.0, 1.0]), Diagonal(JLArray([1 / 2, 1 / 3])))   # N([2,3], diag(2,3))
+        d = GaussianBelief(DeviceArray([1.0, 1.0]), Diagonal(DeviceArray([1 / 2, 1 / 3])))   # N([2,3], diag(2,3))
         f(η, λ) = last(combine_with_overlap(GaussianBelief(η, Diagonal(λ)), d))
-        gη, gλ = Zygote.gradient(f, JLArray([1.0, 1.0]), JLArray([1.0, 0.5]))
+        gη, gλ = Zygote.gradient(f, DeviceArray([1.0, 1.0]), DeviceArray([1.0, 0.5]))
         # c = N(η/λ, 1/λ) at μ = [1, 2], Σ = [1, 2]; ∂/∂η = −(μ − μ_d)/(Σ + Σ_d)/λ, and so on
         @test Array(gη) ≈ [1 / 3, 0.4]
         @test Array(gλ) ≈ [-2 / 9, -0.48]

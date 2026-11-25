@@ -343,18 +343,19 @@ end
     end
 end
 
+const DeviceArray = isdefined(Main, :LENTICULUM_DEVICE_ARRAY) ? Main.LENTICULUM_DEVICE_ARRAY : JLArray  # CuArray under gpu/runtests.jl (Q8)
 @testset "P41 Krylov.jl on JLArrays" begin
     JLArrays.allowscalar(false)
     rng = Xoshiro(4102)
     for T in (Float32, Float64, ComplexF64), n in (2, 50), method in (:gmres, :minres, :cg)
         A, b = krylov_oracle_system(rng, T, n, :spd)
-        dA, db = JLArray(A), JLArray(b)
+        dA, db = DeviceArray(A), DeviceArray(b)
         tol = Tolerance(atol=T === Float32 ? 1f-5 : 1e-9, rtol=0)
         xref, host = linsolve(A, b, KrylovJL(method); tol)
         @test host.converged
         for op in (dA, v -> dA * v)
             x, report = linsolve(op, db, KrylovJL(method); tol)
-            @test x isa JLArray{T,1}
+            @test x isa DeviceArray{T,1}
             @test report.converged
             @test Array(x) ≈ xref atol=2tol.atol rtol=0
             @test report.residual == norm(db - dA*x) <= tol.atol
@@ -365,8 +366,8 @@ end
 @testset "P42 KrylovJL dual solve on JLArrays" begin
     JLArrays.allowscalar(false)
     A, b, db = [4.0 1.0; 1.0 3.0], [1.0, 2.0], [-1.0, 3.0]
-    x, report = linsolve(JLArray(A), JLArray(krylov_dual.(b, tuple.(db))), KrylovJL())
-    @test x isa JLArray
+    x, report = linsolve(DeviceArray(A), DeviceArray(krylov_dual.(b, tuple.(db))), KrylovJL())
+    @test x isa DeviceArray
     @test report.converged
     @test primal.(Array(x)) ≈ A \ b
     @test krylov_partial.(Array(x), 1) ≈ A \ db

@@ -76,7 +76,7 @@ graph LR
   Q4 --> Q19[Q19 element types on<br/>every message path]
   Q7 --> Q20[Q20 devices on<br/>every message path]
   Q19 --> Q20
-  Q7 --> Q8[Q8 hardware<br/>GPU job]
+  Q7 --> Q8[Q8 hardware<br/>GPU job, done]
   Q9[Q9 thread safety] --> Q10[Q10 parallel<br/>execution]
   Q1[Q1 the standard] --> Q11[Q11 init/solve!<br/>caches]
   Q11 --> Q12[Q12 allocation<br/>budgets]

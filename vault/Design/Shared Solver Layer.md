@@ -307,12 +307,14 @@ checked.
   element type or the storage type, unlike a Krylov.jl workspace (`{T, FC, S}`). The operator is
   told apart only as `AbstractMatrix` versus anything else, and genericity is by duck typing on
   broadcasts.
-- *Array types and GPUs.* The device tests (`lib/ImplicitSolvers.jl/test/device.jl`) are JLArrays on
-  2×2 systems, which catches scalar indexing and nothing else. No CUDA or other hardware GPU run, no
-  device size, and no other array types (views, `ComponentArray`s, distributed arrays) are tested.
-  GMRES keeps `H` and `g` on the host and calls `dot` twice per basis vector per step, one device
-  synchronisation each; this was not measured. The open question below (no device benchmark planned)
-  is still open.
+- *Array types and GPUs.* The device tests (`lib/ImplicitSolvers.jl/test/device.jl`, `krylovjl.jl`) are
+  small systems on JLArrays, and since Q8 also on CUDA (`gpu/runtests.jl`, weekly in `GPU.yml`; they
+  pass on an RTX 3080). No other array types (views, `ComponentArray`s, distributed arrays) are tested.
+  GMRES keeps `H` and `g` on the host and calls `dot` per basis vector per step, one device
+  synchronisation each (15 µs on the RTX 3080). Measured in `gpu/device_benchmarks.md` (Q8): 0.28 ms
+  per iteration at n = 256 in Float32 and 0.49 ms in Float64, Krylov.jl's GMRES 0.16 and 0.26 ms, so
+  on that GPU the device is 9–83× slower than the CPU up to n = 1024 and faster from n = 4096 (0.77×,
+  Krylov.jl 0.54×, Float64). `DenseSolve` factorises on the host whatever the array type.
 - *Preconditioners.* GMRES takes `left` and `right` only as functions $v \mapsto Mv$. There is no
   `ldiv!` object protocol, and no in-place form. The package provides no preconditioner itself:
   Jacobi appears only in tests. MINRES takes none. CG and Lanczos are a third copy in
@@ -348,5 +350,6 @@ P42; and a workspace built per call allocates 781 kB per solve at $n = 2000$ aga
 
 - Whether `Anderson` belongs in the package as a root solver (Mycelium's `AndersonSchedule` mixes
   messages, not a vector; nothing else uses Anderson today). Not in phase 1.
-- A device (GPU) path for GMRES: the moved code must not scalar-index (tested with JLArrays and
-  `allowscalar(false)`), but no device benchmark is planned.
+- A device (GPU) path for GMRES: answered by Q8's benchmark (above, *Array types and GPUs*): it
+  runs on CUDA, bound by its synchronisations; Krylov.jl's is about twice as fast there. Keeping `H`
+  and `g` on the device, or Krylov.jl as the device default, is P40's question now.

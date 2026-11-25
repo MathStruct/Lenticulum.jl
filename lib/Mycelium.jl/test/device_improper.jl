@@ -4,11 +4,12 @@
 # decides properness from the combined support, as on the CPU. Oracles: the CPU beliefs themselves.
 if get(ENV, "LENTICULUM_DEVICE_TESTS", "false") == "true"
     using JLArrays
+    DeviceArray = isdefined(Main, :LENTICULUM_DEVICE_ARRAY) ? Main.LENTICULUM_DEVICE_ARRAY : JLArray  # CuArray under gpu/runtests.jl (Q8)
 
     @testset "GH-19: device diagonal Gaussians keep the improper contract" begin
         JLArrays.allowscalar(false)
         for T in (Float32, Float64)
-            b = GaussianBelief(JLArray(T[1]), Diagonal(JLArray(T[1])), true)
+            b = GaussianBelief(DeviceArray(T[1]), Diagonal(DeviceArray(T[1])), true)
             c = GaussianBelief([T(1)], Diagonal([T(1)]), true)
             @test !isproper(b) && !isproper(c)
             @test_throws ArgumentError belief_mean(b)
@@ -18,7 +19,7 @@ if get(ENV, "LENTICULUM_DEVICE_TESTS", "false") == "true"
             @test_throws ArgumentError belief_cov(c)
             @test_throws ArgumentError logpartition(c)
             # an untagged device belief still answers, and agrees with the CPU one
-            p = GaussianBelief(JLArray(T[1]), Diagonal(JLArray(T[2])))
+            p = GaussianBelief(DeviceArray(T[1]), Diagonal(DeviceArray(T[2])))
             q = GaussianBelief([T(1)], Diagonal([T(2)]))
             @test Array(belief_mean(p)) ≈ belief_mean(q)
             # the device covariance stays diagonal; Array(::Diagonal{<:GPUArray}) would scalar-index
@@ -29,9 +30,9 @@ if get(ENV, "LENTICULUM_DEVICE_TESTS", "false") == "true"
 
     @testset "GH-18 device: damping decides properness from the combined support" begin
         JLArrays.allowscalar(false)
-        a = GaussianBelief(JLArray([0.0, 0.0]), Diagonal(JLArray([1.0, 0.0])), true)
-        b = GaussianBelief(JLArray([0.0, 0.0]), Diagonal(JLArray([0.0, 1.0])), true)
+        a = GaussianBelief(DeviceArray([0.0, 0.0]), Diagonal(DeviceArray([1.0, 0.0])), true)
+        b = GaussianBelief(DeviceArray([0.0, 0.0]), Diagonal(DeviceArray([0.0, 1.0])), true)
         @test !damp(a, b, 0.5).improper                       # complementary nullspaces: proper
-        @test damp(a, GaussianBelief(JLArray([0.0, 0.0]), Diagonal(JLArray([2.0, 0.0])), true), 0.5).improper
+        @test damp(a, GaussianBelief(DeviceArray([0.0, 0.0]), Diagonal(DeviceArray([2.0, 0.0])), true), 0.5).improper
     end
 end

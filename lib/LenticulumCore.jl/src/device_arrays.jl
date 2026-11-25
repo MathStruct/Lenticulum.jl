@@ -54,5 +54,18 @@ _eigen(A) = _eigen(_device_leaf(A), A)
 _eigen(::Nothing, A) = eigen(A)
 _eigvals(A) = _host_spectral(eigvals, A)
 
+# The Cholesky factor of a device matrix: the dense lower factor `L` and LAPACK's `info` (0, or
+# the first nonpositive pivot). The GPUArraysCore extension computes it column by column; the
+# CUDA extension with cuSOLVER (Q8). Its solves go through `_device_triangular_solve`, which
+# solves `L X = B`, or `L' X = B` when `transposed`, with the same two implementations.
+struct DeviceCholesky{M}
+    L::M
+    info::Int
+end
+LinearAlgebra.issuccess(C::DeviceCholesky) = iszero(C.info)
+Base.eltype(C::DeviceCholesky) = eltype(C.L)
+Base.size(C::DeviceCholesky, d::Int) = size(C.L, d)
+function _device_triangular_solve end
+
 _cholesky_pivots(C) = LinearAlgebra.diag(C.U)
 _lower_matrix(C) = Matrix(C.L)

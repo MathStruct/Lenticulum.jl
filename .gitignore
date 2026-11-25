@@ -14,6 +14,7 @@ __pycache__/
 /docs/vault-build/
 /bench/Manifest.toml
 /benchmark/Manifest.toml
+/gpu/Manifest.toml
 /tools/Manifest.toml
 *.cov
 *.mem

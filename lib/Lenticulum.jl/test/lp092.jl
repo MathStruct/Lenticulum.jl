@@ -16,9 +16,10 @@ end
 
 # LP-092, Gemini's review: factor configurations the fixtures do not build.
 using Adapt, JLArrays, LinearAlgebra
+const DeviceArray = isdefined(Main, :LENTICULUM_DEVICE_ARRAY) ? Main.LENTICULUM_DEVICE_ARRAY : JLArray  # CuArray under gpu/runtests.jl (Q8)
 @testset "LP-092: device paths of default and edge configurations" begin
     JLArrays.allowscalar(false)
-    dev(x) = adapt(JLArray, x)
+    dev(x) = adapt(DeviceArray, x)
     polarity(f, target, observed) = only(p for p in supported_polarities(f)
         if Set(observed_channels(p)) == Set(observed) && target in unobserved_channels(p))
     msg(f, target, inputs, prior, ps) =
@@ -44,7 +45,7 @@ using Adapt, JLArrays, LinearAlgebra
     @testset "bivariate Poisson entropy" begin
     # Bivariate Poisson's conditional entropy read λ[1], λ[2], λ[3]
     z = [0.1, 0.2, -0.3]
-    @test Lenticulum._conditional_entropy(BivariatePoissonLikelihood(), JLArray(z)) ≈
+    @test Lenticulum._conditional_entropy(BivariatePoissonLikelihood(), DeviceArray(z)) ≈
           Lenticulum._conditional_entropy(BivariatePoissonLikelihood(), z) rtol = 1e-10
     end
     @testset "categorical variable entropy" begin
@@ -55,10 +56,10 @@ using Adapt, JLArrays, LinearAlgebra
     @testset "Cholesky triangle" begin
     # The device Cholesky read the lower triangle; the CPU one (Symmetric, :U) reads the upper
     A = [2.0 3.0; 0.0 2.0]
-    @test issuccess(LenticulumCore._symmetric_cholesky(JLArray(A); check = false)) ==
+    @test issuccess(LenticulumCore._symmetric_cholesky(DeviceArray(A); check = false)) ==
           issuccess(LenticulumCore._symmetric_cholesky(A; check = false))
     B = [2.0 0.5; 0.3 2.0]
-    @test Array(LenticulumCore._lower_matrix(LenticulumCore._symmetric_cholesky(JLArray(B)))) ≈
+    @test Array(LenticulumCore._lower_matrix(LenticulumCore._symmetric_cholesky(DeviceArray(B)))) ≈
           LenticulumCore._lower_matrix(LenticulumCore._symmetric_cholesky(B))
     end
 end

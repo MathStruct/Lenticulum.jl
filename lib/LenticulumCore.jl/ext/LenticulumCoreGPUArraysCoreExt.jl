@@ -107,13 +107,7 @@ function LC._eigen(prototype::AbstractGPUArray, A)
     return (; values, vectors)
 end
 
-struct DeviceCholesky{M}
-    L::M
-    info::Int
-end
-LinearAlgebra.issuccess(C::DeviceCholesky) = iszero(C.info)
-Base.eltype(C::DeviceCholesky) = eltype(C.L)
-Base.size(C::DeviceCholesky, d::Int) = size(C.L, d)
+const DeviceCholesky = LC.DeviceCholesky
 LC._cholesky_pivots(C::DeviceCholesky) = LC._device_diag(C.L)
 LC._lower_matrix(C::DeviceCholesky) = C.L
 LC._symmetric_cholesky(A::Symmetric{T,<:AbstractGPUArray}; check = true) where {T} =
@@ -129,7 +123,8 @@ function Base.show(io::IO, b::LC.GaussianBelief{<:AbstractGPUArray,<:AbstractGPU
     print(io, ", ", b.improper, ")")
 end
 
-# Right-looking Cholesky. The pivot reduction synchronises once per column
+# Right-looking Cholesky, one kernel per column (the CUDA extension uses cuSOLVER's potrf for
+# Float32 and Float64; `gpu/device_benchmarks.md`). The pivot reduction synchronises once per column
 # to match LAPACK's first nonpositive pivot, including check=false callers.
 function LC._symmetric_cholesky(A::AbstractGPUArray{T,2}; check = true) where {T}
     n = LinearAlgebra.checksquare(A)
@@ -141,9 +136,10 @@ function LC._symmetric_cholesky(A::AbstractGPUArray{T,2}; check = true) where {T
             check && throw(PosDefException(j))
             return DeviceCholesky(L, j)
         end
-        col = view(L, j:n, j:j)
-        col ./= sqrt(pivot)
+        # The pivot is set to √pivot, not divided by it: Inf/√Inf is NaN where LAPACK gives Inf (Q8).
+        view(L, j:j, j:j) .= sqrt(pivot)
         tail = view(L, (j + 1):n, j:j)
+        tail ./= sqrt(pivot)
         view(L, (j + 1):n, (j + 1):n) .-= tail .* transpose(tail)
     end
     L .= ifelse.((1:n) .>= reshape(1:n, 1, n), L, zero(eltype(L)))
@@ -152,7 +148,8 @@ end
 
 # A row slice is a matrix even for one right hand side. Broadcasting the
 # pivot keeps its value on the device throughout forward/back substitution.
-function _triangular_solve(L, B, transposed)
+# One kernel per column; the CUDA extension replaces it by cuBLAS's trsm.
+function LC._device_triangular_solve(L::AbstractGPUArray, B, transposed)
     n = size(L, 1)
     X = copy(B)
     for j in (transposed ? (n:-1:1) : (1:n))
@@ -170,7 +167,7 @@ function Base.:\(C::DeviceCholesky, B::AbstractVecOrMat)
     size(B, 1) == size(C, 1) || throw(DimensionMismatch("incompatible Cholesky and right-hand-side dimensions"))
     T = promote_type(eltype(C), eltype(B))
     X = T.(LC._on_device(C.L, B))
-    solved = _triangular_solve(C.L, _triangular_solve(C.L, reshape(X, size(X, 1), B isa AbstractVector ? 1 : size(B, 2)), false), true)
+    solved = LC._device_triangular_solve(C.L, LC._device_triangular_solve(C.L, reshape(X, size(X, 1), B isa AbstractVector ? 1 : size(B, 2)), false), true)
     return B isa AbstractVector ? vec(solved) : solved
 end
 
@@ -203,7 +200,7 @@ end
 # mixture component. Each caller uses the scalar as control or metadata.
 LC._entry(A::AbstractGPUArray, i::Int) = sum(view(vec(A), i:i))
 LC._triangular_inverse(C::DeviceCholesky) =
-    _triangular_solve(C.L, LC._eye(C.L, eltype(C), size(C, 1)), false)
+    LC._device_triangular_solve(C.L, LC._eye(C.L, eltype(C), size(C, 1)), false)
 LC._symmetric_inv(A::Diagonal{T,<:AbstractGPUArray}) where {T} = LC._matrix(Diagonal(inv.(A.diag)))
 LC._symmetric_inv(A::AbstractGPUArray{T,2}) where {T} = inv(LC._symmetric_cholesky(A))
 LC._dense_inv(A::AbstractGPUArray{T,2}) where {T} = LC._symmetric_inv(A)

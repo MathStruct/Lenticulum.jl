@@ -221,7 +221,10 @@ end
 
 function _rank_clean(f::NonlinearFactor, x, J, R)
     isempty(J) && return J
+    # The rank decision is made on the host (values only; R carries none); the projector goes back
+    # to J's array type. Broadcasting the host Jv against a device R or J fails on CUDA (Q8).
     Jv = Matrix(LenticulumCore.stop_gradient(J))
+    R = Matrix(R)
     all(isfinite, Jv) && all(isfinite, R) || return J
     maximum(R) == 0 && return J                        # f's values exactly zero: nothing rounded
     s = LinearAlgebra.svdvals(Jv)
@@ -238,9 +241,10 @@ function _rank_clean(f::NonlinearFactor, x, J, R)
     k = count(>(eltype(Jv)(_FD_RANK_KAPPA) * lim), F.S)
     k == length(F.S) && return J
     V = F.V[:, 1:k]
-    P = Diagonal(1 ./ cs) * (V * V') * Diagonal(cs)
+    device = _device_leaf(J)
+    P = _on_device(device, Diagonal(1 ./ cs) * (V * V') * Diagonal(cs))
     eltype(J) === eltype(Jv) && return J * P
-    return J * P .+ (J .- Jv) * (I - P)
+    return J * P .+ (J .- _on_device(device, Jv)) * (I - P)
 end
 
 """

@@ -1,0 +1,63 @@
+[deps]
+ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+AlgebraicFactors = "5937a757-1681-44a0-82a2-3722a0d5745f"
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+GPUArraysCore = "46192b85-c4d5-4398-a991-12ede77f4527"
+ImplicitLayers = "3c0d5f2a-7b41-4e88-9a6d-1f5c8e2b4471"
+ImplicitSolvers = "248397c0-0a23-4829-91d8-bb8f51737c30"
+JLArrays = "27aeb0d3-9eb9-45fb-866b-73c2ecf80fcb"
+Krylov = "ba0b0d4f-ebba-5204-a429-3ac8c609bfb7"
+Lenticulum = "80a378fd-9e01-49e8-9939-ada6559002ad"
+LenticulumCore = "1ac3b398-e9e9-400d-83fd-862c57ff485d"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+LuxCore = "bb33d45b-7691-41d6-9220-0943567d0623"
+Mycelium = "0a724bc2-760c-4b8c-a26e-202a6d9695cb"
+MyceliumLearning = "7d2f6c1e-4a93-4b0e-9c57-3e8a1f6b2d40"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
+
+[sources]
+AlgebraicFactors = {path = "../lib/AlgebraicFactors.jl"}
+ImplicitLayers = {path = "../lib/ImplicitLayers.jl"}
+ImplicitSolvers = {path = "../lib/ImplicitSolvers.jl"}
+Lenticulum = {path = "../lib/Lenticulum.jl"}
+LenticulumCore = {path = "../lib/LenticulumCore.jl"}
+Mycelium = {path = "../lib/Mycelium.jl"}
+MyceliumLearning = {path = "../lib/MyceliumLearning.jl"}
+
+[compat]
+ADTypes = "1"
+Adapt = "4"
+AlgebraicFactors = "0.0"
+BenchmarkTools = "1.6"
+Dates = "1"
+CUDA = "5, 6"
+DifferentiationInterface = "0.7"
+ForwardDiff = "0.10, 1"
+GPUArraysCore = "0.2"
+ImplicitLayers = "0.0"
+ImplicitSolvers = "0.1"
+JLArrays = "0.4, 0.5"
+Krylov = "0.10"
+Lenticulum = ">= 0"
+LenticulumCore = "0.0"
+LinearAlgebra = "1"
+LuxCore = "1"
+Mycelium = "0.0"
+MyceliumLearning = "0.0"
+Printf = "1"
+Random = "1"
+StaticArrays = "1"
+Statistics = "1"
+Test = "1"
+Zygote = "0.7"
+julia = "1.12"

@@ -15,8 +15,23 @@ forward and backward substitution over row slices, the inverse as a solve agains
 same backend, and the log-determinant as a sum over the pivots' logarithms. It is written in broadcasts
 and views only, so it runs on any GPUArrays backend; an $n\times n$ factorisation is $O(n)$ kernel
 launches and one pivot read per column (to report the first nonpositive pivot as LAPACK does). Factor
-dimensions are small, so this is meant to be correct everywhere, not fast; a backend with a native
-factorisation (CUSOLVER on CUDA, Q8) specialises `_symmetric_cholesky` on its array type. A device
+dimensions are small, so this is meant to be correct everywhere, not fast. The factor is a
+`DeviceCholesky` (in `device_arrays.jl`: the dense lower factor and LAPACK's `info`), and its solves go
+through the hook `_device_triangular_solve`, so a backend with native kernels replaces both.
+
+**CUDA (Q8).** `ext/LenticulumCoreCUDAExt.jl` (weak dependency CUDA) does that for `CuMatrix{Float32}`
+and `CuMatrix{Float64}`: cuSOLVER's `potrf` on the upper triangle and cuBLAS's `trsm`. cuSOLVER reports a
+nonpositive pivot but not a NaN one, and the generic kernel does (as reference LAPACK's `dpotrf2`), so
+the extension checks the factor's diagonal with one reduction and the two device paths agree. The CPU
+path does not: OpenBLAS's `potrf` returns `info = 0` for a matrix with a NaN (found by Mistral's review,
+LP-093), so a NaN precision fails a device factorisation and passes a CPU one. That difference predates
+Q8 and is left as it is. Other element types (dual numbers,
+integers) keep the generic kernels. On an RTX 3080 the generic kernel is 3–36× slower from n = 8 on, and
+faster only at n = 2 (38 against 48 µs, the NaN check being 13 µs of those; `gpu/device_benchmarks.md`).
+`test/cuda_ext.jl` compares the two with each other and with LAPACK on random positive definite,
+indefinite, singular, NaN and Inf matrices; that comparison found the generic kernel computing the
+diagonal entry of an infinite pivot as Inf/√Inf = NaN where LAPACK gives Inf (fixed: the pivot is set to
+its square root). A device
 matrix in a `Symmetric`, `Adjoint` or `Transpose` wrapper is materialised on the device before it reaches
 these kernels (LP-092; before that the CPU fallback's `Matrix(M)` copied it to the host without a word).
 
@@ -29,19 +44,30 @@ these kernels (LP-092; before that the CPU fallback's `Matrix(M)` copied it to t
   flow or metadata (a branch on a count, the set of active regimes, a mixture weight multiplying a
   component), 57 call sites in `lib/*/src`. Each read is a device synchronisation: correct on every
   backend, but per element, so loops over regimes or quadrature nodes pay one synchronisation per term.
-  Not measured; Q8 measures it on hardware.
+  Measured on an RTX 3080 (Q8): 5 µs per read, against 7 µs for a broadcast kernel and 15 µs for a
+  `dot`, so they do not dominate any measured path (`gpu/device_benchmarks.md`).
 - The Poisson likelihood's observed counts are validated and their log-factorials taken on the host
   (`loglikelihood_derivatives`, LP-092), since `_count`'s error message cannot compile into a kernel.
 
-**Not done.** No hardware GPU has run any of this (Q8). Eigen and SVD have no device algorithm. AD
-through the device paths is not tested here (the device AD tests of Mycelium, MyceliumLearning and
-ImplicitLayers stay behind `LENTICULUM_DEVICE_TESTS`). Views and `SArray` are checked for values only;
+**On hardware (Q8).** `gpu/runtests.jl` runs the device test files of every package on CUDA (the files
+read their device array type from `Main.LENTICULUM_DEVICE_ARRAY`, JLArray when it is not set); the
+workflow `GPU.yml` runs it weekly on a self-hosted runner. JLArrays runs its kernels on the CPU, so it
+accepts a broadcast that mixes a host and a device array; CUDA does not. The first hardware run found two
+such broadcasts that every JLArray test had passed: `ScaleShiftFactor`'s message given no information
+(a host `extended(nothing, …)` against device parameters) and `NonlinearFactor`'s rank cleaning of a
+difference Jacobian (host scales against the device rounding bounds); both fixed. A device is slower
+than the CPU for single factors up to dimension 256 (`gpu/device_benchmarks.md`).
+
+**Not done.** Eigen and SVD have no device algorithm. AD through the device paths is not tested here
+(the device AD tests of Mycelium, MyceliumLearning and ImplicitLayers stay behind
+`LENTICULUM_DEVICE_TESTS`, and run on CUDA in `gpu/runtests.jl`). VariationalDiffusion's device tests
+are inline in its `runtests.jl` and run on JLArrays only. Views and `SArray` are checked for values only;
 the array type of their results is free.
 
 **Tests.** `test/support/device_matrix.jl` runs each package's element-type fixtures (and Lenticulum's
 M-step fixtures) on `Array`, views, `SArray` (dimensions up to 4), and `JLArray` in Float64 and Float32
 with `allowscalar(false)`, checking values against the `Array` call and, on `JLArray`, that every
-numeric array of the result is a `JLArray`. Lenticulum's wide fixtures (dimensions 2 and 3, several
+numeric array of the result is a `JLArray` (on CUDA, a `CuArray`: `device_array()`). Lenticulum's wide fixtures (dimensions 2 and 3, several
 channels, diagonal and dense noise) run in the slow tier (`test/device_wide.jl`).
 
 **Difficulties.** The one-dimensional fixtures hid three defects that Mistral's wider fixtures and probes

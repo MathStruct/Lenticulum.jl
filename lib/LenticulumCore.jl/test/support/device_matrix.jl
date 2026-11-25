@@ -4,7 +4,11 @@ using Adapt, JLArrays, StaticArrays, Test, LinearAlgebra
 using LenticulumCore
 using ..EltypeMatrix: payload
 
-export check_device_matrix, device_payload, device_agrees
+export check_device_matrix, device_payload, device_agrees, device_array
+
+# The device array type under test: JLArray (scalar indexing off, on the CPU) unless the runner
+# defines `Main.LENTICULUM_DEVICE_ARRAY` first, as `gpu/runtests.jl` does with CuArray (Q8).
+device_array() = isdefined(Main, :LENTICULUM_DEVICE_ARRAY) ? Main.LENTICULUM_DEVICE_ARRAY : JLArray
 
 struct Views end
 struct SmallStatic end
@@ -25,7 +29,7 @@ device_payload(b::ExtendedGaussian) = (; b.μ, b.Σ, b.D)
 device_payload(b::GradedEnergy) = device_payload(payload(b))
 
 on_device(x) = true
-on_device(x::AbstractArray{<:Number}) = x isa JLArray
+on_device(x::AbstractArray{<:Number}) = x isa device_array()
 on_device(x::Diagonal) = on_device(x.diag)
 on_device(x::Union{Tuple,NamedTuple,AbstractArray}) = all(on_device, x)
 
@@ -66,9 +70,10 @@ function check_device_matrix(fixtures; subset = false, broken = Dict(), flat = (
             @testset "$(fixture.name)" begin
                 for (name, run) in cases
                     ref = run(base)
+                    D = device_array()
                     for (backend, to, T) in ((:Array, Array, Float64), (:view, Views(), Float64),
-                                             (:SArray, SmallStatic(), Float64), (:JLArray, JLArray, Float64),
-                                             (:JLArray32, JLArray, Float32))
+                                             (:SArray, SmallStatic(), Float64), (:device, D, Float64),
+                                             (:device32, D, Float32))
                         rtol = T === Float32 ? 1e-4 : 1e-10
                         @testset "$name $backend" begin
                             check() = begin
@@ -79,7 +84,7 @@ function check_device_matrix(fixtures; subset = false, broken = Dict(), flat = (
                                     device_agrees(result, ref, rtol)
                                 end
                                 agrees &&
-                                    (to !== JLArray || on_device(device_payload(result)))
+                                    (to !== D || on_device(device_payload(result)))
                             end
                             reason = get(broken, (fixture.name, name, backend), nothing)
                             if reason === nothing
