@@ -1,0 +1,56 @@
+# DISABLED: the GPU tests run locally only (Daniel, 2026-11-25):
+#
+#     julia --project=gpu gpu/runtests.jl      # the device tests on CUDA
+#     julia --project=gpu gpu/benchmarks.jl    # the device benchmarks
+#
+# This is the CI job that would run them on a self-hosted runner with a GPU, kept here commented out
+# and outside .github/workflows/ so that GitHub does not run it (nor report a workflow file with no
+# jobs). To enable it: uncomment it, move it to .github/workflows/GPU.yml, register the runner and
+# set the repository variable GPU_RUNNER to `true`.
+#
+# name: GPU
+# # The device tests of every package on a CUDA GPU, and the device benchmarks (Feature Backlog Q8;
+# # gpu/runtests.jl, gpu/benchmarks.jl, gpu/device_benchmarks.md). GitHub's hosted runners have no GPU,
+# # so this needs a self-hosted runner with an NVIDIA GPU, a driver and Julia, registered with the
+# # labels `self-hosted`, `linux`, `gpu` (Settings → Actions → Runners). It is off until the repository
+# # variable GPU_RUNNER is set to `true` (Settings → Secrets and variables → Actions → Variables), so
+# # that a job does not wait for a runner that does not exist.
+# #
+# # Weekly and on demand only, never on pull requests: a self-hosted runner would run the code of a
+# # fork's pull request on the maintainer's machine.
+# on:
+#   schedule:
+#     - cron: '0 5 * * 1'          # Mondays, 05:00 UTC
+#   workflow_dispatch:
+#     inputs:
+#       benchmarks:
+#         description: 'Run the device benchmarks too (about 10 min)'
+#         type: boolean
+#         default: true
+# jobs:
+#   cuda:
+#     if: vars.GPU_RUNNER == 'true'
+#     name: CUDA device tests
+#     runs-on: [self-hosted, linux, gpu]
+#     timeout-minutes: 120
+#     env:
+#       JULIA_NUM_THREADS: auto
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: julia-actions/setup-julia@v2
+#         with:
+#           version: '1'
+#       - name: Instantiate gpu/
+#         run: julia --project=gpu -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+#       - name: Device tests on CUDA
+#         run: julia --project=gpu gpu/runtests.jl
+#       - name: Device benchmarks
+#         if: github.event_name == 'schedule' || inputs.benchmarks
+#         run: |
+#           julia --project=gpu gpu/benchmarks.jl | tee benchmarks.md
+#           cat benchmarks.md >> "$GITHUB_STEP_SUMMARY"
+#       - uses: actions/upload-artifact@v4
+#         if: always() && hashFiles('benchmarks.md') != ''
+#         with:
+#           name: device-benchmarks
+#           path: benchmarks.md

@@ -308,7 +308,7 @@ checked.
   told apart only as `AbstractMatrix` versus anything else, and genericity is by duck typing on
   broadcasts.
 - *Array types and GPUs.* The device tests (`lib/ImplicitSolvers.jl/test/device.jl`, `krylovjl.jl`) are
-  small systems on JLArrays, and since Q8 also on CUDA (`gpu/runtests.jl`, weekly in `GPU.yml`; they
+  small systems on JLArrays, and since Q8 also on CUDA (`gpu/runtests.jl`, run locally; they
   pass on an RTX 3080). No other array types (views, `ComponentArray`s, distributed arrays) are tested.
   GMRES keeps `H` and `g` on the host and calls `dot` per basis vector per step, one device
   synchronisation each (15 µs on the RTX 3080). Measured in `gpu/device_benchmarks.md` (Q8): 0.28 ms

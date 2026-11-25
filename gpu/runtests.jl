@@ -10,7 +10,7 @@
 # kernels on the CPU and so accepts what CUDA refuses: a broadcast that mixes a host and a device
 # array, a kernel that is not GPU-compilable. That is what this job catches. Each package's files
 # are included into a module of their own, after the `using` lines its runtests.jl gives them.
-# `.github/workflows/GPU.yml` runs this weekly on a self-hosted runner with a GPU.
+# It runs locally only; `gpu/GPU.yml` is a CI job for a self-hosted GPU runner, commented out.
 
 using CUDA, Test
 

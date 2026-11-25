@@ -51,7 +51,7 @@ these kernels (LP-092; before that the CPU fallback's `Matrix(M)` copied it to t
 
 **On hardware (Q8).** `gpu/runtests.jl` runs the device test files of every package on CUDA (the files
 read their device array type from `Main.LENTICULUM_DEVICE_ARRAY`, JLArray when it is not set); the
-workflow `GPU.yml` runs it weekly on a self-hosted runner. JLArrays runs its kernels on the CPU, so it
+tests run locally only (a CI job for a self-hosted runner is kept, commented out, in `gpu/GPU.yml`). JLArrays runs its kernels on the CPU, so it
 accepts a broadcast that mixes a host and a device array; CUDA does not. The first hardware run found two
 such broadcasts that every JLArray test had passed: `ScaleShiftFactor`'s message given no information
 (a host `extended(nothing, …)` against device parameters) and `NonlinearFactor`'s rank cleaning of a

@@ -49,6 +49,6 @@ inputs, the runner and the workflow) and found nothing.
 
 ## Not checked
 
-The workflow on GitHub (no self-hosted runner is registered); the GPU tests on another GPU or CUDA
+A CI job (the GPU tests run locally only; `gpu/GPU.yml` is commented out); the GPU tests on another GPU or CUDA
 version; VariationalDiffusion's device tests on CUDA (inline in its `runtests.jl`, not in a file the
 runner includes).

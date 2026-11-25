@@ -166,7 +166,10 @@ KaTeX, the TikZ diagrams); Obsidian's rendering differs in places. Both builds m
 - Indexing a device array with an index vector inside AD scalar-indexes; use broadcasting.
 - Device code is tested with JLArrays and `JLArrays.allowscalar(false)`. The device tests of
   Mycelium, MyceliumLearning and ImplicitLayers run only with `LENTICULUM_DEVICE_TESTS=true`;
-  run them before committing device-facing changes.
+  run them before committing device-facing changes. On a machine with an NVIDIA GPU, also run
+  them on CUDA: `julia --project=gpu gpu/runtests.jl [Package ...]` (instantiate `gpu/` once; its
+  Manifest is not tracked). JLArrays accepts a broadcast that mixes host and device arrays and CUDA
+  does not (LP-093). These run locally only; no CI job has a GPU.
 - Since Julia 1.12 the main thread is in the `:interactive` pool; a busy task spawned there can
   starve it (`bench/jit_latency.jl`).
 
