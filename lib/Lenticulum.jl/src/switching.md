@@ -400,3 +400,10 @@ P32 removed both (Mycelium `cluster.md`, `gaussian.md`), so a regime graph is Fl
 
 Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
 for every mixed precision, derivative, or device configuration.
+
+## Element types (Q4)
+
+The single and plate paths convert fixed noise using the continuous and categorical
+numerical inputs and the parameter tree. The empty-data and no-switch arrays with Bool
+elements are exact structural zero weights. Continuous flat directions still use the
+LAPACK residual metric and the BigFloat limit is recorded in `test/eltypes.jl`.

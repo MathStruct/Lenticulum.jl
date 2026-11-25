@@ -258,3 +258,12 @@ variance of $10^4$ in directions that are not flat. The reference now uses $\tau
 and forms $P_D$ in `BigFloat`. A test of flatness by $D^\top\Lambda D \approx 0$ failed for the same
 reason in a different place (the hard directions have precision $1/\varepsilon$); flatness is tested
 by the reference variance along $D$ instead.
+
+## Element types (Q4)
+
+The two-argument constructor takes the empty flat-basis buffer from the mean array.
+An empty eigenvalue tolerance has the type of its spectrum. The representation stores dense
+CPU vectors and matrices and uses LAPACK for its general spectral factorizations. The
+BigFloat limits are exercised by the hard, split and scale-shift cases in Lenticulum's
+`test/eltypes.jl`. The convenience conversion of an untyped trivial belief uses Float64
+unless the caller supplies a type.

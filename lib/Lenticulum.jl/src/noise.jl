@@ -106,39 +106,50 @@ end
 _noise_metrics(::Nothing, Q, ps) = (inv(Symmetric(Q)), zero(eltype(Q)))
 function _noise_metrics(c::NoiseLearning, Q, ps)
     p = ps.noise
+    T = _compute_eltype(eltype(Q), Q, p)
+    V = typeof(LenticulumCore.stop_gradient(zero(T)))
+    floor = V(LenticulumCore.stop_gradient(c.floor))
     if c.diagonal
-        logs = c.prior === nothing ? min.(p.log_precision, -log(c.floor)) : p.log_precision
+        raw = _at_eltype(T, p.log_precision)
+        logs = c.prior === nothing ? min.(raw, -log(floor)) : raw
         return Diagonal(exp.(logs)), -sum(logs)
     end
-    d = length(p.log_diagonal)
+    log_diagonal = _at_eltype(T, p.log_diagonal)
+    lower = _at_eltype(T, p.lower)
+    d = length(log_diagonal)
     # Packed strict lower triangle, column-major. No mutation: both AD paths see it.
-    L = [i == j ? exp(p.log_diagonal[i]) : i > j ?
-         p.lower[(j - 1) * d - j * (j - 1) ÷ 2 + i - j] : zero(eltype(p.log_diagonal))
+    L = [i == j ? exp(log_diagonal[i]) : i > j ?
+         lower[(j - 1) * d - j * (j - 1) ÷ 2 + i - j] : zero(T)
          for i in 1:d, j in 1:d]
     raw = L * L'
     if c.prior === nothing
-        P = _clip_precision(raw, inv(c.floor))
-        return P, P === raw ? -2sum(p.log_diagonal) : -logdet(Matrix(P))
+        P = _clip_precision(raw, inv(floor))
+        return P, P === raw ? -2sum(log_diagonal) : -logdet(Matrix(P))
     end
-    return raw, -2sum(p.log_diagonal)
+    return raw, -2sum(log_diagonal)
 end
 
 _noise_penalty(::Nothing, P, logdetQ) = zero(logdetQ)
 function _noise_penalty(p::WishartPrecisionPrior, P, logdetQ)
-    d, ν = size(P, 1), p.df
+    T = typeof(logdetQ)
+    d, ν = size(P, 1), T(p.df)
+    scale = _at_eltype(T, p.scale)
     loggamma_d = d * (d - 1) * log(oftype(ν, π)) / 4 +
                  sum(SpecialFunctions.loggamma((ν + 1 - j) / 2) for j in 1:d)
-    return (tr(p.scale \ P) + (ν - d - 1) * logdetQ + ν * d * log(oftype(ν, 2)) +
-            ν * logdet(p.scale)) / 2 + loggamma_d
+    return (tr(scale \ P) + (ν - d - 1) * logdetQ + ν * d * log(oftype(ν, 2)) +
+            ν * logdet(scale)) / 2 + loggamma_d
 end
 function _noise_penalty(p::LogNormalVariancePrior, P, logdetQ)
+    T = typeof(logdetQ)
+    logmean = p.logmean isa Real ? T(p.logmean) : T.(p.logmean)
+    logstd = p.logstd isa Real ? T(p.logstd) : T.(p.logstd)
     logvar = -log.(diag(P))
-    return sum(logvar .+ ((logvar .- p.logmean) ./ p.logstd).^2 ./ 2 .+
-               log.(p.logstd) .+ LenticulumCore._log2π(float(promote_type(eltype(P), eltype(p.logmean), eltype(p.logstd)))) / 2)
+    return sum(logvar .+ ((logvar .- logmean) ./ logstd).^2 ./ 2 .+
+               log.(logstd) .+ LenticulumCore._log2π(T) / 2)
 end
 
 struct LearnedPrecisionNorm <: LenticulumCore.AbstractPointScalarisation end
 function LenticulumCore.localise(::LearnedPrecisionNorm, f, x, a, y, ps, st)
-    P, _ = _noise_metrics(f.noise_learning, f.Q, ps)
+    P, _ = _noise_metrics(f.noise_learning, _covariance_at(f.Q, ps, x, y), ps)
     return LenticulumCore.SquaredNorm(P; check = false)
 end

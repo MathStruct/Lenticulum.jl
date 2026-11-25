@@ -175,3 +175,11 @@ map has rank $r-1<\binom r2$, so that image is singular in the full output coord
 Two Gaussian inputs are generally non-Gaussian: exact moments do not determine entropy.
 Those games continue to throw with these reasons; no moment-matched or regularised entropy
 is passed off as exact. Finite particle output has no supplied Lebesgue density either.
+
+## Element types (Q4)
+
+Wedge workspaces take their array family from the operands and use the promoted element
+type. Exact point energies and uniform particle weights are typed from the points. Spectral
+validation uses primal values. A one-coordinate wedge covariance can be checked directly,
+while general covariance rank checks use LAPACK. The no-input point-energy interface
+retains the Float64 zero when no number supplies a type.

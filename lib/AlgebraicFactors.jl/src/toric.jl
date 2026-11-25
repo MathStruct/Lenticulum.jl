@@ -134,11 +134,11 @@ function LenticulumCore.supports_polarity(f::ToricFactor, p::LenticulumCore.Pola
                                LenticulumCore.Latent}, f.names)
 end
 
-function _logits(f, ps)
+function _logits(f, ps, T = float(eltype(ps.η)))
     ps.η isa AbstractVector{<:Real} && length(ps.η) == size(f.A, 1) ||
         throw(ArgumentError("ps.η must be a real vector with one entry per row of A"))
     all(isfinite, ps.η) || throw(ArgumentError("ps.η must be finite"))
-    l = float.(transpose(f.A) * ps.η)
+    l = float.(transpose(f.A) * LenticulumCore._at_eltype(T, ps.η))
     all(isfinite, l) || throw(ArgumentError("logits must be finite"))
     return l
 end
@@ -175,9 +175,10 @@ LenticulumCore.energy(f::ToricFactor, x::Tuple, ps, st) =
 
 _incoming(msgs::NamedTuple, n) = get(msgs, n, nothing)
 _incoming(::Nothing, n) = nothing
-function _weights(f, i, b, T)
+function _weights(f, i, b, l)
+    T = eltype(l)
     if b === nothing || b === missing || b isa Union{LenticulumCore.TrivialBelief,LenticulumCore.Latent}
-        return zeros(T, f.alphabets[i])
+        return LenticulumCore._zeros_like(l, T, f.alphabets[i])
     elseif b isa LenticulumCore.DiracBelief
         k = _labelindex(f, i, b.value)
         return [j == k ? zero(T) : T(-Inf) for j in 1:f.alphabets[i]]
@@ -193,8 +194,8 @@ end
 
 function _joint_logweights(f, msgs, l; skip = 0)
     weights = map(eachindex(f.names)) do i
-        i == skip ? zeros(eltype(l), f.alphabets[i]) :
-        _weights(f, i, _incoming(msgs, f.names[i]), eltype(l))
+        i == skip ? LenticulumCore._zeros_like(l, eltype(l), f.alphabets[i]) :
+        _weights(f, i, _incoming(msgs, f.names[i]), l)
     end
     # Remove a common logit before adding evidence: even a huge constant potential
     # must not round away finite log-probabilities supplied by incoming messages.
@@ -215,11 +216,11 @@ function Mycelium.factor_message(f::ToricFactor, target::Symbol, polarity, input
         LenticulumCore.unobserved_channels(polarity) == (target,) ||
         throw(ArgumentError("unsupported target/polarity"))
     t = findfirst(isequal(target), f.names)
-    l = _logits(f, ps)
+    l = _logits(f, ps, LenticulumCore._compute_eltype(Float64, ps, inputs))
     joint = _joint_logweights(f, inputs, l; skip = t)
     # Shift once before marginalising so a large common logit never overflows.
     joint = _lognormalise(joint)
-    out = fill(eltype(joint)(-Inf), f.alphabets[t])
+    out = fill!(similar(joint, f.alphabets[t]), eltype(joint)(-Inf))
     for (k, x) in enumerate(CartesianIndices(f.alphabets))
         a, b = out[x[t]], joint[k]
         m = max(a, b)
@@ -234,7 +235,7 @@ _expected_energy(logq, energies) =
 _shannon(logq) = -sum(v == -Inf ? zero(v) : exp(v) * v for v in logq)
 
 function _factor_statistics(f, msgs, ps)
-    l = _logits(f, ps)
+    l = _logits(f, ps, LenticulumCore._compute_eltype(Float64, ps, msgs))
     logq = _lognormalise(_joint_logweights(f, msgs, l))
     return _expected_energy(logq, _energies(f, l)), _shannon(logq)
 end

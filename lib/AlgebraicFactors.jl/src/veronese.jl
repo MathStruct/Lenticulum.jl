@@ -41,7 +41,8 @@ function _basis_values(tab::ExponentTable, x::AbstractVector)
     N, d = size(tab.exponents, 1), tab.degree
     length(x) == N || throw(DimensionMismatch("expected $N coordinates"))
     T = eltype(x)
-    P, Q = ones(T, d+1, N), zeros(T, d+1, N)
+    P = fill!(similar(x, T, d+1, N), one(T))
+    Q = LenticulumCore._zeros_like(x, T, d+1, N)
     for j in 1:N
         if d >= 1
             P[2,j], Q[2,j] = x[j], one(T)

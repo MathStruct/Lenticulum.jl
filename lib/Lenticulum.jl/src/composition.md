@@ -79,3 +79,10 @@ matrix-inverse replay path without changing ordinary inference arithmetic.
 `test/gradient_couplings.jl` checks the Gaussian marginal-likelihood gradients
 against closed forms and exercises collapsed composites; no dense Gaussian
 device factorisation is added.
+
+## Element types (Q4)
+
+The collapsed covariance takes the type of the endpoint inputs and both parameter
+subtrees. Fixed component covariances are converted before propagation, and the score
+evaluation uses a normaliser in the arithmetic's element type. An independent tensor game
+delegates to each component with its own parameter subtree and beliefs.

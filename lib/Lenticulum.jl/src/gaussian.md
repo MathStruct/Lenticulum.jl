@@ -711,3 +711,20 @@ P31 extends this rule to the remaining Lenticulum factors and the shared hard-co
 kernel; see their implementation notes and `test/p31_element_type.jl`. Upstream cluster inference,
 mixture overlap weights, and EM statistics still inject Float64; those limits are recorded there.
 Device arrays were not tested with Float32 parameters beyond the existing device tests.
+
+## Element types (Q4)
+
+Covariances and normalisers are evaluated in the type promoted from the parameters and
+incoming beliefs. A source prior's outgoing message has only its stored data and any learned
+noise parameters to determine its type. Residual and block-diagonal buffers use the arrays
+that supply their element type. Scalar and one-row or one-column rank checks can use a
+generic norm when LAPACK is unavailable. A general SVD still uses LAPACK. The rank memo is
+specialised for CPU Float32 and Float64, and the default Lux bias initializer remains
+Float64 because it runs before data are available.
+A nested-dual offset leaves a fixed covariance in its stored type. This keeps static flat
+subspaces on the existing value path and preserves the circuit Hessian in
+`test/p9_relative_tol.jl`.
+
+For first-order duals a precision with zero partials still has the promoted type.
+`test/forms_crossing.jl` checks those zero partials and exercises both primal and dual
+storage for a constant incoming precision.

@@ -307,3 +307,12 @@ path. This does not extend the shared kernel to device arrays or new scalar type
 
 Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
 for every mixed precision, derivative, or device configuration.
+
+## Element types (Q4)
+
+Single messages and the shared plate kernel convert the stored noise to the type of
+the active inputs and parameters. The zero-noise constructor can validate an exact zero
+without a spectral solve. The free energy uses the promoted reduced system and chooses
+ranks at the primal precision. The hard-direction decompositions still require LAPACK for
+BigFloat. Boolean plate buffers describe entirely untyped trivial inputs. The default
+offset initializer runs before data supply a type and retains its Float64 default.

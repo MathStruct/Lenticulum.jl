@@ -216,7 +216,11 @@ struct MixtureBelief{B<:AbstractBelief,T<:Real} <: AbstractBelief
     MixtureBelief(::Val{:log}, components::Vector{B}, logw::Vector{T}) where {B<:AbstractBelief,T<:Real} =
         new{B,T}(components, logw)
 end
-function MixtureBelief(components::AbstractVector{<:AbstractBelief}, weights::AbstractVector{<:Real} = fill(1.0, length(components)))
+function MixtureBelief(components::AbstractVector{<:AbstractBelief})
+    T = _compute_eltype(Float64, components)
+    return MixtureBelief(components, fill(one(T), length(components)))
+end
+function MixtureBelief(components::AbstractVector{<:AbstractBelief}, weights::AbstractVector{<:Real})
     isempty(components) && throw(ArgumentError("a mixture needs at least one component"))
     length(weights) == length(components) || throw(ArgumentError("need one weight per component"))
     any(<(0), weights) && throw(ArgumentError("weights must be non-negative"))

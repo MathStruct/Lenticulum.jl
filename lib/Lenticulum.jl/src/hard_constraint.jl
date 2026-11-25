@@ -55,8 +55,11 @@ function HardConstraintFactor(dims::NamedTuple, m::Int; noise = 0,
     size(Q) == (m, m) || throw(DimensionMismatch("noise must be $m × $m; got $(size(Q))"))
     LenticulumCore._nearly_symmetric(Q) || throw(ArgumentError("noise covariance must be symmetric"))
     Q = Matrix(LenticulumCore._symmetric_part(Q))
-    isempty(Q) || minimum(LinearAlgebra.eigvals(Symmetric(Q))) >= -LenticulumCore._eig_tol(LinearAlgebra.eigvals(Symmetric(Q))) ||
-        throw(ArgumentError("noise covariance must be positive semidefinite"))
+    if !iszero(Q)
+        spectrum = LinearAlgebra.eigvals(Symmetric(LenticulumCore.stop_gradient(Q)))
+        minimum(spectrum) >= -LenticulumCore._eig_tol(spectrum) ||
+            throw(ArgumentError("noise covariance must be positive semidefinite"))
+    end
     return HardConstraintFactor(dims, m, Q, init_coeff, init_constant)
 end
 
@@ -115,13 +118,14 @@ function Mycelium.factor_message(f::HardConstraintFactor{names}, target::Symbol,
     target in names || throw(ArgumentError("channel :$target is not a channel of this factor ($(names))"))
     others = Tuple(n for n in names if n !== target)
     A = ps.A
+    Q = _covariance_at(f.Q, ps, inputs)
     if isempty(others)
-        r = LenticulumCore.ExtendedGaussian(float.(ps.c), f.Q)
+        r = LenticulumCore.ExtendedGaussian(_at_eltype(eltype(Q), ps.c), Q)
     else
         input(n) = haskey(inputs, n) ? getfield(inputs, n) : nothing
-        joint = LenticulumCore._independent_join([_as_extended(input(n), f.dims[n], float(eltype(ps.c))) for n in others])
+        joint = LenticulumCore._independent_join([_as_extended(input(n), f.dims[n], eltype(Q)) for n in others])
         M = reduce(hcat, [-Matrix(getfield(A, n)) for n in others])
-        r = LenticulumCore.pushforward(joint, M, float.(ps.c), f.Q)
+        r = LenticulumCore.pushforward(joint, M, _at_eltype(eltype(Q), ps.c), Q)
     end
     return LenticulumCore.preimage(r, Matrix(getfield(A, target))), st
 end
@@ -158,15 +162,16 @@ See `hard_constraint.md`, "Free energy".
 function Mycelium.local_free_energy(f::HardConstraintFactor{names}, msgs, ps, st) where {names}
     G, c, canon = _reduced_relation(ps.A, ps.c, msgs, f.dims, names)
     soft = nothing
-    if !iszero(f.Q)
+    Q = _covariance_at(f.Q, ps, msgs)
+    if !iszero(Q)
         # positive definite by the eigenvalue tolerance the messages use (`_eig_tol`), not by
         # `isposdef`: a rank-deficient B Bᵀ has eigenvalues of 1e-16 that a Cholesky accepts
-        Qh, Qs, d = _noise_split(f.Q)
+        Qh, Qs, d = _noise_split(Q)
         if size(Qh, 2) == 0
-            r̄, Cr, H = _reduced_residual_statistics(G, c, canon, f.Q)
-            Qi = _spd_inv(f.Q, "Q")
+            r̄, Cr, H = _reduced_residual_statistics(G, c, canon, Q)
+            Qi = _spd_inv(Q, "Q")
             fit = (r̄' * (Qi * r̄) + tr(Qi * Cr)) / 2
-            complexity = logdet(_chol((2 * float(eltype(f.Q))(π)) .* f.Q, "2πQ")) / 2
+            complexity = logdet(_chol((2 * eltype(Q)(π)) .* Q, "2πQ")) / 2
             return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = _negentropy(H))), st
         end
         # P5: a singular nonzero noise Q = Qs D Qsᵀ (Qs, Qh orthonormal bases of its range and null
@@ -368,20 +373,21 @@ function _hard_shared_messages(fs, target, ps, k, get, parts)
         p === nothing && return nothing
         push!(chans, p)
     end
-    return _hard_shared_kernel(f, Matrix(At), copy(ps.c), others, ps.A, chans, k)
+    Q = _covariance_at(f.Q, ps, chans)
+    return _hard_shared_kernel(Q, Matrix(At), copy(ps.c), others, ps.A, chans, k)
 end
 
 # Replica 1 through the path of `factor_message` (its decompositions are every replica's), then
 # the linear map from the inputs' means to the message mean, applied to all replicas at once.
-function _hard_shared_kernel(f, At, c, others, A, chans, k)
+function _hard_shared_kernel(Q, At, c, others, A, chans, k)
     LC = LenticulumCore
     if isempty(others)
-        msg = LC.preimage(LC.ExtendedGaussian(c, f.Q), At)
+        msg = LC.preimage(LC.ExtendedGaussian(c, Q), At)
         return Any[msg for _ in 1:k]
     end
     joint1 = LC._independent_join([LC.ExtendedGaussian(M[:, 1], Σ, D) for (M, Σ, D) in chans])
     Mo = reduce(hcat, [-Matrix(getfield(A, n)) for n in others])
-    r1 = LC.pushforward(joint1, Mo, c, f.Q)
+    r1 = LC.pushforward(joint1, Mo, c, Q)
     msg1 = LC.preimage(r1, At)
     # the pushforward's mean, every replica: Πr (Mo J + c), Πr onto the complement of its flat directions
     Ur = LC._complement(r1.D)
@@ -394,7 +400,7 @@ function _hard_shared_kernel(f, At, c, others, A, chans, k)
     Λp = At' * Λr * At
     nt = size(At, 2)
     if size(C, 1) == 0
-        P, N = zeros(eltype(Λp), nt, 0), Matrix{eltype(Λp)}(I, nt, nt)
+        P, N = _zeros_like(Λp, eltype(Λp), nt, 0), Matrix{eltype(Λp)}(I, nt, nt)
     else
         U0, S0, V0, rk = LC._value_svd(C)
         P = V0[:, 1:rk] * (U0[:, 1:rk]' ./ S0[1:rk])

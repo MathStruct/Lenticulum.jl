@@ -135,3 +135,14 @@ The module exports `FreeEnergyUpperBound`, `FreeEnergyBoundEstimate`,
 `free_energy_upper_bound` and `estimate_free_energy_upper_bound`. These are separate
 from exact-game free energy and scalarisation; [[statistical_game]] and [[bound]] document
 the wrapper distinction and the finite diffusion-chain instance.
+
+## Element types (Q4)
+
+A factor call promotes the numerical element types in its parameters, incoming beliefs and
+observations. Convert stored constants and defaults when applying them to that call. Allocate
+numerical buffers with `similar(x, T, dims)` when an input array supplies the storage family.
+When only a type is available, use it explicitly in `zeros(T, dims)` or `fill(zero(T), dims)`.
+Precision-dependent tolerances use the epsilon of the primal floating-point type. Discrete labels
+and structural flags keep their own types. If the call has no numerical input, use the stored
+configuration's type or a documented default. The three `test/eltypes.jl` files use a shared
+matrix of Float32, Float64, BigFloat, first-order ForwardDiff and mixed-input cases.

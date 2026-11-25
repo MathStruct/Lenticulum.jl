@@ -279,3 +279,10 @@ equals $-\log p(y)$ to $10^{-10}$. The graph gradient matches central difference
 $10^{-6}$, with reference differences, ForwardDiff and Zygote. The fixed-message derivative
 differs by more than $10^{-2}$. Nonlinear degrees have no local free energy and therefore no
 hook.
+
+## Element types (Q4)
+
+Point covariance, expansion, basis and joint-belief buffers use the incoming points,
+coefficients and beliefs to determine their types. The spectral validity tests inspect
+primal values so the site and free-energy arithmetic can carry a dual. BigFloat messages
+and degree-one free energy still require the LAPACK rank checks marked in `test/eltypes.jl`.

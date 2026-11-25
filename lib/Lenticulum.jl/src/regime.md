@@ -116,3 +116,10 @@ own output types.
 
 Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
 for every mixed precision, derivative, or device configuration.
+
+## Element types (Q4)
+
+Fixed regime covariances are converted to the type of the parameter tree before
+building the cluster form. The cluster uses the incoming beliefs when promoting that form.
+The BigFloat case with every continuous channel latent still needs Mycelium's diffuse
+cluster eigendecomposition, as recorded in `test/eltypes.jl`.

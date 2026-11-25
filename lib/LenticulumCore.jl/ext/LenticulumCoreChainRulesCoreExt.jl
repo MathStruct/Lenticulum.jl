@@ -6,6 +6,8 @@ ChainRulesCore.@non_differentiable LenticulumCore.offset_tree(ps)
 ChainRulesCore.@non_differentiable LenticulumCore._flatlen(ps)
 ChainRulesCore.@non_differentiable LenticulumCore._nearly_symmetric(M)
 ChainRulesCore.@non_differentiable LenticulumCore.isproper(b)
+ChainRulesCore.@non_differentiable LenticulumCore._compute_eltype(default, inputs...)
+ChainRulesCore.@non_differentiable LenticulumCore._zeros_like(x, T, dims...)
 # The decompositions of an extended Gaussian are of values: their outputs are constants of the
 # constant-rank formulas, which carry the derivative (`extended_gaussian.jl`, P4; before P4 the
 # basis `_complement` was held fixed, P23).

@@ -212,7 +212,7 @@ hyperparameters are cast at use.
 The factor matrices, ordinal cutpoints/scale, and tilted moments are generic. Defaults are neutral
 identities/zeros or follow the supplied cutpoints; supplied floating parameters are retained.
 Factorial constants, Gaussian constants, Newton damping, and quadrature nodes/weights enter
-arithmetic in its scalar type. Quadrature grids are still constructed in Float64, then cast at use.
+arithmetic in its scalar type. Q4 changes the construction precision as described below.
 Exact energy zeros are `false`. For Float32, predictor rank detection uses the larger of the
 existing relative threshold and an epsilon-scaled dimension threshold (Float64 keeps its existing
 threshold), so a Float32 rank-deficient covariance does not retain rounding eigenvalues. This does
@@ -220,3 +220,20 @@ not add new AD support for the eigen/Newton/quadrature algorithms.
 
 Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
 for every mixed precision, derivative, or device configuration.
+
+## Element types (Q4)
+
+Laplace and quadrature scratch arrays take the type from the tilted problem. Gauss–Hermite
+nodes and weights are generated in the primal precision, with zero tangent when used
+with duals. The tridiagonal solver still requires LAPACK for order greater than one.
+A scalar predictor can use its variance directly as the eigenvalue. Infinite ordinal endpoints
+are constant in standardised coordinates and carry zero tangent. Probability-tail and
+line-search thresholds keep their absolute meaning and are converted before use. The
+rank cutoff keeps its existing relative floor of `1e-12` and grows with dimension times
+primal epsilon when rounding requires it. Discrete count labels retain their existing
+Float64 representation.
+
+A derivative of the predictor mean alone leaves the covariance eigensystem in the covariance's
+type. This preserves the fixed repeated spectrum in the two-dimensional Poisson Laplace
+case in `test/ad_matrix.jl`. The exact default identity and zero offset keep their Boolean
+storage.

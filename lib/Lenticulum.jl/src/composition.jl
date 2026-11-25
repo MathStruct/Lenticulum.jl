@@ -19,11 +19,12 @@ function _check_gaussian_composite(f::GaussianComposite)
     return nothing
 end
 
-function _collapsed_gaussian(f::GaussianComposite, ps)
+function _collapsed_gaussian(f::GaussianComposite, ps, inputs...)
     _check_gaussian_composite(f)
     a, b = f.first, f.second
     A, B = ps.first.A, ps.second.A
-    Q = B * noise_covariance(a, ps.first) * B' + noise_covariance(b, ps.second)
+    T = _compute_eltype(promote_type(eltype(a.Q), eltype(b.Q)), ps, inputs...)
+    Q = B * _at_eltype(T, noise_covariance(a, ps.first)) * B' + _at_eltype(T, noise_covariance(b, ps.second))
     g = GaussianFactor(a.nin => b.nout; noise=Q, channels=(a.in_channel,b.out_channel))
     return g, (A=B*A, b=B*ps.first.b+ps.second.b)
 end
@@ -74,7 +75,7 @@ for op in (:invert, :likelihood_message)
     end
 end
 function Mycelium.factor_message(f::GaussianComposite, target::Symbol, p, inputs, prior, ps, st)
-    g, gp = _collapsed_gaussian(f, ps)
+    g, gp = _collapsed_gaussian(f, ps, inputs)
     result, _ = Mycelium.factor_message(g,target,p,inputs,prior,gp,(;))
     return result, st
 end
@@ -84,14 +85,14 @@ function MyceliumLearning._gradient_message(ad, f::GaussianComposite, target::Sy
     return result,st
 end
 function Mycelium.local_free_energy(f::GaussianComposite, msgs, ps, st)
-    g, gp = _collapsed_gaussian(f, ps)
+    g, gp = _collapsed_gaussian(f, ps, msgs)
     result, _ = Mycelium.local_free_energy(g,msgs,gp,(;))
     return result, st
 end
 Mycelium.uses_cavity(::GaussianComposite) = true
 for op in (:free_energy, :entropy)
     @eval function LenticulumCore.$op(f::GaussianComposite, π, y, ps, st)
-        g, gp = _collapsed_gaussian(f, ps)
+        g, gp = _collapsed_gaussian(f, ps, π, y)
         result, _ = LenticulumCore.$op(g,π,y,gp,(;))
         return result, st
     end
@@ -104,7 +105,7 @@ end
 function LenticulumCore.pushforward(f::GaussianFactor, π::Union{GaussianBelief,LenticulumCore.DiracBelief}, ps, st)
     m, S = _moments(π,f.nin)
     length(m) == f.nin || throw(DimensionMismatch("Gaussian pushforward input dimension"))
-    return Gaussian(ps.A*m+ps.b, ps.A*S*ps.A'+noise_covariance(f,ps)), st
+    return Gaussian(ps.A*m+ps.b, ps.A*S*ps.A'+_gaussian_covariance(f,ps,π)), st
 end
 LenticulumCore.pushforward(::GaussianFactor, π, ps, st) = throw(ArgumentError(
     "exact Gaussian pushforward requires a proper Gaussian or Dirac input"))
@@ -137,7 +138,7 @@ function _joint_nll(f, x, z, latent, ps)
     Q,R=noise_covariance(a,ps.first),noise_covariance(b,ps.second)
     u=latent-ps.first.A*x-ps.first.b
     v=z-ps.second.A*latent-ps.second.b
-    return (LinearAlgebra.dot(u,Q\u)+LinearAlgebra.dot(v,R\v)+logdet(Q)+logdet(R)+(length(u)+length(v))*log(2π))/2
+    return (LinearAlgebra.dot(u,Q\u)+LinearAlgebra.dot(v,R\v)+logdet(Q)+logdet(R)+(length(u)+length(v))*LenticulumCore._log2π(_compute_eltype(eltype(u), u, v, Q, R)))/2
 end
 function _composite_score_loss(ps,f,x,z,latent,F,baseline,logq0)
     logq=Mycelium.belief_logdensity(_internal_posterior(f,x,z,ps),latent)

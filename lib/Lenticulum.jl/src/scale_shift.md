@@ -120,3 +120,11 @@ normal prior on $z$ these are the maximum-likelihood estimate.
 - **Negative scales.** $s = \exp(\text{logs}) > 0$. A reflection is not a parameter.
 - **Shared statistics.** `scale_shift_parameters` is a one-time initialisation, not batch
   normalisation's running statistics; the probabilistic version of those is row U4.
+
+## Element types (Q4)
+
+Data-dependent initialisation allocates its result in the input matrix's array family and
+floating-point type. Energy under the factor belief starts from zero in the promoted type
+of the parameters and incoming beliefs. The parameter initializer without data keeps its
+Float64 default. The exact relation's general spectral path has the same BigFloat limit
+as the hard constraint.

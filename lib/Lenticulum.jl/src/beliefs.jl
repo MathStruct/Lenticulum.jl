@@ -36,9 +36,10 @@ of `ExtendedGaussian`s without flat directions gives an `ExtendedGaussian` with 
 moment_match(b::GaussianBelief) = b
 
 function moment_match(s::LenticulumCore.SampleBelief)
-    X = s.samples isa AbstractMatrix ? Matrix{Float64}(s.samples) : reduce(hcat, [collect(float.(x)) for x in s.samples])
+    T = _compute_eltype(Float64, s)
+    X = s.samples isa AbstractMatrix ? _at_eltype(T, s.samples) : reduce(hcat, [T.(x) for x in s.samples])
     n = size(X, 2)
-    w = s.weights === nothing ? fill(1 / n, n) : collect(float.(s.weights))
+    w = s.weights === nothing ? fill!(similar(X, T, n), one(T) / n) : collect(T, s.weights)
     maximum(w) > 0 || throw(ArgumentError("all sample weights are zero"))
     w ./= maximum(w)
     w ./= sum(w)

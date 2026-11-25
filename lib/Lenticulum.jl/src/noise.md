@@ -117,3 +117,10 @@ arbitrarily large optimiser steps can still overflow exponentials.
 The Wishart and log-normal normalisers form `π`, `2` and `log(2π)` in their inputs' types, and the
 default eigenvalue floor is `one(T) / 1000000` in the initial covariance's float type; an explicit
 floor keeps its own. Test: `gaussian.md`, "Element type".
+
+## Element types (Q4)
+
+The full and diagonal noise calculations take their type from the covariance in use and
+the parameter leaves. The clipping threshold is a fixed value in the primal scalar type.
+Wishart and log-normal hyperparameters are converted when evaluating their penalties, so
+stored defaults do not widen the loss.

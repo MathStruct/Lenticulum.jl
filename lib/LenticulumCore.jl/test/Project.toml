@@ -1,4 +1,5 @@
 [deps]
+InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 DifferentiationInterfaceTest = "a82114a7-5aa3-49a8-9643-716bb13727a3"
 Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
 FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
@@ -18,6 +19,7 @@ BayesBase = "b4ee3484-f114-42fe-b91c-797d54a0c67e"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 
 [compat]
+InteractiveUtils = "1"
 ADTypes = "1"
 DifferentiationInterface = "0.7"
 DifferentiationInterfaceTest = "0.11"

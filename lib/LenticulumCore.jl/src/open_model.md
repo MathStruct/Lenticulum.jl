@@ -157,3 +157,9 @@ call these. Tested in `test/sample_moments.jl` against the sums written out and 
 
 Not done: Lenticulum's `moment_match(::SampleBelief)` computes the same moments by its own code
 (and refuses a singular covariance); it was left as it is.
+
+## Element types (Q4)
+
+A mixture with omitted weights uses uniform weights in the components' promoted
+numerical type. A component with only discrete labels or a trivial belief contributes no
+numeric type. An entirely untyped mixture retains the Float64 default for its weights.

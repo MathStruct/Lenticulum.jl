@@ -131,7 +131,7 @@ The noise covariances ``Q_k`` as an `m × m × K` array: the fixed ones, or ``L_
 parameter `L` with `learn_noise = true`.
 """
 function regime_covariances(f::RegimeFactor, ps)
-    f.learn_noise || return f.Q
+    f.learn_noise || return _covariance_at(f.Q, ps)
     return cat(map(k -> (L = _regime_cholesky(ps.L[:, :, k]); L * L'), 1:f.K)...; dims = 3)
 end
 

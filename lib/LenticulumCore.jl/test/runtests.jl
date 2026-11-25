@@ -441,4 +441,6 @@ include("statistical_game.jl")
 include("interop.jl")
 
 include("ad_matrix.jl")
+include("eltypes.jl")
+
 include("aqua.jl")

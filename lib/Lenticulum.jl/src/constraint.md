@@ -430,3 +430,12 @@ selected Float64 has been removed.
 
 Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
 for every mixed precision, derivative, or device configuration.
+
+## Element types (Q4)
+
+Fixed noise is converted to the promoted input type for single messages, shared and
+per-replica messages, and free-energy evaluation. Residual buffers use the current
+covariance or residual as their array anchor. Boolean zero arrays represent empty coordinates
+or absent blocks. The default constant initializer constructs Float64 parameters before any
+numeric inputs exist. BigFloat works on the scalar rank path, while the full flat-metric SVD
+and joint precision rank test still require LAPACK in the matrix fixture.

@@ -254,3 +254,12 @@ decompositions that were unsupported before.
 
 Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
 for every mixed precision, derivative, or device configuration.
+
+## Element types (Q4)
+
+Finite-difference buffers use the expansion point as their array anchor. The error
+scale uses primal epsilon, with the historical Float64 difference step retained. The
+unscented weights take the type of the expansion moments. In one dimension the spectral
+step can use the scalar variance directly. The residual covariance warning retains its
+relative `1e-10` threshold, evaluated in the covariance type. The stored tuning fields
+remain Float64 configuration values and are converted at application.

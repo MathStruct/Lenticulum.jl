@@ -1041,4 +1041,6 @@ include("lp019.jl")
 include("lp020.jl")
 include("lp022.jl")
 
+include("eltypes.jl")
+
 include("aqua.jl")

@@ -63,13 +63,16 @@ struct ExtendedGaussian{T<:Real} <: AbstractBelief
     ExtendedGaussian(::Val{:normalised}, μ::Vector{T}, Σ::Matrix{T}, D::Matrix{T}) where {T<:Real} =
         new{T}(μ, Σ, D)
 end
-ExtendedGaussian(μ::AbstractVector, Σ::AbstractMatrix) = ExtendedGaussian(μ, Σ, zeros(eltype(μ), length(μ), 0))
+ExtendedGaussian(μ::AbstractVector, Σ::AbstractMatrix) =
+    ExtendedGaussian(μ, Σ, _zeros_like(μ, eltype(μ), length(μ), 0))
+
+_numeric_eltype(b::ExtendedGaussian{T}) where {T} = T
 
 dimension(b::ExtendedGaussian) = length(b.μ)
 isuninformative(b::ExtendedGaussian) = size(b.D, 2) == length(b.μ)
 
 # Eigenvalues (or singular values) below this count as zero: the tolerance of `_split_moments`.
-_eig_tol(λ) = isempty(λ) ? 0.0 : 16 * length(λ) * eps(float(eltype(λ))) * maximum(abs, λ)
+_eig_tol(λ) = isempty(λ) ? zero(float(eltype(λ))) : 16 * length(λ) * eps(float(eltype(λ))) * maximum(abs, λ)
 
 # --- Subspaces, and their derivatives at constant rank (P4) -------------------------------------
 #

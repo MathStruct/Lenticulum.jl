@@ -43,7 +43,7 @@ module Lenticulum
 using LinearAlgebra: LinearAlgebra, Diagonal, I, Symmetric, cholesky, isposdef, logdet, tr, diag, isdiag, issymmetric, eigen, eigmin
 using Random: Random, AbstractRNG
 using LuxCore: LuxCore
-using LenticulumCore: LenticulumCore
+using LenticulumCore: LenticulumCore, _compute_eltype, _at_eltype, _zeros_like
 using Mycelium: Mycelium, reduce_mixture          # re-exported (moved to Mycelium, P17)
 using MyceliumLearning: MyceliumLearning
 using SpecialFunctions: SpecialFunctions

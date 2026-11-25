@@ -18,6 +18,16 @@ ChainRulesCore.@non_differentiable LT._partly_flat(b)
 # its decompositions on values only and steps aside for the per-replica path, which carries them
 ChainRulesCore.rrule(::typeof(LT._within_gradient)) = true, _ -> (NoTangent(),)
 
+# A stored covariance in the call's working type (Q4): the further arguments only choose the type, so
+# they get no tangent, and the covariance's is the cotangent projected back. Without this rule Zygote
+# traced the type selection on every message and free energy: +16 % on MyceliumLearning's
+# `kalman/zygote_gradient` benchmark (LP-091).
+function ChainRulesCore.rrule(::typeof(LT._covariance_at), Q, inputs...)
+    project = ProjectTo(Q)
+    covariance_at_pullback(dy) = (NoTangent(), project(unthunk(dy)), map(_ -> ZeroTangent(), inputs)...)
+    return LT._covariance_at(Q, inputs...), covariance_at_pullback
+end
+
 function ChainRulesCore.rrule(::typeof(LT._clip_precision), P, cap)
     E = eigen(Symmetric(P))
     if maximum(E.values) < cap

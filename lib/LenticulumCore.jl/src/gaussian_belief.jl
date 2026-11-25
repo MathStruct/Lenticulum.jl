@@ -207,7 +207,7 @@ function _moment_weights(b::SampleBelief)
     n = length(pts)
     p0 = first(pts)
     T = p0 isa AbstractArray ? eltype(p0) : typeof(p0)
-    F = T <: AbstractFloat ? T : Float64
+    F = float(T)
     b.weights === nothing && return fill(one(F) / n, n)
     w = float.(collect(b.weights))   # weights may be a tuple (AdversarialFactors' particle weights)
     m = maximum(w)
@@ -279,3 +279,27 @@ _log2π(::Type{T}) where {T<:Real} = log(2 * convert(T, π))     # floats and du
 _log2π(::Type{<:Integer}) = log(2π)
 
 _precision_solve(C, η) = C \ η
+
+
+# Numeric input leaves, with discrete labels and empty structural containers neutral.
+_numeric_eltype(x) = Union{}
+_numeric_eltype(x::Real) = typeof(x)
+_numeric_eltype(x::Integer) = Union{}
+_numeric_eltype(x::AbstractArray{<:Real}) = eltype(x) <: Integer ? Union{} : eltype(x)
+_numeric_eltype(x::Union{Tuple,NamedTuple,AbstractArray}) =
+    mapreduce(_numeric_eltype, promote_type, x; init = Union{})
+_numeric_eltype(b::DiracBelief) = _numeric_eltype(b.value)
+_numeric_eltype(b::GaussianBelief) = promote_type(_numeric_eltype(b.η), _numeric_eltype(b.Λ))
+_numeric_eltype(b::CategoricalBelief) = eltype(b.logp)
+_numeric_eltype(b::MixtureBelief) = promote_type(eltype(b.logw), _numeric_eltype(b.components))
+_numeric_eltype(b::SampleBelief) = promote_type(_numeric_eltype(b.samples), _numeric_eltype(b.weights))
+
+function _compute_eltype(default::Type, inputs...)
+    T = _numeric_eltype(inputs)
+    return T === Union{} ? default : float(T)
+end
+
+_at_eltype(::Type{T}, x::AbstractArray{T}) where {T} = x
+_at_eltype(::Type{T}, x::AbstractArray) where {T} = T.(x)
+_zeros_like(x::Array, ::Type{T}, dims::Int...) where {T} = zeros(T, dims)
+_zeros_like(x, ::Type{T}, dims::Int...) where {T} = fill!(similar(x, T, dims), zero(T))

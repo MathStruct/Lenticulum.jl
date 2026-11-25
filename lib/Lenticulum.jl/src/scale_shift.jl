@@ -169,7 +169,7 @@ end
 # its offset from the input's mean. Centred on μₘ: the uncentred ½ μᵀΛμ − ηᵀμ lost the change of
 # the energy to cancellation at a mean of 1e8 (review of U3, finding 3).
 function _scale_shift_input_energy(f::ScaleShiftFactor, msgs, ps)
-    T = eltype(last(_scale_shift_map(f, ps)))
+    T = _compute_eltype(eltype(ps.b), ps, msgs)
     input = _split_input(msgs)
     total = zero(T)
     for n in (f.x, f.z)
@@ -211,7 +211,7 @@ function scale_shift_parameters(f::ScaleShiftFactor, X::AbstractMatrix{<:Real})
     size(X, 1) == f.dim || throw(DimensionMismatch("X has $(size(X, 1)) rows, the factor dimension $(f.dim)"))
     size(X, 2) >= 1 || throw(ArgumentError("X has no samples"))
     T = float(eltype(X))
-    b, logs = zeros(T, f.ngroups), zeros(T, f.ngroups)
+    b, logs = similar(X, T, f.ngroups), similar(X, T, f.ngroups)
     for g in 1:f.ngroups
         # in floating point from the start (an Int64 sum overflowed), the deviations scaled by
         # their largest before squaring (1e±200 overflowed or underflowed), and equal entries

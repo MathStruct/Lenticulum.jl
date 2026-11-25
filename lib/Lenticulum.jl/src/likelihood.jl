@@ -67,18 +67,18 @@ function loglikelihood_derivatives(L::AbstractLikelihood, y, z)
     k = length(z)
     ℓ0 = loglikelihood(L, y, z)
     grad(z) = begin
-        g = zeros(typeof(ℓ0), k)
+        g = _zeros_like(z, typeof(ℓ0), k)
         for i in 1:k
             h = oftype(z[i], 1e-5) * (1 + abs(z[i]))
-            e = zeros(eltype(z), k); e[i] = h
+            e = _zeros_like(z, eltype(z), k); e[i] = h
             g[i] = (loglikelihood(L, y, z .+ e) - loglikelihood(L, y, z .- e)) / (2h)
         end
         g
     end
-    H = zeros(typeof(ℓ0), k, k)
+    H = _zeros_like(z, typeof(ℓ0), k, k)
     for i in 1:k
         h = oftype(z[i], 1e-4) * (1 + abs(z[i]))
-        e = zeros(eltype(z), k); e[i] = h
+        e = _zeros_like(z, eltype(z), k); e[i] = h
         H[:, i] = (grad(z .+ e) .- grad(z .- e)) ./ (2h)
     end
     return ℓ0, grad(z), (H .+ H') ./ 2
@@ -107,12 +107,25 @@ _count(y) = (isinteger(y) && y ≥ 0) ? Int(y) :
 _mul_count(k::Integer, z::Real) = k == 0 ? zero(float(z)) : k * z
 
 # log P(Y = j) for j = 0 … N-1 and log P(Y ≥ N), Y ~ Poisson(e^z)
+function _poisson_upper_tail(λ::T, λ0::T, N) where {T}
+    return SpecialFunctions.gamma_inc(oftype(λ0, N), λ0)[1]
+end
+function _poisson_upper_tail(λ, λ0, N)
+    p = SpecialFunctions.gamma_inc(oftype(λ0, N), λ0)[1]
+    # For a fixed integer shape, the derivative of the lower regularised
+    # gamma function with respect to its argument is the Poisson mass at N−1.
+    slope = iszero(λ0) ? oftype(λ0, N == 1) :
+        exp((N - 1) * log(λ0) - λ0 - _logfact(N - 1, λ0))
+    return p + slope * (λ - λ0)
+end
+
 function _poisson_lumped(z, N)
     λ = exp(z)
     lp = [j * z - λ - _logfact(j, z) for j in 0:(N - 1)]
     tail = 1 - sum(exp, lp; init = false)
     # the upper tail directly when it is small, so it is not lost to cancellation
-    t = tail > 1e-3 ? log(tail) : log(max(SpecialFunctions.gamma_inc(oftype(λ, N), λ)[1], floatmin(typeof(λ))))
+    λ0 = LenticulumCore.stop_gradient(λ)
+    t = tail > oftype(tail, 1e-3) ? log(tail) : log(max(_poisson_upper_tail(λ, λ0, N), oftype(λ, floatmin(typeof(λ0)))))
     return vcat(lp, t)
 end
 
@@ -200,7 +213,7 @@ function outcome_logprobs(L::BivariatePoissonLikelihood, z)
     P = [exp(loglikelihood(L, (i, j), z)) for i in 0:(N - 1), j in 0:(N - 1)]
     m1 = exp.(_poisson_lumped(log(exp(z[1]) + exp(z[3])), N))   # y₁ ~ Poisson(λ₁ + λ₃)
     m2 = exp.(_poisson_lumped(log(exp(z[2]) + exp(z[3])), N))
-    Q = zeros(eltype(P), N + 1, N + 1)
+    Q = _zeros_like(P, eltype(P), N + 1, N + 1)
     Q[1:N, 1:N] .= P
     Q[1:N, N + 1] .= max.(m1[1:N] .- vec(sum(P; dims = 2)), false)   # y₁ = i, y₂ ≥ N
     Q[N + 1, 1:N] .= max.(m2[1:N] .- vec(sum(P; dims = 1)), false)   # y₁ ≥ N, y₂ = j
@@ -242,8 +255,13 @@ function _category(L::OrdinalProbitLikelihood, y)
     (isinteger(k) && 1 ≤ k ≤ K) || throw(ArgumentError("an ordinal observation must be one of 1, …, $K, got $k"))
     return Int(k)
 end
-_upper(L::OrdinalProbitLikelihood, k) = k > length(L.cutpoints) ? oftype(L.scale, Inf) : L.cutpoints[k]
-_lower(L::OrdinalProbitLikelihood, k) = k == 1 ? oftype(L.scale, -Inf) : L.cutpoints[k - 1]
+_upper(L::OrdinalProbitLikelihood, k, z) =
+    k > length(L.cutpoints) ? oftype(z, Inf) : oftype(z, L.cutpoints[k])
+_lower(L::OrdinalProbitLikelihood, k, z) =
+    k == 1 ? oftype(z, -Inf) : oftype(z, L.cutpoints[k - 1])
+
+# Infinite category endpoints are fixed, so their standardised value has no tangent.
+_standardise(c, μ, σ) = isfinite(c) ? (c - μ) / σ : oftype(μ, c)
 
 const _SQRT2 = sqrt(2.0)
 _logϕ(u) = isinf(u) ? oftype(u, -Inf) : -u^2 / 2 - LenticulumCore._log2π(typeof(u)) / 2
@@ -252,7 +270,7 @@ _logΦ(u) = u == Inf ? zero(u) : u == -Inf ? oftype(u, -Inf) :
     u < -5 ? log(SpecialFunctions.erfcx(-u / oftype(u, _SQRT2)) / 2) - u^2 / 2 : log(SpecialFunctions.erfc(-u / oftype(u, _SQRT2)) / 2)
 # Narrow intervals: integrate exp(-m*u-u²/2) on [-h,h]. The omitted terms
 # are O((h*(1+abs(m)))^6); the branch keeps them below double precision.
-_narrow_interval(a, b) = isfinite(a) && isfinite(b) && (a-b) * (1 + abs(a/2+b/2)) < 1e-3
+_narrow_interval(a, b) = isfinite(a) && isfinite(b) && (a-b) * (1 + abs(a/2+b/2)) < oftype(a-b, 1e-3)
 _narrow_normal(a, b) = _narrow_normal_midpoint(a/2+b/2, a-b)
 function _narrow_normal_midpoint(m, width)
     h = width/2
@@ -278,9 +296,10 @@ _uϕ(u, logZ) = isinf(u) ? zero(logZ) : u * exp(_logϕ(u) - logZ)   # u φ(u) / 
 # Compute a narrow category's width before subtracting the predictor: a tiny
 # interval about zero otherwise rounds to equal endpoints after a nonzero shift.
 function _ordinal_narrow(L, k, μ, σ)
-    lo, hi = _lower(L, k), _upper(L, k)
+    lo, hi = _lower(L, k, μ), _upper(L, k, μ)
+    (isfinite(lo) && isfinite(hi)) || return nothing
     width, m = (hi-lo)/σ, (lo/2+hi/2-μ)/σ
-    if isfinite(width) && isfinite(m) && width*(1+abs(m)) < 1e-3
+    if isfinite(width) && isfinite(m) && width*(1+abs(m)) < oftype(width, 1e-3)
         return _narrow_normal_midpoint(m, width)
     end
     return nothing
@@ -288,18 +307,18 @@ end
 function _ordinal_logprob(L, k, μ, σ)
     narrow = _ordinal_narrow(L, k, μ, σ)
     narrow === nothing || return first(narrow)
-    return _logΦdiff((_upper(L,k)-μ)/σ, (_lower(L,k)-μ)/σ)
+    return _logΦdiff(_standardise(_upper(L,k,μ), μ, σ), _standardise(_lower(L,k,μ), μ, σ))
 end
 
 function loglikelihood(L::OrdinalProbitLikelihood, y, z)
     k = _category(L, y)
-    σ = L.scale
+    σ = oftype(z[1], L.scale)
     return _ordinal_logprob(L, k, z[1], σ)
 end
 function loglikelihood_derivatives(L::OrdinalProbitLikelihood, y, z)
     k = _category(L, y)
-    σ = L.scale
-    a, b = (_upper(L, k) - z[1]) / σ, (_lower(L, k) - z[1]) / σ
+    σ = oftype(z[1], L.scale)
+    a, b = _standardise(_upper(L, k, z[1]), z[1], σ), _standardise(_lower(L, k, z[1]), z[1], σ)
     narrow = _ordinal_narrow(L, k, z[1], σ)
     if narrow !== nothing
         lZ, g, h = narrow
@@ -311,7 +330,7 @@ function loglikelihood_derivatives(L::OrdinalProbitLikelihood, y, z)
     h = -(_uϕ(a, lZ) - _uϕ(b, lZ)) / σ^2 - g^2
     return lZ, [g], fill(h, 1, 1)
 end
-outcome_logprobs(L::OrdinalProbitLikelihood, z) = _ordinal_logprobs(L, z[1], L.scale)
+outcome_logprobs(L::OrdinalProbitLikelihood, z) = _ordinal_logprobs(L, z[1], oftype(z[1], L.scale))
 _ordinal_logprobs(L, μ, t) =
     [_ordinal_logprob(L, k, μ, t) for k in 1:(length(L.cutpoints) + 1)]
 
@@ -347,9 +366,9 @@ Base.@kwdef struct ExpectationPropagation
 end
 
 # probabilists' Gauss–Hermite: nodes and weights for E f(ξ), ξ ~ N(0, 1) (Golub–Welsch)
-function _gauss_hermite(n::Integer)
-    n == 1 && return [0.0], [1.0]
-    J = LinearAlgebra.SymTridiagonal(zeros(n), sqrt.(1.0:(n - 1)))
+function _gauss_hermite(n::Integer, ::Type{T} = Float64) where {T}
+    n == 1 && return [zero(T)], [one(T)]
+    J = LinearAlgebra.SymTridiagonal(zeros(T, n), sqrt.(T(1):T(n - 1)))
     E = LinearAlgebra.eigen(J)
     return E.values, E.vectors[1, :] .^ 2
 end
@@ -358,11 +377,13 @@ end
 function _gh_grid(order, r, ::Type{T} = Float64) where {T}
     order^r ≤ 10^6 || throw(ArgumentError("a Gauss–Hermite grid of $order^$r points is too large; " *
                                          "use Laplace(), or a smaller order"))
-    ξ, w = _gauss_hermite(order)
-    idx = CartesianIndices(ntuple(_ -> order, r))
-    X = reduce(hcat, ([ξ[c[i]] for i in 1:r] for c in vec(collect(idx))); init = zeros(r, 0))
-    W = [prod((w[c[i]] for i in 1:r); init = 1.0) for c in vec(collect(idx))]
-    return T.(X), T.(W)
+    # The nodes and weights do not depend on the differentiable inputs.
+    V = typeof(LenticulumCore.stop_gradient(zero(T)))
+    ξ, w = _gauss_hermite(order, V)
+    idx = vec(collect(CartesianIndices(ntuple(_ -> order, r))))
+    X = T[ξ[c[i]] for i in 1:r, c in idx]
+    W = T[prod((w[c[i]] for i in 1:r); init = one(V)) for c in idx]
+    return X, W
 end
 
 # --- The factor ---------------------------------------------------------------------
@@ -447,7 +468,13 @@ LenticulumCore.islearnable(::LikelihoodFactor) = false
 LenticulumCore.energyspace(::LikelihoodFactor) = LenticulumCore.energyspace(GaussianFactor(1 => 1))
 LenticulumCore.scalarisation(::LikelihoodFactor) = LenticulumCore.scalarisation(GaussianFactor(1 => 1))
 
-_predictor(f::LikelihoodFactor, x) = f.A * _vec(x) .+ f.b
+_predictor_parameter(T, value::AbstractArray{Bool}) = value
+_predictor_parameter(T, value) = _at_eltype(T, value)
+
+function _predictor(f::LikelihoodFactor, x)
+    v = _vec(x)
+    return _predictor_parameter(eltype(v), f.A) * v .+ _predictor_parameter(eltype(v), f.b)
+end
 
 """
     LenticulumCore.energy(f::LikelihoodFactor, x, a, y, ps, st)
@@ -477,11 +504,15 @@ end
 
 function _tilted(f::LikelihoodFactor, m, S)
     μz = _predictor(f, m)
-    Σz = Symmetric(f.A * S * f.A')
-    E = LinearAlgebra.eigen(Σz)
-    T = eltype(E.values)
-    rank_tol = T === Float64 ? 1e-12 : max(T(1e-12), length(E.values)*eps(T))
-    keep = E.values .> rank_tol * max(maximum(E.values; init = false), floatmin(T))
+    # The predictor mean can be active while its covariance is fixed. In
+    # particular a repeated, constant spectrum has no eigenvector tangent.
+    A = _predictor_parameter(eltype(S), f.A)
+    Σz = Symmetric(A * S * A')
+    E = _scalar_or_eigen(Σz)
+    values = LenticulumCore.stop_gradient(E.values)
+    V = eltype(values)
+    rank_tol = V === Float64 ? 1e-12 : max(V(1e-12), length(values)*eps(V))
+    keep = values .> rank_tol * max(maximum(values; init = false), floatmin(V))
     return _Tilted(μz, E.vectors[:, keep], E.values[keep])
 end
 
@@ -494,7 +525,7 @@ end
 
 # Newton's method with backtracking for the mode of the tilted density in ζ
 function _tilted_mode(f, t::_Tilted, y, iterations, tol)
-    ζ = zeros(promote_type(eltype(t.D), eltype(t.μz)), length(t.D))
+    ζ = _zeros_like(t.μz, promote_type(eltype(t.D), eltype(t.μz)), length(t.D))
     φ, g, H = _tilted_derivatives(f, t, y, ζ)
     for _ in 1:iterations
         C = -Symmetric(H)
@@ -509,14 +540,14 @@ function _tilted_mode(f, t::_Tilted, y, iterations, tol)
         Δ = (C + δ * I) \ g
         s = one(eltype(ζ))
         φn, gn, Hn = _tilted_derivatives(f, t, y, ζ .+ Δ)
-        while !(isfinite(φn) && all(isfinite, gn) && all(isfinite, Hn) && φn ≥ φ - 1e-12 * abs(φ)) && s > 1e-10
+        while !(isfinite(φn) && all(isfinite, gn) && all(isfinite, Hn) && φn ≥ φ - oftype(φ, 1e-12) * abs(φ)) && s > oftype(s, 1e-10)
             s /= 2
             φn, gn, Hn = _tilted_derivatives(f, t, y, ζ .+ s .* Δ)
         end
         (isfinite(φn) && all(isfinite, gn) && all(isfinite, Hn)) || break
         ζ = ζ .+ s .* Δ
         φ, g, H = φn, gn, Hn
-        maximum(abs, s .* Δ; init = false) < tol && break
+        maximum(abs, s .* Δ; init = false) < oftype(s, tol) && break
     end
     isposdef(-Symmetric(H)) || throw(ArgumentError(
         "Laplace: the cavity × likelihood has no strict local maximum (its Hessian is not negative definite)"))
@@ -551,14 +582,14 @@ end
 function _ordinal_moments(L::OrdinalProbitLikelihood, t::_Tilted, y)
     k = _category(L, y)
     μ, s², u = t.μz[1], t.D[1], t.U[1, 1]          # z = μ + u ζ, u = ±1
-    τ = sqrt(L.scale^2 + s²)
+    τ = sqrt(oftype(s², L.scale)^2 + s²)
     narrow = _ordinal_narrow(L, k, μ, τ)
     if narrow !== nothing
         lZ, g, h = narrow
         mz, vz = μ+s²/τ*g, s²+s²^2/τ^2*h
         return [(mz-μ)/u], fill(vz, 1, 1), lZ
     end
-    a, b = (_upper(L, k) - μ) / τ, (_lower(L, k) - μ) / τ
+    a, b = _standardise(_upper(L, k, μ), μ, τ), _standardise(_lower(L, k, μ), μ, τ)
     lZ = _logΦdiff(a, b)
     ra, rb = exp(_logϕ(a) - lZ), exp(_logϕ(b) - lZ)
     mz = μ - s² / τ * (ra - rb)
@@ -571,8 +602,8 @@ function _site_message(f, t::_Tilted, μζ, Σζ)
     Λq = _spd_inv(Matrix(Symmetric(Σζ)), "the approximate posterior covariance")
     Λs = Λq .- Diagonal(1 ./ t.D)
     ηs = Λq * μζ
-    B = t.U' * f.A
-    c = t.U' * (f.b .- t.μz)
+    B = t.U' * _predictor_parameter(eltype(t.μz), f.A)
+    c = t.U' * (_predictor_parameter(eltype(t.μz), f.b) .- t.μz)
     Λ = B' * Λs * B
     return GaussianBelief(B' * (ηs .- Λs * c), Matrix(Symmetric(Λ)))
 end
@@ -583,7 +614,8 @@ function _expansion_message(f, y, x0)
     _, g, H = loglikelihood_derivatives(f.lik, y, z0)
     Λz = -H
     ηz = g .+ Λz * z0
-    return GaussianBelief(f.A' * (ηz .- Λz * f.b), Matrix(Symmetric(f.A' * Λz * f.A)))
+    A, b = _predictor_parameter(eltype(z0), f.A), _predictor_parameter(eltype(z0), f.b)
+    return GaussianBelief(A' * (ηz .- Λz * b), Matrix(Symmetric(A' * Λz * A)))
 end
 
 _observation(::Nothing, f) = nothing
@@ -614,7 +646,7 @@ function _lik_message(f::LikelihoodFactor, target::Symbol, inputs, prior)
             return _expansion_message(f, y, f.x0)
         end
         t = _tilted(f, m, S)
-        isempty(t.D) && return uninformative(f.nin)   # the cavity fixes z: y says nothing more about x
+        isempty(t.D) && return uninformative(eltype(t.μz), f.nin)   # the cavity fixes z: y says nothing more about x
         μζ, Σζ, _ = _approximate(f.method, f, t, y)
         return _site_message(f, t, μζ, Σζ)
     elseif target === f.out_channel
@@ -648,7 +680,7 @@ function predictive(f::LikelihoodFactor, belief)
     if isempty(t.D)
         lp = outcome_logprobs(f.lik, t.μz)
     elseif f.lik isa OrdinalProbitLikelihood
-        lp = _ordinal_logprobs(f.lik, t.μz[1], sqrt(f.lik.scale^2 + t.D[1]))
+        lp = _ordinal_logprobs(f.lik, t.μz[1], sqrt(oftype(t.D[1], f.lik.scale)^2 + t.D[1]))
     else
         order = f.method isa ExpectationPropagation ? f.method.order : 20
         X, W = _gh_grid(order, length(t.D), eltype(t.D))
@@ -727,7 +759,7 @@ const _ENTROPY_TAIL = 1e-14
 # -p log p is increasing, so the geometric series bounds its entropy too.
 function _poisson_tail_bounds(p, λ, n)
     r = λ / (n + 1)
-    r < 1 && p < exp(-1) || return (Inf, Inf)
+    r < 1 && p < oftype(p, exp(-1)) || return (oftype(p, Inf), oftype(p, Inf))
     iszero(p) && return (zero(p), zero(p))
     mass = p / (1 - r)
     entropy = -mass * log(p) - p * log(r) * r / (1 - r)^2
@@ -752,7 +784,7 @@ function _poisson_entropy(z; maxterms::Int = 1_000_000)
         q *= λ / n
         push!(terms, q)
         mass, entropy = _poisson_tail_bounds(q, λ, n)
-        if mass < _ENTROPY_TAIL / 10 && entropy < _ENTROPY_TAIL / 10
+        if mass < oftype(λ, _ENTROPY_TAIL / 10) && entropy < oftype(λ, _ENTROPY_TAIL / 10)
             Z = sum(terms)
             return log(Z) - sum(x -> iszero(x) ? zero(x) : x * log(x), terms) / Z
         end
@@ -769,7 +801,7 @@ function _poisson_support(λ; maxterms::Int)
     for n in (floor(Int, λ) + 1):(maxterms - 1)
         p = exp(n * log(λ) - λ - _logfact(n, λ))
         mass, entropy = _poisson_tail_bounds(p, λ, n)
-        mass < _ENTROPY_TAIL / 100 && entropy < _ENTROPY_TAIL / 100 && return n + 1
+        mass < oftype(λ, _ENTROPY_TAIL / 100) && entropy < oftype(λ, _ENTROPY_TAIL / 100) && return n + 1
     end
     error("Poisson support exceeded maxterms=$maxterms")
 end

@@ -55,3 +55,9 @@ monomials, integer/rational/Float32 evaluation, Chebyshev against cos(n acos x),
 central differences (including endpoints), exact rational basis identities and
 conversion rank through degree six in three variables. It does not test GPU,
 high-degree stability, sparse storage or higher derivatives.
+
+## Element types (Q4)
+
+Polynomial value and derivative buffers take their type and array family from the
+argument of the basis. Exponent indices are integers and the exact basis conversion
+tables use BigInt to preserve integer coefficients.

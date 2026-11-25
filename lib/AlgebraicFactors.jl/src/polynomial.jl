@@ -154,7 +154,8 @@ end
 
 function _polynomial_moments(b, n)
     if b isa LenticulumCore.DiracBelief
-        return _polynomial_vector(b.value,n), zeros(n,n)
+        x = _polynomial_vector(b.value, n)
+        return x, LenticulumCore._zeros_like(x, eltype(x), n, n)
     elseif b isa LenticulumCore.GaussianBelief
         length(b.η) == n || throw(DimensionMismatch("Gaussian channel needs $n coordinates"))
         LenticulumCore.isproper(b) || throw(ArgumentError("observed Gaussian must be proper"))
@@ -178,19 +179,19 @@ function _polynomial_linearisation(f, target, inputs, x0, ps)
     end
     blocks = NamedTuple{names}(ranges)
     parts = map(names) do n
-        n === target ? (x0,zeros(length(x0),length(x0))) :
+        n === target ? (x0, LenticulumCore._zeros_like(x0, eltype(x0), length(x0), length(x0))) :
             _polynomial_moments(get(inputs,n,nothing),f.dims[n])
     end
     z = reduce(vcat,first.(parts))
     r = ps.Θ*veronese(f.table,z)
     J = ps.Θ*veronese_jacobian(f.table,z)
-    A = f.Σ === nothing ? J*J' : J*f.Σ*J'
+    A = f.Σ === nothing ? J*J' : J*LenticulumCore._at_eltype(eltype(J), f.Σ)*J'
     for (n,(_,C)) in zip(names,parts)
         n === target && continue
         Jo = J[:,blocks[n]]
         A += Jo*C*Jo'
     end
-    A += f.λ*(ps.Θ*ps.Θ')
+    A += eltype(A)(f.λ)*(ps.Θ*ps.Θ')
     all(isfinite,A) && all(isfinite,r) && all(isfinite,J) ||
         throw(ArgumentError("polynomial linearisation must be finite"))
     return r, J[:,blocks[target]], A
@@ -198,12 +199,12 @@ end
 
 function _polynomial_site(f, target, inputs, x0, ps)
     r, Ju, A = _polynomial_linearisation(f,target,inputs,x0,ps)
-    ev = LinearAlgebra.eigvals(LinearAlgebra.Symmetric(A))
+    ev = LinearAlgebra.eigvals(LinearAlgebra.Symmetric(LenticulumCore.stop_gradient(A)))
     threshold = f.k*eps(eltype(ev))*maximum(ev)
     minimum(ev)>threshold || throw(ArgumentError(
         "residual covariance A is numerically singular: cannot form a Gaussian residual likelihood; use positive λ with full-row-rank Θ (no pseudoinverse)"))
     chol = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(A))
-    numerical_rank = LinearAlgebra.rank(Ju)
+    numerical_rank = LinearAlgebra.rank(LenticulumCore.stop_gradient(Ju))
     Λ = Matrix(LinearAlgebra.Symmetric(Ju'*(chol\Ju)))
     h = Λ*x0-Ju'*(chol\r)
     return LenticulumCore.GaussianBelief(h,Λ), numerical_rank
@@ -220,9 +221,10 @@ function _polynomial_message(f, target, polarity, inputs, prior, ps, st)
     if π isa LenticulumCore.GaussianBelief
         length(π.η) == q || throw(DimensionMismatch("target prior needs $q coordinates"))
     end
+    T = LenticulumCore._compute_eltype(float(eltype(ps.Θ)), ps, inputs, π)
     x0 = π isa LenticulumCore.TrivialBelief ||
          (π isa LenticulumCore.GaussianBelief && LenticulumCore.isuninformative(π)) ?
-         zeros(q) : first(_polynomial_moments(π,q))
+         LenticulumCore._zeros_like(ps.Θ, T, q) : first(_polynomial_moments(π,q))
     msg, numerical_rank = _polynomial_site(f,target,inputs,x0,ps)
     for _ in 2:f.iterations
         # No mode exists on a flat fibre without a proper cavity. Keep the site,
@@ -281,10 +283,10 @@ Mycelium.uses_cavity(::PolynomialFactor) = true
 
 # The degree-one basis at zero: v(z) = v0 + V z exactly, so r = Θv(z) = Jz + c with c = Θv0
 # and J = ΘV. It depends on the factor alone.
-function _polynomial_basis(f)
+function _polynomial_basis(f, Θ, T = float(eltype(Θ)))
     f.table.degree == 1 && f.branches === :single || throw(ArgumentError(
         "PolynomialFactor exact games require degree one and branches=:single; a varying Sampson metric/branch solver supplies no normalised nonlinear law"))
-    z0 = zeros(sum(values(f.dims)))
+    z0 = LenticulumCore._zeros_like(Θ, T, sum(values(f.dims)))
     return veronese(f.table,z0), veronese_jacobian(f.table,z0)
 end
 
@@ -292,7 +294,7 @@ end
 # factor and log|det J_out|. `check = false` skips the eigenvalue test, which does not run on
 # dual numbers; the frozen-belief path uses it after the value path has checked. The frozen
 # path also passes the basis, so automatic differentiation never enters `veronese`.
-function _polynomial_affine(f, ps; basis = _polynomial_basis(f), check::Bool = true)
+function _polynomial_affine(f, ps; basis = _polynomial_basis(f, ps.Θ), check::Bool = true)
     v0, V = basis
     N = size(V, 2)
     c = ps.Θ*v0
@@ -302,10 +304,10 @@ function _polynomial_affine(f, ps; basis = _polynomial_basis(f), check::Bool = t
     q == f.k || throw(ArgumentError("normalised degree-one game needs a square last-channel coefficient block"))
     ld, sign = LinearAlgebra.logabsdet(J[:,N-q+1:N])
     sign != 0 && isfinite(ld) || throw(ArgumentError("normalised degree-one game needs a nonsingular last-channel coefficient block"))
-    Q = f.Σ === nothing ? J*J' : J*f.Σ*J'
-    Q += f.λ*(ps.Θ*ps.Θ')
+    Q = f.Σ === nothing ? J*J' : J*LenticulumCore._at_eltype(eltype(J), f.Σ)*J'
+    Q += eltype(Q)(f.λ)*(ps.Θ*ps.Θ')
     if check
-        ev = LinearAlgebra.eigvals(LinearAlgebra.Symmetric(Q))
+        ev = LinearAlgebra.eigvals(LinearAlgebra.Symmetric(LenticulumCore.stop_gradient(Q)))
         minimum(ev) > f.k*eps(eltype(ev))*maximum(ev) || throw(ArgumentError(
             "degree-one residual covariance must be positive definite; no pseudoinverse entropy"))
     end
@@ -333,10 +335,11 @@ end
 # The joint belief of the free coordinates: residual likelihood times the incoming messages.
 function _polynomial_belief(f, msgs, c, J, C, basis)
     N = size(J, 2)
-    z0 = zeros(N)
+    T = LenticulumCore._compute_eltype(eltype(J), J, msgs)
+    z0 = LenticulumCore._zeros_like(J, T, N)
     free = Int[]
-    η = zeros(N)
-    Λ = zeros(N,N)
+    η = LenticulumCore._zeros_like(J, T, N)
+    Λ = LenticulumCore._zeros_like(J, T, N, N)
     offset = 0
     for (name,n) in pairs(f.dims)
         idx = offset+1:offset+n
@@ -347,7 +350,7 @@ function _polynomial_belief(f, msgs, c, J, C, basis)
             length(b.η) == n || throw(DimensionMismatch("degree-one Gaussian channel dimension"))
             # Improper PSD likelihoods are allowed; the joint posterior is checked below.
             all(isfinite,b.η) && all(isfinite,b.Λ) && LinearAlgebra.issymmetric(b.Λ) &&
-                minimum(LinearAlgebra.eigvals(LinearAlgebra.Symmetric(b.Λ))) >= 0 ||
+                minimum(LinearAlgebra.eigvals(LinearAlgebra.Symmetric(LenticulumCore.stop_gradient(b.Λ)))) >= 0 ||
                 throw(ArgumentError("Gaussian likelihood must have finite information and symmetric PSD precision"))
             append!(free,idx)
             η[idx] = b.η
@@ -359,16 +362,16 @@ function _polynomial_belief(f, msgs, c, J, C, basis)
         end
         offset += n
     end
-    isempty(free) && return PolynomialBelief(z0, free, zeros(0), zeros(0,0), 0.0, basis)
+    isempty(free) && return PolynomialBelief(z0, free, similar(z0, 0), similar(Λ, 0, 0), zero(T), basis)
     r = J*z0+c
     B = J[:,free]
     precision = B'*(C\B)+Λ[free,free]
-    pev = LinearAlgebra.eigvals(LinearAlgebra.Symmetric(precision))
+    pev = LinearAlgebra.eigvals(LinearAlgebra.Symmetric(LenticulumCore.stop_gradient(precision)))
     minimum(pev) > length(free)*eps(eltype(pev))*maximum(pev) ||
         throw(ArgumentError("degree-one polynomial game has an improper joint posterior; supply anchoring messages"))
     P = LinearAlgebra.cholesky(LinearAlgebra.Symmetric(precision))
     m = P\(η[free]-B'*(C\r))
-    H = (length(free)*(1+log(2π))-LinearAlgebra.logdet(P))/2
+    H = (length(free)*(1+LenticulumCore._log2π(T))-LinearAlgebra.logdet(P))/2
     return PolynomialBelief(z0, free, m, Matrix(inv(P)), H, basis)
 end
 
@@ -382,12 +385,13 @@ function _polynomial_energies(f, c, J, C, ld, b::PolynomialBelief)
         r = r+B*b.m
         (LinearAlgebra.dot(r,C\r)+LinearAlgebra.tr(C\(B*b.S*B')))/2
     end
-    complexity = (f.k*log(2π)+LinearAlgebra.logdet(C))/2-ld
+    complexity = (f.k * LenticulumCore._log2π(typeof(fit)) + LinearAlgebra.logdet(C)) / 2 - ld
     return fit, complexity
 end
 
 function _polynomial_exact_statistics(f, msgs, ps)
-    basis = _polynomial_basis(f)
+    T = LenticulumCore._compute_eltype(float(eltype(ps.Θ)), ps, msgs)
+    basis = _polynomial_basis(f, ps.Θ, T)
     c, J, C, ld = _polynomial_affine(f, ps; basis)
     b = _polynomial_belief(f, msgs, c, J, C, basis)
     fit, complexity = _polynomial_energies(f, c, J, C, ld, b)
@@ -409,7 +413,8 @@ belief for the current `Θ`: `fit = E_b[r'Q⁻¹r]/2`, `complexity` the residual
 Bethe free energy (LP-020). Same domain as `local_free_energy`: degree one, `branches=:single`.
 """
 function Mycelium.factor_belief(f::PolynomialFactor, msgs, ps, st)
-    basis = _polynomial_basis(f)
+    T = LenticulumCore._compute_eltype(float(eltype(ps.Θ)), ps, msgs)
+    basis = _polynomial_basis(f, ps.Θ, T)
     c, J, C, _ = _polynomial_affine(f, ps; basis)
     return _polynomial_belief(f, msgs, c, J, C, basis)
 end
@@ -433,5 +438,5 @@ end
 function LenticulumCore.entropy(f::PolynomialFactor,π,y,ps,st)
     f.table.degree == 1 || throw(ArgumentError("nonlinear PolynomialFactor has no normalised branch law or exact game entropy"))
     _,_,H = _polynomial_exact_statistics(f,_polynomial_game_messages(f,π,y),ps)
-    return LenticulumCore.GradedEnergy((fit=0.0,complexity=0.0,negentropy=H)),st
+    return LenticulumCore.GradedEnergy((fit=zero(H),complexity=zero(H),negentropy=H)),st
 end

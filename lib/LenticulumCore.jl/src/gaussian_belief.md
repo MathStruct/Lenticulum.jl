@@ -184,3 +184,12 @@ validated (the repro was CPU); nothing here infers device support from the `Abst
 signatures. Tests: `test/sample_moments.jl`, "GH-21" — gradients against the closed-form weighted
 sums for matrix columns, vectors of vectors and scalars, weighted and unweighted, and the scalar
 types.
+
+## Element types (Q4)
+
+Numeric input types are taken from the leaves of parameter tuples and the numerical
+fields of beliefs. Uniform sample weights take the scalar type of the samples, including
+first-order ForwardDiff duals. Numerical zero buffers retain the input's array family where
+there is an anchor. The dense symmetry validation still accumulates its maxima in Float64
+to keep the original acceptance test, including at the subnormal limit. The no-input
+`uninformative(n)` convenience method still defaults to Float64.

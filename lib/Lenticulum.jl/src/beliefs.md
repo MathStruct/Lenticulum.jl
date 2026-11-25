@@ -80,3 +80,9 @@ Runnalls' merge needs the components' moments, so a mixture with an improper (li
 component over the budget is refused with that reason; under the budget it passes. Pruning
 (weights below $10^{-8}$ of the largest) happens only when a reduction is needed. Tested in
 `test/mixture_rules.jl`.
+
+## Element types (Q4)
+
+Moment matching takes the working type from the samples and weights. Matrix-form samples
+keep their array family, and uniform weights are allocated from that matrix. The default for a
+sample with only integer coordinates and no numeric weights is Float64.

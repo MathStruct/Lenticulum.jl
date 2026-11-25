@@ -62,3 +62,9 @@ Measured 2026-11-24 with `lib/Lenticulum.jl/test/ad_matrix.jl`.
 NonlinearFactor and LikelihoodFactor use continuous inputs, and SplitFactor uses an incoming belief, because those fixtures have empty parameter trees. HardConstraintFactor, SplitFactor, ScaleShiftFactor and RegimeFactor have graph energy methods and no pointwise `energy` method. The isolated Enzyme reverse probe for the ScaleShiftFactor message reached its 185-second limit.
 
 The first default matrix took 4m52s. The default tier now covers pointwise energy and the Gaussian transition message. The revised slow matrix, including both graph cases, took 14m27s.
+
+## Element types (Q4)
+
+The Gaussian, relation and likelihood implementations use LenticulumCore's numeric-type
+and zero-buffer helpers. These helpers inspect numeric input storage and leave discrete labels,
+polarity and structural flags separate from the computation.

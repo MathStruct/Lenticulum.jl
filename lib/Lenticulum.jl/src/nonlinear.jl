@@ -152,7 +152,7 @@ LenticulumCore.pointwise_scalarisation(f::NonlinearFactor) =
 function _jacobian(f::NonlinearFactor, x)
     if f.jacobian !== nothing
         J = f.jacobian(x)
-        return Matrix{promote_type(eltype(x), eltype(J))}(J)
+        return _at_eltype(promote_type(eltype(x), eltype(J)), J)
     end
     J, R = _difference_jacobian(f, x, 1)
     return _rank_clean(f, x, J, R)
@@ -164,19 +164,19 @@ end
 function _difference_jacobian(f::NonlinearFactor, x, scale)
     T = eltype(x)
     V = eltype(LenticulumCore.stop_gradient(x))
-    J = zeros(T, f.nout, f.nin)
-    R = zeros(V, f.nout, f.nin)
+    J = _zeros_like(x, T, f.nout, f.nin)
+    R = _zeros_like(x, V, f.nout, f.nin)
     for i in 1:f.nin
         xi = abs(LenticulumCore.stop_gradient(x[i]))
         h = scale * (V === Float64 ? V(1e-6) : cbrt(eps(V))) * (1 + xi)
-        e = zeros(V, f.nin); e[i] = h
+        e = _zeros_like(x, V, f.nin); e[i] = h
         fp, fm = _vec(f.f(x .+ e)), _vec(f.f(x .- e))
         if i == 1
             # Learn the function's output type from the first difference pair: no extra f call.
             JT = promote_type(T, eltype(fp), eltype(fm))
             RT = promote_type(V, eltype(LenticulumCore.stop_gradient(fp)), eltype(LenticulumCore.stop_gradient(fm)))
-            JT === T || (J = zeros(JT, f.nout, f.nin))
-            RT === V || (R = zeros(RT, f.nout, f.nin))
+            JT === T || (J = _zeros_like(x, JT, f.nout, f.nin))
+            RT === V || (R = _zeros_like(x, RT, f.nout, f.nin))
         end
         J[:, i] = (fp .- fm) ./ (2h)
         R[:, i] = eps(V) .* ((abs.(LenticulumCore.stop_gradient(fp)) .+ abs.(LenticulumCore.stop_gradient(fm))) ./ (2h) .+
@@ -222,8 +222,8 @@ function _rank_clean(f::NonlinearFactor, x, J, R)
     s = LinearAlgebra.svdvals(Jv)
     lim = sqrt(eltype(Jv)(length(J)))
     r0, c0 = _error_scales(R)
-    if !(s[end] <= 1e-3 * s[1])
-        last(LinearAlgebra.svdvals(Jv ./ (r0 * c0'))) > 1e3 * lim && return J
+    if !(s[end] <= oftype(s[1], 1e-3) * s[1])
+        last(LinearAlgebra.svdvals(Jv ./ (r0 * c0'))) > oftype(lim, 1e3) * lim && return J
     end
     J2, _ = _difference_jacobian(f, x, 2)
     B = R .+ abs.(Jv .- Matrix(LenticulumCore.stop_gradient(J2))) ./ 3
@@ -251,7 +251,7 @@ linearize(f::NonlinearFactor, m, S) = _linearize(f.method, f, _vec(m), S)
 
 function _linearize(::Linearization, f, m, S)
     A = _jacobian(f, m)
-    return (A, _vec(f.f(m)) .- A * m, zeros(eltype(A), f.nout, f.nout))
+    return (A, _vec(f.f(m)) .- A * m, _zeros_like(A, eltype(A), f.nout, f.nout))
 end
 
 function _linearize(u::Unscented, f, m, S)
@@ -260,25 +260,25 @@ function _linearize(u::Unscented, f, m, S)
     T = promote_type(eltype(m), eltype(S))
     α, β, κ = T(u.α), T(u.β), T(u.κ)
     λ = α^2 * (n + κ) - n
-    E = LinearAlgebra.eigen(Symmetric(Matrix(S)))
+    E = _scalar_or_eigen(Symmetric(Matrix(S)))
     vals = max.(E.values, false)
     L = E.vectors * Diagonal(sqrt.(vals))                          # S = L Lᵀ, also when singular
     c = sqrt(n + λ)
     X = hcat(m, m .+ c .* L, m .- c .* L)                          # 2n + 1 sigma points
-    wm = vcat(λ / (n + λ), fill(1 / (2(n + λ)), 2n))
+    wm = vcat(λ / (n + λ), fill!(similar(m, T, 2n), one(T) / (2(n + λ))))
     wc = copy(wm); wc[1] += 1 - α^2 + β
     Y = reduce(hcat, (_vec(f.f(x)) for x in eachcol(X)))
     ȳ = Y * wm
     Dx, Dy = X .- m, Y .- ȳ
     Cxy = (Dx .* wc') * Dy'                                        # n × nout
     Syy = (Dy .* wc') * Dy'
-    tol = n * eps(eltype(E.values)) * maximum(vals; init = false)
+    tol = n * eps(eltype(LenticulumCore.stop_gradient(E.values))) * maximum(vals; init = false)
     inv_vals = [v > tol ? one(v) / v : false for v in vals]
     Sinv_Cxy = E.vectors * (inv_vals .* (E.vectors' * Cxy))        # reuse E instead of rank + pinv
     A = Matrix(Sinv_Cxy')
     Ω = Syy .- A * S * A'
-    EΩ = LinearAlgebra.eigen(Symmetric((Ω .+ Ω') ./ 2))
-    if minimum(EΩ.values; init = false) < -1e-10 * (1 + maximum(abs, EΩ.values; init = false))
+    EΩ = _scalar_or_eigen(Symmetric((Ω .+ Ω') ./ 2))
+    if minimum(EΩ.values; init = false) < -eltype(EΩ.values)(1e-10) * (1 + maximum(abs, EΩ.values; init = false))
         @warn "Unscented linearize: residual covariance Ω = Syy - ASAᵀ has negative eigenvalue $(minimum(EΩ.values)) (due to negative centre weight wc[1] at α = $(u.α)); clamping to positive semidefinite. Consider α = 1.0 (cubature weights) if exact PSD residuals are required." maxlog = 1
     end
     Ω_psd = EΩ.vectors * Diagonal(max.(EΩ.values, false)) * EΩ.vectors'
@@ -290,7 +290,7 @@ function _expansion(f::NonlinearFactor, b)
     m, S = _moments(b, f.nin)
     m === nothing || return (m, S)
     f.x0 === nothing && return (nothing, nothing)
-    return (f.x0, zeros(eltype(f.x0), f.nin, f.nin))
+    return (f.x0, _zeros_like(f.x0, eltype(f.x0), f.nin, f.nin))
 end
 
 # --- Messages -----------------------------------------------------------------------
@@ -322,7 +322,7 @@ function _nl_message(f::NonlinearFactor, target::Symbol, inputs, prior)
         m, S = _moments(src, f.nin)
         m === nothing && return _nl_no_input_forward(f, src)
         A, b, Ω = linearize(f, m, S)
-        Λ = _spd_inv(A * S * A' + Ω + f.Q, "ASAᵀ + Ω + Q")
+        Λ = _spd_inv(A * S * A' + Ω + _covariance_at(f.Q, A, b, m, S), "ASAᵀ + Ω + Q")
         return GaussianBelief(Λ * (A * m .+ b), Λ)
     elseif target === f.in_channel
         src = _get(inputs, f.out_channel)
@@ -331,7 +331,7 @@ function _nl_message(f::NonlinearFactor, target::Symbol, inputs, prior)
         if _partly_flat(src)                      # the linear model's relation, flat directions integrated out
             A, b, Ω = linearize(f, x̄, P)
             blocks = NamedTuple{(f.in_channel, f.out_channel)}((-A, Matrix{eltype(A)}(I, f.nout, f.nout)))
-            return first(_linear_message(blocks, b, f.Q .+ Ω, target, [(f.out_channel, _split_moments(src, f.nout))], nothing))
+            return first(_linear_message(blocks, b, _covariance_at(f.Q, A, b, src) .+ Ω, target, [(f.out_channel, _split_moments(src, f.nout))], nothing))
         end
         my, Sy = _moments(src, f.nout)
         my === nothing && return LenticulumCore.TrivialBelief()
@@ -349,15 +349,15 @@ end
 # because A is a fresh array on every call and would only fill the memo of `_rank_deficient`.
 function _nl_no_input_forward(f::NonlinearFactor, src)
     f.x0 === nothing && return LenticulumCore.TrivialBelief()
-    A, b, Ω = linearize(f, f.x0, zeros(eltype(f.x0), f.nin, f.nin))
+    A, b, Ω = linearize(f, f.x0, _zeros_like(f.x0, eltype(f.x0), f.nin, f.nin))
     size(A, 1) == size(A, 2) && !_rank_deficient_svd(A) && return LenticulumCore.TrivialBelief()
-    g = GaussianFactor(f.nin, f.nout, f.in_channel, f.out_channel, f.Q .+ Ω, nothing, nothing)
+    g = GaussianFactor(f.nin, f.nout, f.in_channel, f.out_channel, _covariance_at(f.Q, A, b, src) .+ Ω, nothing, nothing)
     return first(_flat_message(g, f.out_channel, f.in_channel, f.nin, src, (A = A, b = b), nothing))
 end
 
 function _likelihood(f, my, Sy, x̄, P)
     A, b, Ω = linearize(f, x̄, P)
-    Ri = _spd_inv(f.Q + Ω + Sy, "Q + Ω + Sᵧ")
+    Ri = _spd_inv(_covariance_at(f.Q, A, b, my, Sy) + Ω + Sy, "Q + Ω + Sᵧ")
     return _likelihood_message(A' * (Ri * (my .- b)), A' * Ri * A, _rank_deficient(A))
 end
 
@@ -438,7 +438,7 @@ function Mycelium.local_free_energy(f::NonlinearFactor, msgs, ps, st)
     x̄, P = _expansion(f, mx)
     x̄ === nothing && throw(ArgumentError("local_free_energy: no belief on :$(f.in_channel) to linearise at"))
     A, b, Ω = linearize(f, x̄, P)
-    g = GaussianFactor(f.nin, f.nout, f.in_channel, f.out_channel, f.Q .+ Ω, nothing, nothing)
+    g = GaussianFactor(f.nin, f.nout, f.in_channel, f.out_channel, _covariance_at(f.Q, A, b, msgs) .+ Ω, nothing, nothing)
     return Mycelium.local_free_energy(g, msgs, (A = A, b = b), st)
 end
 

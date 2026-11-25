@@ -230,7 +230,7 @@ because the factor has none. See `constraint.md` §3 for why `LenticulumCore.ene
 `(x, a, y)` signature cannot express this directly.
 """
 function residual(f::LinearConstraintFactor{names}, vals::NamedTuple, ps) where {names}
-    r = -float.(ps.c)
+    r = -convert.(_compute_eltype(float(eltype(ps.c)), ps, vals), ps.c)
     for n in names
         haskey(vals, n) || throw(ArgumentError(
             "residual needs a value for every channel; :$n is missing (have $(keys(vals)))"))
@@ -340,8 +340,9 @@ Mycelium.factor_message(
 function _message(f::LinearConstraintFactor{names}, target::Symbol, inputs, ps, st) where {names}
     target in names || throw(ArgumentError(
         "channel :$target is not a channel of this LinearConstraintFactor (has $names)"))
-    parts = [(n, _split_moments(_get(inputs, n), f.dims[n], float(eltype(f.Q)))) for n in names if n !== target]
-    return _linear_message(_coeffs(f, ps), float.(ps.c), f.Q, target, parts, st)
+    Q = _covariance_at(f.Q, ps, inputs)
+    parts = [(n, _split_moments(_get(inputs, n), f.dims[n], eltype(Q))) for n in names if n !== target]
+    return _linear_message(_coeffs(f, ps), _offset_at(ps.c, Q), Q, target, parts, st)
 end
 
 # The message to `target` from Σᵢ Aᵢxᵢ = c + ε, the other channels given as `parts`.
@@ -377,20 +378,24 @@ function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{na
         "channel :$target is not a channel of this LinearConstraintFactor (has $names)"))
     f = first(fs)
     others = _other_channels(Val(names), Val(target))
-    partss = [map(n -> (n, _split_moments(_get(inp, n), h.dims[n], float(eltype(h.Q)))), others) for (h, inp) in zip(fs, inputs)]
+    covariances = [_covariance_at(h.Q, ps, inp) for (h, inp) in zip(fs, inputs)]
+    Q = first(covariances)
+    partss = [map(n -> (n, _split_moments(_get(inp, n), h.dims[n], eltype(Qi))), others)
+              for (h, inp, Qi) in zip(fs, inputs, covariances)]
     p1 = first(partss)
     same(a, b) = isequal(a[2][2], b[2][2]) && isequal(a[2][3], b[2][3])
-    c = float.(ps.c)
+    c = _offset_at(ps.c, Q)
     if !all(h -> h === f || (isequal(h.Q, f.Q) && h.dims == f.dims), fs) ||
+       !all(Qi -> eltype(Qi) === eltype(Q), covariances) ||
        !all(p -> all(splat(same), zip(p, p1)), partss)
         beliefs = Vector{Any}(undef, length(partss))
         for (i, p) in enumerate(partss)
-            beliefs[i], st = _linear_message(_coeffs(fs[1], ps), c, fs[i].Q, target, p, st)
+            beliefs[i], st = _linear_message(_coeffs(fs[1], ps), c, covariances[i], target, p, st)
         end
         return beliefs, st
     end
     A, At = _coeffs(fs[1], ps), _coeffs(fs[1], ps)[target]
-    _, R, G = _accumulate(A, f.Q, p1)
+    _, R, G = _accumulate(A, Q, p1)
     if isempty(G)
         Ri = _spd_inv(R, "Q + Σ AᵢSᵢAᵢᵀ")
         improper = _projected_rank(At, At) < size(At, 2)
@@ -428,20 +433,21 @@ function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{na
         "channel :$target is not a channel of this LinearConstraintFactor (has $names)"))
     f, n = first(fs), length(fs)
     others = _other_channels(Val(names), Val(target))
-    parts = map(c -> (c, _block_parts(_get(inputs, c), f.dims[c], n, float(eltype(f.Q)))), others)
+    Q = _covariance_at(f.Q, ps, map(_block_numbers, inputs))
+    parts = map(c -> (c, _block_parts(_get(inputs, c), f.dims[c], n, eltype(Q))), others)
     same = all(h -> h === f || (isequal(h.Q, f.Q) && h.dims == f.dims), fs)
-    if same && any(p -> p[2] === nothing, parts) && _plain_batch_arrays(_coeffs(fs[1], ps), ps.c, f.Q, inputs)
+    if same && any(p -> p[2] === nothing, parts) && _plain_batch_arrays(_coeffs(fs[1], ps), ps.c, Q, inputs)
         # inputs with a precision per replica (EP sites, L-SPEC-006 §8.4): one loop, no belief objects
-        out = _linear_block_each(_coeffs(fs[1], ps), float.(ps.c), f.Q, target, others, inputs, f.dims, n)
+        out = _linear_block_each(_coeffs(fs[1], ps), _offset_at(ps.c, Q), Q, target, others, inputs, f.dims, n)
         out === nothing || return out, st
     end
     if !same || any(p -> p[2] === nothing, parts)
         cols = [NamedTuple{keys(inputs)}(map(b -> Mycelium.replica(b, i), values(inputs))) for i in 1:n]
         return Mycelium.belief_block(first(Mycelium.factor_messages(fs, target, polarity, cols, priors, ps, st))), st
     end
-    c = float.(ps.c)
+    c = _offset_at(ps.c, Q)
     A, At = _coeffs(fs[1], ps), _coeffs(fs[1], ps)[target]
-    _, R, G = _accumulate(A, f.Q, [(ch, (M[:, 1], S, N)) for (ch, (M, S, N)) in parts])
+    _, R, G = _accumulate(A, Q, [(ch, (M[:, 1], S, N)) for (ch, (M, S, N)) in parts])
     if isempty(G)
         Ri = _spd_inv(R, "Q + Σ AᵢSᵢAᵢᵀ")
         improper = _projected_rank(At, At) < size(At, 2)
@@ -454,7 +460,7 @@ function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{na
         K, Λ, improper = Ta' * T, Ta' * Ta, rt < size(At, 2)
     end
     # H = K(c 1ᵀ − Σₙ Aₙ Mₙ), as Kc − Σₙ (K Aₙ) Mₙ: small products first, one n-column temporary
-    H = foldl((acc, (ch, (M, _, _))) -> acc .+ (K * A[ch]) * M, parts; init = zeros(eltype(K), size(K, 1), n))
+    H = foldl((acc, (ch, (M, _, _))) -> acc .+ (K * A[ch]) * M, parts; init = _zeros_like(K, eltype(K), size(K, 1), n))
     H = (K * c) .- H
     return Mycelium.GaussianBlock(H, Λ, fill(improper, n)), st
 end
@@ -494,7 +500,7 @@ function _linear_block_each(A, c, Q, target, others, inputs, dims, n)
     end
     At = Matrix(A[target])
     improper = _projected_rank(At, At) < size(At, 2)
-    D = c .- (isempty(others) ? zeros(eltype(c), length(c), n) : reduce(+, [A[ch] * M for (ch, M) in zip(others, means)]))
+    D = c .- (isempty(others) ? _zeros_like(c, eltype(c), length(c), n) : reduce(+, [A[ch] * M for (ch, M) in zip(others, means)]))
     gauss = [(Matrix(A[ch]), S) for (ch, S) in zip(others, covs) if S !== nothing]
     return _linear_block_loop(At, Matrix(LinearAlgebra.Symmetric(Matrix(Q))), gauss, D, n, improper)
 end
@@ -521,10 +527,10 @@ function _linear_block_loop(At, Q, gauss, D, n, improper)
     # the covariances' type from their container (one per channel), not by splatting every replica
     TS = isempty(gauss) ? Bool : mapreduce(g -> eltype(eltype(last(g))), promote_type, gauss)
     Tval = float(promote_type(eltype(At), eltype(Q), eltype(D), TS))
-    η = zeros(Tval, dt, n)
+    η = _zeros_like(Q, Tval, dt, n)
     Λs = Vector{Matrix{Tval}}(undef, n)
-    R = similar(Q, Tval); T = similar(Q, Tval); AS = [zeros(Tval, m, size(An, 2)) for (An, _) in gauss]
-    Rd = zeros(Tval, m); RA = zeros(Tval, m, dt)
+    R = similar(Q, Tval); T = similar(Q, Tval); AS = [_zeros_like(An, Tval, m, size(An, 2)) for (An, _) in gauss]
+    Rd = _zeros_like(Q, Tval, m); RA = _zeros_like(Q, Tval, m, dt)
     for i in 1:n
         copyto!(R, Q)
         for (k, (An, S)) in enumerate(gauss)
@@ -545,9 +551,22 @@ end
 # A channel's block as (M, S, N): the means as columns, one covariance S and one flat basis N
 # for every replica (as `_split_moments`), or `nothing` when the replicas differ in S or N, or a
 # precision is improper but not zero.
+# An offset in the working type of a call whose covariance is `Q`: `float.` widened an integer
+# offset to Float64 in a Float32 call (LP-091 finding 3). A copy, as `float.` made one.
+_offset_at(c, Q) = convert.(float(promote_type(eltype(c), eltype(Q))), c)
+
+# Numeric storage of a plate input, for the same promotion as a single message.
+_block_numbers(b) = b
+_block_numbers(b::Mycelium.PointBlock) = b.X
+_block_numbers(b::Mycelium.GaussianBlock) = (b.η, b.Λ)
+_block_numbers(b::Mycelium.CategoricalBlock) = b.logp
+_block_numbers(b::Mycelium.MixtureBlock) = (b.η, b.Λ, b.logw)
+_block_numbers(b::Mycelium.ComponentMixtureBlock) = (b.η, b.Λs, b.logw)
+_block_numbers(b::Mycelium.VectorBlock) = b.beliefs
+
 _block_parts(::Mycelium.TrivialBlock, d, n, T = Float64) = (fp = _flat_part(d, T); (zeros(T, d, n), fp[2], fp[3]))
 _block_parts(::Nothing, d, n, T = Float64) = _block_parts(Mycelium.TrivialBlock(n), d, n, T)
-_block_parts(b::Mycelium.PointBlock, d, n, T = Float64) = size(b.X, 1) == d ? (b.X, zeros(float(eltype(b.X)), d, d), nothing) : nothing
+_block_parts(b::Mycelium.PointBlock, d, n, T = Float64) = size(b.X, 1) == d ? (b.X, _zeros_like(b.X, float(eltype(b.X)), d, d), nothing) : nothing
 function _block_parts(b::Mycelium.GaussianBlock, d, n, T = float(eltype(b.η)))
     b.Λ isa AbstractMatrix && size(b.Λ, 1) == d || return nothing
     all(iszero, b.Λ) && return all(iszero, b.η) ? _block_parts(Mycelium.TrivialBlock(n), d, n, float(promote_type(T, eltype(b.η), eltype(b.Λ)))) : nothing
@@ -566,7 +585,7 @@ _block_parts(b, d, n, T = Float64) = nothing
 # (`nothing`: a point), flat along the columns of N (`nothing`: nowhere). Returns Σ Aₙmₙ,
 # R = Q + Σ AₙSₙAₙᵀ, and the coefficients AₙNₙ of the flat directions.
 function _accumulate(A, Q, parts)
-    s = zeros(float(eltype(Q)), size(Q, 1))
+    s = _zeros_like(Q, float(eltype(Q)), size(Q, 1))
     R = float.(Q)
     G = ()                      # a tuple, rebound rather than pushed to: Zygote (P4, as P23)
     for (n, (m, S, N)) in parts
@@ -619,9 +638,9 @@ end
 # of order eps·‖L⁻¹Aₜ‖ in the directions it removed, so those count as zero. A rank has no
 # derivative, so it is computed on values (`stop_gradient` strips ForwardDiff duals).
 function _projected_rank(Ta, LiAt)
-    s = LinearAlgebra.svdvals(LenticulumCore.stop_gradient(Ta))
+    s = _value_svdvals(Ta)
     isempty(s) && return 0
-    scale = maximum(LinearAlgebra.svdvals(LenticulumCore.stop_gradient(LiAt)))
+    scale = maximum(_value_svdvals(LiAt))
     # the projection `Li * At` promotes to the wider of the two element types, so its rounding is
     # at that type's eps (GH-17)
     T = promote_type(eltype(s), eltype(LiAt))
@@ -642,8 +661,9 @@ flat; its mean elsewhere enters as usual.
 function Mycelium.mean_field_message(f::LinearConstraintFactor{names}, target::Symbol, polarity, beliefs, ps, st) where {names}
     target in names || throw(ArgumentError(
         "channel :$target is not a channel of this LinearConstraintFactor (has $names)"))
-    parts = [(n, _mf_split(_get(beliefs, n), f.dims[n], float(eltype(f.Q)))) for n in names if n !== target]
-    return _linear_message(_coeffs(f, ps), float.(ps.c), f.Q, target, parts, st)
+    Q = _covariance_at(f.Q, ps, beliefs)
+    parts = [(n, _mf_split(_get(beliefs, n), f.dims[n], eltype(Q))) for n in names if n !== target]
+    return _linear_message(_coeffs(f, ps), _offset_at(ps.c, Q), Q, target, parts, st)
 end
 
 # A marginal as the mean-field rule reads it: (mean, nothing, N), flat along the columns of N.
@@ -676,7 +696,7 @@ not the exact mixture belief.
 """
 function residual_statistics(f::LinearConstraintFactor{names}, msgs, ps) where {names}
     G, c_eff, canon = _reduced_relation(_coeffs(f, ps), ps.c, msgs, f.dims, names)
-    return _reduced_residual_statistics(G, c_eff, canon, f.Q)
+    return _reduced_residual_statistics(G, c_eff, canon, _covariance_at(f.Q, ps, msgs))
 end
 
 # The relation Σᵢ Aᵢxᵢ = c over the channels `names`, its incoming messages substituted where they
@@ -686,11 +706,12 @@ end
 # blocks G (over the coordinates left), the constant, and each block's message in canonical form.
 # A mixture is collapsed to its moments (gaussian.md, "Mixture inputs").
 function _reduced_relation(A, c, msgs, dims, names)
-    c_eff = float.(c)
+    T = _compute_eltype(float(eltype(c)), A, c, msgs)
+    c_eff = _at_eltype(T, c)
     Gs, canon = (), ()                  # tuples, rebound rather than pushed to: Zygote (P23)
     for n in names
         b = _collapse(_get(msgs, n))
-        An = getfield(A, n)
+        An = _at_eltype(T, getfield(A, n))
         if b isa LenticulumCore.DiracBelief
             c_eff = c_eff .- An * _vec(b.value)
         elseif _is_hard(b)
@@ -703,7 +724,7 @@ function _reduced_relation(A, c, msgs, dims, names)
             Gs, canon = (Gs..., An), (canon..., _canon(b, dims[n], float(promote_type(eltype(An), eltype(c_eff)))))
         end
     end
-    G = isempty(Gs) ? zeros(eltype(c_eff), length(c_eff), 0) : reduce(hcat, Gs)
+    G = isempty(Gs) ? _zeros_like(c_eff, eltype(c_eff), length(c_eff), 0) : reduce(hcat, Gs)
     return G, c_eff, isempty(canon) ? Any[] : collect(canon)
 end
 _is_hard(b) = false
@@ -715,7 +736,7 @@ _is_hard(b::LenticulumCore.ExtendedGaussian) = size(LenticulumCore.hard_directio
 # residual is deterministic and the entropy zero.
 function _reduced_residual_statistics(G, c_eff, canon, Q)
     m = length(c_eff)
-    size(G, 2) == 0 && return (-c_eff, zeros(eltype(c_eff), m, m), false)
+    size(G, 2) == 0 && return (-c_eff, _zeros_like(c_eff, eltype(c_eff), m, m), false)
     Qi = _spd_inv(Q, "Q")
     Λ = G' * Qi * G + _blockdiag(map(last, canon))
     η = G' * (Qi * c_eff) + reduce(vcat, map(first, canon))
@@ -762,9 +783,10 @@ as [`GaussianFactor`](@ref), computed from [`residual_statistics`](@ref).
 """
 function Mycelium.local_free_energy(f::LinearConstraintFactor, msgs, ps, st)
     r̄, Cr, H = residual_statistics(f, msgs, ps)
-    Qi = _spd_inv(f.Q, "Q")
+    Q = _covariance_at(f.Q, ps, msgs)
+    Qi = _spd_inv(Q, "Q")
     fit = (r̄' * (Qi * r̄) + tr(Qi * Cr)) / 2
-    complexity = logdet(_chol((2 * float(eltype(f.Q))(π)) .* f.Q, "2πQ")) / 2
+    complexity = logdet(_chol((2 * eltype(Q)(π)) .* Q, "2πQ")) / 2
     return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = _negentropy(H))), st
 end
 
@@ -777,12 +799,13 @@ averaged under `b`; it agrees with `local_free_energy` at the belief it was eval
 parameter derivative is the graph gradient's (LP-020). See [`FrozenGaussianBelief`](@ref).
 """
 Mycelium.factor_belief(f::LinearConstraintFactor, msgs, ps, st) =
-    _affine_gaussian_belief(_coeffs(f, ps), -ps.c, _spd_inv(f.Q, "Q"), msgs, f.dims)
+    _affine_gaussian_belief(_coeffs(f, ps), -ps.c, _spd_inv(_covariance_at(f.Q, ps, msgs), "Q"), msgs, f.dims)
 function Mycelium.belief_free_energy(f::LinearConstraintFactor, b::FrozenGaussianBelief, ps, st)
     r̄, Cr = _frozen_residual(_coeffs(f, ps), -ps.c, b)
-    Qi = inv(Symmetric(f.Q))                                   # not inv(::Cholesky): Zygote has no rule
+    Q = _covariance_at(f.Q, ps, r̄, Cr, b.H)
+    Qi = inv(Symmetric(Q))                                   # not inv(::Cholesky): Zygote has no rule
     fit = (r̄' * (Qi * r̄) + tr(Qi * Cr)) / 2
-    complexity = logdet(_chol((2 * float(eltype(f.Q))(π)) .* f.Q, "2πQ")) / 2
+    complexity = logdet(_chol((2 * eltype(Q)(π)) .* Q, "2πQ")) / 2
     return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = _negentropy(b.H))), st
 end
 
@@ -791,13 +814,14 @@ function Mycelium.factor_beliefs(fs::AbstractVector{<:LinearConstraintFactor}, m
     f = first(fs)
     all(h -> h === f || (isequal(h.Q, f.Q) && h.dims == f.dims), fs) ||
         return invoke(Mycelium.factor_beliefs, Tuple{AbstractVector,NamedTuple,Any,Any}, fs, msgs, ps, st)
-    return _affine_gaussian_beliefs(_coeffs(fs[1], ps), -ps.c, _spd_inv(f.Q, "Q"), msgs, f.dims, length(fs))
+    return _affine_gaussian_beliefs(_coeffs(fs[1], ps), -ps.c, _spd_inv(_covariance_at(f.Q, ps, map(_block_numbers, msgs)), "Q"), msgs, f.dims, length(fs))
 end
 function Mycelium.belief_free_energies(fs::AbstractVector{<:LinearConstraintFactor}, b::FrozenGaussianBeliefs, ps, st)
     f = first(fs)
     R, Cr = _frozen_residuals(_coeffs(fs[1], ps), -ps.c, b)
-    Qi = inv(Symmetric(f.Q))                                   # not inv(::Cholesky): Zygote has no rule
-    complexity = logdet(_chol((2 * float(eltype(f.Q))(π)) .* f.Q, "2πQ")) / 2
+    Q = _covariance_at(f.Q, ps, R, Cr, b.H)
+    Qi = inv(Symmetric(Q))                                   # not inv(::Cholesky): Zygote has no rule
+    complexity = logdet(_chol((2 * eltype(Q)(π)) .* Q, "2πQ")) / 2
     fit = _column_fits(R, Qi, Cr)
     return [LenticulumCore.GradedEnergy((fit = fi, complexity = complexity, negentropy = _negentropy(b.H))) for fi in fit], st
 end

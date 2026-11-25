@@ -36,7 +36,7 @@ Closed-form `binomial(r,2) × 2r` Jacobian. Columns differentiate with respect t
 """
 function plucker_jacobian(z::AbstractVector, w::AbstractVector)
     r = _plucker_vectors(z, w)
-    J = zeros(promote_type(eltype(z), eltype(w)), binomial(r, 2), 2r)
+    J = LenticulumCore._zeros_like(z, promote_type(eltype(z), eltype(w)), binomial(r, 2), 2r)
     for (a, (i, j)) in enumerate(plucker_pairs(r))
         J[a,i] = w[j]; J[a,j] = -w[i]
         J[a,r+i] = -z[j]; J[a,r+j] = z[i]
@@ -154,10 +154,11 @@ LenticulumCore.supports_polarity(f::PluckerFactor, p::LenticulumCore.Polarity) =
     keys(p) == f.names && p[f.names[1]] isa LenticulumCore.Observed &&
     p[f.names[2]] isa LenticulumCore.Observed && p[f.names[3]] isa LenticulumCore.Unobserved
 LenticulumCore.energyspace(::PluckerFactor) = LenticulumCore.ScalarEnergySpace()
-LenticulumCore.energy(::PluckerFactor, x, a, y, ps, st) = (0.0, st)
+LenticulumCore.energy(::PluckerFactor, x, a, y, ps, st) =
+    (zero(LenticulumCore._compute_eltype(Float64, ps, x, y)), st)
 function Mycelium.local_free_energy(f::PluckerFactor, msgs, ps, st)
     inputs = map(n -> get(msgs,n,nothing),f.names[1:2])
-    any(b -> b isa LenticulumCore.GaussianBelief,inputs) || return 0.0,st
+    any(b -> b isa LenticulumCore.GaussianBelief,inputs) || return zero(LenticulumCore._compute_eltype(Float64, inputs)), st
     y = NamedTuple{f.names[1:2]}(inputs)
     return LenticulumCore.free_energy(f,get(msgs,f.names[3],nothing),y,ps,st)
 end
@@ -170,7 +171,10 @@ end
 _plucker_points(b::LenticulumCore.SampleBelief) =
     b.samples isa AbstractMatrix ? collect(eachcol(b.samples)) : b.samples
 function _plucker_weights(b, n)
-    b.weights === nothing && return fill(1/n, n)
+    if b.weights === nothing
+        T = LenticulumCore._compute_eltype(Float64, b)
+        return fill(one(T) / n, n)
+    end
     m = maximum(b.weights)
     m > 0 || throw(ArgumentError("sample weights must have positive total mass"))
     w = b.weights / m
@@ -178,7 +182,7 @@ function _plucker_weights(b, n)
 end
 function _plucker_input_moments(f, b::LenticulumCore.DiracBelief)
     μ = _plucker_point(f, b.value)
-    return μ, zeros(eltype(μ), f.r, f.r)
+    return μ, LenticulumCore._zeros_like(μ, eltype(μ), f.r, f.r)
 end
 function _plucker_input_moments(f, b::LenticulumCore.GaussianBelief)
     μ = _plucker_point(f, LenticulumCore.belief_mean(b))
@@ -219,8 +223,10 @@ function LenticulumCore.pushforward(f::PluckerFactor, beliefs::Tuple{Any,Any}, p
         if f.covariance_jitter > 0
             C += convert(eltype(C), f.covariance_jitter) * LinearAlgebra.I
         end
-        λ = LinearAlgebra.eigvals(LinearAlgebra.Symmetric(C))
-        minimum(λ) > length(λ)*eps(eltype(C))*maximum(λ) || throw(ArgumentError(
+        C0 = LenticulumCore.stop_gradient(C)
+        λ = length(C0) == 1 && !(eltype(C0) <: LinearAlgebra.BlasFloat) ? [only(C0)] :
+            LinearAlgebra.eigvals(LinearAlgebra.Symmetric(C0))
+        minimum(λ) > length(λ)*eps(eltype(λ))*maximum(λ) || throw(ArgumentError(
             "Plücker covariance is singular or numerically rank deficient; GaussianBelief cannot " *
             "represent singular covariance. Use plucker_moments for exact moments, or explicitly " *
             "set covariance_jitter > 0 for regularised Gaussian messages."))
@@ -246,7 +252,7 @@ function LenticulumCore.entropy(f::PluckerFactor, π, y::NamedTuple, ps, st)
     all(n -> haskey(y,n), f.names[1:2]) || throw(ArgumentError("Plucker game needs both named inputs"))
     z,w = y[f.names[1]],y[f.names[2]]
     D,G = LenticulumCore.DiracBelief,LenticulumCore.GaussianBelief
-    z isa D && w isa D && return 0.0,st
+    z isa D && w isa D && return zero(LenticulumCore._compute_eltype(Float64, z, w)), st
     π === nothing || π isa LenticulumCore.TrivialBelief || throw(ArgumentError(
         "distributional Plucker game requires no output conditioning"))
     f.r == 2 && ((z isa D && w isa G) || (z isa G && w isa D)) || throw(ArgumentError(
@@ -256,7 +262,8 @@ function LenticulumCore.entropy(f::PluckerFactor, π, y::NamedTuple, ps, st)
     ν,T = _plucker_input_moments(f,w)
     _,C = plucker_moments(μ,S,ν,T)
     C[1,1] > 0 || throw(ArgumentError("zero fixed vector gives a singular output with no Lebesgue entropy"))
-    return log(2 * Base.MathConstants.pi * exp(1)*C[1,1])/2,st
+    v = C[1,1]
+    return log(2 * oftype(v, Base.MathConstants.pi) * oftype(v, exp(1)) * v) / 2, st
 end
 function LenticulumCore.free_energy(f::PluckerFactor, π, y::NamedTuple, ps, st)
     H,st = LenticulumCore.entropy(f,π,y,ps,st)

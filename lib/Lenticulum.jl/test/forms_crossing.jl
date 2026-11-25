@@ -94,7 +94,10 @@ end # module
         gp, gm = GaussianBelief(msg(h)), GaussianBelief(msg(-h))
         @test FL.der(d.η) ≈ (gp.η .- gm.η) ./ 2h atol = 1e-5 rtol = 1e-5
         @test FL.der(d.Λ) ≈ (gp.Λ .- gm.Λ) ./ 2h atol = 1e-5 rtol = 1e-5
-        full || @test eltype(d.Λ) <: AbstractFloat               # the η-only case is the one tested
+        @test eltype(d.Λ) === eltype(d.η)
+        # In the offset-only case precision is constant, even though the
+        # working type carries the same dual tag in both canonical arrays.
+        full || @test all(iszero, FL.der(d.Λ))
         counts[name] = get(counts, name, 0) + 1
     end
     @test counts == Dict(:gaussian => 40, :constraint => 40, :nonlinear => 20)
@@ -181,7 +184,6 @@ canon(m::ExtendedGaussian) = (g = GaussianBelief(m); (g.η, g.Λ))
 canon(m::GaussianBelief) = (m.η, m.Λ)
 canon(::LC.TrivialBelief) = nothing
 
-dual0(x) = ForwardDiff.Dual{Nothing}(x, 0.0)
 
 # A flat message on a channel of dimension n as a function of t: GaussianFactor's backward
 # message through a rank-deficient A, its `b` moving with t (η-only under ForwardDiff).
@@ -228,10 +230,12 @@ end # module
         src = P.flat_source(rng, n)
         msg = P.consumer(rng, kind, n)
         s0 = src(FL.dual(0.0))
-        @test s0 isa GaussianBelief && s0.improper && eltype(s0.Λ) <: AbstractFloat
-        # also with Λ of dual type and zero partials, as when a whole parameter vector is dual
-        if isodd(trial)
-            s0 = GaussianBelief(s0.η, P.dual0.(s0.Λ), true)
+        @test s0 isa GaussianBelief && s0.improper
+        @test eltype(s0.Λ) === eltype(s0.η) && all(iszero, FL.der(s0.Λ))
+        # Also feed an externally supplied belief whose constant precision has
+        # primal storage, alongside the factor's dual precision with zero partials.
+        if iseven(trial)
+            s0 = GaussianBelief(s0.η, FL.val(s0.Λ), true)
         end
         d = msg(s0)
         v, vp, vm = P.canon(msg(src(0.0))), P.canon(msg(src(h))), P.canon(msg(src(-h)))

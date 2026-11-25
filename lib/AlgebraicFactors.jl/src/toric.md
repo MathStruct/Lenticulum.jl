@@ -144,3 +144,9 @@ $t = 1, 10, 100$; normalised, $F = -\log p(x_{\text{obs}}) = 0.0$. `Mycelium.lea
 `free_energy_gradient` warns once for an unnormalised toric factor on `DataFactor` variables. See
 [[Why Learned Relations Do Not Collapse]].
 
+## Element types (Q4)
+
+Logits, numeric evidence buffers and messages use the promoted type of `ps.η` and the
+incoming categorical log weights. Pointwise energy only has `ps.η` as a numeric input.
+The design table is exact integer data, and the initial parameters default to Float64
+when no numeric parameter or evidence has been supplied.
