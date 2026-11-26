@@ -735,3 +735,28 @@ The fixed and learned covariances follow the numeric inputs, including in the pr
 collapsed affine games. Dense Cholesky solves, inverses and normalisers use the core kernels.
 Rank tests of the affine coefficient use the host spectral helper for their singular values. The
 chain test compares inference and scalar free energy with the CPU graph.
+
+A frozen Gaussian prior constructs the identity relation and stored mean in the
+working covariance type (`_prior_relation`). Single and batched free energies take that type from
+the frozen belief and current parameters before forming the residual. A stored mean that carries a derivative promotes that type
+(LP-094 findings 1 and 4, below). The learned-prior fixtures in `test/eltypes.jl` keep a
+Float64 configured mean and exercise Float32, BigFloat, Dual and mixed calls.
+
+For a Gaussian factor with integer coefficients, the joint residual matrix uses
+the working covariance type for its identity block. This keeps the integer
+coefficient fixture's Float32 local free energy in Float32.
+
+## LP-094 part 2 (2026-11-27, element types from the review of Q19)
+
+**Finding 4.** A stored number of a factor enters the working type of a call only when it carries a
+derivative (`_derivative_carrier`: a dual built into the factor); plain configuration, float or
+integer, is converted to the type the inputs give, as Q4 decided for stored covariances. Before,
+`_prior_relation` promoted with `float(eltype(f.μ))`, so an integer mean widened a Float32 frozen
+belief to Float64 (4a), and `energy` and `local_free_energy` converted a dual mean to Float64 and
+threw (4b). Now `_prior_relation` and the `_covariance_at` calls of `energy` and
+`local_free_energy` take the mean only through `_derivative_carrier`, with or without learned
+noise. A first version of this fix added the mean itself to those calls, which widened a Float32
+prior with a Float64 mean to Float64 on Float32 data (the session's probe; `dev-danielb` gave
+Float32). The fixed-covariance message keeps the stored types (`_prior_mean`, LP-091), so in that
+mixed case it still returns a Float64 mean beside a Float32 covariance. Tests: `test/lp094.jl`,
+findings 1 and 4.

@@ -90,7 +90,7 @@ const HP = HardPlates
             continue
         end
         ntested[] += 1
-        shared = Lenticulum._hard_shared_messages(fs, target, ps, k,
+        shared = Lenticulum._hard_shared_messages(fs, target, ps, k, fill(nothing, k),
             n -> [haskey(c, n) ? getfield(c, n) : nothing for c in cols], Lenticulum._hard_channel_parts) !== nothing
         nshared[] += shared
         out, _ = Mycelium.factor_messages(fs, target, nothing, cols, fill(nothing, k), ps, NamedTuple())
@@ -126,8 +126,8 @@ end
     f = HardConstraintFactor((u = 2, v = 2), 2)
     ps = LuxCore.initialparameters(rng, f)
     fs = fill(f, 3)
-    via(cols) = Lenticulum._hard_shared_messages(fs, :v, ps, 3, n -> [getfield(c, n) for c in cols],
-                                                 Lenticulum._hard_channel_parts)
+    via(cols) = Lenticulum._hard_shared_messages(fs, :v, ps, 3, fill(nothing, 3),
+                                                 n -> [getfield(c, n) for c in cols], Lenticulum._hard_channel_parts)
     # different precisions per replica, and mixed kinds
     cols = [(u = GaussianBelief(randn(rng, 2), Matrix((1.0 + i) * I, 2, 2)),) for i in 1:3]
     @test via(cols) === nothing
@@ -139,8 +139,8 @@ end
         @test all(i -> HP.gap(out[i], ref[i]) < 1e-12, 1:3)
     end
     # one replica: per replica
-    @test Lenticulum._hard_shared_messages(fs[1:1], :v, ps, 1, n -> [DiracBelief(zeros(2))],
-                                           Lenticulum._hard_channel_parts) === nothing
+    @test Lenticulum._hard_shared_messages(fs[1:1], :v, ps, 1, [nothing],
+                                           n -> [DiracBelief(zeros(2))], Lenticulum._hard_channel_parts) === nothing
     # dual parameters: per replica, so the derivative is that of `factor_message`
     cols3 = [(u = DiracBelief(randn(rng, 2)),) for _ in 1:3]
     loss(cv) = begin

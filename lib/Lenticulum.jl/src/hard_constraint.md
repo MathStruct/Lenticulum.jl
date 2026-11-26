@@ -322,3 +322,13 @@ offset initializer runs before data supply a type and retains its Float64 defaul
 Adapt keeps the relation coefficients and any covariance with the factor. Messages use the core
 extended-Gaussian algebra. Free energy uses the host spectral helper for the solution space and
 precision rank tests, followed by device algebra on those subspaces.
+
+The shared plate path uses Boolean placeholders for absent channels. It converts
+those placeholders to the working covariance type before constructing extended
+Gaussian inputs. The vector and block tests in `test/eltypes.jl` cover an
+all-latent Float32 plate.
+
+A target cavity can participate in scalar message type selection. A plate
+falls back to that scalar path when a cavity changes its working type, so
+different replicas can retain different types. The mixed all-latent entries
+exercise this with Float64 cavities and Float32 factor parameters.

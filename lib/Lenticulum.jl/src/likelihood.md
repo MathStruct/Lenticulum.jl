@@ -245,3 +245,13 @@ through the host spectral helper. The data-independent Gauss–Hermite grid is g
 host and placed on the predictor backend. Counts, category decisions and scalar special-function
 evaluations use scalar reductions. Predictor, site, predictive weights and residual energy
 retain the array backend.
+
+## LP-094 part 2 (2026-11-27, element types from the review of Q19)
+
+**Finding 9.** The stored `A`/`b` were converted to the input's element type
+(`_predictor_parameter(eltype(v), f.A)`), which throws `Float64(::Dual)` when a dual is stored in
+the factor. `_predictor`, `_tilted`, `_site_message` and `_expansion_message` now convert to
+`_predictor_eltype(eltype(x), f)`: the input's type, widened only when `f.A`/`f.b` have a
+dual-like eltype (`stop_gradient(zero(E)) isa E` tells a plain float from a dual). A plain
+Float64 `A` with a Float32 input still converts to Float32, as a stored constant does. Test:
+`test/lp094.jl`, finding 9 (the dual case against a central difference).

@@ -414,3 +414,12 @@ Adapt moves the stored noise and coefficients, while channel and outcome indices
 host. The affine computations run with the input backend and the diffuse residual metric uses
 the shared spectral helper. Outcome support and component weights are read through reductions in
 the host-side structural loop.
+
+## LP-094 part 2 (2026-11-27, element types from the review of Q19)
+
+**Finding 5.** `_logweights(ps)` computed `float.(ps.logw)`, so an integer `logw` widened every
+call to Float64. It is now `_logweights(ps, inputs...)`: the normalised log-weights in
+`_compute_eltype(Float64, ps, inputs...)`, and every call site passes what already carries the
+call's working type (the messages, the beliefs, or the covariance `Q`; `cluster_form` passes
+`_covariance_at(f.Q, ps)`). An integer `logw` in a Float32 call now gives Float32. Tests:
+`test/lp094.jl`, finding 5.

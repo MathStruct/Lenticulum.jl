@@ -446,3 +446,26 @@ The residual covariance and accumulated contributions use the input backend. The
 metric computes its full SVD through the core host spectral helper and uses the resulting basis
 and singular values on the device. The joint precision check uses the same transfer boundary for
 its eigenvalues.
+
+The flat residual metric accepts BigFloat matrices when a generic full SVD is
+available. The same rank threshold and range-complement calculation apply.
+The BigFloat message fixtures in `test/eltypes.jl` load GenericLinearAlgebra.
+
+## LP-094 part 2 (2026-11-27, element types from the review of Q19)
+
+- **Finding 2.** `_range_complement`'s widened `Union{BlasFloat,BigFloat}` signature skipped the
+  `ArgumentError` fallback, so BigFloat without GenericLinearAlgebra surfaced a bare `MethodError`
+  from `svd!`. The widened method now checks `hasmethod(LinearAlgebra.svd!, Tuple{Matrix{T}})` for
+  a non-BLAS `T` first and throws the fallback's error extended by "load GenericLinearAlgebra.jl
+  for BigFloat". Test: `test/lp094.jl`, finding 2 (run in a process where GenericLinearAlgebra is
+  not loaded).
+- **Finding 3.** In the plate method `Mycelium.factor_messages`, the per-replica branch used one
+  offset `c = _offset_at(ps.c, Q)` computed from replica 1's covariance, so a replica with a wider
+  element type got its offset rounded (2^24 + 1 became 2^24 in Float32). Each replica now takes
+  `_offset_at(ps.c, covariances[i])`, and each replica's message equals its own `factor_message`.
+- **Finding 6.** `_param_eltype` widened an all-integer parameter set to Float64
+  (`float(promote_type(Bool, Int…))`), so a stored Boolean `output_coeff` converted to Float64 and
+  widened a Float32 call. `_param_eltype(f, ps)` is now
+  `_compute_eltype(float(eltype(f.Q)), ps)`: the parameters' floating promotion, defaulting to
+  the stored noise's float type when the parameters hold no float. `_fixed_at` takes the factor
+  (`regime.jl` and the ChainRules extension follow).

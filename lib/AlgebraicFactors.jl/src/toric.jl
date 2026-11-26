@@ -302,11 +302,15 @@ gradient of the Bethe free energy (LP-020): `E_q[-a_x]` plus, when `normalised`,
 that gradient once the messages are not points.
 """
 Mycelium.factor_belief(f::ToricFactor, msgs, ps, st) =
-    ToricBelief(vec(_lognormalise(_joint_logweights(f, msgs, _logits(f, ps)))))
+    ToricBelief(vec(_lognormalise(_joint_logweights(f, msgs,
+        # the messages' type, as `factor_message` and `local_free_energy` do: an integer η must not
+        # widen a Float32 call (LP-094 finding 8)
+        _logits(f, ps, LenticulumCore._compute_eltype(Float64, ps, msgs), msgs)))))
 function Mycelium.belief_free_energy(f::ToricFactor, b::ToricBelief, ps, st)
     length(b.logq) == size(f.A, 2) ||
         throw(DimensionMismatch("a ToricBelief needs one entry per joint state ($(size(f.A, 2)))"))
-    return (_expected_energy(b.logq, _energies(f, _logits(f, ps))) - _shannon(b.logq), st)
+    return (_expected_energy(b.logq, _energies(f, _logits(f, ps,
+            LenticulumCore._compute_eltype(Float64, ps, b.logq), (b.logq,)))) - _shannon(b.logq), st)
 end
 
 function _game_messages(f, π, y)

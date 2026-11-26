@@ -156,3 +156,11 @@ when no numeric parameter or evidence has been supplied.
 Adapt moves the sufficient-statistic table and keeps label metadata on the host. Joint logits
 and marginal weights use device gathers and reductions, with the outcome grid supplying
 structural indices.
+
+## LP-094 part 2 (2026-11-27, element types from the review of Q19)
+
+**Finding 8.** `factor_belief` and `belief_free_energy` called `_logits(f, ps)` with the default
+`T = float(eltype(ps.η))`, so an integer `η` widened a Float32 call to Float64 (its
+`local_free_energy` was already in the messages' type). Both now pass the messages (resp. the
+frozen `b.logq`) to `_logits` as `factor_message` and `local_free_energy` do. Test:
+`lib/AlgebraicFactors.jl/test/lp094.jl`, finding 8.

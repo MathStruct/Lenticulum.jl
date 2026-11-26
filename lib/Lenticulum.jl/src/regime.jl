@@ -99,7 +99,7 @@ LuxCore.initialstates(::AbstractRNG, ::RegimeFactor) = NamedTuple()
 LuxCore.parameterlength(f::RegimeFactor) =
     f.K * (f.m * sum(f.dims[n] for n in _learned(f); init = 0) + f.m + 1) + (f.learn_noise ? f.K * f.m * (f.m + 1) ÷ 2 : 0)
 # the output's fixed coefficient, the same in every regime
-_fixed_output(f::RegimeFactor, ps) = f.output_coeff === nothing ? nothing : repeat(_fixed_at(f.output_coeff, ps), 1, 1, f.K)
+_fixed_output(f::RegimeFactor, ps) = f.output_coeff === nothing ? nothing : repeat(_fixed_at(f.output_coeff, f, ps), 1, 1, f.K)
 
 _allnames(f::RegimeFactor{names}) where {names} = (names..., f.switch)
 LenticulumCore.channels(f::RegimeFactor{names}) where {names} =
@@ -138,7 +138,7 @@ end
 
 Mycelium.cluster_switch(f::RegimeFactor) = f.switch
 Mycelium.cluster_form(f::RegimeFactor, ps) =
-    Mycelium.ClusterForm(_coeffs(f, ps), ps.b, regime_covariances(f, ps), _logweights(ps), f.switch)
+    (Q = regime_covariances(f, ps); Mycelium.ClusterForm(_coeffs(f, ps), ps.b, Q, _logweights(ps, Q), f.switch))
 
 # Outside a cluster: a one-factor cluster over the factor's channels.
 Mycelium.uses_cavity(::RegimeFactor) = true

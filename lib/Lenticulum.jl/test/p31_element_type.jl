@@ -279,7 +279,8 @@ end
         parts=Lenticulum._hard_channel_parts(bs,2,3)
         @test parts !== nothing
         # Prove the shared kernel is reached, not only the fallback.
-        shared=Lenticulum._hard_shared_messages(fill(f,3),:y,p,3,n->bs,Lenticulum._hard_channel_parts)
+        shared = Lenticulum._hard_shared_messages(fill(f, 3), :y, p, 3, fill(nothing, 3),
+                                                  n -> bs, Lenticulum._hard_channel_parts)
         @test shared !== nothing
         for i in 1:3
             checkbelief(shared[i],T)

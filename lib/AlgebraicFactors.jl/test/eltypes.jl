@@ -1,12 +1,14 @@
+using GenericLinearAlgebra
 using Test, AlgebraicFactors
 
 include("../../LenticulumCore.jl/test/support/eltype_matrix.jl")
 include("support/eltype_fixtures.jl")
 
 @testset "AlgebraicFactors element-type fixtures" begin
-    fixtures = AlgebraicEltypeFixtures.fixtures()
+    fixtures = AlgebraicEltypeFixtures.fixtures(; extended = true)
     EltypeMatrix.check_factor_coverage(fixtures, (AlgebraicFactors,))
-    broken = Dict((:PolynomialFactor, op, :BigFloat) => "Residual rank checks require LAPACK"
-                  for op in (:message_x_given_y, :message_y_given_x, :local_free_energy))
-    EltypeMatrix.check_eltype_matrix(fixtures; broken)
+    # Toric pointwise energy observes integer labels. Only η supplies a float type.
+    parameter_only = EltypeMatrix.latent_cases(fixtures)
+    push!(parameter_only, (:ToricFactor, :energy))
+    EltypeMatrix.check_eltype_matrix(fixtures; parameter_only)
 end

@@ -77,18 +77,19 @@ LenticulumCore.scalarisation(f::ScaleShiftFactor) = LenticulumCore.scalarisation
 
 # The relation's parameters for HardConstraintFactor: A_x = I, A_z = −diag(s), c = b, per coordinate,
 # in the promoted float type of (b, logs). Written without mutation, so that AD goes through.
-function _scale_shift_relation(f::ScaleShiftFactor, ps)
-    s, b = _scale_shift_map(f, ps)
+function _scale_shift_relation(f::ScaleShiftFactor, ps, inputs::Vararg{Any,N}) where {N}
+    s, b = _scale_shift_map(f, ps, inputs...)
     A = NamedTuple{(f.x, f.z)}((_eye(b, eltype(b), f.dim), -_matrix(Diagonal(s))))
     return (A = A, c = b)
 end
 
-# s = exp(logs) and b per coordinate, in the promoted float type of (b, logs).
-function _scale_shift_map(f::ScaleShiftFactor, ps)
+# s = exp(logs) and b per coordinate, in the working type of the call: the floating promotion of
+# (b, logs) and the inputs — integer b/logs do not widen a Float32 call (LP-094 finding 7).
+function _scale_shift_map(f::ScaleShiftFactor, ps, inputs::Vararg{Any,N}) where {N}
     length(ps.b) == f.ngroups && length(ps.logs) == f.ngroups || throw(DimensionMismatch(
         "ScaleShiftFactor has $(f.ngroups) group(s); got b of length $(length(ps.b)), logs of length $(length(ps.logs))"))
-    T = float(promote_type(eltype(ps.b), eltype(ps.logs)))
-    return T.(exp.(ps.logs[f.groups])), T.(ps.b[f.groups])
+    T = _compute_eltype(Float64, ps.b, ps.logs, inputs...)
+    return _at_eltype(T, exp.(ps.logs[f.groups])), _at_eltype(T, ps.b[f.groups])
 end
 
 """
@@ -110,7 +111,7 @@ end
 # reach the same message through eigenvalue cuts that took a Float32 variance of 1e-6 next to 1 for
 # a hard direction (review of U3, finding 2), at O(d³) instead of O(d²).
 function _scale_shift_message(f::ScaleShiftFactor, target::Symbol, inputs, ps)
-    s, b = _scale_shift_map(f, ps)
+    s, b = _scale_shift_map(f, ps, inputs)
     m = _split_input(inputs)(target === f.x ? f.z : f.x)
     e = _no_information(m) ? _no_information_like(s, f.dim) : _as_extended(m, f.dim, eltype(s))
     length(e.μ) == f.dim || throw(DimensionMismatch("ScaleShiftFactor has dimension $(f.dim), its input $(length(e.μ))"))
@@ -145,7 +146,7 @@ _scale_shift_hard(f::ScaleShiftFactor, ::Type{T}) where {T} =
 as `HardConstraintFactor` (`fit` 0). See `scale_shift.md`, "Free energy".
 """
 function Mycelium.local_free_energy(f::ScaleShiftFactor, msgs, ps, st)
-    rel = _scale_shift_relation(f, ps)
+    rel = _scale_shift_relation(f, ps, msgs)
     return first(Mycelium.local_free_energy(_scale_shift_hard(f, eltype(rel.c)), msgs, rel, NamedTuple())), st
 end
 
@@ -195,8 +196,10 @@ function _scale_shift_input_energy(f::ScaleShiftFactor, msgs, ps)
     return total
 end
 
-Mycelium.factor_belief(f::ScaleShiftFactor, msgs, ps, st) =
-    ScaleShiftBelief(msgs, LenticulumCore.stop_gradient(_scale_shift_input_energy(f, msgs, ps)))
+function Mycelium.factor_belief(f::ScaleShiftFactor, msgs, ps, st)
+    energy = _scale_shift_input_energy(f, msgs, ps)
+    return ScaleShiftBelief(msgs, oftype(energy, LenticulumCore.stop_gradient(energy)))
+end
 
 function Mycelium.belief_free_energy(f::ScaleShiftFactor, b::ScaleShiftBelief, ps, st)
     F, _ = Mycelium.local_free_energy(f, b.msgs, ps, st)
@@ -206,7 +209,7 @@ function Mycelium.belief_free_energy(f::ScaleShiftFactor, b::ScaleShiftBelief, p
 end
 
 Mycelium.mean_field_message(f::ScaleShiftFactor, target::Symbol, polarity, beliefs, ps, st) =
-    Mycelium.mean_field_message(f.hard, target, polarity, beliefs, _scale_shift_relation(f, ps), st)
+    Mycelium.mean_field_message(f.hard, target, polarity, beliefs, _scale_shift_relation(f, ps, beliefs), st)
 
 """
     scale_shift_parameters(f::ScaleShiftFactor, X::AbstractMatrix) -> (b, logs)

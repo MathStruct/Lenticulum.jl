@@ -24,3 +24,9 @@ traced the type selection on every message and free energy: MyceliumLearning's b
 1.6 % (69 more), within the gate's noise (`benchmark/compare.jl --interleave`, 2026-11-25). A learned
 covariance reaches `_covariance_at` already computed from the parameters, so its derivative flows through
 `Q`; the rule loses nothing. Lenticulum's suites (both tiers, with the AD matrix) pass with it.
+
+## LP-094 part 2 (2026-11-27)
+
+The `@non_differentiable` on `_fixed_at` now reads `_fixed_at(C, f, ps)`: the helper takes the
+factor so that `_param_eltype(f, ps)` can default to the stored noise's float type when the
+parameters hold no float (LP-094 finding 6, `constraint.jl`).

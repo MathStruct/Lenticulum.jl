@@ -743,8 +743,19 @@ function _psd_factor(J::AbstractMatrix)
 end
 # The eigendecomposition's side of `_psd_factor`, given J's (possibly failed) Cholesky `C`. Other
 # number types: a dual J has a method in `MyceliumForwardDiffFlatExt` (the derivative at constant
-# rank, P26); the rest have none.
-function _flat_factor(J::AbstractMatrix{<:LinearAlgebra.BlasFloat}, C)
+# rank, P26), and BigFloat needs a generic eigensolver.
+function _flat_factor(J::AbstractMatrix{<:Union{LinearAlgebra.BlasFloat,BigFloat}}, C)
+    T = eltype(J)
+    # BigFloat's eigendecomposition lives in GenericLinearAlgebra; without it the widened signature
+    # would surface a bare MethodError from `eigen!`, so check first and give the fallback's error
+    # with the remedy (LP-094 finding 2).
+    if !(T <: LinearAlgebra.BlasFloat) &&
+       !hasmethod(LinearAlgebra.eigen!, Tuple{LinearAlgebra.Symmetric{T,Matrix{T}}})
+        throw(ArgumentError(
+            "cluster: a joint precision with flat directions (or near-singular) of number type $T: the diffuse " *
+            "limit takes an eigendecomposition, which has a rule only for floats and first-order ForwardDiff duals " *
+            "(P26); load GenericLinearAlgebra.jl for BigFloat"))
+    end
     U, λ, N, full = _host_spectral(J) do A
         E = LinearAlgebra.eigen(LinearAlgebra.Symmetric(Matrix(A)))
         λmax = maximum(abs, E.values; init = zero(eltype(E.values)))

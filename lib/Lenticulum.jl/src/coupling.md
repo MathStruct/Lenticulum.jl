@@ -165,3 +165,9 @@ differentiation support are otherwise unchanged.
 
 Checks: `lib/Lenticulum.jl/test/p31_element_type.jl`. The implementation is not a claim of coverage
 for every mixed precision, derivative, or device configuration.
+
+## LP-094 part 2 (2026-11-27)
+
+**Finding 5.** `coupling_precision(::RegimeFactor, ps)` now reads the weights through
+`_logweights(ps, Q)` with the regime covariances, so an integer `logw` does not widen the coupling
+precision to Float64 in a Float32 parameter set.

@@ -128,3 +128,11 @@ cluster eigendecomposition, as recorded in `test/eltypes.jl`.
 
 Adapt moves per-outcome covariances and any fixed coefficient. Regime messages and local free
 energy use Mycelium’s continuous device buffers and diffuse host spectral helper.
+
+## LP-094 part 2 (2026-11-27, element types from the review of Q19)
+
+**Findings 5 and 6.** The regime factor shares `_logweights` and `_coeffs`/`_fixed_at` with the
+constraint factors: `cluster_form` now passes `regime_covariances(f, ps)` to `_logweights` (an
+integer `logw` no longer widens), and `_fixed_output` follows the new `_fixed_at(C, f, ps)`
+signature, so an integer parameter set with a declared `output` takes the stored noise's float
+type instead of Float64. Tests: `lib/Lenticulum.jl/test/lp094.jl`, findings 5 and 6.

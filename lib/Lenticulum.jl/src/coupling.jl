@@ -39,7 +39,7 @@ coupling_precision(f::SwitchingConstraintFactor, ps) =
     _stacked_precision(_coeffs(f, ps), f.dims, _precision(f.Q))
 coupling_precision(::HardConstraintFactor, ps) = :hard
 function coupling_precision(f::RegimeFactor, ps)
-    A = _coeffs(f, ps); Q = regime_covariances(f, ps); w = exp.(_logweights(ps))
+    A = _coeffs(f, ps); Q = regime_covariances(f, ps); w = exp.(_logweights(ps, Q))
     J = sum(w[k] * last(_stacked_precision(map(a -> a[:, :, k], A), f.dims, _precision(Q[:, :, k])))
             for k in 1:f.K)
     return (f.dims, J)

@@ -1,11 +1,17 @@
 module AlgebraicEltypeFixtures
 
-using AlgebraicFactors, LenticulumCore, Mycelium
+using AlgebraicFactors, LenticulumCore, Mycelium, MyceliumLearning
 using ..EltypeMatrix
 
-function wired(name, make)
+for B in (AlgebraicFactors.ToricBelief, AlgebraicFactors.PolynomialBelief)
+    @eval EltypeMatrix.payload(b::$B) = EltypeMatrix.belief_fields(b)
+end
+
+function fixture(name, make, extended)
     f = make(Float64, Float64)
-    ops = wired_cases(Mycelium.factor_message, Mycelium.local_free_energy, f.factor; f.pointwise)
+    ops = extended ?
+        EltypeMatrix.inference_cases(Mycelium, MyceliumLearning._gradient_message, f; f.pointwise) :
+        wired_cases(Mycelium.factor_message, Mycelium.local_free_energy, f.factor; f.pointwise)
     return EltypeCase(name, make, ops)
 end
 
@@ -13,7 +19,8 @@ function data(factor, P, T, ps, msgs, pointwise)
     return (; factor, ps = typed(P, ps), st = (;), msgs = typed(T, msgs), pointwise = typed(T, pointwise))
 end
 
-function fixtures()
+function fixtures(; extended = false)
+    wired(name, make) = fixture(name, make, extended)
     return [
         wired(:ToricFactor, (P,T) -> data(
             ToricFactor((:a, :b), (2, 2), [1 1 1 1; 0 0 1 1; 0 1 0 1]; normalised = true),

@@ -133,3 +133,16 @@ as the hard constraint.
 
 Adapt moves the stored hard relation and keeps the group indices on the host. The identity and
 diagonal coefficients are built alongside the shift and scale parameters.
+
+The frozen input energy retains its working scalar type after stopping the
+gradient. A ForwardDiff value therefore carries a zero partial in the frozen
+energy. The single and batched frozen beliefs are checked in `test/eltypes.jl`.
+
+## LP-094 part 2 (2026-11-27, element types from the review of Q19)
+
+**Finding 7.** `_scale_shift_map` took its type from `float(promote_type(eltype(ps.b),
+eltype(ps.logs)))`, so integer `b`/`logs` widened a Float32 call to Float64. It is now
+`_scale_shift_map(f, ps, inputs...)` with `T = _compute_eltype(Float64, ps.b, ps.logs,
+inputs...)`, and `_scale_shift_relation`/`_scale_shift_message` pass the messages (resp. beliefs)
+through; `local_free_energy` and `mean_field_message` pass theirs. Tests: `test/lp094.jl`,
+finding 7.

@@ -557,7 +557,7 @@ function residual_statistics(f::GaussianFactor, msgs, ps)
     else
         ηx, Λx = _on_device(device, _canon(mx, f.nin, float(promote_type(eltype(A), eltype(b), eltype(Q)))))
         ηy, Λy = _on_device(device, _canon(my, f.nout, float(promote_type(eltype(A), eltype(b), eltype(Q)))))
-        G = hcat(-A, _eye(A, float(eltype(A)), f.nout))
+        G = hcat(-A, _eye(A, _compute_eltype(eltype(Q), A), f.nout))
         Qi = _symmetric_inv(Q)
         Λ = G' * Qi * G + _joint_precision(f.noise_learning, Λx, Λy)
         η = G' * (Qi * b) + vcat(ηx, ηy)
@@ -721,7 +721,8 @@ LuxCore.parameterlength(f::GaussianPrior) = _noise_parameterlength(f.noise_learn
 
 # The source factor's pointwise energy includes its normalizer, in the same grading as F.
 function LenticulumCore.energy(f::GaussianPrior, x, a, y, ps, st)
-    Q = _covariance_at(f.Σ, ps, y)
+    # a stored mean that carries a derivative enters the working type (LP-094 finding 4b)
+    Q = _covariance_at(f.Σ, ps, y, _derivative_carrier(f.μ))
     device = _device_leaf(Q)
     d = _on_device(device, _vec(y)) .- _on_device(device, _at_eltype(eltype(Q), f.μ))
     if f.noise_learning === nothing
@@ -804,7 +805,8 @@ _prior_precision(Σ) = _spd_inv(Σ, "Σ")
 
 function Mycelium.local_free_energy(f::GaussianPrior, msgs, ps, st)
     incoming = _get(msgs, f.channel)
-    Q = _covariance_at(f.Σ, ps, incoming)
+    # a stored mean that carries a derivative enters the working type (LP-094 finding 4b)
+    Q = _covariance_at(f.Σ, ps, incoming, _derivative_carrier(f.μ))
     μ = _on_device(_device_leaf(Q), _at_eltype(eltype(Q), f.μ))
     Λ0, logdetQ = f.noise_learning === nothing ?
         (_prior_precision(Q), zero(eltype(Q))) : _noise_metrics(f.noise_learning, Q, ps)
@@ -1024,6 +1026,20 @@ function Mycelium.belief_free_energy(f::GaussianFactor, b::FrozenGaussianBelief,
     return _graded_free_energy(f, r̄, Cr, b.H, Qi, logdetQ), st
 end
 
+# A stored number enters the working type of a call only when it carries a derivative (a dual
+# built into the factor); plain stored configuration, float or integer, is converted to the type
+# the inputs give (Q4). `nothing` contributes nothing to `_compute_eltype` (LP-094 finding 4).
+_derivative_carrier(x) = LenticulumCore.stop_gradient(zero(eltype(x))) isa eltype(x) ? nothing : x
+
+# Identity relation x − μ in the working type of its covariance, promoted with a stored mean that
+# carries a derivative (LP-094 findings 1 and 4a: a dual μ keeps its derivative, an integer or
+# plain float μ does not widen the call).
+function _prior_relation(f::GaussianPrior, ::Type{T}) where {T}
+    n = length(f.μ)
+    S = _derivative_carrier(f.μ) === nothing ? T : promote_type(T, eltype(f.μ))
+    return NamedTuple{(f.channel,)}((Matrix{S}(I, n, n),)), -_at_eltype(S, f.μ)
+end
+
 """
     Mycelium.factor_belief(f::GaussianPrior, msgs, ps, st) -> FrozenGaussianBelief
     Mycelium.belief_free_energy(f::GaussianPrior, b, ps, st)
@@ -1036,8 +1052,8 @@ function Mycelium.factor_belief(f::GaussianPrior, msgs, ps, st)
     Q = _covariance_at(f.Σ, ps, msgs)
     Λ0 = f.noise_learning === nothing ? _prior_precision(Q) : first(_noise_metrics(f.noise_learning, Q, ps))
     n = length(f.μ)
-    return _affine_gaussian_belief(NamedTuple{(f.channel,)}((Matrix{float(eltype(f.μ))}(I, n, n),)), -f.μ, Λ0, msgs,
-                                   NamedTuple{(f.channel,)}((n,)))
+    A, r0 = _prior_relation(f, eltype(Q))
+    return _affine_gaussian_belief(A, r0, Λ0, msgs, NamedTuple{(f.channel,)}((n,)))
 end
 # Tied priors with one mean and covariance, from message blocks.
 function Mycelium.factor_beliefs(fs::AbstractVector{<:GaussianPrior}, msgs::NamedTuple, ps, st)
@@ -1048,14 +1064,15 @@ function Mycelium.factor_beliefs(fs::AbstractVector{<:GaussianPrior}, msgs::Name
     Q = _covariance_at(f.Σ, ps, map(_block_numbers, msgs))
     Λ0 = f.noise_learning === nothing ? _prior_precision(Q) : first(_noise_metrics(f.noise_learning, Q, ps))
     n = length(f.μ)
-    return _affine_gaussian_beliefs(NamedTuple{(f.channel,)}((Matrix{float(eltype(f.μ))}(I, n, n),)), -f.μ, Λ0, msgs,
-                                    NamedTuple{(f.channel,)}((n,)), length(fs))
+    A, r0 = _prior_relation(f, eltype(Q))
+    return _affine_gaussian_beliefs(A, r0, Λ0, msgs, NamedTuple{(f.channel,)}((n,)), length(fs))
 end
 function Mycelium.belief_free_energies(fs::AbstractVector{<:GaussianPrior}, b::FrozenGaussianBeliefs, ps, st)
     f = first(fs)
     n = length(f.μ)
-    R, Cr = _frozen_residuals(NamedTuple{(f.channel,)}((Matrix{float(eltype(f.μ))}(I, n, n),)), -f.μ, b)
-    Q = _covariance_at(f.Σ, ps, R, Cr, b.H)
+    Q = _covariance_at(f.Σ, ps, b.M, b.Σ, b.H)
+    A, r0 = _prior_relation(f, eltype(Q))
+    R, Cr = _frozen_residuals(A, r0, b)
     Λ0, logdetQ = f.noise_learning === nothing ?
         (_prior_precision(Q), zero(eltype(Q))) : _noise_metrics(f.noise_learning, Q, ps)
     complexity = f.noise_learning === nothing ? logdet(_chol((2 * eltype(Q)(π)) .* Q, "2πΣ")) / 2 :
@@ -1072,8 +1089,9 @@ end
 
 function Mycelium.belief_free_energy(f::GaussianPrior, b::FrozenGaussianBelief, ps, st)
     n = length(f.μ)
-    r̄, Cr = _frozen_residual(NamedTuple{(f.channel,)}((Matrix{float(eltype(f.μ))}(I, n, n),)), -f.μ, b)
-    Q = _covariance_at(f.Σ, ps, r̄, Cr, b.H)
+    Q = _covariance_at(f.Σ, ps, b.m, b.Σ, b.H)
+    A, r0 = _prior_relation(f, eltype(Q))
+    r̄, Cr = _frozen_residual(A, r0, b)
     Λ0, logdetQ = f.noise_learning === nothing ?
         (_prior_precision(Q), zero(eltype(Q))) : _noise_metrics(f.noise_learning, Q, ps)
     complexity = f.noise_learning === nothing ? logdet(_chol((2 * eltype(Q)(π)) .* Q, "2πΣ")) / 2 :

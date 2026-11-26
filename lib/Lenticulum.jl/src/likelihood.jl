@@ -487,11 +487,24 @@ LenticulumCore.scalarisation(::LikelihoodFactor) = LenticulumCore.scalarisation(
 _predictor_parameter(T, value::AbstractArray{Bool}) = value
 _predictor_parameter(T, value) = _at_eltype(T, value)
 
+# The working type of the predictor: the input's type, widened when a stored A or b carries a
+# derivative — a dual must propagate, and `Float64(::Dual)` would throw (LP-094 finding 9).
+# `stop_gradient(zero(E)) isa E` tells a plain float from a dual-like type. A plain float or
+# integer A still converts to the input's type, as a stored constant does (Q4).
+function _predictor_eltype(::Type{T}, f::LikelihoodFactor) where {T}
+    for x in (f.A, f.b)
+        E = eltype(x)
+        LenticulumCore.stop_gradient(zero(E)) isa E || return promote_type(T, E)
+    end
+    return T
+end
+
 function _predictor(f::LikelihoodFactor, x)
     v = _vec(x)
+    T = _predictor_eltype(eltype(v), f)
     device = _first_device((v, f.A, f.b))
-    return _on_device(device, _predictor_parameter(eltype(v), f.A)) * _on_device(device, v) .+
-           _on_device(device, _predictor_parameter(eltype(v), f.b))
+    return _on_device(device, _predictor_parameter(T, f.A)) * _on_device(device, v) .+
+           _on_device(device, _predictor_parameter(T, f.b))
 end
 
 """
@@ -532,7 +545,7 @@ function _tilted(f::LikelihoodFactor, m, S)
     # The predictor mean can be active while its covariance is fixed. In
     # particular a repeated, constant spectrum has no eigenvector tangent.
     device = _device_leaf(μz)
-    A = _on_device(device, _predictor_parameter(eltype(S), f.A))
+    A = _on_device(device, _predictor_parameter(_predictor_eltype(eltype(S), f), f.A))
     Σz = Symmetric(A * _on_device(device, S) * A')
     E = _scalar_or_eigen(Σz)
     values = LenticulumCore.stop_gradient(E.values)
@@ -639,8 +652,8 @@ function _site_message(f, t::_Tilted, μζ, Σζ)
     Λs = Λq .- Diagonal(1 ./ t.D)
     ηs = Λq * μζ
     device = _device_leaf(t.μz)
-    B = t.U' * _on_device(device, _predictor_parameter(eltype(t.μz), f.A))
-    c = t.U' * (_on_device(device, _predictor_parameter(eltype(t.μz), f.b)) .- t.μz)
+    B = t.U' * _on_device(device, _predictor_parameter(_predictor_eltype(eltype(t.μz), f), f.A))
+    c = t.U' * (_on_device(device, _predictor_parameter(_predictor_eltype(eltype(t.μz), f), f.b)) .- t.μz)
     Λ = B' * Λs * B
     return GaussianBelief(B' * (ηs .- Λs * c), _matrix(Symmetric(Λ)))
 end
@@ -652,7 +665,7 @@ function _expansion_message(f, y, x0)
     device = _device_leaf(z0)
     Λz = -_on_device(device, H)
     ηz = _on_device(device, g) .+ Λz * z0
-    A, b = map(x -> _on_device(device, _predictor_parameter(eltype(z0), x)), (f.A, f.b))
+    A, b = map(x -> _on_device(device, _predictor_parameter(_predictor_eltype(eltype(z0), f), x)), (f.A, f.b))
     return GaussianBelief(A' * (ηz .- Λz * b), _matrix(Symmetric(A' * Λz * A)))
 end
 

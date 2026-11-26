@@ -636,3 +636,16 @@ calls the core host spectral helper to choose range and null bases, then solves 
 backend. Assignment enumeration and class indices are host metadata, with reductions to read
 discrete weights and decide which states survive. The RegimeFactor fixtures exercise both the
 definite and diffuse branches.
+
+The diffuse joint precision accepts BigFloat matrices when a generic symmetric
+eigensolver is available. The BigFloat regime fixture in Lenticulum's
+`test/eltypes.jl` loads GenericLinearAlgebra and checks the result against Float64.
+
+## LP-094 part 2 (2026-11-27, element types from the review of Q19)
+
+**Finding 2.** `_flat_factor`'s widened `Union{BlasFloat,BigFloat}` signature skipped the
+`ArgumentError` fallback, so a BigFloat joint precision without GenericLinearAlgebra surfaced a
+bare `MethodError` from `eigen!`. The widened method now checks
+`hasmethod(LinearAlgebra.eigen!, Tuple{Symmetric{T,Matrix{T}}})` for a non-BLAS `T` first and
+throws the fallback's error extended by "load GenericLinearAlgebra.jl for BigFloat". Test:
+`lib/Lenticulum.jl/test/lp094.jl`, finding 2.

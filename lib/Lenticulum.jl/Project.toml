@@ -19,6 +19,7 @@ Mycelium = {path = "../Mycelium.jl"}
 MyceliumLearning = {path = "../MyceliumLearning.jl"}
 
 [compat]
+GenericLinearAlgebra = "0.4.2"
 JLArrays = "0.3, 0.4"
 StaticArrays = "1"
 Adapt = "4"
@@ -46,6 +47,7 @@ ADTypes = "1"
 DifferentiationInterface = "0.7"
 
 [extras]
+GenericLinearAlgebra = "14197337-ba66-59df-a3e3-ca00e7dcff7a"
 JLArrays = "27aeb0d3-9eb9-45fb-866b-73c2ecf80fcb"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
@@ -66,7 +68,7 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["JLArrays", "StaticArrays", "InteractiveUtils", "DifferentiationInterfaceTest", "Enzyme", "Mooncake", "FiniteDifferences", "Aqua", "ADTypes", "DifferentiationInterface", "ForwardDiff", "Zygote", "Test", "BayesBase", "Distributions", "ExponentialFamily", "RxInfer", "Printf"]
+test = ["GenericLinearAlgebra", "JLArrays", "StaticArrays", "InteractiveUtils", "DifferentiationInterfaceTest", "Enzyme", "Mooncake", "FiniteDifferences", "Aqua", "ADTypes", "DifferentiationInterface", "ForwardDiff", "Zygote", "Test", "BayesBase", "Distributions", "ExponentialFamily", "RxInfer", "Printf"]
 
 [weakdeps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"

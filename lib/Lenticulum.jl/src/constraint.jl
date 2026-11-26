@@ -107,8 +107,10 @@ function _output_coeff(dims, m, output, C, ::Type{T}) where {T}
 end
 
 # The number type in which the fixed coefficient is stored. A Boolean one (`I`, the default) stays Boolean
-# and takes the parameters' type at use (`_fixed_at`), so neither the constructor's `noise` nor a Float64
-# default decides it (P34); 0 and 1 are exact in every number type, so two coefficients equal when stored
+# and takes the parameters' working type at use (`_fixed_at`, `_param_eltype`: the parameters' floating
+# promotion, the stored noise's float type when they hold no float), so neither the constructor's `noise`
+# nor a Float64 default decides it, and an integer parameter does not widen a Float32 call (P34, LP-094
+# finding 6); 0 and 1 are exact in every number type, so two coefficients equal when stored
 # (the M-step signature) stay equal at use. Other integers would round in Float32 (16777217), so they keep
 # the rule before P34 (the noise's type for `2I`, Float64 for an integer matrix); a floating coefficient
 # keeps its own type, and promotion decides.
@@ -118,17 +120,18 @@ _output_eltype(C::LinearAlgebra.UniformScaling, Q) = float(typeof(C.λ))
 _output_eltype(C, Q) = eltype(C) === Bool ? Bool : float(eltype(C))
 
 # the fixed coefficient at use: a Boolean one in the floating type of the parameters, any other as stored
-_fixed_at(::Nothing, ps) = nothing
-_fixed_at(C::AbstractArray{Bool}, ps) = _matrix(_param_eltype(ps), C)
-_fixed_at(C, ps) = C
-# the floating promotion of the coefficients and offsets (`false` when there are none adds nothing)
-_param_eltype(ps) = float(promote_type(Bool, map(eltype, values(ps.A))..., map(eltype, _offsets(ps))...))
-_offsets(ps) = haskey(ps, :b) ? (ps.b,) : haskey(ps, :c) ? (ps.c,) : ()
+_fixed_at(::Nothing, f, ps) = nothing
+_fixed_at(C::AbstractArray{Bool}, f, ps) = _matrix(_param_eltype(f, ps), C)
+_fixed_at(C, f, ps) = C
+# the working type of the parameters: their floating promotion, defaulting to the stored noise's
+# float type when the parameters hold no float of their own — an integer parameter does not widen
+# a Float32 call to Float64 (LP-094 finding 6)
+_param_eltype(f, ps) = _compute_eltype(float(eltype(f.Q)), ps)
 
 # The coefficients of every channel: the parameters `_coeffs(f, ps)` with a declared output channel's fixed
 # coefficient merged in. Every method of the constraint factors reads `A` through this.
 _coeffs(f, ps) = _merge_output(f.output, _fixed_output(f, ps), ps.A)
-_fixed_output(f, ps) = _fixed_at(f.output_coeff, ps)
+_fixed_output(f, ps) = _fixed_at(f.output_coeff, f, ps)
 _merge_output(::Nothing, _, A) = A
 function _merge_output(out::Symbol, C, A)
     haskey(A, out) && throw(ArgumentError(
@@ -390,7 +393,9 @@ function Mycelium.factor_messages(fs::AbstractVector{<:LinearConstraintFactor{na
        !all(p -> all(splat(same), zip(p, p1)), partss)
         beliefs = Vector{Any}(undef, length(partss))
         for (i, p) in enumerate(partss)
-            beliefs[i], st = _linear_message(_coeffs(fs[1], ps), c, covariances[i], target, p, st)
+            # each replica's offset in its own covariance's type: the replicas may differ in
+            # element type, and rounding the offset to replica 1's type would move it (LP-094 finding 3)
+            beliefs[i], st = _linear_message(_coeffs(fs[1], ps), _offset_at(ps.c, covariances[i]), covariances[i], target, p, st)
         end
         return beliefs, st
     end
@@ -620,7 +625,16 @@ end
 # derivative comes from the tangent Δ = B − stop_gradient(B), zero in value (P4; the SVD is of
 # values, `_range_svd` not differentiated): W = W₀ − (B⁺)ᵀΔᵀW₀, d log pdet(BᵀB) = 2 tr(B⁺Δ). With
 # floats outside Zygote Δ is exactly zero. A rank change at first order is not detected there.
-function _range_complement(B::AbstractMatrix{<:LinearAlgebra.BlasFloat})
+function _range_complement(B::AbstractMatrix{<:Union{LinearAlgebra.BlasFloat,BigFloat}})
+    T = eltype(B)
+    # BigFloat's SVD lives in GenericLinearAlgebra; without it the widened signature would surface
+    # a bare MethodError from `svd!`, so check first and give the fallback's error with the remedy
+    # (LP-094 finding 2).
+    if !(T <: LinearAlgebra.BlasFloat) && !hasmethod(LinearAlgebra.svd!, Tuple{Matrix{T}})
+        throw(ArgumentError(
+            "the flat path's residual metric needs floats, or first-order ForwardDiff duals of floats \
+             (P25); it has $T; load GenericLinearAlgebra.jl for BigFloat"))
+    end
     F, r = _range_svd(B)
     S, W0 = F.S[1:r], F.U[:, (r + 1):end]
     Δ = LenticulumCore._tangent(B)

@@ -269,7 +269,7 @@ function Mycelium.factor_messages(fs::AbstractVector{<:HardConstraintFactor{name
     target in names || throw(ArgumentError("channel :$target is not a channel of this factor ($(names))"))
     length(fs) == length(inputs) == length(priors) || throw(DimensionMismatch(
         "$(length(fs)) factors, $(length(inputs)) inputs and $(length(priors)) priors"))
-    out = _hard_shared_messages(fs, target, ps, length(inputs),
+    out = _hard_shared_messages(fs, target, ps, length(inputs), priors,
                                 n -> [haskey(inp, n) ? getfield(inp, n) : nothing for inp in inputs],
                                 _hard_channel_parts)
     out === nothing || return out, st
@@ -280,7 +280,7 @@ function Mycelium.factor_messages(fs::AbstractVector{<:HardConstraintFactor{name
                                   inputs::NamedTuple, priors::AbstractVector, ps, st) where {names}
     target in names || throw(ArgumentError("channel :$target is not a channel of this factor ($(names))"))
     n = length(fs)
-    out = _hard_shared_messages(fs, target, ps, n,
+    out = _hard_shared_messages(fs, target, ps, n, priors,
                                 c -> haskey(inputs, c) ? getfield(inputs, c) : Mycelium.TrivialBlock(n),
                                 _hard_block_parts)
     out === nothing || return Mycelium.VectorBlock(out), st
@@ -356,7 +356,7 @@ end
 
 # The messages of every replica from shared parts, or `nothing` when the replicas do not share
 # them. `get(n)` is channel n's inputs, `parts(x, d, k)` turns them into (M, Σ, D).
-function _hard_shared_messages(fs, target, ps, k, get, parts)
+function _hard_shared_messages(fs, target, ps, k, priors, get, parts)
     length(fs) == k || throw(DimensionMismatch("$(length(fs)) factors and $k inputs"))
     k > 1 || return nothing
     _within_gradient() && return nothing
@@ -374,8 +374,16 @@ function _hard_shared_messages(fs, target, ps, k, get, parts)
         push!(chans, p)
     end
     Q = _covariance_at(f.Q, ps, chans)
+    # As in the scalar path, a target cavity can change the working type.
+    all(prior -> _compute_eltype(eltype(Q), Q, prior) === eltype(Q), priors) || return nothing
     return _hard_shared_kernel(Q, Matrix(At), copy(ps.c), others, ps.A, chans, k)
 end
+
+# Absent channels use Boolean placeholders. Materialise them in the working
+# type before ExtendedGaussian can infer a Float64 default from those placeholders.
+_hard_shared_input(T, M, Σ, D) = LenticulumCore.ExtendedGaussian(M[:, 1], Σ, D)
+_hard_shared_input(T, M::AbstractMatrix{Bool}, Σ, D) =
+    LenticulumCore.ExtendedGaussian(T.(M[:, 1]), T.(Σ), T.(D))
 
 # Replica 1 through the path of `factor_message` (its decompositions are every replica's), then
 # the linear map from the inputs' means to the message mean, applied to all replicas at once.
@@ -385,7 +393,7 @@ function _hard_shared_kernel(Q, At, c, others, A, chans, k)
         msg = LC.preimage(LC.ExtendedGaussian(c, Q), At)
         return Any[msg for _ in 1:k]
     end
-    joint1 = LC._independent_join([LC.ExtendedGaussian(M[:, 1], Σ, D) for (M, Σ, D) in chans])
+    joint1 = LC._independent_join([_hard_shared_input(eltype(Q), M, Σ, D) for (M, Σ, D) in chans])
     Mo = reduce(hcat, [-_matrix(getfield(A, n)) for n in others])
     r1 = LC.pushforward(joint1, Mo, c, Q)
     msg1 = LC.preimage(r1, At)
