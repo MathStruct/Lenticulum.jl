@@ -293,15 +293,19 @@ _check_pathwise(b) = throw(ArgumentError(
 
 function _draw(rng, b::LenticulumCore.GaussianBelief)
     LenticulumCore.isproper(b) || throw(ArgumentError("score sampling requires a proper Gaussian message"))
-    return LenticulumCore.belief_mean(b) + LinearAlgebra.cholesky(LinearAlgebra.Symmetric(LenticulumCore.belief_cov(b))).L *
-        Random.randn(rng, LenticulumCore.dimension(b))
+    Σ = LenticulumCore.belief_cov(b)
+    C = LenticulumCore._symmetric_cholesky(Σ)
+    z = Random.randn(rng, LenticulumCore.dimension(b))
+    device = LenticulumCore._device_leaf(Σ)
+    L = device === nothing ? C.L : LenticulumCore._lower_matrix(C)
+    return LenticulumCore.belief_mean(b) + L * LenticulumCore._on_device(device, z)
 end
 function _draw(rng, b::LenticulumCore.CategoricalBelief)
     all(isfinite,b.logp) || throw(ArgumentError(
         "categorical score gradients require strictly positive probabilities; changing support at a boundary has no supplied derivative rule"))
     p = LenticulumCore.probabilities(b)
     u = Random.rand(rng)
-    k = min(searchsortedfirst(cumsum(p), u), length(p))
+    k = min(searchsortedfirst(cumsum(LenticulumCore._host_values(p)), u), length(p))
     return b.labels === nothing ? k : b.labels[k]
 end
 _draw(rng, b) = throw(ArgumentError("ScoreFunctionCoupling needs a sampleable Gaussian or categorical message with a density; got $(typeof(b))"))

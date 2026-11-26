@@ -649,3 +649,7 @@ bare `MethodError` from `eigen!`. The widened method now checks
 `hasmethod(LinearAlgebra.eigen!, Tuple{Symmetric{T,Matrix{T}}})` for a non-BLAS `T` first and
 throws the fallback's error extended by "load GenericLinearAlgebra.jl for BigFloat". Test:
 `lib/Lenticulum.jl/test/lp094.jl`, finding 2.
+
+## Q20 device message paths
+
+The single-node joint reads discrete support and component selection from bulk copies of the small vectors it enumerates. Continuous arrays and the stored posterior retain the joint storage. See `cluster_batch.md` for the stacked path.

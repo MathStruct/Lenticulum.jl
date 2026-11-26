@@ -270,3 +270,7 @@ Adapt moves the covariance and stored expansion point. The unscented transform b
 weights on the backend of its expansion point and obtains its spectral data through the core
 host helper. A user-supplied map or Jacobian provides device-compatible operations for its own
 computations.
+
+## Q20 device constructors
+
+The direct constructor retains device covariance storage and uses the storage-aware positive-definiteness check.

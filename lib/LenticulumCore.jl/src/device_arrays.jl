@@ -26,6 +26,9 @@ end
 
 _on_device(::Nothing, x) = x
 
+# One bulk transfer for small numeric vectors used by host control flow.
+_host_values(x) = _device_leaf(x) === nothing ? x : Array(copy(x))
+
 _matrix(x) = Matrix(x)
 _matrix(::Type{T}, x) where {T} = Matrix{T}(x)
 _vector(::Type{T}, x) where {T} = Vector{T}(x)

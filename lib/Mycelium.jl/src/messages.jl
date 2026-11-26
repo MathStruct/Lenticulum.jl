@@ -315,7 +315,8 @@ function belief_logdensity(b::LenticulumCore.CategoricalBelief, x)
 end
 
 function belief_logdensity(m::LenticulumCore.MixtureBelief, x)
-    l = m.logw .+ [belief_logdensity(c, x) for c in m.components]
+    densities = [belief_logdensity(c, x) for c in m.components]
+    l = m.logw .+ _on_device(_device_leaf(m.logw), densities)
     mx = maximum(l)
     return mx == -Inf ? -Inf : mx + log(sum(exp.(l .- mx)))
 end

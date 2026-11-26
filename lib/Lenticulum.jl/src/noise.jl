@@ -58,7 +58,7 @@ function _noise_learning(Q, mode, prior, floor)
     isfinite(floor) && floor > 0 || throw(ArgumentError("eigenvalue_floor must be finite and positive"))
     diagonal = mode === :diagonal
     d = size(Q, 1)
-    diagonal && !isdiag(Q) && throw(ArgumentError("diagonal learning requires a diagonal initial covariance"))
+    diagonal && !_host_spectral(isdiag, Q) && throw(ArgumentError("diagonal learning requires a diagonal initial covariance"))
     if prior isa WishartPrecisionPrior
         size(prior.scale) == size(Q) || throw(DimensionMismatch("Wishart scale and covariance"))
         diagonal && throw(ArgumentError("use LogNormalVariancePrior for diagonal noise"))
@@ -70,7 +70,7 @@ function _noise_learning(Q, mode, prior, floor)
     elseif prior !== nothing
         throw(ArgumentError("noise_prior must be WishartPrecisionPrior or LogNormalVariancePrior"))
     end
-    prior === nothing && eigmin(Symmetric(Q)) < floor &&
+    prior === nothing && _host_spectral(eigmin, Symmetric(Q)) < floor &&
         throw(ArgumentError("initial covariance must respect eigenvalue_floor"))
     return NoiseLearning(diagonal, prior, float(floor))
 end

@@ -54,7 +54,7 @@ function HardConstraintFactor(dims::NamedTuple, m::Int; noise = 0,
     Q = _as_cov(noise, m)
     size(Q) == (m, m) || throw(DimensionMismatch("noise must be $m × $m; got $(size(Q))"))
     LenticulumCore._nearly_symmetric(Q) || throw(ArgumentError("noise covariance must be symmetric"))
-    Q = Matrix(LenticulumCore._symmetric_part(Q))
+    Q = _matrix(LenticulumCore._symmetric_part(Q))
     if !iszero(Q)
         spectrum = _eigvals(Symmetric(LenticulumCore.stop_gradient(Q)))
         minimum(spectrum) >= -LenticulumCore._eig_tol(spectrum) ||
@@ -234,9 +234,11 @@ end
 # A positive semidefinite noise split into its null space Qh (exact directions), its range Qs and
 # the positive eigenvalues d on it. The noise is a constant of the factor (no tangent).
 function _noise_split(Q::AbstractMatrix)
-    λ, V = LinearAlgebra.eigen(Symmetric(Q))
-    pos = λ .> LenticulumCore._eig_tol(λ)
-    return V[:, .!pos], V[:, pos], λ[pos]
+    return _host_spectral(Q) do A
+        λ, V = LinearAlgebra.eigen(Symmetric(A))
+        pos = λ .> LenticulumCore._eig_tol(λ)
+        (V[:, .!pos], V[:, pos], λ[pos])
+    end
 end
 
 # --- Plates (P6) --------------------------------------------------------------
@@ -329,12 +331,12 @@ end
 _hard_block_parts(b::Mycelium.TrivialBlock, d::Int, k::Int) = _hard_channel_parts(Any[nothing], d, k)
 function _hard_block_parts(b::Mycelium.PointBlock, d::Int, k::Int)
     (eltype(b.X) <: Union{Float32,Float64} && size(b.X, 1) == d) || return nothing
-    return Matrix(b.X), zeros(eltype(b.X), d, d), zeros(eltype(b.X), d, 0)
+    return _matrix(b.X), _zeros_like(b.X, eltype(b.X), d, d), _zeros_like(b.X, eltype(b.X), d, 0)
 end
 function _hard_block_parts(b::Mycelium.GaussianBlock, d::Int, k::Int)
     (b.Λ isa AbstractMatrix && eltype(b.Λ) <: Union{Float32,Float64} && eltype(b.η) <: Union{Float32,Float64} && size(b.η, 1) == d &&
      allequal(b.improper)) || return nothing
-    return _hard_gaussian_parts(Mycelium.replica(b, 1), Matrix(b.η))
+    return _hard_gaussian_parts(Mycelium.replica(b, 1), _matrix(b.η))
 end
 _hard_block_parts(b::Mycelium.VectorBlock, d::Int, k::Int) = _hard_channel_parts(b.beliefs, d, k)
 _hard_block_parts(b, d::Int, k::Int) = nothing
@@ -376,7 +378,10 @@ function _hard_shared_messages(fs, target, ps, k, priors, get, parts)
     Q = _covariance_at(f.Q, ps, chans)
     # As in the scalar path, a target cavity can change the working type.
     all(prior -> _compute_eltype(eltype(Q), Q, prior) === eltype(Q), priors) || return nothing
-    return _hard_shared_kernel(Q, Matrix(At), copy(ps.c), others, ps.A, chans, k)
+    # Absent channels give host placeholders; on a device they move to the factor's storage (Q20).
+    device = _device_leaf(Q)
+    device === nothing || (chans = Any[map(x -> _on_device(device, x), p) for p in chans])
+    return _hard_shared_kernel(Q, _matrix(At), copy(ps.c), others, ps.A, chans, k)
 end
 
 # Absent channels use Boolean placeholders. Materialise them in the working
@@ -408,7 +413,7 @@ function _hard_shared_kernel(Q, At, c, others, A, chans, k)
     Λp = At' * Λr * At
     nt = size(At, 2)
     if size(C, 1) == 0
-        P, N = _zeros_like(Λp, eltype(Λp), nt, 0), Matrix{eltype(Λp)}(I, nt, nt)
+        P, N = _zeros_like(Λp, eltype(Λp), nt, 0), _eye(Λp, eltype(Λp), nt)
     else
         U0, S0, V0, rk = LC._value_svd(C)
         P = V0[:, 1:rk] * (U0[:, 1:rk]' ./ S0[1:rk])
@@ -468,7 +473,8 @@ Mycelium.mean_field_energy(f::HardConstraintFactor, marginals, ps, st) =
 # The LinearConstraintFactor with the same channels, equations and (positive definite) noise; the
 # parameters (A, c) are laid out alike.
 function _noisy_twin(f::HardConstraintFactor)
-    isposdef(Symmetric(f.Q)) || throw(ArgumentError(_HARD_MEAN_FIELD))
+    (_device_leaf(f.Q) === nothing ? isposdef(Symmetric(f.Q)) : LenticulumCore._precision_isproper(f.Q)) ||
+        throw(ArgumentError(_HARD_MEAN_FIELD))
     return LinearConstraintFactor(f.dims, f.m; noise = f.Q)
 end
 

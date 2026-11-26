@@ -146,3 +146,7 @@ eltype(ps.logs)))`, so integer `b`/`logs` widened a Float32 call to Float64. It 
 inputs...)`, and `_scale_shift_relation`/`_scale_shift_message` pass the messages (resp. beliefs)
 through; `local_free_energy` and `mean_field_message` pass theirs. Tests: `test/lp094.jl`,
 finding 7.
+
+## Q20 device message paths
+
+Initialisation from device samples gathers each group by its integer row indices, reduces the mean and spread on the device, and uploads the group offsets and log scales together. Group indices and the scalar initialisation loop stay on the host.

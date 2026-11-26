@@ -130,3 +130,7 @@ stored defaults do not widen the loss.
 Adapt traverses learned-noise priors and their array fields. Full precision assembly and
 diagonal extraction follow the parameter backend. Spectral clipping uses the core host
 eigendecomposition boundary, then reconstructs the precision on the device.
+
+## Q20 device message paths
+
+The learned-noise constructor validates diagonal structure and the initial eigenvalue floor through the host spectral hook. The actual covariance stays in the input storage.

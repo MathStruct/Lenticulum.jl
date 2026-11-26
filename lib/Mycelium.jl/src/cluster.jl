@@ -628,9 +628,10 @@ function _cluster_joint(c::ClusterFactor, msgs, @nospecialize(ps), skip)
         elseif b isa LenticulumCore.CategoricalBelief
             length(b.logp) == K || throw(DimensionMismatch("message to :$v has $(length(b.logp)) states, the variable $K"))
             _check_positional(b, K, "cluster")
-            ks = [k for k in 1:K if _entry(b.logp, k) > -Inf]
+            logp = LenticulumCore._host_values(b.logp)
+            ks = [k for k in 1:K if logp[k] > -Inf]
             isempty(ks) && throw(ArgumentError("cluster: the message to :$v gives every state zero probability"))
-            push!(states, ks); push!(lps, [_entry(b.logp, k) for k in ks])
+            push!(states, ks); push!(lps, [logp[k] for k in ks])
         else
             push!(states, collect(1:K)); push!(lps, zeros(T, K))
         end
@@ -909,7 +910,12 @@ end
 _same_array(a, b, cmp) = _device_leaf(a) === nothing ? cmp(a, b) : all(cmp.(a, b))
 _precision_ids(Λs) = [findfirst(B -> _same_array(Λ, B, ==), Λs) for Λ in Λs]
 function _continuous_message(E, l, Λs, proper, class, cols, ids = _precision_ids(Λs))
-    keep = [a for a in cols if _entry(l, a) > -Inf]
+    keep = if _device_leaf(l) === nothing
+        [a for a in cols if l[a] > -Inf]
+    else
+        logweights = LenticulumCore._host_values(view(l, cols))
+        [a for (a, w) in zip(cols, logweights) if w > -Inf]
+    end
     isempty(keep) && throw(ArgumentError("cluster: every assignment has zero probability"))
     length(Λs) == 1 && all(iszero, Λs[1]) && all(iszero, view(E, :, cols)) && return LenticulumCore.TrivialBelief()
     # assignments the target does not see (internal discrete variables that do not move it) give
@@ -1016,9 +1022,10 @@ _cluster_local_energy(c::ClusterFactor, msgs, ps, st) = belief_free_energy(c, fa
 function _cluster_layout(c::ClusterFactor, i::Int, F::ClusterForm, b::FrozenClusterBelief)
     w = Dict(c.wiring[i])
     kcol = _switch_columns(c, F, w, b.assignments)
+    q = LenticulumCore._host_values(b.q)
     groups = map(_varies(F) ? unique(kcol) : [0]) do k
         idx = _varies(F) ? findall(==(k), kcol) : collect(eachindex(kcol))
-        (k, idx, [sum(_entry(b.q, a) for a in idx if b.class[a] == κ; init = zero(eltype(b.q))) for κ in eachindex(b.Σ)])
+        (k, idx, [sum(q[a] for a in idx if b.class[a] == κ; init = zero(eltype(b.q))) for κ in eachindex(b.Σ)])
     end
     feeds = [[ch for ch in keys(F.A) if w[ch] === v] for v in b.free]
     pts = [(ch, b.points[w[ch]]) for ch in keys(F.A) if haskey(b.points, w[ch])]

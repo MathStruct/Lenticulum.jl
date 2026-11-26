@@ -332,3 +332,11 @@ A target cavity can participate in scalar message type selection. A plate
 falls back to that scalar path when a cavity changes its working type, so
 different replicas can retain different types. The mixed all-latent entries
 exercise this with Float64 cavities and Float32 factor parameters.
+
+## Q20 device message paths
+
+The positive-noise eigensplit runs through the host spectral hook and returns the null basis, range basis and range eigenvalues to the device. The noisy hard-constraint free-energy fixture covers this path.
+
+The direct constructor validates positive semidefiniteness and retains the symmetrised noise on the original device.
+
+Found on CUDA (JLArrays 0.4 accepts it, LP-095): the shared plate kernel received host placeholders for absent channels (`zeros(Bool, …)`) and host copies (`Matrix(b.X)`, `Matrix(b.η)`, `Matrix(At)`), which met device arrays in a BLAS product. The block parts now keep the block's storage, and `_hard_shared_messages` moves every channel's parts to the device of `Q` before the kernel; the kernel's identity null basis is `_eye`. `_noisy_twin` (the mean-field energy) checks the noise with `_precision_isproper` on a device.

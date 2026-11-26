@@ -224,20 +224,23 @@ function scale_shift_parameters(f::ScaleShiftFactor, X::AbstractMatrix{<:Real})
     size(X, 1) == f.dim || throw(DimensionMismatch("X has $(size(X, 1)) rows, the factor dimension $(f.dim)"))
     size(X, 2) >= 1 || throw(ArgumentError("X has no samples"))
     T = float(eltype(X))
-    b, logs = similar(X, T, f.ngroups), similar(X, T, f.ngroups)
+    device = _device_leaf(X)
+    b, logs = device === nothing ? (similar(X, T, f.ngroups), similar(X, T, f.ngroups)) :
+                                  (Vector{T}(undef, f.ngroups), Vector{T}(undef, f.ngroups))
     for g in 1:f.ngroups
         # in floating point from the start (an Int64 sum overflowed), the deviations scaled by
         # their largest before squaring (1e±200 overflowed or underflowed), and equal entries
         # caught exactly, not through a rounded spread (review of U3, finding 5)
-        v = T.(vec(X[f.groups .== g, :]))
-        allequal(v) && throw(ArgumentError("group $g of the data has no spread; its scale is undefined"))
+        rows = device === nothing ? f.groups .== g : findall(==(g), f.groups)
+        v = T.(vec(X[rows, :]))
+        (device === nothing ? allequal(v) : minimum(v) == maximum(v)) && throw(ArgumentError("group $g of the data has no spread; its scale is undefined"))
         m = sum(v) / length(v)
         a = maximum(abs, v .- m)
         σ = a * sqrt(sum(abs2, (v .- m) ./ a) / length(v))
         σ > 0 || throw(ArgumentError("group $g of the data has no spread; its scale is undefined"))
         b[g], logs[g] = m, log(σ)
     end
-    return (b = b, logs = logs)
+    return (b = _on_device(device, b), logs = _on_device(device, logs))
 end
 
 Adapt.@adapt_structure ScaleShiftBelief

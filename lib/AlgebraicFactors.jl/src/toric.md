@@ -164,3 +164,7 @@ structural indices.
 `local_free_energy` was already in the messages' type). Both now pass the messages (resp. the
 frozen `b.logq`) to `_logits` as `factor_message` and `local_free_energy` do. Test:
 `lib/AlgebraicFactors.jl/test/lp094.jl`, finding 8.
+
+## Q20 device message paths
+
+The frozen toric plate free-energy method keeps the vector of replica energies on the parameter or belief device. Each replica still uses the scalar frozen-belief energy method.

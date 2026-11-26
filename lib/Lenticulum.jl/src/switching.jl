@@ -81,8 +81,8 @@ function SwitchingConstraintFactor(
     Q = _as_cov(noise, m)
     size(Q) == (m, m) || throw(ArgumentError("noise covariance must have size ($m, $m), matching the residual dimension"))
     LenticulumCore._nearly_symmetric(Q) || throw(ArgumentError("noise covariance must be symmetric"))
-    Q = Matrix(LenticulumCore._symmetric_part(Q))
-    isposdef(Symmetric(Q)) || throw(ArgumentError("noise covariance Q must be positive definite"))
+    Q = _matrix(LenticulumCore._symmetric_part(Q))
+    (_device_leaf(Q) === nothing ? isposdef(Symmetric(Q)) : LenticulumCore._precision_isproper(Q)) || throw(ArgumentError("noise covariance Q must be positive definite"))
     C = output === nothing ? nothing : _output_coeff(dims, m, output, output_coeff, _output_eltype(output_coeff, Q))
     return SwitchingConstraintFactor(dims, K, m, switch, Q, init_coeff, init_offsets, output, C)
 end
@@ -522,7 +522,8 @@ function _expansion_options(b, n, dim, T)
     all(c -> c isa GaussianBelief && isproper(c), b.components) || throw(ArgumentError(
         "a MixtureReduction() node expands mixture inputs into proper Gaussian components; the input on :$n \
          has a component that is not one"))
-    return [(b.logw[j], (belief_mean(c), belief_cov(c), nothing)) for (j, c) in enumerate(b.components)]
+    logw = LenticulumCore._host_values(b.logw)
+    return [(logw[j], (belief_mean(c), belief_cov(c), nothing)) for (j, c) in enumerate(b.components)]
 end
 
 # The residual metric of `_residual_metric` and the log normaliser it implies, up to a constant
@@ -530,7 +531,7 @@ end
 # of GᵀR⁻¹G (the finite part of log det(R + τGΣ₀Gᵀ) as τ → ∞; `switching.md` §9).
 function _residual_metric_logdet(R, G, what)
     C = _chol(R, what)
-    Li = inv(C.L)
+    Li = _triangular_inverse(C)
     ld = logdet(C)
     isempty(G) && return Li, Li, ld
     W, lpd = _range_complement(Li * reduce(hcat, G))
@@ -539,8 +540,10 @@ end
 
 function _expanded_message(A, Q, B, lw, lpk, dims, others, target, inputs, to_switch::Bool)
     K = size(B, 2)
+    device = _device_leaf(Q)
+    lw, lpk = _on_device(device, lw), _on_device(device, lpk)
     options = [_expansion_options(_get(inputs, n), n, dims[n], eltype(Q)) for n in others]
-    lks = Vector[]                    # to the outcome: one vector over k per combination
+    lks = device === nothing ? Vector[] : AbstractVector[]  # to the outcome: one vector over k per combination
     comps, logws = GaussianBelief[], Real[]
     nt = to_switch ? 0 : dims[target]
     for combo in Iterators.product(options...)
@@ -558,23 +561,24 @@ function _expanded_message(A, Q, B, lw, lpk, dims, others, target, inputs, to_sw
         if rt == 0                              # flat in the target: one flat component, the outcomes summed
             any(>(-Inf), l) || continue         # no possible outcome: as `factor_message`, refused below
             lf = _logsumexp(l)
-            push!(comps, GaussianBelief(zeros(eltype(At), nt), zeros(eltype(At), nt, nt), true)); push!(logws, lf)
+            push!(comps, GaussianBelief(_zeros_like(At, eltype(At), nt), _zeros_like(At, eltype(At), nt, nt), true)); push!(logws, lf)
             continue
         end
         proper = rt == nt
         Λ = Ta' * Ta
         CΛ = proper ? _chol(Λ, "AₜᵀR⁻¹Aₜ") : nothing
+        logweights = LenticulumCore._host_values(l)
         for k in 1:K
-            l[k] == -Inf && continue
+            logweights[k] == -Inf && continue
             η = Ta' * Z[:, k]
             # A proper component is normalised: its mass ∫exp(ηᵀx − xᵀΛx/2) moves into the weight.
-            lk = proper ? l[k] + LinearAlgebra.dot(η, CΛ \ η) / 2 - logdet(CΛ) / 2 + nt * LenticulumCore._log2π(eltype(Q)) / 2 : l[k]
+            lk = proper ? logweights[k] + LinearAlgebra.dot(η, CΛ \ η) / 2 - logdet(CΛ) / 2 + nt * LenticulumCore._log2π(eltype(Q)) / 2 : logweights[k]
             push!(comps, GaussianBelief(η, Λ, !proper)); push!(logws, lk)
         end
     end
     if to_switch
         L = reduce(hcat, lks)
-        lk = [any(>(-Inf), view(L, k, :)) ? _logsumexp(L[k, :]) : eltype(L)(-Inf) for k in 1:K]   # an outcome of weight 0: −Inf, not NaN
+        lk = _on_device(device, [any(>(-Inf), L[k, :]) ? _logsumexp(L[k, :]) : eltype(L)(-Inf) for k in 1:K])   # an outcome of weight 0: −Inf, not NaN
         all(==(-Inf), lk) && throw(ArgumentError("every outcome has zero probability"))
         return LenticulumCore.CategoricalBelief(Val(:log), lk .- _logsumexp(lk), nothing)
     end
@@ -582,7 +586,7 @@ function _expanded_message(A, Q, B, lw, lpk, dims, others, target, inputs, to_sw
     all(c -> all(iszero, c.Λ), comps) && return LenticulumCore.TrivialBelief()
     length(comps) == 1 && return only(comps)
     weights = mapreduce(typeof, promote_type, logws).(logws)
-    return LenticulumCore.MixtureBelief(Val(:log), comps, weights .- _logsumexp(weights))
+    return LenticulumCore.MixtureBelief(Val(:log), comps, _on_device(device, weights .- _logsumexp(weights)))
 end
 
 # --- Message blocks (a plate of tied switching factors, L-ADR-0010) ---------------------
@@ -605,7 +609,7 @@ function Mycelium.factor_messages(fs::AbstractVector{<:SwitchingConstraintFactor
         out === nothing || return out, st
     end
     Q = _covariance_at(f.Q, ps, map(_block_numbers, inputs))
-    parts = target === f.switch ? map(c -> (c, _block_parts(_get(inputs, c), f.dims[c], n, eltype(Q))), names) : nothing
+    parts = target === f.switch ? _parts_on_device(_device_leaf(Q), map(c -> (c, _block_parts(_get(inputs, c), f.dims[c], n, eltype(Q))), names)) : nothing
     if parts === nothing || any(p -> p[2] === nothing, parts) || !_same_switching(fs)
         cols = [NamedTuple{keys(inputs)}(map(b -> Mycelium.replica(b, i), values(inputs))) for i in 1:n]
         return Mycelium.belief_block(first(Mycelium.factor_messages(fs, target, polarity, cols, priors, ps, st))), st
@@ -617,8 +621,9 @@ function Mycelium.factor_messages(fs::AbstractVector{<:SwitchingConstraintFactor
     TB, TS = T * _offset_at(ps.b, Q), T * S
     lw = _logweights(ps, Q)
     L = _zeros_like(TB, promote_type(eltype(TB), eltype(TS), eltype(lw)), f.K, n)
+    lwh = LenticulumCore._host_values(lw)
     for k in 1:f.K                          # the difference first: no cancellation of ‖Tb‖² against ‖Ts‖²
-        L[k, :] .= lw[k] .- vec(sum(abs2, TS .- TB[:, k]; dims = 1)) ./ 2
+        L[k, :] .= lwh[k] .- vec(sum(abs2, TS .- TB[:, k]; dims = 1)) ./ 2
     end
     m = maximum(L; dims = 1)
     L = L .- m
@@ -645,9 +650,16 @@ end
 
 _same_switching(fs) = (f = first(fs); all(h -> h === f || (isequal(h.Q, f.Q) && h.dims == f.dims && h.K == f.K && h.switch === f.switch), fs))
 
+# Absent channels give host placeholders (`_block_parts` of a trivial block); on a device they move
+# to the factor's storage, so a broadcast never mixes host and device arrays (Q20, found on CUDA).
+_parts_on_device(::Nothing, parts) = parts
+_parts_on_device(device, parts) = map(parts) do (c, p)
+    (c, p === nothing ? nothing : map(x -> x === nothing ? nothing : _on_device(device, x), p))
+end
+
 # log P(k) of every replica from the outcome's block: flat without a message, or a categorical block.
 _switch_logp_block(::Union{Nothing,Mycelium.TrivialBlock}, K, n) = zeros(Bool, K, n)
-_switch_logp_block(b::Mycelium.CategoricalBlock, K, n) = size(b.logp, 1) == K ? Matrix(b.logp) : nothing
+_switch_logp_block(b::Mycelium.CategoricalBlock, K, n) = size(b.logp, 1) == K ? _matrix(b.logp) : nothing
 _switch_logp_block(b, K, n) = nothing
 
 # R0[:, k, i] = Σ_points Aₙ xₙ,ᵢ − b_k, the residual with the free channels at zero.
@@ -674,18 +686,19 @@ function Mycelium.factor_beliefs(fs::AbstractVector{<:SwitchingConstraintFactor{
     _same_switching(fs) || return nothing
     lp = _switch_logp_block(_get(msgs, f.switch), f.K, n)
     lp === nothing && return nothing
-    points, free = Pair{Symbol,Matrix}[], Symbol[]
+    Q = _covariance_at(f.Q, ps, map(_block_numbers, msgs))
+    points = _device_leaf(Q) === nothing ? Pair{Symbol,Matrix}[] : Pair{Symbol,AbstractMatrix}[]
+    free = Symbol[]
     for c in names
         b = _get(msgs, c)
         if b isa Mycelium.PointBlock
-            push!(points, c => Matrix(b.X))
+            push!(points, c => _matrix(b.X))
         elseif b === nothing || b isa Mycelium.TrivialBlock || (b isa Mycelium.GaussianBlock && b.Λ isa AbstractMatrix)
             push!(free, c)
         else
             return nothing
         end
     end
-    Q = _covariance_at(f.Q, ps, map(_block_numbers, msgs))
     CQ = _chol(Q, "Q")
     R0 = _switch_offsets(_coeffs(fs[1], ps), _offset_at(ps.b, Q), points, n)           # m × K × n
     C = reshape(-R0, f.m, f.K * n)                                 # c_{k,i} = b_k − Σ_points Aₙxₙ,ᵢ
@@ -697,7 +710,7 @@ function Mycelium.factor_beliefs(fs::AbstractVector{<:SwitchingConstraintFactor{
         G = reduce(hcat, (_coeffs(fs[1], ps)[c] for c in free))
         canon = map(free) do c
             b = _get(msgs, c)
-            b isa Mycelium.GaussianBlock ? (Matrix(b.η), b.Λ) : (_zeros_like(C, eltype(C), f.dims[c], n), _zeros_like(C, eltype(C), f.dims[c], f.dims[c]))
+            b isa Mycelium.GaussianBlock ? (_matrix(b.η), b.Λ) : (_zeros_like(C, eltype(C), f.dims[c], n), _zeros_like(C, eltype(C), f.dims[c], f.dims[c]))
         end
         Λ = G' * (CQ \ G) + _blockdiag(map(last, canon))
         CΛ = _chol(Λ, "factor belief precision")
@@ -705,10 +718,10 @@ function Mycelium.factor_beliefs(fs::AbstractVector{<:SwitchingConstraintFactor{
         η = G' * QiC .+ repeat(Ecanon; inner = (1, f.K))           # column (k, i): η_{k,i}
         Mf = CΛ \ η
         logZ = logZ .+ vec(sum(η .* Mf; dims = 1)) ./ 2
-        M, Σ = reshape(Mf, size(Λ, 1), f.K, n), Matrix(inv(CΛ))
+        M, Σ = reshape(Mf, size(Λ, 1), f.K, n), _matrix(inv(CΛ))
         H = Mycelium.variable_entropy(GaussianBelief(_zeros_like(Λ, eltype(Λ), size(Λ, 1)), Λ))
     end
-    L = lp .+ _logweights(ps, Q) .+ reshape(logZ, f.K, n)
+    L = _on_device(_device_leaf(Q), lp) .+ _on_device(_device_leaf(Q), _logweights(ps, Q)) .+ reshape(logZ, f.K, n)
     all(i -> any(>(-Inf), view(L, :, i)), 1:n) ||
         throw(ArgumentError("the incoming outcome belief gives every outcome zero probability"))
     L = L .- maximum(L; dims = 1)
@@ -733,7 +746,10 @@ function Mycelium.belief_free_energies(fs::AbstractVector{<:SwitchingConstraintF
     lw = _logweights(ps, Q)
     fit = (tr(CQ \ Cr) .+ vec(sum(b.q .* quad; dims = 1))) ./ 2
     complexity = (f.m * LenticulumCore._log2π(eltype(Q)) + logdet(CQ)) / 2 .- vec(sum(b.q .* ifelse.(b.q .> 0, lw, zero(eltype(lw))); dims = 1))
-    Hq = -vec(sum(ifelse.(b.q .> 0, b.q .* log.(max.(b.q, oftype(first(b.q), floatmin(typeof(LenticulumCore.stop_gradient(first(b.q))))))), zero(eltype(b.q))); dims = 1))
+    T = eltype(b.q)
+    floor = convert(T, floatmin(typeof(LenticulumCore.stop_gradient(zero(T)))))
+    Hq = -vec(sum(ifelse.(b.q .> 0, b.q .* log.(max.(b.q, floor)), zero(T)); dims = 1))
+    fit, complexity, Hq = map(LenticulumCore._host_values, (fit, complexity, Hq))
     return [LenticulumCore.GradedEnergy((fit = fit[i], complexity = complexity[i], negentropy = -Hq[i] - b.H)) for i in 1:n], st
 end
 
@@ -758,6 +774,8 @@ function _switch_mixture_block(f::SwitchingConstraintFactor{names}, target, inpu
     Q = _covariance_at(f.Q, ps, map(_block_numbers, inputs))
     parts = [(c, _block_parts(_get(inputs, c), f.dims[c], n, eltype(Q))) for c in others]
     any(p -> p[2] === nothing, parts) && return nothing
+    device = _device_leaf(Q)
+    parts, lpk = _parts_on_device(device, parts), _on_device(device, lpk)
     _, R, G = _accumulate(_coeffs(f, ps), Q, [(ch, (M[:, 1], S, N)) for (ch, (M, S, N)) in parts])
     T, Li = _residual_metric(R, G, "Q + Σ AᵢSᵢAᵢᵀ")
     At = _coeffs(f, ps)[target]

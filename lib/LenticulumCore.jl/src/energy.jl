@@ -198,12 +198,15 @@ struct SquaredNorm{M} <: AbstractScalarisation
             asym = maximum(abs, M .- M'; init = real(zero(eltype(M))))
             asym <= 1e-10 * (1 + scale) ||
                 throw(ArgumentError("SquaredNorm metric M must be symmetric; max |M - Mᵀ| = $asym"))
-            S = eltype(M) <: Real ? Symmetric(Matrix(float.(M))) : Hermitian(Matrix(float.(M)))
-            if !isposdef(cholesky(S; check = false))
-                evs = eigvals(S)
-                minimum(evs; init = 0.0) >= -1e-10 * (1 + scale) ||
-                    throw(ArgumentError(
-                        "SquaredNorm metric M must be positive semidefinite; min eigenvalue = $(minimum(evs))"))
+            _host_spectral(M) do A
+                S = eltype(A) <: Real ? Symmetric(Matrix(float.(A))) : Hermitian(Matrix(float.(A)))
+                if !isposdef(cholesky(S; check = false))
+                    evs = eigvals(S)
+                    minimum(evs; init = 0.0) >= -1e-10 * (1 + scale) ||
+                        throw(ArgumentError(
+                            "SquaredNorm metric M must be positive semidefinite; min eigenvalue = $(minimum(evs))"))
+                end
+                nothing
             end
         end
         return new{typeof(M)}(M)
@@ -254,7 +257,7 @@ of size `size(energy_jacobian(f, x, a, y, ps, st), 1)`. A factor with a residual
 """
 function sampson_damping(f, x, a, y, ps, st)
     r = first(energy(f, x, a, y, ps, st))
-    return Matrix{float(eltype(r))}(LinearAlgebra.I, length(r), length(r))
+    return _eye(r, float(eltype(r)), length(r))
 end
 
 function localise(σ::SampsonNorm, f, x, a, y, ps, st)
@@ -263,9 +266,10 @@ function localise(σ::SampsonNorm, f, x, a, y, ps, st)
         size(σ.Σ, 1) == size(J, 2) || throw(DimensionMismatch(
             "SampsonNorm Σ must match the differentiated data dimension $(size(J, 2))"))
     end
-    A = σ.Σ === nothing ? J * J' : J * σ.Σ * J'
+    device = _device_leaf(J)
+    A = σ.Σ === nothing ? J * J' : J * _on_device(device, σ.Σ) * J'
     if !iszero(σ.λ)
-        R = sampson_damping(f, x, a, y, ps, st)
+        R = _on_device(device, sampson_damping(f, x, a, y, ps, st))
         size(R) == size(A) || throw(DimensionMismatch("sampson_damping must have size $(size(A))"))
         all(isfinite, R) || throw(ArgumentError("sampson_damping must be finite"))
         SquaredNorm(R)  # reject asymmetric/indefinite damping, even if A would be SPD
@@ -273,13 +277,13 @@ function localise(σ::SampsonNorm, f, x, a, y, ps, st)
     end
     all(isfinite, A) || throw(ArgumentError("Sampson covariance must be finite"))
     S = Symmetric(A)
-    evs = eigvals(S)
+    evs = _eigvals(S)
     T = eltype(evs)
     threshold = size(S, 1) * eps(T) * maximum(evs; init = zero(T))
     !isempty(evs) && minimum(evs) > threshold || throw(ArgumentError(
         "Sampson covariance must be numerically positive definite: λmin must exceed n*eps(T)*λmax = $threshold; use positive gauge-compatible damping"))
     # Inversion only after the covariance has passed the numerical SPD check.
-    M = inv(S)
+    M = _symmetric_inv(A)
     all(isfinite, M) || throw(ArgumentError("Sampson precision is not finite after inversion"))
     return SquaredNorm(M; check = false)
 end
@@ -501,6 +505,9 @@ function energy_jacobian(
     u = wrt === :ps ? _flatten(ps) : wrt === :x ? x : wrt === :y ? y :
         throw(ArgumentError("wrt must be :x, :y or :ps; got :$wrt"))
     offs = wrt === :ps ? offset_tree(ps) : nothing
+    if ad === nothing && wrt !== :ps && _device_leaf(u) !== nothing
+        return _device_point_jacobian(_energy_at, u, f, x, a, y, ps, offs, st, Val(wrt); ε)
+    end
     return _jacobian(ad, _energy_at, u, f, x, a, y, ps, offs, st, Val(wrt); ε)
 end
 
@@ -519,6 +526,26 @@ _energy_at(u, f, x, a, y, ps, offs, st, ::Val{:x}) =
     _energy_vector(first(energy(f, u, a, y, ps, st)))
 _energy_at(u, f, x, a, y, ps, offs, st, ::Val{:y}) =
     _energy_vector(first(energy(f, x, a, u, ps, st)))
+
+# Reference point derivatives keep the evaluation context on the device. One download of
+# the input selects the finite-difference steps. Each evaluation receives a device vector.
+function _device_point_jacobian(fun, u, args...; ε)
+    r0 = fun(u, args...)
+    T = float(promote_type(eltype(r0), eltype(u)))
+    J = _zeros_like(u, T, length(r0), length(u))
+    host = _host_values(u)
+    up, um = collect(T, host), collect(T, host)
+    device = _device_leaf(u)
+    for j in eachindex(host)
+        h = T(ε) * (one(T) + abs(host[j]))
+        up[j], um[j] = host[j] + h, host[j] - h
+        rp = _on_device(device, fun(_on_device(device, up), args...))
+        rm = _on_device(device, fun(_on_device(device, um), args...))
+        J[:, j] .= (rp .- rm) ./ (2h)
+        up[j] = um[j] = host[j]
+    end
+    return J
+end
 
 # Also used by implicit layers and graph training. Context arguments are DI Constants.
 function _jacobian(::Nothing, fun, u, args...; ε = 1e-6)

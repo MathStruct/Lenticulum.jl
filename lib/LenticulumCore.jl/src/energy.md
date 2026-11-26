@@ -382,3 +382,7 @@ Enzyme forward mode also agreed on the pointwise parameter residual loss.
 Adapting scalarisations moves their metrics, weights and component scalarisations. Validated
 metrics keep their validation state. Weighted sums and quadratic metrics place their operands on
 one backend before reducing them to a scalar.
+
+## Q20 device message paths
+
+Sampson localisation accepts device point inputs, covariance and damping. Its reference point Jacobian selects its steps from one host copy of the input, evaluates the perturbations on the device and returns a device Jacobian. The definiteness check uses host spectral arithmetic and the precision is formed on the device. Default finite differences in device parameter coordinates still require an AD backend.

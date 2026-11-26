@@ -63,7 +63,7 @@ function wired_cases(message, local_energy, f; pointwise = nothing)
 end
 
 # The inference packages pass their APIs in so these helpers also load in Core's test environment.
-function inference_cases(inference, gradient_message, f; pointwise, mean_field = true)
+function inference_cases(inference, gradient_message, f; pointwise, mean_field = true, raw_blocks = false)
     M = inference
     cases = wired_cases(M.factor_message, M.local_free_energy, f.factor; pointwise)
     for p in supported_polarities(f.factor), target in unobserved_channels(p)
@@ -80,7 +80,7 @@ function inference_cases(inference, gradient_message, f; pointwise, mean_field =
         add(:plate_message_block, function (d)
             block, _ = M.factor_messages(fill(d.factor, 2), target, p, message_blocks(M, inputs(d)),
                                          fill(prior(d), 2), d.ps, d.st)
-            return [M.replica(block, i) for i in 1:2]
+            return raw_blocks ? block : [M.replica(block, i) for i in 1:2]
         end)
 
         args = (f.factor, target, p, inputs(f))
@@ -114,7 +114,8 @@ mixture_input(b) = b
 function mixture_input(b::GaussianBelief)
     w = eltype(b.η)
     shifted = GaussianBelief(b.η .* w(0.75), b.Λ)
-    return MixtureBelief([b, shifted], w[0.625, 0.375])
+    weights = LenticulumCore._on_device(LenticulumCore._device_leaf(b), w[0.625, 0.375])
+    return MixtureBelief([b, shifted], weights)
 end
 
 # Frozen factor beliefs are not AbstractBeliefs. Their fixtures opt in to field-wise

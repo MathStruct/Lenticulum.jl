@@ -136,3 +136,7 @@ constraint factors: `cluster_form` now passes `regime_covariances(f, ps)` to `_l
 integer `logw` no longer widens), and `_fixed_output` follows the new `_fixed_at(C, f, ps)`
 signature, so an integer parameter set with a declared `output` takes the stored noise's float
 type instead of Float64. Tests: `lib/Lenticulum.jl/test/lp094.jl`, findings 5 and 6.
+
+## Q20 device constructors
+
+The direct constructor packs per-regime covariances on the device of its numeric input. It validates each covariance before writing its slice.

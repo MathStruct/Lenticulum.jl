@@ -36,7 +36,7 @@ const SUITES = [
                           ["graph_adjoint.jl", "graph_adjoint_devices.jl"]),
     :Lenticulum => (:(using Lenticulum, LenticulumCore, Mycelium, MyceliumLearning, LinearAlgebra, LuxCore, Random, Test;
                       using LenticulumCore: DiracBelief, TrivialBelief, Observed, Unobserved, Latent),
-                    ["device_arrays.jl", "device_graphs.jl", "lp092.jl", "device_wide.jl"]),
+                    ["device_arrays.jl", "device_graphs.jl", "device_inference.jl", "device_paths.jl", "lp092.jl", "device_wide.jl"]),
     :AlgebraicFactors => (:(using AlgebraicFactors, LenticulumCore, Mycelium, LinearAlgebra, LuxCore, Random, Test),
                           ["device_arrays.jl"]),
     :ImplicitLayers => (:(using ImplicitLayers, LenticulumCore, Mycelium, MyceliumLearning, LuxCore, LinearAlgebra, Random, Test;

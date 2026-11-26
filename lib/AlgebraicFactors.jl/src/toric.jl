@@ -313,6 +313,12 @@ function Mycelium.belief_free_energy(f::ToricFactor, b::ToricBelief, ps, st)
             LenticulumCore._compute_eltype(Float64, ps, b.logq), (b.logq,)))) - _shannon(b.logq), st)
 end
 
+function Mycelium.belief_free_energies(fs::AbstractVector{<:ToricFactor}, bs::AbstractVector{<:ToricBelief}, ps, st)
+    energies = map((f, b) -> first(Mycelium.belief_free_energy(f, b, ps, st)), fs, bs)
+    device = isempty(bs) ? nothing : _first_device((ps, first(bs).logq))
+    return _on_device(device, energies), st
+end
+
 function _game_messages(f, π, y)
     f.normalised || throw(ArgumentError("game quantities require normalised = true"))
     y === nothing && (y = NamedTuple())

@@ -584,3 +584,7 @@ returned bare pullbacks. The existing test in `lib/Lenticulum.jl/test/erased_tre
 all 19 checks. See `scratch/i30open/erased-bare.log` and `scratch/i30open/erased-restored.log`.
 
 The compile-time breakdown inside `_functional_infer` and verification on JLArrays 0.5.0 remain open.
+
+## Q20 device message paths
+
+Gaussian score draws keep the supplied RNG stream and move its normal vector to the belief device before the Cholesky multiply. Categorical draws transfer the probability vector once for the host cumulative search and return a structural index or label.

@@ -760,3 +760,9 @@ prior with a Float64 mean to Float64 on Float32 data (the session's probe; `dev-
 Float32). The fixed-covariance message keeps the stored types (`_prior_mean`, LP-091), so in that
 mixed case it still returns a Float64 mean beside a Float32 covariance. Tests: `test/lp094.jl`,
 findings 1 and 4.
+
+## Q20 device message paths
+
+Backward Gaussian gradient messages use the device symmetric inverse. Frozen Gaussian prior beliefs build the identity relation and working precision on the device, including a learned diagonal precision. The plate energy copies the per-replica scalars back in one transfer to wrap them as graded energies.
+
+Found by the review and on CUDA (LP-095): the learned-noise `GaussianPrior` constructor checked `isposdef` on the host (LAPACK on a device array, refused by JLArrays 0.5 and CUDA); it uses `_precision_isproper` on a device. A frozen belief with a hard input built its lift `L` on the host; it uses `_eye` and the device of the mean now.

@@ -101,6 +101,9 @@ form, so a message that changes kind still converges.
 """
 function belief_distance(a::_EG, b::_EG)
     LenticulumCore.dimension(a) == LenticulumCore.dimension(b) || return Inf
+    # a message built on the host (the extended form of a `TrivialBelief`) beside a device one (Q20)
+    device = LenticulumCore._first_device((a.μ, b.μ))
+    device === nothing || ((a, b) = map(e -> _EG(_on_device(device, e.μ), _on_device(device, e.Σ), _on_device(device, e.D)), (a, b)))
     return max(maximum(abs, a.μ .- b.μ; init = 0.0), maximum(abs, a.Σ .- b.Σ; init = 0.0),
                maximum(abs, a.D * a.D' .- b.D * b.D'; init = 0.0))
 end
@@ -389,10 +392,10 @@ end
 function ep_project(m::LenticulumCore.MixtureBelief{<:GaussianBelief})
     all(LenticulumCore.isproper, m.components) || return nothing
     w = LenticulumCore.mixture_weights(m)
-    w = w ./ sum(w)
+    w = LenticulumCore._host_values(w ./ sum(w))
     μs = [LenticulumCore.belief_mean(c) for c in m.components]
-    μ = sum(_entry(w, k) .* μs[k] for k in eachindex(w))
-    Σ = sum(_entry(w, k) .* (LenticulumCore.belief_cov(m.components[k]) .+ (μs[k] .- μ) * (μs[k] .- μ)') for k in eachindex(w))
+    μ = sum(w[k] .* μs[k] for k in eachindex(w))
+    Σ = sum(w[k] .* (LenticulumCore.belief_cov(m.components[k]) .+ (μs[k] .- μ) * (μs[k] .- μ)') for k in eachindex(w))
     C = _symmetric_cholesky(Σ; check = false)
     LinearAlgebra.issuccess(C) || return nothing
     Λ = _matrix(LinearAlgebra.Symmetric(inv(C)))          # from the factor the test just computed
@@ -401,11 +404,15 @@ end
 
 # The site p / π: canonical parameters subtract. A site whose precision is not positive definite
 # (rank-deficient, or with a negative direction) is declared improper.
+_ep_posdef(Λ) = _device_leaf(Λ) === nothing ?
+    LinearAlgebra.isposdef(LinearAlgebra.Symmetric(Matrix(Λ))) :
+    LinearAlgebra.issuccess(_symmetric_cholesky(_matrix(Λ); check = false))
+
 function ep_divide(p::GaussianBelief, c::GaussianBelief)
     dimension(p) == dimension(c) || throw(DimensionMismatch(
         "cannot divide beliefs of dimension $(dimension(p)) and $(dimension(c))"))
     Λ = p.Λ - c.Λ
-    return GaussianBelief(p.η - c.η, Λ, !LinearAlgebra.isposdef(LinearAlgebra.Symmetric(Matrix(Λ))))
+    return GaussianBelief(p.η - c.η, Λ, !_ep_posdef(Λ))
 end
 ep_divide(p::GaussianBelief, ::LenticulumCore.TrivialBelief) = p
 
@@ -423,10 +430,10 @@ ep_divide(p::GaussianBelief, ::LenticulumCore.TrivialBelief) = p
 function ep_project(m::LenticulumCore.MixtureBelief{<:_EG})
     all(c -> size(c.D, 2) == 0, m.components) || return nothing
     w = LenticulumCore.mixture_weights(m)
-    w = w ./ sum(w)
-    μ = sum(_entry(w, k) .* m.components[k].μ for k in eachindex(w))
-    Σ = sum(_entry(w, k) .* (m.components[k].Σ .+ (m.components[k].μ .- μ) * (m.components[k].μ .- μ)') for k in eachindex(w))
-    return _EG(μ, Matrix(LinearAlgebra.Symmetric(Σ)))
+    w = LenticulumCore._host_values(w ./ sum(w))
+    μ = sum(w[k] .* m.components[k].μ for k in eachindex(w))
+    Σ = sum(w[k] .* (m.components[k].Σ .+ (m.components[k].μ .- μ) * (m.components[k].μ .- μ)') for k in eachindex(w))
+    return _EG(μ, _matrix(LinearAlgebra.Symmetric(Σ)))
 end
 
 function ep_divide(p::_EG, c::_EG)
@@ -442,7 +449,7 @@ function ep_divide(p::_EG, c::_EG)
     ηp, Λp = LenticulumCore._canonical_part(p)
     ηc, Λc = LenticulumCore._canonical_part(c)
     Λ = LenticulumCore._symmetric_part(Λp - Λc)
-    return GaussianBelief(ηp - ηc, Λ, size(Hp, 2) > 0 || !LinearAlgebra.isposdef(LinearAlgebra.Symmetric(Matrix(Λ))))
+    return GaussianBelief(ηp - ηc, Λ, size(Hp, 2) > 0 || !_ep_posdef(Λ))
 end
 ep_divide(p::_EG, ::LenticulumCore.TrivialBelief) = p
 
@@ -475,29 +482,32 @@ bounds on component locations and covariances and can be arbitrarily large.
 """
 function reduce_mixture(m::LenticulumCore.MixtureBelief{<:GaussianBelief}; max_components::Integer, prune::Real = 1e-8)
     max_components ≥ 1 || throw(ArgumentError("max_components must be at least 1"))
-    w = LenticulumCore.mixture_weights(m)
+    device = _device_leaf(m)
+    w = LenticulumCore._host_values(LenticulumCore.mixture_weights(m))
     keep = w .≥ prune * maximum(w)
     ws = w[keep]
     μs = [LenticulumCore.belief_mean(c) for c in m.components[keep]]
-    Σs = [LenticulumCore.belief_cov(c) for c in m.components[keep]]
+    covariances = [LenticulumCore.belief_cov(c) for c in m.components[keep]]
+    Σs = device === nothing ? covariances : map(_matrix, covariances)
     function merged(i, j)
         wij = ws[i] + ws[j]
         μ = (ws[i] .* μs[i] .+ ws[j] .* μs[j]) ./ wij
         Σ = (ws[i] .* (Σs[i] .+ (μs[i] .- μ) * (μs[i] .- μ)') .+ ws[j] .* (Σs[j] .+ (μs[j] .- μ) * (μs[j] .- μ)')) ./ wij
-        return wij, μ, Matrix(LinearAlgebra.Symmetric(Σ))
+        return wij, μ, _matrix(LinearAlgebra.Symmetric(Σ))
     end
+    covariance_logdet(S) = device === nothing ? logdet(S) : LenticulumCore._symmetric_logdet(S)
     while length(ws) > max_components
         best, bi, bj = Inf, 0, 0
         for i in eachindex(ws), j in (i + 1):length(ws)
             wij, _, Σ = merged(i, j)
-            cost = (wij * logdet(Σ) - ws[i] * logdet(Σs[i]) - ws[j] * logdet(Σs[j])) / 2
+            cost = (wij * covariance_logdet(Σ) - ws[i] * covariance_logdet(Σs[i]) - ws[j] * covariance_logdet(Σs[j])) / 2
             cost < best && ((best, bi, bj) = (cost, i, j))
         end
         wij, μ, Σ = merged(bi, bj)
         ws[bi], μs[bi], Σs[bi] = wij, μ, Σ
         deleteat!(ws, bj); deleteat!(μs, bj); deleteat!(Σs, bj)
     end
-    return LenticulumCore.MixtureBelief([LenticulumCore.Gaussian(μs[k], Σs[k]) for k in eachindex(ws)], ws)
+    return LenticulumCore.MixtureBelief([LenticulumCore.Gaussian(μs[k], Σs[k]) for k in eachindex(ws)], _on_device(device, ws))
 end
 
 """

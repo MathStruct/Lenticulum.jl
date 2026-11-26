@@ -256,9 +256,9 @@ struct OrdinalProbitLikelihood{C<:AbstractVector,S<:Real} <: AbstractLikelihood
 end
 function OrdinalProbitLikelihood(cutpoints::AbstractVector{<:Real}; scale::Real = one(float(eltype(cutpoints))))
     isempty(cutpoints) && throw(ArgumentError("need at least one cutpoint"))
-    issorted(cutpoints; lt = ≤) || throw(ArgumentError("cutpoints must be strictly increasing"))
+    issorted(LenticulumCore._host_values(cutpoints); lt = ≤) || throw(ArgumentError("cutpoints must be strictly increasing"))
     scale > 0 || throw(ArgumentError("scale must be positive"))
-    return OrdinalProbitLikelihood(collect(float.(cutpoints)), float(scale))
+    return OrdinalProbitLikelihood(_on_device(_device_leaf(cutpoints), collect(float.(LenticulumCore._host_values(cutpoints)))), float(scale))
 end
 npredictors(::OrdinalProbitLikelihood) = 1
 obsdim(::OrdinalProbitLikelihood) = 1
@@ -446,12 +446,12 @@ function LikelihoodFactor(lik::AbstractLikelihood, nin::Integer; A = nothing, b 
     k = npredictors(lik)
     if A === nothing
         nin == k || throw(ArgumentError("give A ($k × $nin): the likelihood reads $k predictors from $nin latents"))
-        Am = Matrix{b === nothing ? Bool : float(eltype(_vec(b)))}(I, k, k)
+        Am = _eye(b, b === nothing ? Bool : float(eltype(_vec(b))), k)
     else
-        Am = A isa Real ? fill(float(A), 1, 1) : float.(Matrix(A))
+        Am = A isa Real ? fill(float(A), 1, 1) : float.(_matrix(A))
     end
     size(Am) == (k, nin) || throw(DimensionMismatch("A must be $k × $nin, got $(size(Am))"))
-    bv = b === nothing ? zeros(eltype(Am), k) : _vec(b)
+    bv = b === nothing ? _zeros_like(Am, eltype(Am), k) : _vec(b)
     length(bv) == k || throw(DimensionMismatch("b must have length $k"))
     method isa Union{Laplace,ExpectationPropagation} ||
         throw(ArgumentError("method must be Laplace() or ExpectationPropagation(), got $(typeof(method))"))

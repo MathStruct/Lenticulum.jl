@@ -7,10 +7,10 @@ for B in (AlgebraicFactors.ToricBelief, AlgebraicFactors.PolynomialBelief)
     @eval EltypeMatrix.payload(b::$B) = EltypeMatrix.belief_fields(b)
 end
 
-function fixture(name, make, extended)
+function fixture(name, make, extended; raw_blocks = false)
     f = make(Float64, Float64)
     ops = extended ?
-        EltypeMatrix.inference_cases(Mycelium, MyceliumLearning._gradient_message, f; f.pointwise) :
+        EltypeMatrix.inference_cases(Mycelium, MyceliumLearning._gradient_message, f; f.pointwise, raw_blocks) :
         wired_cases(Mycelium.factor_message, Mycelium.local_free_energy, f.factor; f.pointwise)
     return EltypeCase(name, make, ops)
 end
@@ -19,8 +19,8 @@ function data(factor, P, T, ps, msgs, pointwise)
     return (; factor, ps = typed(P, ps), st = (;), msgs = typed(T, msgs), pointwise = typed(T, pointwise))
 end
 
-function fixtures(; extended = false)
-    wired(name, make) = fixture(name, make, extended)
+function fixtures(; extended = false, raw_blocks = false)
+    wired(name, make) = fixture(name, make, extended; raw_blocks)
     return [
         wired(:ToricFactor, (P,T) -> data(
             ToricFactor((:a, :b), (2, 2), [1 1 1 1; 0 0 1 1; 0 1 0 1]; normalised = true),

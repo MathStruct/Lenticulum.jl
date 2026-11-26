@@ -79,3 +79,7 @@ it), varargs passed on to `_first_device` without specialisation, and a loop ove
 `_first_device`; and Mycelium's `_ClusterJoint`, parametric now, read behind a `@nospecialize` argument
 (a function barrier in `_batch_joint`). Closures handed to `_host_spectral` use fresh local names; `lib/Lenticulum.jl/test/lp092.jl`
 checks inference of these paths.
+
+## Q20 device message paths
+
+Host-side mixture selection and energy-wrapper assembly use `_host_values` to download a numeric working array in one transfer. The CPU method returns its argument directly.

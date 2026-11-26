@@ -255,3 +255,9 @@ the factor. `_predictor`, `_tilted`, `_site_message` and `_expansion_message` no
 dual-like eltype (`stop_gradient(zero(E)) isa E` tells a plain float from a dual). A plain
 Float64 `A` with a Float32 input still converts to Float32, as a stored constant does. Test:
 `test/lp094.jl`, finding 9 (the dual case against a central difference).
+
+## Q20 device message paths
+
+The direct ordinal-probit constructor checks increasing cutpoints on a host copy and stores the validated floating-point cutpoints on the input device.
+
+The affine likelihood constructor retains its device predictor matrix and uses that storage for an omitted bias.

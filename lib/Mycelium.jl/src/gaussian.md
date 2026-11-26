@@ -317,3 +317,11 @@ is not changed here.
 Mixture projection reads one weight per host-side component and constructs the total covariance
 on the component backend. Gaussian projection factors that covariance with the shared SPD
 routine.
+
+## Q20 device message paths
+
+Mixture reduction uses host weights for pruning and pair selection, keeps the component moments and covariance factorizations on the device, and uploads the final weights. EP projection downloads its normalised weights once for the component loop and keeps the projected moments on the device.
+
+EP site division keeps the device precision on the device for the definiteness check.
+
+`belief_distance` of two extended Gaussians moves both to a common device when one is on the host (the extended form of a `TrivialBelief`, met in a mean-field sweep on CUDA; LP-095).

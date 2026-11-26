@@ -85,6 +85,24 @@ Gemini listed 11 groups of findings. The session reproduced each claim inside Q7
 | mean-field messages, plate methods (`factor_messages`, `factor_beliefs`, `belief_free_energies`), `factor_belief`, EP (`ep_divide`, `ep_project`), cluster nodes and `cluster_batch`, blocks, `_pin_coordinates`, `belief_logdensity` of a mixture, `SampsonNorm` localisation, `ScoreFunctionCoupling`, `scale_shift_parameters`, constructors called with device arrays | not reproduced (claims from reading) | outside Q7's row: Q20 |
 | Test gaps: views of device arrays are not in the matrix; `device_graphs.jl` covers belief propagation on two small graphs only | right | Q20 |
 
+## Q20 follow-up on device paths
+
+The extended JLArray matrix in `lib/Lenticulum.jl/test/device_inference.jl` reproduced
+failures in backward Gaussian gradient messages, expanded mixtures, switching and clustered
+plates, frozen learned-prior beliefs, and the noisy hard constraint's free energy. The matrix
+passed after the storage fixes. The adapted graph test in `lib/Lenticulum.jl/test/device_graphs.jl`
+also reproduced scalar access during plate convergence and now checks raw blocks, marginal
+beliefs and free energy.
+
+The targeted tests in `lib/Lenticulum.jl/test/device_paths.jl` reproduced mixture pruning,
+Sampson point localisation, categorical score sampling, scale-shift initialisation, and
+constructor storage defects. Mixture log density, EP projection, EP division, and flat
+coordinate pinning already matched the CPU in their JLArray probes. The mixture log-density
+broadcast now aligns storage, and EP avoids per-component device reads and the host precision
+check. The diagonal Gaussian score replay matches the CPU. The dense replay remains a
+broken test because reverse AD reaches the dense device Cholesky. On CUDA and on JLArrays 0.5
+seven more host paths showed, fixed in [[LP-095 Findings of the CUDA run and the review of Q20|LP-095]].
+
 ## The benchmark: four CPU slowdowns (session)
 
 `benchmark/compare.jl --base dev-danielb --packages LenticulumCore,Mycelium,MyceliumLearning,Lenticulum

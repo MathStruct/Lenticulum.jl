@@ -285,6 +285,8 @@ end
 function block_distance(a::PointBlock, b::PointBlock)
     size(a.X) == size(b.X) || return Inf
     a.X === b.X && return 0.0
+    _device_leaf(a.X) === nothing ||
+        return maximum(sqrt.(sum(abs2, a.X .- b.X; dims = 1)); init = 0.0)
     d = 0.0
     for i in axes(a.X, 2)
         s = 0.0
@@ -300,6 +302,7 @@ end
 function block_distance(a::MixtureBlock, b::MixtureBlock)
     size(a.η) == size(b.η) || return Inf
     dΛ = _maxabsdiff(a.Λ, b.Λ)
+    _device_leaf(a.η) === nothing || return max(dΛ, _maxabsdiff(a.η, b.η), _block_weight_distance(a.logw, b.logw))
     d = 0.0
     for i in axes(a.η, 3)
         w = 0.0
@@ -319,6 +322,7 @@ end
 function block_distance(a::ComponentMixtureBlock, b::ComponentMixtureBlock)
     size(a.η) == size(b.η) || return Inf
     dΛ = maximum(k -> _maxabsdiff(a.Λs[k], b.Λs[k]), eachindex(a.Λs); init = 0.0)
+    _device_leaf(a.η) === nothing || return max(dΛ, _maxabsdiff(a.η, b.η), _block_weight_distance(a.logw, b.logw))
     d = 0.0
     for i in axes(a.η, 3)
         w = 0.0
@@ -337,6 +341,7 @@ end
 # Total variation per column, as `belief_distance` of two categoricals.
 function block_distance(a::CategoricalBlock, b::CategoricalBlock)
     size(a.logp) == size(b.logp) && isequal(a.labels, b.labels) || return Inf
+    _device_leaf(a.logp) === nothing || return _block_weight_distance(a.logp, b.logp)
     d = 0.0
     for i in axes(a.logp, 2)
         s = 0.0
@@ -347,9 +352,13 @@ function block_distance(a::CategoricalBlock, b::CategoricalBlock)
     end
     return d
 end
+_block_weight_distance(a, b) =
+    maximum(sum(abs.(exp.(a) .- exp.(b)); dims = 1); init = 0.0) / 2
+
 function _maxabsdiff(x::AbstractArray, y::AbstractArray)
     x === y && return 0.0
     size(x) == size(y) || return Inf
+    _device_leaf(x) === nothing || return maximum(abs, x .- y; init = 0.0)
     d = 0.0
     for (u, v) in zip(x, y)
         d = max(d, abs(u - v))

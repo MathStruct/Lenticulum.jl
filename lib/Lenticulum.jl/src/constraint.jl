@@ -85,8 +85,8 @@ function LinearConstraintFactor(
     size(Q) == (m, m) || throw(ArgumentError("noise covariance must have size ($m, $m), matching the residual dimension"))
     # Exact `issymmetric` rejects J S Jᵀ, which rounds asymmetrically (LP-019 follow-up).
     LenticulumCore._nearly_symmetric(Q) || throw(ArgumentError("noise covariance must be symmetric"))
-    Q = Matrix(LenticulumCore._symmetric_part(Q))   # one consistent matrix from here on
-    isposdef(Symmetric(Q)) ||
+    Q = _matrix(LenticulumCore._symmetric_part(Q))   # one consistent matrix from here on
+    (_device_leaf(Q) === nothing ? isposdef(Symmetric(Q)) : LenticulumCore._precision_isproper(Q)) ||
         throw(ArgumentError("noise covariance Q must be positive definite"))
     C = output === nothing ? nothing : _output_coeff(dims, m, output, output_coeff, _output_eltype(output_coeff, Q))
     return LinearConstraintFactor(dims, m, Q, init_coeff, init_constant, output, C)
@@ -100,9 +100,9 @@ function _output_coeff(dims, m, output, C, ::Type{T}) where {T}
     output in keys(dims) || throw(ArgumentError("output :$output is not a continuous channel (has $(keys(dims)))"))
     dims[output] == m || throw(ArgumentError(
         "output :$output has dimension $(dims[output]); a fixed output coefficient needs the residual dimension $m"))
-    A = C isa LinearAlgebra.UniformScaling ? Matrix{T}(C, m, m) : Matrix{T}(C)
+    A = C isa LinearAlgebra.UniformScaling ? Matrix{T}(C, m, m) : _matrix(T, C)
     size(A) == (m, m) || throw(DimensionMismatch("output_coeff must be $m × $m; got $(size(A))"))
-    LinearAlgebra.rank(A) == m || throw(ArgumentError("output_coeff must be invertible"))
+    _host_spectral(LinearAlgebra.rank, A) == m || throw(ArgumentError("output_coeff must be invertible"))
     return A
 end
 
@@ -844,7 +844,7 @@ function Mycelium.belief_free_energies(fs::AbstractVector{<:LinearConstraintFact
     Qi = _symmetric_inv(Q)                                   # not inv(::Cholesky): Zygote has no rule
     complexity = logdet(_chol((2 * eltype(Q)(π)) .* Q, "2πQ")) / 2
     fit = _column_fits(R, Qi, Cr)
-    return [LenticulumCore.GradedEnergy((fit = fi, complexity = complexity, negentropy = _negentropy(b.H))) for fi in fit], st
+    return [LenticulumCore.GradedEnergy((fit = fi, complexity = complexity, negentropy = _negentropy(b.H))) for fi in LenticulumCore._host_values(fit)], st
 end
 function Mycelium.local_free_energies(fs::AbstractVector{<:LinearConstraintFactor}, msgs::NamedTuple, ps, st)
     b = Mycelium.factor_beliefs(fs, msgs, ps, st)
@@ -879,7 +879,7 @@ function _product_belief(names, dims, marginals; K = nothing, q = nothing)
                 "the marginal on :$n has dimension $(LenticulumCore.dimension(b)), the channel $(dims[n])"))
             push!(free, n)
             push!(means, LenticulumCore.belief_mean(b))
-            push!(covs, Matrix(LenticulumCore.belief_cov(b)))
+            push!(covs, _matrix(LenticulumCore.belief_cov(b)))
         else
             throw(ArgumentError(
                 "a MeanField() node's energy needs a point, a proper Gaussian or an extended Gaussian \

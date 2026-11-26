@@ -71,14 +71,16 @@ function RegimeFactor(dims::NamedTuple, K::Int, m::Int; switch::Symbol = :k, noi
     per = noise isa AbstractArray{<:Real,3} ? [noise[:, :, k] for k in axes(noise, 3)] :
           noise isa AbstractVector && !(eltype(noise) <: Real) ? noise : fill(noise, K)
     length(per) == K || throw(ArgumentError("noise: $(length(per)) covariances for $K regimes"))
-    Q = zeros(promote_type(map(q -> eltype(_as_cov(q, m)), per)...), m, m, K)
+    T = promote_type(map(q -> eltype(_as_cov(q, m)), per)...)
+    device = _first_device(per)
+    Q = device === nothing ? zeros(T, m, m, K) : _zeros_like(device, T, m, m, K)
     for k in 1:K
         Qk = _as_cov(per[k], m)
         size(Qk) == (m, m) || throw(ArgumentError("noise covariance $k must have size ($m, $m)"))
         LenticulumCore._nearly_symmetric(Qk) || throw(ArgumentError("noise covariance $k must be symmetric"))
-        Qk = Matrix(LenticulumCore._symmetric_part(Qk))
-        isposdef(Symmetric(Qk)) || throw(ArgumentError("noise covariance $k must be positive definite"))
-        Q[:, :, k] = Qk
+        Qk = _matrix(LenticulumCore._symmetric_part(Qk))
+        (_device_leaf(Qk) === nothing ? isposdef(Symmetric(Qk)) : LenticulumCore._precision_isproper(Qk)) || throw(ArgumentError("noise covariance $k must be positive definite"))
+        Q[:, :, k] = _on_device(device, Qk)
     end
     C = output === nothing ? nothing : _output_coeff(dims, m, output, output_coeff, _output_eltype(output_coeff, Q))
     return RegimeFactor(dims, K, m, switch, Q, learn_noise, init_coeff, init_offsets, output, C)

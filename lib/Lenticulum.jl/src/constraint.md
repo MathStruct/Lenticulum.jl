@@ -469,3 +469,11 @@ The BigFloat message fixtures in `test/eltypes.jl` load GenericLinearAlgebra.
   `_compute_eltype(float(eltype(f.Q)), ps)`: the parameters' floating promotion, defaulting to
   the stored noise's float type when the parameters hold no float. `_fixed_at` takes the factor
   (`regime.jl` and the ChainRules extension follow).
+
+## Q20 device message paths
+
+Frozen affine plate energies evaluate the column fits on the device and transfer their scalar values in one batch to the host collection of graded energies.
+
+The direct constructor retains device storage for its covariance and an explicitly supplied output coefficient. It checks the coefficient rank through the host spectral hook.
+
+Found on CUDA (LP-095): the mean-field product belief (`_product_belief`) copied each marginal's covariance to the host with `Matrix`; it keeps the marginal's storage now (`_matrix`).

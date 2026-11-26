@@ -418,7 +418,7 @@ function MyceliumLearning._gradient_message(ad, f::GaussianFactor, target::Symbo
     elseif target === f.in_channel
         m,S=_moments(_get(inputs,f.out_channel),f.nout)
         m === nothing && return LenticulumCore.TrivialBelief(),st
-        Ri=inv(Symmetric(_gaussian_covariance(f,ps,m,S)+S))
+        Ri=_symmetric_inv(_gaussian_covariance(f,ps,m,S)+S)
         return GaussianBelief(ps.A'*(Ri*(m-ps.b)),ps.A'*Ri*ps.A,_rank_deficient(ps.A)),st
     end
     throw(ArgumentError("unknown Gaussian target :$target"))
@@ -697,7 +697,8 @@ function GaussianPrior(channel::Symbol, μ::AbstractVector, Σ::AbstractMatrix;
     end
     Q = _as_cov(Σ, length(μ))
     size(Q) == (length(μ), length(μ)) || throw(DimensionMismatch("prior covariance size"))
-    issymmetric(Q) && isposdef(Symmetric(Q)) || throw(ArgumentError("Σ must be symmetric positive definite"))
+    issymmetric(Q) && (_device_leaf(Q) === nothing ? isposdef(Symmetric(Q)) : LenticulumCore._precision_isproper(Q)) ||
+        throw(ArgumentError("Σ must be symmetric positive definite"))
     return GaussianPrior(channel, float.(μ), Q, _noise_learning(Q, learn_noise, noise_prior, eigenvalue_floor))
 end
 GaussianPrior(channel::Symbol, μ::Real, σ²::Real; kwargs...) =
@@ -731,7 +732,7 @@ function LenticulumCore.energy(f::GaussianPrior, x, a, y, ps, st)
         complexity = (length(d) * LenticulumCore._log2π(eltype(Q)) + logdet(C)) / 2
     else
         P, logdetQ = _noise_metrics(f.noise_learning, Q, ps)   # Q: LP-091 finding 2
-        fit = (d' * P * d) / 2
+        fit = (device === nothing ? d' * P * d : d' * (P * d)) / 2
         complexity = (length(d) * LenticulumCore._log2π(typeof(logdetQ)) + logdetQ) / 2
     end
     return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = false)), st
@@ -922,7 +923,7 @@ function _affine_gaussian_belief(blocks, r0, W, msgs, dims; q = nothing)
     M = CΛ \ η
     all(isnothing, lifts) && return FrozenGaussianBelief(points, free, M, Σ, H, q)
     x0 = reduce(vcat, [l === nothing ? _zeros_like(M, eltype(M), dims[n]) : l[1] for (n, l) in zip(free, lifts)])
-    L = _blockdiag([l === nothing ? Matrix{eltype(M)}(I, dims[n], dims[n]) : Matrix(l[2]) for (n, l) in zip(free, lifts)])
+    L = _blockdiag([l === nothing ? _eye(M, eltype(M), dims[n]) : _on_device(_device_leaf(M), _matrix(l[2])) for (n, l) in zip(free, lifts)])
     Σx = L * Σ * L'
     return FrozenGaussianBelief(points, free, x0 .+ L * M, (Σx + Σx') / 2, H, q)
 end
@@ -966,7 +967,7 @@ function _affine_gaussian_beliefs(blocks, r0::AbstractVector, W, msgs::NamedTupl
     for c in keys(blocks)
         b = _get(msgs, c)
         if b isa Mycelium.PointBlock
-            push!(points, c => Matrix(b.X))
+            push!(points, c => _matrix(b.X))
             R0 = R0 .+ blocks[c] * b.X
         elseif b === nothing || b isa Mycelium.TrivialBlock || (b isa Mycelium.GaussianBlock && b.Λ isa AbstractMatrix)
             push!(free, c)
@@ -1034,10 +1035,11 @@ _derivative_carrier(x) = LenticulumCore.stop_gradient(zero(eltype(x))) isa eltyp
 # Identity relation x − μ in the working type of its covariance, promoted with a stored mean that
 # carries a derivative (LP-094 findings 1 and 4a: a dual μ keeps its derivative, an integer or
 # plain float μ does not widen the call).
-function _prior_relation(f::GaussianPrior, ::Type{T}) where {T}
+function _prior_relation(f::GaussianPrior, Q)
+    T = eltype(Q)
     n = length(f.μ)
     S = _derivative_carrier(f.μ) === nothing ? T : promote_type(T, eltype(f.μ))
-    return NamedTuple{(f.channel,)}((Matrix{S}(I, n, n),)), -_at_eltype(S, f.μ)
+    return NamedTuple{(f.channel,)}((_eye(Q, S, n),)), -_on_device(_device_leaf(Q), _at_eltype(S, f.μ))
 end
 
 """
@@ -1051,8 +1053,9 @@ function Mycelium.factor_belief(f::GaussianPrior, msgs, ps, st)
         "a GaussianPrior with a learned covariance does not take hard messages in its free energy"))
     Q = _covariance_at(f.Σ, ps, msgs)
     Λ0 = f.noise_learning === nothing ? _prior_precision(Q) : first(_noise_metrics(f.noise_learning, Q, ps))
+    Λ0 = _device_leaf(Λ0) === nothing ? Λ0 : _matrix(Λ0)
     n = length(f.μ)
-    A, r0 = _prior_relation(f, eltype(Q))
+    A, r0 = _prior_relation(f, Q)
     return _affine_gaussian_belief(A, r0, Λ0, msgs, NamedTuple{(f.channel,)}((n,)))
 end
 # Tied priors with one mean and covariance, from message blocks.
@@ -1063,22 +1066,24 @@ function Mycelium.factor_beliefs(fs::AbstractVector{<:GaussianPrior}, msgs::Name
         return invoke(Mycelium.factor_beliefs, Tuple{AbstractVector,NamedTuple,Any,Any}, fs, msgs, ps, st)
     Q = _covariance_at(f.Σ, ps, map(_block_numbers, msgs))
     Λ0 = f.noise_learning === nothing ? _prior_precision(Q) : first(_noise_metrics(f.noise_learning, Q, ps))
+    Λ0 = _device_leaf(Λ0) === nothing ? Λ0 : _matrix(Λ0)
     n = length(f.μ)
-    A, r0 = _prior_relation(f, eltype(Q))
+    A, r0 = _prior_relation(f, Q)
     return _affine_gaussian_beliefs(A, r0, Λ0, msgs, NamedTuple{(f.channel,)}((n,)), length(fs))
 end
 function Mycelium.belief_free_energies(fs::AbstractVector{<:GaussianPrior}, b::FrozenGaussianBeliefs, ps, st)
     f = first(fs)
     n = length(f.μ)
     Q = _covariance_at(f.Σ, ps, b.M, b.Σ, b.H)
-    A, r0 = _prior_relation(f, eltype(Q))
+    A, r0 = _prior_relation(f, Q)
     R, Cr = _frozen_residuals(A, r0, b)
     Λ0, logdetQ = f.noise_learning === nothing ?
         (_prior_precision(Q), zero(eltype(Q))) : _noise_metrics(f.noise_learning, Q, ps)
     complexity = f.noise_learning === nothing ? logdet(_chol((2 * eltype(Q)(π)) .* Q, "2πΣ")) / 2 :
         (n * LenticulumCore._log2π(typeof(logdetQ)) + logdetQ) / 2 + _noise_penalty(f.noise_learning.prior, Λ0, logdetQ)
-    fit = _column_fits(R, Λ0, Cr)
-    return [LenticulumCore.GradedEnergy((fit = fi, complexity = complexity, negentropy = _negentropy(b.H))) for fi in fit], st
+    W = _device_leaf(Λ0) === nothing ? Λ0 : _matrix(Λ0)
+    fit = _column_fits(R, W, Cr)
+    return [LenticulumCore.GradedEnergy((fit = fi, complexity = complexity, negentropy = _negentropy(b.H))) for fi in LenticulumCore._host_values(fit)], st
 end
 function Mycelium.local_free_energies(fs::AbstractVector{<:GaussianPrior}, msgs::NamedTuple, ps, st)
     b = Mycelium.factor_beliefs(fs, msgs, ps, st)
@@ -1090,13 +1095,14 @@ end
 function Mycelium.belief_free_energy(f::GaussianPrior, b::FrozenGaussianBelief, ps, st)
     n = length(f.μ)
     Q = _covariance_at(f.Σ, ps, b.m, b.Σ, b.H)
-    A, r0 = _prior_relation(f, eltype(Q))
+    A, r0 = _prior_relation(f, Q)
     r̄, Cr = _frozen_residual(A, r0, b)
     Λ0, logdetQ = f.noise_learning === nothing ?
         (_prior_precision(Q), zero(eltype(Q))) : _noise_metrics(f.noise_learning, Q, ps)
     complexity = f.noise_learning === nothing ? logdet(_chol((2 * eltype(Q)(π)) .* Q, "2πΣ")) / 2 :
         (n * LenticulumCore._log2π(typeof(logdetQ)) + logdetQ) / 2 + _noise_penalty(f.noise_learning.prior, Λ0, logdetQ)
-    fit = (r̄' * (Λ0 * r̄) + tr(Λ0 * Cr)) / 2
+    W = _device_leaf(Λ0) === nothing ? Λ0 : _matrix(Λ0)
+    fit = (r̄' * (W * r̄) + tr(W * Cr)) / 2
     return LenticulumCore.GradedEnergy((fit = fit, complexity = complexity, negentropy = _negentropy(b.H))), st
 end
 

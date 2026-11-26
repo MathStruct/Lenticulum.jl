@@ -23,11 +23,11 @@ function EltypeMatrix.agrees(a::AbstractVector, b::Mycelium.FrozenClusterBeliefs
     end
 end
 
-function fixture(name, make, extended; energy = true, mean_field = true)
+function fixture(name, make, extended; energy = true, mean_field = true, raw_blocks = false)
     f = make(Float64, Float64)
     pointwise = energy ? f.pointwise : nothing
     ops = extended ?
-        EltypeMatrix.inference_cases(Mycelium, MyceliumLearning._gradient_message, f; pointwise, mean_field) :
+        EltypeMatrix.inference_cases(Mycelium, MyceliumLearning._gradient_message, f; pointwise, mean_field, raw_blocks) :
         wired_cases(Mycelium.factor_message, Mycelium.local_free_energy, f.factor; pointwise)
     return EltypeCase(name, make, ops)
 end
@@ -36,8 +36,8 @@ function data(factor, P, T, ps, msgs, pointwise = nothing; st = (;))
     return (; factor, ps = typed(P, ps), st, msgs = typed(T, msgs), pointwise = typed(T, pointwise))
 end
 
-function fixtures(; extended = false)
-    wired(name, make; kwargs...) = fixture(name, make, extended; kwargs...)
+function fixtures(; extended = false, raw_blocks = false)
+    wired(name, make; kwargs...) = fixture(name, make, extended; raw_blocks, kwargs...)
     px = Gaussian(0.5, 0.8)
     py = Gaussian(0.9, 0.7)
     x = DiracBelief([0.5])

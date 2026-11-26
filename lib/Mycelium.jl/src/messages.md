@@ -302,3 +302,7 @@ residual tolerances and importance-weight warning thresholds are outside P33.
 Adapt traverses both message directions and pinned values. The edge and replica indices stay on
 the host. Mixture products read scalar weights for their host-side component loop and place the
 normalised output weights on the same backend as the component arrays.
+
+## Q20 device message paths
+
+Mixture log density collects the scalar component evaluations and moves them to the backend of the log weights before adding and reducing. The returned log density is a scalar.

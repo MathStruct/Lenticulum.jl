@@ -423,3 +423,11 @@ call to Float64. It is now `_logweights(ps, inputs...)`: the normalised log-weig
 call's working type (the messages, the beliefs, or the covariance `Q`; `cluster_form` passes
 `_covariance_at(f.Q, ps)`). An integer `logw` in a Float32 call now gives Float32. Tests:
 `test/lp094.jl`, finding 5.
+
+## Q20 device message paths
+
+Expanded mixture messages keep the component information and covariances on the device, and obtain the weights used for host enumeration in one transfer per vector. Frozen switching plate beliefs keep their stacked means, covariance, point values and posterior probabilities on the device. Their per-replica graded energies are assembled on the host.
+
+The direct constructor preserves device noise storage and validates positive definiteness through the storage hook.
+
+Found on CUDA (LP-095): the plate message to the outcome and the mixture block took host placeholders from `_block_parts` of an absent channel, and the mixture block a host `zeros(Bool, K, n)` outcome block; `_parts_on_device` and `_on_device` move them to the device of `Q` first. On the host both are the identity.

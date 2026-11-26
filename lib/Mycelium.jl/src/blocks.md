@@ -274,3 +274,7 @@ which now also returns this block (improper components included).
 Adapt moves points, natural parameters, weights and recursively stored beliefs. Replica indices
 and the improper flags remain host data. Block columns and per-edge messages keep the adapted
 payload backend.
+
+## Q20 device message paths
+
+Point, categorical and Gaussian-mixture block residuals use device reductions for device-backed messages. The scalar maximum returns to the scheduler on the host.
