@@ -7,6 +7,7 @@ using LuxCore
 using LinearAlgebra
 using Random
 using Test
+include(joinpath(@__DIR__, "..", "..", "LenticulumCore.jl", "test", "support", "strict_jlarrays.jl"))  # JLArrays refuses host arrays in kernels, as CUDA does (Q21)
 
 # ---------------------------------------------------------------------------
 # The oracles.

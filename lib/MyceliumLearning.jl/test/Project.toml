@@ -17,6 +17,7 @@ LuxCore = "bb33d45b-7691-41d6-9220-0943567d0623"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [compat]
+JLArrays = "0.5"
 ADTypes = "1"
 DifferentiationInterface = "0.7"
 Enzyme = "0.13.221"

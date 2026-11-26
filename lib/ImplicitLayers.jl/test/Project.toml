@@ -29,4 +29,6 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Lenticulum = {path = "../../Lenticulum.jl"}
 
 [compat]
+# 0.5 needs KernelAbstractions 0.10; LinearSolve (through SciMLSensitivity) caps it at 0.9 (Q21, 2026-11-26)
+JLArrays = "0.4, 0.5"
 Enzyme = "0.13.221"

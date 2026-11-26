@@ -58,6 +58,41 @@ such broadcasts that every JLArray test had passed: `ScaleShiftFactor`'s message
 difference Jacobian (host scales against the device rounding bounds); both fixed. A device is slower
 than the CPU for single factors up to dimension 256 (`gpu/device_benchmarks.md`).
 
+**JLArrays against CUDA (Q21).** Every test environment requires JLArrays 0.5, except ImplicitLayers',
+which admits 0.4 too, because 0.5 needs KernelAbstractions 0.10 and LinearSolve, through
+SciMLSensitivity, still caps it at 0.9. DifferentiationInterfaceTest 0.11 caps JLArrays at 0.3, so
+it is out of every test environment: the AD matrix's two scenario rows are now plain checks against the
+finite-difference reference, as in LP-089. JLArrays 0.5 refuses BLAS and LAPACK on a device array. Its
+kernels still run on the CPU, though, so a host array inside a broadcast works there. Each package's
+`runtests.jl` includes `test/support/strict_jlarrays.jl`, a test-only method of
+`Adapt.adapt_storage(::JLArrays.Adaptor, ::Array)` that throws, so a host array that reaches a JLArray
+kernel fails as it does on CUDA. `gpu/jlarrays_vs_cuda.jl` runs 22 operations on both (JLArrays 0.5.0,
+CUDA 6.5.1, RTX 3080, scalar indexing off; `strict` adds the hook):
+
+| operation | JLArrays 0.5 | with the hook | CUDA |
+|---|---|---|---|
+| device `.+`/`.*` host matrix, vector or `Bool` matrix | accepts | refuses | refuses |
+| device matrix `*` host vector | accepts | accepts | refuses |
+| `dot(device, host)` | accepts | accepts | refuses |
+| device `*` host matrix (either side), `mul!` into a host matrix, `det`, scalar index | refuses | refuses | refuses |
+| `isposdef`, `cholesky`, `eigen` of a `Symmetric` device matrix, `inv`, `\` | refuses | refuses | accepts (cuSOLVER) |
+| `copyto!` from host, `Matrix(device)`, `hcat(device, host)`, `tr`, `diag`, a view times a device matrix, mixed element types | accepts | accepts | accepts |
+
+So a host vector in a matrix-vector product and `dot` of a device and a host vector still show only
+on a GPU (`gpu/runtests.jl`). JLArrays refuses the factorisations CUDA has from cuSOLVER, which the
+library avoids on devices anyway (`_precision_isproper`, the device Cholesky). Under the hook, the
+device files of all seven packages pass (`gpu/runtests.jl`'s file list with `JLArray` in place of
+`CuArray`: 25,265 passed, 2 broken, 2026-11-26).
+
+Does the hook catch what only CUDA caught? To check, two LP-095 fixes were undone at runtime, and
+Lenticulum's `device_inference.jl` was run on JLArrays 0.5 with and without the hook. Undoing fix 2
+(host placeholders of an absent channel in the switching plate message, which then meet a device block in
+a BLAS product) gave 9 errors both ways: 0.5 alone catches it. Undoing fix 3 (a host log-weight block
+broadcast with device weights in `_switch_mixture_block`) gave 2,520 passed without the hook. With the
+hook it gave 6 errors, in the `plate_message_block_*` fixtures, the same 6 that the CUDA run of Q20
+showed. The scripts are not kept; the test "a host array in a device broadcast is refused"
+(`test/device_arrays.jl`) fails if the hook is missing.
+
 **Not done.** Eigen and SVD have no device algorithm. AD through the device paths is not tested here
 (the device AD tests of Mycelium, MyceliumLearning and ImplicitLayers stay behind
 `LENTICULUM_DEVICE_TESTS`, and run on CUDA in `gpu/runtests.jl`). VariationalDiffusion's device tests

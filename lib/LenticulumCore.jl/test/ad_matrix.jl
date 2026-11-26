@@ -1,7 +1,6 @@
 module CoreADMatrix
 
 using LenticulumCore, LinearAlgebra, Test
-import DifferentiationInterfaceTest as DIT
 include("support/ad_matrix.jl")
 using .Q5ADMatrix
 include("support/parameter_residual.jl")
@@ -12,7 +11,7 @@ include("support/parameter_residual.jl")
     p = [0.2, -0.1]
     parameters(v) = (block=(A=[0.3 0.2; 0.1 -0.4], empty=(;)), b=v, c=(0.4,))
     gradient_row("energy/ParameterResidual", v -> sum(abs2, first(energy(f, x, nothing, y, parameters(v), st))), p;
-                 forward=true, scenario=DIT)
+                 forward=true)
 
     # The container factors define free-energy components and scalarisations,
     # and have no raw pointwise energy method in LenticulumCore.

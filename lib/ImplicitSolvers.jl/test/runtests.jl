@@ -1,5 +1,6 @@
 using ImplicitSolvers, LinearAlgebra, Test, Random
 using ForwardDiff, JLArrays
+include(joinpath(@__DIR__, "..", "..", "LenticulumCore.jl", "test", "support", "strict_jlarrays.jl"))  # JLArrays refuses host arrays in kernels, as CUDA does (Q21)
 
 @testset verbose=true "ImplicitSolvers" begin
     include("tolerance_report.jl")

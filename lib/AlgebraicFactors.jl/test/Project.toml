@@ -26,7 +26,7 @@ MyceliumLearning = {path = "../../MyceliumLearning.jl"}
 
 [compat]
 GenericLinearAlgebra = "0.4.2"
-JLArrays = "0.4"
+JLArrays = "0.5"
 StaticArrays = "1"
 Adapt = "4"
 InteractiveUtils = "1"

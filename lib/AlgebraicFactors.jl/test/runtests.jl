@@ -5,6 +5,7 @@ using LinearAlgebra
 using LuxCore
 using Random
 using Test
+include(joinpath(@__DIR__, "..", "..", "LenticulumCore.jl", "test", "support", "strict_jlarrays.jl"))  # JLArrays refuses host arrays in kernels, as CUDA does (Q21)
 
 # §2.3 obligation only: these fixtures are not the §3 polynomial-factor API.
 # Monomial order: (1, z₁, z₂, z₁², z₁z₂, z₂²).

@@ -7,8 +7,10 @@
 # The same files run on JLArrays in each package's own suite. Here `Main.LENTICULUM_DEVICE_ARRAY`
 # is CuArray, which each file reads into its `DeviceArray` (and `DeviceMatrix.device_array()`),
 # so every device array of the tests is a CuArray, with scalar indexing off. JLArrays runs its
-# kernels on the CPU and so accepts what CUDA refuses: a broadcast that mixes a host and a device
-# array, a kernel that is not GPU-compilable. That is what this job catches. Each package's files
+# kernels on the CPU and so accepts some of what CUDA refuses: a host vector in a matrix-vector
+# product, `dot` of a device and a host vector, a kernel that is not GPU-compilable
+# (`gpu/jlarrays_vs_cuda.jl`; the suites' hook `strict_jlarrays.jl` makes it refuse host arrays in
+# broadcasts, Q21). That is what this job catches. Each package's files
 # are included into a module of their own, after the `using` lines its runtests.jl gives them.
 # It runs locally only; `gpu/GPU.yml` is a CI job for a self-hosted GPU runner, commented out.
 

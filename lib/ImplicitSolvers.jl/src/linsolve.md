@@ -206,6 +206,6 @@ Measured 2026-11-24 with `lib/ImplicitSolvers.jl/test/ad_matrix.jl`.
 
 Enzyme forward mode is also broken on DenseSolve with a runtime activity error. Numerical agreement leaves the choice of differentiation rule to the Q6 checks.
 
-These rows use direct DI gradient checks. DifferentiationInterfaceTest 0.11 requires JLArrays at or below 0.3 when present, and the device tests require JLArrays 0.4 or 0.5.
+These rows use direct DI gradient checks. DifferentiationInterfaceTest 0.11 requires JLArrays at or below 0.3 when present, and the device tests require JLArrays 0.5 (Q21); no test environment of the repository uses DifferentiationInterfaceTest since Q21.
 
 The standalone matrix took 5m13s before the split. KrylovJL and the column driver run with `LENTICULUM_SLOW_TESTS=true` or `only`.

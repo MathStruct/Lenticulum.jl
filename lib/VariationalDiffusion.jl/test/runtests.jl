@@ -12,6 +12,7 @@ using DifferentiationInterface: DifferentiationInterface
 using ADTypes: AutoZygote, AutoForwardDiff, AutoEnzyme
 using JLArrays: JLArrays, JLArray
 import Zygote, ForwardDiff, Enzyme
+include(joinpath(@__DIR__, "..", "..", "LenticulumCore.jl", "test", "support", "strict_jlarrays.jl"))  # JLArrays refuses host arrays in kernels, as CUDA does (Q21)
 
 # ---------------------------------------------------------------------------
 # The oracle.

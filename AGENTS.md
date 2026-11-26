@@ -168,8 +168,13 @@ KaTeX, the TikZ diagrams); Obsidian's rendering differs in places. Both builds m
   Mycelium, MyceliumLearning and ImplicitLayers run only with `LENTICULUM_DEVICE_TESTS=true`;
   run them before committing device-facing changes. On a machine with an NVIDIA GPU, also run
   them on CUDA: `julia --project=gpu gpu/runtests.jl [Package ...]` (instantiate `gpu/` once; its
-  Manifest is not tracked). JLArrays accepts a broadcast that mixes host and device arrays and CUDA
-  does not (LP-093). These run locally only; no CI job has a GPU.
+  Manifest is not tracked). The test environments require JLArrays 0.5 (ImplicitLayers admits 0.4
+  until LinearSolve allows KernelAbstractions 0.10), which refuses BLAS on a device array, and each
+  runtests.jl includes `lib/LenticulumCore.jl/test/support/strict_jlarrays.jl`, which makes JLArrays
+  refuse a host array in a broadcast as CUDA does. JLArrays still accepts a host vector in a
+  matrix-vector product and `dot` of a device and a host vector (`gpu/jlarrays_vs_cuda.jl`). These
+  run locally only; no CI job has a GPU. Do not add DifferentiationInterfaceTest to a test
+  environment: it caps JLArrays at 0.3.
 - Since Julia 1.12 the main thread is in the `:interactive` pool; a busy task spawned there can
   starve it (`bench/jit_latency.jl`).
 

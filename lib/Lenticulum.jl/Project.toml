@@ -20,11 +20,10 @@ MyceliumLearning = {path = "../MyceliumLearning.jl"}
 
 [compat]
 GenericLinearAlgebra = "0.4.2"
-JLArrays = "0.3, 0.4"
+JLArrays = "0.5"
 StaticArrays = "1"
 Adapt = "4"
 InteractiveUtils = "1"
-DifferentiationInterfaceTest = "0.11"
 Enzyme = "0.13.221"
 Mooncake = "0.5"
 FiniteDifferences = "0.12"
@@ -51,7 +50,6 @@ GenericLinearAlgebra = "14197337-ba66-59df-a3e3-ca00e7dcff7a"
 JLArrays = "27aeb0d3-9eb9-45fb-866b-73c2ecf80fcb"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
-DifferentiationInterfaceTest = "a82114a7-5aa3-49a8-9643-716bb13727a3"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
 FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
@@ -68,7 +66,7 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["GenericLinearAlgebra", "JLArrays", "StaticArrays", "InteractiveUtils", "DifferentiationInterfaceTest", "Enzyme", "Mooncake", "FiniteDifferences", "Aqua", "ADTypes", "DifferentiationInterface", "ForwardDiff", "Zygote", "Test", "BayesBase", "Distributions", "ExponentialFamily", "RxInfer", "Printf"]
+test = ["GenericLinearAlgebra", "JLArrays", "StaticArrays", "InteractiveUtils", "Enzyme", "Mooncake", "FiniteDifferences", "Aqua", "ADTypes", "DifferentiationInterface", "ForwardDiff", "Zygote", "Test", "BayesBase", "Distributions", "ExponentialFamily", "RxInfer", "Printf"]
 
 [weakdeps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"

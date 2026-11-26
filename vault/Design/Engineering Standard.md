@@ -117,10 +117,10 @@ them; until then the criterion is the standard but not a gate.
 | C1 | `tools/type_audit.jl` lists only documented exceptions | CI, per package | to add (Q2) |
 | C1 | JET `@test_opt` on entry points and kernels with concrete types; ExplicitImports | CI, per package (a new JET test file) | to add (T3, Q3) |
 | C1 | Aqua (ambiguities, unbound parameters, piracy, stale deps, compat) | every suite, `test/aqua.jl` | exists |
-| C2 | backend matrix against finite differences (DifferentiationInterfaceTest) | every suite (a new AD-matrix test file) | to add (Q5); partial today (ImplicitLayers, VariationalDiffusion: all four) |
+| C2 | backend matrix against finite differences (plain DifferentiationInterface checks; DifferentiationInterfaceTest dropped, it caps JLArrays at 0.3, Q21) | every suite (a new AD-matrix test file) | to add (Q5); partial today (ImplicitLayers, VariationalDiffusion: all four) |
 | C2 | no differentiation through solver loops (operator calls counted) | every suite | to add (Q6) |
 | C3 | element-type tests (`Float32`, `BigFloat`, `Dual`) per factor type | every suite | to add (Q4) |
-| C3 | JLArrays with `allowscalar(false)` | `CI.yml` `device` (Mycelium, MyceliumLearning); ImplicitSolvers' and VariationalDiffusion's in their suites | exists; factors to add (Q7) |
+| C3 | JLArrays 0.5 with `allowscalar(false)`, refusing host arrays in kernels (`test/support/strict_jlarrays.jl`, Q21) | `CI.yml` `device` (Mycelium, MyceliumLearning); the other packages' in their suites | exists; factors to add (Q7) |
 | C3 | hardware GPU | Buildkite or a self-hosted runner, weekly | to add (Q8) |
 | C4 | thread-safety tests from several tasks; results equal at 1 and 8 threads | every suite, with `JULIA_NUM_THREADS=auto` in `CI.yml` | to add (Q9, Q10) |
 | C5 | `benchmark/benchmarks.jl` per package compared with `dev` and `master` | a pull-request job (AirspeedVelocity.jl) | to add (Q13) |

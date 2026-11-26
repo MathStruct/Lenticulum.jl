@@ -1,6 +1,18 @@
 using Adapt, JLArrays, LinearAlgebra, Random, Test, LenticulumCore
 const DeviceArray = isdefined(Main, :LENTICULUM_DEVICE_ARRAY) ? Main.LENTICULUM_DEVICE_ARRAY : JLArray  # CuArray under gpu/runtests.jl (Q8)
 
+# Q21: the suites run JLArrays 0.5 with `test/support/strict_jlarrays.jl`, so a host array in a
+# device broadcast fails here as it does on CUDA (LP-095 finding 3 passed on JLArrays without it).
+@testset "a host array in a device broadcast is refused" begin
+    JLArrays.allowscalar(false)
+    x = DeviceArray(ones(3))
+    @test_throws Exception x .+ ones(3)
+    @test_throws Exception x .* zeros(Bool, 3)
+    @test Array(x .+ 1.0) == fill(2.0, 3)          # scalars, ranges and device arrays still broadcast
+    @test Array(x .+ (1:3)) == [2.0, 3.0, 4.0]
+    @test Array(x .+ x) == fill(2.0, 3)
+end
+
 @testset "Device Gaussian algebra and adaptation" begin
     JLArrays.allowscalar(false)
     rng = MersenneTwister(917)

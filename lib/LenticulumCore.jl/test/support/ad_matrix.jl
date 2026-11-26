@@ -37,8 +37,7 @@ function same(a, b)
     return true
 end
 
-function matrix_row(name, differentiate, expected; broken=(), mutates=(), skipped=(), slow=(), forward=false,
-                    forwarddiff_scenario=nothing, check_fixture=true)
+function matrix_row(name, differentiate, expected; broken=(), mutates=(), skipped=(), slow=(), forward=false, check_fixture=true)
     backends = forward ? (BACKENDS..., ENZYME_FORWARD) : BACKENDS
     selected = filter(backends) do (name, _)
         return name in slow ? slow_tier() : fast_tier()
@@ -79,9 +78,6 @@ function matrix_row(name, differentiate, expected; broken=(), mutates=(), skippe
                     end
                 else
                     @test isapprox(value, reference; rtol=1e-6)
-                    if name == "ForwardDiff" && forwarddiff_scenario !== nothing
-                        forwarddiff_scenario(ad, copy(reference))
-                    end
                 end
                 # The fixture must be unchanged after the call (also after a throw).
                 # Graph rows pass check_fixture=false: inference fills the graph's
@@ -103,17 +99,15 @@ apply_loss(x, f) = f(x)
 gradient(f, ad, x) = DI.gradient(f, ad, x)
 gradient(f, ad::AutoEnzyme, x) = DI.gradient(apply_loss, ad, x, DI.Constant(f))
 
-function gradient_row(name, f, x; reference=nothing, scenario=nothing, kwargs...)
+# Plain checks against the finite-difference reference: DifferentiationInterfaceTest
+# 0.11 caps JLArrays at 0.3 when both are in an environment, and the device tests
+# need JLArrays 0.5 (LP-089, Q21).
+function gradient_row(name, f, x; reference=nothing, kwargs...)
     # The stencil can temporarily modify its input. Keep the fixture independent
     # of that buffer in case the loss also reads x through a held-fixed argument.
     expected() = reference === nothing ? only(FD.grad(FD.central_fdm(5, 1), f, copy(x))) : reference
-    run_scenario = scenario === nothing ? nothing : (ad, reference) -> begin
-        loss, argument = deepcopy((f, x))
-        example = scenario.Scenario{:gradient,:out}(loss, argument; res1=reference, name)
-        scenario.test_differentiation(ad, [example]; rtol=1e-6)
-    end
     differentiate(ad) = gradient(f, ad, x)
-    matrix_row(name, differentiate, expected; forwarddiff_scenario=run_scenario, kwargs...)
+    matrix_row(name, differentiate, expected; kwargs...)
 end
 
 function skip_row(name; slow=false)

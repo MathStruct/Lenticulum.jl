@@ -3,6 +3,7 @@ using LenticulumCore: Channel
 using Statistics: mean, cov
 using Test
 using LinearAlgebra
+include(joinpath(@__DIR__, "support", "strict_jlarrays.jl"))  # JLArrays refuses host arrays in kernels, as CUDA does (Q21)
 
 struct UnsupportedCoreCoupling <: AbstractGradientCoupling end
 struct CouplingGuardFactor <: AbstractLenticulumFactor

@@ -3,6 +3,7 @@ using Mycelium
 using LenticulumCore
 using LenticulumCore: DiracBelief, TrivialBelief, Observed, Unobserved, Latent, Polarity
 using Test
+include(joinpath(@__DIR__, "..", "..", "LenticulumCore.jl", "test", "support", "strict_jlarrays.jl"))  # JLArrays refuses host arrays in kernels, as CUDA does (Q21)
 
 include("conformance.jl")
 include("gradient_couplings.jl")

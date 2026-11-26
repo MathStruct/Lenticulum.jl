@@ -1,7 +1,6 @@
 module LenticulumADMatrix
 
 using Lenticulum, LenticulumCore, Mycelium, MyceliumLearning, LinearAlgebra, Test
-import DifferentiationInterfaceTest as DIT
 include("../../LenticulumCore.jl/test/support/ad_matrix.jl")
 using .Q5ADMatrix
 
@@ -139,7 +138,7 @@ end
 
     f = GaussianFactor(2 => 2; noise=0.7)
     gaussian_ps(v) = (A=[0.8 0.1; -0.3 0.6], b=v)
-    check_gradient("energy/GaussianFactor", v -> energy_loss(f, x, y, gaussian_ps(v)), p; scenario=DIT)
+    check_gradient("energy/GaussianFactor", v -> energy_loss(f, x, y, gaussian_ps(v)), p)
     check_gradient("factor_message/GaussianFactor", v -> sum(message(f, :y, xy, (x=points.x,), gaussian_ps(v)).η), p)
     check_gradient("local_free_energy/GaussianFactor", v -> local_energy(f, beliefs, gaussian_ps(v)), p)
 

@@ -8,7 +8,8 @@
 > host placeholders and host copies meeting device arrays in a BLAS product or a broadcast. Mistral's review,
 > run on JLArrays 0.5 (which refuses BLAS on a device array, as CUDA does), found the same plate and
 > mean-field paths and one more, the learned-noise `GaussianPrior` constructor. All seven fixed; the
-> package test environments still pin JLArrays 0.3/0.4, so the CPU suites do not catch this kind (row Q21).
+> package test environments still pinned JLArrays 0.3/0.4, so the CPU suites did not catch this kind (row Q21,
+> done: [[LP-096 Findings of the review of Q21|LP-096]]).
 > Gemini's quota was used up: no second review. Related: [[Backlog Q Quality and Engineering]] (Q7, Q8, Q20,
 > Q21), [[LP-093 Findings of the hardware GPU run and the review of Q8|LP-093]].
 
